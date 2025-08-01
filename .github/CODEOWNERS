@@ -1,0 +1,13 @@
+# Coordination
+* @lucemans @nconsigny
+
+# Privacy Extension
+packages/extension @lucemans @nconsigny
+# Privacy Send/Receive
+packages/tx @kassandraoftroy @skeletor-spaceman 0xparti @0xtiti @0xmoebius
+# Privacy Account
+packages/account @btchip @rdubois-crypto
+# Privacy RPC
+packages/node @ncitron
+
+.github/CODEOWNERS @lucemans @nconsigny
