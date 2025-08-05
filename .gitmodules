@@ -1,0 +1,3 @@
+[submodule "extension"]
+	path = extension
+	url = git@github.com:AmbireTech/extension.git
