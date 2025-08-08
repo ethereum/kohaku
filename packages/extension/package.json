@@ -1,0 +1,24 @@
+{
+  "name": "@ethprivacy/extension",
+  "version": "0.0.1",
+  "description": "",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "echo Building @ethprivacy/extension && tsup src/index.ts",
+    "lint:fix": "echo no linter configured"
+  },
+  "dependencies": {
+    "@ethprivacy/account": "workspace:*",
+    "@ethprivacy/node": "workspace:*",
+    "@ethprivacy/tx": "workspace:*"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  }
+}

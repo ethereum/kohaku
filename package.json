@@ -1,0 +1,10 @@
+{
+  "name": "kohaku",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint:fix": "pnpm -r run lint:fix"
+  }
+}

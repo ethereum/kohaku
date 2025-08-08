@@ -5,3 +5,5 @@ out/
 tmp/
 .env
 .env.local
+packages/*/dist
+

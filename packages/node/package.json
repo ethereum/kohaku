@@ -1,0 +1,19 @@
+{
+  "name": "@ethprivacy/node",
+  "version": "0.0.1",
+  "description": "",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "echo Building @ethprivacy/node && tsup src/index.ts",
+    "lint:fix": "echo no linter configured"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  }
+}
