@@ -4,14 +4,21 @@
   "description": "",
   "type": "module",
   "main": "./dist/index.js",
-  "exports": "./dist/index.js",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "types": "./dist/index.d.ts",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "build": "echo Building @ethprivacy/node && tsup src/index.ts --dts --format esm --sourcemap --clean",
-    "prepublishOnly": "pnpm build",
+    "prepublishOnly": "pnpm -w -r build",
     "lint:fix": "echo no linter configured"
   },
   "files": [

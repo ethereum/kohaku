@@ -27,6 +27,8 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Install
         run: pnpm install --frozen-lockfile=false
+      - name: Build all packages
+        run: pnpm -r build
       - name: Create Release PR or Publish
         uses: changesets/action@v1
         with:
