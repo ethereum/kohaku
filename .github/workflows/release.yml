@@ -29,10 +29,10 @@ jobs:
         run: pnpm install --frozen-lockfile=false
       - name: Build all packages
         run: pnpm -r build
-      - name: Create Release PR or Publish
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # - name: Create Release PR or Publish
+      #   uses: changesets/action@v1
+      #   with:
+      #     publish: pnpm release
+      #   env:
+      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # TODO: setup npm token
