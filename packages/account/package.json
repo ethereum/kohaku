@@ -5,9 +5,21 @@
   "type": "module",
   "main": "./dist/index.js",
   "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "build": "echo Building @ethprivacy/account && tsup src/index.ts",
+    "build": "echo Building @ethprivacy/account && tsup src/index.ts --dts --format esm --sourcemap --clean",
+    "prepublishOnly": "pnpm build",
     "lint:fix": "echo no linter configured"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [],
   "author": "",
