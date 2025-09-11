@@ -1,5 +1,5 @@
 {
-  "name": "@ethprivacy/tx",
+  "name": "@ethprivacy/railgun",
   "version": "0.0.1",
   "description": "",
   "type": "module",
@@ -17,7 +17,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "echo Building @ethprivacy/tx && tsup src/index.ts --dts --format esm --sourcemap --clean",
+    "build": "echo Building @ethprivacy/railgun && tsup src/index.ts --dts --format esm --sourcemap --clean",
     "prepublishOnly": "pnpm -w -r build",
     "lint:fix": "echo no linter configured"
   },
