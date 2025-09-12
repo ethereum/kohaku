@@ -1,0 +1,1413 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "nullifiers",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "commitments",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "artifactsIPFSHash",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "alpha1",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "beta2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "gamma2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "delta2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point[]",
+                "name": "ic",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct Groth16.VerifyingKey",
+            "name": "verifyingKey",
+            "type": "tuple"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct PoseidonMerkleVerifier.VerifyingKeyArtifact",
+        "name": "verifyingKey",
+        "type": "tuple"
+      }
+    ],
+    "name": "VerifyingKeySet",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "accumulator",
+    "outputs": [
+      {
+        "internalType": "contract PoseidonMerkleAccumulator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "vector",
+        "type": "uint256"
+      }
+    ],
+    "name": "addVector",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "checkSafetyVectors",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "a",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "b",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "c",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct Groth16.Proof",
+            "name": "proof",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "merkleRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "nullifiers",
+            "type": "bytes32[]"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "commitments",
+            "type": "bytes32[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "treeNumber",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes",
+                    "name": "ciphertext",
+                    "type": "bytes"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedSenderViewingKey",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedReceiverViewingKey",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct PoseidonMerkleAccumulator.CommitmentCiphertext[]",
+                "name": "commitmentCiphertext",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleVerifier.TransactionBoundParams",
+            "name": "boundParams",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "npk",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "enum TokenType",
+                    "name": "tokenType",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "tokenAddress",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "tokenSubID",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct TokenData",
+                "name": "token",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint120",
+                "name": "value",
+                "type": "uint120"
+              }
+            ],
+            "internalType": "struct CommitmentPreimage",
+            "name": "unshieldPreimage",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.Transaction[]",
+        "name": "_transactions",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "bytes32[3]",
+                "name": "encryptedBundle",
+                "type": "bytes32[3]"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "shieldKey",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.ShieldCiphertext",
+            "name": "ciphertext",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "npk",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "enum TokenType",
+                    "name": "tokenType",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "tokenAddress",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "tokenSubID",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct TokenData",
+                "name": "token",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint120",
+                "name": "value",
+                "type": "uint120"
+              }
+            ],
+            "internalType": "struct CommitmentPreimage",
+            "name": "preimage",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.ShieldRequest[]",
+        "name": "_shieldRequests",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint128",
+            "name": "minGasPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "chainID",
+            "type": "uint128"
+          },
+          {
+            "internalType": "bytes",
+            "name": "senderCiphertext",
+            "type": "bytes"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.GlobalBoundParams",
+        "name": "_globalBoundParams",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32[3]",
+            "name": "encryptedBundle",
+            "type": "bytes32[3]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "shieldKey",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleAccumulator.ShieldCiphertext",
+        "name": "unshieldChangeCiphertext",
+        "type": "tuple"
+      }
+    ],
+    "name": "execute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_nullifiers",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_commitments",
+        "type": "uint256"
+      }
+    ],
+    "name": "getVerificationKey",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "artifactsIPFSHash",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "alpha1",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "beta2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "gamma2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "delta2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point[]",
+                "name": "ic",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct Groth16.VerifyingKey",
+            "name": "verifyingKey",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.VerifyingKeyArtifact",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "treeNumber",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes",
+                    "name": "ciphertext",
+                    "type": "bytes"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedSenderViewingKey",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedReceiverViewingKey",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct PoseidonMerkleAccumulator.CommitmentCiphertext[]",
+                "name": "commitmentCiphertext",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleVerifier.TransactionBoundParams",
+            "name": "local",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint128",
+                "name": "minGasPrice",
+                "type": "uint128"
+              },
+              {
+                "internalType": "uint128",
+                "name": "chainID",
+                "type": "uint128"
+              },
+              {
+                "internalType": "bytes",
+                "name": "senderCiphertext",
+                "type": "bytes"
+              },
+              {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleVerifier.GlobalBoundParams",
+            "name": "global",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.BoundParams",
+        "name": "_boundParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "hashBoundParams",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "npk",
+            "type": "bytes32"
+          },
+          {
+            "components": [
+              {
+                "internalType": "enum TokenType",
+                "name": "tokenType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "tokenSubID",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct TokenData",
+            "name": "token",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint120",
+            "name": "value",
+            "type": "uint120"
+          }
+        ],
+        "internalType": "struct CommitmentPreimage",
+        "name": "_commitmentPreimage",
+        "type": "tuple"
+      }
+    ],
+    "name": "hashCommitment",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_accumulator",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_tokenVault",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "vector",
+        "type": "uint256"
+      }
+    ],
+    "name": "removeVector",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "safetyVector",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_nullifiers",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_commitments",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "artifactsIPFSHash",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "alpha1",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "beta2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "gamma2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "delta2",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point[]",
+                "name": "ic",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct Groth16.VerifyingKey",
+            "name": "verifyingKey",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.VerifyingKeyArtifact",
+        "name": "_verifyingKey",
+        "type": "tuple"
+      }
+    ],
+    "name": "setVerificationKey",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tokenVault",
+    "outputs": [
+      {
+        "internalType": "contract TokenVault",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "npk",
+            "type": "bytes32"
+          },
+          {
+            "components": [
+              {
+                "internalType": "enum TokenType",
+                "name": "tokenType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "tokenSubID",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct TokenData",
+            "name": "token",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint120",
+            "name": "value",
+            "type": "uint120"
+          }
+        ],
+        "internalType": "struct CommitmentPreimage",
+        "name": "_preimage",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateCommitmentPreimage",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint128",
+            "name": "minGasPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "chainID",
+            "type": "uint128"
+          },
+          {
+            "internalType": "bytes",
+            "name": "senderCiphertext",
+            "type": "bytes"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.GlobalBoundParams",
+        "name": "_globalBoundParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateGlobalBoundParams",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "a",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "b",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "c",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct Groth16.Proof",
+            "name": "proof",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "merkleRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "nullifiers",
+            "type": "bytes32[]"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "commitments",
+            "type": "bytes32[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "treeNumber",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes",
+                    "name": "ciphertext",
+                    "type": "bytes"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedSenderViewingKey",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedReceiverViewingKey",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct PoseidonMerkleAccumulator.CommitmentCiphertext[]",
+                "name": "commitmentCiphertext",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleVerifier.TransactionBoundParams",
+            "name": "boundParams",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "npk",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "enum TokenType",
+                    "name": "tokenType",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "tokenAddress",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "tokenSubID",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct TokenData",
+                "name": "token",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint120",
+                "name": "value",
+                "type": "uint120"
+              }
+            ],
+            "internalType": "struct CommitmentPreimage",
+            "name": "unshieldPreimage",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.Transaction",
+        "name": "_transaction",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint128",
+            "name": "minGasPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "chainID",
+            "type": "uint128"
+          },
+          {
+            "internalType": "bytes",
+            "name": "senderCiphertext",
+            "type": "bytes"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.GlobalBoundParams",
+        "name": "_globalBoundParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateTransaction",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "a",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "x",
+                    "type": "uint256[2]"
+                  },
+                  {
+                    "internalType": "uint256[2]",
+                    "name": "y",
+                    "type": "uint256[2]"
+                  }
+                ],
+                "internalType": "struct BN254G2Point",
+                "name": "b",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "uint256",
+                    "name": "x",
+                    "type": "uint256"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "y",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct BN254G1Point",
+                "name": "c",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct Groth16.Proof",
+            "name": "proof",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "merkleRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "nullifiers",
+            "type": "bytes32[]"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "commitments",
+            "type": "bytes32[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "treeNumber",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes",
+                    "name": "ciphertext",
+                    "type": "bytes"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedSenderViewingKey",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "blindedReceiverViewingKey",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct PoseidonMerkleAccumulator.CommitmentCiphertext[]",
+                "name": "commitmentCiphertext",
+                "type": "tuple[]"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleVerifier.TransactionBoundParams",
+            "name": "boundParams",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "npk",
+                "type": "bytes32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "enum TokenType",
+                    "name": "tokenType",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "tokenAddress",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "tokenSubID",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct TokenData",
+                "name": "token",
+                "type": "tuple"
+              },
+              {
+                "internalType": "uint120",
+                "name": "value",
+                "type": "uint120"
+              }
+            ],
+            "internalType": "struct CommitmentPreimage",
+            "name": "unshieldPreimage",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleVerifier.Transaction",
+        "name": "_transaction",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_boundParamsHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifyTransactionProof",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
