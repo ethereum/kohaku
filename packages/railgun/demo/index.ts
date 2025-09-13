@@ -6,7 +6,7 @@ import cached from './cached_sepolia.json';
 import { Cache } from '../src/account-utils/railgun-account';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import fs from 'fs';
+// import fs from 'fs';
 
 // Load ./demo/.env (same folder as this file)
 const __filename = fileURLToPath(import.meta.url);

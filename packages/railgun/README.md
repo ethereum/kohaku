@@ -1,4 +1,4 @@
-# railgun-mini-utils
+# ethprivacy/railgun
 
 simplified railgun typescript utils, borrowing code from internals of [railgun-community/engine](https://github.com/railgun-community/engine) and [railgun-privacy/contract](https://github.com/railgun-privacy/contract) (the /helpers)
 
