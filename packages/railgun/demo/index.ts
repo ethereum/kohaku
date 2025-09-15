@@ -49,9 +49,9 @@ async function main() {
   console.log("root:", ByteUtils.hexlify(root, true));
 
   // 4. create shield ETH tx data 
-  const encodedShieldNote = await railgunAccount.createNativeShieldTx(VALUE);
+  const shieldNativeTx = await railgunAccount.createNativeShieldTx(VALUE);
 
-  // // 5. do shield tx(s)
+  // 5. do shield tx(s)
   if (TX_SIGNER_KEY === '') {
     console.error("\nERROR: TX_SIGNER_KEY not set");
     process.exit(1);
@@ -59,7 +59,7 @@ async function main() {
   const txSigner = new Wallet(TX_SIGNER_KEY, provider);
 
   // wrap and shield WETH in one relay adapt multicall
-  const shieldTxHash = await railgunAccount.submitNativeShieldTx(encodedShieldNote, VALUE, txSigner);
+  const shieldTxHash = await railgunAccount.submitTx(shieldNativeTx, txSigner);
   console.log('shield ETH tx:', shieldTxHash);
   await provider.waitForTransaction(shieldTxHash);
 
@@ -72,12 +72,11 @@ async function main() {
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
   // 7. create unshield WETH tx data
-  // TODO: debug native ETH unshield multicall failure
   const reducedValue = VALUE - (VALUE * FEE_BASIS_POINTS / 10000n);
-  const encodedUnshieldTx = await railgunAccount.createUnshieldTx(WETH, reducedValue, txSigner.address);
+  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(reducedValue, txSigner.address, provider);
 
   // 8. do unshield tx
-  const unshieldTxHash = await railgunAccount.submitUnshieldTx(encodedUnshieldTx, txSigner);
+  const unshieldTxHash = await railgunAccount.submitTx(unshieldNativeTx, txSigner);
   console.log("unshield tx:", unshieldTxHash);
   await provider.waitForTransaction(unshieldTxHash);
 

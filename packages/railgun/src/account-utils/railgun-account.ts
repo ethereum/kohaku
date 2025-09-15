@@ -27,6 +27,12 @@ export interface Cache {
   endBlock: number;
 }
 
+export type TxData = {
+  to: string;
+  data: string;
+  value: bigint;
+}
+
 const getWalletNodeFromKey = (priv: string) => {
   const wallet = new Wallet(priv);
   return new WalletNode({chainKey: wallet.privateKey, chainCode: ''});
@@ -68,7 +74,7 @@ export const getERC20TokenData = (token: string): TokenData => {
   return tokenData;
 }
 
-const payloadToAdaptCall = (payload: string, value: bigint = BigInt(0)) => {
+const payloadToAdaptCall = (payload: string, value: bigint = BigInt(0)): TxData => {
   return {
     to: RELAY_ADAPT_ADDRESS,
     data: payload,
@@ -219,42 +225,110 @@ export default class RailgunAccount {
     return shieldNote.serialize(shieldPrivateKey, viewingPubkey);
   }
 
-  async createShieldTx(token: string, value: bigint): Promise<ShieldRequestStruct> {
+  async createShieldRequest(token: string, value: bigint): Promise<ShieldRequestStruct> {
     const shieldNote = await this.buildShieldNote(token, value);
     const request = await this.encodeShieldNote(shieldNote);
     return request;
   }
 
-  async createNativeShieldTx(value: bigint): Promise<ShieldRequestStruct> {
-    return this.createShieldTx(WETH, value);
+  async createShieldTx(token: string, value: bigint): Promise<TxData> {
+    const request = await this.createShieldRequest(token, value);
+    const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet);
+    const data = contract.interface.encodeFunctionData('shield', [[request]]);
+    return {
+      to: RAILGUN_ADDRESS,
+      data: data,
+      value: BigInt(0),
+    };
   }
 
-  async submitShieldTx(shieldNote: ShieldRequestStruct, signer: Wallet): Promise<string> {
-    const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet, signer);
-    const tx = await contract.shield([shieldNote]);
-    return tx.hash;
-  }
-
-  async submitNativeShieldTx(shieldNote: ShieldRequestStruct, value: bigint, signer: Wallet): Promise<string> {
-    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, signer);
+  async createNativeShieldTx(value: bigint): Promise<TxData> {
+    const request = await this.createShieldRequest(WETH, value);
+    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt);
     const payload1 = contract.interface.encodeFunctionData('wrapBase', [value]);
-    const payload2 = contract.interface.encodeFunctionData('shield', [[shieldNote]]);
-    const tx = await contract.multicall(true, [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)], {value: value});
-    return tx.hash;
+    const payload2 = contract.interface.encodeFunctionData('shield', [[request]]);
+    const data = contract.interface.encodeFunctionData('multicall', [true, [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)]]);
+    return {
+      to: RELAY_ADAPT_ADDRESS,
+      data: data,
+      value: value,
+    };
   }
 
-  async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<PublicInputs> {
+  async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<TxData> {
+    const {notesIn, notesOut} = await this.getUnshieldNotes(token, value, receiver);
+    const inputs = await transact(
+      this.merkleTree!,
+      minGasPrice,
+      1, // unshield type
+      CHAIN_ID,
+      ZERO_ADDRESS, // adapt contract
+      new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]), // adapt params
+      notesIn,
+      notesOut,
+    );
+    const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet);
+    const data = contract.interface.encodeFunctionData('transact', [inputs]);
+    return {
+      to: RAILGUN_ADDRESS,
+      data: data,
+      value: BigInt(0),
+    };
+  }
+
+  async createNativeUnshieldTx(value: bigint, receiver: string, provider: JsonRpcProvider, minGasPrice: bigint = BigInt(0)) {
+    const {notesIn, notesOut, nullifiers} = await this.getUnshieldNotes(WETH, value, RELAY_ADAPT_ADDRESS, true);
+    
+    const dummyTx = getDummyTransactTx(nullifiers);
+
+    const iface = new Interface(ABIRelayAdapt);
+    const payload1 = iface.encodeFunctionData('unwrapBase', [0]);
+    const payload2 = iface.encodeFunctionData('transfer', [[{token: {tokenType: 0, tokenAddress: ZERO_ADDRESS, tokenSubID: 0n}, to: receiver, value: 0n}]]);
+    const actionData = {
+      random: "0x"+ ByteUtils.randomHex(31),
+      requireSuccess: true,
+      minGasLimit: minGasPrice,
+      calls: [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)],
+    }
+    
+    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, provider);
+    // NOTE: we have to do a view call here and it's the only function where we thus need to invoke a "provider"
+    const relayAdaptParams = await contract.getAdaptParams([dummyTx], actionData); 
+    const txParams = await transact(
+      this.merkleTree!,
+      minGasPrice,
+      1, // unshield type
+      CHAIN_ID,
+      RELAY_ADAPT_ADDRESS,
+      relayAdaptParams,
+      notesIn,
+      notesOut,
+    );
+
+    const relayPayload = contract.interface.encodeFunctionData('relay', [[txParams], actionData]);
+    const data = contract.interface.encodeFunctionData('multicall', [true, [payloadToAdaptCall(relayPayload)]]);
+    return {
+      to: RELAY_ADAPT_ADDRESS,
+      data: data,
+      value: BigInt(0),
+    };
+  }
+
+  async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[], notesOut: (Note | UnshieldNote)[], nullifiers: Uint8Array[]}> {
     if (!this.noteBook || !this.merkleTree) {
       throw new Error('not initialized');
     }
 
     const unspentNotes = await this.getUnspentNotes(token);
 
+    const allNotes = this.noteBook.notes;
     let totalValue = 0n;
     let notesIn: Note[] = [];
+    let nullifiers: Uint8Array[] = [];
     for (const note of unspentNotes) {
       totalValue += note.value;
       notesIn.push(note);
+      if (getNullifiers) { nullifiers.push(await note.getNullifier(allNotes.indexOf(note))); }
       if (totalValue >= value) {
         break;
       }
@@ -267,104 +341,14 @@ export default class RailgunAccount {
     const tokenData = getERC20TokenData(token);
 
     const leftover = totalValue - value;
-    const outputNotes: (Note | UnshieldNote)[] = [];
+    const notesOut: (Note | UnshieldNote)[] = [];
     if (leftover > 0n) { 
       const changeNote = new Note(this.noteBook.spendingKey, this.noteBook.viewingKey, leftover, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, '');
-      outputNotes.push(changeNote);
+      notesOut.push(changeNote);
     }
 
-    outputNotes.push(new UnshieldNote(receiver, value, tokenData));
-    return await transact(
-      this.merkleTree,
-      minGasPrice,
-      1, // unshield type
-      CHAIN_ID,
-      ZERO_ADDRESS, // adapt contract
-      new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]), // adapt params
-      notesIn,
-      outputNotes,
-    );
-  }
-
-  async createNativeUnshieldTx(value: bigint, receiver: string, provider: JsonRpcProvider, minGasPrice: bigint = BigInt(0)) {
-    if (!this.noteBook || !this.merkleTree) {
-      throw new Error('not initialized');
-    }
-
-    const unspentNotes = await this.getUnspentNotes(WETH);
-    const allNotes = this.noteBook.notes;
-    let totalValue = 0n;
-    let notesIn: Note[] = [];
-    let nullifiers: Uint8Array[] = [];
-    for (const note of unspentNotes) {
-      totalValue += note.value;
-      notesIn.push(note);
-      nullifiers.push(await note.getNullifier(allNotes.indexOf(note)));
-      if (totalValue >= value) {
-        break;
-      }
-    }
-
-    if (totalValue < value) {
-      throw new Error('insufficient value in unspent notes');
-    }
-
-    const tokenData = getERC20TokenData(WETH);
-
-    const leftover = totalValue - value;
-    const outputNotes: (Note | UnshieldNote)[] = [];
-    if (leftover > 0n) { 
-      const changeNote = new Note(this.noteBook.spendingKey, this.noteBook.viewingKey, leftover, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, '');
-      outputNotes.push(changeNote);
-    }
-
-    outputNotes.push(new UnshieldNote(RELAY_ADAPT_ADDRESS, value, tokenData));
-    
-    const dummyTx = getDummyTransactTx(nullifiers);
-
-    const iface = new Interface(ABIRelayAdapt);
-    const reducedValue = value - (value * FEE_BASIS_POINTS / 10000n);
-    const payload1 = iface.encodeFunctionData('unwrapBase', [reducedValue]);
-    const payload2 = iface.encodeFunctionData('transfer', [[{token: {tokenType: 0, tokenAddress: ZERO_ADDRESS, tokenSubID: 0}, to: receiver, value: reducedValue}]]);
-    const actionData = {
-      random: "0x"+ ByteUtils.randomHex(31),
-      requireSuccess: true,
-      minGasLimit: minGasPrice,
-      calls: [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)],
-    }
-    
-    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, provider);
-    const relayAdaptParams = await contract.getAdaptParams([dummyTx], actionData);
-
-    const txParams = await transact(
-      this.merkleTree,
-      minGasPrice,
-      1, // unshield type
-      CHAIN_ID,
-      RELAY_ADAPT_ADDRESS,
-      relayAdaptParams,
-      notesIn,
-      outputNotes,
-    );
-
-    return {transact: txParams, action: actionData};
-  }
-
-  async submitTransactTx(inputs: PublicInputs[], signer: Wallet): Promise<string> {
-    const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet, signer);
-    const tx = await contract.transact(inputs);
-    return tx.hash;
-  }
-
-  async submitUnshieldTx(unshield: PublicInputs, signer: Wallet): Promise<string> {
-    return this.submitTransactTx([unshield], signer);
-  }
-
-  async submitNativeUnshieldTx(unshield: PublicInputs, postAction: any, signer: Wallet): Promise<string> {
-    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, signer);
-    const payload = contract.interface.encodeFunctionData('relay', [[unshield], postAction]);
-    const tx = await contract.multicall(true, [payloadToAdaptCall(payload)]);
-    return tx.hash;
+    notesOut.push(new UnshieldNote(receiver, value, tokenData));
+    return {notesIn, notesOut, nullifiers};
   }
 
   async getBalance(token: string = WETH): Promise<bigint> {
@@ -382,6 +366,17 @@ export default class RailgunAccount {
     const tokenData = getERC20TokenData(token);
     const notes = await this.noteBook.getUnspentNotes(this.merkleTree, tokenData);
     return notes;
+  }
+
+  // NOTE: crude/simple TX submission func, intended only as a helper for testing
+  async submitTx(input: TxData, signer: Wallet): Promise<string> {
+    const tx = await signer.sendTransaction({
+      to: input.to,
+      data: input.data,
+      value: input.value,
+      gasLimit: 6000000,
+    });
+    return tx.hash;
   }
 
   getAllNotes(): Note[] {

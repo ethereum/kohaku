@@ -6,7 +6,7 @@ code in `src/railgun-lib` was forked 1:1 from the engine repo at commit `3ae6083
 
 ## Demo
 
-fill `demo/.env` file just like  `demo/.env.example` with an `RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixed private key funded with some sepolia ETH)
+create and fill `demo/.env` file just like  `demo/.env.example` with an `RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixed private key funded with some sepolia ETH)
 
 run (from monorepo root directory)
 
