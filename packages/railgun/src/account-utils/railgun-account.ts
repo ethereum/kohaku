@@ -292,7 +292,6 @@ export default class RailgunAccount {
     }
     
     const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, provider);
-    // NOTE: we have to do a view call here and it's the only function where we thus need to invoke a "provider"
     const relayAdaptParams = await contract.getAdaptParams([dummyTx], actionData); 
     const txParams = await transact(
       this.merkleTree!,

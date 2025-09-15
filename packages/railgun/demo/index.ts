@@ -51,14 +51,13 @@ async function main() {
   // 4. create shield ETH tx data 
   const shieldNativeTx = await railgunAccount.createNativeShieldTx(VALUE);
 
-  // 5. do shield tx(s)
+  // 5. do shield tx
   if (TX_SIGNER_KEY === '') {
     console.error("\nERROR: TX_SIGNER_KEY not set");
     process.exit(1);
   }
   const txSigner = new Wallet(TX_SIGNER_KEY, provider);
 
-  // wrap and shield WETH in one relay adapt multicall
   const shieldTxHash = await railgunAccount.submitTx(shieldNativeTx, txSigner);
   console.log('shield ETH tx:', shieldTxHash);
   await provider.waitForTransaction(shieldTxHash);
@@ -71,7 +70,7 @@ async function main() {
   const root2 = railgunAccount.getMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
-  // 7. create unshield WETH tx data
+  // 7. create unshield ETH tx data
   const reducedValue = VALUE - (VALUE * FEE_BASIS_POINTS / 10000n);
   const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(reducedValue, txSigner.address, provider);
 
