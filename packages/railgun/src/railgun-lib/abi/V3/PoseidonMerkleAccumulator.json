@@ -1,0 +1,719 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32[]",
+            "name": "commitments",
+            "type": "bytes32[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32[]",
+                "name": "nullifiers",
+                "type": "bytes32[]"
+              },
+              {
+                "internalType": "uint8",
+                "name": "commitmentsCount",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint32",
+                "name": "spendAccumulatorNumber",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "npk",
+                    "type": "bytes32"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "enum TokenType",
+                        "name": "tokenType",
+                        "type": "uint8"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "tokenAddress",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "tokenSubID",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct TokenData",
+                    "name": "token",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "uint120",
+                    "name": "value",
+                    "type": "uint120"
+                  }
+                ],
+                "internalType": "struct CommitmentPreimage",
+                "name": "unshieldPreimage",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "boundParamsHash",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.TransactionConfiguration[]",
+            "name": "transactions",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "npk",
+                    "type": "bytes32"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "enum TokenType",
+                        "name": "tokenType",
+                        "type": "uint8"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "tokenAddress",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "tokenSubID",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct TokenData",
+                    "name": "token",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "uint120",
+                    "name": "value",
+                    "type": "uint120"
+                  }
+                ],
+                "internalType": "struct CommitmentPreimage",
+                "name": "preimage",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32[3]",
+                    "name": "encryptedBundle",
+                    "type": "bytes32[3]"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "shieldKey",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct PoseidonMerkleAccumulator.ShieldCiphertext",
+                "name": "ciphertext",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.ShieldConfiguration[]",
+            "name": "shields",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes",
+                "name": "ciphertext",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "blindedSenderViewingKey",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "blindedReceiverViewingKey",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.CommitmentCiphertext[]",
+            "name": "commitmentCiphertext",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "tokenID",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "fee",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.TreasuryFee[]",
+            "name": "treasuryFees",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes",
+            "name": "senderCiphertext",
+            "type": "bytes"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct PoseidonMerkleAccumulator.StateUpdate",
+        "name": "update",
+        "type": "tuple"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "accumulatorNumber",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint224",
+        "name": "startPosition",
+        "type": "uint224"
+      }
+    ],
+    "name": "AccumulatorStateUpdate",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ZERO_VALUE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "accumulatorNumber",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "accumulatorRoot",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "vector",
+        "type": "uint256"
+      }
+    ],
+    "name": "addVector",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "checkSafetyVectors",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_newCommitments",
+        "type": "uint256"
+      }
+    ],
+    "name": "getInsertionAccumulatorNumberAndStartingIndex",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint224",
+        "name": "",
+        "type": "uint224"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_verifierRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_tokenVault",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextLeafIndex",
+    "outputs": [
+      {
+        "internalType": "uint224",
+        "name": "",
+        "type": "uint224"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "nullifiers",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registry",
+    "outputs": [
+      {
+        "internalType": "contract IRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "vector",
+        "type": "uint256"
+      }
+    ],
+    "name": "removeVector",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "rootHistory",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "safetyVector",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tokenVault",
+    "outputs": [
+      {
+        "internalType": "contract ITokenVault",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32[]",
+            "name": "commitments",
+            "type": "bytes32[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32[]",
+                "name": "nullifiers",
+                "type": "bytes32[]"
+              },
+              {
+                "internalType": "uint8",
+                "name": "commitmentsCount",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint32",
+                "name": "spendAccumulatorNumber",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "npk",
+                    "type": "bytes32"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "enum TokenType",
+                        "name": "tokenType",
+                        "type": "uint8"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "tokenAddress",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "tokenSubID",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct TokenData",
+                    "name": "token",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "uint120",
+                    "name": "value",
+                    "type": "uint120"
+                  }
+                ],
+                "internalType": "struct CommitmentPreimage",
+                "name": "unshieldPreimage",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "boundParamsHash",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.TransactionConfiguration[]",
+            "name": "transactions",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "npk",
+                    "type": "bytes32"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "enum TokenType",
+                        "name": "tokenType",
+                        "type": "uint8"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "tokenAddress",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "uint256",
+                        "name": "tokenSubID",
+                        "type": "uint256"
+                      }
+                    ],
+                    "internalType": "struct TokenData",
+                    "name": "token",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "uint120",
+                    "name": "value",
+                    "type": "uint120"
+                  }
+                ],
+                "internalType": "struct CommitmentPreimage",
+                "name": "preimage",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32[3]",
+                    "name": "encryptedBundle",
+                    "type": "bytes32[3]"
+                  },
+                  {
+                    "internalType": "bytes32",
+                    "name": "shieldKey",
+                    "type": "bytes32"
+                  }
+                ],
+                "internalType": "struct PoseidonMerkleAccumulator.ShieldCiphertext",
+                "name": "ciphertext",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.ShieldConfiguration[]",
+            "name": "shields",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes",
+                "name": "ciphertext",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "blindedSenderViewingKey",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "blindedReceiverViewingKey",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.CommitmentCiphertext[]",
+            "name": "commitmentCiphertext",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "tokenID",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "fee",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct PoseidonMerkleAccumulator.TreasuryFee[]",
+            "name": "treasuryFees",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "bytes",
+            "name": "senderCiphertext",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct PoseidonMerkleAccumulator.StateUpdate",
+        "name": "_update",
+        "type": "tuple"
+      }
+    ],
+    "name": "updateAccumulator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "zeros",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

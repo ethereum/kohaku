@@ -9,7 +9,4 @@ Privacy-first tooling for the Ethereum ecosystem
 
 | Package | Description |
 | ------- | ----------- |
-| [@ethprivacy/extension](packages/extension) | Browser Wallet Extension
-| [@ethprivacy/tx](packages/tx) | Privacy-first send/receive |
-| [@ethprivacy/account](packages/account) | Privacy-first accounts |
-| [@ethprivacy/node](packages/node) | Privacy-first ethereum access |
+| [@ethprivacy/railgun](packages/railgun) | railgun privacy protocol lib |
