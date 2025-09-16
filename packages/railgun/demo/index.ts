@@ -1,12 +1,11 @@
-import { RailgunAccount, FEE_BASIS_POINTS, WETH } from '../src/account-utils';
+import { RailgunAccount, FEE_BASIS_POINTS, getAllReceipts, GLOBAL_START_BLOCK } from '../src/account-utils';
 import { ByteUtils } from '../src/railgun-lib/utils/bytes';
 import dotenv from 'dotenv';
-import { Wallet, JsonRpcProvider } from 'ethers';
-import cached from './cached_sepolia.json';
-import { Cache } from '../src/account-utils/railgun-account';
+import { Wallet, JsonRpcProvider, TransactionReceipt } from 'ethers';
+import cached_file from './cached_sepolia.json';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-// import fs from 'fs';
+import fs from 'fs';
 
 // Load ./demo/.env (same folder as this file)
 const __filename = fileURLToPath(import.meta.url);
@@ -18,6 +17,11 @@ const ACCOUNT_INDEX = Number(process.env.ACCOUNT_INDEX) || 0;
 const RPC_URL = process.env.RPC_URL || '';
 const TX_SIGNER_KEY = process.env.TX_SIGNER_KEY || '';
 const VALUE = 10000000000000n; // 0.00001 ETH
+
+type Cache = {
+  receipts: TransactionReceipt[];
+  endBlock: number;
+}
 
 async function main() {
   console.log("\n ///// RAILGUN SEPOLIA DEMO /////\n");
@@ -42,7 +46,14 @@ async function main() {
     process.exit(1);
   }
 
-  const {endBlock: lastSyncedBlock} = await railgunAccount.sync(provider, 0, cached as unknown as Cache);
+  let cached: Cache = cached_file as unknown as Cache;
+
+  let startBlock = cached ? cached.endBlock : GLOBAL_START_BLOCK;
+  let endBlock = await provider.getBlockNumber();
+  const receipts = await getAllReceipts(provider, startBlock, endBlock);
+  const combinedReceipts = cached ? Array.from(new Set(cached.receipts.concat(receipts))) : receipts;
+  await railgunAccount.syncWithReceipts(combinedReceipts);
+
   const balance = await railgunAccount.getBalance();
   console.log("private WETH balance:", balance);
   const root = railgunAccount.getMerkleRoot();
@@ -64,7 +75,10 @@ async function main() {
 
   // 6. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
-  const {endBlock: lastSyncedBlock2} = await railgunAccount.sync(provider, lastSyncedBlock);
+  startBlock = endBlock;
+  endBlock = await provider.getBlockNumber();
+  const newReceipts = await getAllReceipts(provider, startBlock, endBlock);
+  await railgunAccount.syncWithReceipts(newReceipts);
   const balance2 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance2);
   const root2 = railgunAccount.getMerkleRoot();
@@ -72,7 +86,7 @@ async function main() {
 
   // 7. create unshield ETH tx data
   const reducedValue = VALUE - (VALUE * FEE_BASIS_POINTS / 10000n);
-  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(reducedValue, txSigner.address, provider);
+  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(reducedValue, txSigner.address);
 
   // 8. do unshield tx
   const unshieldTxHash = await railgunAccount.submitTx(unshieldNativeTx, txSigner);
@@ -81,15 +95,23 @@ async function main() {
 
   // 9. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
-  await railgunAccount.sync(provider, lastSyncedBlock2);
+  startBlock = endBlock;
+  endBlock = await provider.getBlockNumber();
+  const newReceipts2 = await getAllReceipts(provider, startBlock, endBlock);
+  await railgunAccount.syncWithReceipts(newReceipts2);
   const balance3 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance3);
   const root3 = railgunAccount.getMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root3, true));
 
   // 10. If desired, save cache for faster syncing next time
-  // const toCache = await railgunAccount.sync(provider, 0, cached as unknown as Cache);
-  // fs.writeFileSync('./demo/cached_sepolia.json', JSON.stringify(toCache, null, 2));
+  console.log('storing updated cache before exiting...');
+  const allReceipts = Array.from(new Set(combinedReceipts.concat(newReceipts).concat(newReceipts2)));
+  const toCache = {
+    receipts: allReceipts,
+    endBlock: endBlock,
+  };
+  fs.writeFileSync('./demo/cached_sepolia.json', JSON.stringify(toCache, null, 2));
 
   // exit (because prover hangs)
   setImmediate(() => process.exit(0));
