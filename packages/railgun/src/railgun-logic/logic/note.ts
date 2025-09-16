@@ -275,9 +275,9 @@ class Note {
     // Construct ciphertext
     const ciphertext: ShieldCiphertext = {
       encryptedBundle: [
-        encryptedRandom[0],
-        combine([encryptedRandom[1], encryptedReceiver[0]]),
-        encryptedReceiver[1],
+        encryptedRandom[0]!,
+        combine([encryptedRandom[1]!, encryptedReceiver[0]!]),
+        encryptedReceiver[1]!,
       ],
       shieldKey: await ed25519.privateKeyToPublicKey(shieldPrivateKey),
     };
@@ -349,15 +349,15 @@ class Note {
     // Return formatted commitment bundle
     return {
       ciphertext: [
-        encryptedSharedBundle[0],
-        encryptedSharedBundle[1],
-        encryptedSharedBundle[2],
-        encryptedSharedBundle[3],
+        encryptedSharedBundle[0]!,
+        encryptedSharedBundle[1]!,
+        encryptedSharedBundle[2]!,
+        encryptedSharedBundle[3]!,
       ],
       blindedSenderViewingKey: blindedKeys.blindedSenderPublicKey,
       blindedReceiverViewingKey: blindedKeys.blindedReceiverPublicKey,
       annotationData: combine(encryptedSenderBundle),
-      memo: encryptedSharedBundle[4],
+      memo: encryptedSharedBundle[4]!,
     };
   }
 
@@ -392,7 +392,7 @@ class Note {
       )[0];
 
       // Construct note
-      const note = new Note(spendingKey, viewingKey, value, random, token, '');
+      const note = new Note(spendingKey, viewingKey, value, random!, token, '');
 
       return note;
     } catch {
@@ -432,15 +432,21 @@ class Note {
     // Decode memo
     const memo = sharedBundle.length > 3 ? new TextDecoder().decode(sharedBundle[3]) : '';
 
+    const [_, one, two] = sharedBundle;
+
+    if (two === undefined || one === undefined || _ === undefined) {
+      return undefined;
+    }
+
     // Decode tokenData
-    const tokenData = sharedBundle[2].length >= 96 ? {tokenType: Number(arrayToBigInt(sharedBundle[2].slice(0, 32)).toString()), tokenAddress: arrayToHexString(sharedBundle[2].slice(44, 64), true), tokenSubID: arrayToBigInt(sharedBundle[2].slice(64, 96))} : {tokenType: 0, tokenAddress: arrayToHexString(sharedBundle[2].slice(12, 32), true), tokenSubID: BigInt(0)};
+    const tokenData = two.length >= 96 ? {tokenType: Number(arrayToBigInt(two.slice(0, 32)).toString()), tokenAddress: arrayToHexString(two.slice(44, 64), true), tokenSubID: arrayToBigInt(two.slice(64, 96))} : {tokenType: 0, tokenAddress: arrayToHexString(two.slice(12, 32), true), tokenSubID: BigInt(0)};
 
     // Construct note
     const note = new Note(
       spendingKey,
       viewingKey,
-      arrayToBigInt(sharedBundle[1].slice(16, 32)),
-      sharedBundle[1].slice(0, 16),
+      arrayToBigInt(one.slice(16, 32)),
+      one.slice(0, 16),
       tokenData,
       memo.replace(/\u0000/g, ''),
     );

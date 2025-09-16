@@ -52,6 +52,7 @@
     "buffer-xor": "^2.0.2",
     "circomlibjs": "^0.1.7",
     "ethereum-cryptography": "^3.2.0",
+    "fast-text-encoding": "^1.0.6",
     "snarkjs": "^0.7.5"
   },
   "devDependencies": {

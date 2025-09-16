@@ -18,7 +18,7 @@ import WalletInfo from '../wallet/wallet-info';
 
 // TextEncoder/TextDecoder (used in this file) needs to shimmed in React Native
 if (isReactNative) {
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
   require('fast-text-encoding');
 }
 

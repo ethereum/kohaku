@@ -65,7 +65,7 @@ export abstract class ShieldNote {
       },
       sharedKey,
     )[0];
-    return ByteUtils.hexlify(decrypted);
+    return ByteUtils.hexlify(decrypted!);
   }
 
   /**

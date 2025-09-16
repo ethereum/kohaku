@@ -292,7 +292,8 @@ export default class RailgunAccount {
     }
     
     const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, provider);
-    const relayAdaptParams = await contract.getAdaptParams([dummyTx], actionData); 
+
+    const relayAdaptParams = await contract['getAdaptParams']?.([dummyTx], actionData); 
     const txParams = await transact(
       this.merkleTree!,
       minGasPrice,
@@ -322,8 +323,8 @@ export default class RailgunAccount {
 
     const allNotes = this.noteBook.notes;
     let totalValue = 0n;
-    let notesIn: Note[] = [];
-    let nullifiers: Uint8Array[] = [];
+    const notesIn: Note[] = [];
+    const nullifiers: Uint8Array[] = [];
     for (const note of unspentNotes) {
       totalValue += note.value;
       notesIn.push(note);
