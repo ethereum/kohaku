@@ -46,7 +46,7 @@ async function main() {
     process.exit(1);
   }
 
-  let cached: Cache = cached_file as unknown as Cache;
+  const cached: Cache = cached_file as unknown as Cache;
 
   let startBlock = cached ? cached.endBlock : GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
