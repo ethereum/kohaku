@@ -208,6 +208,7 @@ export default class RailgunAccount {
     }
     for (const receipt of receipts) {
       const indexes = await this.getMerkleTreeIndexes(receipt);
+      console.log("indexes:",indexes);
       for (const index of indexes) {
         if (!this.noteBooks[index] || !this.merkleTrees[index]) {
           this.noteBooks[index] = new NoteBook(this.spendingNode.getSpendingKeyPair().privateKey, (await this.viewingNode.getViewingKeyPair()).privateKey, index);
@@ -362,33 +363,36 @@ export default class RailgunAccount {
   async getMerkleTreeIndexes(receipt: TransactionReceipt): Promise<number[]> {
     const indexes: number[] = [];
     for (const log of receipt.logs) {
-      const parsedLog = RAILGUN_INTERFACE.parseLog(log);
-      if (parsedLog && parsedLog.name === 'Shield') {
-        const args = parsedLog.args as unknown as ShieldEventObject;
-        const startPosition = Number(args.startPosition.toString());
-        const treeNumber = Number(args.treeNumber.toString());
-        const commitmentsLength = args.commitments.length;
-        const totalLeaves = 2**16;
-        const endPosition = startPosition + commitmentsLength;
-        indexes.push(treeNumber);
-        if (endPosition > totalLeaves) {
-          indexes.push(treeNumber + 1);
+      if (log.address === RAILGUN_ADDRESS) {
+        const parsedLog = RAILGUN_INTERFACE.parseLog(log);
+        if (!parsedLog) continue;
+        if (parsedLog.name === 'Shield') {
+          const args = parsedLog.args as unknown as ShieldEventObject;
+          const startPosition = Number(args.startPosition.toString());
+          const treeNumber = Number(args.treeNumber.toString());
+          const commitmentsLength = args.commitments.length;
+          const totalLeaves = 2**16;
+          const endPosition = startPosition + commitmentsLength;
+          indexes.push(treeNumber);
+          if (endPosition > totalLeaves) {
+            indexes.push(treeNumber + 1);
+          }
+        } else if (parsedLog.name === 'Transact') {
+          const args = parsedLog.args as unknown as TransactEventObject;
+          const startPosition = Number(args.startPosition.toString());
+          const treeNumber = Number(args.treeNumber.toString());
+          const hashesLength = args.hash.length;
+          const totalLeaves = 2**16;
+          const endPosition = startPosition + hashesLength;
+          indexes.push(treeNumber);
+          if (endPosition > totalLeaves) {
+            indexes.push(treeNumber + 1);
+          }
+        } else if (parsedLog.name === 'Nullified') {
+          const args = parsedLog.args as unknown as NullifiedEventObject;
+          const treeNumber = Number(args.treeNumber.toString());
+          indexes.push(treeNumber);
         }
-      } else if (parsedLog && parsedLog.name === 'Transact') {
-        const args = parsedLog.args as unknown as TransactEventObject;
-        const startPosition = Number(args.startPosition.toString());
-        const treeNumber = Number(args.treeNumber.toString());
-        const hashesLength = args.hash.length;
-        const totalLeaves = 2**16;
-        const endPosition = startPosition + hashesLength;
-        indexes.push(treeNumber);
-        if (endPosition > totalLeaves) {
-          indexes.push(treeNumber + 1);
-        }
-      } else if (parsedLog && parsedLog.name === 'Nullified') {
-        const args = parsedLog.args as unknown as NullifiedEventObject;
-        const treeNumber = Number(args.treeNumber.toString());
-        indexes.push(treeNumber);
       }
     }
 
