@@ -208,7 +208,6 @@ export default class RailgunAccount {
     }
     for (const receipt of receipts) {
       const indexes = await this.getMerkleTreeIndexes(receipt);
-      console.log("indexes:",indexes);
       for (const index of indexes) {
         if (!this.noteBooks[index] || !this.merkleTrees[index]) {
           this.noteBooks[index] = new NoteBook(this.spendingNode.getSpendingKeyPair().privateKey, (await this.viewingNode.getViewingKeyPair()).privateKey, index);
