@@ -286,9 +286,24 @@ class MerkleTree {
             // Get start position
             const startPosition = Number(args.startPosition.toString());
 
+            // Get tree number
+            const treeNumber = Number(args.treeNumber.toString());
+            const commitmentsLength = args.commitments.length;
+            const totalLeaves = 2**this.depth;
+            const endPosition = startPosition + commitmentsLength;
+
+            let relevantCommitments: CommitmentPreimageStructOutput[] = [];
+            if (treeNumber === this.treeNumber) {
+              const diff = endPosition > totalLeaves ? endPosition - totalLeaves : 0;
+              relevantCommitments = args.commitments.slice(0, args.commitments.length - diff);
+            } else if (treeNumber === this.treeNumber - 1 && endPosition > totalLeaves) {
+              const diff = endPosition - totalLeaves;
+              relevantCommitments = args.commitments.slice(args.commitments.length - diff, args.commitments.length);
+            }
+            
             // Get leaves
             const leaves = await Promise.all(
-              args.commitments.map((commitment) =>
+              relevantCommitments.map((commitment) =>
                 hash.poseidon([
                   hexStringToArray(commitment.npk),
                   getTokenID({
@@ -310,8 +325,23 @@ class MerkleTree {
             // Get start position
             const startPosition = Number(args.startPosition.toString());
 
+            // Get tree number
+            const treeNumber = Number(args.treeNumber.toString());
+            const hashesLength = args.hash.length;
+            const totalLeaves = 2**this.depth;
+            const endPosition = startPosition + hashesLength;
+
+            let relevantHashes: string[] = [];
+            if (treeNumber === this.treeNumber) {
+              const diff = endPosition > totalLeaves ? endPosition - totalLeaves : 0;
+              relevantHashes = args.hash.slice(0, args.hash.length - diff);
+            } else if (treeNumber === this.treeNumber - 1 && endPosition > totalLeaves) {
+              const diff = endPosition - totalLeaves;
+              relevantHashes = args.hash.slice(args.hash.length - diff, args.hash.length);
+            }
+
             // Get leaves
-            const leaves = args.hash.map((noteHash) => hexStringToArray(noteHash));
+            const leaves = relevantHashes.map((noteHash) => hexStringToArray(noteHash));
 
             // Insert leaves
             await this.insertLeaves(leaves, startPosition);
@@ -319,13 +349,17 @@ class MerkleTree {
             // Type cast to NullifiedEventObject
             const args = parsedLog.args as unknown as NullifiedEventObject;
 
-            // Get nullifiers as Uint8Array
-            const nullifiersFormatted = args.nullifier.map((nullifier) =>
-              hexStringToArray(nullifier),
-            );
+            // Get tree number
+            const treeNumber = Number(args.treeNumber.toString());
+            if (treeNumber === this.treeNumber) {
+              // Get nullifiers as Uint8Array
+              const nullifiersFormatted = args.nullifier.map((nullifier) =>
+                hexStringToArray(nullifier),
+              );
 
-            // Push nullifiers to seen nullifiers array
-            this.nullifiers.push(...nullifiersFormatted);
+              // Push nullifiers to seen nullifiers array
+              this.nullifiers.push(...nullifiersFormatted);
+            }
           }
         }
       }),

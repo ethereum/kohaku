@@ -1,7 +1,7 @@
 import { deriveNodes, WalletNode } from '../railgun-lib/key-derivation/wallet-node';
 import { encodeAddress } from '../railgun-lib/key-derivation/bech32';
 import { Mnemonic } from '../railgun-lib/key-derivation/bip39';
-import { Wallet, Contract, JsonRpcProvider, TransactionReceipt, Interface, AbiCoder } from 'ethers';
+import { Wallet, Contract, JsonRpcProvider, TransactionReceipt, Interface, AbiCoder, BigNumberish } from 'ethers';
 import { ShieldNoteERC20 } from '../railgun-lib/note/erc20/shield-note-erc20';
 import { ByteUtils } from '../railgun-lib/utils/bytes';
 import { ShieldRequestStruct } from '../railgun-lib/abi/typechain/RailgunSmartWallet';
@@ -10,7 +10,14 @@ import { ABIRailgunSmartWallet, ABIRelayAdapt } from '../railgun-lib/abi/abi';
 import { MerkleTree } from '../railgun-logic/logic/merkletree';
 import { Wallet as NoteBook } from '../railgun-logic/logic/wallet';
 import { Note, TokenData, UnshieldNote } from '../railgun-logic/logic/note';
-import { transact } from '../railgun-logic/logic/transaction';
+import { transact, PublicInputs } from '../railgun-logic/logic/transaction';
+import {
+  CommitmentCiphertextStructOutput,
+  ShieldCiphertextStructOutput,
+  CommitmentPreimageStructOutput
+} from '../railgun-logic/typechain-types/contracts/logic/RailgunLogic';
+
+const RAILGUN_INTERFACE = new Interface(ABIRailgunSmartWallet);
 
 const ACCOUNT_VERSION = 1;
 const ACCOUNT_CHAIN_ID = undefined;
@@ -26,6 +33,26 @@ export type TxData = {
   to: string;
   data: string;
   value: bigint;
+}
+
+interface TransactEventObject {
+  treeNumber: BigNumberish;
+  startPosition: BigNumberish;
+  hash: string[];
+  ciphertext: CommitmentCiphertextStructOutput[];
+}
+
+interface ShieldEventObject {
+  treeNumber: BigNumberish;
+  startPosition: BigNumberish;
+  commitments: CommitmentPreimageStructOutput[];
+  shieldCiphertext: ShieldCiphertextStructOutput[];
+  fees: BigNumberish[];
+}
+
+interface NullifiedEventObject {
+  treeNumber: number;
+  nullifier: string[];
 }
 
 const getWalletNodeFromKey = (priv: string) => {
@@ -139,14 +166,16 @@ export default class RailgunAccount {
 
   private spendingNode: WalletNode;
   private viewingNode: WalletNode;
+  private merkleTrees: MerkleTree[];
+  private noteBooks: NoteBook[];
   private shieldKeyEthSigner?: Wallet;
-  private merkleTree?: MerkleTree;
-  private noteBook?: NoteBook;
 
   constructor(spendingNode: WalletNode, viewingNode: WalletNode, ethSigner?: Wallet) {
     this.spendingNode = spendingNode;
     this.viewingNode = viewingNode;
     this.shieldKeyEthSigner = ethSigner;
+    this.merkleTrees = [];
+    this.noteBooks = [];
   }
 
   static fromMnemonic(mnemonic: string, accountIndex: number): RailgunAccount {
@@ -169,17 +198,24 @@ export default class RailgunAccount {
   async init() {
     const {privateKey: viewingKey} = await this.viewingNode.getViewingKeyPair();
     const {privateKey: spendingKey} = this.spendingNode.getSpendingKeyPair();
-    this.merkleTree = await MerkleTree.createTree();
-    this.noteBook = new NoteBook(spendingKey, viewingKey);
+    this.merkleTrees[0] = await MerkleTree.createTree(0);
+    this.noteBooks[0] = new NoteBook(spendingKey, viewingKey, 0);
   }
 
   async syncWithReceipts(receipts: TransactionReceipt[]) {
-    if (!this.noteBook || !this.merkleTree) {
+    if (!this.noteBooks[0] || !this.merkleTrees[0]) {
       throw new Error('not initialized');
     }
     for (const receipt of receipts) {
-      await this.noteBook.scanTX(receipt, RAILGUN_ADDRESS);
-      await this.merkleTree.scanTX(receipt, RAILGUN_ADDRESS);
+      const indexes = await this.getMerkleTreeIndexes(receipt);
+      for (const index of indexes) {
+        if (!this.noteBooks[index] || !this.merkleTrees[index]) {
+          this.noteBooks[index] = new NoteBook(this.spendingNode.getSpendingKeyPair().privateKey, (await this.viewingNode.getViewingKeyPair()).privateKey, index);
+          this.merkleTrees[index] = await MerkleTree.createTree(index);
+        }
+        await this.noteBooks[index].scanTX(receipt, RAILGUN_ADDRESS);
+        await this.merkleTrees[index].scanTX(receipt, RAILGUN_ADDRESS);
+      }
     }
   }
 
@@ -256,18 +292,23 @@ export default class RailgunAccount {
 
   async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<TxData> {
     const {notesIn, notesOut} = await this.getUnshieldNotes(token, value, receiver);
-    const inputs = await transact(
-      this.merkleTree!,
-      minGasPrice,
-      1, // unshield type
-      CHAIN_ID,
-      ZERO_ADDRESS, // adapt contract
-      new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]), // adapt params
-      notesIn,
-      notesOut,
-    );
+    const allInputs: PublicInputs[] = [];
+    for (let i = 0; i < notesIn.length; i++) {
+      if (notesIn[i]!.length === 0) { continue; }
+      const inputs = await transact(
+        this.merkleTrees[i]!,
+        minGasPrice,
+        1, // unshield type
+        CHAIN_ID,
+        ZERO_ADDRESS, // adapt contract
+        new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]), // adapt params
+        notesIn[i]!,
+        notesOut[i]!,
+      );
+      allInputs.push(inputs);
+    }
     const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet);
-    const data = contract.interface.encodeFunctionData('transact', [inputs]);
+    const data = contract.interface.encodeFunctionData('transact', [allInputs]);
     return {
       to: RAILGUN_ADDRESS,
       data: data,
@@ -288,21 +329,28 @@ export default class RailgunAccount {
       calls: [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)],
     }
     
-    const nullifiers2D: string[][] = nullifiers.map((n) => { return [ByteUtils.hexlify(n, true)]; });
-    const relayAdaptParams = getAdaptParamsHash(nullifiers2D, actionData);
-    const txParams = await transact(
-      this.merkleTree!,
-      minGasPrice,
-      1, // unshield type
-      CHAIN_ID,
-      RELAY_ADAPT_ADDRESS,
-      relayAdaptParams,
-      notesIn,
-      notesOut,
+    const nullifiers2D: string[][] = nullifiers.map(
+      arr => arr.map(n => ByteUtils.hexlify(n, true))
     );
+    const relayAdaptParams = getAdaptParamsHash(nullifiers2D, actionData);
+    const allInputs: PublicInputs[] = [];
+    for (let i = 0; i < notesIn.length; i++) {
+      if (notesIn[i]!.length === 0) { continue; }
+      const inputs = await transact(
+        this.merkleTrees[i]!,
+        minGasPrice,
+        1, // unshield type
+        CHAIN_ID,
+        RELAY_ADAPT_ADDRESS,
+        relayAdaptParams,
+        notesIn[i]!,
+        notesOut[i]!,
+      );
+      allInputs.push(inputs);
+    }
 
     const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt);
-    const relayPayload = contract.interface.encodeFunctionData('relay', [[txParams], actionData]);
+    const relayPayload = contract.interface.encodeFunctionData('relay', [allInputs, actionData]);
     const data = contract.interface.encodeFunctionData('multicall', [true, [payloadToAdaptCall(relayPayload)]]);
     return {
       to: RELAY_ADAPT_ADDRESS,
@@ -311,21 +359,83 @@ export default class RailgunAccount {
     };
   }
 
-  async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[], notesOut: (Note | UnshieldNote)[], nullifiers: Uint8Array[]}> {
-    if (!this.noteBook || !this.merkleTree) {
+  async getMerkleTreeIndexes(receipt: TransactionReceipt): Promise<number[]> {
+    const indexes: number[] = [];
+    for (const log of receipt.logs) {
+      const parsedLog = RAILGUN_INTERFACE.parseLog(log);
+      if (parsedLog && parsedLog.name === 'Shield') {
+        const args = parsedLog.args as unknown as ShieldEventObject;
+        const startPosition = Number(args.startPosition.toString());
+        const treeNumber = Number(args.treeNumber.toString());
+        const commitmentsLength = args.commitments.length;
+        const totalLeaves = 2**16;
+        const endPosition = startPosition + commitmentsLength;
+        indexes.push(treeNumber);
+        if (endPosition > totalLeaves) {
+          indexes.push(treeNumber + 1);
+        }
+      } else if (parsedLog && parsedLog.name === 'Transact') {
+        const args = parsedLog.args as unknown as TransactEventObject;
+        const startPosition = Number(args.startPosition.toString());
+        const treeNumber = Number(args.treeNumber.toString());
+        const hashesLength = args.hash.length;
+        const totalLeaves = 2**16;
+        const endPosition = startPosition + hashesLength;
+        indexes.push(treeNumber);
+        if (endPosition > totalLeaves) {
+          indexes.push(treeNumber + 1);
+        }
+      } else if (parsedLog && parsedLog.name === 'Nullified') {
+        const args = parsedLog.args as unknown as NullifiedEventObject;
+        const treeNumber = Number(args.treeNumber.toString());
+        indexes.push(treeNumber);
+      }
+    }
+
+    return Array.from(new Set(indexes));
+  }
+
+  async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote)[][], nullifiers: Uint8Array[][]}> {
+    if (!this.noteBooks[0] || !this.merkleTrees[0]) {
       throw new Error('not initialized');
     }
 
     const unspentNotes = await this.getUnspentNotes(token);
 
-    const allNotes = this.noteBook.notes;
+    const notesIn: Note[][] = [];
+    const notesOut: (Note | UnshieldNote)[][] = [];
+    const nullifiers: Uint8Array[][] = [];
     let totalValue = 0n;
-    const notesIn: Note[] = [];
-    const nullifiers: Uint8Array[] = [];
-    for (const note of unspentNotes) {
-      totalValue += note.value;
-      notesIn.push(note);
-      if (getNullifiers) { nullifiers.push(await note.getNullifier(allNotes.indexOf(note))); }
+    for (let i = 0; i < unspentNotes.length; i++) {
+      const allNotes = this.noteBooks[i]!.notes;
+      const iNotesIn: Note[] = [];
+      const iNullifiers: Uint8Array[] = [];
+      let iValue = 0n;
+      for (const note of unspentNotes[i]!) {
+        totalValue += note.value;
+        iValue += note.value;
+        iNotesIn.push(note);
+        if (getNullifiers) { iNullifiers.push(await note.getNullifier(allNotes.indexOf(note))); }
+        if (totalValue >= value) {
+          break;
+        }
+      }
+  
+      const tokenData = getERC20TokenData(token);
+  
+      const iNotesOut: (Note | UnshieldNote)[] = [];
+      if (totalValue > value) { 
+        const changeNote = new Note(this.noteBooks[i]!.spendingKey, this.noteBooks[i]!.viewingKey, totalValue - value, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, '');
+        iNotesOut.push(changeNote);
+      }
+  
+      if (iValue > 0n) {
+        iNotesOut.push(new UnshieldNote(receiver, value, tokenData));
+      }
+
+      notesIn.push(iNotesIn);
+      notesOut.push(iNotesOut);
+      nullifiers.push(iNullifiers);
       if (totalValue >= value) {
         break;
       }
@@ -335,34 +445,35 @@ export default class RailgunAccount {
       throw new Error('insufficient value in unspent notes');
     }
 
-    const tokenData = getERC20TokenData(token);
-
-    const leftover = totalValue - value;
-    const notesOut: (Note | UnshieldNote)[] = [];
-    if (leftover > 0n) { 
-      const changeNote = new Note(this.noteBook.spendingKey, this.noteBook.viewingKey, leftover, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, '');
-      notesOut.push(changeNote);
-    }
-
-    notesOut.push(new UnshieldNote(receiver, value, tokenData));
     return {notesIn, notesOut, nullifiers};
   }
 
   async getBalance(token: string = WETH): Promise<bigint> {
-    if (!this.noteBook || !this.merkleTree) {
+    if (!this.noteBooks[0] || !this.merkleTrees[0]) {
       throw new Error('not initialized');
     }
     const tokenData = getERC20TokenData(token);
-    return this.noteBook.getBalance(this.merkleTree, tokenData);
+    let totalBalance = 0n;
+    for (let i = 0; i < this.merkleTrees.length; i++) {
+      const balance = await this.noteBooks[i]!.getBalance(this.merkleTrees[i]!, tokenData);
+      totalBalance += balance;
+    }
+
+    return totalBalance;
   }
 
-  async getUnspentNotes(token: string): Promise<Note[]> {
-    if (!this.noteBook || !this.merkleTree) {
+  async getUnspentNotes(token: string): Promise<Note[][]> {
+    if (!this.noteBooks[0] || !this.merkleTrees[0]) {
       throw new Error('not initialized');
     }
     const tokenData = getERC20TokenData(token);
-    const notes = await this.noteBook.getUnspentNotes(this.merkleTree, tokenData);
-    return notes;
+    const allNotes: Note[][] = [];
+    for (let i = 0; i < this.merkleTrees.length; i++) {
+      const notes = await this.noteBooks[i]!.getUnspentNotes(this.merkleTrees[i]!, tokenData);
+      allNotes.push(notes);
+    }
+
+    return allNotes;
   }
 
   // NOTE: crude/simple TX submission func, intended only as a helper for testing
@@ -376,17 +487,17 @@ export default class RailgunAccount {
     return tx.hash;
   }
 
-  getAllNotes(): Note[] {
-    if (!this.noteBook || !this.merkleTree) {
-      throw new Error('not initialized');
+  getAllNotes(treeIndex: number): Note[] {
+    if (!this.noteBooks[treeIndex]) {
+      throw new Error('tree index DNE');
     }
-    return this.noteBook.notes;
+    return this.noteBooks[treeIndex].notes;
   }
 
-  getMerkleRoot() {
-    if (!this.merkleTree) {
-      throw new Error('not initialized');
+  getMerkleRoot(treeIndex: number) {
+    if (!this.merkleTrees[treeIndex]) {
+      throw new Error('tree index DNE');
     }
-    return this.merkleTree.root;
+    return this.merkleTrees[treeIndex].root;
   }
 }

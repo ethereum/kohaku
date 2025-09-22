@@ -40,6 +40,10 @@ class Wallet {
 
   viewingKey: Uint8Array;
 
+  treeNumber: number;
+
+  depth: number;
+
   notes: Note[] = [];
 
   /**
@@ -48,9 +52,11 @@ class Wallet {
    * @param spendingKey - Spending key
    * @param viewingKey - Viewing key
    */
-  constructor(spendingKey: Uint8Array, viewingKey: Uint8Array) {
+  constructor(spendingKey: Uint8Array, viewingKey: Uint8Array, treeNumber: number = 0, depth: number = 16) {
     this.spendingKey = spendingKey;
     this.viewingKey = viewingKey;
+    this.treeNumber = treeNumber;
+    this.depth = depth;
   }
 
   /**
@@ -90,8 +96,23 @@ class Wallet {
             // Get start position
             const startPosition = Number(args.startPosition.toString());
 
+            // Get tree number
+            const treeNumber = Number(args.treeNumber.toString());
+            const shieldCiphertextsLength = args.shieldCiphertext.length;
+            const totalNotes = 2**this.depth;
+            const endPosition = startPosition + shieldCiphertextsLength;
+
+            let relevantShieldCiphertexts: ShieldCiphertextStructOutput[] = [];
+            if (treeNumber === this.treeNumber) {
+              const diff = endPosition > totalNotes ? endPosition - totalNotes : 0;
+              relevantShieldCiphertexts = args.shieldCiphertext.slice(0, args.shieldCiphertext.length - diff);
+            } else if (treeNumber === this.treeNumber - 1 && endPosition > totalNotes) {
+              const diff = endPosition - totalNotes;
+              relevantShieldCiphertexts = args.shieldCiphertext.slice(args.shieldCiphertext.length - diff, args.shieldCiphertext.length);
+            }
+
             // Loop through each shield and attempt to decrypt
-            args.shieldCiphertext.map((shieldCiphertext, index) => {
+            relevantShieldCiphertexts.map((shieldCiphertext, index) => {
               // Try to decrypt
               const decrypted = Note.decryptShield(
                 hexStringToArray(shieldCiphertext.shieldKey),
@@ -122,10 +143,25 @@ class Wallet {
             // Get start position
             const startPosition = Number(args.startPosition.toString());
 
+            // Get tree number
+            const treeNumber = Number(args.treeNumber.toString());
+            const ciphertextsLength = args.ciphertext.length;
+            const totalNotes = 2**this.depth;
+            const endPosition = startPosition + ciphertextsLength;
+
+            let relevantCiphertexts: CommitmentCiphertextStructOutput[] = [];
+            if (treeNumber === this.treeNumber) {
+              const diff = endPosition > totalNotes ? endPosition - totalNotes : 0;
+              relevantCiphertexts = args.ciphertext.slice(0, args.ciphertext.length - diff);
+            } else if (treeNumber === this.treeNumber - 1 && endPosition > totalNotes) {
+              const diff = endPosition - totalNotes;
+              relevantCiphertexts = args.ciphertext.slice(args.ciphertext.length - diff, args.ciphertext.length);
+            }
+            
             // Loop through each token we're scanning
             await Promise.all(
               // Loop through every note and try to decrypt as token
-              args.ciphertext.map(async (ciphertext, index) => {
+              relevantCiphertexts.map(async (ciphertext, index) => {
                 // Attempt to decrypt note with token
                 const note = await Note.decrypt(
                   {
