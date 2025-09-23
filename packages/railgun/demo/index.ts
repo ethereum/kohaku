@@ -28,7 +28,6 @@ async function main() {
 
   // 1. instantiate account from mnemonic
   const railgunAccount = RailgunAccount.fromMnemonic(MNEMONIC, ACCOUNT_INDEX);
-  await railgunAccount.init();
 
   // 2. get railgun 0zk address
   const zkAddress = await railgunAccount.getRailgunAddress();
@@ -50,8 +49,10 @@ async function main() {
 
   let startBlock = cached ? cached.endBlock : GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
+  console.log(`fetching logs from cached start block (${startBlock}) to latest block (${endBlock}) ...`);
   const receipts = await getAllReceipts(provider, startBlock, endBlock);
   const combinedReceipts = cached ? Array.from(new Set(cached.receipts.concat(receipts))) : receipts;
+  console.log("syncing railgun account with all logs...");
   await railgunAccount.syncWithReceipts(combinedReceipts);
 
   const balance = await railgunAccount.getBalance();
