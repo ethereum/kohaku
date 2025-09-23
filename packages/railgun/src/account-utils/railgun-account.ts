@@ -448,6 +448,10 @@ export default class RailgunAccount {
     return this.merkleTrees[treeIndex].root;
   }
 
+  getLatestMerkleRoot() {
+    return this.merkleTrees[this.merkleTrees.length - 1]!.root;
+  }
+
   async processReceipt(transaction: TransactionReceipt) {
     // KASS TODO: also scan legacy events !!!
     // Loop through each log and parse

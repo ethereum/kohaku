@@ -82,7 +82,7 @@ async function main() {
   await railgunAccount.syncWithReceipts(newReceipts);
   const balance2 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance2);
-  const root2 = railgunAccount.getMerkleRoot(0);
+  const root2 = railgunAccount.getLatestMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
   // 7. create unshield ETH tx data
@@ -102,7 +102,7 @@ async function main() {
   await railgunAccount.syncWithReceipts(newReceipts2);
   const balance3 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance3);
-  const root3 = railgunAccount.getMerkleRoot(0);
+  const root3 = railgunAccount.getLatestMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root3, true));
 
   // 10. If desired, save cache for faster syncing next time
