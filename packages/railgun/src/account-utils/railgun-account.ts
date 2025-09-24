@@ -622,6 +622,13 @@ export default class RailgunAccount {
 
             // Get tree number
             const treeNumber = Number(args.treeNumber.toString());
+
+            // Create new merkleTrees and noteBooks if necessary
+            if (!this.merkleTrees[treeNumber]) {
+              this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
+              this.noteBooks[treeNumber] = new NoteBook();
+            }
+            
             const nullifiersFormatted = args.nullifier.map((nullifier) =>
               hexStringToArray(nullifier),
             );
