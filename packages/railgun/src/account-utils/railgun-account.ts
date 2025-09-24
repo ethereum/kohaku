@@ -1,7 +1,7 @@
 import { deriveNodes, WalletNode } from '../railgun-lib/key-derivation/wallet-node';
 import { encodeAddress } from '../railgun-lib/key-derivation/bech32';
 import { Mnemonic } from '../railgun-lib/key-derivation/bip39';
-import { Wallet, Contract, JsonRpcProvider, TransactionReceipt, Interface } from 'ethers';
+import { Wallet, Contract, JsonRpcProvider, TransactionReceipt, Interface, AbiCoder } from 'ethers';
 import { ShieldNoteERC20 } from '../railgun-lib/note/erc20/shield-note-erc20';
 import { ByteUtils } from '../railgun-lib/utils/bytes';
 import { ShieldRequestStruct } from '../railgun-lib/abi/typechain/RailgunSmartWallet';
@@ -10,7 +10,7 @@ import { ABIRailgunSmartWallet, ABIRelayAdapt } from '../railgun-lib/abi/abi';
 import { MerkleTree } from '../railgun-logic/logic/merkletree';
 import { Wallet as NoteBook } from '../railgun-logic/logic/wallet';
 import { Note, TokenData, UnshieldNote } from '../railgun-logic/logic/note';
-import { transact, PublicInputs } from '../railgun-logic/logic/transaction';
+import { transact } from '../railgun-logic/logic/transaction';
 
 const ACCOUNT_VERSION = 1;
 const ACCOUNT_CHAIN_ID = undefined;
@@ -21,11 +21,6 @@ export const RELAY_ADAPT_ADDRESS = '0x66af65bfff9e384796a56f3fa3709b9d5d9d7083';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const WETH = '0x97a36608DA67AF0A79e50cb6343f86F340B3b49e';
 export const FEE_BASIS_POINTS = 25n;
-
-export interface Cache {
-  receipts: TransactionReceipt[];
-  endBlock: number;
-}
 
 export type TxData = {
   to: string;
@@ -38,32 +33,55 @@ const getWalletNodeFromKey = (priv: string) => {
   return new WalletNode({chainKey: wallet.privateKey, chainCode: ''});
 };
 
-const getAllReceipts = async (provider: JsonRpcProvider, startBlock: number, endBlock: number) => {
-  const BATCH_SIZE = 2500; // NOTE: works with infura key
-  let allLogs: any[] = [];
-  for (let from = startBlock; from <= endBlock; from += BATCH_SIZE) {
-    // console.log(`Getting logs from block ${from} to ${Math.min(from + BATCH_SIZE - 1, endBlock)}`);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // TODO: crude rate limiting
-    const to = Math.min(from + BATCH_SIZE - 1, endBlock);
-    const logs = await provider.getLogs({
-      address: RAILGUN_ADDRESS,
-      fromBlock: from,
-      toBlock: to,
-    });
-    allLogs = allLogs.concat(logs);
-  }
-  const TXIDs = Array.from(new Set(allLogs.map(log => log.transactionHash)));
-  const receipts: TransactionReceipt[] = [];
-  for (const txID of TXIDs) {
-    const receipt = await provider.getTransactionReceipt(txID);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (receipt) {
-      receipts.push(receipt);
+function isRangeErr(e: any) {
+  return (
+    e?.error?.code === -32001 ||
+    /failed to resolve block range/i.test(String(e?.error?.message || e?.message || ""))
+  );
+}
+
+export const getAllReceipts = async (provider: JsonRpcProvider, startBlock: number, endBlock: number) => {
+  const MAX_BATCH = 2000;        // start conservatively
+  const MIN_BATCH = 1;
+  let batch = Math.min(MAX_BATCH, Math.max(1, endBlock - startBlock + 1));
+  let from = startBlock;
+  const allLogs: any[] = [];
+
+  while (from <= endBlock) {
+    const to = Math.min(from + batch - 1, endBlock);
+    try {
+      await new Promise(r => setTimeout(r, 400)); // light pacing
+      const logs = await provider.getLogs({
+        address: RAILGUN_ADDRESS,
+        fromBlock: from,
+        toBlock: to,
+      });
+      allLogs.push(...logs);
+      from = to + 1;                 // advance
+      batch = Math.min(batch * 2, MAX_BATCH); // grow again after success
+    } catch (e: any) {
+      if (isRangeErr(e)) {
+        if (batch > MIN_BATCH) {
+          batch = Math.max(MIN_BATCH, Math.floor(batch / 2)); // shrink and retry same 'from'
+          continue;
+        }
+        // single-block still fails: skip this block to move on
+        from = to + 1;
+        continue;
+      }
+      throw e; // non-range error -> surface it
     }
   }
 
+  const txids = [...new Set(allLogs.map(l => l.transactionHash))];
+  const receipts: TransactionReceipt[] = [];
+  for (const txid of txids) {
+    const receipt = await provider.getTransactionReceipt(txid);
+    await new Promise(r => setTimeout(r, 200));
+    if (receipt) receipts.push(receipt);
+  }
   return receipts;
-}
+};
 
 export const getERC20TokenData = (token: string): TokenData => {
   const tokenData = {
@@ -82,46 +100,39 @@ const payloadToAdaptCall = (payload: string, value: bigint = BigInt(0)): TxData 
   };
 }
 
-const getDummyTransactTx = (nullifiers: Uint8Array[]) => {
-  const nullG1Point = { x: 0, y: 0 };
-  const nullG2Point = { x: [0, 0], y: [0, 0] };
+type Call = {
+  to: string;
+  data: string;
+  value: bigint | number | string;
+};
 
-  const nullSnarkProof = {
-    a: { ...nullG1Point },
-    b: { ...nullG2Point },
-    c: { ...nullG1Point },
-  };
+type ActionData = {
+  random: string;
+  requireSuccess: boolean;
+  minGasLimit: bigint | number | string;
+  calls: Call[];
+};
 
-  const nullTokenData = {
-    tokenType: 0,
-    tokenAddress: "0x0000000000000000000000000000000000000000",
-    tokenSubID: 0,
-  };
+function toActionDataTuple(a: ActionData): any[] {
+  const callsTuple = a.calls.map((c) => [
+    c.to,
+    c.data ?? '0x',
+    c.value ?? 0n,
+  ]);
+  return [a.random, a.requireSuccess, a.minGasLimit, callsTuple];
+}
 
-  const nullBoundParams = {
-    treeNumber: 0,
-    minGasPrice: 0,
-    unshield: 0,
-    chainID: 0,
-    adaptContract: "0x0000000000000000000000000000000000000000",
-    adaptParams: "0x0000000000000000000000000000000000000000000000000000000000000000",
-    commitmentCiphertext: [],
-  };
+export function getAdaptParamsHash(
+  nullifiers: string[][],
+  actionData: ActionData
+): Uint8Array {
+  const coder = new AbiCoder();
+  const encoded = coder.encode(
+    ['bytes32[][]', 'uint256', 'tuple(bytes31,bool,uint256,tuple(address,bytes,uint256)[])'],
+    [nullifiers, BigInt(nullifiers.length), toActionDataTuple(actionData)]
+  );
 
-  const nullCommitmentPreimage = {
-    npk: "0x0000000000000000000000000000000000000000000000000000000000000000",
-    token: { ...nullTokenData },
-    value: 0,
-  };
-
- return {
-    proof: { ...nullSnarkProof },
-    merkleRoot: "0x0000000000000000000000000000000000000000000000000000000000000000",
-    nullifiers: nullifiers,
-    commitments: [],
-    boundParams: { ...nullBoundParams },
-    unshieldPreimage: { ...nullCommitmentPreimage },
-  };
+  return keccak256(ByteUtils.hexToBytes(encoded));
 }
 
 export default class RailgunAccount {
@@ -162,26 +173,14 @@ export default class RailgunAccount {
     this.noteBook = new NoteBook(spendingKey, viewingKey);
   }
 
-  async sync(provider: JsonRpcProvider, startBlock: number, cached?: Cache) {
+  async syncWithReceipts(receipts: TransactionReceipt[]) {
     if (!this.noteBook || !this.merkleTree) {
       throw new Error('not initialized');
     }
-
-    const startingBlock = cached ? cached.endBlock : startBlock > GLOBAL_START_BLOCK ? startBlock : GLOBAL_START_BLOCK;
-    const endBlock = await provider.getBlockNumber();
-
-    const newReceipts = await getAllReceipts(provider, startingBlock, endBlock);
-    const receipts = cached ? Array.from(new Set(cached.receipts.concat(newReceipts))) : newReceipts;
-
     for (const receipt of receipts) {
       await this.noteBook.scanTX(receipt, RAILGUN_ADDRESS);
       await this.merkleTree.scanTX(receipt, RAILGUN_ADDRESS);
     }
-
-    return {
-      receipts,
-      endBlock
-    };
   }
 
   async getRailgunAddress(): Promise<string> {
@@ -276,10 +275,8 @@ export default class RailgunAccount {
     };
   }
 
-  async createNativeUnshieldTx(value: bigint, receiver: string, provider: JsonRpcProvider, minGasPrice: bigint = BigInt(0)) {
+  async createNativeUnshieldTx(value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
     const {notesIn, notesOut, nullifiers} = await this.getUnshieldNotes(WETH, value, RELAY_ADAPT_ADDRESS, true);
-    
-    const dummyTx = getDummyTransactTx(nullifiers);
 
     const iface = new Interface(ABIRelayAdapt);
     const payload1 = iface.encodeFunctionData('unwrapBase', [0]);
@@ -291,9 +288,8 @@ export default class RailgunAccount {
       calls: [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)],
     }
     
-    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt, provider);
-
-    const relayAdaptParams = await contract['getAdaptParams']?.([dummyTx], actionData); 
+    const nullifiers2D: string[][] = nullifiers.map((n) => { return [ByteUtils.hexlify(n, true)]; });
+    const relayAdaptParams = getAdaptParamsHash(nullifiers2D, actionData);
     const txParams = await transact(
       this.merkleTree!,
       minGasPrice,
@@ -305,6 +301,7 @@ export default class RailgunAccount {
       notesOut,
     );
 
+    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt);
     const relayPayload = contract.interface.encodeFunctionData('relay', [[txParams], actionData]);
     const data = contract.interface.encodeFunctionData('multicall', [true, [payloadToAdaptCall(relayPayload)]]);
     return {
