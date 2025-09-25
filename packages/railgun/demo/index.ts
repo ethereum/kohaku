@@ -63,7 +63,7 @@ async function main() {
 
   const balance = await railgunAccount.getBalance();
   console.log("private WETH balance:", balance);
-  const root = railgunAccount.getMerkleRoot(0);
+  const root = railgunAccount.getLatestMerkleRoot();
   console.log("root:", ByteUtils.hexlify(root, true));
 
   // 4. create shield ETH tx data 
