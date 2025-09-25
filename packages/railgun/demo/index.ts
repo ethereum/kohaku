@@ -38,12 +38,18 @@ async function main() {
     console.error("\nERROR: RPC_URL not set");
     process.exit(1);
   }
-  const provider = new JsonRpcProvider(RPC_URL);
-  const { chainId } = await provider.getNetwork();
-  if (Number(chainId) !== 11155111) {
+  const baseProvider = new JsonRpcProvider(RPC_URL);
+  const network = await baseProvider.getNetwork();
+  if (Number(network.chainId) !== 11155111) {
     console.error(`\nERROR: wrong chain provider (expect chainId 11155111, got: ${Number(chainId)})`);
     process.exit(1);
   }
+  const provider = new JsonRpcProvider(RPC_URL, network, {
+    staticNetwork: true,
+    batchMaxCount: 1,
+    batchMaxSize: 0,
+    batchStallTime: 0,
+  });
 
   const cached: Cache = cached_file as unknown as Cache;
 

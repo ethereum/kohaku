@@ -32,7 +32,6 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const WETH = '0x97a36608DA67AF0A79e50cb6343f86F340B3b49e';
 export const FEE_BASIS_POINTS = 25n;
 
-
 enum TokenType {
   ERC20 = 0,
   ERC721 = 1,
@@ -78,7 +77,7 @@ function isRangeErr(e: any) {
 }
 
 export const getAllReceipts = async (provider: JsonRpcProvider, startBlock: number, endBlock: number) => {
-  const MAX_BATCH = 2000;        // start conservatively
+  const MAX_BATCH = 1200;
   const MIN_BATCH = 1;
   let batch = Math.min(MAX_BATCH, Math.max(1, endBlock - startBlock + 1));
   let from = startBlock;
