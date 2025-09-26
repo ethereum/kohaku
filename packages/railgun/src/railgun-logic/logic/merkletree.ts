@@ -1,42 +1,6 @@
-import {
-  CommitmentCiphertextStructOutput,
-  CommitmentPreimageStructOutput,
-  ShieldCiphertextStructOutput,
-} from '../typechain-types/contracts/logic/RailgunLogic';
-import { arrayToBigInt, bigIntToArray, arrayToByteLength, hexStringToArray } from '../global/bytes';
+import { arrayToBigInt, bigIntToArray, arrayToByteLength } from '../global/bytes';
 import { SNARK_SCALAR_FIELD } from '../global/constants';
 import { hash } from '../global/crypto';
-import { getTokenID } from './note';
-import { BigNumberish, Interface, TransactionReceipt } from 'ethers';
-import { ABIRailgunSmartWallet } from '../../railgun-lib/abi/abi';
-
-const RAILGUN_INTERFACE = new Interface(ABIRailgunSmartWallet);
-
-enum TokenType {
-  ERC20 = 0,
-  ERC721 = 1,
-  ERC1155 = 2,
-}
-
-interface NullifiedEventObject {
-  treeNumber: number;
-  nullifier: string[];
-}
-
-interface TransactEventObject {
-  treeNumber: BigNumberish;
-  startPosition: BigNumberish;
-  hash: string[];
-  ciphertext: CommitmentCiphertextStructOutput[];
-}
-
-interface ShieldEventObject {
-  treeNumber: BigNumberish;
-  startPosition: BigNumberish;
-  commitments: CommitmentPreimageStructOutput[];
-  shieldCiphertext: ShieldCiphertextStructOutput[];
-  fees: BigNumberish[];
-}
 
 export interface MerkleProof {
   element: Uint8Array;
@@ -258,78 +222,6 @@ class MerkleTree {
 
     // Return true if result is equal to merkle root
     return currentHash === proof.root;
-  }
-
-  /**
-   * Scans transaction for commitments and nullifiers
-   *
-   * @param transaction - transaction to scan
-   * @param contract - contract to parse events from
-   * @returns complete
-   */
-  async scanTX(transaction: TransactionReceipt, contractAddress: string) {
-    // KASS TODO: also scan legacy events !!!
-    // Loop through each log and parse
-    await Promise.all(
-      transaction.logs.map(async (log) => {
-        // Check if log is log of contract
-        if (log.address === contractAddress) {
-          // Parse log
-          const parsedLog = RAILGUN_INTERFACE.parseLog(log);
-          if (!parsedLog) return;
-
-          // Check log type
-          if (parsedLog.name === 'Shield') {
-            // Type cast to ShieldEventObject
-            const args = parsedLog.args as unknown as ShieldEventObject;
-
-            // Get start position
-            const startPosition = Number(args.startPosition.toString());
-
-            // Get leaves
-            const leaves = await Promise.all(
-              args.commitments.map((commitment) =>
-                hash.poseidon([
-                  hexStringToArray(commitment.npk),
-                  getTokenID({
-                    tokenType: Number(commitment.token.tokenType.toString()) as TokenType,
-                    tokenAddress: commitment.token.tokenAddress,
-                    tokenSubID: BigInt(commitment.token.tokenSubID),
-                  }),
-                  bigIntToArray(BigInt(commitment.value), 32),
-                ]),
-              ),
-            );
-
-            // Insert leaves
-            await this.insertLeaves(leaves, startPosition);
-          } else if (parsedLog.name === 'Transact') {
-            // Type cast to TransactEventObject
-            const args = parsedLog.args as unknown as TransactEventObject;
-
-            // Get start position
-            const startPosition = Number(args.startPosition.toString());
-
-            // Get leaves
-            const leaves = args.hash.map((noteHash) => hexStringToArray(noteHash));
-
-            // Insert leaves
-            await this.insertLeaves(leaves, startPosition);
-          } else if (parsedLog.name === 'Nullified') {
-            // Type cast to NullifiedEventObject
-            const args = parsedLog.args as unknown as NullifiedEventObject;
-
-            // Get nullifiers as Uint8Array
-            const nullifiersFormatted = args.nullifier.map((nullifier) =>
-              hexStringToArray(nullifier),
-            );
-
-            // Push nullifiers to seen nullifiers array
-            this.nullifiers.push(...nullifiersFormatted);
-          }
-        }
-      }),
-    );
   }
 }
 

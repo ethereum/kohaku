@@ -28,7 +28,6 @@ async function main() {
 
   // 1. instantiate account from mnemonic
   const railgunAccount = RailgunAccount.fromMnemonic(MNEMONIC, ACCOUNT_INDEX);
-  await railgunAccount.init();
 
   // 2. get railgun 0zk address
   const zkAddress = await railgunAccount.getRailgunAddress();
@@ -39,24 +38,32 @@ async function main() {
     console.error("\nERROR: RPC_URL not set");
     process.exit(1);
   }
-  const provider = new JsonRpcProvider(RPC_URL);
-  const { chainId } = await provider.getNetwork();
-  if (Number(chainId) !== 11155111) {
+  const baseProvider = new JsonRpcProvider(RPC_URL);
+  const network = await baseProvider.getNetwork();
+  if (Number(network.chainId) !== 11155111) {
     console.error(`\nERROR: wrong chain provider (expect chainId 11155111, got: ${Number(chainId)})`);
     process.exit(1);
   }
+  const provider = new JsonRpcProvider(RPC_URL, network, {
+    staticNetwork: true,
+    batchMaxCount: 1,
+    batchMaxSize: 0,
+    batchStallTime: 0,
+  });
 
   const cached: Cache = cached_file as unknown as Cache;
 
   let startBlock = cached ? cached.endBlock : GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
+  console.log(`fetching logs from cached start block (${startBlock}) to latest block (${endBlock}) ...`);
   const receipts = await getAllReceipts(provider, startBlock, endBlock);
   const combinedReceipts = cached ? Array.from(new Set(cached.receipts.concat(receipts))) : receipts;
+  console.log("syncing railgun account with all logs...");
   await railgunAccount.syncWithReceipts(combinedReceipts);
 
   const balance = await railgunAccount.getBalance();
   console.log("private WETH balance:", balance);
-  const root = railgunAccount.getMerkleRoot();
+  const root = railgunAccount.getLatestMerkleRoot();
   console.log("root:", ByteUtils.hexlify(root, true));
 
   // 4. create shield ETH tx data 
@@ -81,7 +88,7 @@ async function main() {
   await railgunAccount.syncWithReceipts(newReceipts);
   const balance2 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance2);
-  const root2 = railgunAccount.getMerkleRoot();
+  const root2 = railgunAccount.getLatestMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
   // 7. create unshield ETH tx data
@@ -101,7 +108,7 @@ async function main() {
   await railgunAccount.syncWithReceipts(newReceipts2);
   const balance3 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance3);
-  const root3 = railgunAccount.getMerkleRoot();
+  const root3 = railgunAccount.getLatestMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root3, true));
 
   // 10. If desired, save cache for faster syncing next time
