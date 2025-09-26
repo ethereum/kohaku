@@ -288,6 +288,7 @@ export class POI {
     try {
       return this.nodeInterface.isActive(chain);
     } catch (err) {
+      console.error(err);
       return false;
     }
   }

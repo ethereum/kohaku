@@ -11,7 +11,7 @@ You need a `RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixe
 from monorepo root directory, after installing deps with `pnpm install`, run:
 
 ```
-pnpm -F @ethprivacy/railgun demo
+pnpm -F @kohaku-eth/railgun demo
 ```
 
 this runs a live demo of end-to-end shield and unshield operations on sepolia testnet

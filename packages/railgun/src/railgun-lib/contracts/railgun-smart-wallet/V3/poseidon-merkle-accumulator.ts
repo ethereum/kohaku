@@ -5,7 +5,7 @@ import { PollingJsonRpcProvider } from '../../../provider/polling-json-rpc-provi
 import { PoseidonMerkleAccumulator } from '../../../abi/typechain/PoseidonMerkleAccumulator';
 import { ABIPoseidonMerkleAccumulator } from '../../../abi/abi';
 import { ByteLength, ByteUtils } from '../../../utils/bytes';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 import { assertIsPollingProvider } from '../../../provider/polling-util';
 import {
   EngineEvent,
@@ -110,7 +110,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
           throw new Error('Requires one topic for railgun events');
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
         V3Events.processAccumulatorEvent(
           this.txidVersion,
           event.args,
@@ -118,7 +118,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
           event.log.blockNumber,
           eventsCommitmentListener,
           async (txidVersion: TXIDVersion, nullifiers: Nullifier[]) => {
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
             eventsNullifierListener(txidVersion, nullifiers);
             this.emit(EngineEvent.ContractNullifierReceived, nullifiers);
           },
@@ -165,15 +165,14 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
       if (retryCount < MAX_SCAN_RETRIES && cause.message === SCAN_TIMEOUT_ERROR_MESSAGE) {
         const retry = retryCount + 1;
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${
-            this.chain.id
+          `[Chain ${this.chain.type}:${this.chain.chainId
           }]: Scan query error at block ${startBlock}. Retrying ${MAX_SCAN_RETRIES - retry} times.`,
         );
         EngineDebug.error(err);
         return this.scanAllUpdateV3Events(startBlock, endBlock, retry);
       }
       EngineDebug.log(
-        `[Chain ${this.chain.type}:${this.chain.id}]: Scan failed at block ${startBlock}. No longer retrying.`,
+        `[Chain ${this.chain.type}:${this.chain.chainId}]: Scan failed at block ${startBlock}. No longer retrying.`,
       );
       EngineDebug.error(err);
       throw err;
@@ -200,7 +199,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     const { txidVersion } = this;
 
     EngineDebug.log(
-      `[Chain ${this.chain.type}:${this.chain.id}]: [${txidVersion}] Scanning historical events from block ${currentStartBlock} to ${latestBlock}`,
+      `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning historical events from block ${currentStartBlock} to ${latestBlock}`,
     );
 
     let startBlockForNext10000 = initialStartBlock;
@@ -210,16 +209,16 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
 
       if ((currentStartBlock - startBlockForNext10000) % 10000 === 0) {
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.id}]: [${txidVersion}] Scanning next 10,000 events [${currentStartBlock}]...`,
+          `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning next 10,000 events [${currentStartBlock}]...`,
         );
       }
 
       const endBlock = Math.min(latestBlock, currentStartBlock + SCAN_CHUNKS);
 
-      // eslint-disable-next-line no-await-in-loop
+
       const allUpdateV3EventLogs = await this.scanAllUpdateV3Events(currentStartBlock, endBlock);
 
-      // eslint-disable-next-line no-await-in-loop
+
       await V3Events.processAccumulatorUpdateEvents(
         this.txidVersion,
         allUpdateV3EventLogs,
@@ -229,12 +228,12 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
         eventsRailgunTransactionsV3Listener,
       );
 
-      // eslint-disable-next-line no-await-in-loop
+
       await setLastSyncedBlock(endBlock);
 
       const nextStartBlockFromCurrentBlock = currentStartBlock + SCAN_CHUNKS + 1;
       const nextStartBlockFromLatestValidMerkletreeEntry =
-        // eslint-disable-next-line no-await-in-loop
+
         await getNextStartBlockFromValidMerkletree();
 
       // Choose greater of:
@@ -247,8 +246,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
         currentStartBlock = nextStartBlockFromLatestValidMerkletreeEntry;
         startBlockForNext10000 = nextStartBlockFromLatestValidMerkletreeEntry;
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.id}]: Skipping ${
-            nextStartBlockFromCurrentBlock - nextStartBlockFromLatestValidMerkletreeEntry
+          `[Chain ${this.chain.type}:${this.chain.chainId}]: Skipping ${nextStartBlockFromCurrentBlock - nextStartBlockFromLatestValidMerkletreeEntry
           } already processed/validated blocks from QuickSync...`,
         );
       } else {
@@ -256,7 +254,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
       }
     }
 
-    EngineDebug.log(`[Chain ${this.chain.type}:${this.chain.id}]: Finished historical event scan`);
+    EngineDebug.log(`[Chain ${this.chain.type}:${this.chain.chainId}]: Finished historical event scan`);
   }
 
   /**

@@ -6,7 +6,8 @@ import { isReactNative, isNodejs } from './runtime';
 
 // TextEncoder/TextDecoder (used in this file) needs to shimmed in React Native
 if (isReactNative) {
-  // eslint-disable-next-line global-require
+   
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('fast-text-encoding');
 }
 
@@ -47,7 +48,7 @@ class ByteUtils {
   }
 
   static u8ToBigInt(u8: Uint8Array): bigint {
-    // eslint-disable-next-line no-use-before-define
+     
     return ByteUtils.hexToBigInt(ByteUtils.hexlify(u8));
   }
 

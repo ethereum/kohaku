@@ -93,6 +93,7 @@ async function getSharedSymmetricKeyLegacy(
     // Multiply ephemeral key by private scalar to get shared key
     return scalarMultiplyWasmFallbackToJavascript(blindedPublicKeyPairB, scalar);
   } catch (err) {
+    console.error(err);
     return undefined;
   }
 }

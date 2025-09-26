@@ -1,4 +1,4 @@
-import EngineDebug from '../debugger/debugger';
+import { EngineDebug } from '../debugger/debugger';
 import {
   CiphertextCTR,
   CiphertextXChaCha,
@@ -14,11 +14,11 @@ import { AES } from '../utils/encryption/aes';
 import { XChaCha20 } from '../utils/encryption/x-cha-cha-20';
 import { isDefined } from '../utils/is-defined';
 import { isReactNative } from '../utils/runtime';
-import WalletInfo from '../wallet/wallet-info';
+import { WalletInfo } from '../wallet/wallet-info';
 
 // TextEncoder/TextDecoder (used in this file) needs to shimmed in React Native
 if (isReactNative) {
-  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('fast-text-encoding');
 }
 
@@ -134,6 +134,7 @@ export class Memo {
       const decoded = WalletInfo.decodeWalletSource(decryptedBytes);
       return decoded;
     } catch (err) {
+      console.error(err);
       return undefined;
     }
   }

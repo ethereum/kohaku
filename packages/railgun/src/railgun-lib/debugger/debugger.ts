@@ -1,6 +1,6 @@
 import { EngineDebugger } from '../models/engine-types';
 
-export default class EngineDebug {
+export class EngineDebug {
   private static engineDebugger: Optional<EngineDebugger>;
 
   static init(engineDebugger: EngineDebugger) {
@@ -18,7 +18,7 @@ export default class EngineDebug {
       this.engineDebugger.error(err);
     }
     if (this.isTestRun() && !ignoreInTests) {
-      // eslint-disable-next-line no-console
+       
       console.error(err);
     }
   }

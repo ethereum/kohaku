@@ -4,7 +4,7 @@ import chaiAsPromised from 'chai-as-promised';
 // import memdown from 'memdown';
 import { NoteAnnotationData, OutputType } from '../../models/formatted-types';
 import { Memo } from '../memo';
-// import WalletInfo from '../../wallet/wallet-info';
+// import { WalletInfo } from '../../wallet/wallet-info';
 import { config } from '../../test/config.test';
 // import { Database } from '../../database/database';
 // import { RailgunWallet } from '../../wallet/railgun-wallet';
@@ -16,7 +16,7 @@ chai.use(chaiAsPromised);
 const { expect } = chai;
 
 const testMnemonic = config.mnemonic;
-const testEncryptionKey = config.encryptionKey;
+// const testEncryptionKey = config.encryptionKey;
 
 // let db: Database;
 // let wallet: RailgunWallet;

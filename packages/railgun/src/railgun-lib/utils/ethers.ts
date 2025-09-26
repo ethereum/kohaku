@@ -15,6 +15,7 @@ export const recursivelyDecodeResult = (result: Result): any => {
     }
     return obj;
   } catch (err) {
+    console.error(err);
     // Result is array.
     return result.toArray().map((item) => recursivelyDecodeResult(item as Result));
   }

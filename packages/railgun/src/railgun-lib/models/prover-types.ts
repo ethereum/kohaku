@@ -1,6 +1,6 @@
 import { PoseidonMerkleVerifier } from '../abi/typechain';
 import { BoundParamsStruct } from '../abi/typechain/RailgunSmartWallet';
-// eslint-disable-next-line import/no-cycle
+ 
 import { TXIDVersion } from './poi-types';
 
 export const enum Circuits {

@@ -30,7 +30,8 @@ export default [
           message: "Use a descriptive identifier like user_id, blogpost_id, etc."
         }
       ],
-      'import/no-default-export': 'error'
+      'import/no-default-export': 'error',
+      'no-control-regex': 'off'
     }
   }
 ];

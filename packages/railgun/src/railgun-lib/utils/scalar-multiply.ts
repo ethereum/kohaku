@@ -1,6 +1,6 @@
 import { Point } from '@noble/ed25519';
 import { bytesToHex } from 'ethereum-cryptography/utils';
-import EngineDebug from '../debugger/debugger';
+import { EngineDebug } from '../debugger/debugger';
 import { ByteLength, ByteUtils } from './bytes';
 import { isReactNative } from './runtime';
 import { createRequire } from 'node:module';
@@ -12,7 +12,7 @@ interface ScalarMultMod {
 }
 
 const { default: initCurve25519wasm, scalarMultiply: scalarMultiplyWasm } =
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+
   isReactNative
     ? ({} as unknown as ScalarMultMod)
     : (require('@railgun-community/curve25519-scalarmult-wasm') as ScalarMultMod)

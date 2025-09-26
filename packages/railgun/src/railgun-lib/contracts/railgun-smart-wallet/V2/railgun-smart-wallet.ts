@@ -7,7 +7,7 @@ import {
   Result,
 } from 'ethers';
 import EventEmitter from 'events';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 import {
   EventsCommitmentListener,
   EventsNullifierListener,
@@ -301,19 +301,19 @@ export class RailgunSmartWalletContract extends EventEmitter {
 
           switch (event.log.topics[0]) {
             case nullifiedTopic:
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
               this.handleNullifiedEvent(event, eventsNullifierListener);
               return;
             case shieldTopic:
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
               this.handleShieldEvent(event, eventsCommitmentListener);
               return;
             case transactTopic:
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
               this.handleTransactEvent(event, eventsCommitmentListener);
               return;
             case unshieldTopic:
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
               this.handleUnshieldEvent(event, eventsUnshieldListener);
               return;
           }
@@ -356,15 +356,14 @@ export class RailgunSmartWalletContract extends EventEmitter {
       if (retryCount < MAX_SCAN_RETRIES && cause.message === SCAN_TIMEOUT_ERROR_MESSAGE) {
         const retry = retryCount + 1;
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${
-            this.chain.id
+          `[Chain ${this.chain.type}:${this.chain.chainId
           }]: Scan query error at block ${startBlock}. Retrying ${MAX_SCAN_RETRIES - retry} times.`,
         );
         EngineDebug.error(err);
         return this.scanAllEvents(startBlock, endBlock, retry);
       }
       EngineDebug.log(
-        `[Chain ${this.chain.type}:${this.chain.id}]: Scan failed at block ${startBlock}. No longer retrying.`,
+        `[Chain ${this.chain.type}:${this.chain.chainId}]: Scan failed at block ${startBlock}. No longer retrying.`,
       );
       EngineDebug.error(err);
       throw err;
@@ -373,14 +372,14 @@ export class RailgunSmartWalletContract extends EventEmitter {
 
   static getEngineV2StartBlockNumber(chain: Chain) {
     if (chain.type === ChainType.EVM) {
-      return ENGINE_V2_START_BLOCK_NUMBERS_EVM[chain.id] || 0;
+      return ENGINE_V2_START_BLOCK_NUMBERS_EVM[chain.chainId] || 0;
     }
     return 0;
   }
 
   private static getEngineV2ShieldEventUpdate030923BlockNumber(chain: Chain) {
     if (chain.type === ChainType.EVM) {
-      return ENGINE_V2_SHIELD_EVENT_UPDATE_03_09_23_BLOCK_NUMBERS_EVM[chain.id] || 0;
+      return ENGINE_V2_SHIELD_EVENT_UPDATE_03_09_23_BLOCK_NUMBERS_EVM[chain.chainId] || 0;
     }
     return 0;
   }
@@ -462,7 +461,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
       RailgunSmartWalletContract.getShieldPreMar23EventFilter();
 
     EngineDebug.log(
-      `[Chain ${this.chain.type}:${this.chain.id}]: [${txidVersion}] Scanning historical events from block ${currentStartBlock} to ${latestBlock}`,
+      `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning historical events from block ${currentStartBlock} to ${latestBlock}`,
     );
 
     let startBlockForNext10000 = initialStartBlock;
@@ -478,21 +477,19 @@ export class RailgunSmartWalletContract extends EventEmitter {
       const withinNewV3ShieldEventRange = endBlock >= engineV3ShieldEventUpdate030923BlockNumber;
       if (withinLegacyEventRange && withinV3EventRange) {
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.id}]: Changing from legacy events to new events...`,
+          `[Chain ${this.chain.type}:${this.chain.chainId}]: Changing from legacy events to new events...`,
         );
       }
 
       if ((currentStartBlock - startBlockForNext10000) % 10000 === 0) {
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${
-            this.chain.id
-          }]: [${txidVersion}] Scanning next 10,000 events (${
-            withinLegacyEventRange ? 'V1' : 'V2'
+          `[Chain ${this.chain.type}:${this.chain.chainId
+          }]: [${txidVersion}] Scanning next 10,000 events (${withinLegacyEventRange ? 'V1' : 'V2'
           }) [${currentStartBlock}]...`,
         );
       }
 
-      // eslint-disable-next-line no-await-in-loop
+
       const allEvents = await this.scanAllEvents(currentStartBlock, endBlock);
 
       if (withinV3EventRange) {
@@ -502,7 +499,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
             allEvents,
             legacyPreMar23EventFilterShield,
           );
-          // eslint-disable-next-line no-await-in-loop
+
           await V2Events.processShieldEvents_LegacyShield_PreMar23(
             txidVersion,
             eventsCommitmentListener,
@@ -515,7 +512,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
             allEvents,
             eventFilterShield,
           );
-          // eslint-disable-next-line no-await-in-loop
+
           await V2Events.processShieldEvents(txidVersion, eventsCommitmentListener, eventsShield);
         }
 
@@ -532,7 +529,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
           eventFilterUnshield,
         );
 
-        // eslint-disable-next-line no-await-in-loop
+
         await Promise.all([
           V2Events.processNullifiedEvents(txidVersion, eventsNullifierListener, eventsNullifiers),
           V2Events.processUnshieldEvents(txidVersion, eventsUnshieldListener, eventsUnshield),
@@ -554,7 +551,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
           legacyEventFilterEncryptedCommitmentBatch,
         );
 
-        // eslint-disable-next-line no-await-in-loop
+
         await Promise.all([
           processLegacyNullifierEvents(
             txidVersion,
@@ -574,12 +571,12 @@ export class RailgunSmartWalletContract extends EventEmitter {
         ]);
       }
 
-      // eslint-disable-next-line no-await-in-loop
+
       await setLastSyncedBlock(endBlock);
 
       const nextStartBlockFromCurrentBlock = currentStartBlock + SCAN_CHUNKS + 1;
       const nextStartBlockFromLatestValidMerkletreeEntry =
-        // eslint-disable-next-line no-await-in-loop
+
         await getNextStartBlockFromValidMerkletree();
 
       // Choose greater of:
@@ -592,8 +589,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
         currentStartBlock = nextStartBlockFromLatestValidMerkletreeEntry;
         startBlockForNext10000 = nextStartBlockFromLatestValidMerkletreeEntry;
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.id}]: Skipping ${
-            nextStartBlockFromCurrentBlock - nextStartBlockFromLatestValidMerkletreeEntry
+          `[Chain ${this.chain.type}:${this.chain.chainId}]: Skipping ${nextStartBlockFromCurrentBlock - nextStartBlockFromLatestValidMerkletreeEntry
           } already processed/validated blocks from QuickSync...`,
         );
       } else {
@@ -601,7 +597,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
       }
     }
 
-    EngineDebug.log(`[Chain ${this.chain.type}:${this.chain.id}]: Finished historical event scan`);
+    EngineDebug.log(`[Chain ${this.chain.type}:${this.chain.chainId}]: Finished historical event scan`);
   }
 
   /**

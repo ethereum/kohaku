@@ -1,4 +1,4 @@
-import EngineDebug from '../debugger/debugger';
+import { EngineDebug } from '../debugger/debugger';
 import { Proof, UnprovedTransactionInputs } from '../models/prover-types';
 import { stringifySafe } from '../utils/stringify';
 

@@ -203,7 +203,7 @@ export class RailgunVersionedSmartContracts {
           ContractStore.poseidonMerkleVerifierV3Contracts.getOrThrow(null, chain);
         const emptyGlobalBoundParams: PoseidonMerkleVerifier.GlobalBoundParamsStruct = {
           minGasPrice: 0n,
-          chainID: chain.id,
+          chainID: chain.chainId,
           senderCiphertext: '0x',
           to: ZERO_ADDRESS,
           data: '0x',

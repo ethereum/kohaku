@@ -33,12 +33,17 @@ export class Registry<T> {
   }
 
   private static serializeChain(chain: Chain): ChainString {
-    return `${chain.type}:${chain.id}`;
+    return `${chain.type}:${chain.chainId}`;
   }
 
   private static deserializeChain(chainString: ChainString): Chain {
-    const [type, id] = chainString.split(':').map(Number);
-    return { type, id };
+    const [type, chainId] = chainString.split(':').map(Number);
+
+    if (type === undefined || chainId === undefined) {
+      throw new Error(`Invalid chain string: ${chainString}`);
+    }
+
+    return { type, chainId };
   }
 
   set(txidVersion: TXIDVersion | null, chain: Chain, value: T) {

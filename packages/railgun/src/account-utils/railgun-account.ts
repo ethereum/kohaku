@@ -171,7 +171,7 @@ export function getAdaptParamsHash(
   return keccak256(ByteUtils.hexToBytes(encoded));
 }
 
-export default class RailgunAccount {
+export class RailgunAccount {
 
   private spendingNode: WalletNode;
   private viewingNode: WalletNode;

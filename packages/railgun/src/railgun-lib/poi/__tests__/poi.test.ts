@@ -66,7 +66,7 @@ const shieldBlockedPOIsForList1 = {
   note: { value: 1n },
 };
 
-const chain: Chain = { type: 0, id: 1 };
+const chain: Chain = { type: 0, chainId: 1 };
 
 describe('poi', () => {
   before(() => {

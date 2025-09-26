@@ -1,4 +1,4 @@
-/* eslint-disable no-await-in-loop */
+ 
 export const delay = (delayInMS: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, delayInMS));
 };
@@ -10,8 +10,8 @@ export function promiseTimeout<T>(
 ): Promise<T> {
   // Create a promise that rejects in <ms> milliseconds
   const timeout = new Promise((_resolve, reject) => {
-    const id = setTimeout(() => {
-      clearTimeout(id);
+    const timeoutId = setTimeout(() => {
+      clearTimeout(timeoutId);
       reject(new Error(customError ?? `Timed out in ${ms} ms.`));
     }, ms);
   });

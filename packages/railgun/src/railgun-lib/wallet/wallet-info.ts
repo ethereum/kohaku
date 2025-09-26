@@ -1,7 +1,7 @@
 const MAX_LENGTH = 16;
 const WALLET_SOURCE_CHARSET = ' 0123456789abcdefghijklmnopqrstuvwxyz';
 
-export default class WalletInfo {
+export class WalletInfo {
   static walletSource: string;
 
   static setWalletSource(walletSource: string) {

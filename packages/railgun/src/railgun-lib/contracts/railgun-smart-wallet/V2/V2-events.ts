@@ -7,7 +7,7 @@ import {
   TransactCommitmentV2,
 } from '../../../models/formatted-types';
 import { ByteLength, ByteUtils } from '../../../utils/bytes';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 import {
   CommitmentEvent,
   EventsCommitmentListener,
@@ -263,7 +263,7 @@ export class V2Events {
     );
     for (const log of logs) {
       const args = iface.decodeEventLog('Shield', log.data);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       log.args = args as any;
     }
 

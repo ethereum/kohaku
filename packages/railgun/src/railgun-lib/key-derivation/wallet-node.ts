@@ -32,9 +32,9 @@ const derivePathsForIndex = (index: number = 0) => {
 export const deriveNodes = (mnemonic: string, index: number = 0): WalletNodes => {
   const paths = derivePathsForIndex(index);
   return {
-    // eslint-disable-next-line no-use-before-define
+     
     spending: WalletNode.fromMnemonic(mnemonic).derive(paths.spending),
-    // eslint-disable-next-line no-use-before-define
+     
     viewing: WalletNode.fromMnemonic(mnemonic).derive(paths.viewing),
   };
 };

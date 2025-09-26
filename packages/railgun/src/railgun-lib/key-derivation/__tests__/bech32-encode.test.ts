@@ -12,21 +12,21 @@ describe('bech32-encode', () => {
     const vectors = [
       {
         pubkey: '00000000',
-        chain: { type: ChainType.EVM, id: 1 },
+        chain: { type: ChainType.EVM, chainId: 1 },
         address:
           '0zk1qyqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqunpd9kxwatwqyqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqhshkca',
         version: 1,
       },
       {
         pubkey: '01bfd5681c0479be9a8ef8dd8baadd97115899a9af30b3d2455843afb41b',
-        chain: { type: ChainType.EVM, id: 56 },
+        chain: { type: ChainType.EVM, chainId: 56 },
         address:
           '0zk1qyqqqqdl645pcpreh6dga7xa3w4dm9c3tzv6ntesk0fy2kzr476pkunpd9kxwatw8qqqqqdl645pcpreh6dga7xa3w4dm9c3tzv6ntesk0fy2kzr476pkcsu8tp',
         version: 1,
       },
       {
         pubkey: '01bfd5681c0479be9a8ef8dd8baadd97115899a9af30b3d2455843afb41b',
-        chain: { type: 1, id: 56 },
+        chain: { type: 1, chainId: 56 },
         address:
           '0zk1qyqqqqdl645pcpreh6dga7xa3w4dm9c3tzv6ntesk0fy2kzr476pkumpd9kxwatw8qqqqqdl645pcpreh6dga7xa3w4dm9c3tzv6ntesk0fy2kzr476pkwrfm4m',
         version: 1,

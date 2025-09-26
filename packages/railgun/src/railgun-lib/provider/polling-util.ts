@@ -27,7 +27,7 @@ export const createPollingJsonRpcProviderForListeners = async (
   }
 
   if (provider instanceof JsonRpcProvider) {
-    // eslint-disable-next-line no-underscore-dangle
+     
     const { url } = provider._getConnection();
 
     return new PollingJsonRpcProvider(url, chainId, pollingInterval);
@@ -43,10 +43,10 @@ export const createPollingJsonRpcProviderForListeners = async (
 
   const firstProvider = firstProviderConfig as JsonRpcProvider;
 
-  // eslint-disable-next-line no-underscore-dangle
+   
   const { url } = firstProvider._getConnection();
 
-  // eslint-disable-next-line no-underscore-dangle
+   
   const maxLogsPerBatch = firstProvider._getOption('batchMaxCount');
 
   return new PollingJsonRpcProvider(url, chainId, pollingInterval, maxLogsPerBatch);

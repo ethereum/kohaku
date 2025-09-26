@@ -1,4 +1,4 @@
-// eslint-disable-next-line import/no-cycle
+ 
 import { Proof } from './prover-types';
 
 export enum TXOPOIListStatus {

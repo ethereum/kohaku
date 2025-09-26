@@ -34,7 +34,7 @@ import {
 import { isDefined } from '../../../utils/is-defined';
 import { ByteLength, ByteUtils } from '../../../utils/bytes';
 import { recursivelyDecodeResult } from '../../../utils/ethers';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 import { getRailgunTransactionIDHex } from '../../../transaction/railgun-txid';
 import {
   GLOBAL_UTXO_POSITION_UNSHIELD_EVENT_HARDCODED_VALUE,
@@ -212,14 +212,14 @@ export class V3Events {
     const hasUnshield = unshieldPreimage.value > 0n;
     const unshield: Optional<UnshieldRailgunTransactionData> = hasUnshield
       ? {
-          toAddress: ByteUtils.formatToByteLength(unshieldPreimage.npk, ByteLength.Address, true),
-          tokenData: serializeTokenData(
-            unshieldPreimage.token.tokenAddress,
-            unshieldPreimage.token.tokenType,
-            unshieldPreimage.token.tokenSubID.toString(),
-          ),
-          value: unshieldPreimage.value.toString(),
-        }
+        toAddress: ByteUtils.formatToByteLength(unshieldPreimage.npk, ByteLength.Address, true),
+        tokenData: serializeTokenData(
+          unshieldPreimage.token.tokenAddress,
+          unshieldPreimage.token.tokenType,
+          unshieldPreimage.token.tokenSubID.toString(),
+        ),
+        value: unshieldPreimage.value.toString(),
+      }
       : undefined;
 
     // Unshield-only transactions must have hardcoded utxoTreeOut and utxoBatchStartPositionOut of 99999.
@@ -349,7 +349,7 @@ export class V3Events {
           eventsNullifierListener,
           eventsUnshieldListener,
           eventsRailgunTransactionsV3Listener,
-          async () => {}, // Do not trigger wallet scans
+          async () => { }, // Do not trigger wallet scans
         );
       }),
     );
@@ -458,13 +458,13 @@ export class V3Events {
 
         const commitmentsWithUnshieldHash = hasUnshield
           ? [
-              ...commitmentHashes,
-              ByteUtils.nToHex(
-                getUnshieldPreImageNoteHash(unshieldPreimage),
-                ByteLength.UINT_256,
-                true,
-              ),
-            ]
+            ...commitmentHashes,
+            ByteUtils.nToHex(
+              getUnshieldPreImageNoteHash(unshieldPreimage),
+              ByteLength.UINT_256,
+              true,
+            ),
+          ]
           : commitmentHashes;
 
         const formattedBoundParamsHash = ByteUtils.formatToByteLength(
@@ -485,7 +485,7 @@ export class V3Events {
           utxoStartingIndex,
           undefined, // TODO-V3: add verificationHash
         );
-        // eslint-disable-next-line no-await-in-loop
+
         await eventsRailgunTransactionsV3Listener(txidVersion, [railgunTransaction]);
 
         const railgunTxid = getRailgunTransactionIDHex(railgunTransaction);
@@ -509,7 +509,7 @@ export class V3Events {
           Number(spendAccumulatorNumber),
           nullifiers,
         );
-        // eslint-disable-next-line no-await-in-loop
+
         await eventsNullifierListener(txidVersion, nullifiedEvents);
 
         if (hasUnshield) {
@@ -524,7 +524,7 @@ export class V3Events {
           const unshieldFee =
             totalUnshieldValuesForToken > 0n
               ? (treasuryFeeMap[unshieldTokenHash].unshield * unshieldPreimage.value) /
-                totalUnshieldValuesForToken
+              totalUnshieldValuesForToken
               : 0n;
           if (
             isERC20 &&
@@ -543,7 +543,7 @@ export class V3Events {
             railgunTxid,
           );
 
-          // eslint-disable-next-line no-await-in-loop
+
           await eventsUnshieldListener(txidVersion, [unshieldEvent]);
         }
 
@@ -569,7 +569,7 @@ export class V3Events {
         const shieldFee =
           totalShieldValuesForToken > 0n
             ? (treasuryFeeMap[shieldTokenHash].shield * shield.preimage.value) /
-              totalShieldValuesForToken
+            totalShieldValuesForToken
             : 0n;
         if (
           isERC20 &&
@@ -603,7 +603,7 @@ export class V3Events {
       // Trigger wallet scans after all events are processed.
       await triggerWalletBalanceDecryptions(txidVersion);
     } catch (cause) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       const err = new Error('Failed to process V3 accumulator update event', { cause });
       EngineDebug.error(err);
       throw err;
@@ -615,6 +615,7 @@ const getAccumulatorEventObject = (args: Result): AccumulatorStateUpdateEvent.Ou
   try {
     return args.toObject() as AccumulatorStateUpdateEvent.OutputObject;
   } catch (err) {
+    console.error(err);
     return args as unknown as AccumulatorStateUpdateEvent.OutputObject;
   }
 };
@@ -627,6 +628,7 @@ const recusivelyDecodeAccumulatorUpdateObject = (
       args as unknown as Result,
     ) as PoseidonMerkleAccumulator.StateUpdateStructOutput;
   } catch (err) {
+    console.error(err);
     return args as unknown as PoseidonMerkleAccumulator.StateUpdateStructOutput;
   }
 };

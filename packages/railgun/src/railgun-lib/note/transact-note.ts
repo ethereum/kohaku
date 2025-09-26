@@ -29,7 +29,7 @@ import {
   serializeTokenData,
 } from './note-util';
 import { isDefined } from '../utils/is-defined';
-import WalletInfo from '../wallet/wallet-info';
+import { WalletInfo } from '../wallet/wallet-info';
 import { TXIDVersion } from '../models/poi-types';
 import { Chain } from '../models/engine-types';
 import { XChaCha20 } from '../utils/encryption/x-cha-cha-20';
@@ -446,10 +446,10 @@ export class TransactNote {
 
         const senderCiphertextDecrypted = isSentNote
           ? Memo.decryptSenderCiphertextV3(
-              senderCiphertext,
-              viewingPrivateKey,
-              transactCommitmentBatchIndexV3,
-            )
+            senderCiphertext,
+            viewingPrivateKey,
+            transactCommitmentBatchIndexV3,
+          )
           : undefined;
 
         return this.noteFromDecryptedValues(
@@ -620,19 +620,19 @@ export class TransactNote {
 
     const senderAddressData: Optional<AddressData> = senderAddressVisible
       ? {
-          masterPublicKey: TransactNote.getDecodedMasterPublicKey(
-            currentWalletAddressData.masterPublicKey,
-            encodedMPK,
-            undefined, // Sender is not blinded, null senderRandom.
-            isLegacyDecryption,
-          ),
-          viewingPublicKey: TransactNote.unblindViewingPublicKey(
-            random,
-            blindedSenderViewingKey,
-            MEMO_SENDER_RANDOM_NULL, // Sender is not blinded, null senderRandom.
-            isLegacyDecryption,
-          ),
-        }
+        masterPublicKey: TransactNote.getDecodedMasterPublicKey(
+          currentWalletAddressData.masterPublicKey,
+          encodedMPK,
+          undefined, // Sender is not blinded, null senderRandom.
+          isLegacyDecryption,
+        ),
+        viewingPublicKey: TransactNote.unblindViewingPublicKey(
+          random,
+          blindedSenderViewingKey,
+          MEMO_SENDER_RANDOM_NULL, // Sender is not blinded, null senderRandom.
+          isLegacyDecryption,
+        ),
+      }
       : undefined;
     return new TransactNote(
       currentWalletAddressData,

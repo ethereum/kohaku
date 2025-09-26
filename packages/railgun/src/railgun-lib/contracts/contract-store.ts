@@ -1,4 +1,3 @@
-import { Chain } from '../models/engine-types';
 import { Registry } from '../utils/registry';
 import { RailgunSmartWalletContract } from './railgun-smart-wallet/V2/railgun-smart-wallet';
 import { PoseidonMerkleAccumulatorContract } from './railgun-smart-wallet/V3/poseidon-merkle-accumulator';

@@ -13,6 +13,7 @@ export const tryDecryptJSONDataWithSharedKey = (
     const dataString = toUTF8String(ByteUtils.combine(chunkedData));
     return JSON.parse(dataString);
   } catch (err) {
+    console.error(err);
     // Data is not addressed to this user.
     return null;
   }

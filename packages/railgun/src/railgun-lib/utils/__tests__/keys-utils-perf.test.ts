@@ -40,7 +40,7 @@ describe('keys-utils performance', () => {
     for (let i = 0; i < TOTAL; i += 1) {
       const privateKeyPairA = randomBytes(32);
       const privateKeyPairB = randomBytes(32);
-      // eslint-disable-next-line no-await-in-loop
+       
       const publicKeyPairB = await getPublicViewingKey(privateKeyPairB);
       inputs.push([privateKeyPairA, publicKeyPairB]);
     }
@@ -49,13 +49,13 @@ describe('keys-utils performance', () => {
   it('JavaScript performance', async () => {
     const start = performance.now();
     for (const [privateKeyPairA, blindedPublicKeyPairB] of inputs) {
-      // eslint-disable-next-line no-await-in-loop
+       
       await getSharedSymmetricKeyJavascript(privateKeyPairA, blindedPublicKeyPairB);
     }
     const end = performance.now();
     jsDuration = end - start;
     const durationPerCall = (jsDuration / TOTAL).toFixed(2);
-    // eslint-disable-next-line no-console
+     
     console.log(`JavaScript getSharedSymmetricKey: ${durationPerCall}ms per call`);
   }).timeout(5000);
 
@@ -63,13 +63,13 @@ describe('keys-utils performance', () => {
     await expect(initCurve25519Promise).to.not.be.rejectedWith('some error');
     const start = performance.now();
     for (const [privateKeyPairA, blindedPublicKeyPairB] of inputs) {
-      // eslint-disable-next-line no-await-in-loop
+       
       await getSharedSymmetricKey(privateKeyPairA, blindedPublicKeyPairB);
     }
     const end = performance.now();
     wasmDuration = end - start;
     const durationPerCall = (wasmDuration / TOTAL).toFixed(2);
-    // eslint-disable-next-line no-console
+     
     console.log(`WASM getSharedSymmetricKey: ${durationPerCall}ms per call`);
   }).timeout(5000);
 

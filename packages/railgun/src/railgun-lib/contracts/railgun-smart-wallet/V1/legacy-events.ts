@@ -19,7 +19,7 @@ import {
 } from '../../../models/formatted-types';
 import { getNoteHash, serializePreImage, serializeTokenData } from '../../../note/note-util';
 import { ByteLength, ByteUtils } from '../../../utils';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 import { TXIDVersion } from '../../../models/poi-types';
 
 export function formatLegacyGeneratedCommitmentBatchCommitments(

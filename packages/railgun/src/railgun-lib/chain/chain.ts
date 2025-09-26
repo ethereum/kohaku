@@ -11,7 +11,7 @@ const getChainFullNetworkID = (chain: Chain): string => {
   );
   // 7 bytes: chainID.
   const formattedChainID = ByteUtils.formatToByteLength(
-    ByteUtils.hexlify(chain.id),
+    ByteUtils.hexlify(chain.chainId),
     ByteLength.UINT_56,
   );
   return `${formattedChainType}${formattedChainID}`;
@@ -19,7 +19,7 @@ const getChainFullNetworkID = (chain: Chain): string => {
 
 export const getChainSupportsV3 = (chain: Chain): boolean => {
   for (const supportingV3Chain of chainsSupportingV3) {
-    if (chain.id === supportingV3Chain.id && chain.type === supportingV3Chain.type) {
+    if (chain.chainId === supportingV3Chain.chainId && chain.type === supportingV3Chain.type) {
       return true;
     }
   }
@@ -29,7 +29,7 @@ export const getChainSupportsV3 = (chain: Chain): boolean => {
 export const assertChainSupportsV3 = (chain: Chain) => {
   if (!getChainSupportsV3(chain)) {
     throw new Error(
-      `Chain does not support V3: ${chain.type}:${chain.id}. Set supportsV3 'true' in loadNetwork.`,
+      `Chain does not support V3: ${chain.type}:${chain.chainId}. Set supportsV3 'true' in loadNetwork.`,
     );
   }
 };

@@ -15,5 +15,5 @@ export enum ChainType {
 
 export type Chain = {
   type: ChainType;
-  id: number;
+  chainId: number;
 };

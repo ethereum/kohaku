@@ -1,4 +1,4 @@
-import EngineDebug from '../debugger/debugger';
+import { EngineDebug } from '../debugger/debugger';
 import { ByteLength, ByteUtils } from '../utils/bytes';
 import {
   ArtifactGetter,
@@ -91,16 +91,16 @@ export class Prover {
    * Used to set Groth16 implementation from snarkjs.min.js or snarkjs.
    */
   setSnarkJSGroth16(snarkJSGroth16: SnarkJSGroth16) {
-    const suppressDebugLogger = { debug: () => {} };
+    const suppressDebugLogger = { debug: () => { } };
 
     this.groth16 = {
       fullProveRailgun: async (
         formattedInputs: FormattedCircuitInputsRailgun,
         wasm: Optional<ArrayLike<number>>,
         zkey: ArrayLike<number>,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         _logger: { debug: (log: string) => void },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         _dat: ArrayLike<number> | undefined,
         progressCallback: ProverProgressCallback,
       ) => {
@@ -110,7 +110,7 @@ export class Prover {
           1500, // totalMsec
           250, // delayMsec
         );
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
         progressService.progressSteadily(progressCallback);
         try {
           const proof = await snarkJSGroth16.fullProve(
@@ -130,9 +130,9 @@ export class Prover {
         formattedInputs: FormattedCircuitInputsPOI,
         wasm: Optional<ArrayLike<number>>,
         zkey: ArrayLike<number>,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         _logger: { debug: (log: string) => void },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         _dat: ArrayLike<number> | undefined,
         progressCallback: ProverProgressCallback,
       ) => {
@@ -142,7 +142,7 @@ export class Prover {
           3000, // totalMsec
           250, // delayMsec
         );
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
         progressService.progressSteadily(progressCallback);
 
         try {
@@ -431,7 +431,7 @@ export class Prover {
     };
   }
 
-  // eslint-disable-next-line class-methods-use-this
+
   getPublicInputsPOI(
     anyRailgunTxidMerklerootAfterTransaction: string,
     blindedCommitmentsOut: string[],
@@ -458,7 +458,7 @@ export class Prover {
     return publicInputs;
   }
 
-  // eslint-disable-next-line class-methods-use-this
+
   private static getMaxInputsOutputsForPOI(inputs: POIEngineProofInputs) {
     if (inputs.nullifiers.length <= 3 && inputs.commitmentsOut.length <= 3) {
       // "Mini" POI circuit
@@ -578,7 +578,7 @@ export class Prover {
 
       // Throw if proof is invalid
       if (!(await this.verifyPOIProof(publicInputs, snarkProof, maxInputs, maxOutputs))) {
-        // eslint-disable-next-line no-console
+
         throw new Error('POI proof verification failed');
       }
 

@@ -3,7 +3,7 @@ import { TokenDataStructOutput, TokenVault } from '../../../abi/typechain/TokenV
 import { PollingJsonRpcProvider } from '../../../provider/polling-json-rpc-provider';
 import { ABITokenVault } from '../../../abi/abi';
 import { ByteLength, ByteUtils } from '../../../utils/bytes';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 
 export class TokenVaultContract {
   readonly contract: TokenVault;

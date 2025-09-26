@@ -46,6 +46,7 @@ async function getSharedSymmetricKeyJavascript(
     const hashed: Uint8Array = ByteUtils.hexStringToBytes(sha256(keyPreimage));
     return hashed;
   } catch (err) {
+    console.error(err);
     return undefined;
   }
 }

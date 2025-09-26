@@ -7,9 +7,9 @@ const require = createRequire(import.meta.url);
 type Ciphers = Pick<typeof import('crypto'), 'createCipheriv' | 'createDecipheriv'>;
 
 const { createCipheriv, createDecipheriv } = isNodejs
-  ? // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+  ?  
     (require('crypto') as Ciphers)
-  : // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+  :  
     (require('browserify-aes/browser') as Ciphers);
 
 export class AES {
@@ -110,7 +110,7 @@ export class AES {
       decipher.final();
       return data;
     } catch (cause) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+       
       throw new Error('Unable to decrypt ciphertext.', { cause });
     }
   }

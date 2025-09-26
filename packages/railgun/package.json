@@ -1,5 +1,5 @@
 {
-  "name": "@ethprivacy/railgun",
+  "name": "@kohaku-eth/railgun",
   "version": "0.0.1",
   "description": "Simplified Railgun TS utils",
   "type": "module",
@@ -18,7 +18,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "echo Building @ethprivacy/railgun && tsup --config tsup.config.ts",
+    "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "demo": "tsx demo/index.ts",
     "prepublishOnly": "pnpm -w -r build"

@@ -5,7 +5,7 @@
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
-      "@ethprivacy/railgun": ["packages/railgun/src/index.ts"]
+      "@kohaku-eth/railgun": ["packages/railgun/src/index.ts"]
     },
     "strict": true,
     "noImplicitOverride": true,

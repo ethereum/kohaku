@@ -14,7 +14,7 @@ import { TransactionReceiptLog } from '../../../models/formatted-types';
 import { getTokenDataERC20 } from '../../../note/note-util';
 import { ZERO_ADDRESS } from '../../../utils/constants';
 import { RelayAdaptHelper } from '../relay-adapt-helper';
-import EngineDebug from '../../../debugger/debugger';
+import { EngineDebug } from '../../../debugger/debugger';
 import { ShieldRequestStruct } from '../../../abi/typechain/RailgunSmartWallet';
 import { RelayAdapt } from '../../../abi/typechain/RelayAdapt';
 import { PayableOverrides } from '../../../abi/typechain/common';
@@ -284,6 +284,7 @@ export class RelayAdaptV3Contract {
         errorMessage: `'${callFailedMessage}': ${parsedDataMessage?.error ?? dataMessage}`,
       };
     } catch (err) {
+      console.error(err);
       return {
         callFailedIndexString: 'UNKNOWN',
         errorMessage: `error: ${errMessage}`,
@@ -393,7 +394,7 @@ export class RelayAdaptV3Contract {
 
     const callIndex = Number(decoded[0]);
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+
     const revertReasonBytes: string = decoded[1];
 
     // Map function to try parsing bytes as string
@@ -414,7 +415,7 @@ export class RelayAdaptV3Contract {
       }
       return utf8;
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+
       return `Unknown Relay Adapt error: ${err?.message ?? err}`;
     }
   }

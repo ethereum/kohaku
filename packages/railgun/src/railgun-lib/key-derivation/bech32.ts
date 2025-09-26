@@ -41,7 +41,7 @@ const networkIDToChain = (networkID: string): Optional<Chain> => {
 
   const chain: Chain = {
     type: parseInt(networkID.slice(0, 2), 16),
-    id: parseInt(networkID.slice(2, 16), 16),
+    chainId: parseInt(networkID.slice(2, 16), 16),
   };
   return chain;
 };

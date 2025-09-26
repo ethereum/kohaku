@@ -18,7 +18,7 @@
 // import { PollingJsonRpcProvider } from '../../provider/polling-json-rpc-provider';
 // import { getTestTXIDVersion, isV2Test } from '../../test/helper.test';
 // import { Memo } from '../memo';
-// import WalletInfo from '../../wallet/wallet-info';
+// import { WalletInfo } from '../../wallet/wallet-info';
 // import { TokenVaultContract } from '../../contracts/railgun-smart-wallet/V3/token-vault-contract';
 // import { TXIDVersion } from '../../models/poi-types';
 

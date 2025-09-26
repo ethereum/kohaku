@@ -1,5 +1,5 @@
 import circom from '@railgun-community/circomlibjs';
-import EngineDebug from '../debugger/debugger';
+import { EngineDebug } from '../debugger/debugger';
 import { ByteLength, ByteUtils } from './bytes';
 import { isReactNative } from './runtime';
 import { createRequire } from 'node:module';
@@ -12,8 +12,8 @@ interface PoseidonModule {
 }
 
 const { default: initPoseidonWasm, poseidon: poseidonWasm, poseidonHex: poseidonHexWasm } =
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-    isReactNative ? {} : (require('@railgun-community/poseidon-hash-wasm') as PoseidonModule);
+
+  isReactNative ? {} : (require('@railgun-community/poseidon-hash-wasm') as PoseidonModule);
 
 const initPoseidon = (): Promise<void> => {
   try {
