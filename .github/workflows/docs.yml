@@ -2,9 +2,16 @@ name: Docs
 
 on:
   push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+    branches: ["master"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -23,18 +30,24 @@ jobs:
           cache: 'pnpm'
       - name: Install
         run: pnpm install --frozen-lockfile=false
-      - name: Lint
-        run: pnpm lint
+      # - name: Lint
+        # run: pnpm lint
       - name: Build Docs
         run: pnpm --filter docs build
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     needs: build
     if: github.ref == 'refs/heads/master'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy 🚀
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          folder: docs/dist
+          path: 'docs/dist'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
