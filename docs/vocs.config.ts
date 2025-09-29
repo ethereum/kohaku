@@ -112,7 +112,13 @@ export default defineConfig({
     }
   ],
   theme: {
-    accentColor: '#2563eb',
+    accentColor: '#D01C15',
   },
+  // banner: {
+  //   content: 'This project is still under active development.',
+  //   dismissable: false,
+  // },
+  iconUrl: '/kohaku_icon.svg',
+  logoUrl: '/kohaku_logo.svg',
   basePath: '/kohaku',
 })
