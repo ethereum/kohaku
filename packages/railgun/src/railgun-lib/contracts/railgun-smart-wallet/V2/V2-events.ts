@@ -264,6 +264,7 @@ export class V2Events {
     for (const log of logs) {
       const args = iface.decodeEventLog('Shield', log.data);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       log.args = args as any;
     }
 

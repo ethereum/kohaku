@@ -24,8 +24,6 @@ declare type Artifact = {
   vkey: object;
 };
 
-declare module 'circomlibjs';
-
 // declare module 'railgun-community-circuit-artifacts' {
 //   type ArtifactListMetadata = {
 //     nullifiers: number;

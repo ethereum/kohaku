@@ -104,6 +104,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     eventsRailgunTransactionsV3Listener: EventsRailgunTransactionListenerV3,
     triggerWalletBalanceDecryptions: (txidVersion: TXIDVersion) => Promise<void>,
   ): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await this.contractForListeners.on(this.eventTopic as any, (event: ContractEventPayload) => {
       try {
         if (event.log.topics.length !== 1) {
@@ -141,6 +142,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     startBlock: number,
     endBlock: number,
     retryCount = 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<TypedEventLog<TypedContractEvent<any, any, any>>[]> {
     try {
       const events = await promiseTimeout(

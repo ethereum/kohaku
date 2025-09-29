@@ -69,6 +69,7 @@ const getWalletNodeFromKey = (priv: string) => {
   return new WalletNode({chainKey: wallet.privateKey, chainCode: ''});
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isRangeErr(e: any) {
   return (
     e?.error?.code === -32001 ||
@@ -81,6 +82,7 @@ export const getAllReceipts = async (provider: JsonRpcProvider, startBlock: numb
   const MIN_BATCH = 1;
   let batch = Math.min(MAX_BATCH, Math.max(1, endBlock - startBlock + 1));
   let from = startBlock;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allLogs: any[] = [];
 
   while (from <= endBlock) {
@@ -95,6 +97,7 @@ export const getAllReceipts = async (provider: JsonRpcProvider, startBlock: numb
       allLogs.push(...logs);
       from = to + 1;                 // advance
       batch = Math.min(batch * 2, MAX_BATCH); // grow again after success
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       if (isRangeErr(e)) {
         if (batch > MIN_BATCH) {
@@ -149,6 +152,7 @@ type ActionData = {
   calls: Call[];
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toActionDataTuple(a: ActionData): any[] {
   const callsTuple = a.calls.map((c) => [
     c.to,

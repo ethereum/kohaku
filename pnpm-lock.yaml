@@ -109,6 +109,9 @@ importers:
       '@types/chai-as-promised':
         specifier: ^7.1.8
         version: 7.1.8
+      '@types/circomlibjs':
+        specifier: ^0.1.6
+        version: 0.1.6
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
@@ -1816,6 +1819,9 @@ packages:
 
   '@types/chai@4.3.20':
     resolution: {integrity: sha512-/pC9HAB5I/xMlc5FP77qjCnI16ChlJfW0tGa0IUcFn38VJrTV6DeZ60NU5KZBtaOZqjdpwTWohz5HU1RrhiYxQ==}
+
+  '@types/circomlibjs@0.1.6':
+    resolution: {integrity: sha512-yF174bPDaiKgejlZzCSqKwZaqXhlxMcVEHrAtstFohwP05OjtvHXOdxO6HQeTg8WwIdgMg7MJb1WyWZdUCGlPQ==}
 
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
@@ -8206,6 +8212,8 @@ snapshots:
       '@types/chai': 4.3.20
 
   '@types/chai@4.3.20': {}
+
+  '@types/circomlibjs@0.1.6': {}
 
   '@types/d3-array@3.2.2': {}
 
