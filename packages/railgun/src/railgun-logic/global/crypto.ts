@@ -339,7 +339,7 @@ const edBabyJubJub = {
     // Derive key
     const key = eddsaBuild
       .prv2pub(privateKey)
-      .map((element: any) => eddsaBuild.F.fromMontgomery(element).reverse()) as [Uint8Array, Uint8Array];
+      .map((element) => eddsaBuild.F.fromMontgomery(element).reverse()) as [Uint8Array, Uint8Array];
 
     return key;
   },
@@ -373,7 +373,7 @@ const edBabyJubJub = {
     const sig = eddsaBuild.signPoseidon(key, montgomery);
 
     // Convert R8 elements from montgomery and to BE
-    const r8 = sig.R8.map((element: any) => eddsaBuild.F.fromMontgomery(element).reverse());
+    const r8 = sig.R8.map((element) => eddsaBuild.F.fromMontgomery(element).reverse());
 
     return [r8[0], r8[1], bigIntToArray(sig.S, 32)];
   },

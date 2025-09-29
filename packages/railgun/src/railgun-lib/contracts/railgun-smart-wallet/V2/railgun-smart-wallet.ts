@@ -335,6 +335,7 @@ export class RailgunSmartWalletContract extends EventEmitter {
     startBlock: number,
     endBlock: number,
     retryCount = 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<TypedEventLog<TypedContractEvent<any, any, any>>[]> {
     try {
       const events = await promiseTimeout(

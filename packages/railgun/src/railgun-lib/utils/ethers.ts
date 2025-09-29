@@ -1,5 +1,6 @@
 import { Result } from 'ethers';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const recursivelyDecodeResult = (result: Result): any => {
   if (typeof result !== 'object') {
     // End (primitive) value
