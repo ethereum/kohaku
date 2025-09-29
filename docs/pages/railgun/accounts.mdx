@@ -1,0 +1,74 @@
+# Accounts
+
+:::info
+TODO: Write intro
+:::
+
+## Setup
+
+### Generate a BIP39 Mnemonic
+
+:::code-group
+
+```ts filename="viem.ts" [Viem]
+import { RailgunAccount } from '@kohaku-eth/railgun'
+import { english, generateMnemonic } from 'viem/accounts'
+
+const mnemonic = generateMnemonic(english) // [!code focus]
+const accountIndex = 0
+```
+
+```ts filename="raw.ts" [Raw]
+import { RailgunAccount } from '@kohaku-eth/railgun'
+
+const mnemonic = 'test test test test test test test test test test test junk'
+const accountIndex = 0
+```
+
+:::
+
+### Initialize Account
+
+Putting it all together
+
+```ts filename="result.ts"
+// [!include viem.ts] 
+
+const account = RailgunAccount.fromMnemonic(mnemonic, accountIndex)// [!code hl] [!code focus]
+```
+
+### Get 0zk Address
+
+Every railgun account has a 0zk address that can be used to receive and send tokens.
+
+```ts
+const zkAddress = await railgunAccount.getRailgunAddress();
+// 0zk
+```
+
+You can now receive funds to this address, see [Transacting](/railgun/txs) for more details.
+
+## Getting Balances
+
+```ts
+import { getAllReceipts } from '@kohaku-eth/railgun/account-utils';
+import { ByteUtils } from '@kohaku-eth/railgun/railgun-lib/utils/bytes';
+
+const receipts = await getAllReceipts(provider, startBlock, endBlock);
+await account.syncWithReceipts(receipts);
+
+const balance = await account.getBalance();
+```
+
+### Syncing Merkle Roots
+
+```ts
+// Get the latest merkle root
+const root = account.getLatestMerkleRoot();
+console.log('latest merkle root:', ByteUtils.hexlify(root, true));
+```
+
+### Storage Considerations
+
+To sync faster you could retain the previously indexed receipts. And re-use them in future syncs to save having to re-index.
+Railgun syncing happens incrementally, as such you can store previous receipts to speed up future syncs.

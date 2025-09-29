@@ -1,0 +1,41 @@
+# Wallet Best Practices [What does the ultimate wallet look like?]
+
+## Transaction Privacy
+
+By default ethereum transactions are transparent. This means anyone can see the amount, sender, recipient, and data within the transaction.
+
+However, there are smart-contract based privacy protocols that allow you to have more control over the visibility of your transactions.
+
+A few examples include:
+
+- [Railgun](https://railgun.org/) see ([@kohaku-eth/railgun](./railgun/intro.mdx))
+- [Privacy Pools](https://privacypools.com) see ([@kohaku-eth/privacy-pools](./privacy-pools/intro.mdx))
+- ~[Tornado Cash](https://tornado.cash) see ([@kohaku-eth/tornado](./tornado/intro.mdx))~
+
+## Walletbeat
+
+[Walletbeat](https://wallet.page) aims to provide a comprehensive overview of the Ethereum wallet ecosystem.
+In addition to holding wallets to best practices, and ensuring the end-users have the best possible experience.
+We advise you to have a look yourself.
+
+## Private RPC
+
+The source of truth for data within a wallet is access to the Ethereum Network. This is done through Remote Procedure Calls (a.k.a. RPC).
+It hence of importance that access to RPC (essentially what data you lookup) is private.
+
+The traditional (and what should be the default) approach is to use a user-defined RPC endpoint.
+Ideally this is a locally run ethereum node, though this may not always be feasible.
+
+### Lightclients & Yolo Nodes
+
+So what if, we could run a lightweight client on the users device, keep a checkpoint sync of the network, and verify results from an untrusted RPC on the fly?
+
+This is where lightclients come in.
+
+[Helios](https://github.com/a16z/helios) is a lightclient developed by [a16z](https://a16z.com/) that does just this.
+It lets you run a wrap an existing RPC and verify its results.
+
+### Network Privacy
+
+The extremely privacy caution person, such as a journalist or privacy enthusiast, may want to add an extra layer of protection by routing their traffic through Tor.
+

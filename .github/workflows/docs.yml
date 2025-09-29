@@ -1,4 +1,4 @@
-name: CI
+name: Docs
 
 on:
   push:
@@ -25,5 +25,16 @@ jobs:
         run: pnpm install --frozen-lockfile=false
       - name: Lint
         run: pnpm lint
-      - name: Build
-        run: pnpm -r build
+      - name: Build Docs
+        run: pnpm --filter docs build
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: docs/dist
