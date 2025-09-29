@@ -113,5 +113,6 @@ export default defineConfig({
   ],
   theme: {
     accentColor: '#2563eb',
-  }
+  },
+  basePath: '/kohaku',
 })
