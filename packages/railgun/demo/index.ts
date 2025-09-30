@@ -1,11 +1,11 @@
-import { RailgunAccount, FEE_BASIS_POINTS, getAllReceipts, GLOBAL_START_BLOCK } from '../src/account-utils';
+import { RailgunAccount, getAllReceipts, RAILGUN_CONFIG_BY_CHAIN_ID } from '../src/account-utils';
 import { ByteUtils } from '../src/railgun-lib/utils/bytes';
 import dotenv from 'dotenv';
 import { Wallet, JsonRpcProvider, TransactionReceipt } from 'ethers';
 import cached_file from './cached_sepolia.json';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import fs from 'fs';
+// import fs from 'fs';
 
 // Load ./demo/.env (same folder as this file)
 const __filename = fileURLToPath(import.meta.url);
@@ -25,9 +25,10 @@ type Cache = {
 
 async function main() {
   console.log("\n ///// RAILGUN SEPOLIA DEMO /////\n");
+  const chainId = BigInt(11155111);
 
   // 1. instantiate account from mnemonic
-  const railgunAccount = RailgunAccount.fromMnemonic(MNEMONIC, ACCOUNT_INDEX);
+  const railgunAccount = RailgunAccount.fromMnemonic(MNEMONIC, ACCOUNT_INDEX, chainId);
 
   // 2. get railgun 0zk address
   const zkAddress = await railgunAccount.getRailgunAddress();
@@ -40,7 +41,7 @@ async function main() {
   }
   const baseProvider = new JsonRpcProvider(RPC_URL);
   const network = await baseProvider.getNetwork();
-  if (Number(network.chainId) !== 11155111) {
+  if (network.chainId !== chainId) {
     console.error(`\nERROR: wrong chain provider (expect chainId 11155111, got: ${Number(chainId)})`);
     process.exit(1);
   }
@@ -53,10 +54,11 @@ async function main() {
 
   const cached: Cache = cached_file as unknown as Cache;
 
-  let startBlock = cached ? cached.endBlock : GLOBAL_START_BLOCK;
+  let startBlock = cached ? cached.endBlock : RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
   console.log(`fetching logs from cached start block (${startBlock}) to latest block (${endBlock}) ...`);
-  const receipts = await getAllReceipts(provider, startBlock, endBlock);
+  console.log("(not optimized, can take a while if block range is large...)")
+  const receipts = await getAllReceipts(provider, chainId, startBlock, endBlock);
   const combinedReceipts = cached ? Array.from(new Set(cached.receipts.concat(receipts))) : receipts;
   console.log("syncing railgun account with all logs...");
   await railgunAccount.syncWithReceipts(combinedReceipts);
@@ -84,7 +86,7 @@ async function main() {
   await new Promise(resolve => setTimeout(resolve, 2000));
   startBlock = endBlock;
   endBlock = await provider.getBlockNumber();
-  const newReceipts = await getAllReceipts(provider, startBlock, endBlock);
+  const newReceipts = await getAllReceipts(provider, chainId, startBlock, endBlock);
   await railgunAccount.syncWithReceipts(newReceipts);
   const balance2 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance2);
@@ -92,7 +94,8 @@ async function main() {
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
   // 7. create unshield ETH tx data
-  const reducedValue = VALUE - (VALUE * FEE_BASIS_POINTS / 10000n);
+  const feeBPS = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].FEE_BASIS_POINTS;
+  const reducedValue = VALUE - (VALUE * feeBPS / 10000n);
   const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(reducedValue, txSigner.address);
 
   // 8. do unshield tx
@@ -104,7 +107,7 @@ async function main() {
   await new Promise(resolve => setTimeout(resolve, 2000));
   startBlock = endBlock;
   endBlock = await provider.getBlockNumber();
-  const newReceipts2 = await getAllReceipts(provider, startBlock, endBlock);
+  const newReceipts2 = await getAllReceipts(provider, chainId, startBlock, endBlock);
   await railgunAccount.syncWithReceipts(newReceipts2);
   const balance3 = await railgunAccount.getBalance();
   console.log("new private WETH balance:", balance3);
@@ -112,13 +115,13 @@ async function main() {
   console.log("new root:", ByteUtils.hexlify(root3, true));
 
   // 10. If desired, save cache for faster syncing next time
-  console.log('storing updated cache before exiting...');
-  const allReceipts = Array.from(new Set(combinedReceipts.concat(newReceipts).concat(newReceipts2)));
-  const toCache = {
-    receipts: allReceipts,
-    endBlock: endBlock,
-  };
-  fs.writeFileSync('./demo/cached_sepolia.json', JSON.stringify(toCache, null, 2));
+  // console.log('storing updated cache before exiting...');
+  // const allReceipts = Array.from(new Set(combinedReceipts.concat(newReceipts).concat(newReceipts2)));
+  // const toCache = {
+  //   receipts: allReceipts,
+  //   endBlock: endBlock,
+  // };
+  // fs.writeFileSync('./demo/cached_sepolia.json', JSON.stringify(toCache, null, 2));
 
   // exit (because prover hangs)
   setImmediate(() => process.exit(0));
