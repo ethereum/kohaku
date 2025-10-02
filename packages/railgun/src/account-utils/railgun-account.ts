@@ -1,7 +1,7 @@
 import { deriveNodes, WalletNode } from '../railgun-lib/key-derivation/wallet-node';
 import { encodeAddress } from '../railgun-lib/key-derivation/bech32';
 import { Mnemonic } from '../railgun-lib/key-derivation/bip39';
-import { Wallet, Contract, JsonRpcProvider, TransactionReceipt, Interface, AbiCoder, BigNumberish } from 'ethers';
+import { Wallet, JsonRpcProvider, TransactionReceipt, Interface, AbiCoder, BigNumberish } from 'ethers';
 import { ShieldNoteERC20 } from '../railgun-lib/note/erc20/shield-note-erc20';
 import { ByteUtils } from '../railgun-lib/utils/bytes';
 import { ShieldRequestStruct } from '../railgun-lib/abi/typechain/RailgunSmartWallet';
@@ -21,16 +21,45 @@ import { getTokenID } from '../railgun-logic/logic/note';
 import { hash } from '../railgun-logic/global/crypto';
 
 const RAILGUN_INTERFACE = new Interface(ABIRailgunSmartWallet);
+const RELAY_ADAPT_INTERFACE = new Interface(ABIRelayAdapt);
 
 const ACCOUNT_VERSION = 1;
 const ACCOUNT_CHAIN_ID = undefined;
-export const RAILGUN_ADDRESS = '0x942D5026b421cf2705363A525897576cFAdA5964';
-export const GLOBAL_START_BLOCK = 4495479;
-export const CHAIN_ID = BigInt(11155111);
-export const RELAY_ADAPT_ADDRESS = '0x66af65bfff9e384796a56f3fa3709b9d5d9d7083';
+
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-export const WETH = '0x97a36608DA67AF0A79e50cb6343f86F340B3b49e';
-export const FEE_BASIS_POINTS = 25n;
+const ZERO_ARRAY = new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+const E_ADDRESS = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+export const RAILGUN_CONFIG_BY_CHAIN_ID = {
+  ["1"]: {
+    NAME: 'mainnet',
+    RAILGUN_ADDRESS: '0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9',
+    GLOBAL_START_BLOCK: 14693013,
+    CHAIN_ID: BigInt(1),
+    RELAY_ADAPT_ADDRESS: '0x4025ee6512DBbda97049Bcf5AA5D38C54aF6bE8a',
+    WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+    FEE_BASIS_POINTS: 25n,
+  },
+  ["11155111"]: {
+    NAME: 'sepolia',
+    RAILGUN_ADDRESS: '0x942D5026b421cf2705363A525897576cFAdA5964',
+    GLOBAL_START_BLOCK: 4495479,
+    CHAIN_ID: BigInt(11155111),
+    RELAY_ADAPT_ADDRESS: '0x66af65bfff9e384796a56f3fa3709b9d5d9d7083',
+    WETH: '0x97a36608DA67AF0A79e50cb6343f86F340B3b49e',
+    FEE_BASIS_POINTS: 25n,
+  }
+}
+
+export type RailgunNetworkConfig = {
+  NAME: string;
+  RAILGUN_ADDRESS: string;
+  GLOBAL_START_BLOCK: number;
+  CHAIN_ID: bigint;
+  RELAY_ADAPT_ADDRESS: string;
+  WETH: string;
+  FEE_BASIS_POINTS: bigint;
+}
 
 enum TokenType {
   ERC20 = 0,
@@ -77,9 +106,10 @@ function isRangeErr(e: any) {
   );
 }
 
-export const getAllReceipts = async (provider: JsonRpcProvider, startBlock: number, endBlock: number) => {
+export const getAllReceipts = async (provider: JsonRpcProvider, chainId: bigint, startBlock: number, endBlock: number) => {
   const MAX_BATCH = 1200;
   const MIN_BATCH = 1;
+  const railgunAddress = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].RAILGUN_ADDRESS;
   let batch = Math.min(MAX_BATCH, Math.max(1, endBlock - startBlock + 1));
   let from = startBlock;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +120,7 @@ export const getAllReceipts = async (provider: JsonRpcProvider, startBlock: numb
     try {
       await new Promise(r => setTimeout(r, 400)); // light pacing
       const logs = await provider.getLogs({
-        address: RAILGUN_ADDRESS,
+        address: railgunAddress,
         fromBlock: from,
         toBlock: to,
       });
@@ -131,9 +161,9 @@ export const getERC20TokenData = (token: string): TokenData => {
   return tokenData;
 }
 
-const payloadToAdaptCall = (payload: string, value: bigint = BigInt(0)): TxData => {
+const getTxData = (address: string, payload: string, value: bigint = BigInt(0)): TxData => {
   return {
-    to: RELAY_ADAPT_ADDRESS,
+    to: address,
     data: payload,
     value: value,
   };
@@ -177,13 +207,18 @@ export function getAdaptParamsHash(
 
 export class RailgunAccount {
 
+  private network: RailgunNetworkConfig;
   private spendingNode: WalletNode;
   private viewingNode: WalletNode;
   private merkleTrees: MerkleTree[];
   private noteBooks: NoteBook[];
   private shieldKeyEthSigner?: Wallet;
 
-  constructor(spendingNode: WalletNode, viewingNode: WalletNode, ethSigner?: Wallet) {
+  constructor(chainId: bigint, spendingNode: WalletNode, viewingNode: WalletNode, ethSigner?: Wallet) {
+    if (!Object.keys(RAILGUN_CONFIG_BY_CHAIN_ID).includes(chainId.toString())) {
+      throw new Error(`Chain ID ${chainId} not supported`);
+    }
+    this.network = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID];
     this.spendingNode = spendingNode;
     this.viewingNode = viewingNode;
     this.shieldKeyEthSigner = ethSigner;
@@ -191,17 +226,17 @@ export class RailgunAccount {
     this.noteBooks = [];
   }
 
-  static fromMnemonic(mnemonic: string, accountIndex: number): RailgunAccount {
+  static fromMnemonic(mnemonic: string, accountIndex: number, chainId: bigint): RailgunAccount {
     const {spending, viewing} = deriveNodes(mnemonic, accountIndex);
     const ethSigner = new Wallet(Mnemonic.to0xPrivateKey(mnemonic, accountIndex));
-    return new RailgunAccount(spending, viewing, ethSigner);
+    return new RailgunAccount(chainId, spending, viewing, ethSigner);
   }
 
-  static fromPrivateKeys(spendingKey: string, viewingKey: string, ethKey?: string): RailgunAccount {
+  static fromPrivateKeys(spendingKey: string, viewingKey: string, chainId: bigint, ethKey?: string): RailgunAccount {
     const spendingNode = getWalletNodeFromKey(spendingKey);
     const viewingNode = getWalletNodeFromKey(viewingKey);
     const ethSigner = ethKey ? new Wallet(ethKey) : undefined;
-    return new RailgunAccount(spendingNode, viewingNode, ethSigner);
+    return new RailgunAccount(chainId, spendingNode, viewingNode, ethSigner);
   }
 
   setShieldKeyEthSigner(ethKey: string) {
@@ -263,26 +298,18 @@ export class RailgunAccount {
 
   async createShieldTx(token: string, value: bigint): Promise<TxData> {
     const request = await this.createShieldRequest(token, value);
-    const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet);
-    const data = contract.interface.encodeFunctionData('shield', [[request]]);
-    return {
-      to: RAILGUN_ADDRESS,
-      data: data,
-      value: BigInt(0),
-    };
+    const data = RAILGUN_INTERFACE.encodeFunctionData('shield', [[request]]);
+
+    return getTxData(this.network.RAILGUN_ADDRESS, data);
   }
 
   async createNativeShieldTx(value: bigint): Promise<TxData> {
-    const request = await this.createShieldRequest(WETH, value);
-    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt);
-    const payload1 = contract.interface.encodeFunctionData('wrapBase', [value]);
-    const payload2 = contract.interface.encodeFunctionData('shield', [[request]]);
-    const data = contract.interface.encodeFunctionData('multicall', [true, [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)]]);
-    return {
-      to: RELAY_ADAPT_ADDRESS,
-      data: data,
-      value: value,
-    };
+    const request = await this.createShieldRequest(this.network.WETH, value);
+    const wrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('wrapBase', [value]));
+    const shieldTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('shield', [[request]]));
+    const data = RELAY_ADAPT_INTERFACE.encodeFunctionData('multicall', [true, [wrapTxData, shieldTxData]]);
+    
+    return getTxData(this.network.RELAY_ADAPT_ADDRESS, data, value);
   }
 
   async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<TxData> {
@@ -294,34 +321,30 @@ export class RailgunAccount {
         this.merkleTrees[i]!,
         minGasPrice,
         1, // unshield type
-        CHAIN_ID,
+        this.network.CHAIN_ID,
         ZERO_ADDRESS, // adapt contract
-        new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]), // adapt params
+        ZERO_ARRAY, // adapt params
         notesIn[i]!,
         notesOut[i]!,
       );
       allInputs.push(inputs);
     }
-    const contract = new Contract(RAILGUN_ADDRESS, ABIRailgunSmartWallet);
-    const data = contract.interface.encodeFunctionData('transact', [allInputs]);
-    return {
-      to: RAILGUN_ADDRESS,
-      data: data,
-      value: BigInt(0),
-    };
+    const data = RAILGUN_INTERFACE.encodeFunctionData('transact', [allInputs]);
+    
+    return getTxData(this.network.RAILGUN_ADDRESS, data);
   }
 
   async createNativeUnshieldTx(value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
-    const {notesIn, notesOut, nullifiers} = await this.getUnshieldNotes(WETH, value, RELAY_ADAPT_ADDRESS, true);
+    const {notesIn, notesOut, nullifiers} = await this.getUnshieldNotes(this.network.WETH, value, this.network.RELAY_ADAPT_ADDRESS, true);
 
-    const iface = new Interface(ABIRelayAdapt);
-    const payload1 = iface.encodeFunctionData('unwrapBase', [0]);
-    const payload2 = iface.encodeFunctionData('transfer', [[{token: {tokenType: 0, tokenAddress: ZERO_ADDRESS, tokenSubID: 0n}, to: receiver, value: 0n}]]);
+    const unwrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('unwrapBase', [0]));
+    const ethTransfer = [{token: {tokenType: 0, tokenAddress: ZERO_ADDRESS, tokenSubID: 0n}, to: receiver, value: 0n}];
+    const transferTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('transfer', [ethTransfer]));
     const actionData = {
       random: "0x"+ ByteUtils.randomHex(31),
       requireSuccess: true,
       minGasLimit: minGasPrice,
-      calls: [payloadToAdaptCall(payload1), payloadToAdaptCall(payload2)],
+      calls: [unwrapTxData, transferTxData],
     }
     
     const nullifiers2D: string[][] = nullifiers.map(
@@ -335,23 +358,17 @@ export class RailgunAccount {
         this.merkleTrees[i]!,
         minGasPrice,
         1, // unshield type
-        CHAIN_ID,
-        RELAY_ADAPT_ADDRESS,
+        this.network.CHAIN_ID,
+        this.network.RELAY_ADAPT_ADDRESS,
         relayAdaptParams,
         notesIn[i]!,
         notesOut[i]!,
       );
       allInputs.push(inputs);
     }
-
-    const contract = new Contract(RELAY_ADAPT_ADDRESS, ABIRelayAdapt);
-    const relayPayload = contract.interface.encodeFunctionData('relay', [allInputs, actionData]);
-    const data = contract.interface.encodeFunctionData('multicall', [true, [payloadToAdaptCall(relayPayload)]]);
-    return {
-      to: RELAY_ADAPT_ADDRESS,
-      data: data,
-      value: BigInt(0),
-    };
+    const data = RELAY_ADAPT_INTERFACE.encodeFunctionData('relay', [allInputs, actionData]);
+    
+    return getTxData(this.network.RELAY_ADAPT_ADDRESS, data);
   }
 
   async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote)[][], nullifiers: Uint8Array[][]}> {
@@ -405,8 +422,9 @@ export class RailgunAccount {
     return {notesIn, notesOut, nullifiers};
   }
 
-  async getBalance(token: string = WETH): Promise<bigint> {
-    const tokenData = getERC20TokenData(token);
+  async getBalance(token: string = ZERO_ADDRESS): Promise<bigint> {
+    const fixedToken = token === ZERO_ADDRESS || token === E_ADDRESS ? this.network.WETH : token;
+    const tokenData = getERC20TokenData(fixedToken);
     let totalBalance = 0n;
     for (let i = 0; i < this.merkleTrees.length; i++) {
       const balance = await this.noteBooks[i]!.getBalance(this.merkleTrees[i]!, tokenData);
@@ -462,7 +480,7 @@ export class RailgunAccount {
     await Promise.all(
       transaction.logs.map(async (log) => {
         // Check if log is log of contract
-        if (log.address === RAILGUN_ADDRESS) {
+        if (log.address === this.network.RAILGUN_ADDRESS) {
           // Parse log
           const parsedLog = RAILGUN_INTERFACE.parseLog(log);
           if (!parsedLog) return;
