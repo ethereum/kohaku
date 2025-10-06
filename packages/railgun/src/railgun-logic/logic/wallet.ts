@@ -67,6 +67,10 @@ class Wallet {
     // Map reduce sum values, default to 0 in no notes
     return unspentNotes.map((note) => note.value).reduce((left, right) => left + right, 0n);
   }
+
+  serialize() {
+    return this.notes.map(note => note.serializeNoteData());
+  }
 }
 
 export { Wallet };

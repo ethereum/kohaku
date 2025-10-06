@@ -1,11 +1,12 @@
-import { RailgunAccount, getAllReceipts, RAILGUN_CONFIG_BY_CHAIN_ID } from '../src/account-utils';
+import { RailgunAccount, getAllLogs, RAILGUN_CONFIG_BY_CHAIN_ID } from '../src/account-utils';
 import { ByteUtils } from '../src/railgun-lib/utils/bytes';
 import dotenv from 'dotenv';
-import { Wallet, JsonRpcProvider, TransactionReceipt } from 'ethers';
-import cached_file from './cached_sepolia.json';
+import { Wallet, JsonRpcProvider, Log } from 'ethers';
+import sepolia_checkpoint from '../checkpoints/sepolia_public_checkpoint.json';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-// import fs from 'fs';
+import fs from 'fs';
+import { SerializedNoteData } from '../src/railgun-logic/logic/note';
 
 // Load ./demo/.env (same folder as this file)
 const __filename = fileURLToPath(import.meta.url);
@@ -18,8 +19,14 @@ const RPC_URL = process.env.RPC_URL || '';
 const TX_SIGNER_KEY = process.env.TX_SIGNER_KEY || '';
 const VALUE = 10000000000000n; // 0.00001 ETH
 
-type Cache = {
-  receipts: TransactionReceipt[];
+type PublicCache = {
+  logs: Log[];
+  merkleTrees: {tree: string[][], nullifiers: string[]}[];
+  endBlock: number;
+}
+
+type PrivateCache = {
+  noteBooks: SerializedNoteData[][];
   endBlock: number;
 }
 
@@ -52,19 +59,37 @@ async function main() {
     batchStallTime: 0,
   });
 
-  const cached: Cache = cached_file as unknown as Cache;
+  if (!fs.existsSync('./demo/cache/')) {
+    fs.mkdirSync('./demo/cache/', { recursive: true });
+  }
 
-  let startBlock = cached ? cached.endBlock : RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].GLOBAL_START_BLOCK;
+  const publicCacheExists = fs.existsSync('./demo/cache/sepolia_public.json');
+  const public_cache = publicCacheExists ? JSON.parse(fs.readFileSync('./demo/cache/sepolia_public.json', 'utf8')) as PublicCache : sepolia_checkpoint as unknown as PublicCache;
+
+  console.log("\nresyncing railgun account...");
+  console.log("    -> WARNING: can be slow (e.g. minutes) on first run without local cache...")
+  await railgunAccount.loadCachedMerkleTrees(public_cache.merkleTrees);
+  const privateCacheExists = fs.existsSync(`./demo/cache/sepolia_${zkAddress}.json`);
+  if (privateCacheExists) {
+    const private_cache = JSON.parse(fs.readFileSync(`./demo/cache/sepolia_${zkAddress}.json`, 'utf8')) as PrivateCache;
+    await railgunAccount.loadCachedNoteBooks(private_cache.noteBooks);
+    if (private_cache.endBlock < public_cache.endBlock) {
+      await railgunAccount.syncWithLogs(public_cache.logs.filter(log => log.blockNumber > private_cache.endBlock), true);
+    }
+  } else {
+    await railgunAccount.syncWithLogs(public_cache.logs, true);
+  }
+  let startBlock = public_cache.endBlock > 0 ? public_cache.endBlock : RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
-  console.log(`fetching logs from cached start block (${startBlock}) to latest block (${endBlock}) ...`);
-  console.log("(not optimized, can take a while if block range is large...)")
-  const receipts = await getAllReceipts(provider, chainId, startBlock, endBlock);
-  const combinedReceipts = cached ? Array.from(new Set(cached.receipts.concat(receipts))) : receipts;
-  console.log("syncing railgun account with all logs...");
-  await railgunAccount.syncWithReceipts(combinedReceipts);
+  console.log(`    -> fetching new logs from start block (${startBlock}) to latest block (${endBlock})...`);
+  const newLogs = await getAllLogs(provider, chainId, startBlock, endBlock);
+  if (newLogs.length > 0) {
+    console.log(`    -> syncing ${newLogs.length} new logs...`);
+    await railgunAccount.syncWithLogs(newLogs);
+  }
 
   const balance = await railgunAccount.getBalance();
-  console.log("private WETH balance:", balance);
+  console.log("\nprivate WETH balance:", balance);
   const root = railgunAccount.getLatestMerkleRoot();
   console.log("root:", ByteUtils.hexlify(root, true));
 
@@ -86,17 +111,15 @@ async function main() {
   await new Promise(resolve => setTimeout(resolve, 2000));
   startBlock = endBlock;
   endBlock = await provider.getBlockNumber();
-  const newReceipts = await getAllReceipts(provider, chainId, startBlock, endBlock);
-  await railgunAccount.syncWithReceipts(newReceipts);
+  const newLogs2 = await getAllLogs(provider, chainId, startBlock, endBlock);
+  await railgunAccount.syncWithLogs(newLogs2);
   const balance2 = await railgunAccount.getBalance();
-  console.log("new private WETH balance:", balance2);
+  console.log("\nnew private WETH balance:", balance2);
   const root2 = railgunAccount.getLatestMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
   // 7. create unshield ETH tx data
-  const feeBPS = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].FEE_BASIS_POINTS;
-  const reducedValue = VALUE - (VALUE * feeBPS / 10000n);
-  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(reducedValue, txSigner.address);
+  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(balance2, txSigner.address);
 
   // 8. do unshield tx
   const unshieldTxHash = await railgunAccount.submitTx(unshieldNativeTx, txSigner);
@@ -107,21 +130,27 @@ async function main() {
   await new Promise(resolve => setTimeout(resolve, 2000));
   startBlock = endBlock;
   endBlock = await provider.getBlockNumber();
-  const newReceipts2 = await getAllReceipts(provider, chainId, startBlock, endBlock);
-  await railgunAccount.syncWithReceipts(newReceipts2);
+  const newLogs3 = await getAllLogs(provider, chainId, startBlock, endBlock);
+  await railgunAccount.syncWithLogs(newLogs3);
   const balance3 = await railgunAccount.getBalance();
-  console.log("new private WETH balance:", balance3);
+  console.log("\nnew private WETH balance:", balance3);
   const root3 = railgunAccount.getLatestMerkleRoot();
-  console.log("new root:", ByteUtils.hexlify(root3, true));
+  console.log("new (or same) root:", ByteUtils.hexlify(root3, true));
 
-  // 10. If desired, save cache for faster syncing next time
-  // console.log('storing updated cache before exiting...');
-  // const allReceipts = Array.from(new Set(combinedReceipts.concat(newReceipts).concat(newReceipts2)));
-  // const toCache = {
-  //   receipts: allReceipts,
-  //   endBlock: endBlock,
-  // };
-  // fs.writeFileSync('./demo/cached_sepolia.json', JSON.stringify(toCache, null, 2));
+  // 10. save cache for faster syncing next time
+  console.log('storing updated cache before exiting...');
+  const allLogs = Array.from(new Set(public_cache.logs.concat(newLogs).concat(newLogs2).concat(newLogs3)));
+  const toCachePublic = {
+    logs: allLogs,
+    merkleTrees: railgunAccount.serializeMerkleTrees(),
+    endBlock: endBlock,
+  };
+  fs.writeFileSync('./demo/cache/sepolia_public.json', JSON.stringify(toCachePublic, null, 2));
+  const toCachePrivate = {
+    noteBooks: railgunAccount.serializeNoteBooks(),
+    endBlock: endBlock,
+  };
+  fs.writeFileSync(`./demo/cache/sepolia_${zkAddress}.json`, JSON.stringify(toCachePrivate, null, 2));
 
   // exit (because prover hangs)
   setImmediate(() => process.exit(0));

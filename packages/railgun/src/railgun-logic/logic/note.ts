@@ -17,6 +17,17 @@ export enum TokenType {
   'ERC1155' = 2,
 }
 
+export type SerializedNoteData = {
+  value: string;
+  tokenData: {
+    tokenType: TokenType;
+    tokenAddress: string;
+    tokenSubID: string;
+  };
+  memo: string;
+  random: string;
+}
+
 export interface TokenData {
   tokenType: TokenType;
   tokenAddress: string;
@@ -133,6 +144,21 @@ class Note {
     this.random = random;
     this.tokenData = tokenData;
     this.memo = memo;
+  }
+
+  static fromSerializedNoteData(spendingKey: Uint8Array, viewingKey: Uint8Array, noteData: SerializedNoteData) {
+    return new Note(
+      spendingKey,
+      viewingKey, 
+      arrayToBigInt(hexStringToArray(noteData.value)),
+      hexStringToArray(noteData.random),
+      {
+        tokenType: noteData.tokenData.tokenType,
+        tokenAddress: noteData.tokenData.tokenAddress,
+        tokenSubID: arrayToBigInt(hexStringToArray(noteData.tokenData.tokenSubID)),
+      },
+      noteData.memo
+    );
   }
 
   /**
@@ -452,6 +478,19 @@ class Note {
     );
 
     return note;
+  }
+
+  serializeNoteData(): SerializedNoteData {
+    return {
+      value: arrayToHexString(bigIntToArray(this.value, 32), true),
+      tokenData: {
+        tokenType: this.tokenData.tokenType,
+        tokenAddress: this.tokenData.tokenAddress,
+        tokenSubID: arrayToHexString(bigIntToArray(this.tokenData.tokenSubID, 32), true),
+      },
+      memo: this.memo,
+      random: arrayToHexString(this.random, true),
+    };
   }
 }
 
