@@ -331,16 +331,6 @@ export class RailgunAccount {
     return getTxData(this.network.RAILGUN_ADDRESS, data);
   }
 
-  async createShieldTxMulti(tokens: string[], values: bigint[]): Promise<TxData> {
-    if (tokens.length !== values.length) {
-      throw new Error('tokens and values must have the same length');
-    }
-    const requests = await Promise.all(tokens.map((token, index) => this.createShieldRequest(token, values[index]!)));
-    const data = RAILGUN_INTERFACE.encodeFunctionData('shield', [requests]);
-    
-    return getTxData(this.network.RAILGUN_ADDRESS, data);
-  }
-
   async createNativeShieldTx(value: bigint): Promise<TxData> {
     const request = await this.createShieldRequest(this.network.WETH, value);
     const wrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('wrapBase', [value]));
@@ -348,6 +338,32 @@ export class RailgunAccount {
     const data = RELAY_ADAPT_INTERFACE.encodeFunctionData('multicall', [true, [wrapTxData, shieldTxData]]);
     
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data, value);
+  }
+
+  async createShieldTxMulti(tokens: string[], values: bigint[]): Promise<TxData> {
+    if (tokens.length !== values.length) {
+      throw new Error('tokens and values must have the same length');
+    }
+    let nativeValue = 0n;
+    const requests: ShieldRequestStruct[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i] === ZERO_ADDRESS || tokens[i] === E_ADDRESS) {
+        nativeValue += values[i]!;
+        requests.push(await this.createShieldRequest(this.network.WETH, values[i]!));
+      } else {
+        requests.push(await this.createShieldRequest(tokens[i]!, values[i]!));
+      }
+    }
+    if (nativeValue == 0n) {
+      const data = RAILGUN_INTERFACE.encodeFunctionData('shield', [requests]);
+      return getTxData(this.network.RAILGUN_ADDRESS, data);
+    }
+    
+    const wrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('wrapBase', [nativeValue]));
+    const shieldTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('shield', [requests]));
+    const data = RELAY_ADAPT_INTERFACE.encodeFunctionData('multicall', [true, [wrapTxData, shieldTxData]]);
+    
+    return getTxData(this.network.RELAY_ADAPT_ADDRESS, data, nativeValue);
   }
 
   async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<TxData> {
@@ -408,6 +424,8 @@ export class RailgunAccount {
     
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data);
   }
+
+  async create
 
   async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote)[][], nullifiers: Uint8Array[][]}> {
     const unspentNotes = await this.getUnspentNotes(token);
