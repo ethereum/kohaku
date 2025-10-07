@@ -442,7 +442,7 @@ export class RailgunAccount {
       }
   
       if (treeValue > 0n) {
-        treeNotesOut.push(new UnshieldNote(receiver, value, tokenData));
+        treeNotesOut.push(new UnshieldNote(receiver, treeValue, tokenData));
       }
 
       notesIn.push(treeNotesIn);
