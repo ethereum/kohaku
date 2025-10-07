@@ -1,5 +1,5 @@
 import { deriveNodes, WalletNode } from '../railgun-lib/key-derivation/wallet-node';
-import { encodeAddress } from '../railgun-lib/key-derivation/bech32';
+import { encodeAddress, decodeAddress } from '../railgun-lib/key-derivation/bech32';
 import { Mnemonic } from '../railgun-lib/key-derivation/bip39';
 import { Wallet, JsonRpcProvider, Log, Interface, AbiCoder, BigNumberish } from 'ethers';
 import { ShieldNoteERC20 } from '../railgun-lib/note/erc20/shield-note-erc20';
@@ -9,7 +9,7 @@ import { keccak256 } from 'ethereum-cryptography/keccak';
 import { ABIRailgunSmartWallet, ABIRelayAdapt } from '../railgun-lib/abi/abi';
 import { MerkleTree } from '../railgun-logic/logic/merkletree';
 import { Wallet as NoteBook } from '../railgun-logic/logic/wallet';
-import { Note, TokenData, UnshieldNote, SerializedNoteData } from '../railgun-logic/logic/note';
+import { Note, TokenData, UnshieldNote, SerializedNoteData, SendNote } from '../railgun-logic/logic/note';
 import { transact, PublicInputs } from '../railgun-logic/logic/transaction';
 import {
   CommitmentCiphertextStructOutput,
@@ -367,7 +367,7 @@ export class RailgunAccount {
   }
 
   async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<TxData> {
-    const {notesIn, notesOut} = await this.getUnshieldNotes(token, value, receiver);
+    const {notesIn, notesOut} = await this.getTransactNotes(token, value, receiver);
     const allInputs: PublicInputs[] = [];
     for (let i = 0; i < notesIn.length; i++) {
       if (notesIn[i]!.length === 0) { continue; }
@@ -389,7 +389,7 @@ export class RailgunAccount {
   }
 
   async createNativeUnshieldTx(value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
-    const {notesIn, notesOut, nullifiers} = await this.getUnshieldNotes(this.network.WETH, value, this.network.RELAY_ADAPT_ADDRESS, true);
+    const {notesIn, notesOut, nullifiers} = await this.getTransactNotes(this.network.WETH, value, this.network.RELAY_ADAPT_ADDRESS, true);
 
     const unwrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('unwrapBase', [0]));
     const ethTransfer = [{token: {tokenType: 0, tokenAddress: ZERO_ADDRESS, tokenSubID: 0n}, to: receiver, value: 0n}];
@@ -425,11 +425,40 @@ export class RailgunAccount {
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data);
   }
 
-  async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote)[][], nullifiers: Uint8Array[][]}> {
+  async createInternalTransactTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
+    if (!receiver.startsWith("0zk")) {
+      throw new Error('receiver must be a railgun 0zk address');
+    }
+    const {notesIn, notesOut} = await this.getTransactNotes(token, value, receiver);
+    const allInputs: PublicInputs[] = [];
+    for (let i = 0; i < notesIn.length; i++) {
+      if (notesIn[i]!.length === 0) { continue; }
+      const inputs = await transact(
+        this.merkleTrees[i]!,
+        minGasPrice,
+        0, // no unshield
+        this.network.CHAIN_ID,
+        ZERO_ADDRESS, // adapt contract
+        ZERO_ARRAY, // adapt params
+        notesIn[i]!,
+        notesOut[i]!,
+      );
+      allInputs.push(inputs);
+    }
+    const data = RAILGUN_INTERFACE.encodeFunctionData('transact', [allInputs]);
+    
+    return getTxData(this.network.RAILGUN_ADDRESS, data);
+  }
+
+  async getTransactNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote | SendNote)[][], nullifiers: Uint8Array[][]}> {
     const unspentNotes = await this.getUnspentNotes(token);
+    const isUnshield = receiver.startsWith("0x");
+    if (!isUnshield && ! receiver.startsWith("0zk")) {
+      throw new Error('receiver must be an ethereum 0x address or a railgun 0zk address');
+    }
 
     const notesIn: Note[][] = [];
-    const notesOut: (Note | UnshieldNote)[][] = [];
+    const notesOut: (Note | UnshieldNote | SendNote)[][] = [];
     const nullifiers: Uint8Array[][] = [];
     let totalValue = 0n;
     let valueSpent = 0n;
@@ -450,7 +479,7 @@ export class RailgunAccount {
   
       const tokenData = getERC20TokenData(token);
   
-      const treeNotesOut: (Note | UnshieldNote)[] = [];
+      const treeNotesOut: (Note | UnshieldNote | SendNote)[] = [];
       const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
       const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
       if (totalValue > value) { 
@@ -460,7 +489,12 @@ export class RailgunAccount {
   
       if (treeValue > 0n) {
         const amount = treeValue > value - valueSpent ? value - valueSpent : treeValue;
-        treeNotesOut.push(new UnshieldNote(receiver, amount, tokenData));
+        if (isUnshield) {
+          treeNotesOut.push(new UnshieldNote(receiver, amount, tokenData));
+        } else {
+          const {masterPublicKey, viewingPublicKey} = decodeAddress(receiver);
+          treeNotesOut.push(new SendNote(masterPublicKey, viewingPublicKey, amount, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, ''));
+        }
         valueSpent += amount;
       }
 

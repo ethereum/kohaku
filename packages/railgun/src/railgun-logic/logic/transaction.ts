@@ -7,6 +7,7 @@ import {
   Note,
   TokenData,
   UnshieldNote,
+  SendNote,
 } from './note';
 import { hash, randomBytes } from '../global/crypto';
 import { hexStringToArray, arrayToBigInt, bigIntToArray, arrayToHexString } from '../global/bytes';
@@ -331,7 +332,7 @@ async function formatPublicInputs(
   adaptContract: string,
   adaptParams: Uint8Array,
   notesIn: Note[],
-  notesOut: (Note | UnshieldNote)[],
+  notesOut: (Note | UnshieldNote | SendNote)[],
   commitmentCiphertext: CommitmentCiphertext[],
 ): Promise<PublicInputs> {
   // Get Merkle Root
@@ -398,7 +399,7 @@ async function formatCircuitInputs(
   adaptContract: string,
   adaptParams: Uint8Array,
   notesIn: Note[],
-  notesOut: (Note | UnshieldNote)[],
+  notesOut: (Note | UnshieldNote | SendNote)[],
   commitmentCiphertext: CommitmentCiphertext[],
 ): Promise<CircuitInputs> {
   // PUBLIC INPUTS
@@ -548,7 +549,7 @@ async function transact(
   adaptContract: string,
   adaptParams: Uint8Array,
   notesIn: Note[],
-  notesOut: (Note | UnshieldNote)[],
+  notesOut: (Note | UnshieldNote | SendNote)[],
 ): Promise<PublicInputs> {
   // Get artifact
   const artifact = getKeys(notesIn.length, notesOut.length);
