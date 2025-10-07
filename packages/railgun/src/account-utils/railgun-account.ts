@@ -425,8 +425,6 @@ export class RailgunAccount {
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data);
   }
 
-  async create
-
   async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote)[][], nullifiers: Uint8Array[][]}> {
     const unspentNotes = await this.getUnspentNotes(token);
 
