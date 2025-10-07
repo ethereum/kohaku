@@ -432,6 +432,7 @@ export class RailgunAccount {
     const notesOut: (Note | UnshieldNote)[][] = [];
     const nullifiers: Uint8Array[][] = [];
     let totalValue = 0n;
+    let valueSpent = 0n;
     for (let i = 0; i < unspentNotes.length; i++) {
       const allNotes = this.noteBooks[i]!.notes;
       const treeNotesIn: Note[] = [];
@@ -458,7 +459,9 @@ export class RailgunAccount {
       }
   
       if (treeValue > 0n) {
-        treeNotesOut.push(new UnshieldNote(receiver, treeValue, tokenData));
+        const amount = treeValue > value - valueSpent ? value - valueSpent : treeValue;
+        treeNotesOut.push(new UnshieldNote(receiver, amount, tokenData));
+        valueSpent += amount;
       }
 
       notesIn.push(treeNotesIn);
