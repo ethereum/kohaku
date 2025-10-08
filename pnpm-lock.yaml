@@ -29,6 +29,9 @@ importers:
 
   docs:
     dependencies:
+      '@kohaku-eth/privacy-pools':
+        specifier: workspace:*
+        version: link:../packages/privacy-pools
       '@kohaku-eth/railgun':
         specifier: workspace:*
         version: link:../packages/railgun

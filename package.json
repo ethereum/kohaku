@@ -7,6 +7,7 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
+    "dev:docs": "pnpm --filter docs dev",
     "release": "changeset publish"
   },
   "devDependencies": {
