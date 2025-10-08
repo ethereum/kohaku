@@ -18,6 +18,7 @@ const ACCOUNT_INDEX = Number(process.env.ACCOUNT_INDEX) || 0;
 const RPC_URL = process.env.RPC_URL || '';
 const TX_SIGNER_KEY = process.env.TX_SIGNER_KEY || '';
 const VALUE = 10000000000000n; // 0.00001 ETH
+const RANDOM_RAILGUN_RECEIVER = "0zk1qyhl9p096zdc34x0eh7vdarr73xjfymq2xeef3nhkvgg2vlynzwdlrv7j6fe3z53lalqtuna0f5hkrt3ket0wl9mket7ck8jthq807d7fyq5u4havp4v2u70sva";
 
 type PublicCache = {
   logs: Log[];
@@ -118,13 +119,14 @@ async function main() {
   const root2 = railgunAccount.getLatestMerkleRoot();
   console.log("new root:", ByteUtils.hexlify(root2, true));
 
-  // 7. create unshield ETH tx data
-  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(balance2, txSigner.address);
-
-  // 8. do unshield tx
-  const unshieldTxHash = await railgunAccount.submitTx(unshieldNativeTx, txSigner);
-  console.log("unshield tx:", unshieldTxHash);
-  await provider.waitForTransaction(unshieldTxHash);
+  // 7. create internal private transfer tx data
+  const weth = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].WETH;
+  const internalTransactTx = await railgunAccount.createPrivateTransferTx(weth, balance2/10n, RANDOM_RAILGUN_RECEIVER);
+  
+  // 8. do internal private transfer tx
+  const internalTransactTxHash = await railgunAccount.submitTx(internalTransactTx, txSigner);
+  console.log("private transfer tx:", internalTransactTxHash);
+  await provider.waitForTransaction(internalTransactTxHash);
 
   // 9. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
@@ -135,11 +137,30 @@ async function main() {
   const balance3 = await railgunAccount.getBalance();
   console.log("\nnew private WETH balance:", balance3);
   const root3 = railgunAccount.getLatestMerkleRoot();
-  console.log("new (or same) root:", ByteUtils.hexlify(root3, true));
+  console.log("new root:", ByteUtils.hexlify(root3, true));
 
-  // 10. save cache for faster syncing next time
+  // 10. create unshield tx data
+  const unshieldNativeTx = await railgunAccount.createNativeUnshieldTx(balance3, txSigner.address);
+
+  // 11. do unshield tx
+  const unshieldTxHash = await railgunAccount.submitTx(unshieldNativeTx, txSigner);
+  console.log("unshield tx:", unshieldTxHash);
+  await provider.waitForTransaction(unshieldTxHash);
+
+  // 12. refresh account, show new balance and merkle root
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  startBlock = endBlock;
+  endBlock = await provider.getBlockNumber();
+  const newLogs4 = await getAllLogs(provider, chainId, startBlock, endBlock);
+  await railgunAccount.syncWithLogs(newLogs4);
+  const balance4 = await railgunAccount.getBalance();
+  console.log("\nnew private WETH balance:", balance4);
+  const root4 = railgunAccount.getLatestMerkleRoot();
+  console.log("new (or same) root:", ByteUtils.hexlify(root4, true));
+
+  // 13. save cache for faster syncing next time
   console.log('storing updated cache before exiting...');
-  const allLogs = Array.from(new Set(public_cache.logs.concat(newLogs).concat(newLogs2).concat(newLogs3)));
+  const allLogs = Array.from(new Set(public_cache.logs.concat(newLogs).concat(newLogs2).concat(newLogs3).concat(newLogs4)));
   const toCachePublic = {
     logs: allLogs,
     merkleTrees: railgunAccount.serializeMerkleTrees(),

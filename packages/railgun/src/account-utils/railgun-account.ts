@@ -425,7 +425,7 @@ export class RailgunAccount {
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data);
   }
 
-  async createInternalTransactTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
+  async createPrivateTransferTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
     if (!receiver.startsWith("0zk")) {
       throw new Error('receiver must be a railgun 0zk address');
     }
