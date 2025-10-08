@@ -11,23 +11,14 @@ export interface MerkleProof {
 
 class MerkleTree {
   treeNumber: number;
-
   depth: number;
-
   zeros: Uint8Array[];
-
   tree: Uint8Array[][];
-
   nullifiers: Uint8Array[] = [];
 
-  /**
-   * Merkle Tree
-   *
-   * @param treeNumber - merkle tree number
-   * @param depth - merkle tree depth
-   * @param zeros - zero values for each level of merkle tree
-   * @param tree - starting tree
-   */
+  // Track the highest leaf index we’ve ever set (−1 means “no leaves yet”)
+  private maxLeafIndex: number = -1;
+
   constructor(treeNumber: number, depth: number, zeros: Uint8Array[], tree: Uint8Array[][]) {
     this.treeNumber = treeNumber;
     this.depth = depth;
@@ -35,40 +26,18 @@ class MerkleTree {
     this.tree = tree;
   }
 
-  /**
-   * Gets tree root
-   *
-   * @returns root
-   */
   get root(): Uint8Array {
     return this.tree[this.depth][0];
   }
 
-  /**
-   * Gets tree length
-   *
-   * @returns length
-   */
   get length(): number {
     return this.tree[0].length;
   }
 
-  /**
-   * Hashes 2 merkle nodes
-   *
-   * @param left - left value to hash
-   * @param right - right value to hash
-   * @returns hash
-   */
   static hashLeftRight(left: Uint8Array, right: Uint8Array): Promise<Uint8Array> {
     return hash.poseidon([arrayToByteLength(left, 32), arrayToByteLength(right, 32)]);
   }
 
-  /**
-   * Gets zero value for tree
-   *
-   * @returns zero value
-   */
   static get zeroValue(): Uint8Array {
     const railgunHash = arrayToBigInt(
       hash.keccak256(new Uint8Array(Buffer.from('Railgun', 'utf8'))),
@@ -76,95 +45,70 @@ class MerkleTree {
     return bigIntToArray(railgunHash % SNARK_SCALAR_FIELD, 32);
   }
 
-  /**
-   * Gets zero value for each level of a tree
-   *
-   * @param depth - depth of tree
-   * @returns zero values for each level
-   */
   static async getZeroValueLevels(depth: number): Promise<Uint8Array[]> {
-    // Initialize empty array for levels
     const levels: Uint8Array[] = [];
-
-    // First level should be the leaf zero value
     levels.push(this.zeroValue);
-
-    // Loop through remaining levels to root
     for (let level = 1; level < depth; level += 1) {
-      // Push left right hash of level below's zero level
       levels.push(await MerkleTree.hashLeftRight(levels[level - 1], levels[level - 1]));
     }
-
     return levels;
   }
 
-  /**
-   * Create Merkle Tree
-   *
-   * @param treeNumber - tree number
-   * @param depth - tree depth
-   * @returns tree
-   */
   static async createTree(treeNumber = 0, depth = 16): Promise<MerkleTree> {
     const zeros: Uint8Array[] = await MerkleTree.getZeroValueLevels(depth);
-    const tree: Uint8Array[][] = Array(depth)
-      .fill(0)
-      .map(() => []);
+    // Build arrays for all levels [0..depth]
+    const tree: Uint8Array[][] = Array.from({ length: depth + 1 }, () => []);
+    // Default root = hash(zero, zero) at the top level
     tree[depth] = [await MerkleTree.hashLeftRight(zeros[depth - 1], zeros[depth - 1])];
-
     return new MerkleTree(treeNumber, depth, zeros, tree);
   }
 
   /**
-   * Rebuilds tree
-   *
-   * @returns complete
+   * Rebuilds only the portion of the sparse tree that’s actually used.
+   * Also defaults BOTH children to zeros when missing to avoid undefined errors.
    */
   async rebuildSparseTree() {
-    for (let level = 0; level < this.depth; level += 1) {
-      this.tree[level + 1] = [];
-
-      for (let pos = 0; pos < this.tree[level].length; pos += 2) {
-        this.tree[level + 1].push(
-          await MerkleTree.hashLeftRight(
-            this.tree[level][pos],
-            this.tree[level][pos + 1] ?? this.zeros[level],
-          ),
-        );
-      }
-    }
-  }
-
-  /**
-   * Inserts leaves into tree
-   *
-   * @param leaves - array of leaves to add
-   * @param startPosition - position to start inserting leaves from
-   * @returns complete
-   */
-  async insertLeaves(leaves: Uint8Array[], startPosition: number) {
-    if (leaves.length === 0) {
+    // No leaves inserted: reset upper levels to zero-root and bail.
+    if (this.maxLeafIndex < 0) {
+      for (let lvl = 1; lvl <= this.depth; lvl++) this.tree[lvl] = [];
+      this.tree[this.depth] = [
+        await MerkleTree.hashLeftRight(this.zeros[this.depth - 1], this.zeros[this.depth - 1]),
+      ];
       return;
     }
 
-    // Add leaves to tree
-    leaves.forEach((leaf, index) => (this.tree[0][startPosition + index] = leaf));
+    // Width of the current level (how many leaves actually matter)
+    let width = this.maxLeafIndex + 1;
 
-    // Rebuild tree
-    await this.rebuildSparseTree();
+    for (let level = 0; level < this.depth; level += 1) {
+      const parents: Uint8Array[] = [];
+      // Hash pairs up to the “used” width only
+      for (let pos = 0; pos < width; pos += 2) {
+        const left = this.tree[level][pos] ?? this.zeros[level];
+        const right = this.tree[level][pos + 1] ?? this.zeros[level];
+        parents.push(await MerkleTree.hashLeftRight(left, right));
+      }
+      this.tree[level + 1] = parents;
+      width = Math.ceil(width / 2); // next level width
+    }
   }
 
-  /**
-   * Gets Merkle Proof for element
-   *
-   * @param element - element to get proof for
-   * @returns proof
-   */
-  generateProof(element: Uint8Array): MerkleProof {
-    // Initialize of proof elements
-    const elements = [];
+  insertLeaves(leaves: Uint8Array[], startPosition: number) {
+    if (leaves.length === 0) return;
 
-    // Get initial index
+    leaves.forEach((leaf, index) => {
+      this.tree[0][startPosition + index] = leaf;
+    });
+
+    // Track the highest populated index so rebuild doesn’t traverse the whole sparse array
+    const last = startPosition + leaves.length - 1;
+    if (last > this.maxLeafIndex) this.maxLeafIndex = last;
+
+    // NOTE: rebuildSparseTree must be invoked manually after inserting leaves
+  }
+
+  generateProof(element: Uint8Array): MerkleProof {
+    const elements: Uint8Array[] = [];
     const initialIndex = this.tree[0].map(arrayToBigInt).indexOf(arrayToBigInt(element));
     let index = initialIndex;
 
@@ -172,56 +116,36 @@ class MerkleTree {
       throw new Error(`Couldn't find ${arrayToBigInt(element)} in the MerkleTree`);
     }
 
-    // Loop through each level
     for (let level = 0; level < this.depth; level += 1) {
       if (index % 2 === 0) {
-        // If index is even get element on right
         elements.push(this.tree[level][index + 1] ?? this.zeros[level]);
       } else {
-        // If index is odd get element on left
-        elements.push(this.tree[level][index - 1]);
+        elements.push(this.tree[level][index - 1] ?? this.zeros[level]); // also default here
       }
-
-      // Get index for next level
       index = Math.floor(index / 2);
     }
 
-    return {
-      element,
-      elements,
-      indices: initialIndex,
-      root: this.root,
-    };
+    return { element, elements, indices: initialIndex, root: this.root };
   }
 
-  /**
-   * Validates merkle proof
-   *
-   * @param proof - proof to validate
-   * @returns isValid
-   */
   static async validateProof(proof: MerkleProof): Promise<boolean> {
-    // Parse indices into binary string
     const indices = proof.indices
       .toString(2)
       .padStart(proof.elements.length, '0')
       .split('')
       .reverse();
 
-    // Initial currentHash value is the element we're proving membership for
     let currentHash = proof.element;
 
-    // Loop though each proof level and hash together
     for (let i = 0; i < proof.elements.length; i += 1) {
       if (indices[i] === '0') {
         currentHash = await MerkleTree.hashLeftRight(currentHash, proof.elements[i]);
-      } else if (indices[i] === '1') {
+      } else {
         currentHash = await MerkleTree.hashLeftRight(proof.elements[i], currentHash);
       }
     }
 
-    // Return true if result is equal to merkle root
-    return currentHash === proof.root;
+    return arrayToBigInt(currentHash) === arrayToBigInt(proof.root);
   }
 }
 

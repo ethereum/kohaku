@@ -7,3 +7,4 @@ tmp/
 .env.local
 packages/*/dist
 packages/*/node_modules
+packages/railgun/demo/cache/

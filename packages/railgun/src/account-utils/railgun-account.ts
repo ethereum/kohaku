@@ -1,7 +1,7 @@
 import { deriveNodes, WalletNode } from '../railgun-lib/key-derivation/wallet-node';
-import { encodeAddress } from '../railgun-lib/key-derivation/bech32';
+import { encodeAddress, decodeAddress } from '../railgun-lib/key-derivation/bech32';
 import { Mnemonic } from '../railgun-lib/key-derivation/bip39';
-import { Wallet, JsonRpcProvider, TransactionReceipt, Interface, AbiCoder, BigNumberish } from 'ethers';
+import { Wallet, JsonRpcProvider, Log, Interface, AbiCoder, BigNumberish } from 'ethers';
 import { ShieldNoteERC20 } from '../railgun-lib/note/erc20/shield-note-erc20';
 import { ByteUtils } from '../railgun-lib/utils/bytes';
 import { ShieldRequestStruct } from '../railgun-lib/abi/typechain/RailgunSmartWallet';
@@ -9,7 +9,7 @@ import { keccak256 } from 'ethereum-cryptography/keccak';
 import { ABIRailgunSmartWallet, ABIRelayAdapt } from '../railgun-lib/abi/abi';
 import { MerkleTree } from '../railgun-logic/logic/merkletree';
 import { Wallet as NoteBook } from '../railgun-logic/logic/wallet';
-import { Note, TokenData, UnshieldNote } from '../railgun-logic/logic/note';
+import { Note, TokenData, UnshieldNote, SerializedNoteData, SendNote } from '../railgun-logic/logic/note';
 import { transact, PublicInputs } from '../railgun-logic/logic/transaction';
 import {
   CommitmentCiphertextStructOutput,
@@ -29,6 +29,7 @@ const ACCOUNT_CHAIN_ID = undefined;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const ZERO_ARRAY = new Uint8Array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
 const E_ADDRESS = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const TOTAL_LEAVES = 2**16;
 
 export const RAILGUN_CONFIG_BY_CHAIN_ID = {
   ["1"]: {
@@ -106,14 +107,13 @@ function isRangeErr(e: any) {
   );
 }
 
-export const getAllReceipts = async (provider: JsonRpcProvider, chainId: bigint, startBlock: number, endBlock: number) => {
+export const getAllLogs = async (provider: JsonRpcProvider, chainId: bigint, startBlock: number, endBlock: number) => {
   const MAX_BATCH = 1200;
   const MIN_BATCH = 1;
   const railgunAddress = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].RAILGUN_ADDRESS;
   let batch = Math.min(MAX_BATCH, Math.max(1, endBlock - startBlock + 1));
   let from = startBlock;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allLogs: any[] = [];
+  const allLogs: Log[] = [];
 
   while (from <= endBlock) {
     const to = Math.min(from + batch - 1, endBlock);
@@ -142,14 +142,7 @@ export const getAllReceipts = async (provider: JsonRpcProvider, chainId: bigint,
     }
   }
 
-  const txids = [...new Set(allLogs.map(l => l.transactionHash))];
-  const receipts: TransactionReceipt[] = [];
-  for (const txid of txids) {
-    const receipt = await provider.getTransactionReceipt(txid);
-    await new Promise(r => setTimeout(r, 200));
-    if (receipt) receipts.push(receipt);
-  }
-  return receipts;
+  return allLogs;
 };
 
 export const getERC20TokenData = (token: string): TokenData => {
@@ -243,9 +236,44 @@ export class RailgunAccount {
     this.shieldKeyEthSigner = new Wallet(ethKey);
   }
 
-  async syncWithReceipts(receipts: TransactionReceipt[]) {
-    for (const receipt of receipts) {
-      await this.processReceipt(receipt);
+  async syncWithLogs(logs: Log[], skipMerkleTree: boolean = false) {
+    for (const log of logs) {
+      await this.processLog(log, skipMerkleTree);
+    }
+    if (!skipMerkleTree) {
+      for (const tree of this.merkleTrees) {
+        await tree.rebuildSparseTree();
+      }
+    }
+  }
+
+  async loadCachedMerkleTrees(merkleTrees: {tree: string[][], nullifiers: string[]}[]) {
+    for (let i = 0; i < merkleTrees.length; i++) {
+      const merkleTree = await MerkleTree.createTree(i);
+      merkleTree.tree = merkleTrees[i]!.tree.map(level => level.map(hexStringToArray));
+      merkleTree.nullifiers = merkleTrees[i]!.nullifiers.map(hexStringToArray);
+      if (!this.merkleTrees[i]) {
+        this.merkleTrees[i] = merkleTree;
+        this.noteBooks[i] = new NoteBook();
+      } else {
+        this.merkleTrees[i] = merkleTree;
+      }
+    }
+  }
+
+  async loadCachedNoteBooks(noteBooks: SerializedNoteData[][]) {
+    const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
+    const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
+    for (let i = 0; i < noteBooks.length; i++) {
+      if (!this.merkleTrees[i]) {
+        this.merkleTrees[i] = await MerkleTree.createTree(i);
+        this.noteBooks[i] = new NoteBook();
+      }
+      noteBooks[i]!.forEach((noteData, j) => {
+        if (noteData !== null) {
+          this.noteBooks[i]!.notes[j] = Note.fromSerializedNoteData(spendingKey, viewingKey, noteData);
+        }
+      });
     }
   }
 
@@ -312,8 +340,34 @@ export class RailgunAccount {
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data, value);
   }
 
+  async createShieldTxMulti(tokens: string[], values: bigint[]): Promise<TxData> {
+    if (tokens.length !== values.length) {
+      throw new Error('tokens and values must have the same length');
+    }
+    let nativeValue = 0n;
+    const requests: ShieldRequestStruct[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i] === ZERO_ADDRESS || tokens[i] === E_ADDRESS) {
+        nativeValue += values[i]!;
+        requests.push(await this.createShieldRequest(this.network.WETH, values[i]!));
+      } else {
+        requests.push(await this.createShieldRequest(tokens[i]!, values[i]!));
+      }
+    }
+    if (nativeValue == 0n) {
+      const data = RAILGUN_INTERFACE.encodeFunctionData('shield', [requests]);
+      return getTxData(this.network.RAILGUN_ADDRESS, data);
+    }
+    
+    const wrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('wrapBase', [nativeValue]));
+    const shieldTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('shield', [requests]));
+    const data = RELAY_ADAPT_INTERFACE.encodeFunctionData('multicall', [true, [wrapTxData, shieldTxData]]);
+    
+    return getTxData(this.network.RELAY_ADAPT_ADDRESS, data, nativeValue);
+  }
+
   async createUnshieldTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)): Promise<TxData> {
-    const {notesIn, notesOut} = await this.getUnshieldNotes(token, value, receiver);
+    const {notesIn, notesOut} = await this.getTransactNotes(token, value, receiver);
     const allInputs: PublicInputs[] = [];
     for (let i = 0; i < notesIn.length; i++) {
       if (notesIn[i]!.length === 0) { continue; }
@@ -335,7 +389,7 @@ export class RailgunAccount {
   }
 
   async createNativeUnshieldTx(value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
-    const {notesIn, notesOut, nullifiers} = await this.getUnshieldNotes(this.network.WETH, value, this.network.RELAY_ADAPT_ADDRESS, true);
+    const {notesIn, notesOut, nullifiers} = await this.getTransactNotes(this.network.WETH, value, this.network.RELAY_ADAPT_ADDRESS, true);
 
     const unwrapTxData = getTxData(this.network.RELAY_ADAPT_ADDRESS, RELAY_ADAPT_INTERFACE.encodeFunctionData('unwrapBase', [0]));
     const ethTransfer = [{token: {tokenType: 0, tokenAddress: ZERO_ADDRESS, tokenSubID: 0n}, to: receiver, value: 0n}];
@@ -346,8 +400,8 @@ export class RailgunAccount {
       minGasLimit: minGasPrice,
       calls: [unwrapTxData, transferTxData],
     }
-    
-    const nullifiers2D: string[][] = nullifiers.map(
+    const nonEmptyNullifiers = nullifiers.filter(arr => arr.length > 0);
+    const nullifiers2D: string[][] = nonEmptyNullifiers.map(
       arr => arr.map(n => ByteUtils.hexlify(n, true))
     );
     const relayAdaptParams = getAdaptParamsHash(nullifiers2D, actionData);
@@ -371,23 +425,53 @@ export class RailgunAccount {
     return getTxData(this.network.RELAY_ADAPT_ADDRESS, data);
   }
 
-  async getUnshieldNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote)[][], nullifiers: Uint8Array[][]}> {
+  async createPrivateTransferTx(token: string, value: bigint, receiver: string, minGasPrice: bigint = BigInt(0)) {
+    if (!receiver.startsWith("0zk")) {
+      throw new Error('receiver must be a railgun 0zk address');
+    }
+    const {notesIn, notesOut} = await this.getTransactNotes(token, value, receiver);
+    const allInputs: PublicInputs[] = [];
+    for (let i = 0; i < notesIn.length; i++) {
+      if (notesIn[i]!.length === 0) { continue; }
+      const inputs = await transact(
+        this.merkleTrees[i]!,
+        minGasPrice,
+        0, // no unshield
+        this.network.CHAIN_ID,
+        ZERO_ADDRESS, // adapt contract
+        ZERO_ARRAY, // adapt params
+        notesIn[i]!,
+        notesOut[i]!,
+      );
+      allInputs.push(inputs);
+    }
+    const data = RAILGUN_INTERFACE.encodeFunctionData('transact', [allInputs]);
+    
+    return getTxData(this.network.RAILGUN_ADDRESS, data);
+  }
+
+  async getTransactNotes(token: string, value: bigint, receiver: string, getNullifiers: boolean = false): Promise<{notesIn: Note[][], notesOut: (Note | UnshieldNote | SendNote)[][], nullifiers: Uint8Array[][]}> {
     const unspentNotes = await this.getUnspentNotes(token);
+    const isUnshield = receiver.startsWith("0x");
+    if (!isUnshield && ! receiver.startsWith("0zk")) {
+      throw new Error('receiver must be an ethereum 0x address or a railgun 0zk address');
+    }
 
     const notesIn: Note[][] = [];
-    const notesOut: (Note | UnshieldNote)[][] = [];
+    const notesOut: (Note | UnshieldNote | SendNote)[][] = [];
     const nullifiers: Uint8Array[][] = [];
     let totalValue = 0n;
+    let valueSpent = 0n;
     for (let i = 0; i < unspentNotes.length; i++) {
       const allNotes = this.noteBooks[i]!.notes;
-      const iNotesIn: Note[] = [];
-      const iNullifiers: Uint8Array[] = [];
-      let iValue = 0n;
+      const treeNotesIn: Note[] = [];
+      const treeNullifiers: Uint8Array[] = [];
+      let treeValue = 0n;
       for (const note of unspentNotes[i]!) {
         totalValue += note.value;
-        iValue += note.value;
-        iNotesIn.push(note);
-        if (getNullifiers) { iNullifiers.push(await note.getNullifier(allNotes.indexOf(note))); }
+        treeValue += note.value;
+        treeNotesIn.push(note);
+        if (getNullifiers) { treeNullifiers.push(await note.getNullifier(allNotes.indexOf(note))); }
         if (totalValue >= value) {
           break;
         }
@@ -395,21 +479,28 @@ export class RailgunAccount {
   
       const tokenData = getERC20TokenData(token);
   
-      const iNotesOut: (Note | UnshieldNote)[] = [];
+      const treeNotesOut: (Note | UnshieldNote | SendNote)[] = [];
       const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
       const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
       if (totalValue > value) { 
         const changeNote = new Note(spendingKey, viewingKey, totalValue - value, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, '');
-        iNotesOut.push(changeNote);
+        treeNotesOut.push(changeNote);
       }
   
-      if (iValue > 0n) {
-        iNotesOut.push(new UnshieldNote(receiver, value, tokenData));
+      if (treeValue > 0n) {
+        const amount = treeValue > value - valueSpent ? value - valueSpent : treeValue;
+        if (isUnshield) {
+          treeNotesOut.push(new UnshieldNote(receiver, amount, tokenData));
+        } else {
+          const {masterPublicKey, viewingPublicKey} = decodeAddress(receiver);
+          treeNotesOut.push(new SendNote(masterPublicKey, viewingPublicKey, amount, ByteUtils.hexStringToBytes(ByteUtils.randomHex(16)), tokenData, ''));
+        }
+        valueSpent += amount;
       }
 
-      notesIn.push(iNotesIn);
-      notesOut.push(iNotesOut);
-      nullifiers.push(iNullifiers);
+      notesIn.push(treeNotesIn);
+      notesOut.push(treeNotesOut);
+      nullifiers.push(treeNullifiers);
       if (totalValue >= value) {
         break;
       }
@@ -474,190 +565,198 @@ export class RailgunAccount {
     return this.merkleTrees[this.merkleTrees.length - 1]!.root;
   }
 
-  async processReceipt(transaction: TransactionReceipt) {
+  serializeMerkleTrees() {
+    const merkleTrees = [];
+    for (const tree of this.merkleTrees) {
+
+      merkleTrees.push({
+        tree: tree.tree.map(level => level.map(leaf => ByteUtils.hexlify(leaf, true))),
+        nullifiers: tree.nullifiers.map(nullifier => ByteUtils.hexlify(nullifier, true)),
+      });
+    }
+    return merkleTrees;
+  }
+
+  serializeNoteBooks() {
+    const noteBooks = [];
+    for (const noteBook of this.noteBooks) {
+      noteBooks.push(noteBook.serialize());
+    }
+    return noteBooks;
+  }
+
+  async processLog(log: Log, skipMerkleTree: boolean = false) {
     // KASS TODO: also scan legacy events !!!
-    // Loop through each log and parse
-    await Promise.all(
-      transaction.logs.map(async (log) => {
-        // Check if log is log of contract
-        if (log.address === this.network.RAILGUN_ADDRESS) {
-          // Parse log
-          const parsedLog = RAILGUN_INTERFACE.parseLog(log);
-          if (!parsedLog) return;
+    // Parse log
+    const parsedLog = RAILGUN_INTERFACE.parseLog(log);
+    if (!parsedLog) return;
 
-          // Check log type
-          if (parsedLog.name === 'Shield') {
-            // Type cast to ShieldEventObject
-            const args = parsedLog.args as unknown as ShieldEventObject;
+    // Check log type
+    if (parsedLog.name === 'Shield') {
+      // Type cast to ShieldEventObject
+      const args = parsedLog.args as unknown as ShieldEventObject;
 
-            // Get start position
-            const startPosition = Number(args.startPosition.toString());
+      // Get start position
+      const startPosition = Number(args.startPosition.toString());
 
-            // Get tree number
-            const treeNumber = Number(args.treeNumber.toString());
-            const commitmentsLength = args.commitments.length;
-            const totalLeaves = 2**16;
-            const endPosition = startPosition + commitmentsLength;
-            const isCrossingTreeBoundary = endPosition > totalLeaves;
-            const diff = isCrossingTreeBoundary ? endPosition - totalLeaves : 0;
-            const firstTreeIndexEnd = args.commitments.length - diff;
-            
-            // Get leaves
-            const leaves = await Promise.all(
-              args.commitments.map((commitment) =>
-                hash.poseidon([
-                  hexStringToArray(commitment.npk),
-                  getTokenID({
-                    tokenType: Number(commitment.token.tokenType.toString()) as TokenType,
-                    tokenAddress: commitment.token.tokenAddress,
-                    tokenSubID: BigInt(commitment.token.tokenSubID),
-                  }),
-                  bigIntToArray(BigInt(commitment.value), 32),
-                ]),
-              ),
-            );
-
-            // Create new merkleTrees and noteBooks if necessary
-            if (!this.merkleTrees[treeNumber]) {
-              this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
-              this.noteBooks[treeNumber] = new NoteBook();
-            }
-            if (isCrossingTreeBoundary && !this.merkleTrees[treeNumber+1]) {
-              this.merkleTrees[treeNumber+1] = await MerkleTree.createTree(treeNumber+1);
-              this.noteBooks[treeNumber+1] = new NoteBook();
-            }
-
-            // Insert leaves
-            await this.merkleTrees[treeNumber].insertLeaves(leaves.slice(0, firstTreeIndexEnd), startPosition);
-            if (isCrossingTreeBoundary) {
-              await this.merkleTrees[treeNumber].insertLeaves(leaves.slice(firstTreeIndexEnd, leaves.length), 0);
-            }
-
-            const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
-            const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
-
-            args.shieldCiphertext.map((shieldCiphertext, index) => {
-              // Try to decrypt
-              const decrypted = Note.decryptShield(
-                hexStringToArray(shieldCiphertext.shieldKey),
-                shieldCiphertext.encryptedBundle.map(hexStringToArray) as [
-                  Uint8Array,
-                  Uint8Array,
-                  Uint8Array,
-                ],
-                {
-                  tokenType: Number(args.commitments[index]!.token.tokenType.toString()) as TokenType,
-                  tokenAddress: args.commitments[index]!.token.tokenAddress,
-                  tokenSubID: BigInt(args.commitments[index]!.token.tokenSubID),
-                },
-                BigInt(args.commitments[index]!.value),
-                viewingKey,
-                spendingKey,
-              );
-
-              // Insert into note array in same index as merkle tree
-              if (decrypted) {
-                if (startPosition+index >= totalLeaves) {
-                  this.noteBooks[treeNumber+1]!.notes[startPosition+index-totalLeaves] = decrypted;
-                } else {
-                  this.noteBooks[treeNumber]!.notes[startPosition+index] = decrypted;
-                }
-              }
-            });
-          } else if (parsedLog.name === 'Transact') {
-            // Type cast to TransactEventObject
-            const args = parsedLog.args as unknown as TransactEventObject;
-
-            // Get start position
-            const startPosition = Number(args.startPosition.toString());
-
-            // Get tree number
-            const treeNumber = Number(args.treeNumber.toString());
-            const hashesLength = args.hash.length;
-            const totalLeaves = 2**16;
-            const endPosition = startPosition + hashesLength;
-            const isCrossingTreeBoundary = endPosition > totalLeaves;
-            const diff = isCrossingTreeBoundary ? endPosition - totalLeaves : 0;
-            const firstTreeIndexEnd = args.hash.length - diff;
-
-            // Get leaves
-            const leaves = args.hash.map((noteHash) => hexStringToArray(noteHash));
-
-            // Create new merkleTrees and noteBooks if necessary
-            if (!this.merkleTrees[treeNumber]) {
-              this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
-              this.noteBooks[treeNumber] = new NoteBook();
-            }
-            if (isCrossingTreeBoundary && !this.merkleTrees[treeNumber+1]) {
-              this.merkleTrees[treeNumber+1] = await MerkleTree.createTree(treeNumber+1);
-              this.noteBooks[treeNumber+1] = new NoteBook();
-            }
-
-            // Insert leaves
-            await this.merkleTrees[treeNumber]!.insertLeaves(leaves.slice(0, firstTreeIndexEnd), startPosition);
-            if (isCrossingTreeBoundary) {
-              await this.merkleTrees[treeNumber+1]!.insertLeaves(leaves.slice(firstTreeIndexEnd, leaves.length), 0);
-            }
-
-            const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
-            const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
-            
-            // Loop through each token we're scanning
-            await Promise.all(
-              // Loop through every note and try to decrypt as token
-              args.ciphertext.map(async (ciphertext, index) => {
-                // Attempt to decrypt note with token
-                const note = await Note.decrypt(
-                  {
-                    ciphertext: [
-                      hexStringToArray(ciphertext.ciphertext[0]),
-                      hexStringToArray(ciphertext.ciphertext[1]),
-                      hexStringToArray(ciphertext.ciphertext[2]),
-                      hexStringToArray(ciphertext.ciphertext[3]),
-                    ],
-                    blindedSenderViewingKey: hexStringToArray(
-                      ciphertext.blindedSenderViewingKey,
-                    ),
-                    blindedReceiverViewingKey: hexStringToArray(
-                      ciphertext.blindedReceiverViewingKey,
-                    ),
-                    annotationData: hexStringToArray(ciphertext.annotationData),
-                    memo: hexStringToArray(ciphertext.memo),
-                  },
-                  viewingKey,
-                  spendingKey,
-                );
-
-                // If note was decrypted add to wallet
-                if (note) {
-                  if (startPosition+index >= totalLeaves) {
-                    this.noteBooks[treeNumber+1]!.notes[startPosition + index - totalLeaves] = note;
-                  } else {
-                    this.noteBooks[treeNumber]!.notes[startPosition + index] = note;
-                  }
-                }
+      // Get tree number
+      const treeNumber = Number(args.treeNumber.toString());
+      
+      if (!skipMerkleTree) {
+        // Check tree boundary
+        const isCrossingTreeBoundary = startPosition +args.commitments.length > TOTAL_LEAVES;
+        
+        // Get leaves
+        const leaves = await Promise.all(
+          args.commitments.map((commitment) =>
+            hash.poseidon([
+              hexStringToArray(commitment.npk),
+              getTokenID({
+                tokenType: Number(commitment.token.tokenType.toString()) as TokenType,
+                tokenAddress: commitment.token.tokenAddress,
+                tokenSubID: BigInt(commitment.token.tokenSubID),
               }),
-            );
-          } else if (parsedLog.name === 'Nullified') {
-            // Type cast to NullifiedEventObject
-            const args = parsedLog.args as unknown as NullifiedEventObject;
+              bigIntToArray(BigInt(commitment.value), 32),
+            ]),
+          ),
+        );
 
-            // Get tree number
-            const treeNumber = Number(args.treeNumber.toString());
+        // Insert leaves
+        if (isCrossingTreeBoundary) {
+          if (!this.merkleTrees[treeNumber+1]) {
+            this.merkleTrees[treeNumber+1] = await MerkleTree.createTree(treeNumber+1);
+            this.noteBooks[treeNumber+1] = new NoteBook();
+          }
+          this.merkleTrees[treeNumber+1]!.insertLeaves(leaves, 0);
+        } else {
+          if (!this.merkleTrees[treeNumber]) {
+            this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
+            this.noteBooks[treeNumber] = new NoteBook();
+          }
+          this.merkleTrees[treeNumber]!.insertLeaves(leaves, startPosition);
+        }
+      }
 
-            // Create new merkleTrees and noteBooks if necessary
-            if (!this.merkleTrees[treeNumber]) {
-              this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
-              this.noteBooks[treeNumber] = new NoteBook();
-            }
-            
-            const nullifiersFormatted = args.nullifier.map((nullifier) =>
-              hexStringToArray(nullifier),
-            );
-            this.merkleTrees[treeNumber]!.nullifiers.push(...nullifiersFormatted);
+      const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
+      const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
+
+      args.shieldCiphertext.map((shieldCiphertext, index) => {
+        // Try to decrypt
+        const decrypted = Note.decryptShield(
+          hexStringToArray(shieldCiphertext.shieldKey),
+          shieldCiphertext.encryptedBundle.map(hexStringToArray) as [
+            Uint8Array,
+            Uint8Array,
+            Uint8Array,
+          ],
+          {
+            tokenType: Number(args.commitments[index]!.token.tokenType.toString()) as TokenType,
+            tokenAddress: args.commitments[index]!.token.tokenAddress,
+            tokenSubID: BigInt(args.commitments[index]!.token.tokenSubID),
+          },
+          BigInt(args.commitments[index]!.value),
+          viewingKey,
+          spendingKey,
+        );
+
+        // Insert into note array in same index as merkle tree
+        if (decrypted) {
+          if (startPosition+index >= TOTAL_LEAVES) {
+            this.noteBooks[treeNumber+1]!.notes[startPosition+index-TOTAL_LEAVES] = decrypted;
+          } else {
+            this.noteBooks[treeNumber]!.notes[startPosition+index] = decrypted;
           }
         }
-      }),
-    );
+      });
+    } else if (parsedLog.name === 'Transact') {
+      // Type cast to TransactEventObject
+      const args = parsedLog.args as unknown as TransactEventObject;
+
+      // Get start position
+      const startPosition = Number(args.startPosition.toString());
+
+      // Get tree number
+      const treeNumber = Number(args.treeNumber.toString());
+
+      if (!skipMerkleTree) {
+        // Check tree boundary
+        const isCrossingTreeBoundary = startPosition + args.hash.length > TOTAL_LEAVES;
+
+        // Get leaves
+        const leaves = args.hash.map((noteHash) => hexStringToArray(noteHash));
+
+        // Insert leaves
+        if (isCrossingTreeBoundary) {
+          if (!this.merkleTrees[treeNumber+1]) {
+            this.merkleTrees[treeNumber+1] = await MerkleTree.createTree(treeNumber+1);
+            this.noteBooks[treeNumber+1] = new NoteBook();
+          }
+          this.merkleTrees[treeNumber+1]!.insertLeaves(leaves, 0);
+        } else {
+          if (!this.merkleTrees[treeNumber]) {
+            this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
+            this.noteBooks[treeNumber] = new NoteBook();
+          }
+          this.merkleTrees[treeNumber]!.insertLeaves(leaves, startPosition);
+        }
+      }
+
+      const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
+      const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
+      
+      // Loop through each token we're scanning
+      await Promise.all(
+        // Loop through every note and try to decrypt as token
+        args.ciphertext.map(async (ciphertext, index) => {
+          // Attempt to decrypt note with token
+          const note = await Note.decrypt(
+            {
+              ciphertext: [
+                hexStringToArray(ciphertext.ciphertext[0]),
+                hexStringToArray(ciphertext.ciphertext[1]),
+                hexStringToArray(ciphertext.ciphertext[2]),
+                hexStringToArray(ciphertext.ciphertext[3]),
+              ],
+              blindedSenderViewingKey: hexStringToArray(
+                ciphertext.blindedSenderViewingKey,
+              ),
+              blindedReceiverViewingKey: hexStringToArray(
+                ciphertext.blindedReceiverViewingKey,
+              ),
+              annotationData: hexStringToArray(ciphertext.annotationData),
+              memo: hexStringToArray(ciphertext.memo),
+            },
+            viewingKey,
+            spendingKey,
+          );
+
+          // If note was decrypted add to wallet
+          if (note) {
+            if (startPosition+index >= TOTAL_LEAVES) {
+              this.noteBooks[treeNumber+1]!.notes[startPosition + index - TOTAL_LEAVES] = note;
+            } else {
+              this.noteBooks[treeNumber]!.notes[startPosition + index] = note;
+            }
+          }
+        }),
+      );
+    } else if (parsedLog.name === 'Nullified' && !skipMerkleTree) {
+      // Type cast to NullifiedEventObject
+      const args = parsedLog.args as unknown as NullifiedEventObject;
+
+      // Get tree number
+      const treeNumber = Number(args.treeNumber.toString());
+
+      // Create new merkleTrees and noteBooks if necessary
+      if (!this.merkleTrees[treeNumber]) {
+        this.merkleTrees[treeNumber] = await MerkleTree.createTree(treeNumber);
+        this.noteBooks[treeNumber] = new NoteBook();
+      }
+      
+      const nullifiersFormatted = args.nullifier.map((nullifier) =>
+        hexStringToArray(nullifier),
+      );
+      this.merkleTrees[treeNumber]!.nullifiers.push(...nullifiersFormatted);
+    }
   }
 }
