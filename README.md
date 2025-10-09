@@ -10,3 +10,4 @@ Privacy-first tooling for the Ethereum ecosystem
 | Package | Description |
 | ------- | ----------- |
 | [@kohaku-eth/railgun](packages/railgun) | railgun privacy protocol lib |
+| [@kohaku-eth/privacy-pools](packages/privacy-pools) | privacy pools privacy protocol lib |

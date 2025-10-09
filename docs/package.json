@@ -6,10 +6,13 @@
   "scripts": {
     "dev": "vocs dev",
     "build": "vocs build",
-    "preview": "vocs preview"
+    "preview": "vocs preview",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix"
   },
   "dependencies": {
     "@kohaku-eth/railgun": "workspace:*",
+    "@kohaku-eth/privacy-pools": "workspace:*",
     "react": "latest",
     "react-dom": "latest",
     "viem": "^2.37.9",
