@@ -37,6 +37,9 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
       const anvilOptions: AnvilParameters = {
         chainId,
         forkUrl,
+        stepsTracing: true,
+        gasPrice: 1n,
+        blockBaseFeePerGas: 1n,
         ...(forkBlockNumber && { forkBlockNumber: BigInt(forkBlockNumber) }),
       };
 

@@ -1,4 +1,6 @@
-import { RailgunAccount, getAllLogs, RAILGUN_CONFIG_BY_CHAIN_ID, RailgunLog, EthersProviderAdapter } from '../src/account-utils';
+import { RailgunAccount, getAllLogs, RailgunLog } from '../src/account-utils';
+import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../src/config';
+import { EthersProviderAdapter } from '../src/provider';
 import { ByteUtils } from '../src/railgun-lib/utils/bytes';
 import dotenv from 'dotenv';
 import { Wallet, JsonRpcProvider } from 'ethers';
@@ -43,7 +45,7 @@ type PrivateCache = {
 
 async function main() {
   console.log("\n ///// RAILGUN SEPOLIA DEMO /////\n");
-  const chainId = BigInt(11155111);
+  const chainId = '11155111' as const;
 
   // 1. instantiate account from mnemonic
   const railgunAccount = RailgunAccount.fromMnemonic(MNEMONIC, ACCOUNT_INDEX, chainId);
@@ -59,7 +61,7 @@ async function main() {
   }
   const baseProvider = new JsonRpcProvider(RPC_URL);
   const network = await baseProvider.getNetwork();
-  if (network.chainId !== chainId) {
+  if (network.chainId !== BigInt(chainId)) {
     console.error(`\nERROR: wrong chain provider (expect chainId 11155111, got: ${Number(chainId)})`);
     process.exit(1);
   }
@@ -112,11 +114,13 @@ async function main() {
     console.error("\nERROR: TX_SIGNER_KEY not set");
     process.exit(1);
   }
-  const txSigner = new Wallet(TX_SIGNER_KEY, provider);
+  const txSigner = new Wallet(TX_SIGNER_KEY, provider.getProvider());
 
   const shieldTxHash = await railgunAccount.submitTx(shieldNativeTx, txSigner);
   console.log('shield ETH tx:', shieldTxHash);
   await provider.waitForTransaction(shieldTxHash);
+  const x = await provider.getProvider().getTransactionReceipt(shieldTxHash);
+  console.log({x});
 
   // 6. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));

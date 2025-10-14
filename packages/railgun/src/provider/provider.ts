@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from 'ethers';
 import type { RailgunLog, TxData } from '../account-utils/types';
 
 /**
@@ -23,6 +24,11 @@ export interface RailgunProvider {
    * Wait for a transaction to be mined
    */
   waitForTransaction(txHash: string): Promise<void>;
+
+  /**
+   * Get the provider
+   */
+  getProvider(): JsonRpcProvider;
 }
 
 /**

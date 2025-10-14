@@ -62,8 +62,8 @@ export const getAllLogs = async (
   while (from <= endBlock) {
     const to = Math.min(from + batch - 1, endBlock);
     try {
-      await new Promise(r => setTimeout(r, 400)); // light pacing
       console.log(progressBar(startBlock, from, endBlock));
+      await new Promise(r => setTimeout(r, 400)); // light pacing
       const logs = await provider.getLogs({
         address: railgunAddress,
         fromBlock: from,

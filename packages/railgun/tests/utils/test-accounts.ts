@@ -1,5 +1,3 @@
-import { Wallet } from 'ethers';
-
 /**
  * Pool ID for prool instance isolation
  * Each test suite should use a unique pool ID to avoid conflicts
@@ -27,7 +25,3 @@ export const TEST_ACCOUNTS = {
     privateKey: '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
   },
 } as const;
-
-export function getTestWallet(account: keyof typeof TEST_ACCOUNTS): Wallet {
-  return new Wallet(TEST_ACCOUNTS[account].privateKey);
-}

@@ -8,4 +8,4 @@ tmp/
 packages/*/dist
 packages/*/node_modules
 packages/railgun/demo/cache/
-tests/.env
+packages/railgun/tests/cache/*

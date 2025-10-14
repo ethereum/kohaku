@@ -13,11 +13,7 @@ export class EthersProviderAdapter implements RailgunProvider {
     fromBlock: number;
     toBlock: number;
   }): Promise<RailgunLog[]> {
-    const logs = await this.provider.getLogs({
-      address: params.address,
-      fromBlock: params.fromBlock,
-      toBlock: params.toBlock,
-    });
+    const logs = await this.provider.getLogs(params);
 
     return logs.map(log => this.convertLog(log));
   }
@@ -27,7 +23,8 @@ export class EthersProviderAdapter implements RailgunProvider {
   }
 
   async waitForTransaction(txHash: string): Promise<void> {
-    await this.provider.waitForTransaction(txHash);
+    const xa = await this.provider.waitForTransaction(txHash);
+    console.log({xa});
   }
 
   private convertLog(log: Log): RailgunLog {
@@ -37,6 +34,10 @@ export class EthersProviderAdapter implements RailgunProvider {
       data: log.data,
       address: log.address,
     };
+  }
+
+  getProvider(): JsonRpcProvider {
+    return this.provider;
   }
 }
 

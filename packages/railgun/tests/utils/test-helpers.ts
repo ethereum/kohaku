@@ -1,4 +1,4 @@
-import { JsonRpcProvider } from 'ethers';
+import { RailgunProvider } from '../../src/provider/index';
 import { type AnvilInstance } from './anvil';
 
 /**
@@ -16,8 +16,8 @@ export async function fundAccountWithETH(
  * Get ETH balance of an address
  */
 export async function getETHBalance(
-  provider: JsonRpcProvider,
+  provider: RailgunProvider,
   address: string
 ): Promise<bigint> {
-  return await provider.getBalance(address);
+  return await provider.getProvider().getBalance(address);
 }
