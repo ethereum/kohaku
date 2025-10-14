@@ -49,6 +49,7 @@ class Wallet {
     // Return notes that haven't had their nullifiers seen and token IDs match
     return this.notes.filter(
       (note, index) =>
+        // @ts-expect-error noteNullifiers is defined
         !seenNullifiers.includes(noteNullifiers[index]) && noteTokenIDs[index] === tokenID,
     );
   }

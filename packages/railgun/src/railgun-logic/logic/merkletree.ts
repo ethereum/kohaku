@@ -27,10 +27,12 @@ class MerkleTree {
   }
 
   get root(): Uint8Array {
+    // @ts-expect-error tree is defined
     return this.tree[this.depth][0];
   }
 
   get length(): number {
+    // @ts-expect-error tree is defined
     return this.tree[0].length;
   }
 
@@ -49,6 +51,7 @@ class MerkleTree {
     const levels: Uint8Array[] = [];
     levels.push(this.zeroValue);
     for (let level = 1; level < depth; level += 1) {
+      // @ts-expect-error levels is defined
       levels.push(await MerkleTree.hashLeftRight(levels[level - 1], levels[level - 1]));
     }
     return levels;
@@ -59,6 +62,7 @@ class MerkleTree {
     // Build arrays for all levels [0..depth]
     const tree: Uint8Array[][] = Array.from({ length: depth + 1 }, () => []);
     // Default root = hash(zero, zero) at the top level
+    // @ts-expect-error tree is defined
     tree[depth] = [await MerkleTree.hashLeftRight(zeros[depth - 1], zeros[depth - 1])];
     return new MerkleTree(treeNumber, depth, zeros, tree);
   }
@@ -72,6 +76,7 @@ class MerkleTree {
     if (this.maxLeafIndex < 0) {
       for (let lvl = 1; lvl <= this.depth; lvl++) this.tree[lvl] = [];
       this.tree[this.depth] = [
+        // @ts-expect-error tree is defined
         await MerkleTree.hashLeftRight(this.zeros[this.depth - 1], this.zeros[this.depth - 1]),
       ];
       return;
@@ -84,8 +89,11 @@ class MerkleTree {
       const parents: Uint8Array[] = [];
       // Hash pairs up to the “used” width only
       for (let pos = 0; pos < width; pos += 2) {
+        // @ts-expect-error tree is defined
         const left = this.tree[level][pos] ?? this.zeros[level];
+        // @ts-expect-error tree is defined
         const right = this.tree[level][pos + 1] ?? this.zeros[level];
+        // @ts-expect-error parents is defined
         parents.push(await MerkleTree.hashLeftRight(left, right));
       }
       this.tree[level + 1] = parents;
@@ -97,6 +105,7 @@ class MerkleTree {
     if (leaves.length === 0) return;
 
     leaves.forEach((leaf, index) => {
+      // @ts-expect-error tree is defined
       this.tree[0][startPosition + index] = leaf;
     });
 
@@ -109,6 +118,7 @@ class MerkleTree {
 
   generateProof(element: Uint8Array): MerkleProof {
     const elements: Uint8Array[] = [];
+    // @ts-expect-error tree is defined
     const initialIndex = this.tree[0].map(arrayToBigInt).indexOf(arrayToBigInt(element));
     let index = initialIndex;
 
@@ -118,8 +128,10 @@ class MerkleTree {
 
     for (let level = 0; level < this.depth; level += 1) {
       if (index % 2 === 0) {
+        // @ts-expect-error tree is defined
         elements.push(this.tree[level][index + 1] ?? this.zeros[level]);
       } else {
+        // @ts-expect-error tree is defined
         elements.push(this.tree[level][index - 1] ?? this.zeros[level]); // also default here
       }
       index = Math.floor(index / 2);
@@ -139,8 +151,10 @@ class MerkleTree {
 
     for (let i = 0; i < proof.elements.length; i += 1) {
       if (indices[i] === '0') {
+        // @ts-expect-error proof.elements is defined
         currentHash = await MerkleTree.hashLeftRight(currentHash, proof.elements[i]);
       } else {
+        // @ts-expect-error proof.elements is defined
         currentHash = await MerkleTree.hashLeftRight(proof.elements[i], currentHash);
       }
     }

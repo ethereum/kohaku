@@ -1,3 +1,14 @@
-export { RailgunAccount } from './railgun-account';
-export { getAllLogs } from './railgun-account';
-export { RAILGUN_CONFIG_BY_CHAIN_ID } from './railgun-account';
+// Main exports
+export * from './railgun-account';
+
+// Type exports
+export * from './types';
+
+// Helper utilities exports
+export * from './helpers';
+
+// Indexer exports
+export { getAllLogs, processLog } from './indexer';
+
+// Transaction builder exports (re-export as a namespace for convenience)
+export * as TransactionBuilder from './transaction-builder';

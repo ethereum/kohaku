@@ -21,6 +21,10 @@
     "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "demo": "tsx demo/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:e2e": "vitest run tests/e2e",
     "prepublishOnly": "pnpm -w -r build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -64,13 +68,18 @@
     "@types/circomlibjs": "^0.1.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.1.0",
+    "@vitest/ui": "^3.2.4",
     "chai": "^4.5.0",
     "chai-as-promised": "^7.1.2",
     "dotenv": "^17.2.1",
     "mocha": "^11.7.1",
+    "prool": "^0.0.24",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "viem": "^2.37.9",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
   }
 }

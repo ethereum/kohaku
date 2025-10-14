@@ -1,7 +1,7 @@
-import { RailgunAccount, getAllLogs, RAILGUN_CONFIG_BY_CHAIN_ID } from '../src/account-utils';
+import { RailgunAccount, getAllLogs, RAILGUN_CONFIG_BY_CHAIN_ID, RailgunLog, EthersProviderAdapter } from '../src/account-utils';
 import { ByteUtils } from '../src/railgun-lib/utils/bytes';
 import dotenv from 'dotenv';
-import { Wallet, JsonRpcProvider, Log } from 'ethers';
+import { Wallet, JsonRpcProvider } from 'ethers';
 import sepolia_checkpoint from '../checkpoints/sepolia_public_checkpoint.json';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -13,15 +13,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: resolve(__dirname, '.env') });
 
-const MNEMONIC = process.env.MNEMONIC || 'test test test test test test test test test test test junk';
-const ACCOUNT_INDEX = Number(process.env.ACCOUNT_INDEX) || 0;
-const RPC_URL = process.env.RPC_URL || '';
-const TX_SIGNER_KEY = process.env.TX_SIGNER_KEY || '';
+// types for process.env
+type ProcessEnv = {
+  MNEMONIC: string;
+  ACCOUNT_INDEX: string;
+  RPC_URL: string;
+  TX_SIGNER_KEY: string;
+}
+
+const env: ProcessEnv = process.env as unknown as ProcessEnv;
+
+const MNEMONIC = env.MNEMONIC || 'test test test test test test test test test test test junk';
+const ACCOUNT_INDEX = Number(env.ACCOUNT_INDEX) || 0;
+const RPC_URL = env.RPC_URL || '';
+const TX_SIGNER_KEY = env.TX_SIGNER_KEY || '';
 const VALUE = 10000000000000n; // 0.00001 ETH
 const RANDOM_RAILGUN_RECEIVER = "0zk1qyhl9p096zdc34x0eh7vdarr73xjfymq2xeef3nhkvgg2vlynzwdlrv7j6fe3z53lalqtuna0f5hkrt3ket0wl9mket7ck8jthq807d7fyq5u4havp4v2u70sva";
 
 type PublicCache = {
-  logs: Log[];
+  logs: RailgunLog[];
   merkleTrees: {tree: string[][], nullifiers: string[]}[];
   endBlock: number;
 }
@@ -53,12 +63,12 @@ async function main() {
     console.error(`\nERROR: wrong chain provider (expect chainId 11155111, got: ${Number(chainId)})`);
     process.exit(1);
   }
-  const provider = new JsonRpcProvider(RPC_URL, network, {
+  const provider = new EthersProviderAdapter(new JsonRpcProvider(RPC_URL, network, {
     staticNetwork: true,
     batchMaxCount: 1,
     batchMaxSize: 0,
     batchStallTime: 0,
-  });
+  }));
 
   if (!fs.existsSync('./demo/cache/')) {
     fs.mkdirSync('./demo/cache/', { recursive: true });
