@@ -1,4 +1,3 @@
-import { JsonRpcProvider } from 'ethers';
 import type { RailgunLog, TxData } from '../account-utils/types';
 
 /**
@@ -28,7 +27,8 @@ export interface RailgunProvider {
   /**
    * Get the provider
    */
-  getProvider(): JsonRpcProvider;
+  // NOTE: this doesn't work for Viem providers, bc they can't implement this method and then cannot comply with the interface
+  // getProvider(): JsonRpcProvider;
 }
 
 /**
