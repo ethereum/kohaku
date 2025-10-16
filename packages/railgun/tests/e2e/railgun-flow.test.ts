@@ -192,8 +192,6 @@ describe('Railgun E2E Flow', () => {
     // Mine a few more blocks to ensure finality
     await anvil.mine(3);
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     // Step 4: Sync Alice's account with new logs (from start of fork to include all new txs)
     console.log('\nStep 4: Syncing Alice account with new logs...');
     const currentBlock = await provider.getBlockNumber();
@@ -282,8 +280,6 @@ describe('Railgun E2E Flow', () => {
     console.log('Unshield tx receipt: ', unshieldReceipt);
 
     await anvil.mine(3);
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const charlieBalanceWETHAfterUnshield = await wethContract.balanceOf(charlie.address);
     console.log(`Charlie's WETH balance after unshield: ${charlieBalanceWETHAfterUnshield.toString()} ${formatEther(charlieBalanceWETHAfterUnshield)}`);
