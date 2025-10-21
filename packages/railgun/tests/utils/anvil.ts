@@ -87,6 +87,7 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
       });
 
       console.log('Provider created');
+      console.log(instance?.messages.get())
 
       // Ensure the provider is connected
       await provider.getBlockNumber();
