@@ -9,7 +9,7 @@
 
 <p align="center">
 <img src="https://img.shields.io/badge/Tests-passing-green" align="center" />
-<img src="https://img.shields.io/badge/Packages-cool-blue" align="center" />
+<img src="https://img.shields.io/badge/Packages-2-blue" align="center" />
 </p>
 
 Privacy-first tooling for the Ethereum ecosystem
@@ -19,7 +19,7 @@ Privacy-first tooling for the Ethereum ecosystem
 
 ## Repository Structure
 
-| Package                                             | Description                        |
-| --------------------------------------------------- | ---------------------------------- |
-| [@kohaku-eth/railgun](packages/railgun)             | railgun privacy protocol lib       |
-| [@kohaku-eth/privacy-pools](packages/privacy-pools) | privacy pools privacy protocol lib |
+| Package                                             | Status | Description                        |
+| --------------------------------------------------| -- | ---------------------------------- |
+| [@kohaku-eth/railgun](packages/railgun)             | ✅ | railgun privacy protocol lib       |
+| [@kohaku-eth/privacy-pools](packages/privacy-pools) | 🚧 | privacy pools privacy protocol lib |
