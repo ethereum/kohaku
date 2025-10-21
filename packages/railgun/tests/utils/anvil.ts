@@ -31,13 +31,10 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
   let stopFn: (() => Promise<void>) | undefined;
   let instance: ReturnType<typeof anvil> | undefined;
 
-  console.log('Anvil defined');
-
   return {
     rpcUrl,
 
     async start() {
-      console.log('Starting Anvil...');
       const anvilOptions: AnvilParameters = {
         chainId,
         forkUrl,
@@ -47,31 +44,15 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
         ...(forkBlockNumber && { forkBlockNumber: BigInt(forkBlockNumber) }),
       };
 
-      instance = anvil(anvilOptions, {messageBuffer: 100});
-
-      instance.on('stdout', (data) => {
-        console.log('Anvil stdout:', data);
-      });
-      instance.on('stderr', (data) => {
-        console.error('Anvil stderr:', data);
-      });
-      instance.on('message', (data) => {
-        console.log('Anvil message:', data);
-      });
+      instance = anvil(anvilOptions);
 
       stopFn = await createServer({
         instance,
         port,
       }).start();
-      console.log('Anvil started');
     },
 
     async stop() {
-      console.log('Stopping Anvil...');
-      if (instance) {
-        console.log('Anvil messages:', instance.messages.get());
-      }
-
       if (stopFn) {
         await stopFn();
         stopFn = undefined;
@@ -79,20 +60,13 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
     },
 
     async getProvider() {
-
-      console.log('Getting provider...');
       const provider = new JsonRpcProvider(rpcUrl, undefined, {
         staticNetwork: true,
         batchMaxCount: 1,
       });
 
-      console.log('Provider created');
-      console.log(instance?.messages.get())
-
       // Ensure the provider is connected
       await provider.getBlockNumber();
-
-      console.log('Provider connected');
 
       return provider;
     },

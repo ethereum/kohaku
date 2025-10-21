@@ -23,8 +23,7 @@ export class EthersProviderAdapter implements RailgunProvider {
   }
 
   async waitForTransaction(txHash: string): Promise<void> {
-    const xa = await this.provider.waitForTransaction(txHash);
-    console.log({xa});
+    await this.provider.waitForTransaction(txHash);
   }
 
   private convertLog(log: Log): RailgunLog {
