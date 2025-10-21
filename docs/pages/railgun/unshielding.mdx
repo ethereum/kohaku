@@ -13,44 +13,60 @@ If the recipient is not an EOA, or does not have ETH yet, you can use a [relayer
 Do note that this EOA will be the submitter of the tx, and thus linked to the recipient.
 :::
 
-```ts filename="vars.ts"
+```ts filename="vars.ts" twoslash
+// @noErrors
 const value = 10000000000000n; // 0.00001 ETH
-const recipient = '0x...';
+const recipient = '0x1234567890123456789012345678901234567890' as `0x${string}`;
 ```
 
 :::code-group
 
-```ts [Ethers]
-import { Wallet } from 'ethers';
+```ts twoslash [Ethers]
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import type { Wallet } from 'ethers';
 
-// [!include vars.ts]
+declare const account: RailgunAccount
+declare const wallet: Wallet
 
-const signer = new Wallet(mnemonic, provider);
+const chainId = '11155111' as const;
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
+const value = 10000000000000n; // 0.00001 ETH
+const recipient = '0x1234567890123456789012345678901234567890' as const;
 
-const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
+const tx = await account.unshield(chainId, WETH, recipient, value); // [!code focus]
 
-// Submit the tx
-await account.submitTx(tx, signer);
+// Submit the tx using Ethers
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
 ```
 
-```ts [Viem]
-import { createWalletClient } from 'viem'
-import { mainnet } from 'viem/chains'
-import { mnemonicToAccount } from 'viem/accounts'
+```ts twoslash [Viem]
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import { createWalletClient, http } from 'viem'
 
-// [!include vars.ts]
+declare const account: RailgunAccount
+declare const walletClient: ReturnType<typeof createWalletClient>
 
-const signer = mnemonicToAccount(mnemonic, accountIndex)
-const client = createWalletClient({
-  account,
-  chain: mainnet,
-  transport: http()
-})
+const chainId = '11155111' as const;
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
+const value = 10000000000000n; // 0.00001 ETH
+const recipient = '0x1234567890123456789012345678901234567890' as `0x${string}`;
 
-const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
+const tx = await account.unshield(chainId, WETH, recipient, value); // [!code focus]
 
-// Submit the tx
-await account.submitTx(tx, signer);
+// Submit the tx using Viem
+await walletClient.sendTransaction({
+  to: tx.to as `0x${string}`,
+  data: tx.data as `0x${string}`,
+  value: tx.value,
+  gas: 6000000n
+});
 ```
 
 :::

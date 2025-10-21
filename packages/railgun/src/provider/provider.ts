@@ -1,4 +1,5 @@
-import type { RailgunLog, TxData } from '../account-utils/types';
+import type { RailgunLog } from '../indexer';
+import type { TxData } from '../account';
 
 export interface TransactionReceipt {
   blockNumber: number;
@@ -60,7 +61,7 @@ export interface RailgunSigner {
   /**
    * Send a transaction
    */
-  sendTransaction(tx: TxData & { gasLimit?: number | bigint }): Promise<string>;
+  sendTransaction(tx: TxData): Promise<string>;
 
   /**
    * Get the signer's address

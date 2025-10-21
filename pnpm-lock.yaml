@@ -14,6 +14,9 @@ importers:
       '@eslint/js':
         specifier: ^9.9.0
         version: 9.32.0
+      '@stylistic/eslint-plugin':
+        specifier: ^5.5.0
+        version: 5.5.0(eslint@9.32.0(jiti@2.6.0))
       eslint:
         specifier: ^9.9.0
         version: 9.32.0(jiti@2.6.0)
@@ -41,19 +44,22 @@ importers:
       react-dom:
         specifier: latest
         version: 19.2.0(react@19.2.0)
-      viem:
-        specifier: ^2.37.9
-        version: 2.37.9(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
       vocs:
         specifier: latest
-        version: 1.0.13(@types/node@24.5.0)(@types/react@19.2.2)(jiti@2.6.0)(lightningcss@1.30.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(rollup@4.46.2)(tsx@4.20.5)(typescript@5.9.3)(yaml@2.8.1)
+        version: 1.0.16(@types/node@24.5.0)(@types/react@19.2.2)(jiti@2.6.0)(lightningcss@1.30.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(rollup@4.46.2)(tsx@4.20.5)(typescript@5.9.3)(yaml@2.8.1)
     devDependencies:
       '@types/react':
         specifier: latest
         version: 19.2.2
+      ethers:
+        specifier: ^6
+        version: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       typescript:
         specifier: latest
         version: 5.9.3
+      viem:
+        specifier: ^2
+        version: 2.37.9(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
 
   packages/privacy-pools:
     dependencies:
@@ -116,7 +122,7 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
       ethers:
-        specifier: ^6.13.1
+        specifier: ^6
         version: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       fast-text-encoding:
         specifier: ^1.0.6
@@ -128,6 +134,9 @@ importers:
       '@typechain/ethers-v6':
         specifier: ^0.5.1
         version: 0.5.1(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typechain@8.3.2(typescript@5.9.2))(typescript@5.9.2)
+      '@types/buffer-xor':
+        specifier: ^2.0.2
+        version: 2.0.2
       '@types/chai':
         specifier: ^4.3.20
         version: 4.3.20
@@ -536,6 +545,12 @@ packages:
 
   '@eslint-community/eslint-utils@4.7.0':
     resolution: {integrity: sha512-dyybb3AcajC7uha6CvhdVRJqaKyn7w2YKqKyAN37NKYgZT36w+iRb0Dymmc5qEJ549c/S31cMMSFd75bteCpCw==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    peerDependencies:
+      eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
+
+  '@eslint-community/eslint-utils@4.9.0':
+    resolution: {integrity: sha512-ayVFHdtZ+hsq1t2Dy24wCmGXGe4q9Gu3smhLYALJrr473ZH27MsnSL+LKUlimp4BWJqMDMLmPpx/Q9R3OAlL4g==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
@@ -1745,6 +1760,15 @@ packages:
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
 
+  '@standard-schema/spec@1.0.0':
+    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
+
+  '@stylistic/eslint-plugin@5.5.0':
+    resolution: {integrity: sha512-IeZF+8H0ns6prg4VrkhgL+yrvDXWDH2cKchrbh80ejG9dQgZWp10epHMbgRuQvgchLII/lfh6Xn3lu6+6L86Hw==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      eslint: '>=9.0.0'
+
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
@@ -1864,6 +1888,9 @@ packages:
 
   '@types/bn.js@5.2.0':
     resolution: {integrity: sha512-DLbJ1BPqxvQhIGbeu8VbUC1DiAiahHtAYvA0ZEAa4P31F7IaArc8z3C3BRQdWX4mtLQuABG4yzp76ZrS02Ui1Q==}
+
+  '@types/buffer-xor@2.0.2':
+    resolution: {integrity: sha512-OqdCua7QCTupPnJgmyGJUpxWgbuOi0IMIVslXTSePS2o+qDrDB6f2Pg44zRyqhUA5GbFAf39U8z0+mH4WG0fLQ==}
 
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
@@ -2088,6 +2115,10 @@ packages:
 
   '@typescript-eslint/types@8.39.0':
     resolution: {integrity: sha512-ArDdaOllnCj3yn/lzKn9s0pBQYmmyme/v1HbGIGB0GB/knFI3fWMHloC+oYTJW46tVbYnGKTMDK4ah1sC2v0Kg==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript-eslint/types@8.46.2':
+    resolution: {integrity: sha512-lNCWCbq7rpg7qDsQrd3D6NyWYu+gkTENkG5IKYhUIcxSb59SQC/hEQ+MrG4sTgBVghTonNWq42bA/d4yYumldQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript-eslint/typescript-estree@8.39.0':
@@ -4873,6 +4904,27 @@ packages:
     resolution: {integrity: sha512-wsJ9gfSz1/s4ZsJN01lyonwuxA1tml6X1yBDnfpMglypcBRFZZkus26EdPSlqS5GJfYddVZa22p3VNb3z5m5Ig==}
     engines: {node: '>=6.5.0', npm: '>=3'}
 
+  nuqs@2.7.2:
+    resolution: {integrity: sha512-wOPJoz5om7jMJQick9zU1S/Q+joL+B2DZTZxfCleHEcUzjUnPoujGod4+nAmUWb+G9TwZnyv+mfNqlyfEi8Zag==}
+    peerDependencies:
+      '@remix-run/react': '>=2'
+      '@tanstack/react-router': ^1
+      next: '>=14.2.0'
+      react: '>=18.2.0 || ^19.0.0-0'
+      react-router: ^6 || ^7
+      react-router-dom: ^6 || ^7
+    peerDependenciesMeta:
+      '@remix-run/react':
+        optional: true
+      '@tanstack/react-router':
+        optional: true
+      next:
+        optional: true
+      react-router:
+        optional: true
+      react-router-dom:
+        optional: true
+
   oauth-sign@0.9.0:
     resolution: {integrity: sha512-fexhUFFPTGV8ybAtSIGbV6gOkSv8UtRbDBnAyLQw4QPKkgNlsH2ByPGtMUqdWkos6YCRmAqViwgZrJc/mRDzZQ==}
 
@@ -6318,8 +6370,8 @@ packages:
       jsdom:
         optional: true
 
-  vocs@1.0.13:
-    resolution: {integrity: sha512-V/ogXG5xw7jMFXI2Wv0d0ZdCeeT5jzaX0PKdRKcqhnd21UtLZrqa5pKZkStNIZyVpvfsLW0WB7wjB4iBOpueiw==}
+  vocs@1.0.16:
+    resolution: {integrity: sha512-Jqe9SgqAxdjpWFV0WzvL/OHVha8ArF1wvwQd+WEBfzRLFHlFGIl35zUW0CczM0EuoePi85LU0axF9s1ToAR0Wg==}
     hasBin: true
     peerDependencies:
       react: ^19
@@ -7006,6 +7058,11 @@ snapshots:
     optional: true
 
   '@eslint-community/eslint-utils@4.7.0(eslint@9.32.0(jiti@2.6.0))':
+    dependencies:
+      eslint: 9.32.0(jiti@2.6.0)
+      eslint-visitor-keys: 3.4.3
+
+  '@eslint-community/eslint-utils@4.9.0(eslint@9.32.0(jiti@2.6.0))':
     dependencies:
       eslint: 9.32.0(jiti@2.6.0)
       eslint-visitor-keys: 3.4.3
@@ -8442,6 +8499,18 @@ snapshots:
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
+  '@standard-schema/spec@1.0.0': {}
+
+  '@stylistic/eslint-plugin@5.5.0(eslint@9.32.0(jiti@2.6.0))':
+    dependencies:
+      '@eslint-community/eslint-utils': 4.9.0(eslint@9.32.0(jiti@2.6.0))
+      '@typescript-eslint/types': 8.46.2
+      eslint: 9.32.0(jiti@2.6.0)
+      eslint-visitor-keys: 4.2.1
+      espree: 10.4.0
+      estraverse: 5.3.0
+      picomatch: 4.0.3
+
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
@@ -8549,6 +8618,10 @@ snapshots:
       '@babel/types': 7.28.4
 
   '@types/bn.js@5.2.0':
+    dependencies:
+      '@types/node': 24.5.0
+
+  '@types/buffer-xor@2.0.2':
     dependencies:
       '@types/node': 24.5.0
 
@@ -8821,6 +8894,8 @@ snapshots:
       - supports-color
 
   '@typescript-eslint/types@8.39.0': {}
+
+  '@typescript-eslint/types@8.46.2': {}
 
   '@typescript-eslint/typescript-estree@8.39.0(typescript@5.9.2)':
     dependencies:
@@ -12380,6 +12455,13 @@ snapshots:
       bn.js: 4.11.6
       strip-hex-prefix: 1.0.0
 
+  nuqs@2.7.2(react-router@7.9.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
+    dependencies:
+      '@standard-schema/spec': 1.0.0
+      react: 19.2.0
+    optionalDependencies:
+      react-router: 7.9.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+
   oauth-sign@0.9.0: {}
 
   object-assign@4.1.1: {}
@@ -14182,7 +14264,7 @@ snapshots:
       - tsx
       - yaml
 
-  vocs@1.0.13(@types/node@24.5.0)(@types/react@19.2.2)(jiti@2.6.0)(lightningcss@1.30.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(rollup@4.46.2)(tsx@4.20.5)(typescript@5.9.3)(yaml@2.8.1):
+  vocs@1.0.16(@types/node@24.5.0)(@types/react@19.2.2)(jiti@2.6.0)(lightningcss@1.30.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(rollup@4.46.2)(tsx@4.20.5)(typescript@5.9.3)(yaml@2.8.1):
     dependencies:
       '@floating-ui/react': 0.27.16(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@hono/node-server': 1.19.4(hono@4.9.9)
@@ -14227,6 +14309,7 @@ snapshots:
       mdast-util-to-markdown: 2.1.2
       minimatch: 9.0.5
       minisearch: 6.3.0
+      nuqs: 2.7.2(react-router@7.9.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       ora: 7.0.1
       p-limit: 5.0.0
       playwright: 1.55.1
@@ -14255,6 +14338,8 @@ snapshots:
       unist-util-visit: 5.0.0
       vite: 6.3.6(@types/node@24.5.0)(jiti@2.6.0)(lightningcss@1.30.1)(tsx@4.20.5)(yaml@2.8.1)
     transitivePeerDependencies:
+      - '@remix-run/react'
+      - '@tanstack/react-router'
       - '@types/node'
       - '@types/react'
       - '@types/react-dom'
@@ -14262,6 +14347,8 @@ snapshots:
       - jiti
       - less
       - lightningcss
+      - next
+      - react-router-dom
       - rollup
       - sass
       - sass-embedded

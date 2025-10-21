@@ -21,7 +21,7 @@
     "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "demo": "tsx demo/index.ts",
-    "test": "vitest run --silent=false",
+    "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "vitest run tests/e2e",
@@ -40,7 +40,7 @@
   "author": "",
   "license": "MIT",
   "peerDependencies": {
-    "ethers": "^6.13.1"
+    "ethers": "^6"
   },
   "peerDependenciesMeta": {
     "ethers": {
@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@typechain/ethers-v6": "^0.5.1",
+    "@types/buffer-xor": "^2.0.2",
     "@types/chai": "^4.3.20",
     "@types/chai-as-promised": "^7.1.8",
     "@types/circomlibjs": "^0.1.6",

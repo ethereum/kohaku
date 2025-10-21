@@ -1,8 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "verbatimModuleSyntax": false
+    "verbatimModuleSyntax": false,
+    "paths": {
+      "~railgun/lib/*": ["./src/railgun/lib/*"],
+      "~railgun/logic/*": ["./src/railgun/logic/*"]
+    }
   },
   "include": ["src", "demo"],
-  "exclude": ["src/railgun-logic"]
+  "exclude": ["src/railgun/logic"]
 }

@@ -9,35 +9,157 @@ TODO: Write intro
 When shielding you are essentially depositing an ERC20 token into the railgun system.
 This transaction comes from the account you want to shield from.
 
-```ts
-import { Wallet } from 'ethers';
+:::code-group
 
+```ts twoslash [shield-eth.ts] filename="shield-eth.ts"
+// @noErrors
+import { account, wallet } from './config.ts';
+
+const chainId = '11155111' as const;
 const VALUE = 10000000000000n; // 0.00001 ETH
-const tx = await account.createNativeShieldTx(value); // [!code focus]
+// Shield native ETH (auto-wraps to WETH)
+const tx = await account.shield(chainId, '0xfFf9976782d46CC05630D92EE39e704800271F7D', VALUE); // [!code focus]
 
 // Eoa that will send the tx
-const signer = new Wallet(TX_SIGNER_KEY, provider);
-await account.submitTx(tx, signer);
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
 ```
 
+```ts twoslash [config.ts] filename="config.ts"
+// @errors: 2307
+import {
+  createRailgunAccount,
+  createRailgunIndexer,
+  ViemProviderAdapter,
+} from '@kohaku-eth/railgun';
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+
+const rpcUrl = 'https://sepolia.rpc.example';
+const publicClient = createPublicClient({ transport: http(rpcUrl) });
+
+const mnemonic = 'test test test test test test test test test test test junk';
+const accountIndex = 0;
+const chainId = '11155111';
+
+// Create wallet client for signing
+export const wallet = createWalletClient({
+  transport: http(rpcUrl),
+});
+
+const indexer = await createRailgunIndexer({
+  chainId,
+  provider: new ViemProviderAdapter(publicClient),
+});
+
+// Create the account with provided credentials and indexer
+export const account = await createRailgunAccount({
+  credentials: { mnemonic, accountIndex },
+  indexer,
+});
+
+// Sync indexer to include account state
+await indexer.sync();
+```
+
+:::
+
 :::info
-The `createNativeShieldTx` function will wrap the ETH to WETH before shielding.
+The `shield()` method will wrap the ETH to WETH before shielding.
 :::
 
 ## Shielding ERC20
 
 Railgun allows for shielding any ERC20 token.
 
-```ts
-import { Wallet } from 'ethers';
+```ts twoslash
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import type { WalletClient } from 'viem';
 
+declare const account: RailgunAccount;
+declare const wallet: WalletClient;
+
+const chainId = '11155111';
 const VALUE = 10000000000000n; // 0.00001 WETH
-const WETH = '0x...';
-const tx = await account.createShieldTx(WETH, value); // [!code focus]
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D';
+const tx = await account.shield(chainId, WETH, VALUE); // [!code focus]
 
 // Eoa that will send the tx
-const signer = new Wallet(TX_SIGNER_KEY, provider);
-await account.submitTx(tx, signer);
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
+```
+
+## Private Transfers
+
+Transfer funds privately between railgun accounts using the `transfer()` method:
+
+```ts twoslash
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import type { WalletClient } from 'viem';
+
+declare const account: RailgunAccount;
+declare const wallet: WalletClient;
+
+const chainId = '11155111' as const;
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
+const amount = 50000000000000n; // 0.05 WETH
+const recipientZkAddress = '0zk1qy...'; // recipient's 0zk address
+
+const tx = await account.transfer(chainId, WETH, recipientZkAddress, amount); // [!code focus]
+
+// Send the transaction
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
+```
+
+## Syncing account state
+
+When you manage more than one Railgun account, wire them through the same indexer so each address stays in sync from a single log stream.
+
+```ts twoslash
+// @noErrors
+import { createRailgunIndexer, createRailgunAccount } from '@kohaku-eth/railgun';
+import { createPublicClient, http } from 'viem';
+
+const chainId = '11155111' as const;
+const rpcUrl = 'https://sepolia.rpc.example';
+const publicClient = createPublicClient({ transport: http(rpcUrl) });
+const provider = new (await import('@kohaku-eth/railgun')).ViemProviderAdapter(publicClient);
+
+const indexer = await createRailgunIndexer({
+  chainId,
+  provider,
+});
+
+// Create multiple accounts
+const aliceAccount = await createRailgunAccount({
+  credentials: { mnemonic: 'alice mnemonic here', accountIndex: 0 },
+  indexer,
+});
+
+const bobAccount = await createRailgunAccount({
+  credentials: { mnemonic: 'bob mnemonic here', accountIndex: 0 },
+  indexer,
+});
+
+await indexer.sync();
+
+const root = await indexer.getLatestMerkleRoot();
+console.log('root: ', root);
 ```
 
 ## Considerations

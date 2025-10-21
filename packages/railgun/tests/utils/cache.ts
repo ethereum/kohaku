@@ -1,10 +1,11 @@
+
 import fs from 'fs';
 import path from 'path';
-import { RailgunLog } from '../../src/account-utils';
-import { getAllLogs } from '../../src/account-utils/indexer';
+import { RailgunLog } from '../../src';
+import { getAllLogs } from '../../src/indexer';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import type { RailgunProvider } from '../../src/provider';
-import type { ChainId } from '../../src/account-utils/types';
+import type { ChainId } from '../../src/types';
 
 type PublicCache = {
   logs: RailgunLog[];
@@ -49,7 +50,9 @@ export async function loadOrCreateCache(
   if (fs.existsSync(cachePath)) {
     console.log(`Loading cache from ${cachePath}...`);
     const cache = JSON.parse(fs.readFileSync(cachePath, 'utf8')) as PublicCache;
+
     console.log(`Loaded ${cache.logs.length} cached logs up to block ${cache.endBlock}`);
+
     return cache;
   }
 
@@ -65,6 +68,7 @@ export async function loadOrCreateCache(
   } else {
     // No checkpoint, start from scratch
     const config = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
+
     startCache = {
       logs: [],
       merkleTrees: [],
@@ -78,6 +82,7 @@ export async function loadOrCreateCache(
 
   console.log(`Fetching logs from block ${startBlock} to ${forkBlock}...`);
   const newLogs = await getAllLogs(provider, chainId, startBlock, forkBlock);
+
   console.log(`Fetched ${newLogs.length} new logs`);
 
   // Combine logs (deduplicate by blockNumber + logIndex or similar)
@@ -103,6 +108,7 @@ export async function loadOrCreateCache(
  */
 export function clearCache(chainId: ChainId, forkBlock: number): void {
   const cachePath = getCachePath(chainId, forkBlock);
+
   if (fs.existsSync(cachePath)) {
     fs.unlinkSync(cachePath);
     console.log(`Cache cleared: ${cachePath}`);
@@ -115,6 +121,7 @@ export function clearCache(chainId: ChainId, forkBlock: number): void {
 export function clearAllCaches(): void {
   if (fs.existsSync(CACHE_DIR)) {
     const files = fs.readdirSync(CACHE_DIR);
+
     for (const file of files) {
       fs.unlinkSync(path.join(CACHE_DIR, file));
     }

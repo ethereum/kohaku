@@ -11,15 +11,16 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix"
   },
   "dependencies": {
-    "@kohaku-eth/railgun": "workspace:*",
     "@kohaku-eth/privacy-pools": "workspace:*",
+    "@kohaku-eth/railgun": "workspace:*",
     "react": "latest",
     "react-dom": "latest",
-    "viem": "^2.37.9",
     "vocs": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",
-    "typescript": "latest"
+    "ethers": "^6",
+    "typescript": "latest",
+    "viem": "^2"
   }
 }

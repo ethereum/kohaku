@@ -1,6 +1,7 @@
 import type { JsonRpcProvider, Log, Wallet } from 'ethers';
 import type { RailgunProvider, RailgunSigner, TransactionReceipt } from './provider';
-import type { RailgunLog, TxData } from '../account-utils/types';
+import type { RailgunLog } from '../indexer';
+import type { TxData } from '../account';
 
 /**
  * Ethers v6 provider adapter
@@ -36,6 +37,7 @@ export class EthersProviderAdapter implements RailgunProvider {
 
   async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
     const receipt = await this.provider.getTransactionReceipt(txHash);
+
     if (!receipt) return null;
 
     return {
@@ -74,13 +76,14 @@ export class EthersSignerAdapter implements RailgunSigner {
     return await this.signer.signMessage(message);
   }
 
-  async sendTransaction(tx: TxData & { gasLimit?: number | bigint }): Promise<string> {
+  async sendTransaction(tx: TxData): Promise<string> {
     const txResponse = await this.signer.sendTransaction({
       to: tx.to,
       data: tx.data,
-      value: tx.value,
-      gasLimit: tx.gasLimit ?? 6000000,
+      value: tx.value ?? 0n,
+      gasLimit: tx.gasLimit ?? tx.gas ?? 6000000, // Ethers uses 'gasLimit', fallback to gas then default
     });
+
     return txResponse.hash;
   }
 

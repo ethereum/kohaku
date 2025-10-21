@@ -75,6 +75,7 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
       const provider = new JsonRpcProvider(rpcUrl, undefined, {
         staticNetwork: true,
       });
+
       await provider.send('anvil_mine', [`0x${blocks.toString(16)}`]);
     },
 
@@ -82,6 +83,7 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
       const provider = new JsonRpcProvider(rpcUrl, undefined, {
         staticNetwork: true,
       });
+
       await provider.send('anvil_setBalance', [address, balance]);
     },
   };

@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vocs'
 
 // eslint-disable-next-line import/no-default-export
