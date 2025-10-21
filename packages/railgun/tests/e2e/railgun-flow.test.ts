@@ -35,8 +35,6 @@ describe('Railgun E2E Flow', () => {
   const VALUE_TO_TRANSFER = BigInt('50000000000000000'); // 0.05 ETH
 
   beforeAll(async () => {
-    // Use a more recent block where RELAY_ADAPT contract should exist
-    // The RELAY_ADAPT address 0x66af65bfff9e384796a56f3fa3709b9d5d9d7083 needs to be deployed
     forkBlock = 9313278; // More recent block
 
     // Setup anvil forking Sepolia

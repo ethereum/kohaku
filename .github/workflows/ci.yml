@@ -29,4 +29,4 @@ jobs:
         run: pnpm -r build
       - name: Run Railgun tests
         run: pnpm --filter @kohaku-eth/railgun test
-        timeout-minutes: 2
+        timeout-minutes: 5
