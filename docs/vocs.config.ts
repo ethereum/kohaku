@@ -36,11 +36,33 @@ export default defineConfig({
         },
         {
           text: 'Shielding',
-          link: '/railgun/shielding'
+          link: '/railgun/shielding',
+          collapsed: true,
+          items: [
+            {
+              text: 'Shielding',
+              link: '/railgun/shielding#shield'
+            },
+            {
+              text: 'Unshielding',
+              link: '/railgun/unshielding'
+            },
+          ]
         },
         {
           text: 'Transacting',
-          link: '/railgun/txs'
+          link: '/railgun/txs',
+          collapsed: true,
+          items: [
+            {
+              text: 'Internal Transfer',
+              link: '/railgun/txs#internal-transfer'
+            },
+            {
+              text: 'Defi & Other Smart Contracts',
+              link: '/railgun/txs#defi--other-smart-contracts'
+            }
+          ]
         },
         {
           text: 'Proof of Innocence',

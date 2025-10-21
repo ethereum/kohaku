@@ -4,7 +4,7 @@
 TODO: Write intro
 :::
 
-## Shielding
+## Shielding ETH
 
 When shielding you are essentially depositing an ERC20 token into the railgun system.
 This transaction comes from the account you want to shield from.
@@ -13,70 +13,39 @@ This transaction comes from the account you want to shield from.
 import { Wallet } from 'ethers';
 
 const VALUE = 10000000000000n; // 0.00001 ETH
-const tx = await account.createNativeShieldTx(value);
+const tx = await account.createNativeShieldTx(value); // [!code focus]
 
 // Eoa that will send the tx
 const signer = new Wallet(TX_SIGNER_KEY, provider);
 await account.submitTx(tx, signer);
 ```
 
-## Unshielding
-
-### From EOA
-
-This transaction can be sent from an EOA. This can be the recipient itself, or a different EOA.
-If the recipient is not an EOA, or does not have ETH yet, you can use a [relayer](#railgun-relayer) to submit the tx on your behalf.
-
-:::note
-Do note that this EOA will be the submitter of the tx, and thus linked to the recipient.
+:::info
+The `createNativeShieldTx` function will wrap the ETH to WETH before shielding.
 :::
 
-```ts filename="vars.ts"
-const value = 10000000000000n; // 0.00001 ETH
-const recipient = '0x...';
-```
+## Shielding ERC20
 
-:::code-group
+Railgun allows for shielding any ERC20 token.
 
-```ts [Ethers]
+```ts
 import { Wallet } from 'ethers';
 
-// [!include vars.ts]
+const VALUE = 10000000000000n; // 0.00001 WETH
+const WETH = '0x...';
+const tx = await account.createShieldTx(WETH, value); // [!code focus]
 
-const signer = new Wallet(mnemonic, provider);
-
-const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
-
-// Submit the tx // [!code focus]
-await account.submitTx(tx, signer); // [!code focus]
+// Eoa that will send the tx
+const signer = new Wallet(TX_SIGNER_KEY, provider);
+await account.submitTx(tx, signer);
 ```
 
-```ts [Viem]
-import { createWalletClient } from 'viem'
-import { mainnet } from 'viem/chains'
-import { mnemonicToAccount } from 'viem/accounts'
+## Considerations
 
-// [!include vars.ts]
+When shielding ERC20 there are some things to consider.
+Please refer to the [Railgun documentation](https://docs.railgun.org/wiki/learn/shielding-tokens) for more information.
 
-const signer = mnemonicToAccount(mnemonic, accountIndex)
-const client = createWalletClient({
-  account,
-  chain: mainnet,
-  transport: http()
-})
+## Fees
 
-const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
-
-// Submit the tx // [!code focus]
-await account.submitTx(tx, signer); // [!code focus]
-```
-
-:::
-
-### Railgun Relayer
-
-The railgun system does have a relayer that can be used to submit the tx on your behalf.
-
-:::info
-TODO: Code snippet
-:::
+In addition to the expected network fees (gas fees), there is also a [Protocol Fee](https://docs.railgun.org/wiki/learn/railgun-deductions) (when shielding & unshielding) and [Broadcaster Premium](https://docs.railgun.org/wiki/learn/railgun-deductions).
+Broadcaster Premiums are up to the individual Broadcasters, according to the railgun documentation "generally they are ~10% of the total gas"[*](https://docs.railgun.org/wiki/learn/railgun-deductions).

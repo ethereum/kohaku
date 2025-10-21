@@ -1,0 +1,64 @@
+# Unshielding
+
+:::info
+TODO: Write intro
+:::
+
+## From EOA
+
+This transaction can be sent from an EOA. This can be the recipient itself, or a different EOA.
+If the recipient is not an EOA, or does not have ETH yet, you can use a [relayer](#railgun-relayer) to submit the tx on your behalf.
+
+:::note
+Do note that this EOA will be the submitter of the tx, and thus linked to the recipient.
+:::
+
+```ts filename="vars.ts"
+const value = 10000000000000n; // 0.00001 ETH
+const recipient = '0x...';
+```
+
+:::code-group
+
+```ts [Ethers]
+import { Wallet } from 'ethers';
+
+// [!include vars.ts]
+
+const signer = new Wallet(mnemonic, provider);
+
+const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
+
+// Submit the tx
+await account.submitTx(tx, signer);
+```
+
+```ts [Viem]
+import { createWalletClient } from 'viem'
+import { mainnet } from 'viem/chains'
+import { mnemonicToAccount } from 'viem/accounts'
+
+// [!include vars.ts]
+
+const signer = mnemonicToAccount(mnemonic, accountIndex)
+const client = createWalletClient({
+  account,
+  chain: mainnet,
+  transport: http()
+})
+
+const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
+
+// Submit the tx
+await account.submitTx(tx, signer);
+```
+
+:::
+
+## Railgun Relayer
+
+The railgun system does have a relayer that can be used to submit the tx on your behalf.
+
+:::info
+TODO: Code snippet
+:::
