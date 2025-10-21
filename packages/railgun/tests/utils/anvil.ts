@@ -29,6 +29,7 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
 
   const rpcUrl = `http://127.0.0.1:${port}/${poolId}`;
   let stopFn: (() => Promise<void>) | undefined;
+  let instance: ReturnType<typeof anvil> | undefined;
 
   console.log('Anvil defined');
 
@@ -46,8 +47,20 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
         ...(forkBlockNumber && { forkBlockNumber: BigInt(forkBlockNumber) }),
       };
 
+      instance = anvil(anvilOptions, {messageBuffer: 100});
+
+      instance.on('stdout', (data) => {
+        console.log('Anvil stdout:', data);
+      });
+      instance.on('stderr', (data) => {
+        console.error('Anvil stderr:', data);
+      });
+      instance.on('message', (data) => {
+        console.log('Anvil message:', data);
+      });
+
       stopFn = await createServer({
-        instance: anvil(anvilOptions),
+        instance,
         port,
       }).start();
       console.log('Anvil started');
@@ -55,6 +68,10 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
 
     async stop() {
       console.log('Stopping Anvil...');
+      if (instance) {
+        console.log('Anvil messages:', instance.messages.get());
+      }
+
       if (stopFn) {
         await stopFn();
         stopFn = undefined;
