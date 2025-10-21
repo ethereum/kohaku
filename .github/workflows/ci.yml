@@ -27,6 +27,10 @@ jobs:
         run: pnpm lint
       - name: Build
         run: pnpm -r build
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
       - name: Run Railgun tests
         run: pnpm --filter @kohaku-eth/railgun test
         timeout-minutes: 5
