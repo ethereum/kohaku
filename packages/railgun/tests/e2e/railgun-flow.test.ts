@@ -45,9 +45,14 @@ describe('Railgun E2E Flow', () => {
       forkBlockNumber: forkBlock,
     });
 
+    console.log('Anvil defined');
+
     await anvil.start();
 
+    console.log('Anvil started');
+
     const jsonRpcProvider = await anvil.getProvider();
+    console.log('JsonRpcProvider created');
     provider = new EthersProviderAdapter(jsonRpcProvider);
 
     // Load or create cache for this fork block (this is the slow part on first run)

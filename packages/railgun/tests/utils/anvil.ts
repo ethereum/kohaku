@@ -79,13 +79,19 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
     },
 
     async getProvider() {
+
+      console.log('Getting provider...');
       const provider = new JsonRpcProvider(rpcUrl, undefined, {
         staticNetwork: true,
         batchMaxCount: 1,
       });
 
+      console.log('Provider created');
+
       // Ensure the provider is connected
       await provider.getBlockNumber();
+
+      console.log('Provider connected');
 
       return provider;
     },
