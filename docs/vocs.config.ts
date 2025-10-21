@@ -41,7 +41,7 @@ export default defineConfig({
           items: [
             {
               text: 'Shielding',
-              link: '/railgun/shielding#shield'
+              link: '/railgun/shielding'
             },
             {
               text: 'Unshielding',
@@ -71,44 +71,53 @@ export default defineConfig({
       ]
     },
     {
-      text: '@kohaku-eth/privacy-pools',
+      text: '@kohaku-eth/privacy-pools (WIP)',
+      disabled: true,
       items: [
         {
           text: 'Introduction',
-          link: '/privacy-pools/intro'
+          link: '/privacy-pools/intro',
+          disabled: true,
         },
         {
           text: 'Accounts',
-          link: '/privacy-pools/accounts'
+          link: '/privacy-pools/accounts',
+          disabled: true,
         },
         {
           text: 'Shielding',
-          link: '/privacy-pools/shielding'
+          link: '/privacy-pools/shielding',
+          disabled: true,
         },
         {
           text: 'Transacting',
-          link: '/privacy-pools/txs'
+          link: '/privacy-pools/txs',
+          disabled: true,
         },
         {
           text: 'Proof of Innocence',
-          link: '/privacy-pools/ppoi'
+          link: '/privacy-pools/ppoi',
+          disabled: true,
         }
       ]
     },
     {
-      text: '@kohaku-eth/tornado',
+      text: '@kohaku-eth/tornado (WIP)',
       items: [
         {
           text: 'Introduction',
-          link: '/tornado/intro'
+          link: '/tornado/intro',
+          disabled: true,
         },
         {
           text: 'Notes',
-          link: '/tornado/notes'
+          link: '/tornado/notes',
+          disabled: true,
         },
         {
           text: 'Transacting',
-          link: '/tornado/txs'
+          link: '/tornado/txs',
+          disabled: true,
         }
       ]
     },
