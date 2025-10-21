@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { Wallet } from 'ethers';
+import { Wallet, Contract } from 'ethers';
 import { RailgunAccount, RailgunLog } from '../../src/account-utils';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
@@ -192,8 +192,6 @@ describe('Railgun E2E Flow', () => {
     // Mine a few more blocks to ensure finality
     await anvil.mine(3);
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     // Step 4: Sync Alice's account with new logs (from start of fork to include all new txs)
     console.log('\nStep 4: Syncing Alice account with new logs...');
     const currentBlock = await provider.getBlockNumber();
@@ -259,12 +257,14 @@ describe('Railgun E2E Flow', () => {
 
     // Step 7: Bob unshields to charlie's public address
     console.log('\nStep 7: Unshielding from Bob account...');
-    await fundAccountWithETH(anvil, charlie.address, BigInt('0'));
-    const charlieBalanceBeforeUnshield = await underlyingProvider.getBalance(charlie.address);
-    console.log(`Charlie's ETH balance before unshield: ${charlieBalanceBeforeUnshield.toString()} ${formatEther(charlieBalanceBeforeUnshield)}`);
+
+    const wethContract = new Contract(weth, ["function balanceOf(address) external view returns (uint256)"], await anvil.getProvider());
+    const charlieBalanceWETHBeforeUnshield = await wethContract.balanceOf(charlie.address);
+    console.log(`Charlie's WETH balance before unshield: ${charlieBalanceWETHBeforeUnshield.toString()} ${formatEther(charlieBalanceWETHBeforeUnshield)}`);
 
     const unshieldAmount = bobPrivateBalance;
-    const unshieldTx = await bobRailgunAccount.createNativeUnshieldTx(
+    const unshieldTx = await bobRailgunAccount.createUnshieldTx(
+      weth,
       unshieldAmount,
       charlie.address
     );
@@ -281,13 +281,12 @@ describe('Railgun E2E Flow', () => {
 
     await anvil.mine(3);
 
-    const charlieBalanceAfterUnshield = await (await anvil.getProvider()).getBalance(charlie.address);
-    console.log(`Charlie's ETH balance after unshield: ${charlieBalanceAfterUnshield.toString()} ${formatEther(charlieBalanceAfterUnshield)} ${formatEther(unshieldAmount)}`);
+    const charlieBalanceWETHAfterUnshield = await wethContract.balanceOf(charlie.address);
+    console.log(`Charlie's WETH balance after unshield: ${charlieBalanceWETHAfterUnshield.toString()} ${formatEther(charlieBalanceWETHAfterUnshield)}`);
 
-    // TODO: fix unshield amount. currently both charlieBalanceAfterUnshield and charlieBalanceBeforeUnshield are 0
-    // replace this with toBeGreaterThan.
-    expect(charlieBalanceAfterUnshield).toBeGreaterThanOrEqual(
-      charlieBalanceBeforeUnshield
+
+    expect(charlieBalanceWETHAfterUnshield).toBeGreaterThan(
+      charlieBalanceWETHBeforeUnshield
     );
 
     console.log('\n=== Test completed successfully ===\n');
