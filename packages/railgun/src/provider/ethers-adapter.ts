@@ -1,5 +1,5 @@
 import type { JsonRpcProvider, Log, Wallet } from 'ethers';
-import type { RailgunProvider, RailgunSigner } from './provider';
+import type { RailgunProvider, RailgunSigner, TransactionReceipt } from './provider';
 import type { RailgunLog, TxData } from '../account-utils/types';
 
 /**
@@ -26,6 +26,26 @@ export class EthersProviderAdapter implements RailgunProvider {
     await this.provider.waitForTransaction(txHash);
   }
 
+  async getBalance(address: string): Promise<bigint> {
+    return await this.provider.getBalance(address);
+  }
+
+  async getCode(address: string): Promise<string> {
+    return await this.provider.getCode(address);
+  }
+
+  async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
+    const receipt = await this.provider.getTransactionReceipt(txHash);
+    if (!receipt) return null;
+
+    return {
+      blockNumber: receipt.blockNumber,
+      status: receipt.status ?? 0,
+      logs: receipt.logs.map(log => this.convertLog(log)),
+      gasUsed: receipt.gasUsed,
+    };
+  }
+
   private convertLog(log: Log): RailgunLog {
     return {
       blockNumber: log.blockNumber,
@@ -35,6 +55,10 @@ export class EthersProviderAdapter implements RailgunProvider {
     };
   }
 
+  /**
+   * Get the underlying Ethers provider
+   * @deprecated Use the RailgunProvider interface methods instead
+   */
   getProvider(): JsonRpcProvider {
     return this.provider;
   }

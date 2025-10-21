@@ -1,4 +1,4 @@
-import type { RailgunProvider, RailgunSigner } from './provider';
+import type { RailgunProvider, RailgunSigner, TransactionReceipt } from './provider';
 import type { RailgunLog, TxData } from '../account-utils/types';
 
 // Viem types (will work when viem is installed)
@@ -9,7 +9,10 @@ type ViemPublicClient = {
     toBlock: bigint;
   }) => Promise<ViemLog[]>;
   getBlockNumber: () => Promise<bigint>;
-  waitForTransactionReceipt: (params: { hash: `0x${string}` }) => Promise<unknown>;
+  waitForTransactionReceipt: (params: { hash: `0x${string}` }) => Promise<ViemTransactionReceipt>;
+  getBalance: (params: { address: `0x${string}` }) => Promise<bigint>;
+  getCode: (params: { address: `0x${string}` }) => Promise<`0x${string}`>;
+  getTransactionReceipt: (params: { hash: `0x${string}` }) => Promise<ViemTransactionReceipt | null>;
 };
 
 type ViemWalletClient = {
@@ -28,6 +31,13 @@ type ViemLog = {
   topics: `0x${string}`[];
   data: `0x${string}`;
   address: `0x${string}`;
+};
+
+type ViemTransactionReceipt = {
+  blockNumber: bigint;
+  status: 'success' | 'reverted';
+  logs: ViemLog[];
+  gasUsed: bigint;
 };
 
 /**
@@ -59,6 +69,33 @@ export class ViemProviderAdapter implements RailgunProvider {
     await this.client.waitForTransactionReceipt({
       hash: txHash as `0x${string}`,
     });
+  }
+
+  async getBalance(address: string): Promise<bigint> {
+    return await this.client.getBalance({
+      address: address as `0x${string}`,
+    });
+  }
+
+  async getCode(address: string): Promise<string> {
+    return await this.client.getCode({
+      address: address as `0x${string}`,
+    });
+  }
+
+  async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
+    const receipt = await this.client.getTransactionReceipt({
+      hash: txHash as `0x${string}`,
+    });
+
+    if (!receipt) return null;
+
+    return {
+      blockNumber: Number(receipt.blockNumber),
+      status: receipt.status === 'success' ? 1 : 0,
+      logs: receipt.logs.map(log => this.convertLog(log)),
+      gasUsed: receipt.gasUsed,
+    };
   }
 
   private convertLog(log: ViemLog): RailgunLog {

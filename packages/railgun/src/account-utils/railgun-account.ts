@@ -15,6 +15,8 @@ import { getWalletNodeFromKey, getERC20TokenData } from './helpers';
 import { getAllLogs, processLog } from './indexer';
 import * as TxBuilder from './transaction-builder';
 import type { ChainId, RailgunLog, TxData } from './types';
+import type { RailgunSigner } from '../provider/provider';
+import { EthersSignerAdapter } from '../provider/ethers-adapter';
 
 export class RailgunAccount {
   private network: RailgunNetworkConfig;
@@ -22,7 +24,7 @@ export class RailgunAccount {
   private viewingNode: WalletNode;
   private merkleTrees: MerkleTree[];
   private noteBooks: NoteBook[];
-  private shieldKeyEthSigner?: Wallet;
+  private shieldKeyEthSigner?: RailgunSigner;
 
   /**
    * Creates a new RailgunAccount instance.
@@ -30,10 +32,10 @@ export class RailgunAccount {
    * @param chainId - The blockchain chain ID (must be supported in RAILGUN_CONFIG_BY_CHAIN_ID)
    * @param spendingNode - The spending key node for transaction authorization
    * @param viewingNode - The viewing key node for decrypting received notes
-   * @param ethSigner - Optional Ethereum signer for shield operations
+   * @param ethSigner - Optional signer for shield operations
    * @throws Error if the chain ID is not supported
    */
-  constructor(chainId: ChainId, spendingNode: WalletNode, viewingNode: WalletNode, ethSigner?: Wallet) {
+  constructor(chainId: ChainId, spendingNode: WalletNode, viewingNode: WalletNode, ethSigner?: RailgunSigner) {
     const networkConfig = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
     if (!networkConfig) {
       throw new Error(`Chain ID ${chainId} not supported`);
@@ -48,41 +50,63 @@ export class RailgunAccount {
 
   /**
    * Creates a RailgunAccount from a mnemonic phrase.
+   * NOTE: This method creates an Ethers-based signer. For other providers (e.g., Viem),
+   * use the constructor directly with the appropriate signer adapter.
    *
    * @param mnemonic - The BIP39 mnemonic phrase
    * @param accountIndex - The account index for key derivation
    * @param chainId - The blockchain chain ID
    * @returns A new RailgunAccount instance with derived keys and Ethereum signer
+   * @deprecated For provider-agnostic usage, use the constructor with a RailgunSigner adapter
    */
   static fromMnemonic(mnemonic: string, accountIndex: number, chainId: ChainId): RailgunAccount {
     const {spending, viewing} = deriveNodes(mnemonic, accountIndex);
     const ethSigner = new Wallet(Mnemonic.to0xPrivateKey(mnemonic, accountIndex));
-    return new RailgunAccount(chainId, spending, viewing, ethSigner);
+    const signerAdapter = new EthersSignerAdapter(ethSigner);
+    return new RailgunAccount(chainId, spending, viewing, signerAdapter);
   }
 
   /**
    * Creates a RailgunAccount from explicit private keys.
+   * NOTE: This method creates an Ethers-based signer. For other providers (e.g., Viem),
+   * use the constructor directly with the appropriate signer adapter.
    *
    * @param spendingKey - The spending private key as hex string
    * @param viewingKey - The viewing private key as hex string
    * @param chainId - The blockchain chain ID
    * @param ethKey - Optional Ethereum private key for shield operations
    * @returns A new RailgunAccount instance with the provided keys
+   * @deprecated For provider-agnostic usage, use the constructor with a RailgunSigner adapter
    */
   static fromPrivateKeys(spendingKey: string, viewingKey: string, chainId: ChainId, ethKey?: string): RailgunAccount {
     const spendingNode = getWalletNodeFromKey(spendingKey);
     const viewingNode = getWalletNodeFromKey(viewingKey);
-    const ethSigner = ethKey ? new Wallet(ethKey) : undefined;
+    let ethSigner: RailgunSigner | undefined;
+    if (ethKey) {
+      ethSigner = new EthersSignerAdapter(new Wallet(ethKey));
+    }
     return new RailgunAccount(chainId, spendingNode, viewingNode, ethSigner);
   }
 
   /**
+   * Sets the signer for shield operations.
+   *
+   * @param signer - The RailgunSigner instance to use for shield operations
+   */
+  setShieldKeySigner(signer: RailgunSigner): void {
+    this.shieldKeyEthSigner = signer;
+  }
+
+  /**
    * Sets the Ethereum signer for shield operations.
+   * NOTE: This method creates an Ethers-based signer. For other providers (e.g., Viem),
+   * use setShieldKeySigner with the appropriate signer adapter.
    *
    * @param ethKey - The Ethereum private key as hex string
+   * @deprecated For provider-agnostic usage, use setShieldKeySigner with a RailgunSigner adapter
    */
   setShieldKeyEthSigner(ethKey: string): void {
-    this.shieldKeyEthSigner = new Wallet(ethKey);
+    this.shieldKeyEthSigner = new EthersSignerAdapter(new Wallet(ethKey));
   }
 
   /**
@@ -380,17 +404,16 @@ export class RailgunAccount {
    * NOTE: This is a crude/simple TX submission function, intended only as a helper for testing.
    *
    * @param input - The transaction data to submit
-   * @param signer - The Ethereum wallet to sign and submit the transaction
+   * @param signer - The signer to use for transaction submission
    * @returns Promise that resolves to the transaction hash
    */
-  async submitTx(input: TxData, signer: Wallet): Promise<string> {
-    const tx = await signer.sendTransaction({
+  async submitTx(input: TxData, signer: RailgunSigner): Promise<string> {
+    return await signer.sendTransaction({
       to: input.to,
       data: input.data,
       value: input.value,
       gasLimit: 6000000,
     });
-    return tx.hash;
   }
 
   /**

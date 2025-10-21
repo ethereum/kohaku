@@ -19,5 +19,5 @@ export async function getETHBalance(
   provider: RailgunProvider,
   address: string
 ): Promise<bigint> {
-  return await provider.getProvider().getBalance(address);
+  return await provider.getBalance(address);
 }

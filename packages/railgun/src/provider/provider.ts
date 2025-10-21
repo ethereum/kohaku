@@ -1,5 +1,12 @@
 import type { RailgunLog, TxData } from '../account-utils/types';
 
+export interface TransactionReceipt {
+  blockNumber: number;
+  status: number;
+  logs: RailgunLog[];
+  gasUsed: bigint;
+}
+
 /**
  * Abstract provider interface for blockchain interactions
  * Supports both Ethers v6 and Viem implementations
@@ -25,10 +32,19 @@ export interface RailgunProvider {
   waitForTransaction(txHash: string): Promise<void>;
 
   /**
-   * Get the provider
+   * Get the balance of an address
    */
-  // NOTE: this doesn't work for Viem providers, bc they can't implement this method and then cannot comply with the interface
-  // getProvider(): JsonRpcProvider;
+  getBalance(address: string): Promise<bigint>;
+
+  /**
+   * Get the code at an address
+   */
+  getCode(address: string): Promise<string>;
+
+  /**
+   * Get transaction receipt
+   */
+  getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null>;
 }
 
 /**
