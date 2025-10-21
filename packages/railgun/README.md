@@ -1,6 +1,6 @@
 # ethprivacy/railgun
 
-simplified railgun typescript utils, borrowing code from internals of [railgun-community/engine](https://github.com/railgun-community/engine) and [railgun-privacy/contract](https://github.com/railgun-privacy/contract) (see [here](#about-forked-libs) for more info)
+simplified railgun typescript utils, borrowing code from internals of [railgun-community/engine](https://github.com/railgun-community/engine) and [railgun-privacy/contract](https://github.com/railgun-privacy/contract) (see [about forked libs](#about-forked-libs))
 
 ## Demo
 
@@ -10,7 +10,7 @@ You need a `RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixe
 
 from monorepo root directory, after installing deps with `pnpm install`, run:
 
-```
+```sh
 pnpm -F @kohaku-eth/railgun demo
 ```
 

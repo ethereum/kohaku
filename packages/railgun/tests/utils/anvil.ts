@@ -30,10 +30,13 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
   const rpcUrl = `http://127.0.0.1:${port}/${poolId}`;
   let stopFn: (() => Promise<void>) | undefined;
 
+  console.log('Anvil defined');
+
   return {
     rpcUrl,
 
     async start() {
+      console.log('Starting Anvil...');
       const anvilOptions: AnvilParameters = {
         chainId,
         forkUrl,
@@ -47,9 +50,11 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
         instance: anvil(anvilOptions),
         port,
       }).start();
+      console.log('Anvil started');
     },
 
     async stop() {
+      console.log('Stopping Anvil...');
       if (stopFn) {
         await stopFn();
         stopFn = undefined;
