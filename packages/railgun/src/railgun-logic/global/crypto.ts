@@ -4,6 +4,8 @@ import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
 import { getRandomBytesSync } from 'ethereum-cryptography/random';
 import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
 import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
+import { AES } from '../../railgun-lib/utils/encryption/aes';
+import { ByteUtils } from '../../railgun-lib/utils/bytes';
 
 /**
  * Gets random bytes
@@ -78,57 +80,84 @@ const hash = {
   },
 };
 
-// Simplified AES implementation using Web Crypto API principles
-// For production, consider using @noble/ciphers or similar library
 const aes = {
   gcm: {
     /**
      * Encrypt plaintext with AES-GCM-256
-     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param plaintext - plaintext to encrypt
      * @param key - key to encrypt with
      * @returns encrypted bundle
      */
-    encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      throw new Error('AES-GCM encryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
+    async encrypt(plaintext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      const plaintextHex = plaintext.map((p) => ByteUtils.hexlify(p, false));
+      const ciphertext = await AES.encryptGCM(plaintextHex, key);
+
+      const iv = ByteUtils.hexToBytes(ciphertext.iv);
+      const tag = ByteUtils.hexToBytes(ciphertext.tag);
+      const data = ciphertext.data.map((d) => ByteUtils.hexToBytes(d));
+
+      return [new Uint8Array([...iv, ...tag]), ...data];
     },
 
     /**
      * Decrypt encrypted bundle with AES-GCM-256
-     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param ciphertext - encrypted bundle to decrypt
      * @param key - key to decrypt with
      * @returns plaintext
      */
-    decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      throw new Error('AES-GCM decryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
+    async decrypt(ciphertext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      const iv = ciphertext[0].subarray(0, 16);
+      const tag = ciphertext[0].subarray(16, 32);
+      const encryptedData = ciphertext.slice(1);
+
+      const ciphertextObj = {
+        iv: ByteUtils.hexlify(iv, false),
+        tag: ByteUtils.hexlify(tag, false),
+        data: encryptedData.map((d) => ByteUtils.hexlify(d, false)),
+      };
+
+      const decrypted = await AES.decryptGCM(ciphertextObj, key);
+      return decrypted.map((d) => ByteUtils.hexToBytes(d));
     },
   },
   ctr: {
     /**
      * Encrypt plaintext with AES-CTR-256
-     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param plaintext - plaintext to encrypt
      * @param key - key to encrypt with
      * @returns encrypted bundle
      */
-    encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      throw new Error('AES-CTR encryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
+    async encrypt(plaintext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      const plaintextHex = plaintext.map((p) => ByteUtils.hexlify(p, false));
+      const ciphertext = await AES.encryptCTR(plaintextHex, key);
+
+      const iv = ByteUtils.hexToBytes(ciphertext.iv);
+      const data = ciphertext.data.map((d) => ByteUtils.hexToBytes(d));
+
+      return [iv, ...data];
     },
 
     /**
      * Decrypt encrypted bundle with AES-CTR-256
-     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param ciphertext - encrypted bundle to decrypt
      * @param key - key to decrypt with
      * @returns plaintext
      */
-    decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      throw new Error('AES-CTR decryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
+    async decrypt(ciphertext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      const iv = ciphertext[0];
+      const encryptedData = ciphertext.slice(1);
+
+      const ciphertextObj = {
+        iv: ByteUtils.hexlify(iv, false),
+        data: encryptedData.map((d) => ByteUtils.hexlify(d, false)),
+      };
+
+      const decrypted = await AES.decryptCTR(ciphertextObj, key);
+      return decrypted.map((d) => ByteUtils.hexToBytes(d));
     },
   },
 };

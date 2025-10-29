@@ -54,18 +54,18 @@ export abstract class ShieldNote {
     return poseidon([notePublicKey, ByteUtils.hexToBigInt(tokenHash), valueAfterFee]);
   }
 
-  static decryptRandom(encryptedBundle: [string, string, string], sharedKey: Uint8Array): string {
+  static async decryptRandom(encryptedBundle: [string, string, string], sharedKey: Uint8Array): Promise<string> {
     const hexlified0 = ByteUtils.hexlify(encryptedBundle[0]);
     const hexlified1 = ByteUtils.hexlify(encryptedBundle[1]);
-    const decrypted = AES.decryptGCM(
+    const decrypted = await AES.decryptGCM(
       {
         iv: hexlified0.slice(0, 32),
         tag: hexlified0.slice(16, 64),
         data: [hexlified1.slice(0, 32)],
       },
       sharedKey,
-    )[0];
-    return ByteUtils.hexlify(decrypted!);
+    );
+    return ByteUtils.hexlify(decrypted[0]!);
   }
 
   /**
@@ -85,10 +85,10 @@ export abstract class ShieldNote {
     }
 
     // Encrypt random
-    const encryptedRandom = AES.encryptGCM([this.random], sharedKey);
+    const encryptedRandom = await AES.encryptGCM([this.random], sharedKey);
 
     // Encrypt receiver public key
-    const encryptedReceiver = AES.encryptCTR(
+    const encryptedReceiver = await AES.encryptCTR(
       [bytesToHex(receiverViewingPublicKey)],
       shieldPrivateKey,
     );
