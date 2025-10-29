@@ -640,9 +640,9 @@ export class RailgunAccount {
       const viewingKey = (await this.viewingNode.getViewingKeyPair()).privateKey;
       const spendingKey = this.spendingNode.getSpendingKeyPair().privateKey;
 
-      args.shieldCiphertext.map((shieldCiphertext, index) => {
+      await Promise.all(args.shieldCiphertext.map(async (shieldCiphertext, index) => {
         // Try to decrypt
-        const decrypted = Note.decryptShield(
+        const decrypted = await Note.decryptShield(
           hexStringToArray(shieldCiphertext.shieldKey),
           shieldCiphertext.encryptedBundle.map(hexStringToArray) as [
             Uint8Array,
@@ -667,7 +667,7 @@ export class RailgunAccount {
             this.noteBooks[treeNumber]!.notes[startPosition+index] = decrypted;
           }
         }
-      });
+      }));
     } else if (parsedLog.name === 'Transact') {
       // Type cast to TransactEventObject
       const args = parsedLog.args as unknown as TransactEventObject;
