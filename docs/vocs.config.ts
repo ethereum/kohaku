@@ -129,6 +129,10 @@ export default defineConfig({
       link: 'https://github.com/ethereum/kohaku-extension',
     },
     {
+      text: '@openlv/connector',
+      link: 'https://v3xlabs.github.io/open-lavatory/',
+    },
+    {
       text: '@a16z/helios',
       link: 'https://github.com/a16z/helios',
     }
