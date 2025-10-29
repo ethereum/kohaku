@@ -1,27 +1,6 @@
 import { ByteLength, ByteUtils } from '../bytes';
 import { BytesData, Ciphertext, CiphertextCTR } from '../../models/formatted-types';
-// @ts-ignore - crypto will be replaced with false in browser builds via package.json browser field
-import * as nodeCrypto from 'crypto';
-
-type Ciphers = Pick<typeof import('crypto'), 'createCipheriv' | 'createDecipheriv'>;
-
-const isBrowser = !nodeCrypto || typeof nodeCrypto !== 'object';
-
-const getCryptoModule = (): Ciphers => {
-  // In browser builds, nodeCrypto will be false (via package.json browser field)
-  // In Node.js, it will be the actual crypto module
-  if (isBrowser) {
-    throw new Error('Crypto module not available in browser environment');
-  }
-  return nodeCrypto as unknown as Ciphers;
-};
-
-const { createCipheriv, createDecipheriv } = new Proxy({} as Ciphers, {
-  get(target, prop) {
-    const module = getCryptoModule();
-    return module[prop as keyof Ciphers];
-  },
-});
+import { useBrowserCrypto, getNodeCiphers } from '../platform';
 
 // Browser-compatible implementations using Web Crypto API
 async function browserEncryptGCM(plaintext: string[], key: Uint8Array): Promise<Ciphertext> {
@@ -191,10 +170,11 @@ export class AES {
     }
 
     // Use browser implementation if in browser environment
-    if (isBrowser) {
+    if (useBrowserCrypto) {
       return browserEncryptGCM(plaintext, keyFormatted);
     }
 
+    const { createCipheriv } = getNodeCiphers();
     const iv = AES.getRandomIV();
     const ivFormatted = ByteUtils.fastHexToBytes(iv);
 
@@ -244,10 +224,11 @@ export class AES {
       }
 
       // Use browser implementation if in browser environment
-      if (isBrowser) {
+      if (useBrowserCrypto) {
         return browserDecryptGCM(ciphertext, keyFormatted);
       }
 
+      const { createDecipheriv } = getNodeCiphers();
       const ivFormatted = ByteUtils.fastHexToBytes(ByteUtils.trim(ciphertext.iv, 16) as string);
       const tagFormatted = ByteUtils.fastHexToBytes(ByteUtils.trim(ciphertext.tag, 16) as string);
       if (ivFormatted.byteLength !== 16) {
@@ -300,10 +281,11 @@ export class AES {
     }
 
     // Use browser implementation if in browser environment
-    if (isBrowser) {
+    if (useBrowserCrypto) {
       return browserEncryptCTR(plaintext, keyFormatted);
     }
 
+    const { createCipheriv } = getNodeCiphers();
     const iv = AES.getRandomIV();
     const ivFormatted = ByteUtils.fastHexToBytes(iv);
 
@@ -341,10 +323,11 @@ export class AES {
     }
 
     // Use browser implementation if in browser environment
-    if (isBrowser) {
+    if (useBrowserCrypto) {
       return browserDecryptCTR(ciphertext, keyFormatted);
     }
 
+    const { createDecipheriv } = getNodeCiphers();
     const ivFormatted = ByteUtils.fastHexToBytes(ciphertext.iv);
     if (ivFormatted.byteLength !== 16) {
       throw new Error(

@@ -1,8 +1,8 @@
 import { bytesToHex, hexToBytes } from 'ethereum-cryptography/utils';
 import { getRandomBytesSync } from 'ethereum-cryptography/random';
-import crypto from 'crypto';
 import { BytesData } from '../models/formatted-types';
-import { isReactNative, isNodejs } from './runtime';
+import { isReactNative } from './runtime';
+import { hasNodeRandomBytes, getNodeRandomBytes } from './platform';
 
 // TextEncoder/TextDecoder (used in this file) needs to shimmed in React Native
 if (isReactNative) {
@@ -339,9 +339,11 @@ class ByteUtils {
    * @returns random bytes hex string
    */
   static randomHex(length: number = 32): string {
-    return isNodejs
-      ? crypto.randomBytes(length).toString('hex')
-      : bytesToHex(getRandomBytesSync(length));
+    if (hasNodeRandomBytes) {
+      const { randomBytes } = getNodeRandomBytes();
+      return randomBytes(length).toString('hex');
+    }
+    return bytesToHex(getRandomBytesSync(length));
   }
 }
 
