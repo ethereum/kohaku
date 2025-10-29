@@ -2,25 +2,44 @@ import { Point } from '@noble/ed25519';
 import { bytesToHex } from 'ethereum-cryptography/utils';
 import { EngineDebug } from '../debugger/debugger';
 import { ByteLength, ByteUtils } from './bytes';
-import { isReactNative } from './runtime';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
+import { isReactNative, isNodejs } from './runtime';
 
 interface ScalarMultMod {
   default?: () => Promise<void>;
   scalarMultiply?: (point: Uint8Array, scalar: Uint8Array) => Uint8Array;
 }
 
-const { default: initCurve25519wasm, scalarMultiply: scalarMultiplyWasm } =
+// Lazy load the wasm module - will be undefined in browser builds
+let wasmModule: ScalarMultMod | undefined;
+let wasmLoadAttempted = false;
 
-  isReactNative
-    ? ({} as unknown as ScalarMultMod)
-    : (require('@railgun-community/curve25519-scalarmult-wasm') as ScalarMultMod)
+const getWasmModule = (): ScalarMultMod => {
+  // In browser/React Native, always use JavaScript fallback
+  if (isReactNative || !isNodejs) {
+    return {} as ScalarMultMod;
+  }
+
+  // In Node.js, try to dynamically load the WASM module
+  if (!wasmLoadAttempted) {
+    wasmLoadAttempted = true;
+    try {
+      // Use dynamic require which won't fail at module load time
+      // This makes the import optional for browser builds
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      wasmModule = require('@railgun-community/curve25519-scalarmult-wasm') as ScalarMultMod;
+    } catch (e) {
+      EngineDebug.log('Failed to load curve25519-scalarmult-wasm, using JavaScript fallback');
+      wasmModule = {} as ScalarMultMod;
+    }
+  }
+  return wasmModule || ({} as ScalarMultMod);
+};
 
 const initCurve25519Wasm = (): Promise<void> => {
   try {
+    const mod = getWasmModule();
     // Try WASM implementation.
-    return typeof initCurve25519wasm === 'function' ? initCurve25519wasm() : Promise.resolve();
+    return typeof mod.default === 'function' ? mod.default() : Promise.resolve();
   } catch (cause) {
     if (!(cause instanceof Error)) {
       throw new Error('Non-error thrown from initCurve25519Wasm', { cause });
@@ -37,14 +56,15 @@ export const scalarMultiplyWasmFallbackToJavascript = (
   point: Uint8Array,
   scalar: bigint,
 ): Uint8Array => {
-  if (isReactNative || !scalarMultiplyWasm) {
-    // Fallback to JavaScript if this module is running directly in React Native
+  const mod = getWasmModule();
+  if (isReactNative || !isNodejs || !mod.scalarMultiply) {
+    // Fallback to JavaScript if this module is running directly in React Native or browser
     return scalarMultiplyJavascript(point, scalar);
   }
   try {
     // Try WASM implementation.
     const scalarUint8Array = ByteUtils.nToBytes(scalar, ByteLength.UINT_256);
-    return scalarMultiplyWasm(point, scalarUint8Array);
+    return mod.scalarMultiply(point, scalarUint8Array);
   } catch (cause) {
     if (!(cause instanceof Error)) {
       throw new Error('Non-error thrown from scalarMultiplyWasmFallbackToJavascript', { cause });

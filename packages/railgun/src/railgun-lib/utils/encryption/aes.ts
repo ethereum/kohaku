@@ -1,16 +1,25 @@
 import { ByteLength, ByteUtils } from '../bytes';
 import { BytesData, Ciphertext, CiphertextCTR } from '../../models/formatted-types';
-import { isNodejs } from '../runtime';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
+// @ts-ignore - crypto will be replaced with false in browser builds via package.json browser field
+import * as nodeCrypto from 'crypto';
 
 type Ciphers = Pick<typeof import('crypto'), 'createCipheriv' | 'createDecipheriv'>;
 
-const { createCipheriv, createDecipheriv } = isNodejs
-  ?  
-    (require('crypto') as Ciphers)
-  :  
-    (require('browserify-aes/browser') as Ciphers);
+const getCryptoModule = (): Ciphers => {
+  // In browser builds, nodeCrypto will be false (via package.json browser field)
+  // In Node.js, it will be the actual crypto module
+  if (!nodeCrypto || typeof nodeCrypto !== 'object') {
+    throw new Error('Crypto module not available in browser environment');
+  }
+  return nodeCrypto as unknown as Ciphers;
+};
+
+const { createCipheriv, createDecipheriv } = new Proxy({} as Ciphers, {
+  get(target, prop) {
+    const module = getCryptoModule();
+    return module[prop as keyof Ciphers];
+  },
+});
 
 export class AES {
   static getRandomIV() {

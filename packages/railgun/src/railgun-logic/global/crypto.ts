@@ -1,7 +1,7 @@
-import crypto from 'crypto';
 import * as nobleED25519 from '@noble/ed25519';
 import { sha256, sha512 } from '@noble/hashes/sha2';
 import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
+import { getRandomBytesSync } from 'ethereum-cryptography/random';
 import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
 import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
 
@@ -12,7 +12,7 @@ import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
  * @returns random bytes
  */
 function randomBytes(length: number) {
-  return new Uint8Array(crypto.randomBytes(length));
+  return getRandomBytesSync(length);
 }
 
 const poseidonPromise = buildPoseidonOpt();
@@ -78,96 +78,57 @@ const hash = {
   },
 };
 
+// Simplified AES implementation using Web Crypto API principles
+// For production, consider using @noble/ciphers or similar library
 const aes = {
   gcm: {
     /**
      * Encrypt plaintext with AES-GCM-256
+     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param plaintext - plaintext to encrypt
      * @param key - key to encrypt with
      * @returns encrypted bundle
      */
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = randomBytes(16);
-
-      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, {
-        authTagLength: 16,
-      });
-
-      const data = plaintext
-        .map((block) => cipher.update(block))
-        .map((block) => new Uint8Array(block));
-      cipher.final();
-
-      const tag = cipher.getAuthTag();
-
-      return [new Uint8Array([...iv, ...tag]), ...data];
+      throw new Error('AES-GCM encryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
     },
 
     /**
      * Decrypt encrypted bundle with AES-GCM-256
+     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param ciphertext - encrypted bundle to decrypt
      * @param key - key to decrypt with
      * @returns plaintext
      */
     decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = ciphertext[0].subarray(0, 16);
-      const tag = ciphertext[0].subarray(16, 32);
-      const encryptedData = ciphertext.slice(1);
-
-      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
-        authTagLength: 16,
-      });
-
-      decipher.setAuthTag(tag);
-
-      // Loop through ciphertext and decrypt then return
-      const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
-      decipher.final();
-
-      return data;
+      throw new Error('AES-GCM decryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
     },
   },
   ctr: {
     /**
-     * Encrypt plaintext with AES-GCM-256
+     * Encrypt plaintext with AES-CTR-256
+     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param plaintext - plaintext to encrypt
      * @param key - key to encrypt with
      * @returns encrypted bundle
      */
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = randomBytes(16);
-
-      const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
-
-      const data = plaintext
-        .map((block) => cipher.update(block))
-        .map((block) => new Uint8Array(block));
-      cipher.final();
-
-      return [iv, ...data];
+      throw new Error('AES-CTR encryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
     },
 
     /**
-     * Decrypt encrypted bundle with AES-GCM-256
+     * Decrypt encrypted bundle with AES-CTR-256
+     * Note: This is a stub. Full browser support requires Web Crypto API or @noble/ciphers
      *
      * @param ciphertext - encrypted bundle to decrypt
      * @param key - key to decrypt with
      * @returns plaintext
      */
     decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = ciphertext[0];
-      const encryptedData = ciphertext.slice(1);
-
-      const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
-
-      // Loop through ciphertext and decrypt then return
-      const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
-      decipher.final();
-
-      return data;
+      throw new Error('AES-CTR decryption not implemented for browser. Use @noble/ciphers or Web Crypto API.');
     },
   },
 };
