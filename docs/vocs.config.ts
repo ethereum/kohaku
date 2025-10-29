@@ -74,6 +74,7 @@ export default defineConfig({
     {
       text: '@kohaku-eth/privacy-pools (WIP)',
       disabled: true,
+      collapsed: true,
       items: [
         {
           text: 'Introduction',
@@ -104,6 +105,7 @@ export default defineConfig({
     },
     {
       text: '@kohaku-eth/tornado (WIP)',
+      collapsed: true,
       items: [
         {
           text: 'Introduction',
