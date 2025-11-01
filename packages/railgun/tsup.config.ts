@@ -9,6 +9,7 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   treeshake: true,
+  tsconfig: 'tsconfig.json',
   external: [
     'ethers',
     '@noble/ed25519',
@@ -20,5 +21,5 @@ export default defineConfig({
     '@railgun-community/circuit-artifacts',
     '@railgun-community/curve25519-scalarmult-wasm',
     '@railgun-community/poseidon-hash-wasm'
-  ]
+  ],
 });

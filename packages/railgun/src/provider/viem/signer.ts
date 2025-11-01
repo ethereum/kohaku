@@ -1,5 +1,5 @@
 import type { RailgunSigner } from '../provider';
-import type { TxData } from '../../account';
+import type { TxData } from '~/account/tx/base';
 import type { ViemWalletClient } from './types';
 
 export class ViemSignerAdapter implements RailgunSigner {
@@ -16,7 +16,7 @@ export class ViemSignerAdapter implements RailgunSigner {
       to: tx.to as `0x${string}`,
       data: tx.data as `0x${string}`,
       value: tx.value ?? 0n,
-      gas: tx.gas ?? tx.gasLimit,
+      // gas: tx.gas ?? tx.gasLimit,
     });
   }
 

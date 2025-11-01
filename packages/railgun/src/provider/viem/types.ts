@@ -1,5 +1,4 @@
-import type { RailgunLog } from '../../indexer';
-import type { TransactionReceipt } from '../provider';
+import type { RailgunLog, TransactionReceipt } from '../provider';
 
 export type ViemPublicClient = {
   getLogs: (params: {

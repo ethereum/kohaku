@@ -1,5 +1,6 @@
-import type { ChainId } from '../indexer';
+import { Address } from 'viem';
 
+export type ChainId = `${bigint}`;
 export const ACCOUNT_VERSION = 1;
 export const ACCOUNT_CHAIN_ID = undefined;
 
@@ -14,7 +15,7 @@ export type RailgunNetworkConfig = {
   GLOBAL_START_BLOCK: number;
   CHAIN_ID: bigint;
   RELAY_ADAPT_ADDRESS: string;
-  WETH: string;
+  WETH: Address;
   FEE_BASIS_POINTS: bigint;
 };
 

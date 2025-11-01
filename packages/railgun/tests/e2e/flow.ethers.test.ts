@@ -3,14 +3,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Wallet, Contract } from 'ethers';
 import {
   createRailgunAccount,
-  createRailgunIndexer,
   type RailgunLog,
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
 import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
-import { loadOrCreateCache } from '../utils/cache';
+// import { loadOrCreateCache } from '../utils/cache';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import { formatEther } from 'viem';
 
@@ -29,8 +28,8 @@ describe('Railgun E2E Flow', () => {
   let alice: Wallet;
   let bob: Wallet;
   let charlie: Wallet;
-  let cachedLogs: RailgunLog[];
-  let cachedMerkleTrees: { tree: string[][]; nullifiers: string[] }[];
+  // let cachedLogs: RailgunLog[];
+  // let cachedMerkleTrees: { tree: string[][]; nullifiers: string[] }[];
   let forkBlock: number;
 
   const SEPOLIA_FORK_URL = getEnv('SEPOLIA_RPC_URL', 'https://rpc.sepolia.org');
@@ -58,11 +57,11 @@ describe('Railgun E2E Flow', () => {
 
     // Load or create cache for this fork block (this is the slow part on first run)
     console.log(`\nLoading cache for fork block ${forkBlock}...`);
-    const cache = await loadOrCreateCache(provider, chainId, forkBlock);
+    // const cache = await loadOrCreateCache(provider, chainId, forkBlock);
 
-    cachedLogs = cache.logs;
-    cachedMerkleTrees = cache.merkleTrees;
-    console.log(`Cache loaded: ${cachedLogs.length} logs, ${cachedMerkleTrees.length} trees\n`);
+    // cachedLogs = cache.logs;
+    // cachedMerkleTrees = cache.merkleTrees;
+    // console.log(`Cache loaded: ${cachedLogs.length} logs, ${cachedMerkleTrees.length} trees\n`);
 
     // Setup test accounts
     alice = new Wallet(TEST_ACCOUNTS.alice.privateKey, await anvil.getProvider());
@@ -89,19 +88,22 @@ describe('Railgun E2E Flow', () => {
     const aliceSigner = new EthersSignerAdapter(alice);
     const bobSigner = new EthersSignerAdapter(bob);
 
-    const indexer = await createRailgunIndexer({
-      chainId,
-      provider,
-    });
-
     const aliceRailgunAccount = await createRailgunAccount({
-      credentials: { privateKey: alice.privateKey },
-      indexer,
+      credential: { type: 'mnemonic', mnemonic: 'test test test test test test test test test test test junk', accountIndex: 0 },
+      provider,
+      config: {
+        network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
+        startBlock: forkBlock
+      },
     });
 
     const bobRailgunAccount = await createRailgunAccount({
-      credentials: { privateKey: bob.privateKey },
-      indexer,
+      credential: { type: 'mnemonic', mnemonic: 'test test test test test test test test test test junk junk', accountIndex: 0 },
+      provider,
+      config: {
+        network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
+        startBlock: forkBlock
+      },
     });
 
     const aliceRailgunAddress = await aliceRailgunAccount.getRailgunAddress();
@@ -113,8 +115,9 @@ describe('Railgun E2E Flow', () => {
 
     // Initialize indexer with cached Merkle trees and sync to latest
     console.log('\nLoading cached state into indexer...');
-    await indexer.loadState({ merkleTrees: cachedMerkleTrees, latestSyncedBlock: forkBlock });
-    await indexer.sync();
+    // await indexer.loadState({ merkleTrees: cachedMerkleTrees, latestSyncedBlock: forkBlock });
+    await aliceRailgunAccount.sync();
+    await bobRailgunAccount.sync();
     console.log('Cached state loaded');
 
     await anvil.mine(3);
@@ -125,10 +128,12 @@ describe('Railgun E2E Flow', () => {
       provider,
       alice.address
     );
-    const currentRootA = indexer.getLatestMerkleRoot();
+    const currentRootA = await aliceRailgunAccount.getLatestMerkleRoot();
+    const currentRootB = await bobRailgunAccount.getLatestMerkleRoot();
 
     console.log(`Alice initial ETH balance: ${aliceInitialEthBalance.toString()}`);
     console.log(`Alice initial root: ${currentRootA}`);
+    console.log(`Bob initial root: ${currentRootB}`);
 
     const startBlock = forkBlock;
 
@@ -223,13 +228,9 @@ describe('Railgun E2E Flow', () => {
     console.log(`Querying logs from block ${startBlock} to ${currentBlock}`);
 
     // Query from forkBlock (not forkBlock + 1) to capture any logs at the fork block
-    const newLogs = await indexer.fetchLogs(startBlock, currentBlock);
-
-    console.log(`Fetched ${newLogs.length} new logs (expected logs from block ${receipt?.blockNumber})`);
-
-    await indexer.processLogs(newLogs);
+    await aliceRailgunAccount.sync({ fromBlock: startBlock, toBlock: currentBlock });
     console.log('Accounts synced');
-    const currentRootA2 = indexer.getLatestMerkleRoot();
+    const currentRootA2 = aliceRailgunAccount.getLatestMerkleRoot();
 
     console.log(`Alice new root: ${currentRootA2}`);
 
@@ -268,14 +269,11 @@ describe('Railgun E2E Flow', () => {
     // Step 6: Sync both accounts with transfer logs
     console.log('\nStep 6: Syncing accounts after transfer...');
     const newBlock = await provider.getBlockNumber();
-    const transferLogs = await indexer.fetchLogs(currentBlock, newBlock);
+   
+    await aliceRailgunAccount.sync({ toBlock: newBlock });
 
-    console.log(`Fetched ${transferLogs.length} transfer logs`);
-
-    await indexer.processLogs(transferLogs);
-
-    const aliceRoot = indexer.getLatestMerkleRoot();
-    const bobRoot = indexer.getLatestMerkleRoot();
+    const aliceRoot = aliceRailgunAccount.getLatestMerkleRoot();
+    const bobRoot = bobRailgunAccount.getLatestMerkleRoot();
 
     console.log(`Alice root after transfer: ${aliceRoot}`);
     console.log(`Bob root after transfer: ${bobRoot}`);
@@ -304,7 +302,7 @@ describe('Railgun E2E Flow', () => {
     const unshieldTx = await bobRailgunAccount.unshield(
       weth,
       unshieldAmount,
-      charlie.address
+      charlie.address as `0x${string}`
     );
 
     console.log('Unshield tx prepared ', unshieldTx);

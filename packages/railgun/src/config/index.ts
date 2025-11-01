@@ -1,7 +1,7 @@
-import type { ChainId } from '../indexer';
 import {
   ACCOUNT_CHAIN_ID,
   ACCOUNT_VERSION,
+  ChainId,
   E_ADDRESS,
   TOTAL_LEAVES,
   ZERO_ADDRESS,
@@ -28,7 +28,7 @@ export const RAILGUN_CONFIG_BY_CHAIN_ID: RailgunConfigMap = {
 } as const;
 
 export const getNetworkConfig = (chainId: ChainId): RailgunNetworkConfig => {
-  const config = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
+  const config = RAILGUN_CONFIG_BY_CHAIN_ID[chainId as keyof RailgunConfigMap];
 
   if (!config) {
     throw new Error(`Chain ID ${chainId} not supported`);

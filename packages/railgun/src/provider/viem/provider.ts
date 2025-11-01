@@ -1,5 +1,4 @@
-import type { RailgunProvider, TransactionReceipt } from '../provider';
-import type { RailgunLog } from '../../indexer';
+import type { RailgunLog, RailgunProvider, TransactionReceipt } from '../provider';
 import { convertLog, formatReceipt, type ViemPublicClient } from './types';
 
 export class ViemProviderAdapter implements RailgunProvider {

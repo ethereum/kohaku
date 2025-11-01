@@ -2,9 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "verbatimModuleSyntax": false,
+    "baseUrl": ".",
     "paths": {
-      "~railgun/lib/*": ["./src/railgun/lib/*"],
-      "~railgun/logic/*": ["./src/railgun/logic/*"]
+      "~/*": ["./src/*"]
     }
   },
   "include": ["src", "demo"],

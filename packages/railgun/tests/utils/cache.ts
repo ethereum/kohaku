@@ -2,10 +2,8 @@
 import fs from 'fs';
 import path from 'path';
 import { RailgunLog } from '../../src';
-import { getAllLogs } from '../../src/indexer';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import type { RailgunProvider } from '../../src/provider';
-import type { ChainId } from '../../src/types';
 
 type PublicCache = {
   logs: RailgunLog[];

@@ -1,7 +1,6 @@
 import type { JsonRpcProvider, Log, Wallet } from 'ethers';
-import type { RailgunProvider, RailgunSigner, TransactionReceipt } from './provider';
-import type { RailgunLog } from '../indexer';
-import type { TxData } from '../account';
+import type { RailgunLog, RailgunProvider, RailgunSigner, TransactionReceipt } from './provider';
+import { TxData } from '~/account/tx/base';
 
 /**
  * Ethers v6 provider adapter
@@ -81,7 +80,7 @@ export class EthersSignerAdapter implements RailgunSigner {
       to: tx.to,
       data: tx.data,
       value: tx.value ?? 0n,
-      gasLimit: tx.gasLimit ?? tx.gas ?? 6000000, // Ethers uses 'gasLimit', fallback to gas then default
+      // gasLimit: tx.gasLimit ?? tx.gas ?? 6000000, // Ethers uses 'gasLimit', fallback to gas then default
     });
 
     return txResponse.hash;

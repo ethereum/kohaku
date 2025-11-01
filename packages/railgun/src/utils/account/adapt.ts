@@ -1,7 +1,19 @@
 import { AbiCoder } from 'ethers';
 import { keccak256 } from 'ethereum-cryptography/keccak';
 import { ByteUtils } from '../../railgun/lib/utils/bytes';
-import type { ActionData } from '../../account';
+
+export type Call = {
+  to: string;
+  data: string;
+  value: bigint | number | string;
+};
+
+export type ActionData = {
+  random: string;
+  requireSuccess: boolean;
+  minGasLimit: bigint | number | string;
+  calls: Call[];
+};
 
 export const toActionDataTuple = (a: ActionData): [string, boolean, bigint | number | string, Array<[string, string, bigint | number | string]>] => {
   const callsTuple = a.calls.map((c): [string, string, bigint | number | string] => [

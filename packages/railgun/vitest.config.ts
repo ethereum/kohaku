@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { loadEnv } from 'vite';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 // eslint-disable-next-line import/no-default-export
 export default defineConfig(({ mode }) => ({
@@ -12,10 +13,10 @@ export default defineConfig(({ mode }) => ({
     environment: 'node',
     env: loadEnv(mode, 'tests', ''),
   },
-  resolve: {
-    alias: {
-      '~railgun/lib': '/home/luc/dev/local/kohaku/packages/railgun/src/railgun/lib',
-      '~railgun/logic': '/home/luc/dev/local/kohaku/packages/railgun/src/railgun/logic',
-    },
-  },
+  // resolve: {
+  //   alias: {
+  //     '~/*': './src/*',
+  //   },
+  // },
+  plugins: [tsconfigPaths()]
 }));

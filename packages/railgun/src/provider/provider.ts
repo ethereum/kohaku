@@ -1,5 +1,12 @@
-import type { RailgunLog } from '../indexer';
-import type { TxData } from '../account';
+import { RailgunLogEvent } from "~/account/events";
+import { TxData } from "~/account/tx/base";
+
+export interface RailgunLog {
+  blockNumber: number;
+  topics: string[];
+  data: string;
+  address: string;
+}
 
 export interface TransactionReceipt {
   blockNumber: number;
