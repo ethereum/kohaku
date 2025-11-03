@@ -7,14 +7,20 @@ import {
   railgunBase37,
   arrayToBigInt,
   arrayToHexString,
-} from '../global/bytes';
-import { SNARK_SCALAR_FIELD } from '../global/constants';
-import { hash, edBabyJubJub, aes, ed25519, randomBytes } from '../global/crypto';
+} from "../global/bytes";
+import { SNARK_SCALAR_FIELD } from "../global/constants";
+import {
+  hash,
+  edBabyJubJub,
+  aes,
+  ed25519,
+  randomBytes,
+} from "../global/crypto";
 
 export enum TokenType {
-  'ERC20' = 0,
-  'ERC721' = 1,
-  'ERC1155' = 2,
+  "ERC20" = 0,
+  "ERC721" = 1,
+  "ERC1155" = 2,
 }
 
 export type SerializedNoteData = {
@@ -26,7 +32,7 @@ export type SerializedNoteData = {
   };
   memo: string;
   random: string;
-}
+};
 
 export interface TokenData {
   tokenType: TokenType;
@@ -77,12 +83,12 @@ function getTokenID(tokenData: TokenData): Uint8Array {
       hash.keccak256(
         combine([
           bigIntToArray(BigInt(tokenData.tokenType), 32),
-          padToLength(hexStringToArray(tokenData.tokenAddress), 32, 'left'),
+          padToLength(hexStringToArray(tokenData.tokenAddress), 32, "left"),
           bigIntToArray(tokenData.tokenSubID, 32),
-        ]),
-      ),
+        ])
+      )
     ) % SNARK_SCALAR_FIELD,
-    32,
+    32
   );
 }
 
@@ -97,7 +103,8 @@ function validateTokenData(tokenData: TokenData): boolean {
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(tokenData.tokenAddress)) return false;
 
-  if (0n > tokenData.tokenSubID || tokenData.tokenSubID >= 2n ** 256n) return false;
+  if (0n > tokenData.tokenSubID || tokenData.tokenSubID >= 2n ** 256n)
+    return false;
 
   return true;
 }
@@ -131,18 +138,18 @@ class Note {
     value: bigint,
     random: Uint8Array,
     tokenData: TokenData,
-    memo: string,
+    memo: string
   ) {
     // Validate bounds
-    if (spendingKey.length !== 32) throw Error('Invalid spending key length');
+    if (spendingKey.length !== 32) throw Error("Invalid spending key length");
 
-    if (viewingKey.length !== 32) throw Error('Invalid viewing key length');
+    if (viewingKey.length !== 32) throw Error("Invalid viewing key length");
 
-    if (value > 2n ** 128n - 1n) throw Error('Value too high');
+    if (value > 2n ** 128n - 1n) throw Error("Value too high");
 
-    if (random.length !== 16) throw Error('Invalid random length');
+    if (random.length !== 16) throw Error("Invalid random length");
 
-    if (!validateTokenData(tokenData)) throw Error('Invalid token data');
+    if (!validateTokenData(tokenData)) throw Error("Invalid token data");
 
     this.spendingKey = spendingKey;
     this.viewingKey = viewingKey;
@@ -152,7 +159,11 @@ class Note {
     this.memo = memo;
   }
 
-  static fromSerializedNoteData(spendingKey: Uint8Array, viewingKey: Uint8Array, noteData: SerializedNoteData) {
+  static fromSerializedNoteData(
+    spendingKey: Uint8Array,
+    viewingKey: Uint8Array,
+    noteData: SerializedNoteData
+  ) {
     return new Note(
       spendingKey,
       viewingKey,
@@ -161,7 +172,9 @@ class Note {
       {
         tokenType: noteData.tokenData.tokenType,
         tokenAddress: noteData.tokenData.tokenAddress,
-        tokenSubID: arrayToBigInt(hexStringToArray(noteData.tokenData.tokenSubID)),
+        tokenSubID: arrayToBigInt(
+          hexStringToArray(noteData.tokenData.tokenSubID)
+        ),
       },
       noteData.memo
     );
@@ -200,7 +213,10 @@ class Note {
    * @returns master public key
    */
   async getMasterPublicKey(): Promise<Uint8Array> {
-    return hash.poseidon([...(await this.getSpendingPublicKey()), await this.getNullifyingKey()]);
+    return hash.poseidon([
+      ...(await this.getSpendingPublicKey()),
+      await this.getNullifyingKey(),
+    ]);
   }
 
   /**
@@ -209,7 +225,10 @@ class Note {
    * @returns note public key
    */
   async getNotePublicKey(): Promise<Uint8Array> {
-    return hash.poseidon([await this.getMasterPublicKey(), arrayToByteLength(this.random, 32)]);
+    return hash.poseidon([
+      await this.getMasterPublicKey(),
+      arrayToByteLength(this.random, 32),
+    ]);
   }
 
   /**
@@ -241,7 +260,10 @@ class Note {
    * @returns nullifier
    */
   async getNullifier(leafIndex: number): Promise<Uint8Array> {
-    return hash.poseidon([await this.getNullifyingKey(), bigIntToArray(BigInt(leafIndex), 32)]);
+    return hash.poseidon([
+      await this.getNullifyingKey(),
+      bigIntToArray(BigInt(leafIndex), 32),
+    ]);
   }
 
   /**
@@ -257,7 +279,7 @@ class Note {
     merkleRoot: Uint8Array,
     boundParamsHash: Uint8Array,
     nullifiers: Uint8Array[],
-    commitmentsOut: Uint8Array[],
+    commitmentsOut: Uint8Array[]
   ): Promise<[Uint8Array, Uint8Array, Uint8Array]> {
     const sighash = await hash.poseidon([
       merkleRoot,
@@ -296,13 +318,19 @@ class Note {
     const shieldPrivateKey = randomBytes(32);
 
     // Get shared key
-    const sharedKey = ed25519.getSharedKey(shieldPrivateKey, await this.getViewingPublicKey());
+    const sharedKey = ed25519.getSharedKey(
+      shieldPrivateKey,
+      await this.getViewingPublicKey()
+    );
 
     // Encrypt random
     const encryptedRandom = aes.gcm.encrypt([this.random], sharedKey);
 
     // Encrypt receiver public key
-    const encryptedReceiver = aes.ctr.encrypt([await this.getViewingPublicKey()], shieldPrivateKey);
+    const encryptedReceiver = aes.ctr.encrypt(
+      [await this.getViewingPublicKey()],
+      shieldPrivateKey
+    );
 
     // Construct ciphertext
     const ciphertext: ShieldCiphertext = {
@@ -330,16 +358,18 @@ class Note {
    */
   async encrypt(
     senderViewingPrivateKey: Uint8Array,
-    blind: boolean,
+    blind: boolean
   ): Promise<CommitmentCiphertext> {
     // For contract tests always use output type of 0
     const outputType = 0n;
 
     // For contract tests always use this fixed application identifier
-    const applicationIdentifier = railgunBase37.encode('railgun tests');
+    const applicationIdentifier = railgunBase37.encode("railgun tests");
 
     // Get sender public key
-    const senderViewingPublicKey = await ed25519.privateKeyToPublicKey(senderViewingPrivateKey);
+    const senderViewingPublicKey = await ed25519.privateKeyToPublicKey(
+      senderViewingPrivateKey
+    );
 
     // Get sender random, set to 0 is not blinding
     const senderRandom = blind ? randomBytes(15) : new Uint8Array(15);
@@ -349,13 +379,13 @@ class Note {
       senderViewingPublicKey,
       await this.getViewingPublicKey(),
       this.random,
-      senderRandom,
+      senderRandom
     );
 
     // Get shared key
     const sharedKey = ed25519.getSharedKey(
       senderViewingPrivateKey,
-      blindedKeys.blindedReceiverPublicKey,
+      blindedKeys.blindedReceiverPublicKey
     );
 
     // Encode memo text
@@ -369,13 +399,19 @@ class Note {
         this.getTokenID(),
         memo,
       ],
-      sharedKey,
+      sharedKey
     );
 
     // Encrypt sender ciphertext
     const encryptedSenderBundle = aes.ctr.encrypt(
-      [combine([bigIntToArray(outputType, 1), senderRandom, applicationIdentifier])],
-      senderViewingPrivateKey,
+      [
+        combine([
+          bigIntToArray(outputType, 1),
+          senderRandom,
+          applicationIdentifier,
+        ]),
+      ],
+      senderViewingPrivateKey
     );
 
     // Return formatted commitment bundle
@@ -410,7 +446,7 @@ class Note {
     token: TokenData,
     value: bigint,
     viewingKey: Uint8Array,
-    spendingKey: Uint8Array,
+    spendingKey: Uint8Array
   ): Note | undefined {
     // Try to decrypt encrypted random
     try {
@@ -420,11 +456,11 @@ class Note {
       // Decrypt random
       const random = aes.gcm.decrypt(
         [encryptedBundle[0], encryptedBundle[1].slice(0, 16)],
-        sharedKey,
+        sharedKey
       )[0];
 
       // Construct note
-      const note = new Note(spendingKey, viewingKey, value, random!, token, '');
+      const note = new Note(spendingKey, viewingKey, value, random!, token, "");
 
       return note;
     } catch {
@@ -443,17 +479,23 @@ class Note {
   static async decrypt(
     encrypted: CommitmentCiphertext,
     viewingKey: Uint8Array,
-    spendingKey: Uint8Array,
+    spendingKey: Uint8Array
   ): Promise<Note | undefined> {
     // Reconstruct encrypted shared bundle
-    const encryptedSharedBundle: Uint8Array[] = [...encrypted.ciphertext, encrypted.memo];
+    const encryptedSharedBundle: Uint8Array[] = [
+      ...encrypted.ciphertext,
+      encrypted.memo,
+    ];
 
     let sharedBundle: Uint8Array[];
 
     // Try to decrypt encrypted shared bundle
     try {
       // Get shared key
-      const sharedKey = ed25519.getSharedKey(viewingKey, encrypted.blindedSenderViewingKey);
+      const sharedKey = ed25519.getSharedKey(
+        viewingKey,
+        encrypted.blindedSenderViewingKey
+      );
 
       // Decrypt
       sharedBundle = aes.gcm.decrypt(encryptedSharedBundle, sharedKey);
@@ -462,7 +504,8 @@ class Note {
     }
 
     // Decode memo
-    const memo = sharedBundle.length > 3 ? new TextDecoder().decode(sharedBundle[3]) : '';
+    const memo =
+      sharedBundle.length > 3 ? new TextDecoder().decode(sharedBundle[3]) : "";
 
     const [_, one, two] = sharedBundle;
 
@@ -471,7 +514,18 @@ class Note {
     }
 
     // Decode tokenData
-    const tokenData = two.length >= 96 ? {tokenType: Number(arrayToBigInt(two.slice(0, 32)).toString()), tokenAddress: arrayToHexString(two.slice(44, 64), true), tokenSubID: arrayToBigInt(two.slice(64, 96))} : {tokenType: 0, tokenAddress: arrayToHexString(two.slice(12, 32), true), tokenSubID: BigInt(0)};
+    const tokenData =
+      two.length >= 96
+        ? {
+            tokenType: Number(arrayToBigInt(two.slice(0, 32)).toString()),
+            tokenAddress: arrayToHexString(two.slice(44, 64), true),
+            tokenSubID: arrayToBigInt(two.slice(64, 96)),
+          }
+        : {
+            tokenType: 0,
+            tokenAddress: arrayToHexString(two.slice(12, 32), true),
+            tokenSubID: BigInt(0),
+          };
 
     // Construct note
     const note = new Note(
@@ -480,7 +534,7 @@ class Note {
       arrayToBigInt(one.slice(16, 32)),
       one.slice(0, 16),
       tokenData,
-      memo.replace(/\u0000/g, ''),
+      memo.replace(/\u0000/g, "")
     );
 
     return note;
@@ -492,7 +546,10 @@ class Note {
       tokenData: {
         tokenType: this.tokenData.tokenType,
         tokenAddress: this.tokenData.tokenAddress,
-        tokenSubID: arrayToHexString(bigIntToArray(this.tokenData.tokenSubID, 32), true),
+        tokenSubID: arrayToHexString(
+          bigIntToArray(this.tokenData.tokenSubID, 32),
+          true
+        ),
       },
       memo: this.memo,
       random: arrayToHexString(this.random, true),
@@ -516,11 +573,12 @@ class UnshieldNote {
    */
   constructor(unshieldAddress: string, value: bigint, tokenData: TokenData) {
     // Validate bounds
-    if (!/^0x[a-fA-F0-9]{40}$/.test(unshieldAddress)) throw Error('Invalid unshield address');
+    if (!/^0x[a-fA-F0-9]{40}$/.test(unshieldAddress))
+      throw Error("Invalid unshield address");
 
-    if (value >= 2n ** 128n) throw Error('Value too high');
+    if (value >= 2n ** 128n) throw Error("Value too high");
 
-    if (!validateTokenData(tokenData)) throw Error('Invalid token data');
+    if (!validateTokenData(tokenData)) throw Error("Invalid token data");
 
     this.unshieldAddress = unshieldAddress;
     this.value = value;
@@ -578,7 +636,12 @@ class UnshieldNote {
    */
   encrypt(): CommitmentCiphertext {
     return {
-      ciphertext: [new Uint8Array(32), new Uint8Array(32), new Uint8Array(32), new Uint8Array(32)],
+      ciphertext: [
+        new Uint8Array(32),
+        new Uint8Array(32),
+        new Uint8Array(32),
+        new Uint8Array(32),
+      ],
       blindedSenderViewingKey: new Uint8Array(32),
       blindedReceiverViewingKey: new Uint8Array(32),
       annotationData: new Uint8Array(0),
@@ -615,16 +678,17 @@ class SendNote {
     value: bigint,
     random: Uint8Array,
     tokenData: TokenData,
-    memo: string,
+    memo: string
   ) {
     // Validate bounds
-    if (masterPublicKey < 2n ** 32n) throw Error('Invalid master public key length');
+    if (masterPublicKey < 2n ** 32n)
+      throw Error("Invalid master public key length");
 
-    if (value > 2n ** 128n - 1n) throw Error('Value too high');
+    if (value > 2n ** 128n - 1n) throw Error("Value too high");
 
-    if (random.length !== 16) throw Error('Invalid random length');
+    if (random.length !== 16) throw Error("Invalid random length");
 
-    if (!validateTokenData(tokenData)) throw Error('Invalid token data');
+    if (!validateTokenData(tokenData)) throw Error("Invalid token data");
 
     this.masterPublicKey = masterPublicKey;
     this.viewingPublicKey = viewingPublicKey;
@@ -640,80 +704,91 @@ class SendNote {
    * @returns note public key
    */
   async getNotePublicKey(): Promise<Uint8Array> {
-    return hash.poseidon([bigIntToArray(this.masterPublicKey, 32), arrayToByteLength(this.random, 32)]);
+    return hash.poseidon([
+      bigIntToArray(this.masterPublicKey, 32),
+      arrayToByteLength(this.random, 32),
+    ]);
   }
 
-/**
+  /**
    * Generates encrypted commitment bundle
    *
    * @param senderViewingPrivateKey - sender's viewing private key
    * @param blind - blind sender from receiver
    * @returns Ciphertext
    */
-async encrypt(
-  senderViewingPrivateKey: Uint8Array,
-  blind: boolean,
-): Promise<CommitmentCiphertext> {
-  // For contract tests always use output type of 0
-  const outputType = 0n;
+  async encrypt(
+    senderViewingPrivateKey: Uint8Array,
+    blind: boolean
+  ): Promise<CommitmentCiphertext> {
+    // For contract tests always use output type of 0
+    const outputType = 0n;
 
-  // For contract tests always use this fixed application identifier
-  const applicationIdentifier = railgunBase37.encode('railgun tests');
+    // For contract tests always use this fixed application identifier
+    const applicationIdentifier = railgunBase37.encode("railgun tests");
 
-  // Get sender public key
-  const senderViewingPublicKey = await ed25519.privateKeyToPublicKey(senderViewingPrivateKey);
+    // Get sender public key
+    const senderViewingPublicKey = await ed25519.privateKeyToPublicKey(
+      senderViewingPrivateKey
+    );
 
-  // Get sender random, set to 0 is not blinding
-  const senderRandom = blind ? randomBytes(15) : new Uint8Array(15);
+    // Get sender random, set to 0 is not blinding
+    const senderRandom = blind ? randomBytes(15) : new Uint8Array(15);
 
-  // Blind keys
-  const blindedKeys = ed25519.railgunKeyExchange.blindKeys(
-    senderViewingPublicKey,
-    this.viewingPublicKey,
-    this.random,
-    senderRandom,
-  );
+    // Blind keys
+    const blindedKeys = ed25519.railgunKeyExchange.blindKeys(
+      senderViewingPublicKey,
+      this.viewingPublicKey,
+      this.random,
+      senderRandom
+    );
 
-  // Get shared key
-  const sharedKey = ed25519.getSharedKey(
-    senderViewingPrivateKey,
-    blindedKeys.blindedReceiverPublicKey,
-  );
+    // Get shared key
+    const sharedKey = ed25519.getSharedKey(
+      senderViewingPrivateKey,
+      blindedKeys.blindedReceiverPublicKey
+    );
 
-  // Encode memo text
-  const memo = new TextEncoder().encode(this.memo);
+    // Encode memo text
+    const memo = new TextEncoder().encode(this.memo);
 
-  // Encrypt shared ciphertext
-  const encryptedSharedBundle = aes.gcm.encrypt(
-    [
-      bigIntToArray(this.masterPublicKey, 32),
-      combine([this.random, bigIntToArray(this.value, 16)]),
-      this.getTokenID(),
-      memo,
-    ],
-    sharedKey,
-  );
+    // Encrypt shared ciphertext
+    const encryptedSharedBundle = aes.gcm.encrypt(
+      [
+        bigIntToArray(this.masterPublicKey, 32),
+        combine([this.random, bigIntToArray(this.value, 16)]),
+        this.getTokenID(),
+        memo,
+      ],
+      sharedKey
+    );
 
-  // Encrypt sender ciphertext
-  const encryptedSenderBundle = aes.ctr.encrypt(
-    [combine([bigIntToArray(outputType, 1), senderRandom, applicationIdentifier])],
-    senderViewingPrivateKey,
-  );
+    // Encrypt sender ciphertext
+    const encryptedSenderBundle = aes.ctr.encrypt(
+      [
+        combine([
+          bigIntToArray(outputType, 1),
+          senderRandom,
+          applicationIdentifier,
+        ]),
+      ],
+      senderViewingPrivateKey
+    );
 
-  // Return formatted commitment bundle
-  return {
-    ciphertext: [
-      encryptedSharedBundle[0]!,
-      encryptedSharedBundle[1]!,
-      encryptedSharedBundle[2]!,
-      encryptedSharedBundle[3]!,
-    ],
-    blindedSenderViewingKey: blindedKeys.blindedSenderPublicKey,
-    blindedReceiverViewingKey: blindedKeys.blindedReceiverPublicKey,
-    annotationData: combine(encryptedSenderBundle),
-    memo: encryptedSharedBundle[4]!,
-  };
-}
+    // Return formatted commitment bundle
+    return {
+      ciphertext: [
+        encryptedSharedBundle[0]!,
+        encryptedSharedBundle[1]!,
+        encryptedSharedBundle[2]!,
+        encryptedSharedBundle[3]!,
+      ],
+      blindedSenderViewingKey: blindedKeys.blindedSenderPublicKey,
+      blindedReceiverViewingKey: blindedKeys.blindedReceiverPublicKey,
+      annotationData: combine(encryptedSenderBundle),
+      memo: encryptedSharedBundle[4]!,
+    };
+  }
 
   /**
    * Gets token ID from token data

@@ -1,4 +1,3 @@
-
 export const delay = (delayInMS: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, delayInMS));
 };
@@ -6,7 +5,7 @@ export const delay = (delayInMS: number): Promise<void> => {
 export function promiseTimeout<T>(
   promise: Promise<T>,
   ms: number,
-  customError?: string,
+  customError?: string
 ): Promise<T> {
   // Create a promise that rejects in <ms> milliseconds
   const timeout = new Promise((_resolve, reject) => {

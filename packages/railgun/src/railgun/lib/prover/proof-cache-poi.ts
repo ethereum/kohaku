@@ -1,6 +1,6 @@
-import { EngineDebug } from '../debugger/debugger';
-import { Proof } from '../models/prover-types';
-import { stringifySafe } from '../utils/stringify';
+import { EngineDebug } from "../debugger/debugger";
+import { Proof } from "../models/prover-types";
+import { stringifySafe } from "../utils/stringify";
 
 export class ProofCachePOI {
   private static cache: Map<string, Proof> = new Map();
@@ -10,7 +10,7 @@ export class ProofCachePOI {
     anyRailgunTxidMerklerootAfterTransaction: string,
     blindedCommitmentsOut: string[],
     poiMerkleroots: string[],
-    railgunTxidIfHasUnshield: string,
+    railgunTxidIfHasUnshield: string
   ): Optional<Proof> {
     try {
       const stringified = stringifySafe([
@@ -37,7 +37,7 @@ export class ProofCachePOI {
     blindedCommitmentsOut: string[],
     poiMerkleroots: string[],
     railgunTxidIfHasUnshield: string,
-    proof: Proof,
+    proof: Proof
   ) {
     try {
       const stringified = stringifySafe([

@@ -1,5 +1,5 @@
-import { BytesLike, ethers } from 'ethers';
-import { ByteUtils } from './bytes';
+import { BytesLike, ethers } from "ethers";
+import { ByteUtils } from "./bytes";
 
 const bytesLikeify = (data: BytesLike): Uint8Array => {
   return new Uint8Array(ByteUtils.arrayify(data));
@@ -28,7 +28,9 @@ function sha512(preImage: BytesLike): string {
  * @returns hmac
  */
 function sha512HMAC(key: BytesLike, data: BytesLike): string {
-  return ethers.computeHmac('sha512', bytesLikeify(key), bytesLikeify(data)).slice(2);
+  return ethers
+    .computeHmac("sha512", bytesLikeify(key), bytesLikeify(data))
+    .slice(2);
 }
 
 /**

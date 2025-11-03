@@ -1,30 +1,38 @@
-import { Contract, ContractEventPayload, FallbackProvider, Result } from 'ethers';
-import EventEmitter from 'events';
-import { Chain } from '../../../models/engine-types';
-import { PollingJsonRpcProvider } from '../../../provider/polling-json-rpc-provider';
-import { PoseidonMerkleAccumulator } from '../../../abi/typechain/PoseidonMerkleAccumulator';
-import { ABIPoseidonMerkleAccumulator } from '../../../abi/abi';
-import { ByteLength, ByteUtils } from '../../../utils/bytes';
-import { EngineDebug } from '../../../debugger/debugger';
-import { assertIsPollingProvider } from '../../../provider/polling-util';
+import {
+  Contract,
+  ContractEventPayload,
+  FallbackProvider,
+  Result,
+} from "ethers";
+import EventEmitter from "events";
+import { Chain } from "../../../models/engine-types";
+import { PollingJsonRpcProvider } from "../../../provider/polling-json-rpc-provider";
+import { PoseidonMerkleAccumulator } from "../../../abi/typechain/PoseidonMerkleAccumulator";
+import { ABIPoseidonMerkleAccumulator } from "../../../abi/abi";
+import { ByteLength, ByteUtils } from "../../../utils/bytes";
+import { EngineDebug } from "../../../debugger/debugger";
+import { assertIsPollingProvider } from "../../../provider/polling-util";
 import {
   EngineEvent,
   EventsCommitmentListener,
   EventsNullifierListener,
   EventsRailgunTransactionListenerV3,
   EventsUnshieldListener,
-} from '../../../models/event-types';
-import { TXIDVersion } from '../../../models/poi-types';
-import { V3Events } from './V3-events';
-import { promiseTimeout } from '../../../utils/promises';
-import { recursivelyDecodeResult } from '../../../utils/ethers';
-import { TypedContractEvent, TypedEventLog } from '../../../abi/typechain/common';
-import { Nullifier } from '../../../models/formatted-types';
+} from "../../../models/event-types";
+import { TXIDVersion } from "../../../models/poi-types";
+import { V3Events } from "./V3-events";
+import { promiseTimeout } from "../../../utils/promises";
+import { recursivelyDecodeResult } from "../../../utils/ethers";
+import {
+  TypedContractEvent,
+  TypedEventLog,
+} from "../../../abi/typechain/common";
+import { Nullifier } from "../../../models/formatted-types";
 
 const SCAN_CHUNKS = 499;
 const MAX_SCAN_RETRIES = 30;
 const EVENTS_SCAN_TIMEOUT = 5000;
-const SCAN_TIMEOUT_ERROR_MESSAGE = 'getLogs request timed out after 5 seconds.';
+const SCAN_TIMEOUT_ERROR_MESSAGE = "getLogs request timed out after 5 seconds.";
 
 export class PoseidonMerkleAccumulatorContract extends EventEmitter {
   readonly contract: PoseidonMerkleAccumulator;
@@ -43,16 +51,18 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     address: string,
     provider: PollingJsonRpcProvider | FallbackProvider,
     pollingProvider: PollingJsonRpcProvider,
-    chain: Chain,
+    chain: Chain
   ) {
     super();
     this.address = address;
     this.contract = new Contract(
       address,
       ABIPoseidonMerkleAccumulator,
-      provider,
+      provider
     ) as unknown as PoseidonMerkleAccumulator;
-    this.eventTopic = this.contract.getEvent('AccumulatorStateUpdate').getFragment().topicHash;
+    this.eventTopic = this.contract
+      .getEvent("AccumulatorStateUpdate")
+      .getFragment().topicHash;
     this.chain = chain;
 
     // Because of a 'stallTimeout' bug in Ethers v6, all providers in a FallbackProvider will get called simultaneously.
@@ -61,7 +71,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     this.contractForListeners = new Contract(
       address,
       ABIPoseidonMerkleAccumulator,
-      pollingProvider,
+      pollingProvider
     ) as unknown as PoseidonMerkleAccumulator;
   }
 
@@ -79,7 +89,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     try {
       const isValidMerkleroot = await this.contract.rootHistory(
         tree,
-        ByteUtils.formatToByteLength(root, ByteLength.UINT_256, true),
+        ByteUtils.formatToByteLength(root, ByteLength.UINT_256, true)
       );
 
       // if (!isValidMerkleroot && EngineDebug.isTestRun()) {
@@ -89,7 +99,9 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
       // }
       return isValidMerkleroot;
     } catch (cause) {
-      const err = new Error('Failed to validate V3 Poseidon merkleroot', { cause });
+      const err = new Error("Failed to validate V3 Poseidon merkleroot", {
+        cause,
+      });
 
       EngineDebug.error(err);
       throw err;
@@ -104,47 +116,47 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     eventsNullifierListener: EventsNullifierListener,
     eventsUnshieldListener: EventsUnshieldListener,
     eventsRailgunTransactionsV3Listener: EventsRailgunTransactionListenerV3,
-    triggerWalletBalanceDecryptions: (txidVersion: TXIDVersion) => Promise<void>,
+    triggerWalletBalanceDecryptions: (txidVersion: TXIDVersion) => Promise<void>
   ): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await this.contractForListeners.on(this.eventTopic as any, (event: ContractEventPayload) => {
-      try {
-        if (event.log.topics.length !== 1) {
-          throw new Error('Requires one topic for railgun events');
-        }
+    await this.contractForListeners.on(
+      this.eventTopic as any,
+      (event: ContractEventPayload) => {
+        try {
+          if (event.log.topics.length !== 1) {
+            throw new Error("Requires one topic for railgun events");
+          }
 
+          V3Events.processAccumulatorEvent(
+            this.txidVersion,
+            event.args,
+            event.log.transactionHash,
+            event.log.blockNumber,
+            eventsCommitmentListener,
+            async (txidVersion: TXIDVersion, nullifiers: Nullifier[]) => {
+              eventsNullifierListener(txidVersion, nullifiers);
+              this.emit(EngineEvent.ContractNullifierReceived, nullifiers);
+            },
+            eventsUnshieldListener,
+            eventsRailgunTransactionsV3Listener,
+            triggerWalletBalanceDecryptions
+          );
+        } catch (err) {
+          if (err instanceof Error) {
+            EngineDebug.error(err);
+          }
 
-        V3Events.processAccumulatorEvent(
-          this.txidVersion,
-          event.args,
-          event.log.transactionHash,
-          event.log.blockNumber,
-          eventsCommitmentListener,
-          async (txidVersion: TXIDVersion, nullifiers: Nullifier[]) => {
-
-            eventsNullifierListener(txidVersion, nullifiers);
-            this.emit(EngineEvent.ContractNullifierReceived, nullifiers);
-          },
-          eventsUnshieldListener,
-          eventsRailgunTransactionsV3Listener,
-          triggerWalletBalanceDecryptions,
-        );
-      } catch (err) {
-        if (err instanceof Error) {
-          EngineDebug.error(err);
-        }
-
-        if (EngineDebug.isTestRun()) {
-          throw err;
+          if (EngineDebug.isTestRun()) {
+            throw err;
+          }
         }
       }
-    });
+    );
   }
 
   private async scanAllUpdateV3Events(
     startBlock: number,
     endBlock: number,
-    retryCount = 0,
+    retryCount = 0
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<TypedEventLog<TypedContractEvent<any, any, any>>[]> {
     try {
@@ -152,10 +164,10 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
         this.contract.queryFilter(
           this.contract.filters.AccumulatorStateUpdate(),
           startBlock,
-          endBlock,
+          endBlock
         ),
         EVENTS_SCAN_TIMEOUT,
-        SCAN_TIMEOUT_ERROR_MESSAGE,
+        SCAN_TIMEOUT_ERROR_MESSAGE
       );
       const eventsWithDecodedArgs = events.map((event) => ({
         ...event,
@@ -165,17 +177,25 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
       return eventsWithDecodedArgs;
     } catch (cause) {
       if (!(cause instanceof Error)) {
-        throw new Error('Non-error was thrown during scanAllUpdateV3Events', { cause });
+        throw new Error("Non-error was thrown during scanAllUpdateV3Events", {
+          cause,
+        });
       }
 
-      const err = new Error('Failed to scan all V3 update events', { cause });
+      const err = new Error("Failed to scan all V3 update events", { cause });
 
-      if (retryCount < MAX_SCAN_RETRIES && cause.message === SCAN_TIMEOUT_ERROR_MESSAGE) {
+      if (
+        retryCount < MAX_SCAN_RETRIES &&
+        cause.message === SCAN_TIMEOUT_ERROR_MESSAGE
+      ) {
         const retry = retryCount + 1;
 
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.chainId
-          }]: Scan query error at block ${startBlock}. Retrying ${MAX_SCAN_RETRIES - retry} times.`,
+          `[Chain ${this.chain.type}:${
+            this.chain.chainId
+          }]: Scan query error at block ${startBlock}. Retrying ${
+            MAX_SCAN_RETRIES - retry
+          } times.`
         );
         EngineDebug.error(err);
 
@@ -183,7 +203,7 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
       }
 
       EngineDebug.log(
-        `[Chain ${this.chain.type}:${this.chain.chainId}]: Scan failed at block ${startBlock}. No longer retrying.`,
+        `[Chain ${this.chain.type}:${this.chain.chainId}]: Scan failed at block ${startBlock}. No longer retrying.`
       );
       EngineDebug.error(err);
       throw err;
@@ -203,14 +223,14 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
     eventsNullifierListener: EventsNullifierListener,
     eventsUnshieldListener: EventsUnshieldListener,
     eventsRailgunTransactionsV3Listener: EventsRailgunTransactionListenerV3,
-    setLastSyncedBlock: (lastSyncedBlock: number) => Promise<void>,
+    setLastSyncedBlock: (lastSyncedBlock: number) => Promise<void>
   ) {
     let currentStartBlock = initialStartBlock;
 
     const { txidVersion } = this;
 
     EngineDebug.log(
-      `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning historical events from block ${currentStartBlock} to ${latestBlock}`,
+      `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning historical events from block ${currentStartBlock} to ${latestBlock}`
     );
 
     let startBlockForNext10000 = initialStartBlock;
@@ -220,15 +240,16 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
 
       if ((currentStartBlock - startBlockForNext10000) % 10000 === 0) {
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning next 10,000 events [${currentStartBlock}]...`,
+          `[Chain ${this.chain.type}:${this.chain.chainId}]: [${txidVersion}] Scanning next 10,000 events [${currentStartBlock}]...`
         );
       }
 
       const endBlock = Math.min(latestBlock, currentStartBlock + SCAN_CHUNKS);
 
-
-      const allUpdateV3EventLogs = await this.scanAllUpdateV3Events(currentStartBlock, endBlock);
-
+      const allUpdateV3EventLogs = await this.scanAllUpdateV3Events(
+        currentStartBlock,
+        endBlock
+      );
 
       await V3Events.processAccumulatorUpdateEvents(
         this.txidVersion,
@@ -236,15 +257,14 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
         eventsCommitmentListener,
         eventsNullifierListener,
         eventsUnshieldListener,
-        eventsRailgunTransactionsV3Listener,
+        eventsRailgunTransactionsV3Listener
       );
-
 
       await setLastSyncedBlock(endBlock);
 
-      const nextStartBlockFromCurrentBlock = currentStartBlock + SCAN_CHUNKS + 1;
+      const nextStartBlockFromCurrentBlock =
+        currentStartBlock + SCAN_CHUNKS + 1;
       const nextStartBlockFromLatestValidMerkletreeEntry =
-
         await getNextStartBlockFromValidMerkletree();
 
       // Choose greater of:
@@ -253,19 +273,26 @@ export class PoseidonMerkleAccumulatorContract extends EventEmitter {
       // This optimizes the slow scan in case quicksync returns a single invalid merkleroot for a given block.
       // The other data is queued for merkletree, and will validate and enter the merkletree, providing a new starting block.
       // This skips slow scan for those intermediary blocks.
-      if (nextStartBlockFromLatestValidMerkletreeEntry > nextStartBlockFromCurrentBlock) {
+      if (
+        nextStartBlockFromLatestValidMerkletreeEntry >
+        nextStartBlockFromCurrentBlock
+      ) {
         currentStartBlock = nextStartBlockFromLatestValidMerkletreeEntry;
         startBlockForNext10000 = nextStartBlockFromLatestValidMerkletreeEntry;
         EngineDebug.log(
-          `[Chain ${this.chain.type}:${this.chain.chainId}]: Skipping ${nextStartBlockFromCurrentBlock - nextStartBlockFromLatestValidMerkletreeEntry
-          } already processed/validated blocks from QuickSync...`,
+          `[Chain ${this.chain.type}:${this.chain.chainId}]: Skipping ${
+            nextStartBlockFromCurrentBlock -
+            nextStartBlockFromLatestValidMerkletreeEntry
+          } already processed/validated blocks from QuickSync...`
         );
       } else {
         currentStartBlock = nextStartBlockFromCurrentBlock;
       }
     }
 
-    EngineDebug.log(`[Chain ${this.chain.type}:${this.chain.chainId}]: Finished historical event scan`);
+    EngineDebug.log(
+      `[Chain ${this.chain.type}:${this.chain.chainId}]: Finished historical event scan`
+    );
   }
 
   /**

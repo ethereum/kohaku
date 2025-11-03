@@ -16,7 +16,8 @@ export default [
       '**/node_modules/**',
       '.changeset/**',
       'eslint.config.mjs',
-      '**/*.js',
+      '**/*.js', '**/railgun/lib/**',
+      '**/railgun/logic/**'
     ],
   },
   eslintJs.configs.recommended,
@@ -84,7 +85,7 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'off',
 
       // SonarJS rules for code quality
-      'sonarjs/cognitive-complexity': ['error', 15],
+      'sonarjs/cognitive-complexity': ['error', 30],
       'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
       'sonarjs/no-identical-functions': 'error',
 

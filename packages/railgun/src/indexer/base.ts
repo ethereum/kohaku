@@ -1,3 +1,4 @@
+import { GetMerkleRoot, makeGetMerkleRoot } from "~/account/actions/root";
 import { RailgunAccount } from "~/account/base";
 import { RailgunNetworkConfig } from "~/config";
 import { RailgunProvider } from "~/provider";
@@ -22,7 +23,8 @@ export type Indexer = {
   network: RailgunNetworkConfig;
   accounts: RailgunAccount[];
   registerAccount: (account: RailgunAccount) => void;
-} & Omit<RpcSync, "__type">;
+} & Pick<RpcSync, "sync"> &
+  GetMerkleRoot;
 export type CreateRailgunIndexerFn = (
   config: IndexerConfig
 ) => Promise<Indexer>;
@@ -48,16 +50,20 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
     saveTrees,
     setEndBlock,
   });
+  const root = makeGetMerkleRoot({ getTrees });
 
-  return {
-    __type: "railgun-indexer",
-    getTrees,
-    network,
-    sync,
-    accounts,
-    registerAccount: (account: RailgunAccount) => {
-      console.log("Registering account");
-      accounts.push(account);
-    },
-  };
+  return Object.assign(
+    {
+      __type: "railgun-indexer",
+      getTrees,
+      network,
+      sync,
+      accounts,
+      registerAccount: (account: RailgunAccount) => {
+        console.log("Registering account");
+        accounts.push(account);
+      },
+    } as const,
+    root
+  );
 };

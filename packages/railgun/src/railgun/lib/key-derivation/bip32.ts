@@ -1,8 +1,8 @@
-import { KeyNode } from '../models/engine-types';
-import { fromUTF8String, ByteUtils } from '../utils/bytes';
-import { sha512HMAC } from '../utils/hash';
+import { KeyNode } from "../models/engine-types";
+import { fromUTF8String, ByteUtils } from "../utils/bytes";
+import { sha512HMAC } from "../utils/hash";
 
-const CURVE_SEED = fromUTF8String('babyjubjub seed');
+const CURVE_SEED = fromUTF8String("babyjubjub seed");
 
 /**
  * Tests derivation path to see if it's valid
@@ -20,16 +20,16 @@ function isValidPath(path: string): boolean {
  */
 export function getPathSegments(path: string): number[] {
   // Throw if path is invalid
-  if (!isValidPath(path)) throw new Error('Invalid derivation path');
+  if (!isValidPath(path)) throw new Error("Invalid derivation path");
 
   // Split along '/' to get each component
   // Remove the first segment as it is the 'm'
   // Remove the ' from each segment
   // Parse each segment into an integer
   return path
-    .split('/')
+    .split("/")
     .slice(1)
-    .map((val) => val.replace("'", ''))
+    .map((val) => val.replace("'", ""))
     .map((el) => parseInt(el, 10));
 }
 
@@ -41,7 +41,7 @@ export function getPathSegments(path: string): number[] {
 export function childKeyDerivationHardened(
   node: KeyNode,
   index: number,
-  offset: number = 0x80000000,
+  offset: number = 0x80000000
 ): KeyNode {
   // Convert index to bytes as 32bit big endian
   const indexFormatted = ByteUtils.padToLength(index + offset, 4);

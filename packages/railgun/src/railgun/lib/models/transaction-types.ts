@@ -1,8 +1,11 @@
-import { BytesLike } from 'ethers';
-import { PoseidonMerkleVerifier } from '../abi/typechain';
-import { CommitmentPreimageStruct } from '../abi/typechain/PoseidonMerkleAccumulator';
-import { SnarkProofStruct, BoundParamsStruct } from '../abi/typechain/RailgunSmartWallet';
-import { TXIDVersion } from './poi-types';
+import { BytesLike } from "ethers";
+import { PoseidonMerkleVerifier } from "../abi/typechain";
+import { CommitmentPreimageStruct } from "../abi/typechain/PoseidonMerkleAccumulator";
+import {
+  SnarkProofStruct,
+  BoundParamsStruct,
+} from "../abi/typechain/RailgunSmartWallet";
+import { TXIDVersion } from "./poi-types";
 
 export type TransactionStructV2 = {
   txidVersion: TXIDVersion.V2_PoseidonMerkle;

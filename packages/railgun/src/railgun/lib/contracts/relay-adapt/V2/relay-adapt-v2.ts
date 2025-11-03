@@ -8,25 +8,25 @@ import {
   Result,
   Log,
   toUtf8String,
-} from 'ethers';
-import { ABIRelayAdapt } from '../../../abi/abi';
-import { TransactionReceiptLog } from '../../../models/formatted-types';
-import { getTokenDataERC20 } from '../../../note/note-util';
-import { ZERO_ADDRESS } from '../../../utils/constants';
-import { RelayAdaptHelper } from '../relay-adapt-helper';
-import { EngineDebug } from '../../../debugger/debugger';
-import { ShieldRequestStruct } from '../../../abi/typechain/RailgunSmartWallet';
-import { RelayAdapt } from '../../../abi/typechain/RelayAdapt';
-import { PayableOverrides } from '../../../abi/typechain/common';
-import { TransactionStructV2 } from '../../../models/transaction-types';
-import { MINIMUM_RELAY_ADAPT_CROSS_CONTRACT_CALLS_GAS_LIMIT_V2 } from '../constants';
+} from "ethers";
+import { ABIRelayAdapt } from "../../../abi/abi";
+import { TransactionReceiptLog } from "../../../models/formatted-types";
+import { getTokenDataERC20 } from "../../../note/note-util";
+import { ZERO_ADDRESS } from "../../../utils/constants";
+import { RelayAdaptHelper } from "../relay-adapt-helper";
+import { EngineDebug } from "../../../debugger/debugger";
+import { ShieldRequestStruct } from "../../../abi/typechain/RailgunSmartWallet";
+import { RelayAdapt } from "../../../abi/typechain/RelayAdapt";
+import { PayableOverrides } from "../../../abi/typechain/common";
+import { TransactionStructV2 } from "../../../models/transaction-types";
+import { MINIMUM_RELAY_ADAPT_CROSS_CONTRACT_CALLS_GAS_LIMIT_V2 } from "../constants";
 
 enum RelayAdaptEvent {
-  CallError = 'CallError',
+  CallError = "CallError",
 }
 
-export const RETURN_DATA_RELAY_ADAPT_STRING_PREFIX = '0x5c0dee5d';
-export const RETURN_DATA_STRING_PREFIX = '0x08c379a0';
+export const RETURN_DATA_RELAY_ADAPT_STRING_PREFIX = "0x5c0dee5d";
+export const RETURN_DATA_STRING_PREFIX = "0x08c379a0";
 
 export class RelayAdaptV2Contract {
   private readonly contract: RelayAdapt;
@@ -43,11 +43,13 @@ export class RelayAdaptV2Contract {
     this.contract = new Contract(
       relayAdaptV2ContractAddress,
       ABIRelayAdapt,
-      provider,
+      provider
     ) as unknown as RelayAdapt;
   }
 
-  async populateShieldBaseToken(shieldRequest: ShieldRequestStruct): Promise<ContractTransaction> {
+  async populateShieldBaseToken(
+    shieldRequest: ShieldRequestStruct
+  ): Promise<ContractTransaction> {
     const orderedCalls: ContractTransaction[] = await Promise.all([
       this.contract.wrapBase.populateTransaction(shieldRequest.preimage.value),
       this.populateRelayShields([shieldRequest]),
@@ -60,9 +62,12 @@ export class RelayAdaptV2Contract {
 
   async populateMulticall(
     calls: ContractTransaction[],
-    shieldRequests: ShieldRequestStruct[],
+    shieldRequests: ShieldRequestStruct[]
   ): Promise<ContractTransaction> {
-    const orderedCalls = await this.getOrderedCallsForCrossContractCalls(calls, shieldRequests);
+    const orderedCalls = await this.getOrderedCallsForCrossContractCalls(
+      calls,
+      shieldRequests
+    );
 
     return this.populateRelayMulticall(orderedCalls, {});
   }
@@ -71,13 +76,13 @@ export class RelayAdaptV2Contract {
    * @returns Populated transaction
    */
   private populateRelayShields(
-    shieldRequests: ShieldRequestStruct[],
+    shieldRequests: ShieldRequestStruct[]
   ): Promise<ContractTransaction> {
     return this.contract.shield.populateTransaction(shieldRequests);
   }
 
   private async getOrderedCallsForUnshieldBaseToken(
-    unshieldAddress: string,
+    unshieldAddress: string
   ): Promise<ContractTransaction[]> {
     // Use 0x00 address ERC20 to represent base token.
     const baseTokenData = getTokenDataERC20(ZERO_ADDRESS);
@@ -101,11 +106,10 @@ export class RelayAdaptV2Contract {
     dummyTransactions: TransactionStructV2[],
     unshieldAddress: string,
     random: string,
-    sendWithPublicWallet: boolean,
+    sendWithPublicWallet: boolean
   ): Promise<string> {
-    const orderedCalls: ContractTransaction[] = await this.getOrderedCallsForUnshieldBaseToken(
-      unshieldAddress,
-    );
+    const orderedCalls: ContractTransaction[] =
+      await this.getOrderedCallsForUnshieldBaseToken(unshieldAddress);
 
     const requireSuccess = sendWithPublicWallet;
 
@@ -113,7 +117,7 @@ export class RelayAdaptV2Contract {
       dummyTransactions,
       random,
       requireSuccess,
-      orderedCalls,
+      orderedCalls
     );
   }
 
@@ -121,34 +125,41 @@ export class RelayAdaptV2Contract {
     transactions: TransactionStructV2[],
     unshieldAddress: string,
     random31Bytes: string,
-    useDummyProof: boolean,
+    useDummyProof: boolean
   ): Promise<ContractTransaction> {
-    const orderedCalls: ContractTransaction[] = await this.getOrderedCallsForUnshieldBaseToken(
-      unshieldAddress,
-    );
+    const orderedCalls: ContractTransaction[] =
+      await this.getOrderedCallsForUnshieldBaseToken(unshieldAddress);
 
     const requireSuccess = useDummyProof;
 
-    return this.populateRelay(transactions, random31Bytes, requireSuccess, orderedCalls, {});
+    return this.populateRelay(
+      transactions,
+      random31Bytes,
+      requireSuccess,
+      orderedCalls,
+      {}
+    );
   }
 
   /**
    * @returns Populated transaction
    */
   private populateRelayTransfers(
-    transfersData: RelayAdapt.TokenTransferStruct[],
+    transfersData: RelayAdapt.TokenTransferStruct[]
   ): Promise<ContractTransaction> {
     return this.contract.transfer.populateTransaction(transfersData);
   }
 
   private async getOrderedCallsForCrossContractCalls(
     crossContractCalls: ContractTransaction[],
-    relayShieldRequests: ShieldRequestStruct[],
+    relayShieldRequests: ShieldRequestStruct[]
   ): Promise<ContractTransaction[]> {
     const orderedCallPromises: ContractTransaction[] = [...crossContractCalls];
 
     if (relayShieldRequests.length) {
-      orderedCallPromises.push(await this.populateRelayShields(relayShieldRequests));
+      orderedCallPromises.push(
+        await this.populateRelayShields(relayShieldRequests)
+      );
     }
 
     return orderedCallPromises;
@@ -156,11 +167,12 @@ export class RelayAdaptV2Contract {
 
   private static shouldRequireSuccessForCrossContractCalls(
     isGasEstimate: boolean,
-    isBroadcasterTransaction: boolean,
+    isBroadcasterTransaction: boolean
   ): boolean {
     // If the cross contract calls (multicalls) fail, the Broadcaster Fee and Shields should continue to process.
     // We should only !requireSuccess for production broadcaster transactions (not gas estimates).
-    const continueAfterMulticallFailure = isBroadcasterTransaction && !isGasEstimate;
+    const continueAfterMulticallFailure =
+      isBroadcasterTransaction && !isGasEstimate;
 
     return !continueAfterMulticallFailure;
   }
@@ -171,22 +183,25 @@ export class RelayAdaptV2Contract {
     relayShieldRequests: ShieldRequestStruct[],
     random: string,
     isBroadcasterTransaction: boolean,
-    minGasLimit?: bigint,
+    minGasLimit?: bigint
   ): Promise<string> {
-    const orderedCalls: ContractTransaction[] = await this.getOrderedCallsForCrossContractCalls(
-      crossContractCalls,
-      relayShieldRequests,
-    );
+    const orderedCalls: ContractTransaction[] =
+      await this.getOrderedCallsForCrossContractCalls(
+        crossContractCalls,
+        relayShieldRequests
+      );
 
     // Adapt params not required for gas estimates.
     const isGasEstimate = false;
 
-    const requireSuccess = RelayAdaptV2Contract.shouldRequireSuccessForCrossContractCalls(
-      isGasEstimate,
-      isBroadcasterTransaction,
-    );
+    const requireSuccess =
+      RelayAdaptV2Contract.shouldRequireSuccessForCrossContractCalls(
+        isGasEstimate,
+        isBroadcasterTransaction
+      );
 
-    const minimumGasLimit = minGasLimit ?? MINIMUM_RELAY_ADAPT_CROSS_CONTRACT_CALLS_GAS_LIMIT_V2;
+    const minimumGasLimit =
+      minGasLimit ?? MINIMUM_RELAY_ADAPT_CROSS_CONTRACT_CALLS_GAS_LIMIT_V2;
     const minGasLimitForContract =
       RelayAdaptV2Contract.getMinimumGasLimitForContract(minimumGasLimit);
 
@@ -195,7 +210,7 @@ export class RelayAdaptV2Contract {
       random,
       requireSuccess,
       orderedCalls,
-      minGasLimitForContract,
+      minGasLimitForContract
     );
   }
 
@@ -206,19 +221,22 @@ export class RelayAdaptV2Contract {
     random31Bytes: string,
     isGasEstimate: boolean,
     isBroadcasterTransaction: boolean,
-    minGasLimit?: bigint,
+    minGasLimit?: bigint
   ): Promise<ContractTransaction> {
-    const orderedCalls: ContractTransaction[] = await this.getOrderedCallsForCrossContractCalls(
-      crossContractCalls,
-      relayShieldRequests,
-    );
+    const orderedCalls: ContractTransaction[] =
+      await this.getOrderedCallsForCrossContractCalls(
+        crossContractCalls,
+        relayShieldRequests
+      );
 
-    const requireSuccess = RelayAdaptV2Contract.shouldRequireSuccessForCrossContractCalls(
-      isGasEstimate,
-      isBroadcasterTransaction,
-    );
+    const requireSuccess =
+      RelayAdaptV2Contract.shouldRequireSuccessForCrossContractCalls(
+        isGasEstimate,
+        isBroadcasterTransaction
+      );
 
-    const minimumGasLimit = minGasLimit ?? MINIMUM_RELAY_ADAPT_CROSS_CONTRACT_CALLS_GAS_LIMIT_V2;
+    const minimumGasLimit =
+      minGasLimit ?? MINIMUM_RELAY_ADAPT_CROSS_CONTRACT_CALLS_GAS_LIMIT_V2;
     const minGasLimitForContract =
       RelayAdaptV2Contract.getMinimumGasLimitForContract(minimumGasLimit);
 
@@ -228,7 +246,7 @@ export class RelayAdaptV2Contract {
       requireSuccess,
       orderedCalls,
       {},
-      minGasLimitForContract,
+      minGasLimitForContract
     );
 
     // Set default gas limit for cross-contract calls.
@@ -245,7 +263,7 @@ export class RelayAdaptV2Contract {
 
   static async estimateGasWithErrorHandler(
     provider: Provider,
-    transaction: ContractTransaction | TransactionRequest,
+    transaction: ContractTransaction | TransactionRequest
   ): Promise<bigint> {
     try {
       const gasEstimate = await provider.estimateGas(transaction);
@@ -253,15 +271,20 @@ export class RelayAdaptV2Contract {
       return gasEstimate;
     } catch (cause) {
       if (!(cause instanceof Error)) {
-        throw new Error('Non-error thrown from estimateGas', { cause });
+        throw new Error("Non-error thrown from estimateGas", { cause });
       }
 
       const { callFailedIndexString, errorMessage } =
-        RelayAdaptV2Contract.extractGasEstimateCallFailedIndexAndErrorText(cause.message);
+        RelayAdaptV2Contract.extractGasEstimateCallFailedIndexAndErrorText(
+          cause.message
+        );
 
-      throw new Error(`RelayAdapt multicall failed at index ${callFailedIndexString}.`, {
-        cause: new Error(errorMessage),
-      });
+      throw new Error(
+        `RelayAdapt multicall failed at index ${callFailedIndexString}.`,
+        {
+          cause: new Error(errorMessage),
+        }
+      );
     }
   }
 
@@ -273,17 +296,20 @@ export class RelayAdaptV2Contract {
       const callFailedMessage = splitResult[0]; // execution reverted (unknown custom error)
       const dataMessage = splitResult[1].split(`"`)[0]; // 0x5c0dee5d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000
       const parsedDataMessage = this.parseRelayAdaptReturnValue(dataMessage);
-      const callFailedIndexString: string = parsedDataMessage?.callIndex?.toString() ?? 'UNKNOWN';
+      const callFailedIndexString: string =
+        parsedDataMessage?.callIndex?.toString() ?? "UNKNOWN";
 
       return {
         callFailedIndexString,
-        errorMessage: `'${callFailedMessage}': ${parsedDataMessage?.error ?? dataMessage}`,
+        errorMessage: `'${callFailedMessage}': ${
+          parsedDataMessage?.error ?? dataMessage
+        }`,
       };
     } catch (err) {
       console.error(err);
 
       return {
-        callFailedIndexString: 'UNKNOWN',
+        callFailedIndexString: "UNKNOWN",
         errorMessage,
       };
     }
@@ -295,15 +321,16 @@ export class RelayAdaptV2Contract {
    */
   private async populateRelayMulticall(
     calls: ContractTransaction[],
-    overrides: PayableOverrides,
+    overrides: PayableOverrides
   ): Promise<ContractTransaction> {
     // Always requireSuccess when there is no Broadcaster payment.
     const requireSuccess = true;
-    const populatedTransaction = await this.contract.multicall.populateTransaction(
-      requireSuccess,
-      RelayAdaptHelper.formatCalls(calls),
-      overrides,
-    );
+    const populatedTransaction =
+      await this.contract.multicall.populateTransaction(
+        requireSuccess,
+        RelayAdaptHelper.formatCalls(calls),
+        overrides
+      );
 
     return populatedTransaction;
   }
@@ -318,18 +345,19 @@ export class RelayAdaptV2Contract {
     requireSuccess: boolean,
     calls: ContractTransaction[],
     overrides: PayableOverrides,
-    minimumGasLimit = BigInt(0),
+    minimumGasLimit = BigInt(0)
   ): Promise<ContractTransaction> {
-    const actionData: RelayAdapt.ActionDataStruct = RelayAdaptHelper.getActionData(
-      random31Bytes,
-      requireSuccess,
-      calls,
-      minimumGasLimit,
-    );
+    const actionData: RelayAdapt.ActionDataStruct =
+      RelayAdaptHelper.getActionData(
+        random31Bytes,
+        requireSuccess,
+        calls,
+        minimumGasLimit
+      );
     const populatedTransaction = await this.contract.relay.populateTransaction(
       transactions,
       actionData,
-      overrides,
+      overrides
     );
 
     return populatedTransaction;
@@ -342,7 +370,7 @@ export class RelayAdaptV2Contract {
   }
 
   static getRelayAdaptCallError(
-    receiptLogs: TransactionReceiptLog[] | readonly Log[],
+    receiptLogs: TransactionReceiptLog[] | readonly Log[]
   ): Optional<string> {
     const topic = this.getCallErrorTopic();
 
@@ -358,10 +386,12 @@ export class RelayAdaptV2Contract {
       }
     } catch (cause) {
       if (!(cause instanceof Error)) {
-        throw new Error('Non-error thrown from getRelayAdaptCallError.', { cause });
+        throw new Error("Non-error thrown from getRelayAdaptCallError.", {
+          cause,
+        });
       }
 
-      const err = new Error('Relay Adapt log parsing error', { cause });
+      const err = new Error("Relay Adapt log parsing error", { cause });
 
       EngineDebug.error(err);
       throw err;
@@ -371,10 +401,13 @@ export class RelayAdaptV2Contract {
   }
 
   static parseRelayAdaptReturnValue(
-    returnValue: string,
+    returnValue: string
   ): Optional<{ callIndex?: number; error: string }> {
     if (returnValue.match(RETURN_DATA_RELAY_ADAPT_STRING_PREFIX)) {
-      const strippedReturnValue = returnValue.replace(RETURN_DATA_RELAY_ADAPT_STRING_PREFIX, '0x');
+      const strippedReturnValue = returnValue.replace(
+        RETURN_DATA_RELAY_ADAPT_STRING_PREFIX,
+        "0x"
+      );
 
       return this.customRelayAdaptErrorParse(strippedReturnValue);
     }
@@ -389,16 +422,15 @@ export class RelayAdaptV2Contract {
   }
 
   private static customRelayAdaptErrorParse(
-    data: string,
+    data: string
   ): Optional<{ callIndex: number; error: string }> {
     // Force parse as bytes
     const decoded: Result = AbiCoder.defaultAbiCoder().decode(
-      ['uint256 callIndex', 'bytes revertReason'],
-      data,
+      ["uint256 callIndex", "bytes revertReason"],
+      data
     );
 
     const callIndex = Number(decoded[0]);
-
 
     const revertReasonBytes: string = decoded[1];
 
@@ -410,8 +442,14 @@ export class RelayAdaptV2Contract {
 
   private static parseRelayAdaptStringError(revertReason: string): string {
     if (revertReason.match(RETURN_DATA_STRING_PREFIX)) {
-      const strippedReturnValue = revertReason.replace(RETURN_DATA_STRING_PREFIX, '0x');
-      const result = AbiCoder.defaultAbiCoder().decode(['string'], strippedReturnValue);
+      const strippedReturnValue = revertReason.replace(
+        RETURN_DATA_STRING_PREFIX,
+        "0x"
+      );
+      const result = AbiCoder.defaultAbiCoder().decode(
+        ["string"],
+        strippedReturnValue
+      );
 
       return result[0];
     }
@@ -420,12 +458,11 @@ export class RelayAdaptV2Contract {
       const utf8 = toUtf8String(revertReason);
 
       if (utf8.length === 0) {
-        throw new Error('No utf8 string parsed from revert reason.');
+        throw new Error("No utf8 string parsed from revert reason.");
       }
 
       return utf8;
     } catch (err) {
-
       return `Unknown Relay Adapt error: ${err?.message ?? err}`;
     }
   }

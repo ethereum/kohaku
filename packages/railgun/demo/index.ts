@@ -1,3 +1,5 @@
+/* eslint-disable sonarjs/no-duplicate-string */
+
 import fs from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,54 +98,11 @@ async function main() {
     fs.mkdirSync("./demo/cache/", { recursive: true });
   }
 
-  // const publicCacheExists = fs.existsSync('./demo/cache/sepolia_public.json');
-  // const public_cache = publicCacheExists ? JSON.parse(fs.readFileSync('./demo/cache/sepolia_public.json', 'utf8')) as PublicCache : sepolia_checkpoint as unknown as PublicCache;
-
   console.log("\nresyncing railgun account...");
   console.log(
     "    -> WARNING: can be slow (e.g. minutes) on first run without local cache..."
   );
 
-  // Load cached merkle trees into indexer
-  // await indexer.loadState({ merkleTrees: public_cache.merkleTrees, latestSyncedBlock: public_cache.endBlock });
-
-  // Load cached notebooks into account (if available)
-  // const privateCacheExists = fs.existsSync(`./demo/cache/sepolia_${zkAddress}.json`);
-
-  // Note: In production, you would use the storage parameter on account creation
-  // For this demo, we're loading the private cache manually if it exists
-  // if (privateCacheExists) {
-  // const private_cache = JSON.parse(fs.readFileSync(`./demo/cache/sepolia_${zkAddress}.json`, 'utf8')) as PrivateCache;
-
-  // IMPORTANT: Only load private cache if it's in sync with public cache
-  // If public cache is older than private cache, private notebooks reference
-  // commitments that don't exist in the merkle trees, causing "not found" errors
-  //   if (private_cache.endBlock <= public_cache.endBlock) {
-  //     // Account notebooks are automatically loaded through storage param in createRailgunAccount
-  //     // This demo doesn't use storage param, so we need to replay logs to rebuild notebooks
-  //     // We can optimize by only replaying logs from startBlock to private_cache.endBlock
-  //     await indexer.processLogs(
-  //       public_cache.logs.filter(log => log.blockNumber <= private_cache.endBlock),
-  //       { skipMerkleTree: true },
-  //     );
-
-  //     // Then process remaining logs if public cache is newer
-  //     if (private_cache.endBlock < public_cache.endBlock) {
-  //       await indexer.processLogs(
-  //         public_cache.logs.filter(log => log.blockNumber > private_cache.endBlock),
-  //         { skipMerkleTree: true },
-  //       );
-  //     }
-  //   } else {
-  //     console.warn(`\nWARNING: Private cache (block ${private_cache.endBlock}) is ahead of public cache (block ${public_cache.endBlock})`);
-  //     console.warn('Rebuilding notebooks from scratch by replaying all logs...\n');
-  //     await indexer.processLogs(public_cache.logs, { skipMerkleTree: true });
-  //   }
-  // } else {
-  //   await indexer.processLogs(public_cache.logs, { skipMerkleTree: true });
-  // }
-
-  // let startBlock = public_cache.endBlock > 0 ? public_cache.endBlock : RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
 
   // console.log(`    -> fetching new logs from start block (${startBlock}) to latest block (${endBlock})...`);

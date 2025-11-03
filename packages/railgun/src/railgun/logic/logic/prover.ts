@@ -1,6 +1,6 @@
-import { groth16 } from 'snarkjs';
-import type { SnarkjsProof } from 'snarkjs';
-import type { Artifact } from '@railgun-community/circuit-artifacts';
+import { groth16 } from "snarkjs";
+import type { SnarkjsProof } from "snarkjs";
+import type { Artifact } from "@railgun-community/circuit-artifacts";
 
 export interface SolidityProof {
   a: {
@@ -46,8 +46,15 @@ function formatProof(proof: SnarkjsProof): SolidityProof {
  * @param inputs - circuit inputs
  * @returns proof
  */
-async function prove(artifact: Artifact, inputs: unknown): Promise<ProofBundle> {
-  const { proof } = await groth16.fullProve(inputs, artifact.wasm, artifact.zkey);
+async function prove(
+  artifact: Artifact,
+  inputs: unknown
+): Promise<ProofBundle> {
+  const { proof } = await groth16.fullProve(
+    inputs,
+    artifact.wasm,
+    artifact.zkey
+  );
 
   return {
     javascript: proof,

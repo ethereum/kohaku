@@ -1,18 +1,17 @@
-import { bytesToHex, hexToBytes } from 'ethereum-cryptography/utils';
-import { getRandomBytesSync } from 'ethereum-cryptography/random';
-import crypto from 'crypto';
-import { BytesData } from '../models/formatted-types';
-import { isReactNative, isNodejs } from './runtime';
+import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
+import { getRandomBytesSync } from "ethereum-cryptography/random";
+import crypto from "crypto";
+import { BytesData } from "../models/formatted-types";
+import { isReactNative, isNodejs } from "./runtime";
 
 // TextEncoder/TextDecoder (used in this file) needs to shimmed in React Native
 if (isReactNative) {
-
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('fast-text-encoding');
+  require("fast-text-encoding");
 }
 
 // returns true if string is prefixed with '0x'
-const isPrefixed = (str: string): boolean => str.startsWith('0x');
+const isPrefixed = (str: string): boolean => str.startsWith("0x");
 
 /**
  * check each character for commonly unsupported codepoints above 0xD800
@@ -22,7 +21,7 @@ const isPrefixed = (str: string): boolean => str.startsWith('0x');
 function assertBytesWithinRange(string: string) {
   for (let i = 0; i < string.length; i += 1) {
     if (string.charCodeAt(i) > 0xd800) {
-      throw new Error('Invalid Unicode codepoint > 0xD800');
+      throw new Error("Invalid Unicode codepoint > 0xD800");
     }
   }
 }
@@ -31,10 +30,12 @@ class ByteUtils {
   static readonly FULL_32_BITS = BigInt(2 ** 32 - 1);
 
   // add 0x if it str isn't already prefixed
-  static prefix0x = (str: string): string => (isPrefixed(str) ? str : `0x${str}`);
+  static prefix0x = (str: string): string =>
+    isPrefixed(str) ? str : `0x${str}`;
 
   // remove 0x prefix if it exists
-  static strip0x = (str: string): string => (isPrefixed(str) ? str.slice(2) : str);
+  static strip0x = (str: string): string =>
+    isPrefixed(str) ? str.slice(2) : str;
 
   static hexToBytes = hexToBytes;
 
@@ -48,7 +49,6 @@ class ByteUtils {
   }
 
   static u8ToBigInt(u8: Uint8Array): bigint {
-
     return ByteUtils.hexToBigInt(ByteUtils.hexlify(u8));
   }
 
@@ -59,13 +59,13 @@ class ByteUtils {
    * @returns hex string
    */
   static hexlify(data: BytesData, prefix = false): string {
-    let hexString = '';
+    let hexString = "";
 
-    if (typeof data === 'string') {
+    if (typeof data === "string") {
       // If we're already a string return the string
       // Strip leading 0x if it exists before returning
       hexString = ByteUtils.strip0x(data);
-    } else if (typeof data === 'bigint' || typeof data === 'number') {
+    } else if (typeof data === "bigint" || typeof data === "number") {
       hexString = data.toString(16);
 
       if (hexString.length % 2 === 1) {
@@ -77,7 +77,9 @@ class ByteUtils {
       const dataArray: number[] = Array.from(data);
 
       // Convert array of bytes to hex string
-      hexString = dataArray.map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      hexString = dataArray
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
     }
 
     // Return 0x prefixed hex string if specified
@@ -96,13 +98,17 @@ class ByteUtils {
    */
   static arrayify(data: BytesData): number[] {
     // If we're already a byte array return array coerced data
-    if (typeof data !== 'string' && typeof data !== 'bigint' && typeof data !== 'number') {
+    if (
+      typeof data !== "string" &&
+      typeof data !== "bigint" &&
+      typeof data !== "number"
+    ) {
       return Array.from(data);
     }
 
     // Remove leading 0x if exists
     const dataFormatted =
-      typeof data === 'bigint' || typeof data === 'number'
+      typeof data === "bigint" || typeof data === "number"
         ? ByteUtils.hexlify(data)
         : ByteUtils.strip0x(data);
 
@@ -114,7 +120,7 @@ class ByteUtils {
       const number = parseInt(dataFormatted.substr(i, 2), 16);
 
       if (Number.isNaN(number)) {
-        throw new Error('Invalid BytesData');
+        throw new Error("Invalid BytesData");
       } else {
         bytesArray.push(number);
       }
@@ -134,36 +140,36 @@ class ByteUtils {
   static padToLength(
     data: BytesData,
     length: number,
-    side: 'left' | 'right' = 'left',
+    side: "left" | "right" = "left"
   ): string | number[] {
-    if (typeof data === 'bigint' || typeof data === 'number') {
-      if (side === 'left') {
-        return data.toString(16).padStart(length * 2, '0');
+    if (typeof data === "bigint" || typeof data === "number") {
+      if (side === "left") {
+        return data.toString(16).padStart(length * 2, "0");
       }
 
-      return data.toString(16).padEnd(length * 2, '0');
+      return data.toString(16).padEnd(length * 2, "0");
     }
 
-    if (typeof data === 'string') {
+    if (typeof data === "string") {
       const dataFormattedString = ByteUtils.strip0x(data);
 
       // If we're requested to pad to left, pad left and return
-      if (side === 'left') {
-        return data.startsWith('0x')
-          ? `0x${dataFormattedString.padStart(length * 2, '0')}`
-          : dataFormattedString.padStart(length * 2, '0');
+      if (side === "left") {
+        return data.startsWith("0x")
+          ? `0x${dataFormattedString.padStart(length * 2, "0")}`
+          : dataFormattedString.padStart(length * 2, "0");
       }
 
       // Else pad right and return
-      return data.startsWith('0x')
-        ? `0x${dataFormattedString.padEnd(length * 2, '0')}`
-        : dataFormattedString.padEnd(length * 2, '0');
+      return data.startsWith("0x")
+        ? `0x${dataFormattedString.padEnd(length * 2, "0")}`
+        : dataFormattedString.padEnd(length * 2, "0");
     }
 
     // Coerce data into array
     const dataArray = Array.from(data);
 
-    if (side === 'left') {
+    if (side === "left") {
       // If side is left, unshift till length
       while (dataArray.length < length) {
         dataArray.unshift(0);
@@ -190,7 +196,7 @@ class ByteUtils {
     const dataFormatted = ByteUtils.hexlify(data);
 
     // Split into byte chunks and return
-    return dataFormatted.match(new RegExp(`.{1,${size * 2}}`, 'g')) || [];
+    return dataFormatted.match(new RegExp(`.{1,${size * 2}}`, "g")) || [];
   }
 
   /**
@@ -203,7 +209,7 @@ class ByteUtils {
     const dataFormatted = data.map((element) => ByteUtils.hexlify(element));
 
     // Combine and return
-    return dataFormatted.join('');
+    return dataFormatted.join("");
   }
 
   /**
@@ -213,26 +219,30 @@ class ByteUtils {
    * @param side - side to trim from
    * @returns trimmed data
    */
-  static trim(data: BytesData, length: number, side: 'left' | 'right' = 'left'): BytesData {
-    if (typeof data === 'bigint' || typeof data === 'number') {
+  static trim(
+    data: BytesData,
+    length: number,
+    side: "left" | "right" = "left"
+  ): BytesData {
+    if (typeof data === "bigint" || typeof data === "number") {
       const stringData = data.toString(16);
       const trimmedString = ByteUtils.trim(stringData, length, side) as string;
 
       return BigInt(`0x${trimmedString}`);
     }
 
-    if (typeof data === 'string') {
-      const dataFormatted = data.startsWith('0x') ? data.slice(2) : data;
+    if (typeof data === "string") {
+      const dataFormatted = data.startsWith("0x") ? data.slice(2) : data;
 
-      if (side === 'left') {
+      if (side === "left") {
         // If side is left return the last length bytes
-        return data.startsWith('0x')
+        return data.startsWith("0x")
           ? `0x${dataFormatted.slice(dataFormatted.length - length * 2)}`
           : dataFormatted.slice(dataFormatted.length - length * 2);
       }
 
       // Side is right, return the start of the string to length
-      return data.startsWith('0x')
+      return data.startsWith("0x")
         ? `0x${dataFormatted.slice(0, length * 2)}`
         : dataFormatted.slice(0, length * 2);
     }
@@ -240,7 +250,7 @@ class ByteUtils {
     // Coerce to array
     const dataFormatted = Array.from(data);
 
-    if (side === 'left') {
+    if (side === "left") {
       // If side is left return the last length bytes
       return dataFormatted.slice(data.length - length);
     }
@@ -255,7 +265,11 @@ class ByteUtils {
    * @param length - length to format to
    * @returns formatted data
    */
-  static formatToByteLength(data: BytesData, length: ByteLength, prefix = false): string {
+  static formatToByteLength(
+    data: BytesData,
+    length: ByteLength,
+    prefix = false
+  ): string {
     const hex = ByteUtils.hexlify(data, prefix);
     const padded = ByteUtils.padToLength(hex, length);
     const trimmed = ByteUtils.trim(padded, length) as string;
@@ -269,10 +283,18 @@ class ByteUtils {
    * @param {boolean} prefix - prefix hex with 0x
    * @return {string} even-length hex
    */
-  static nToHex(n: bigint, byteLength: ByteLength, prefix: boolean = false): string {
-    if (n < 0) throw new Error('bigint must be positive');
+  static nToHex(
+    n: bigint,
+    byteLength: ByteLength,
+    prefix: boolean = false
+  ): string {
+    if (n < 0) throw new Error("bigint must be positive");
 
-    const hex = ByteUtils.formatToByteLength(n.toString(16), byteLength, prefix);
+    const hex = ByteUtils.formatToByteLength(
+      n.toString(16),
+      byteLength,
+      prefix
+    );
 
     return prefix ? ByteUtils.prefix0x(hex) : hex;
   }
@@ -344,7 +366,7 @@ class ByteUtils {
       hex[2 * i + 1] = String.fromCharCode(c2 + (c2 < 10 ? 48 : 87));
     }
 
-    return hex.join('');
+    return hex.join("");
   }
 
   /**
@@ -354,7 +376,7 @@ class ByteUtils {
    */
   static randomHex(length: number = 32): string {
     return isNodejs
-      ? crypto.randomBytes(length).toString('hex')
+      ? crypto.randomBytes(length).toString("hex")
       : bytesToHex(getRandomBytesSync(length));
   }
 }
@@ -395,6 +417,6 @@ function fromUTF8String(string: string): string {
   return ByteUtils.hexlify(new TextEncoder().encode(string));
 }
 
-const HashZero = ByteUtils.formatToByteLength('00', 32, true);
+const HashZero = ByteUtils.formatToByteLength("00", 32, true);
 
 export { ByteLength, HashZero, ByteUtils, toUTF8String, fromUTF8String };

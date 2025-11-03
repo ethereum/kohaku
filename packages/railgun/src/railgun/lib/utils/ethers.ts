@@ -1,8 +1,8 @@
-import { Result } from 'ethers';
+import { Result } from "ethers";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const recursivelyDecodeResult = (result: Result): any => {
-  if (typeof result !== 'object') {
+  if (typeof result !== "object") {
     // End (primitive) value
     return result;
   }
@@ -10,8 +10,8 @@ export const recursivelyDecodeResult = (result: Result): any => {
   try {
     const obj = result.toObject();
 
-    if ('_' in obj) {
-      throw new Error('Decode as array, not object');
+    if ("_" in obj) {
+      throw new Error("Decode as array, not object");
     }
 
     for (const key of Object.keys(obj)) {
@@ -23,6 +23,8 @@ export const recursivelyDecodeResult = (result: Result): any => {
     console.error(err);
 
     // Result is array.
-    return result.toArray().map((item) => recursivelyDecodeResult(item as Result));
+    return result
+      .toArray()
+      .map((item) => recursivelyDecodeResult(item as Result));
   }
 };

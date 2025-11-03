@@ -1,10 +1,14 @@
-import { bytesToHex } from 'ethereum-cryptography/utils';
-import { poseidon } from '../utils/poseidon';
-import { KeyNode } from '../models/engine-types';
-import { childKeyDerivationHardened, getMasterKeyFromSeed, getPathSegments } from './bip32';
-import { ByteUtils } from '../utils/bytes';
-import { Mnemonic } from './bip39';
-import { getPublicSpendingKey, getPublicViewingKey } from '../utils/keys-utils';
+import { bytesToHex } from "ethereum-cryptography/utils";
+import { poseidon } from "../utils/poseidon";
+import { KeyNode } from "../models/engine-types";
+import {
+  childKeyDerivationHardened,
+  getMasterKeyFromSeed,
+  getPathSegments,
+} from "./bip32";
+import { ByteUtils } from "../utils/bytes";
+import { Mnemonic } from "./bip39";
+import { getPublicSpendingKey, getPublicViewingKey } from "../utils/keys-utils";
 
 const HARDENED_OFFSET = 0x80000000;
 
@@ -29,7 +33,10 @@ const derivePathsForIndex = (index: number = 0) => {
   };
 };
 
-export const deriveNodes = (mnemonic: string, index: number = 0): WalletNodes => {
+export const deriveNodes = (
+  mnemonic: string,
+  index: number = 0
+): WalletNodes => {
   const paths = derivePathsForIndex(index);
 
   return {
@@ -39,7 +46,10 @@ export const deriveNodes = (mnemonic: string, index: number = 0): WalletNodes =>
 };
 
 export type SpendingPublicKey = [bigint, bigint];
-export type SpendingKeyPair = { privateKey: Uint8Array; pubkey: SpendingPublicKey };
+export type SpendingKeyPair = {
+  privateKey: Uint8Array;
+  pubkey: SpendingPublicKey;
+};
 export type ViewingKeyPair = { privateKey: Uint8Array; pubkey: Uint8Array };
 
 export class WalletNode {
@@ -78,7 +88,7 @@ export class WalletNode {
       {
         chainKey: this.chainKey,
         chainCode: this.chainCode,
-      },
+      }
     );
 
     return new WalletNode(keyNode);
@@ -98,7 +108,10 @@ export class WalletNode {
     };
   }
 
-  static getMasterPublicKey(spendingPublicKey: [bigint, bigint], nullifyingKey: bigint): bigint {
+  static getMasterPublicKey(
+    spendingPublicKey: [bigint, bigint],
+    nullifyingKey: bigint
+  ): bigint {
     return poseidon([...spendingPublicKey, nullifyingKey]);
   }
 

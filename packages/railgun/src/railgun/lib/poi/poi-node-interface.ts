@@ -1,12 +1,12 @@
-import { Chain } from '../models/engine-types';
-import { MerkleProof } from '../models/formatted-types';
+import { Chain } from "../models/engine-types";
+import { MerkleProof } from "../models/formatted-types";
 import {
   BlindedCommitmentData,
   LegacyTransactProofData,
   POIsPerList,
   TXIDVersion,
-} from '../models/poi-types';
-import { Proof } from '../models/prover-types';
+} from "../models/poi-types";
+import { Proof } from "../models/prover-types";
 
 export abstract class POINodeInterface {
   abstract isActive(chain: Chain): boolean;
@@ -17,21 +17,21 @@ export abstract class POINodeInterface {
     txidVersion: TXIDVersion,
     chain: Chain,
     listKeys: string[],
-    blindedCommitmentDatas: BlindedCommitmentData[],
+    blindedCommitmentDatas: BlindedCommitmentData[]
   ): Promise<{ [blindedCommitment: string]: POIsPerList }>;
 
   abstract getPOIMerkleProofs(
     txidVersion: TXIDVersion,
     chain: Chain,
     listKey: string,
-    blindedCommitments: string[],
+    blindedCommitments: string[]
   ): Promise<MerkleProof[]>;
 
   abstract validatePOIMerkleroots(
     txidVersion: TXIDVersion,
     chain: Chain,
     listKey: string,
-    poiMerkleroots: string[],
+    poiMerkleroots: string[]
   ): Promise<boolean>;
 
   abstract submitPOI(
@@ -43,13 +43,13 @@ export abstract class POINodeInterface {
     txidMerkleroot: string,
     txidMerklerootIndex: number,
     blindedCommitmentsOut: string[],
-    railgunTxidIfHasUnshield: string,
+    railgunTxidIfHasUnshield: string
   ): Promise<void>;
 
   abstract submitLegacyTransactProofs(
     txidVersion: TXIDVersion,
     chain: Chain,
     listKeys: string[],
-    legacyTransactProofDatas: LegacyTransactProofData[],
+    legacyTransactProofDatas: LegacyTransactProofData[]
   ): Promise<void>;
 }

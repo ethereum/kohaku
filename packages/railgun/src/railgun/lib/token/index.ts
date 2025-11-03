@@ -1,1 +1,1 @@
-export * from './token-data-getter';
+export * from "./token-data-getter";

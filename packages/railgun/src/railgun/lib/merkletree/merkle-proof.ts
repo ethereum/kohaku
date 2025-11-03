@@ -1,7 +1,7 @@
-import { poseidon } from '../utils/poseidon';
-import { MerkleProof } from '../models/formatted-types';
-import { TREE_DEPTH } from '../models/merkletree-types';
-import { ByteLength, ByteUtils } from '../utils/bytes';
+import { poseidon } from "../utils/poseidon";
+import { MerkleProof } from "../models/formatted-types";
+import { TREE_DEPTH } from "../models/merkletree-types";
+import { ByteLength, ByteUtils } from "../utils/bytes";
 /// !EDIT: remove import
 //import { Merkletree } from './merkletree';
 

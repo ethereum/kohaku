@@ -1,6 +1,10 @@
-import { arrayToBigInt, bigIntToArray, arrayToByteLength } from '../global/bytes';
-import { SNARK_SCALAR_FIELD } from '../global/constants';
-import { hash } from '../global/crypto';
+import {
+  arrayToBigInt,
+  bigIntToArray,
+  arrayToByteLength,
+} from "../global/bytes";
+import { SNARK_SCALAR_FIELD } from "../global/constants";
+import { hash } from "../global/crypto";
 
 export interface MerkleProof {
   element: Uint8Array;
@@ -19,7 +23,12 @@ class MerkleTree {
   // Track the highest leaf index we’ve ever set (−1 means “no leaves yet”)
   private maxLeafIndex: number = -1;
 
-  constructor(treeNumber: number, depth: number, zeros: Uint8Array[], tree: Uint8Array[][]) {
+  constructor(
+    treeNumber: number,
+    depth: number,
+    zeros: Uint8Array[],
+    tree: Uint8Array[][]
+  ) {
     this.treeNumber = treeNumber;
     this.depth = depth;
     this.zeros = zeros;
@@ -36,13 +45,19 @@ class MerkleTree {
     return this.tree[0].length;
   }
 
-  static hashLeftRight(left: Uint8Array, right: Uint8Array): Promise<Uint8Array> {
-    return hash.poseidon([arrayToByteLength(left, 32), arrayToByteLength(right, 32)]);
+  static hashLeftRight(
+    left: Uint8Array,
+    right: Uint8Array
+  ): Promise<Uint8Array> {
+    return hash.poseidon([
+      arrayToByteLength(left, 32),
+      arrayToByteLength(right, 32),
+    ]);
   }
 
   static get zeroValue(): Uint8Array {
     const railgunHash = arrayToBigInt(
-      hash.keccak256(new Uint8Array(Buffer.from('Railgun', 'utf8'))),
+      hash.keccak256(new Uint8Array(Buffer.from("Railgun", "utf8")))
     );
 
     return bigIntToArray(railgunHash % SNARK_SCALAR_FIELD, 32);
@@ -55,7 +70,9 @@ class MerkleTree {
 
     for (let level = 1; level < depth; level += 1) {
       // @ts-expect-error levels is defined
-      levels.push(await MerkleTree.hashLeftRight(levels[level - 1], levels[level - 1]));
+      levels.push(
+        await MerkleTree.hashLeftRight(levels[level - 1], levels[level - 1])
+      );
     }
 
     return levels;
@@ -68,7 +85,9 @@ class MerkleTree {
 
     // Default root = hash(zero, zero) at the top level
     // @ts-expect-error tree is defined
-    tree[depth] = [await MerkleTree.hashLeftRight(zeros[depth - 1], zeros[depth - 1])];
+    tree[depth] = [
+      await MerkleTree.hashLeftRight(zeros[depth - 1], zeros[depth - 1]),
+    ];
 
     return new MerkleTree(treeNumber, depth, zeros, tree);
   }
@@ -83,7 +102,10 @@ class MerkleTree {
       for (let lvl = 1; lvl <= this.depth; lvl++) this.tree[lvl] = [];
       this.tree[this.depth] = [
         // @ts-expect-error tree is defined
-        await MerkleTree.hashLeftRight(this.zeros[this.depth - 1], this.zeros[this.depth - 1]),
+        await MerkleTree.hashLeftRight(
+          this.zeros[this.depth - 1],
+          this.zeros[this.depth - 1]
+        ),
       ];
 
       return;
@@ -129,11 +151,15 @@ class MerkleTree {
   generateProof(element: Uint8Array): MerkleProof {
     const elements: Uint8Array[] = [];
     // @ts-expect-error tree is defined
-    const initialIndex = this.tree[0].map(arrayToBigInt).indexOf(arrayToBigInt(element));
+    const initialIndex = this.tree[0]
+      .map(arrayToBigInt)
+      .indexOf(arrayToBigInt(element));
     let index = initialIndex;
 
     if (index === -1) {
-      throw new Error(`Couldn't find ${arrayToBigInt(element)} in the MerkleTree`);
+      throw new Error(
+        `Couldn't find ${arrayToBigInt(element)} in the MerkleTree`
+      );
     }
 
     for (let level = 0; level < this.depth; level += 1) {
@@ -154,19 +180,25 @@ class MerkleTree {
   static async validateProof(proof: MerkleProof): Promise<boolean> {
     const indices = proof.indices
       .toString(2)
-      .padStart(proof.elements.length, '0')
-      .split('')
+      .padStart(proof.elements.length, "0")
+      .split("")
       .reverse();
 
     let currentHash = proof.element;
 
     for (let i = 0; i < proof.elements.length; i += 1) {
-      if (indices[i] === '0') {
+      if (indices[i] === "0") {
         // @ts-expect-error proof.elements is defined
-        currentHash = await MerkleTree.hashLeftRight(currentHash, proof.elements[i]);
+        currentHash = await MerkleTree.hashLeftRight(
+          currentHash,
+          proof.elements[i]
+        );
       } else {
         // @ts-expect-error proof.elements is defined
-        currentHash = await MerkleTree.hashLeftRight(proof.elements[i], currentHash);
+        currentHash = await MerkleTree.hashLeftRight(
+          proof.elements[i],
+          currentHash
+        );
       }
     }
 

@@ -1,10 +1,10 @@
-import { HDKey } from 'ethereum-cryptography/hdkey';
-import * as bip39 from 'ethereum-cryptography/bip39';
-import { wordlist } from 'ethereum-cryptography/bip39/wordlists/english';
-import { toHex, bytesToHex } from 'ethereum-cryptography/utils';
-import { mnemonicToSeedSync } from 'ethereum-cryptography/bip39';
-import { HDNodeWallet, Mnemonic as EthersMnemonic } from 'ethers';
-import { ByteUtils } from '../utils/bytes';
+import { HDKey } from "ethereum-cryptography/hdkey";
+import * as bip39 from "ethereum-cryptography/bip39";
+import { wordlist } from "ethereum-cryptography/bip39/wordlists/english";
+import { toHex, bytesToHex } from "ethereum-cryptography/utils";
+import { mnemonicToSeedSync } from "ethereum-cryptography/bip39";
+import { HDNodeWallet, Mnemonic as EthersMnemonic } from "ethers";
+import { ByteUtils } from "../utils/bytes";
 
 const getPath = (index = 0) => {
   return `m/44'/60'/0'/0/${index}`;
@@ -19,7 +19,7 @@ export class Mnemonic {
     return bip39.validateMnemonic(mnemonic, wordlist);
   }
 
-  static toSeed(mnemonic: string, password: string = ''): string {
+  static toSeed(mnemonic: string, password: string = ""): string {
     return toHex(bip39.mnemonicToSeedSync(mnemonic, password));
   }
 
@@ -28,7 +28,10 @@ export class Mnemonic {
   }
 
   static fromEntropy(entropy: string): string {
-    return bip39.entropyToMnemonic(ByteUtils.hexStringToBytes(entropy), wordlist);
+    return bip39.entropyToMnemonic(
+      ByteUtils.hexStringToBytes(entropy),
+      wordlist
+    );
   }
 
   /**
@@ -45,7 +48,10 @@ export class Mnemonic {
 
   static to0xAddress(mnemonic: string, derivationIndex?: number): string {
     const path = getPath(derivationIndex);
-    const wallet = HDNodeWallet.fromMnemonic(EthersMnemonic.fromPhrase(mnemonic), path);
+    const wallet = HDNodeWallet.fromMnemonic(
+      EthersMnemonic.fromPhrase(mnemonic),
+      path
+    );
 
     return wallet.address;
   }

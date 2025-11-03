@@ -1,6 +1,6 @@
-import { TransactNote } from '../note/transact-note';
-import { CommitmentType, OutputType, TokenData } from './formatted-types';
-import { POIsPerList } from './poi-types';
+import { TransactNote } from "../note/transact-note";
+import { CommitmentType, OutputType, TokenData } from "./formatted-types";
+import { POIsPerList } from "./poi-types";
 
 export type TXO = {
   tree: number;
@@ -81,11 +81,11 @@ export type TXOsSpentPOIStatusInfo = {
 };
 
 export enum WalletBalanceBucket {
-  Spendable = 'Spendable',
-  ShieldBlocked = 'ShieldBlocked',
-  ShieldPending = 'ShieldPending',
-  ProofSubmitted = 'ProofSubmitted',
-  MissingInternalPOI = 'MissingInternalPOI', // Change or DeFi interaction (Swap receipt)
-  MissingExternalPOI = 'MissingExternalPOI',
-  Spent = 'Spent', // ie. Unshielded To Origin
+  Spendable = "Spendable",
+  ShieldBlocked = "ShieldBlocked",
+  ShieldPending = "ShieldPending",
+  ProofSubmitted = "ProofSubmitted",
+  MissingInternalPOI = "MissingInternalPOI", // Change or DeFi interaction (Swap receipt)
+  MissingExternalPOI = "MissingExternalPOI",
+  Spent = "Spent", // ie. Unshielded To Origin
 }
