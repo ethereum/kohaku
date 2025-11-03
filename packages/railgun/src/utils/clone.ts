@@ -1,5 +1,5 @@
 export const deepClone = <T>(value: T): T => {
-  if (typeof structuredClone === 'function') {
+  if (typeof structuredClone === "function") {
     return structuredClone(value);
   }
 

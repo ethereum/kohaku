@@ -1,5 +1,5 @@
-import { RailgunProvider } from '../../src/provider/index';
-import { type AnvilInstance } from './anvil';
+import { RailgunProvider } from "../../src/provider/index";
+import { type AnvilInstance } from "./anvil";
 
 /**
  * Fund an account with ETH using anvil's setBalance

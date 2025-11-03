@@ -1,4 +1,4 @@
-import type { TokenData } from '../../railgun/logic/logic/note';
+import type { TokenData } from "../../railgun/logic/logic/note";
 
 export const getERC20TokenData = (token: string): TokenData => ({
   tokenType: 0,

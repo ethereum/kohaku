@@ -1,10 +1,10 @@
-import type { TxData } from '../../account';
+import type { TxData } from "../../account";
 
 export const getTxData = (
   address: string,
   payload: string,
   value: bigint = 0n,
-  gasLimit?: bigint,
+  gasLimit?: bigint
 ): TxData => ({
   to: address,
   data: payload,

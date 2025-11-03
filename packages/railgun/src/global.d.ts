@@ -1,12 +1,16 @@
 declare type Optional<T> = T | undefined;
 
-declare module '@railgun-community/circomlibjs' {
+declare module "@railgun-community/circomlibjs" {
   export type Signature = {
     R8: [bigint, bigint];
     S: bigint;
   };
   export namespace eddsa {
-    export function verifyPoseidon(msg: bigint, sig: Signature, A: bigint[]): boolean;
+    export function verifyPoseidon(
+      msg: bigint,
+      sig: Signature,
+      A: bigint[]
+    ): boolean;
     export function signPoseidon(prv: Uint8Array, msg: bigint): Signature;
     export function prv2pub(prv: Buffer): [bigint, bigint];
   }
@@ -37,9 +41,9 @@ declare type Artifact = {
 //   export function listArtifacts(): ArtifactListMetadata;
 // }
 
-declare module 'snarkjs' {
-  export type Protocols = 'groth16';
-  export type Curves = 'bn128';
+declare module "snarkjs" {
+  export type Protocols = "groth16";
+  export type Curves = "bn128";
 
   export interface SnarkjsProof {
     pi_a: (string | bigint)[];
@@ -72,13 +76,13 @@ declare module 'snarkjs' {
       inputs: unknown,
       wasm: Uint8Array,
       zkey: Uint8Array,
-      logger?: unknown,
+      logger?: unknown
     ): Promise<SNARK>;
     function verify(
       vkVerifier: VKey,
       publicSignals: PublicSignals,
       proof: SnarkjsProof,
-      logger?: unknown,
+      logger?: unknown
     ): Promise<boolean>;
   }
 }

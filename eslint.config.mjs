@@ -1,40 +1,101 @@
-// Flat config for ESLint v9
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import eslintJs from '@eslint/js';
 import pluginImport from 'eslint-plugin-import';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import stylistic from '@stylistic/eslint-plugin';
+import eslintPluginSonarjs from 'eslint-plugin-sonarjs';
+import eslintPluginSimpleImportSort from 'eslint-plugin-simple-import-sort';
+import eslintPluginUnicorn from 'eslint-plugin-unicorn';
+import tseslint from 'typescript-eslint';
+import eslintPluginUnusedImports from 'eslint-plugin-unused-imports';
 
 export default [
   {
     ignores: [
       '**/dist/**',
+      '**/.wxt/**',
       '**/node_modules/**',
       '.changeset/**',
-      'eslint.config.mjs'
-    ]
+      'eslint.config.mjs',
+      '**/*.js',
+    ],
   },
-  js.configs.recommended,
+  eslintJs.configs.recommended,
   ...tseslint.configs.recommended,
+  eslintPluginPrettierRecommended,
   {
+    files: ['**/*.{js,mjs,cjs,jsx,ts,tsx}'],
+    ignores: ['**/railgun/lib/**', '**/railgun/logic/**'],
     plugins: {
       import: pluginImport,
+      'simple-import-sort': eslintPluginSimpleImportSort,
+      'unused-imports': eslintPluginUnusedImports,
+      sonarjs: eslintPluginSonarjs,
+      unicorn: eslintPluginUnicorn,
       '@stylistic': stylistic,
     },
     languageOptions: {
       ecmaVersion: 'latest',
-      sourceType: 'module'
+      sourceType: 'module',
     },
     rules: {
       'no-restricted-syntax': [
         'error',
         {
           selector: "Identifier[name='id']",
-          message: "Use a descriptive identifier like user_id, blogpost_id, etc."
-        }
+          message:
+            'Use a descriptive identifier like user_id, blogpost_id, etc.',
+        },
       ],
       'import/no-default-export': 'error',
       'no-control-regex': 'off',
-      '@stylistic/padding-line-between-statements': [
+      semi: ['error', 'always'],
+      'no-var': 'error',
+      'prefer-const': 'error',
+      'no-console': [
+        'warn',
+        { allow: ['warn', 'error', 'log', 'debug', 'info'] },
+      ],
+      'linebreak-style': ['error', 'unix'],
+      'object-curly-spacing': ['error', 'always'],
+      'no-multiple-empty-lines': ['warn', { max: 2 }],
+      'prefer-destructuring': 'warn',
+      'prefer-arrow-callback': 'warn',
+      'max-lines': ['error', 500],
+
+      // Import rules
+      'import/no-duplicates': 'error',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': [
+        'warn',
+        {
+          vars: 'all',
+          varsIgnorePattern: '^_',
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+        },
+      ],
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+
+      // TypeScript rules
+      '@typescript-eslint/no-empty-interface': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+
+      // SonarJS rules for code quality
+      'sonarjs/cognitive-complexity': ['error', 15],
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
+      'sonarjs/no-identical-functions': 'error',
+
+      // Unicorn rules for modern JS practices
+      'unicorn/prefer-module': 'error',
+      'unicorn/prefer-node-protocol': 'error',
+      'unicorn/no-array-for-each': 'off', // Allow forEach
+      'unicorn/prevent-abbreviations': 'off', // Allow abbreviations
+
+      // Padding lines for readability
+      'padding-line-between-statements': [
         'error',
         {
           blankLine: 'always',
@@ -52,18 +113,15 @@ export default [
           next: ['const', 'let'],
         },
       ],
-    }
+    },
   },
   {
-    ignores: [
-      '**/railgun/lib/**',
-      '**/railgun/logic/**',
-      '**/demo/**',
-      '**/tests/**',
-      '**/docs/**',
-    ],
+    files: ['**/vitest.config.ts', '**/wxt.config.ts'],
+    plugins: {
+      import: pluginImport,
+    },
     rules: {
-      'max-lines': ['error', 200],
-    }
-  }
+      'import/no-default-export': 'off',
+    },
+  },
 ];

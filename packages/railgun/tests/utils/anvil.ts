@@ -1,7 +1,8 @@
-import { createServer } from 'prool';
-import { anvil, type AnvilParameters } from 'prool/instances';
-import { JsonRpcProvider } from 'ethers';
-import { poolId } from './test-accounts';
+import { JsonRpcProvider } from "ethers";
+import { createServer } from "prool";
+import { anvil, type AnvilParameters } from "prool/instances";
+
+import { poolId } from "./test-accounts";
 
 type DefineAnvilParameters = {
   forkUrl: string;
@@ -20,12 +21,7 @@ export type AnvilInstance = {
 };
 
 export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
-  const {
-    forkUrl,
-    forkBlockNumber,
-    port = 8545,
-    chainId = 11155111,
-  } = params;
+  const { forkUrl, forkBlockNumber, port = 8545, chainId = 11155111 } = params;
 
   const rpcUrl = `http://127.0.0.1:${port}/${poolId}`;
   let stopFn: (() => Promise<void>) | undefined;
@@ -76,7 +72,7 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
         staticNetwork: true,
       });
 
-      await provider.send('anvil_mine', [`0x${blocks.toString(16)}`]);
+      await provider.send("anvil_mine", [`0x${blocks.toString(16)}`]);
     },
 
     async setBalance(address: string, balance: string) {
@@ -84,7 +80,7 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
         staticNetwork: true,
       });
 
-      await provider.send('anvil_setBalance', [address, balance]);
+      await provider.send("anvil_setBalance", [address, balance]);
     },
   };
 }

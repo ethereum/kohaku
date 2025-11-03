@@ -1,13 +1,14 @@
-import type { RailgunSigner } from '../provider';
-import type { TxData } from '~/account/tx/base';
-import type { ViemWalletClient } from './types';
+import type { TxData } from "~/account/tx/base";
+
+import type { RailgunSigner } from "../provider";
+import type { ViemWalletClient } from "./types";
 
 export class ViemSignerAdapter implements RailgunSigner {
   constructor(private readonly wallet: ViemWalletClient) {}
 
   async signMessage(message: string | Uint8Array): Promise<string> {
     return this.wallet.signMessage({
-      message: typeof message === 'string' ? message : { raw: message },
+      message: typeof message === "string" ? message : { raw: message },
     });
   }
 
@@ -22,7 +23,7 @@ export class ViemSignerAdapter implements RailgunSigner {
 
   async getAddress(): Promise<string> {
     if (!this.wallet.account) {
-      throw new Error('Wallet client does not have an account');
+      throw new Error("Wallet client does not have an account");
     }
 
     return this.wallet.account.address;
