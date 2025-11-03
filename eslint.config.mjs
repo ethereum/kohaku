@@ -2,6 +2,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import pluginImport from 'eslint-plugin-import';
+import stylistic from '@stylistic/eslint-plugin';
 
 export default [
   {
@@ -16,7 +17,8 @@ export default [
   ...tseslint.configs.recommended,
   {
     plugins: {
-      import: pluginImport
+      import: pluginImport,
+      '@stylistic': stylistic,
     },
     languageOptions: {
       ecmaVersion: 'latest',
@@ -31,7 +33,37 @@ export default [
         }
       ],
       'import/no-default-export': 'error',
-      'no-control-regex': 'off'
+      'no-control-regex': 'off',
+      '@stylistic/padding-line-between-statements': [
+        'error',
+        {
+          blankLine: 'always',
+          prev: '*',
+          next: ['return', 'if', 'switch', 'try', 'for'],
+        },
+        {
+          blankLine: 'always',
+          prev: ['if', 'switch', 'try', 'const', 'let'],
+          next: '*',
+        },
+        {
+          blankLine: 'any',
+          prev: ['const', 'let'],
+          next: ['const', 'let'],
+        },
+      ],
+    }
+  },
+  {
+    ignores: [
+      '**/railgun/lib/**',
+      '**/railgun/logic/**',
+      '**/demo/**',
+      '**/tests/**',
+      '**/docs/**',
+    ],
+    rules: {
+      'max-lines': ['error', 200],
     }
   }
 ];

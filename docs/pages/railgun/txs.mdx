@@ -5,16 +5,28 @@ This includes privately sending them to another railgun account, interacting wit
 
 ## Internal Transfer
 
-```ts
-// TODO: update this snippet
-const tx = await account.createNativeShieldTx(value, receiver);
-await account.submitTx(tx, signer);
-```
+```ts twoslash
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import type { WalletClient } from 'viem';
 
-```ts
-// TODO: update this snippet
-const tx = await account.createNativeShieldTx(value, receiver);
-await account.submitTx(tx, signer);
+declare const account: RailgunAccount
+declare const wallet: WalletClient
+
+const chainId = '11155111' as const;
+const value = 10000000000000n; // 0.00001 WETH
+const receiver = '0zk1qy...'; // Railgun address
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
+
+const tx = await account.transfer(chainId, WETH, receiver, value);
+
+// Submit the tx
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
 ```
 
 ## Defi & Other Smart Contracts
@@ -24,3 +36,5 @@ something something railgun and helper contract, unshielding, performing actions
 :::info
 TODO: Code snippet
 :::
+
+See the [Railgun Adapter Documentation](https://docs.railgun.org/wiki/learn/integrating-railgun/adapt-modules) for more information.

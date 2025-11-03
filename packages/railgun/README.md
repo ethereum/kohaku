@@ -1,6 +1,58 @@
-# ethprivacy/railgun
+# @kohaku-eth/railgun
 
-simplified railgun typescript utils, borrowing code from internals of [railgun-community/engine](https://github.com/railgun-community/engine) and [railgun-privacy/contract](https://github.com/railgun-privacy/contract) (see [here](#about-forked-libs) for more info)
+Simplified Railgun TypeScript SDK with support for both Ethers and Viem. Borrows code from internals of [railgun-community/engine](https://github.com/railgun-community/engine) and [railgun-privacy/contract](https://github.com/railgun-privacy/contract) (see [About Forked Libs](#about-forked-libs))
+
+## Features
+
+- **Provider Agnostic**: Works with both Ethers v6 and Viem v2
+- **Factory Functions**: Clean, functional API inspired by Viem's design patterns
+- **Type Safe**: Full TypeScript support with comprehensive type definitions
+- **Transaction Builder**: SDK outputs transaction data, you control submission
+- **Privacy-First**: Shield, transfer, and unshield tokens privately on Ethereum
+
+## Installation
+
+```sh
+pnpm add @kohaku-eth/railgun
+```
+
+## Quick Start
+
+```ts
+import { createRailgunAccountFromMnemonic } from '@kohaku-eth/railgun';
+
+// Create account from mnemonic
+const account = await createRailgunAccountFromMnemonic({
+  mnemonic: 'your twelve word mnemonic phrase here ...',
+  accountIndex: 0,
+  chainId: '11155111', // Sepolia
+});
+
+// Get your Railgun address
+const address = await account.getRailgunAddress();
+console.log('Railgun address:', address); // 0zk1...
+
+// Shield ETH
+const shieldTx = await account.createNativeShieldTx(BigInt('100000000000000000')); // 0.1 ETH
+
+// Submit with Ethers
+await wallet.sendTransaction({
+  to: shieldTx.to,
+  data: shieldTx.data,
+  value: shieldTx.value,
+  gasLimit: 6000000
+});
+
+// Or submit with Viem
+await walletClient.sendTransaction({
+  to: shieldTx.to as `0x${string}`,
+  data: shieldTx.data as `0x${string}`,
+  value: shieldTx.value,
+  gas: 6000000n
+});
+```
+
+See [full documentation](../../docs) for more examples.
 
 ## Demo
 
@@ -10,7 +62,7 @@ You need a `RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixe
 
 from monorepo root directory, after installing deps with `pnpm install`, run:
 
-```
+```sh
 pnpm -F @kohaku-eth/railgun demo
 ```
 

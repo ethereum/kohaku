@@ -4,79 +4,171 @@
 TODO: Write intro
 :::
 
-## Shielding
+## Shielding ETH
 
 When shielding you are essentially depositing an ERC20 token into the railgun system.
 This transaction comes from the account you want to shield from.
 
-```ts
-import { Wallet } from 'ethers';
-
-const VALUE = 10000000000000n; // 0.00001 ETH
-const tx = await account.createNativeShieldTx(value);
-
-// Eoa that will send the tx
-const signer = new Wallet(TX_SIGNER_KEY, provider);
-await account.submitTx(tx, signer);
-```
-
-## Unshielding
-
-### From EOA
-
-This transaction can be sent from an EOA. This can be the recipient itself, or a different EOA.
-If the recipient is not an EOA, or does not have ETH yet, you can use a [relayer](#railgun-relayer) to submit the tx on your behalf.
-
-:::note
-Do note that this EOA will be the submitter of the tx, and thus linked to the recipient.
-:::
-
-```ts filename="vars.ts"
-const value = 10000000000000n; // 0.00001 ETH
-const recipient = '0x...';
-```
-
 :::code-group
 
-```ts [Ethers]
-import { Wallet } from 'ethers';
+```ts [shield-eth.ts] filename="shield-eth.ts"
+// @noErrors
+import { account, wallet } from './config.ts';
 
-// [!include vars.ts]
+const chainId = '11155111' as const;
+const VALUE = 10000000000000n; // 0.00001 ETH
+// Shield native ETH (auto-wraps to WETH)
+const tx = await account.shield(chainId, '0xfFf9976782d46CC05630D92EE39e704800271F7D', VALUE); // [!code focus]
 
-const signer = new Wallet(mnemonic, provider);
-
-const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
-
-// Submit the tx // [!code focus]
-await account.submitTx(tx, signer); // [!code focus]
+// Eoa that will send the tx
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
 ```
 
-```ts [Viem]
-import { createWalletClient } from 'viem'
-import { mainnet } from 'viem/chains'
-import { mnemonicToAccount } from 'viem/accounts'
+```ts [config.ts] filename="config.ts"
+// @errors: 2307
+import {
+  createRailgunAccount,
+  createRailgunIndexer,
+  ViemProviderAdapter,
+} from '@kohaku-eth/railgun';
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
-// [!include vars.ts]
+const rpcUrl = 'https://sepolia.rpc.example';
+const publicClient = createPublicClient({ transport: http(rpcUrl) });
 
-const signer = mnemonicToAccount(mnemonic, accountIndex)
-const client = createWalletClient({
-  account,
-  chain: mainnet,
-  transport: http()
-})
+const mnemonic = 'test test test test test test test test test test test junk';
+const accountIndex = 0;
+const chainId = '11155111';
 
-const tx = await account.createNativeUnshieldTx(value, recipient); // [!code focus]
+// Create wallet client for signing
+export const wallet = createWalletClient({
+  transport: http(rpcUrl),
+});
 
-// Submit the tx // [!code focus]
-await account.submitTx(tx, signer); // [!code focus]
+const indexer = await createRailgunIndexer({
+  chainId,
+  provider: new ViemProviderAdapter(publicClient),
+});
+
+// Create the account with provided credentials and indexer
+export const account = await createRailgunAccount({
+  credentials: { mnemonic, accountIndex },
+  indexer,
+});
+
+// Sync indexer to include account state
+await indexer.sync();
 ```
 
 :::
-
-### Railgun Relayer
-
-The railgun system does have a relayer that can be used to submit the tx on your behalf.
 
 :::info
-TODO: Code snippet
+The `shield()` method will wrap the ETH to WETH before shielding.
 :::
+
+## Shielding ERC20
+
+Railgun allows for shielding any ERC20 token.
+
+```ts
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import type { WalletClient } from 'viem';
+
+declare const account: RailgunAccount;
+declare const wallet: WalletClient;
+
+const chainId = '11155111';
+const VALUE = 10000000000000n; // 0.00001 WETH
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D';
+const tx = await account.shield(WETH, VALUE); // [!code focus]
+
+// Eoa that will send the tx
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
+```
+
+## Private Transfers
+
+Transfer funds privately between railgun accounts using the `transfer()` method:
+
+```ts
+// @noErrors
+import type { RailgunAccount } from '@kohaku-eth/railgun';
+import type { WalletClient } from 'viem';
+
+declare const account: RailgunAccount;
+declare const wallet: WalletClient;
+
+const chainId = '11155111' as const;
+const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
+const amount = 50000000000000n; // 0.05 WETH
+const recipientZkAddress = '0zk1qy...'; // recipient's 0zk address
+
+const tx = await account.transfer(WETH, recipientZkAddress, amount); // [!code focus]
+
+// Send the transaction
+await wallet.sendTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: 6000000
+});
+```
+
+## Syncing account state
+
+When you manage more than one Railgun account, wire them through the same indexer so each address stays in sync from a single log stream.
+
+```ts
+// @noErrors
+import { createRailgunIndexer, createRailgunAccount } from '@kohaku-eth/railgun';
+import { createPublicClient, http } from 'viem';
+
+const chainId = '11155111' as const;
+const rpcUrl = 'https://sepolia.rpc.example';
+const publicClient = createPublicClient({ transport: http(rpcUrl) });
+const provider = new (await import('@kohaku-eth/railgun')).ViemProviderAdapter(publicClient);
+const railgunSepolia = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
+
+const indexer = await createRailgunIndexer({
+  network: railgunSepolia,
+  provider,
+});
+
+// Create multiple accounts
+const aliceAccount = await createRailgunAccount({
+  credentials: { mnemonic: 'alice mnemonic here', accountIndex: 0 },
+  indexer,
+});
+
+const bobAccount = await createRailgunAccount({
+  credentials: { mnemonic: 'bob mnemonic here', accountIndex: 0 },
+  indexer,
+});
+
+await indexer.sync();
+
+const root = await indexer.getLatestMerkleRoot();
+console.log('root: ', root);
+```
+
+## Considerations
+
+When shielding ERC20 there are some things to consider.
+Please refer to the [Railgun documentation](https://docs.railgun.org/wiki/learn/shielding-tokens) for more information.
+
+## Fees
+
+In addition to the expected network fees (gas fees), there is also a [Protocol Fee](https://docs.railgun.org/wiki/learn/railgun-deductions) (when shielding & unshielding) and [Broadcaster Premium](https://docs.railgun.org/wiki/learn/railgun-deductions).
+Broadcaster Premiums are up to the individual Broadcasters, according to the railgun documentation "generally they are ~10% of the total gas"[*](https://docs.railgun.org/wiki/learn/railgun-deductions).

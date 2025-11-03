@@ -2,13 +2,14 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts' },
+  entry: { index: 'src/index.ts', 'storage/layers/file': 'src/storage/layers/file.ts', 'storage/layers/empty': 'src/storage/layers/empty.ts' },
   format: ['esm'],
   dts: true,
   sourcemap: true,
   clean: true,
   target: 'es2022',
   treeshake: true,
+  tsconfig: 'tsconfig.json',
   external: [
     'ethers',
     '@noble/ed25519',
@@ -20,5 +21,5 @@ export default defineConfig({
     '@railgun-community/circuit-artifacts',
     '@railgun-community/curve25519-scalarmult-wasm',
     '@railgun-community/poseidon-hash-wasm'
-  ]
+  ],
 });

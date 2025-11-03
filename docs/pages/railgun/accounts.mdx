@@ -10,61 +10,152 @@ TODO: Write intro
 
 :::code-group
 
-```ts filename="viem.ts" [Viem]
-import { RailgunAccount } from '@kohaku-eth/railgun'
+```ts filename="viem.ts" twoslash [Viem]
+// @noErrors
 import { english, generateMnemonic } from 'viem/accounts'
 
 const mnemonic = generateMnemonic(english) // [!code focus]
 const accountIndex = 0
 ```
 
-```ts filename="raw.ts" [Raw]
-import { RailgunAccount } from '@kohaku-eth/railgun'
-
-const mnemonic = 'test test test test test test test test test test test junk'
+```ts filename="raw.ts" twoslash [Raw]
+// @noErrors
+const mnemonic = 'test test test test test test test test test test test test test junk'
 const accountIndex = 0
 ```
 
 :::
 
-### Initialize Account
+### Initialize Account and Indexer
 
 Putting it all together
 
-```ts filename="result.ts"
-// [!include viem.ts] 
+```ts twoslash filename="result.ts"
+// @noErrors
+import { createRailgunAccount, createRailgunIndexer, ViemProviderAdapter } from '@kohaku-eth/railgun'
+import { createPublicClient, http } from 'viem'
 
-const account = RailgunAccount.fromMnemonic(mnemonic, accountIndex)// [!code hl] [!code focus]
+const mnemonic = 'test test test test test test test test test test test junk'
+const accountIndex = 0
+const chainId = '11155111' as const
+
+// Create a provider first
+const publicClient = createPublicClient({
+  transport: http('https://sepolia.rpc.example'),
+})
+
+// Create the indexer
+const indexer = await createRailgunIndexer({
+  chainId,
+  provider: new ViemProviderAdapter(publicClient),
+})
+
+// Create the account with specified signer and indexer
+const account = await createRailgunAccount({
+  credentials: { mnemonic, accountIndex },
+  indexer,
+});
+
+// Sync the indexer to the latest block
+await indexer.sync()
 ```
 
 ### Get 0zk Address
 
 Every railgun account has a 0zk address that can be used to receive and send tokens.
 
-```ts
-const zkAddress = await railgunAccount.getRailgunAddress();
+:::code-group
+
+```ts twoslash [address.ts] filename="address.ts"
+import { account } from './config.ts'
+
+const zkAddress = await account.getRailgunAddress();
 // 0zk
 ```
+
+```ts twoslash [config.ts] filename="config.ts"
+import { createRailgunAccount, ViemProviderAdapter } from '@kohaku-eth/railgun';
+import { createPublicClient, http } from 'viem';
+
+const mnemonic = 'test test test test test test test test test test test junk'
+
+const indexer = await createRailgunIndexer({
+  chainId: '11155111',
+  provider: new ViemProviderAdapter(createPublicClient({ transport: http('https://sepolia.rpc.example') })),
+});
+
+export const account = await createRailgunAccount({
+  credentials: { mnemonic, accountIndex: 0 },
+  indexer,
+});
+```
+
+:::
 
 You can now receive funds to this address, see [Transacting](/railgun/txs) for more details.
 
 ## Getting Balances
 
-```ts
-import { getAllReceipts } from '@kohaku-eth/railgun/account-utils';
-import { ByteUtils } from '@kohaku-eth/railgun/railgun-lib/utils/bytes';
+```ts twoslash
+// @noErrors
+import { createRailgunIndexer, createRailgunAccount, ViemProviderAdapter } from '@kohaku-eth/railgun';
+import { createPublicClient, http } from 'viem';
 
-const receipts = await getAllReceipts(provider, startBlock, endBlock);
-await account.syncWithReceipts(receipts);
 
+const chainId = '11155111' as const
+const startBlock = 4495479
+const mnemonic = 'test test test test test test test test test test test junk'
+
+// Get current block
+const publicClient = createPublicClient({
+  transport: http('https://sepolia.rpc.example'),
+});
+const endBlock = await publicClient.getBlockNumber()
+
+// Create indexer and sync
+const indexer = await createRailgunIndexer({
+  chainId,
+  provider: new ViemProviderAdapter(publicClient),
+});
+
+// Create account
+export const account = await createRailgunAccount({
+  credentials: { mnemonic, accountIndex: 0 },
+  indexer,
+});
+
+await indexer.sync();
+
+// Get balance - optional token parameter (undefined = native gas token balance)
 const balance = await account.getBalance();
 ```
 
 ### Syncing Merkle Roots
 
-```ts
-// Get the latest merkle root
-const root = account.getLatestMerkleRoot();
+```ts twoslash
+// @noErrors
+import { ByteUtils, createRailgunAccount, createRailgunIndexer, ViemProviderAdapter } from '@kohaku-eth/railgun';
+
+const mnemonic = 'test test test test test test test test test test test junk'
+const accountIndex = 0
+
+export const publicClient = createPublicClient({
+  transport: http('https://sepolia.rpc.example'),
+});
+
+export const indexer = await createRailgunIndexer({
+  chainId,
+  provider: new ViemProviderAdapter(publicClient),
+});
+
+export const account = await createRailgunAccount({
+  credentials: { mnemonic, accountIndex },
+  indexer,
+});
+
+await indexer.sync();
+
+const root = await indexer.getLatestMerkleRoot();
 console.log('latest merkle root:', ByteUtils.hexlify(root, true));
 ```
 
