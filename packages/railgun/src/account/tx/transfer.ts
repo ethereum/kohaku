@@ -13,14 +13,14 @@ export type CreateTransfer = { transfer: CreateTransferTxFn };
 
 export type CreateTransferContext = {
     network: RailgunNetworkConfig;
-    trees: MerkleTree[];
+    getTrees: () => MerkleTree[];
 } & Pick<GetNotes, 'getTransactNotes'>;
 
 const RAILGUN_INTERFACE = new Interface(ABIRailgunSmartWallet);
 
-export const makeCreateTransfer = async ({ network, trees, getTransactNotes }: CreateTransferContext): Promise<CreateTransfer> => {
+export const makeCreateTransfer = async ({ network, getTrees, getTransactNotes }: CreateTransferContext): Promise<CreateTransfer> => {
     const transfer: CreateTransferTxFn = async (token, value, receiver, minGasPrice = BigInt(0)) => {
-        console.log('tree ', trees.length);
+        console.log('tree ', getTrees().length);
 
         if (!receiver.startsWith("0zk")) {
             throw new Error('receiver must be a railgun 0zk address');
@@ -44,7 +44,7 @@ export const makeCreateTransfer = async ({ network, trees, getTransactNotes }: C
             console.log('transacting ', notesIn[i]!.length, ' notes in tree ', i);
 
             const inputs = await transact(
-                trees[i]!,
+                getTrees()[i]!,
                 minGasPrice,
                 0, // no unshield
                 network.CHAIN_ID,

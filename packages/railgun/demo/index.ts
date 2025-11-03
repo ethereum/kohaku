@@ -1,14 +1,12 @@
-
-import { createRailgunAccount, createRailgunIndexer, type RailgunLog } from '../src';
+import { createRailgunAccount, createRailgunIndexer } from '../src';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../src/config';
 import { EthersProviderAdapter, EthersSignerAdapter } from '../src/provider';
 import dotenv from 'dotenv';
 import { Wallet, JsonRpcProvider } from 'ethers';
-import sepolia_checkpoint from '../checkpoints/sepolia_public_checkpoint.json';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import fs from 'fs';
-import type { SerializedNoteData } from '../src/railgun/logic/logic/note';
+import { createFileStorageLayer } from '~/storage/layers/file';
 
 // Load ./demo/.env (same folder as this file)
 const __filename = fileURLToPath(import.meta.url);
@@ -32,17 +30,6 @@ const RPC_URL = env.RPC_URL || '';
 const TX_SIGNER_KEY = env.TX_SIGNER_KEY || '';
 const VALUE = 10000000000000n; // 0.00001 ETH
 const RANDOM_RAILGUN_RECEIVER = "0zk1qyhl9p096zdc34x0eh7vdarr73xjfymq2xeef3nhkvgg2vlynzwdlrv7j6fe3z53lalqtuna0f5hkrt3ket0wl9mket7ck8jthq807d7fyq5u4havp4v2u70sva";
-
-type PublicCache = {
-  logs: RailgunLog[];
-  merkleTrees: {tree: string[][], nullifiers: string[]}[];
-  endBlock: number;
-}
-
-type PrivateCache = {
-  noteBooks: SerializedNoteData[][];
-  endBlock: number;
-}
 
 async function main() {
   console.log("\n ///// RAILGUN SEPOLIA DEMO /////\n");
@@ -71,16 +58,19 @@ async function main() {
 
   // 1. instantiate indexer and account from mnemonic
   const indexer = await createRailgunIndexer({
-    chainId,
+    network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
     provider,
+    storage: createFileStorageLayer('./checkpoints/sepolia_public_checkpoint.json'),
   });
 
   const railgunAccount = await createRailgunAccount({
-    credentials: {
+    credential: {
+      type: 'mnemonic',
       mnemonic: MNEMONIC,
       accountIndex: ACCOUNT_INDEX,
     },
     indexer,
+    storage: createFileStorageLayer('./demo/account.json'),
   });
 
   // 2. get railgun 0zk address
@@ -93,66 +83,67 @@ async function main() {
     fs.mkdirSync('./demo/cache/', { recursive: true });
   }
 
-  const publicCacheExists = fs.existsSync('./demo/cache/sepolia_public.json');
-  const public_cache = publicCacheExists ? JSON.parse(fs.readFileSync('./demo/cache/sepolia_public.json', 'utf8')) as PublicCache : sepolia_checkpoint as unknown as PublicCache;
+  // const publicCacheExists = fs.existsSync('./demo/cache/sepolia_public.json');
+  // const public_cache = publicCacheExists ? JSON.parse(fs.readFileSync('./demo/cache/sepolia_public.json', 'utf8')) as PublicCache : sepolia_checkpoint as unknown as PublicCache;
 
   console.log("\nresyncing railgun account...");
   console.log("    -> WARNING: can be slow (e.g. minutes) on first run without local cache...")
-  
+
   // Load cached merkle trees into indexer
-  await indexer.loadState({ merkleTrees: public_cache.merkleTrees, latestSyncedBlock: public_cache.endBlock });
-  
+  // await indexer.loadState({ merkleTrees: public_cache.merkleTrees, latestSyncedBlock: public_cache.endBlock });
+
   // Load cached notebooks into account (if available)
-  const privateCacheExists = fs.existsSync(`./demo/cache/sepolia_${zkAddress}.json`);
+  // const privateCacheExists = fs.existsSync(`./demo/cache/sepolia_${zkAddress}.json`);
 
   // Note: In production, you would use the storage parameter on account creation
   // For this demo, we're loading the private cache manually if it exists
-  if (privateCacheExists) {
-    const private_cache = JSON.parse(fs.readFileSync(`./demo/cache/sepolia_${zkAddress}.json`, 'utf8')) as PrivateCache;
+  // if (privateCacheExists) {
+    // const private_cache = JSON.parse(fs.readFileSync(`./demo/cache/sepolia_${zkAddress}.json`, 'utf8')) as PrivateCache;
 
     // IMPORTANT: Only load private cache if it's in sync with public cache
     // If public cache is older than private cache, private notebooks reference
     // commitments that don't exist in the merkle trees, causing "not found" errors
-    if (private_cache.endBlock <= public_cache.endBlock) {
-      // Account notebooks are automatically loaded through storage param in createRailgunAccount
-      // This demo doesn't use storage param, so we need to replay logs to rebuild notebooks
-      // We can optimize by only replaying logs from startBlock to private_cache.endBlock
-      await indexer.processLogs(
-        public_cache.logs.filter(log => log.blockNumber <= private_cache.endBlock),
-        { skipMerkleTree: true },
-      );
-      
-      // Then process remaining logs if public cache is newer
-      if (private_cache.endBlock < public_cache.endBlock) {
-        await indexer.processLogs(
-          public_cache.logs.filter(log => log.blockNumber > private_cache.endBlock),
-          { skipMerkleTree: true },
-        );
-      }
-    } else {
-      console.warn(`\nWARNING: Private cache (block ${private_cache.endBlock}) is ahead of public cache (block ${public_cache.endBlock})`);
-      console.warn('Rebuilding notebooks from scratch by replaying all logs...\n');
-      await indexer.processLogs(public_cache.logs, { skipMerkleTree: true });
-    }
-  } else {
-    await indexer.processLogs(public_cache.logs, { skipMerkleTree: true });
-  }
+  //   if (private_cache.endBlock <= public_cache.endBlock) {
+  //     // Account notebooks are automatically loaded through storage param in createRailgunAccount
+  //     // This demo doesn't use storage param, so we need to replay logs to rebuild notebooks
+  //     // We can optimize by only replaying logs from startBlock to private_cache.endBlock
+  //     await indexer.processLogs(
+  //       public_cache.logs.filter(log => log.blockNumber <= private_cache.endBlock),
+  //       { skipMerkleTree: true },
+  //     );
 
-  let startBlock = public_cache.endBlock > 0 ? public_cache.endBlock : RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].GLOBAL_START_BLOCK;
+  //     // Then process remaining logs if public cache is newer
+  //     if (private_cache.endBlock < public_cache.endBlock) {
+  //       await indexer.processLogs(
+  //         public_cache.logs.filter(log => log.blockNumber > private_cache.endBlock),
+  //         { skipMerkleTree: true },
+  //       );
+  //     }
+  //   } else {
+  //     console.warn(`\nWARNING: Private cache (block ${private_cache.endBlock}) is ahead of public cache (block ${public_cache.endBlock})`);
+  //     console.warn('Rebuilding notebooks from scratch by replaying all logs...\n');
+  //     await indexer.processLogs(public_cache.logs, { skipMerkleTree: true });
+  //   }
+  // } else {
+  //   await indexer.processLogs(public_cache.logs, { skipMerkleTree: true });
+  // }
+
+  // let startBlock = public_cache.endBlock > 0 ? public_cache.endBlock : RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].GLOBAL_START_BLOCK;
   let endBlock = await provider.getBlockNumber();
 
-  console.log(`    -> fetching new logs from start block (${startBlock}) to latest block (${endBlock})...`);
-  const newLogs = await indexer.fetchLogs(startBlock, endBlock);
+  // console.log(`    -> fetching new logs from start block (${startBlock}) to latest block (${endBlock})...`);
+  // const newLogs = await indexer.fetchLogs(startBlock, endBlock);
+  await indexer.sync({ toBlock: endBlock, logProgress: true });
 
-  if (newLogs.length > 0) {
-    console.log(`    -> syncing ${newLogs.length} new logs...`);
-    await indexer.processLogs(newLogs);
-  }
+  // if (newLogs.length > 0) {
+  //   console.log(`    -> syncing ${newLogs.length} new logs...`);
+  //   await indexer.processLogs(newLogs);
+  // }
 
   const balance = await railgunAccount.getBalance();
 
   console.log("\nprivate WETH balance:", balance);
-  const root = indexer.getLatestMerkleRoot();
+  const root = railgunAccount.getLatestMerkleRoot();
 
   console.log("root:", root);
 
@@ -181,20 +172,19 @@ async function main() {
 
   // 6. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
-  startBlock = endBlock;
-  endBlock = await provider.getBlockNumber();
-  const newLogs2 = await indexer.fetchLogs(startBlock, endBlock);
 
-  await indexer.processLogs(newLogs2);
+  endBlock = await provider.getBlockNumber();
+  await indexer.sync({ toBlock: endBlock, logProgress: true });
+
   const balance2 = await railgunAccount.getBalance();
 
   console.log("\nnew private WETH balance:", balance2);
-  const root2 = indexer.getLatestMerkleRoot();
+  const root2 = railgunAccount.getLatestMerkleRoot();
 
   console.log("new root:", root2);
 
   // 7. create internal private transfer tx data
-  const weth = RAILGUN_CONFIG_BY_CHAIN_ID[chainId.toString() as keyof typeof RAILGUN_CONFIG_BY_CHAIN_ID].WETH;
+  const weth = RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.WETH!;
   const internalTransactTx = await railgunAccount.transfer(weth, balance2/10n, RANDOM_RAILGUN_RECEIVER);
 
   // 8. do internal private transfer tx
@@ -205,15 +195,13 @@ async function main() {
 
   // 9. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
-  startBlock = endBlock;
   endBlock = await provider.getBlockNumber();
-  const newLogs3 = await indexer.fetchLogs(startBlock, endBlock);
+  await indexer.sync({ toBlock: endBlock, logProgress: true });
 
-  await indexer.processLogs(newLogs3);
   const balance3 = await railgunAccount.getBalance();
 
   console.log("\nnew private WETH balance:", balance3);
-  const root3 = indexer.getLatestMerkleRoot();
+  const root3 = railgunAccount.getLatestMerkleRoot();
 
   console.log("new root:", root3);
 
@@ -228,34 +216,20 @@ async function main() {
 
   // 12. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
-  startBlock = endBlock;
   endBlock = await provider.getBlockNumber();
-  const newLogs4 = await indexer.fetchLogs(startBlock, endBlock);
+  await indexer.sync({ toBlock: endBlock, logProgress: true });
 
-  await indexer.processLogs(newLogs4);
   const balance4 = await railgunAccount.getBalance();
 
   console.log("\nnew private WETH balance:", balance4);
-  const root4 = indexer.getLatestMerkleRoot();
+  const root4 = railgunAccount.getLatestMerkleRoot();
 
   console.log("new (or same) root:", root4);
 
   // 13. save cache for faster syncing next time
   console.log('storing updated cache before exiting...');
-  const allLogs = Array.from(new Set(public_cache.logs.concat(newLogs).concat(newLogs2).concat(newLogs3).concat(newLogs4)));
-  const toCachePublic = {
-    logs: allLogs,
-    merkleTrees: indexer.getMerkleTrees(),
-    endBlock: endBlock,
-  };
 
-  fs.writeFileSync('./demo/cache/sepolia_public.json', JSON.stringify(toCachePublic, null, 2));
-  const toCachePrivate = {
-    noteBooks: railgunAccount.serializeState(),
-    endBlock: endBlock,
-  };
-
-  fs.writeFileSync(`./demo/cache/sepolia_${zkAddress}.json`, JSON.stringify(toCachePrivate, null, 2));
+  // TODO: cleanup
 
   // exit (because prover hangs)
   setImmediate(() => process.exit(0));

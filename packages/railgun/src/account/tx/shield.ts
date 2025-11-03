@@ -37,7 +37,6 @@ export const makeCreateShield = async ({ network, master, viewing, signer }: Cre
 
     const buildShieldNote = async (token: Address, value: bigint): Promise<ShieldNoteERC20> => {
         return new ShieldNoteERC20(master, ByteUtils.randomHex(16), value, token);
-
     };
 
     const encodeShieldNote = async (shieldNote: ShieldNoteERC20): Promise<ShieldRequestStruct> => {

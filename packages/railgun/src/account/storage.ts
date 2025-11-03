@@ -1,142 +1,81 @@
-import { SerializedNoteData } from "~/railgun/logic/logic/note";
+import { Note, SerializedNoteData } from "~/railgun/logic/logic/note";
+import { createBaseStorage, StorageLayer } from "~/storage/base";
 import { Notebook } from "~/utils/notebook";
-import { Note } from '~/railgun/logic/logic/note';
-import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { DerivedKeys } from "./keys";
-import { ByteUtils } from "~/railgun/lib/utils";
-import { hexStringToArray } from "~/railgun/logic/global/bytes";
 
 export type CachedNotebooks = SerializedNoteData[][];
 
 // export type AccountStorage = createStorage<CachedNotebooks, Notebook[]>();
 
-export type LoadCachedNotebooksParams = {
-  trees: MerkleTree[];
-  notebooks: Notebook[];
-} & Pick<DerivedKeys, 'viewing' | 'spending'>;
+// export type LoadCachedNotebooksParams = {
+//   notebooks: Notebook[];
+// } & Pick<DerivedKeys, 'viewing' | 'spending'>;
 
-export const loadCachedNotebooks = async (cached: CachedNotebooks, { viewing, spending, trees, notebooks }: LoadCachedNotebooksParams) => {
-  const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
-  const spendingKey = spending.getSpendingKeyPair().privateKey;
+// export const loadCachedNotebooks = async (cached: CachedNotebooks, { viewing, spending, trees, notebooks }: LoadCachedNotebooksParams) => {
+//   const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
+//   const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-  for (let i = 0; i < cached.length; i++) {
-    if (!trees[i]) {
-      trees[i] = await MerkleTree.createTree(i);
-      notebooks[i] = new Notebook();
-    }
+//   for (let i = 0; i < cached.length; i++) {
+//     if (!trees[i]) {
+//       trees[i] = await MerkleTree.createTree(i);
+//     }
 
-    cached[i]!.forEach((noteData, j) => {
-      if (noteData !== null) {
-        notebooks[i]!.notes[j] = Note.fromSerializedNoteData(spendingKey, viewingKey, noteData);
-      }
-    });
-  }
+//     cached[i]!.forEach((noteData, j) => {
+//       if (noteData !== null) {
+//         notebooks[i]!.notes[j] = Note.fromSerializedNoteData(spendingKey, viewingKey, noteData);
+//       }
+//     });
+//   }
+// };
+
+export type AccountStorage = {
+    notebooks: Notebook[];
+};
+export type CachedAccountStorage = {
+    notebooks: SerializedNoteData[][];
 };
 
+export type AccountStorageContext = Pick<DerivedKeys, 'viewing' | 'spending'>;
 
-export type CachedMerkleTrees = { tree: string[][], nullifiers: string[] }[];
+export const createAccountStorage = async (storage: StorageLayer, { spending, viewing }: AccountStorageContext) => {
+    const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
+    const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-// export const createIndexerStorage;
+    const { load, save } = createBaseStorage<AccountStorage, CachedAccountStorage>(storage, {
+        parse: async ({ notebooks } = { notebooks: [] }) => {
+            const parsed: Notebook[] = [];
 
-export const loadCachedMerkleTrees = async (cachedTrees: CachedMerkleTrees) => {
-  const trees: MerkleTree[] = [];
-
-  for (let i = 0; i < cachedTrees.length; i++) {
-    const merkleTree = await MerkleTree.createTree(i);
-
-    merkleTree.tree = cachedTrees[i]!.tree.map(level => level.map(hexStringToArray));
-    merkleTree.nullifiers = cachedTrees[i]!.nullifiers.map(hexStringToArray);
-
-
-    if (!trees[i]) {
-      trees[i] = merkleTree;
-      // TODO: unknown side-effect, notebook creation
-      //  this.noteBooks[i] = new NoteBook();
-    } else {
-      trees[i] = merkleTree;
-    }
-  }
-
-  return trees;
-}
-
-export const serializeMerkleTrees = (trees: MerkleTree[]): CachedMerkleTrees => {
-  const merkleTrees = [];
-
-  for (const tree of trees) {
-      merkleTrees.push({
-          tree: tree.tree.map(level => level.map(leaf => ByteUtils.hexlify(leaf, true))),
-          nullifiers: tree.nullifiers.map(nullifier => ByteUtils.hexlify(nullifier, true)),
-      });
-  }
-
-  return merkleTrees;
-};
-
-/*
-// Indexer function (realistically at boot if given storage)
-    async loadCachedMerkleTrees(merkleTrees: { tree: string[][], nullifiers: string[] }[]) {
-        for (let i = 0; i < merkleTrees.length; i++) {
-            const merkleTree = await MerkleTree.createTree(i);
-
-            merkleTree.tree = merkleTrees[i]!.tree.map(level => level.map(hexStringToArray));
-            merkleTree.nullifiers = merkleTrees[i]!.nullifiers.map(hexStringToArray);
-
-            if (!this.merkleTrees[i]) {
-                this.merkleTrees[i] = merkleTree;
-                this.noteBooks[i] = new NoteBook();
-            } else {
-                this.merkleTrees[i] = merkleTree;
-            }
-        }
-    }
-    // Indexer storage function
-    serializeMerkleTrees() {
-        const merkleTrees = [];
-
-        for (const tree of this.merkleTrees) {
-
-            merkleTrees.push({
-                tree: tree.tree.map(level => level.map(leaf => ByteUtils.hexlify(leaf, true))),
-                nullifiers: tree.nullifiers.map(nullifier => ByteUtils.hexlify(nullifier, true)),
-            });
-        }
-
-        return merkleTrees;
-    }
-
-    */
-
-/*
-
-    // Account function (realistically at boot if given storage)
-    async loadCachedNoteBooks(noteBooks: SerializedNoteData[][]) {
-        const viewingKey = (await this.viewing.getViewingKeyPair()).privateKey;
-        const spendingKey = this.spending.getSpendingKeyPair().privateKey;
-
-        for (let i = 0; i < noteBooks.length; i++) {
-            if (!this.merkleTrees[i]) {
-                this.merkleTrees[i] = await MerkleTree.createTree(i);
-                this.noteBooks[i] = new NoteBook();
-            }
-
-            noteBooks[i]!.forEach((noteData, j) => {
-                if (noteData !== null) {
-                    this.noteBooks[i]!.notes[j] = Note.fromSerializedNoteData(spendingKey, viewingKey, noteData);
+            for (let i = 0; i < notebooks.length; i++) {
+                if (!parsed[i]) {
+                    parsed[i] = new Notebook();
                 }
-            });
-        }
-    }
 
+                notebooks[i]!.forEach((noteData, j) => {
+                    if (noteData !== null) {
+                        parsed[i]!.notes[j] = Note.fromSerializedNoteData(spendingKey, viewingKey, noteData);
+                    }
+                });
+            }
 
-    // Account storage function
-    serializeNoteBooks() {
-        const noteBooks = [];
+            return { notebooks: parsed };
+        },
+        serialize: async ({ notebooks }) => {
+            const serialized = [];
 
-        for (const noteBook of this.noteBooks) {
-            noteBooks.push(noteBook.serialize());
-        }
+            for (const noteBook of notebooks) {
+                serialized.push(noteBook ? noteBook.serialize() : []);
+            }
 
-        return noteBooks;
-    }
-    */
+            return { notebooks: serialized };
+        },
+    });
+
+    const { notebooks } = await load();
+
+    const saveNotebooks = () => save({ notebooks });
+
+    return {
+        notebooks,
+        saveNotebooks,
+    };
+}

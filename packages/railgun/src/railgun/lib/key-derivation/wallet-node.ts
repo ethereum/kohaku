@@ -33,9 +33,7 @@ export const deriveNodes = (mnemonic: string, index: number = 0): WalletNodes =>
   const paths = derivePathsForIndex(index);
 
   return {
-
     spending: WalletNode.fromMnemonic(mnemonic).derive(paths.spending),
-
     viewing: WalletNode.fromMnemonic(mnemonic).derive(paths.viewing),
   };
 };

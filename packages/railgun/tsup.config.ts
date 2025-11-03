@@ -2,7 +2,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts' },
+  entry: { index: 'src/index.ts', 'storage/layers/file': 'src/storage/layers/file.ts', 'storage/layers/empty': 'src/storage/layers/empty.ts' },
   format: ['esm'],
   dts: true,
   sourcemap: true,

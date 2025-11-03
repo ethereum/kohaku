@@ -11,7 +11,7 @@ This transaction comes from the account you want to shield from.
 
 :::code-group
 
-```ts twoslash [shield-eth.ts] filename="shield-eth.ts"
+```ts [shield-eth.ts] filename="shield-eth.ts"
 // @noErrors
 import { account, wallet } from './config.ts';
 
@@ -29,7 +29,7 @@ await wallet.sendTransaction({
 });
 ```
 
-```ts twoslash [config.ts] filename="config.ts"
+```ts [config.ts] filename="config.ts"
 // @errors: 2307
 import {
   createRailgunAccount,
@@ -76,7 +76,7 @@ The `shield()` method will wrap the ETH to WETH before shielding.
 
 Railgun allows for shielding any ERC20 token.
 
-```ts twoslash
+```ts
 // @noErrors
 import type { RailgunAccount } from '@kohaku-eth/railgun';
 import type { WalletClient } from 'viem';
@@ -87,7 +87,7 @@ declare const wallet: WalletClient;
 const chainId = '11155111';
 const VALUE = 10000000000000n; // 0.00001 WETH
 const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D';
-const tx = await account.shield(chainId, WETH, VALUE); // [!code focus]
+const tx = await account.shield(WETH, VALUE); // [!code focus]
 
 // Eoa that will send the tx
 await wallet.sendTransaction({
@@ -102,7 +102,7 @@ await wallet.sendTransaction({
 
 Transfer funds privately between railgun accounts using the `transfer()` method:
 
-```ts twoslash
+```ts
 // @noErrors
 import type { RailgunAccount } from '@kohaku-eth/railgun';
 import type { WalletClient } from 'viem';
@@ -115,7 +115,7 @@ const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
 const amount = 50000000000000n; // 0.05 WETH
 const recipientZkAddress = '0zk1qy...'; // recipient's 0zk address
 
-const tx = await account.transfer(chainId, WETH, recipientZkAddress, amount); // [!code focus]
+const tx = await account.transfer(WETH, recipientZkAddress, amount); // [!code focus]
 
 // Send the transaction
 await wallet.sendTransaction({
@@ -130,7 +130,7 @@ await wallet.sendTransaction({
 
 When you manage more than one Railgun account, wire them through the same indexer so each address stays in sync from a single log stream.
 
-```ts twoslash
+```ts
 // @noErrors
 import { createRailgunIndexer, createRailgunAccount } from '@kohaku-eth/railgun';
 import { createPublicClient, http } from 'viem';
@@ -139,9 +139,10 @@ const chainId = '11155111' as const;
 const rpcUrl = 'https://sepolia.rpc.example';
 const publicClient = createPublicClient({ transport: http(rpcUrl) });
 const provider = new (await import('@kohaku-eth/railgun')).ViemProviderAdapter(publicClient);
+const railgunSepolia = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
 
 const indexer = await createRailgunIndexer({
-  chainId,
+  network: railgunSepolia,
   provider,
 });
 

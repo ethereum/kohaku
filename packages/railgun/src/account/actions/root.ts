@@ -8,18 +8,18 @@ export type GetMerkleRoot = {
 };
 
 export type GetMerkleRootFnParams = {
-    trees: MerkleTree[];
+    getTrees: () => MerkleTree[];
 };
 
-export const makeGetMerkleRoot = ({ trees }: GetMerkleRootFnParams) => ({
+export const makeGetMerkleRoot = ({ getTrees }: GetMerkleRootFnParams) => ({
     getMerkleRoot(treeIndex: number) {
-        if (!trees[treeIndex]) {
+        if (!getTrees()[treeIndex]) {
             throw new Error('tree index DNE');
         }
-    
-        return trees[treeIndex].root;
+
+        return getTrees()[treeIndex]!.root;
     },
     getLatestMerkleRoot() {
-        return trees[trees.length - 1]!.root;
+        return getTrees()[getTrees().length - 1]!.root;
     }
 })

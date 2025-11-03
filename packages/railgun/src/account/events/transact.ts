@@ -4,10 +4,10 @@ import {
 } from '~/railgun/logic/typechain-types/contracts/logic/RailgunLogic';
 import { Notebook } from "~/utils/notebook";
 import { DerivedKeys } from "../keys";
-import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { TOTAL_LEAVES } from "~/config";
 import { hexStringToArray } from "~/railgun/logic/global/bytes";
 import { Note } from "~/railgun/logic/logic/note";
+import { Indexer } from "~/indexer/base";
 
 export type TransactEvent = {
     treeNumber: BigNumberish;
@@ -17,13 +17,14 @@ export type TransactEvent = {
 };
 
 export type HandleTransactEventContext = {
-    trees: MerkleTree[];
     notebooks: Notebook[];
-} & Pick<DerivedKeys, 'viewing' | 'spending'>;
+    saveNotebooks: () => Promise<void>;
+} & Pick<DerivedKeys, 'viewing' | 'spending'> & Pick<Indexer, 'getTrees'>;
 
 export type HandleTransactEventFn = (event: TransactEvent, skipMerkleTree: boolean) => Promise<void>;
+export type HandleTransactEvent = { handleTransactEvent: HandleTransactEventFn };
 
-export const makeHandleTransactEvent = async ({ trees, notebooks, viewing, spending }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
+export const makeHandleTransactEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
     const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     const spendingKey = spending.getSpendingKeyPair().privateKey;
 
@@ -39,23 +40,23 @@ export const makeHandleTransactEvent = async ({ trees, notebooks, viewing, spend
             const isCrossingTreeBoundary = startPosition + event.hash.length > TOTAL_LEAVES;
 
             // Get leaves
-            const leaves = event.hash.map((noteHash) => hexStringToArray(noteHash));
+            // const leaves = event.hash.map((noteHash) => hexStringToArray(noteHash));
 
             // Insert leaves
             if (isCrossingTreeBoundary) {
-                if (!trees[treeNumber + 1]) {
-                    trees[treeNumber + 1] = await MerkleTree.createTree(treeNumber + 1);
+                if (!getTrees()[treeNumber + 1]) {
+                    // getTrees()[treeNumber + 1] = await MerkleTree.createTree(treeNumber + 1);
                     notebooks[treeNumber + 1] = new Notebook();
                 }
 
-                trees[treeNumber + 1]!.insertLeaves(leaves, 0);
+                // getTrees()[treeNumber + 1]!.insertLeaves(leaves, 0);
             } else {
-                if (!trees[treeNumber]) {
-                    trees[treeNumber] = await MerkleTree.createTree(treeNumber);
+                if (!getTrees()[treeNumber]) {
+                    // getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
                     notebooks[treeNumber] = new Notebook();
                 }
 
-                trees[treeNumber]!.insertLeaves(leaves, startPosition);
+                // getTrees()[treeNumber]!.insertLeaves(leaves, startPosition);
             }
         }
 
@@ -88,11 +89,21 @@ export const makeHandleTransactEvent = async ({ trees, notebooks, viewing, spend
                 // If note was decrypted add to wallet
                 if (note) {
                     if (startPosition + index >= TOTAL_LEAVES) {
+                        if (!notebooks[treeNumber + 1]) {
+                            notebooks[treeNumber + 1] = new Notebook();
+                        }
+
                         notebooks[treeNumber + 1]!.notes[startPosition + index - TOTAL_LEAVES] = note;
                     } else {
+                        if (!notebooks[treeNumber]) {
+                            notebooks[treeNumber] = new Notebook();
+                        }
+
                         notebooks[treeNumber]!.notes[startPosition + index] = note;
                     }
                 }
+
+                saveNotebooks();
             }),
         );
     }

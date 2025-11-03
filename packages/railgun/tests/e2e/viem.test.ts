@@ -1,17 +1,19 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { Wallet, Contract } from 'ethers';
+import { createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import {
   createRailgunAccount,
-  type RailgunLog,
+  createRailgunIndexer,
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
-import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
+import { ViemProviderAdapter, ViemSignerAdapter } from '../../src/provider';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
-// import { loadOrCreateCache } from '../utils/cache';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
-import { formatEther } from 'viem';
+import { formatEther, getContract } from 'viem';
+import { createEmptyStorageLayer } from '../../src/storage/layers/empty';
+import { createFileStorageLayer } from '../../src/storage/layers/file';
 
 // Helper to get environment variable with fallback
 function getEnv(key: string, fallback: string): string {
@@ -22,14 +24,13 @@ function getEnv(key: string, fallback: string): string {
   return fallback;
 }
 
-describe('Railgun E2E Flow', () => {
+describe('Railgun E2E Flow (Viem)', () => {
   let anvil: AnvilInstance;
-  let provider: EthersProviderAdapter;
-  let alice: Wallet;
-  let bob: Wallet;
-  let charlie: Wallet;
-  // let cachedLogs: RailgunLog[];
-  // let cachedMerkleTrees: { tree: string[][]; nullifiers: string[] }[];
+  let provider: ViemProviderAdapter;
+  let publicClient: PublicClient;
+  let aliceWalletClient: WalletClient;
+  let bobWalletClient: WalletClient;
+  let charlieAddress: `0x${string}`;
   let forkBlock: number;
 
   const SEPOLIA_FORK_URL = getEnv('SEPOLIA_RPC_URL', 'https://rpc.sepolia.org');
@@ -39,38 +40,46 @@ describe('Railgun E2E Flow', () => {
   const VALUE_TO_TRANSFER = BigInt('50000000000000000'); // 0.05 ETH
 
   beforeAll(async () => {
-    forkBlock = 9313278; // More recent block
+    forkBlock = 9327854; // More recent block
 
     // Setup anvil forking Sepolia
     anvil = defineAnvil({
       forkUrl: SEPOLIA_FORK_URL,
-      port: 8545,
+      port: 8546, // Different port from Ethers test
       chainId: 11155111,
       forkBlockNumber: forkBlock,
     });
 
     await anvil.start();
 
-    const jsonRpcProvider = await anvil.getProvider();
+    // Create Viem clients
+    publicClient = createPublicClient({
+      transport: http(anvil.rpcUrl),
+    });
 
-    provider = new EthersProviderAdapter(jsonRpcProvider);
+    const aliceAccount = privateKeyToAccount(TEST_ACCOUNTS.alice.privateKey as `0x${string}`);
+    const bobAccount = privateKeyToAccount(TEST_ACCOUNTS.bob.privateKey as `0x${string}`);
+
+    charlieAddress = TEST_ACCOUNTS.charlie.address as `0x${string}`;
+
+    aliceWalletClient = createWalletClient({
+      account: aliceAccount,
+      transport: http(anvil.rpcUrl),
+    });
+
+    bobWalletClient = createWalletClient({
+      account: bobAccount,
+      transport: http(anvil.rpcUrl),
+    });
+
+    provider = new ViemProviderAdapter(publicClient);
 
     // Load or create cache for this fork block (this is the slow part on first run)
     console.log(`\nLoading cache for fork block ${forkBlock}...`);
-    // const cache = await loadOrCreateCache(provider, chainId, forkBlock);
-
-    // cachedLogs = cache.logs;
-    // cachedMerkleTrees = cache.merkleTrees;
-    // console.log(`Cache loaded: ${cachedLogs.length} logs, ${cachedMerkleTrees.length} trees\n`);
-
-    // Setup test accounts
-    alice = new Wallet(TEST_ACCOUNTS.alice.privateKey, await anvil.getProvider());
-    bob = new Wallet(TEST_ACCOUNTS.bob.privateKey, await anvil.getProvider());
-    charlie = new Wallet(TEST_ACCOUNTS.charlie.privateKey, await anvil.getProvider());
 
     // Fund alice with ETH
-    await fundAccountWithETH(anvil, alice.address, BigInt('10000000000000000000')); // 10 ETH
-    console.log(`Funded ${alice.address} with 10 ETH`);
+    await fundAccountWithETH(anvil, aliceAccount.address, BigInt('10000000000000000000')); // 10 ETH
+    console.log(`Funded ${aliceAccount.address} with 10 ETH`);
   }, 300000); // 5 minute timeout for cache creation on first run
 
   afterAll(async () => {
@@ -81,29 +90,32 @@ describe('Railgun E2E Flow', () => {
   });
 
   it('should complete full shield -> transfer -> unshield flow', async () => {
-    console.log('\n=== Starting Railgun E2E Test ===\n');
+    console.log('\n=== Starting Railgun E2E Test (Viem) ===\n');
 
     // Step 1: Create two Railgun accounts and load cached state
     console.log('Step 1: Creating Railgun accounts...');
-    const aliceSigner = new EthersSignerAdapter(alice);
-    const bobSigner = new EthersSignerAdapter(bob);
+
+    // Create accounts using factory functions with Viem signer adapters
+    const aliceSigner = new ViemSignerAdapter(aliceWalletClient);
+    const bobSigner = new ViemSignerAdapter(bobWalletClient);
+
+    const indexer = await createRailgunIndexer({
+      network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
+      startBlock: forkBlock,
+      provider,
+      storage: createFileStorageLayer('./checkpoints/sepolia_public_checkpoint.json', { skipWrite: true }),
+    });
 
     const aliceRailgunAccount = await createRailgunAccount({
       credential: { type: 'mnemonic', mnemonic: 'test test test test test test test test test test test junk', accountIndex: 0 },
-      provider,
-      config: {
-        network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
-        startBlock: forkBlock
-      },
+      indexer,
+      storage: createEmptyStorageLayer(),
     });
 
     const bobRailgunAccount = await createRailgunAccount({
       credential: { type: 'mnemonic', mnemonic: 'test test test test test test test test test test junk junk', accountIndex: 0 },
-      provider,
-      config: {
-        network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
-        startBlock: forkBlock
-      },
+      indexer,
+      storage: createEmptyStorageLayer(),
     });
 
     const aliceRailgunAddress = await aliceRailgunAccount.getRailgunAddress();
@@ -112,12 +124,12 @@ describe('Railgun E2E Flow', () => {
     console.log(`Alice Railgun address: ${aliceRailgunAddress}`);
     console.log(`Bob Railgun address: ${bobRailgunAddress}`);
 
+    // Accounts already attached during creation
 
-    // Initialize indexer with cached Merkle trees and sync to latest
+    // Initialize indexer with cached Merkle trees and sync
     console.log('\nLoading cached state into indexer...');
     // await indexer.loadState({ merkleTrees: cachedMerkleTrees, latestSyncedBlock: forkBlock });
-    await aliceRailgunAccount.sync();
-    await bobRailgunAccount.sync();
+    await indexer.sync();
     console.log('Cached state loaded');
 
     await anvil.mine(3);
@@ -126,26 +138,14 @@ describe('Railgun E2E Flow', () => {
     console.log('\nStep 2: Checking initial balances...');
     const aliceInitialEthBalance = await getETHBalance(
       provider,
-      alice.address
+      aliceWalletClient.account!.address
     );
     const currentRootA = await aliceRailgunAccount.getLatestMerkleRoot();
-    const currentRootB = await bobRailgunAccount.getLatestMerkleRoot();
 
     console.log(`Alice initial ETH balance: ${aliceInitialEthBalance.toString()}`);
     console.log(`Alice initial root: ${currentRootA}`);
-    console.log(`Bob initial root: ${currentRootB}`);
 
-    const startBlock = forkBlock;
-
-    // Verify contracts exist on Anvil fork
-    console.log('\n=== Verifying contracts exist on fork ===');
-    const railgunCode = await provider.getCode(RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RAILGUN_ADDRESS!);
-    const relayAdaptCode = await provider.getCode(RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RELAY_ADAPT_ADDRESS!);
-    const wethCode = await provider.getCode(RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.WETH!);
-
-    console.log(`RAILGUN contract code length: ${railgunCode.length} (${railgunCode === '0x' ? 'MISSING!' : 'exists'})`);
-    console.log(`RELAY_ADAPT contract code length: ${relayAdaptCode.length} (${relayAdaptCode === '0x' ? 'MISSING!' : 'exists'})`);
-    console.log(`WETH contract code length: ${wethCode.length} (${wethCode === '0x' ? 'MISSING!' : 'exists'})`);
+    const startBlock = await provider.getBlockNumber();
 
     // Step 3: Shield ETH to Alice's Railgun account
     console.log('\nStep 3: Shielding ETH...');
@@ -164,53 +164,14 @@ describe('Railgun E2E Flow', () => {
 
     console.log(`Shield tx submitted: ${shieldTxHash}`);
 
-    // Mine a block to ensure transaction is included
-    await anvil.mine(1);
-
-    // Get receipt directly (anvil auto-mines)
+    // Wait for tx to be mined and get receipt
+    await provider.waitForTransaction(shieldTxHash);
     const receipt = await provider.getTransactionReceipt(shieldTxHash);
 
     console.log(`\nShield tx mined in block ${receipt?.blockNumber}`);
     console.log(`Receipt status: ${receipt?.status} (1 = success, 0 = failure)`);
     console.log(`Receipt has ${receipt?.logs?.length ?? 0} logs`);
     console.log(`Receipt gas used: ${receipt?.gasUsed}`);
-
-    // Log ALL logs from receipt (unfiltered)
-    if (receipt?.logs && receipt.logs.length > 0) {
-      console.log('\nAll logs in receipt:');
-      receipt.logs.forEach((log, idx) => {
-        console.log(`  Log ${idx}: address=${log.address}, topics=${log.topics.length}`);
-      });
-    } else {
-      console.log('\nWARNING: Receipt has NO logs!');
-    }
-
-    // Try getting logs without address filter
-    const allLogsInBlock = await provider.getLogs({
-      address: '',
-      fromBlock: receipt?.blockNumber ?? 0,
-      toBlock: receipt?.blockNumber ?? 0
-    });
-
-    console.log(`\nAll logs in block ${receipt?.blockNumber}: ${allLogsInBlock.length}`);
-
-    // Try getting logs from RAILGUN_ADDRESS
-    const railgunLogs = await provider.getLogs({
-      address: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RAILGUN_ADDRESS!,
-      fromBlock: receipt?.blockNumber ?? 0,
-      toBlock: receipt?.blockNumber ?? 0
-    });
-
-    console.log(`Logs from RAILGUN_ADDRESS: ${railgunLogs.length}`);
-
-    // Try getting logs from RELAY_ADAPT_ADDRESS
-    const relayAdaptLogs = await provider.getLogs({
-      address: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RELAY_ADAPT_ADDRESS!,
-      fromBlock: receipt?.blockNumber ?? 0,
-      toBlock: receipt?.blockNumber ?? 0
-    });
-
-    console.log(`Logs from RELAY_ADAPT_ADDRESS: ${relayAdaptLogs.length}`);
 
     if (receipt?.status === 0) {
       throw new Error('Shield transaction reverted');
@@ -221,14 +182,17 @@ describe('Railgun E2E Flow', () => {
 
     // Step 4: Sync Alice's account with new logs (from start of fork to include all new txs)
     console.log('\nStep 4: Syncing Alice account with new logs...');
-    
-    // Use receipt block + mined blocks as the end range (ethers provider caches block numbers)
-    const currentBlock = (receipt?.blockNumber ?? forkBlock) + 3;
+    const currentBlock = await provider.getBlockNumber();
 
     console.log(`Querying logs from block ${startBlock} to ${currentBlock}`);
 
     // Query from forkBlock (not forkBlock + 1) to capture any logs at the fork block
-    await aliceRailgunAccount.sync({ fromBlock: startBlock, toBlock: currentBlock });
+    // const newLogs = await indexer.fetchLogs(startBlock, currentBlock);
+
+    // console.log(`Fetched ${newLogs.length} new logs (expected logs from block ${receipt?.blockNumber})`);
+
+    // await indexer.processLogs(newLogs);
+    await indexer.sync({ toBlock: currentBlock, logProgress: true });
     console.log('Accounts synced');
     const currentRootA2 = aliceRailgunAccount.getLatestMerkleRoot();
 
@@ -259,9 +223,7 @@ describe('Railgun E2E Flow', () => {
 
     console.log(`Private transfer tx submitted: ${transferTxHash}`);
 
-    // Mine a block to ensure transaction is included
-    await anvil.mine(1);
-
+    await provider.waitForTransaction(transferTxHash);
     console.log('Private transfer tx mined');
 
     await anvil.mine(3);
@@ -269,8 +231,10 @@ describe('Railgun E2E Flow', () => {
     // Step 6: Sync both accounts with transfer logs
     console.log('\nStep 6: Syncing accounts after transfer...');
     const newBlock = await provider.getBlockNumber();
-   
-    await aliceRailgunAccount.sync({ toBlock: newBlock });
+    // const transferLogs = await indexer.fetchLogs(currentBlock, newBlock);
+
+    // await indexer.processLogs(transferLogs);
+    await indexer.sync({ toBlock: newBlock, logProgress: true });
 
     const aliceRoot = aliceRailgunAccount.getLatestMerkleRoot();
     const bobRoot = bobRailgunAccount.getLatestMerkleRoot();
@@ -293,8 +257,12 @@ describe('Railgun E2E Flow', () => {
     // Step 7: Bob unshields to charlie's public address
     console.log('\nStep 7: Unshielding from Bob account...');
 
-    const wethContract = new Contract(weth, ["function balanceOf(address) external view returns (uint256)"], await anvil.getProvider());
-    const charlieBalanceWETHBeforeUnshield = await wethContract.balanceOf(charlie.address);
+    const wethContract = getContract({
+      address: weth as `0x${string}`,
+      abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] }],
+      client: publicClient,
+    });
+    const charlieBalanceWETHBeforeUnshield = await wethContract.read.balanceOf([charlieAddress]);
 
     console.log(`Charlie's WETH balance before unshield: ${charlieBalanceWETHBeforeUnshield.toString()} ${formatEther(charlieBalanceWETHBeforeUnshield)}`);
 
@@ -302,12 +270,12 @@ describe('Railgun E2E Flow', () => {
     const unshieldTx = await bobRailgunAccount.unshield(
       weth,
       unshieldAmount,
-      charlie.address as `0x${string}`
+      charlieAddress
     );
 
-    console.log('Unshield tx prepared ', unshieldTx);
+    console.log('Unshield tx prepared');
 
-    await fundAccountWithETH(anvil, bob.address, BigInt('2000000000000000000')); // Fund for gas 2 ETH
+    await fundAccountWithETH(anvil, bobWalletClient.account!.address, BigInt('2000000000000000000')); // Fund for gas 2 ETH
     const unshieldTxHash = await bobSigner.sendTransaction({
       ...unshieldTx,
       gasLimit: BigInt(6000000),
@@ -315,9 +283,7 @@ describe('Railgun E2E Flow', () => {
 
     console.log(`Unshield tx submitted: ${unshieldTxHash}`);
 
-    // Mine a block to ensure transaction is included
-    await anvil.mine(1);
-
+    await provider.waitForTransaction(unshieldTxHash);
     console.log('Unshield tx mined');
     const unshieldReceipt = await provider.getTransactionReceipt(unshieldTxHash);
 
@@ -325,15 +291,14 @@ describe('Railgun E2E Flow', () => {
 
     await anvil.mine(3);
 
-    const charlieBalanceWETHAfterUnshield = await wethContract.balanceOf(charlie.address);
+    const charlieBalanceWETHAfterUnshield = await wethContract.read.balanceOf([charlieAddress]);
 
     console.log(`Charlie's WETH balance after unshield: ${charlieBalanceWETHAfterUnshield.toString()} ${formatEther(charlieBalanceWETHAfterUnshield)}`);
-
 
     expect(charlieBalanceWETHAfterUnshield).toBeGreaterThan(
       charlieBalanceWETHBeforeUnshield
     );
 
-    console.log('\n=== Test completed successfully ===\n');
+    console.log('\n=== Test completed successfully (Viem) ===\n');
   }, 180000); // 3 minute timeout for the full flow
 });

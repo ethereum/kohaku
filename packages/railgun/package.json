@@ -12,6 +12,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./storage/layers/file": {
+      "types": "./dist/storage/layers/file.d.ts",
+      "import": "./dist/storage/layers/file.js"
+    },
+    "./storage/layers/empty": {
+      "types": "./dist/storage/layers/empty.d.ts",
+      "import": "./dist/storage/layers/empty.js"
+    },
     "./package.json": "./package.json"
   },
   "engines": {

@@ -1,4 +1,3 @@
-import { RailgunLogEvent } from "~/account/events";
 import { TxData } from "~/account/tx/base";
 
 export interface RailgunLog {

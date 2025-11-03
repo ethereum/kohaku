@@ -1,11 +1,11 @@
 import { Address } from 'viem';
 import { decodeAddress } from '~/railgun/lib/key-derivation';
 import { ByteUtils } from '~/railgun/lib/utils';
-import { Note, UnshieldNote, SerializedNoteData, SendNote } from '~/railgun/logic/logic/note';
+import { Note, UnshieldNote, SendNote } from '~/railgun/logic/logic/note';
 import { getERC20TokenData } from '~/utils/account/token';
 import { Notebook } from "~/utils/notebook";
 import { DerivedKeys } from '../keys';
-import { MerkleTree } from '~/railgun/logic/logic/merkletree';
+import { Indexer } from '~/indexer/base';
 
 
 export type TransactNotes = { notesIn: Note[][], notesOut: (Note | UnshieldNote | SendNote)[][], nullifiers: Uint8Array[][] };
@@ -17,10 +17,10 @@ export type GetNotes = { getAllNotes: GetAllNotesFn, getTransactNotes: GetTransa
 
 export type GetNotesContext = {
     notebooks: Notebook[];
-    trees: MerkleTree[];
-} & Pick<DerivedKeys, 'spending' | 'viewing'>;
+} & Pick<Indexer, 'getTrees'>
+ & Pick<DerivedKeys, 'spending' | 'viewing'>;
 
-export const makeGetNotes = async ({ notebooks, trees, spending, viewing }: GetNotesContext): Promise<GetNotes> => {
+export const makeGetNotes = async ({ notebooks, getTrees, spending, viewing }: GetNotesContext): Promise<GetNotes> => {
     const spendingKey = spending.getSpendingKeyPair().privateKey;
     const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
 
@@ -36,8 +36,8 @@ export const makeGetNotes = async ({ notebooks, trees, spending, viewing }: GetN
         const tokenData = getERC20TokenData(token);
         const allNotes: Note[][] = [];
 
-        for (let i = 0; i < trees.length; i++) {
-            const notes = await notebooks[i]!.getUnspentNotes(trees[i]!, tokenData);
+        for (let i = 0; i < getTrees().length; i++) {
+            const notes = await notebooks[i]!.getUnspentNotes(getTrees()[i]!, tokenData);
 
             allNotes.push(notes);
         }
