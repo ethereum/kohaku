@@ -69,8 +69,8 @@ class MerkleTree {
     levels.push(this.zeroValue);
 
     for (let level = 1; level < depth; level += 1) {
-      // @ts-expect-error levels is defined
       levels.push(
+        // @ts-expect-error levels is defined
         await MerkleTree.hashLeftRight(levels[level - 1], levels[level - 1])
       );
     }
@@ -84,8 +84,8 @@ class MerkleTree {
     const tree: Uint8Array[][] = Array.from({ length: depth + 1 }, () => []);
 
     // Default root = hash(zero, zero) at the top level
-    // @ts-expect-error tree is defined
     tree[depth] = [
+      // @ts-expect-error tree is defined
       await MerkleTree.hashLeftRight(zeros[depth - 1], zeros[depth - 1]),
     ];
 
@@ -101,8 +101,8 @@ class MerkleTree {
     if (this.maxLeafIndex < 0) {
       for (let lvl = 1; lvl <= this.depth; lvl++) this.tree[lvl] = [];
       this.tree[this.depth] = [
-        // @ts-expect-error tree is defined
         await MerkleTree.hashLeftRight(
+          // @ts-expect-error tree is defined
           this.zeros[this.depth - 1],
           this.zeros[this.depth - 1]
         ),
@@ -188,14 +188,14 @@ class MerkleTree {
 
     for (let i = 0; i < proof.elements.length; i += 1) {
       if (indices[i] === "0") {
-        // @ts-expect-error proof.elements is defined
         currentHash = await MerkleTree.hashLeftRight(
           currentHash,
+          // @ts-expect-error proof.elements is defined
           proof.elements[i]
         );
       } else {
-        // @ts-expect-error proof.elements is defined
         currentHash = await MerkleTree.hashLeftRight(
+          // @ts-expect-error proof.elements is defined
           proof.elements[i],
           currentHash
         );
