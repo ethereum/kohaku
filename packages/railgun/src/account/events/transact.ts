@@ -53,23 +53,15 @@ export const makeHandleTransactEvent = async ({
         startPosition + event.hash.length > TOTAL_LEAVES;
 
       // Get leaves
-      // const leaves = event.hash.map((noteHash) => hexStringToArray(noteHash));
 
-      // Insert leaves
       if (isCrossingTreeBoundary) {
         if (!getTrees()[treeNumber + 1]) {
-          // getTrees()[treeNumber + 1] = await MerkleTree.createTree(treeNumber + 1);
           notebooks[treeNumber + 1] = new Notebook();
         }
-
-        // getTrees()[treeNumber + 1]!.insertLeaves(leaves, 0);
       } else {
         if (!getTrees()[treeNumber]) {
-          // getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
           notebooks[treeNumber] = new Notebook();
         }
-
-        // getTrees()[treeNumber]!.insertLeaves(leaves, startPosition);
       }
     }
 

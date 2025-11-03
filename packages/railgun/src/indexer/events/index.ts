@@ -57,7 +57,6 @@ export const makeProcessLog = async ({
         handleNullifiedEvent(event.args, skipMerkleTree)
       )
       .otherwise(() => {
-        // throw new Error(`Unknown event: ${parsedLog.name}`);
         console.warn(`Unknown event: ${parsedLog.name}`);
       });
   };

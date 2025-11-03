@@ -51,13 +51,6 @@ export const makeCreateTransfer = async ({
     );
     const allInputs: PublicInputs[] = [];
 
-    // const formatBigInt =  (_, v) => typeof v === 'bigint' ? v.toString() : v;
-
-    console.log("notesIn: ", notesIn);
-    // console.log('notesIn: ', JSON.stringify(notesIn, formatBigInt, 2));
-    console.log("notesOut: ", notesOut);
-    // console.log('notesOut: ', JSON.stringify(notesOut, formatBigInt, 2));
-
     for (let i = 0; i < notesIn.length; i++) {
       if (notesIn[i]!.length === 0) {
         continue;

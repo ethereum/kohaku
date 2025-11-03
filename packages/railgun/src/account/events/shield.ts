@@ -76,19 +76,14 @@ export const makeHandleShieldEvent = async ({
       // Insert leaves
       if (isCrossingTreeBoundary) {
         if (!getTrees()[treeNumber + 1]) {
-          // todo verify this works
-          //   getTrees()[treeNumber + 1] = await MerkleTree.createTree(treeNumber + 1);
           notebooks[treeNumber + 1] = new Notebook();
         }
 
         getTrees()[treeNumber + 1]!.insertLeaves(leaves, 0);
       } else {
         if (!getTrees()[treeNumber]) {
-          //   getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
           notebooks[treeNumber] = new Notebook();
         }
-
-        //   getTrees()[treeNumber]!.insertLeaves(leaves, startPosition);
       }
     }
 

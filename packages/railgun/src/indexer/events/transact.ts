@@ -25,12 +25,7 @@ export const makeHandleTransactEvent = async ({
   getTrees,
   accounts,
 }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
-  // const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
-  // const spendingKey = spending.getSpendingKeyPair().privateKey;
-
   return async (event: TransactEvent, skipMerkleTree: boolean) => {
-    console.log("handleTransactEvent", event);
-
     // Get start position
     const startPosition = Number(event.startPosition.toString());
 
