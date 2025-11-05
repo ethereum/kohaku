@@ -1,6 +1,6 @@
-import artifacts from '@railgun-community/circuit-artifacts';
-import type { Artifact, VKey } from '@railgun-community/circuit-artifacts';
-import { Verifier } from '../typechain-types';
+import artifacts from "@railgun-community/circuit-artifacts";
+import type { Artifact, VKey } from "@railgun-community/circuit-artifacts";
+import { Verifier } from "../typechain-types";
 
 export interface SolidityG1Point {
   x: bigint;
@@ -72,7 +72,7 @@ const circuitList = [
 function formatVKey(vkey: VKey): SolidityVKey {
   // Parse points to X,Y coordinate bigints and return
   return {
-    artifactsIPFSHash: '',
+    artifactsIPFSHash: "",
     alpha1: {
       x: BigInt(vkey.vk_alpha_1[0]),
       y: BigInt(vkey.vk_alpha_1[1]),
@@ -103,7 +103,10 @@ function formatVKey(vkey: VKey): SolidityVKey {
  * @param point2 - point 2
  * @returns points match
  */
-function matchG1Point(point1: Record<string, unknown>, point2: SolidityG1Point) {
+function matchG1Point(
+  point1: Record<string, unknown>,
+  point2: SolidityG1Point
+) {
   // Check coordinates match, not strict equals so that similar number types can be matched
   if (point1.x != point2.x) return false;
 
@@ -119,7 +122,10 @@ function matchG1Point(point1: Record<string, unknown>, point2: SolidityG1Point) 
  * @param point2 - point 2
  * @returns points match
  */
-function matchG2Point(point1: Record<string, unknown>, point2: SolidityG2Point) {
+function matchG2Point(
+  point1: Record<string, unknown>,
+  point2: SolidityG2Point
+) {
   // Check coordinate arrays exist
   if (!Array.isArray(point1.x)) return false;
 
@@ -150,41 +156,63 @@ function formatVKeyMatcher(vkey: VKey): EventVKeyMatcher {
     // Check type
     if (!i) return false;
 
-    if (typeof i !== 'object') return false;
+    if (typeof i !== "object") return false;
 
     // Cast to record
     const iCast = i as Record<string, unknown>;
 
     // Check artifactsIPFSHash
-    if (iCast.artifactsIPFSHash !== vkeySolidity.artifactsIPFSHash) return false;
+    if (iCast.artifactsIPFSHash !== vkeySolidity.artifactsIPFSHash)
+      return false;
 
     // Check alpha point
     if (!iCast.alpha1) return false;
 
-    if (typeof iCast.alpha1 !== 'object') return false;
+    if (typeof iCast.alpha1 !== "object") return false;
 
-    if (!matchG1Point(iCast.alpha1 as Record<string, unknown>, vkeySolidity.alpha1)) return false;
+    if (
+      !matchG1Point(
+        iCast.alpha1 as Record<string, unknown>,
+        vkeySolidity.alpha1
+      )
+    )
+      return false;
 
     // Check beta point
     if (!iCast.beta2) return false;
 
-    if (typeof iCast.beta2 !== 'object') return false;
+    if (typeof iCast.beta2 !== "object") return false;
 
-    if (!matchG2Point(iCast.beta2 as Record<string, unknown>, vkeySolidity.beta2)) return false;
+    if (
+      !matchG2Point(iCast.beta2 as Record<string, unknown>, vkeySolidity.beta2)
+    )
+      return false;
 
     // Check beta point
     if (!iCast.gamma2) return false;
 
-    if (typeof iCast.gamma2 !== 'object') return false;
+    if (typeof iCast.gamma2 !== "object") return false;
 
-    if (!matchG2Point(iCast.gamma2 as Record<string, unknown>, vkeySolidity.gamma2)) return false;
+    if (
+      !matchG2Point(
+        iCast.gamma2 as Record<string, unknown>,
+        vkeySolidity.gamma2
+      )
+    )
+      return false;
 
     // Check beta point
     if (!iCast.delta2) return false;
 
-    if (typeof iCast.delta2 !== 'object') return false;
+    if (typeof iCast.delta2 !== "object") return false;
 
-    if (!matchG2Point(iCast.delta2 as Record<string, unknown>, vkeySolidity.delta2)) return false;
+    if (
+      !matchG2Point(
+        iCast.delta2 as Record<string, unknown>,
+        vkeySolidity.delta2
+      )
+    )
+      return false;
 
     // Check IC
     if (!Array.isArray(iCast.ic)) return false;
@@ -192,7 +220,12 @@ function formatVKeyMatcher(vkey: VKey): EventVKeyMatcher {
     if (iCast.ic.length !== vkeySolidity.ic.length) return false;
 
     for (let index = 0; index < iCast.ic.length; index += 1) {
-      if (!matchG1Point(iCast.ic[index] as Record<string, unknown>, vkeySolidity.ic[index]))
+      if (
+        !matchG1Point(
+          iCast.ic[index] as Record<string, unknown>,
+          vkeySolidity.ic[index]
+        )
+      )
         return false;
     }
 
@@ -228,12 +261,17 @@ function getKeys(nullifiers: number, commitments: number): FormattedArtifact {
  */
 function allArtifacts(): (undefined | (undefined | FormattedArtifact)[])[] {
   // Map each existing artifact to formatted artifact
-  const circuitArtifacts: (undefined | (undefined | FormattedArtifact)[])[] = [];
+  const circuitArtifacts: (undefined | (undefined | FormattedArtifact)[])[] =
+    [];
 
   circuitList.forEach((circuit) => {
-    if (!circuitArtifacts[circuit.nullifiers]) circuitArtifacts[circuit.nullifiers] = [];
+    if (!circuitArtifacts[circuit.nullifiers])
+      circuitArtifacts[circuit.nullifiers] = [];
 
-    const artifact = artifacts.getArtifact(circuit.nullifiers, circuit.commitments);
+    const artifact = artifacts.getArtifact(
+      circuit.nullifiers,
+      circuit.commitments
+    );
 
     // @ts-expect-error will always be set above
     circuitArtifacts[circuit.nullifiers][circuit.commitments] = {
@@ -263,13 +301,16 @@ function availableArtifacts() {
  */
 async function loadAllArtifacts(verifierContract: Verifier) {
   for (const artifactConfig of artifacts.listArtifacts()) {
-    const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
+    const artifact = getKeys(
+      artifactConfig.nullifiers,
+      artifactConfig.commitments
+    );
 
     await (
       await verifierContract.setVerificationKey(
         artifactConfig.nullifiers,
         artifactConfig.commitments,
-        artifact.solidityVKey,
+        artifact.solidityVKey
       )
     ).wait();
   }
@@ -283,13 +324,16 @@ async function loadAllArtifacts(verifierContract: Verifier) {
  */
 async function loadAvailableArtifacts(verifierContract: Verifier) {
   for (const artifactConfig of availableArtifacts()) {
-    const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
+    const artifact = getKeys(
+      artifactConfig.nullifiers,
+      artifactConfig.commitments
+    );
 
     await (
       await verifierContract.setVerificationKey(
         artifactConfig.nullifiers,
         artifactConfig.commitments,
-        artifact.solidityVKey,
+        artifact.solidityVKey
       )
     ).wait();
   }

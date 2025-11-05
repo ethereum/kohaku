@@ -1,16 +1,16 @@
-import './global.d.ts';
+import "./global.d.ts";
 
 // Configuration
-export * from './config';
+export * from "./config";
 
 // Provider abstraction
-export * from './provider';
+export * from "./provider";
 
 // Indexer functionality
-export * from './indexer/base.js';
+export * from "./indexer/base.js";
 
 // Account functionality
-export * from './account/base.js';
+export * from "./account/base.js";
 
 // Key derivation utilities (re-export for convenience)
-export * from './railgun/lib/key-derivation';
+export * from "./railgun/lib/key-derivation";

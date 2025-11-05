@@ -1,4 +1,4 @@
-import { POIsPerList, TXIDVersion } from './poi-types';
+import { POIsPerList, TXIDVersion } from "./poi-types";
 
 export type BytesData = bigint | number | ArrayLike<number> | string;
 
@@ -19,8 +19,8 @@ export type CiphertextCTR = {
 };
 
 export enum XChaChaEncryptionAlgorithm {
-  XChaCha = 'XChaCha',
-  XChaChaPoly1305 = 'XChaChaPoly1305',
+  XChaCha = "XChaCha",
+  XChaChaPoly1305 = "XChaChaPoly1305",
 }
 
 export type CiphertextXChaCha = {
@@ -54,13 +54,13 @@ export type EncryptedData = [string, string];
 
 export enum CommitmentType {
   // V1
-  LegacyEncryptedCommitment = 'LegacyEncryptedCommitment',
-  LegacyGeneratedCommitment = 'LegacyGeneratedCommitment',
+  LegacyEncryptedCommitment = "LegacyEncryptedCommitment",
+  LegacyGeneratedCommitment = "LegacyGeneratedCommitment",
   // V2
-  ShieldCommitment = 'ShieldCommitment',
-  TransactCommitmentV2 = 'TransactCommitmentV2',
+  ShieldCommitment = "ShieldCommitment",
+  TransactCommitmentV2 = "TransactCommitmentV2",
   // V3
-  TransactCommitmentV3 = 'TransactCommitmentV3',
+  TransactCommitmentV3 = "TransactCommitmentV3",
 }
 
 export enum OutputType {
@@ -182,8 +182,8 @@ export type UnshieldRailgunTransactionData = {
 };
 
 export enum RailgunTransactionVersion {
-  V2 = 'V2',
-  V3 = 'V3',
+  V2 = "V2",
+  V3 = "V3",
 }
 
 // Comes from Graph
@@ -390,7 +390,10 @@ export type CommitmentSummary = {
   commitmentHash: string;
 };
 
-export type RelayAdaptShieldERC20Recipient = { tokenAddress: string; recipientAddress: string };
+export type RelayAdaptShieldERC20Recipient = {
+  tokenAddress: string;
+  recipientAddress: string;
+};
 
 export type RelayAdaptShieldNFTRecipient = {
   nftTokenData: NFTTokenData;

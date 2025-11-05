@@ -1,1 +1,1 @@
-export { Wallet as Notebook } from '~/railgun/logic/logic/wallet';
+export { Wallet as Notebook } from "~/railgun/logic/logic/wallet";

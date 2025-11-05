@@ -1,4 +1,7 @@
-export const binarySearchForUpperBoundIndex = <T>(array: T[], pred: (a: T) => boolean): number => {
+export const binarySearchForUpperBoundIndex = <T>(
+  array: T[],
+  pred: (a: T) => boolean
+): number => {
   let l = 0;
   let r = array.length;
 
@@ -19,7 +22,7 @@ export const binarySearchForUpperBoundIndex = <T>(array: T[], pred: (a: T) => bo
 export const binarySearchForString = <T>(
   array: T[],
   str: string,
-  getString: (a: T) => string,
+  getString: (a: T) => string
 ): number => {
   let startIndex = 0;
   let stopIndex = array.length - 1;

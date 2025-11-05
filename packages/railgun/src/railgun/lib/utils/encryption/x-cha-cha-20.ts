@@ -1,20 +1,26 @@
-import { xchacha20, xchacha20poly1305 } from '@noble/ciphers/chacha';
-import { sha256 } from '@noble/hashes/sha256';
-import { ByteUtils } from '../bytes';
-import { CiphertextXChaCha, XChaChaEncryptionAlgorithm } from '../../models/formatted-types';
+import { xchacha20, xchacha20poly1305 } from "@noble/ciphers/chacha";
+import { sha256 } from "@noble/hashes/sha256";
+import { ByteUtils } from "../bytes";
+import {
+  CiphertextXChaCha,
+  XChaChaEncryptionAlgorithm,
+} from "../../models/formatted-types";
 
 export class XChaCha20 {
   static getRandomIV(): string {
     const random = ByteUtils.randomHex(16);
 
     if (random.length !== 32) {
-      throw new Error('Incorrect nonce length');
+      throw new Error("Incorrect nonce length");
     }
 
     return random;
   }
 
-  static encryptChaCha20(plaintext: string, key: Uint8Array): CiphertextXChaCha {
+  static encryptChaCha20(
+    plaintext: string,
+    key: Uint8Array
+  ): CiphertextXChaCha {
     const nonce = this.getRandomIV();
     const nonceExtended = sha256(nonce).slice(0, 24);
     const plaintextFormatted = ByteUtils.fastHexToBytes(plaintext);
@@ -28,19 +34,31 @@ export class XChaCha20 {
     };
   }
 
-  static decryptChaCha20(ciphertext: CiphertextXChaCha, key: Uint8Array): string {
+  static decryptChaCha20(
+    ciphertext: CiphertextXChaCha,
+    key: Uint8Array
+  ): string {
     if (ciphertext.algorithm !== XChaChaEncryptionAlgorithm.XChaCha) {
-      throw new Error(`Invalid ciphertext for XChaCha: ${ciphertext.algorithm}`);
+      throw new Error(
+        `Invalid ciphertext for XChaCha: ${ciphertext.algorithm}`
+      );
     }
 
     const nonceExtended = sha256(ciphertext.nonce).slice(0, 24);
-    const bytes = xchacha20(key, nonceExtended, ByteUtils.fastHexToBytes(ciphertext.bundle));
+    const bytes = xchacha20(
+      key,
+      nonceExtended,
+      ByteUtils.fastHexToBytes(ciphertext.bundle)
+    );
     const plaintext = ByteUtils.fastBytesToHex(bytes);
 
     return plaintext;
   }
 
-  static encryptChaCha20Poly1305(plaintext: string, key: Uint8Array): CiphertextXChaCha {
+  static encryptChaCha20Poly1305(
+    plaintext: string,
+    key: Uint8Array
+  ): CiphertextXChaCha {
     const nonce = this.getRandomIV();
     const nonceExtended = sha256(nonce).slice(0, 24);
     const encrypter = xchacha20poly1305(key, nonceExtended);
@@ -55,15 +73,22 @@ export class XChaCha20 {
     };
   }
 
-  static decryptChaCha20Poly1305(ciphertext: CiphertextXChaCha, key: Uint8Array): string {
+  static decryptChaCha20Poly1305(
+    ciphertext: CiphertextXChaCha,
+    key: Uint8Array
+  ): string {
     if (ciphertext.algorithm !== XChaChaEncryptionAlgorithm.XChaChaPoly1305) {
-      throw new Error(`Invalid ciphertext for XChaChaPoly1305: ${ciphertext.algorithm}`);
+      throw new Error(
+        `Invalid ciphertext for XChaChaPoly1305: ${ciphertext.algorithm}`
+      );
     }
 
     const nonceExtended = sha256(ciphertext.nonce).slice(0, 24);
     const encrypter = xchacha20poly1305(key, nonceExtended);
     const bundleFormatted = ByteUtils.fastHexToBytes(ciphertext.bundle);
-    const plaintext = ByteUtils.fastBytesToHex(encrypter.decrypt(bundleFormatted));
+    const plaintext = ByteUtils.fastBytesToHex(
+      encrypter.decrypt(bundleFormatted)
+    );
 
     return plaintext;
   }

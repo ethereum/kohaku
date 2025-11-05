@@ -1,42 +1,60 @@
-import { utils as utilsEd25519, Point, getPublicKey, sign, verify, CURVE } from '@noble/ed25519';
-import { eddsa, Signature } from '@railgun-community/circomlibjs';
-import { poseidonHex } from './poseidon';
-import { ByteUtils } from './bytes';
-import { sha256, sha512 } from './hash';
-import { scalarMultiplyWasmFallbackToJavascript } from './scalar-multiply';
+import {
+  utils as utilsEd25519,
+  Point,
+  getPublicKey,
+  sign,
+  verify,
+  CURVE,
+} from "@noble/ed25519";
+import { eddsa, Signature } from "@railgun-community/circomlibjs";
+import { poseidonHex } from "./poseidon";
+import { ByteUtils } from "./bytes";
+import { sha256, sha512 } from "./hash";
+import { scalarMultiplyWasmFallbackToJavascript } from "./scalar-multiply";
 
 const { bytesToHex, randomBytes } = utilsEd25519;
 
 function getPublicSpendingKey(privateKey: Uint8Array): [bigint, bigint] {
-  if (privateKey.length !== 32) throw Error('Invalid private key length');
+  if (privateKey.length !== 32) throw Error("Invalid private key length");
 
   return eddsa.prv2pub(Buffer.from(privateKey));
 }
 
-async function getPublicViewingKey(privateViewingKey: Uint8Array): Promise<Uint8Array> {
+async function getPublicViewingKey(
+  privateViewingKey: Uint8Array
+): Promise<Uint8Array> {
   return getPublicKey(privateViewingKey);
 }
 
 function getRandomScalar(): bigint {
-  return ByteUtils.hexToBigInt(poseidonHex([ByteUtils.fastBytesToHex(randomBytes(32))]));
+  return ByteUtils.hexToBigInt(
+    poseidonHex([ByteUtils.fastBytesToHex(randomBytes(32))])
+  );
 }
 
 function signEDDSA(privateKey: Uint8Array, message: bigint): Signature {
   return eddsa.signPoseidon(Buffer.from(privateKey), message);
 }
 
-function verifyEDDSA(message: bigint, signature: Signature, pubkey: [bigint, bigint]) {
+function verifyEDDSA(
+  message: bigint,
+  signature: Signature,
+  pubkey: [bigint, bigint]
+) {
   return eddsa.verifyPoseidon(message, signature, pubkey);
 }
 
-async function signED25519(message: Uint8Array, privateKey: Uint8Array): Promise<Uint8Array> {
+async function signED25519(
+  message: Uint8Array,
+  privateKey: Uint8Array
+): Promise<Uint8Array> {
   return sign(message, privateKey);
 }
 
 function verifyED25519(
   message: string | Uint8Array,
   signature: string | Uint8Array,
-  pubkey: Uint8Array,
+  pubkey: Uint8Array
 ): Promise<boolean> {
   return verify(signature, message, pubkey);
 }
@@ -50,11 +68,11 @@ function verifyED25519(
  * @param endian - what endian to use
  * @returns adjusted bytes
  */
-function adjustBytes25519(bytes: Uint8Array, endian: 'be' | 'le'): Uint8Array {
+function adjustBytes25519(bytes: Uint8Array, endian: "be" | "le"): Uint8Array {
   // Create new array to prevent side effects
   const adjustedBytes = new Uint8Array(bytes);
 
-  if (endian === 'be') {
+  if (endian === "be") {
     // BIG ENDIAN
     // AND operation to ensure the last 3 bits of the last byte are 0 leaving the rest unchanged
     adjustedBytes[31] &= 0b11111000;
@@ -80,19 +98,22 @@ function adjustBytes25519(bytes: Uint8Array, endian: 'be' | 'le'): Uint8Array {
   return adjustedBytes;
 }
 
-async function getPrivateScalarFromPrivateKey(privateKey: Uint8Array): Promise<bigint> {
+async function getPrivateScalarFromPrivateKey(
+  privateKey: Uint8Array
+): Promise<bigint> {
   // Private key should be 32 bytes
-  if (privateKey.length !== 32) throw new Error('Expected 32 bytes');
+  if (privateKey.length !== 32) throw new Error("Expected 32 bytes");
 
   // SHA512 hash private key
   const hash = await utilsEd25519.sha512(privateKey);
 
   // Get key head, this is the first 32 bytes of the hash
   // We aren't interested in the rest of the hash as we only want the scalar
-  const head = adjustBytes25519(hash.slice(0, 32), 'le');
+  const head = adjustBytes25519(hash.slice(0, 32), "le");
 
   // Convert head to scalar
-  const scalar = BigInt(`0x${utilsEd25519.bytesToHex(head.reverse())}`) % CURVE.l;
+  const scalar =
+    BigInt(`0x${utilsEd25519.bytesToHex(head.reverse())}`) % CURVE.l;
 
   return scalar > 0n ? scalar : CURVE.l;
 }
@@ -108,7 +129,10 @@ function seedToScalar(seed: Uint8Array): Uint8Array {
   const seedHash = sha512(seed);
 
   // Return (seedHash mod (n - 1)) + 1 to fit to range 0 < scalar < n
-  return ByteUtils.nToBytes((ByteUtils.hexToBigInt(seedHash) % CURVE.n) - 1n + 1n, 32);
+  return ByteUtils.nToBytes(
+    (ByteUtils.hexToBigInt(seedHash) % CURVE.n) - 1n + 1n,
+    32
+  );
 }
 
 /**
@@ -127,7 +151,7 @@ function seedToScalar(seed: Uint8Array): Uint8Array {
 function getBlindingScalar(sharedRandom: string, senderRandom: string): bigint {
   const finalRandom = ByteUtils.nToBytes(
     ByteUtils.hexToBigInt(sharedRandom) ^ ByteUtils.hexToBigInt(senderRandom),
-    32,
+    32
   );
 
   return ByteUtils.bytesToN(seedToScalar(finalRandom));
@@ -146,8 +170,11 @@ function getNoteBlindingKeys(
   senderViewingPublicKey: Uint8Array,
   receiverViewingPublicKey: Uint8Array,
   sharedRandom: string,
-  senderRandom: string,
-): { blindedSenderViewingKey: Uint8Array; blindedReceiverViewingKey: Uint8Array } {
+  senderRandom: string
+): {
+  blindedSenderViewingKey: Uint8Array;
+  blindedReceiverViewingKey: Uint8Array;
+} {
   const blindingScalar = getBlindingScalar(sharedRandom, senderRandom);
 
   // Get public key points
@@ -155,8 +182,12 @@ function getNoteBlindingKeys(
   const receiverPublicKeyPoint = Point.fromHex(receiverViewingPublicKey);
 
   // Multiply both public keys by blinding scalar
-  const blindedSenderViewingKey = senderPublicKeyPoint.multiply(blindingScalar).toRawBytes();
-  const blindedReceiverViewingKey = receiverPublicKeyPoint.multiply(blindingScalar).toRawBytes();
+  const blindedSenderViewingKey = senderPublicKeyPoint
+    .multiply(blindingScalar)
+    .toRawBytes();
+  const blindedReceiverViewingKey = receiverPublicKeyPoint
+    .multiply(blindingScalar)
+    .toRawBytes();
 
   // Return blinded keys
   return { blindedSenderViewingKey, blindedReceiverViewingKey };
@@ -165,7 +196,7 @@ function getNoteBlindingKeys(
 function unblindNoteKey(
   blindedNoteKey: Uint8Array,
   sharedRandom: string,
-  senderRandom: string,
+  senderRandom: string
 ): Optional<Uint8Array> {
   try {
     const blindingScalar = getBlindingScalar(sharedRandom, senderRandom);
@@ -187,16 +218,18 @@ function unblindNoteKey(
 
 async function getSharedSymmetricKey(
   privateKeyPairA: Uint8Array,
-  blindedPublicKeyPairB: Uint8Array,
+  blindedPublicKeyPairB: Uint8Array
 ): Promise<Optional<Uint8Array>> {
   try {
     // Retrieve private scalar from private key
-    const scalar: bigint = await getPrivateScalarFromPrivateKey(privateKeyPairA);
+    const scalar: bigint = await getPrivateScalarFromPrivateKey(
+      privateKeyPairA
+    );
 
     // Multiply ephemeral key by private scalar to get shared key
     const keyPreimage: Uint8Array = scalarMultiplyWasmFallbackToJavascript(
       blindedPublicKeyPairB,
-      scalar,
+      scalar
     );
 
     // SHA256 hash to get the final key
@@ -211,8 +244,8 @@ async function getSharedSymmetricKey(
 }
 
 function generateNaiveRandomHex(length = 16): string {
-  const CHARSET = 'abcdefghijklnopqrstuvwxyz0123456789';
-  let retVal = '';
+  const CHARSET = "abcdefghijklnopqrstuvwxyz0123456789";
+  let retVal = "";
 
   for (let i = 0; i < length; i += 1) {
     retVal += CHARSET.charAt(Math.floor(Math.random() * CHARSET.length));

@@ -1,9 +1,9 @@
-import crypto from 'crypto';
-import * as nobleED25519 from '@noble/ed25519';
-import { sha256, sha512 } from '@noble/hashes/sha2';
-import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
-import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
-import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
+import crypto from "crypto";
+import * as nobleED25519 from "@noble/ed25519";
+import { sha256, sha512 } from "@noble/hashes/sha2";
+import { keccak_256, keccak_512 } from "@noble/hashes/sha3";
+import { buildEddsa, buildPoseidonOpt } from "circomlibjs";
+import { arrayToBigInt, bigIntToArray, arrayToByteLength } from "./bytes";
 
 /**
  * Gets random bytes
@@ -30,8 +30,10 @@ const hash = {
     // Convert inputs to LE montgomery representation then convert back to standard at end
     const result = poseidonBuild.F.fromMontgomery(
       poseidonBuild(
-        inputs.map((input) => poseidonBuild.F.toMontgomery(new Uint8Array(input).reverse())),
-      ),
+        inputs.map((input) =>
+          poseidonBuild.F.toMontgomery(new Uint8Array(input).reverse())
+        )
+      )
     );
 
     return arrayToByteLength(result, 32).reverse();
@@ -90,7 +92,7 @@ const aes = {
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
       const iv = randomBytes(16);
 
-      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, {
+      const cipher = crypto.createCipheriv("aes-256-gcm", key, iv, {
         authTagLength: 16,
       });
 
@@ -117,14 +119,16 @@ const aes = {
       const tag = ciphertext[0].subarray(16, 32);
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
+      const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv, {
         authTagLength: 16,
       });
 
       decipher.setAuthTag(tag);
 
       // Loop through ciphertext and decrypt then return
-      const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
+      const data = encryptedData
+        .slice()
+        .map((block) => new Uint8Array(decipher.update(block)));
 
       decipher.final();
 
@@ -142,7 +146,7 @@ const aes = {
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
       const iv = randomBytes(16);
 
-      const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+      const cipher = crypto.createCipheriv("aes-256-ctr", key, iv);
 
       const data = plaintext
         .map((block) => cipher.update(block))
@@ -164,10 +168,12 @@ const aes = {
       const iv = ciphertext[0];
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
+      const decipher = crypto.createDecipheriv("aes-256-ctr", key, iv);
 
       // Loop through ciphertext and decrypt then return
-      const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
+      const data = encryptedData
+        .slice()
+        .map((block) => new Uint8Array(decipher.update(block)));
 
       decipher.final();
 
@@ -186,11 +192,11 @@ const ed25519 = {
    * @param endian - what endian to use
    * @returns adjusted bytes
    */
-  adjustBytes25519(bytes: Uint8Array, endian: 'be' | 'le'): Uint8Array {
+  adjustBytes25519(bytes: Uint8Array, endian: "be" | "le"): Uint8Array {
     // Create new array to prevent side effects
     const adjustedBytes = new Uint8Array(bytes);
 
-    if (endian === 'be') {
+    if (endian === "be") {
       // BIG ENDIAN
       // AND operation to ensure the last 3 bits of the last byte are 0 leaving the rest unchanged
       adjustedBytes[31] &= 0b11111000;
@@ -238,7 +244,7 @@ const ed25519 = {
 
     // Get key head, this is the first 32 bytes of the hash
     // We aren't interested in the rest of the hash as we only want the scalar
-    const head = ed25519.adjustBytes25519(keyHash.slice(0, 32), 'le');
+    const head = ed25519.adjustBytes25519(keyHash.slice(0, 32), "le");
 
     // Convert head to scalar
     const scalar = arrayToBigInt(head.reverse()) % nobleED25519.CURVE.n;
@@ -262,7 +268,9 @@ const ed25519 = {
     const privateScalar = ed25519.privateKeyToPrivateScalar(privateKey);
 
     // Multiply ephemeral key by private scalar to get shared key preimage
-    const keyPreimage = publicKeyPoint.multiply(arrayToBigInt(privateScalar)).toRawBytes();
+    const keyPreimage = publicKeyPoint
+      .multiply(arrayToBigInt(privateScalar))
+      .toRawBytes();
 
     // SHA256 hash to get the final key
     return sha256(keyPreimage);
@@ -279,7 +287,10 @@ const ed25519 = {
     const seedHash = hash.sha512(seed);
 
     // Return (seedHash mod (n - 1)) + 1 to fit to range 0 < scalar < n
-    return bigIntToArray((arrayToBigInt(seedHash) % nobleED25519.CURVE.n) - 1n + 1n, 32);
+    return bigIntToArray(
+      (arrayToBigInt(seedHash) % nobleED25519.CURVE.n) - 1n + 1n,
+      32
+    );
   },
 
   railgunKeyExchange: {
@@ -296,23 +307,30 @@ const ed25519 = {
       senderViewingPublicKey: Uint8Array,
       receiverViewingPublicKey: Uint8Array,
       sharedRandom: Uint8Array,
-      senderRandom: Uint8Array,
-    ): { blindedSenderPublicKey: Uint8Array; blindedReceiverPublicKey: Uint8Array } {
+      senderRandom: Uint8Array
+    ): {
+      blindedSenderPublicKey: Uint8Array;
+      blindedReceiverPublicKey: Uint8Array;
+    } {
       // Combine sender and shared random via XOR
       // XOR is used because a 0 value senderRandom result in a no change to the sharedRandom
       // allowing the receiver to invert the blinding operation
       // Final random value is padded to 32 bytes
       const finalRandom = bigIntToArray(
         arrayToBigInt(sharedRandom) ^ arrayToBigInt(senderRandom),
-        32,
+        32
       );
 
       // Get blinding scalar from random
       const blindingScalar = ed25519.seedToScalar(finalRandom);
 
       // Get public key points
-      const senderPublicKeyPoint = nobleED25519.Point.fromHex(senderViewingPublicKey);
-      const receiverPublicKeyPoint = nobleED25519.Point.fromHex(receiverViewingPublicKey);
+      const senderPublicKeyPoint = nobleED25519.Point.fromHex(
+        senderViewingPublicKey
+      );
+      const receiverPublicKeyPoint = nobleED25519.Point.fromHex(
+        receiverViewingPublicKey
+      );
 
       // Multiply both public keys by blinding scalar
       const blindedSenderPublicKey = senderPublicKeyPoint
@@ -337,13 +355,18 @@ const edBabyJubJub = {
    * @param privateKey - babyjubjub private key
    * @returns public key
    */
-  async privateKeyToPublicKey(privateKey: Uint8Array): Promise<[Uint8Array, Uint8Array]> {
+  async privateKeyToPublicKey(
+    privateKey: Uint8Array
+  ): Promise<[Uint8Array, Uint8Array]> {
     const eddsaBuild = await eddsaPromise;
 
     // Derive key
     const key = eddsaBuild
       .prv2pub(privateKey)
-      .map((element) => eddsaBuild.F.fromMontgomery(element).reverse()) as [Uint8Array, Uint8Array];
+      .map((element) => eddsaBuild.F.fromMontgomery(element).reverse()) as [
+      Uint8Array,
+      Uint8Array
+    ];
 
     return key;
   },
@@ -366,18 +389,22 @@ const edBabyJubJub = {
    */
   async signPoseidon(
     key: Uint8Array,
-    message: Uint8Array,
+    message: Uint8Array
   ): Promise<[Uint8Array, Uint8Array, Uint8Array]> {
     const eddsaBuild = await eddsaPromise;
 
     // Get montgomery representation
-    const montgomery = eddsaBuild.F.toMontgomery(new Uint8Array(message).reverse());
+    const montgomery = eddsaBuild.F.toMontgomery(
+      new Uint8Array(message).reverse()
+    );
 
     // Sign
     const sig = eddsaBuild.signPoseidon(key, montgomery);
 
     // Convert R8 elements from montgomery and to BE
-    const r8 = sig.R8.map((element) => eddsaBuild.F.fromMontgomery(element).reverse());
+    const r8 = sig.R8.map((element) =>
+      eddsaBuild.F.fromMontgomery(element).reverse()
+    );
 
     return [r8[0], r8[1], bigIntToArray(sig.S, 32)];
   },

@@ -1,16 +1,24 @@
-import { Ciphertext, EncryptedData } from '../../models/formatted-types';
-import { ByteLength, ByteUtils } from '../bytes';
+import { Ciphertext, EncryptedData } from "../../models/formatted-types";
+import { ByteLength, ByteUtils } from "../bytes";
 
-export const ciphertextToEncryptedRandomData = (ciphertext: Ciphertext): EncryptedData => {
+export const ciphertextToEncryptedRandomData = (
+  ciphertext: Ciphertext
+): EncryptedData => {
   const ivTag =
     ByteUtils.formatToByteLength(ciphertext.iv, ByteLength.UINT_128, true) +
     ByteUtils.formatToByteLength(ciphertext.tag, ByteLength.UINT_128, false);
-  const data = ByteUtils.formatToByteLength(ciphertext.data[0], ByteLength.UINT_128, true);
+  const data = ByteUtils.formatToByteLength(
+    ciphertext.data[0],
+    ByteLength.UINT_128,
+    true
+  );
 
   return [ivTag, data];
 };
 
-export const ciphertextToEncryptedJSONData = (ciphertext: Ciphertext): EncryptedData => {
+export const ciphertextToEncryptedJSONData = (
+  ciphertext: Ciphertext
+): EncryptedData => {
   const ivTag =
     ByteUtils.formatToByteLength(ciphertext.iv, ByteLength.UINT_128, true) +
     ByteUtils.formatToByteLength(ciphertext.tag, ByteLength.UINT_128, false);
@@ -19,8 +27,14 @@ export const ciphertextToEncryptedJSONData = (ciphertext: Ciphertext): Encrypted
   return [ivTag, `0x${data}`];
 };
 
-export const encryptedDataToCiphertext = (encryptedData: EncryptedData): Ciphertext => {
-  const hexlifiedIvTag = ByteUtils.formatToByteLength(encryptedData[0], ByteLength.UINT_256, false);
+export const encryptedDataToCiphertext = (
+  encryptedData: EncryptedData
+): Ciphertext => {
+  const hexlifiedIvTag = ByteUtils.formatToByteLength(
+    encryptedData[0],
+    ByteLength.UINT_256,
+    false
+  );
   const ciphertext = {
     iv: hexlifiedIvTag.substring(0, 32),
     tag: hexlifiedIvTag.substring(32),

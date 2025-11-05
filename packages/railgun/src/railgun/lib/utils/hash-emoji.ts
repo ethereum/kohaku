@@ -1,6 +1,6 @@
-import crypto from 'crypto';
-import { ByteUtils } from './bytes';
-import EMOJIS from './emojis.json';
+import crypto from "crypto";
+import { ByteUtils } from "./bytes";
+import EMOJIS from "./emojis.json";
 
 export const emojiHash = (str: string, length?: number): string => {
   return hashEmoji(str, length);
@@ -11,15 +11,15 @@ export const emojiHashForPOIStatusInfo = (str: string): string => {
 };
 
 const hashEmoji = (string: string, hashLength = 1) => {
-  const hash = crypto.createHash('sha256');
+  const hash = crypto.createHash("sha256");
 
   hash.update(`${string}`);
 
-  const hexHash = hash.digest('hex');
+  const hexHash = hash.digest("hex");
   const decimalHash = parseInt(hexHash, 16);
   let emojiIndex = decimalHash % EMOJIS.length ** hashLength;
 
-  let emojiString = '';
+  let emojiString = "";
 
   for (let ii = 0; ii < hashLength; ii += 1) {
     emojiString = `${EMOJIS[emojiIndex % EMOJIS.length]}${emojiString}`;

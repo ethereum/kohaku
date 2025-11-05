@@ -1,5 +1,5 @@
 const MAX_LENGTH = 16;
-const WALLET_SOURCE_CHARSET = ' 0123456789abcdefghijklmnopqrstuvwxyz';
+const WALLET_SOURCE_CHARSET = " 0123456789abcdefghijklmnopqrstuvwxyz";
 
 export class WalletInfo {
   static walletSource: string;
@@ -13,7 +13,9 @@ export class WalletInfo {
 
   private static validateWalletSource(walletSource: string) {
     if (walletSource.length > MAX_LENGTH) {
-      throw new Error(`Wallet source must be less than ${MAX_LENGTH} characters.`);
+      throw new Error(
+        `Wallet source must be less than ${MAX_LENGTH} characters.`
+      );
     }
 
     if (!walletSource.length) {
@@ -25,7 +27,7 @@ export class WalletInfo {
 
   static getEncodedWalletSource(walletSource: string): string {
     if (!walletSource) {
-      return '';
+      return "";
     }
 
     return this.encodeWalletSource(walletSource.toLowerCase());
@@ -48,7 +50,9 @@ export class WalletInfo {
 
       // Throw
       if (charIndex === -1)
-        throw new Error(`Invalid character for wallet source: ${walletSource[i]}`);
+        throw new Error(
+          `Invalid character for wallet source: ${walletSource[i]}`
+        );
 
       // Calculate positional multiplier for char
       const positional = base ** BigInt(walletSource.length - i - 1);
@@ -66,7 +70,7 @@ export class WalletInfo {
 
   static decodeWalletSource(bytes: string): string {
     // Initialize output string
-    let output = '';
+    let output = "";
 
     // Convert input to number
     let inputNumber = BigInt(`0x${bytes}`);

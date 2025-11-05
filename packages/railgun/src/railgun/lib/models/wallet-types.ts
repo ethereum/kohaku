@@ -1,7 +1,7 @@
-import { UnshieldStoredEvent } from './event-types';
-import { OutputType, TokenData } from './formatted-types';
-import { TXIDVersion } from './poi-types';
-import { TXO, WalletBalanceBucket } from './txo-types';
+import { UnshieldStoredEvent } from "./event-types";
+import { OutputType, TokenData } from "./formatted-types";
+import { TXIDVersion } from "./poi-types";
+import { TXO, WalletBalanceBucket } from "./txo-types";
 
 export type WalletDetailsMap = Partial<Record<TXIDVersion, WalletDetails>>;
 
@@ -59,17 +59,20 @@ export type TransactionHistoryTokenAmount = {
   memoText: Optional<string>;
   hasValidPOIForActiveLists: boolean;
 };
-export type TransactionHistoryTransferTokenAmount = TransactionHistoryTokenAmount & {
-  recipientAddress: string;
-};
-export type TransactionHistoryUnshieldTokenAmount = TransactionHistoryTransferTokenAmount & {
-  unshieldFee: string;
-};
-export type TransactionHistoryReceiveTokenAmount = TransactionHistoryTokenAmount & {
-  senderAddress: Optional<string>;
-  shieldFee: Optional<string>;
-  balanceBucket: WalletBalanceBucket;
-};
+export type TransactionHistoryTransferTokenAmount =
+  TransactionHistoryTokenAmount & {
+    recipientAddress: string;
+  };
+export type TransactionHistoryUnshieldTokenAmount =
+  TransactionHistoryTransferTokenAmount & {
+    unshieldFee: string;
+  };
+export type TransactionHistoryReceiveTokenAmount =
+  TransactionHistoryTokenAmount & {
+    senderAddress: Optional<string>;
+    shieldFee: Optional<string>;
+    balanceBucket: WalletBalanceBucket;
+  };
 export type TransactionHistoryEntryReceived = {
   txidVersion: TXIDVersion;
   txid: string;

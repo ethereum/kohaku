@@ -1,4 +1,4 @@
-import { delay } from '../utils/promises';
+import { delay } from "../utils/promises";
 
 export class ProgressService {
   private startValue: number;
@@ -11,7 +11,12 @@ export class ProgressService {
 
   private stopped = false;
 
-  constructor(startValue: number, endValue: number, totalMsec: number, delayMsec: number) {
+  constructor(
+    startValue: number,
+    endValue: number,
+    totalMsec: number,
+    delayMsec: number
+  ) {
     this.startValue = startValue;
     this.endValue = endValue;
     this.totalMsec = totalMsec;
@@ -22,14 +27,18 @@ export class ProgressService {
    * Calls progressCallback once every delayMsec msec.
    * Progresses linearly between startValue and endValue, until stop() is called.
    */
-  async progressSteadily(progressCallback: (progress: number) => void, iteration = 0) {
+  async progressSteadily(
+    progressCallback: (progress: number) => void,
+    iteration = 0
+  ) {
     if (this.stopped) {
       return;
     }
 
     const numTotalIterations = this.totalMsec / this.delayMsec;
     const currentValue =
-      this.startValue + (iteration / numTotalIterations) * (this.endValue - this.startValue);
+      this.startValue +
+      (iteration / numTotalIterations) * (this.endValue - this.startValue);
 
     if (currentValue > this.endValue) {
       return;

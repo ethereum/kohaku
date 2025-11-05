@@ -1,6 +1,6 @@
-import { EngineDebug } from '../debugger/debugger';
-import { Proof, UnprovedTransactionInputs } from '../models/prover-types';
-import { stringifySafe } from '../utils/stringify';
+import { EngineDebug } from "../debugger/debugger";
+import { Proof, UnprovedTransactionInputs } from "../models/prover-types";
+import { stringifySafe } from "../utils/stringify";
 
 export class ProofCache {
   private static cache: Map<string, Proof> = new Map();

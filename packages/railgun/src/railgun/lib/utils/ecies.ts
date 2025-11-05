@@ -1,11 +1,14 @@
-import { EncryptedData } from '../models/formatted-types';
-import { toUTF8String, fromUTF8String, ByteUtils } from './bytes';
-import { encryptedDataToCiphertext, ciphertextToEncryptedJSONData } from './encryption/ciphertext';
-import { AES } from './encryption/aes';
+import { EncryptedData } from "../models/formatted-types";
+import { toUTF8String, fromUTF8String, ByteUtils } from "./bytes";
+import {
+  encryptedDataToCiphertext,
+  ciphertextToEncryptedJSONData,
+} from "./encryption/ciphertext";
+import { AES } from "./encryption/aes";
 
 export const tryDecryptJSONDataWithSharedKey = (
   encryptedData: EncryptedData,
-  sharedKey: Uint8Array,
+  sharedKey: Uint8Array
 ): object | null => {
   try {
     const ciphertext = encryptedDataToCiphertext(encryptedData);
@@ -23,7 +26,7 @@ export const tryDecryptJSONDataWithSharedKey = (
 
 export const encryptJSONDataWithSharedKey = (
   data: object,
-  sharedKey: Uint8Array,
+  sharedKey: Uint8Array
 ): EncryptedData => {
   const dataString = JSON.stringify(data);
   const chunkedData = ByteUtils.chunk(fromUTF8String(dataString));

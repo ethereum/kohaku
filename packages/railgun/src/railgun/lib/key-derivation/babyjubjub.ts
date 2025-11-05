@@ -1,4 +1,4 @@
-import { babyjub } from '@railgun-community/circomlibjs';
+import { babyjub } from "@railgun-community/circomlibjs";
 
 export class Babyjubjub {
   static packPoint = babyjub.packPoint;

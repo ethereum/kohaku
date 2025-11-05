@@ -1,11 +1,10 @@
-
-import { Proof } from './prover-types';
+import { Proof } from "./prover-types";
 
 export enum TXOPOIListStatus {
-  Valid = 'Valid',
-  ShieldBlocked = 'ShieldBlocked',
-  ProofSubmitted = 'ProofSubmitted',
-  Missing = 'Missing',
+  Valid = "Valid",
+  ShieldBlocked = "ShieldBlocked",
+  ProofSubmitted = "ProofSubmitted",
+  Missing = "Missing",
 }
 
 // !! DO NOT MODIFY THIS TYPE !!
@@ -14,9 +13,9 @@ export type POIsPerList = {
 };
 
 export enum BlindedCommitmentType {
-  Shield = 'Shield',
-  Transact = 'Transact',
-  Unshield = 'Unshield',
+  Shield = "Shield",
+  Transact = "Transact",
+  Unshield = "Unshield",
 }
 
 export type BlindedCommitmentData = {
@@ -90,8 +89,8 @@ export type POIEngineProofInputs = {
 };
 
 export enum TXIDVersion {
-  V2_PoseidonMerkle = 'V2_PoseidonMerkle',
-  V3_PoseidonMerkle = 'V3_PoseidonMerkle',
+  V2_PoseidonMerkle = "V2_PoseidonMerkle",
+  V3_PoseidonMerkle = "V3_PoseidonMerkle",
   // V3_KZG = 'V3_KZG',
 }
 

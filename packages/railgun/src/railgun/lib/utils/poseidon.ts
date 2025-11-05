@@ -1,8 +1,8 @@
-import circom from '@railgun-community/circomlibjs';
-import { EngineDebug } from '../debugger/debugger';
-import { ByteLength, ByteUtils } from './bytes';
-import { isReactNative } from './runtime';
-import { createRequire } from 'node:module';
+import circom from "@railgun-community/circomlibjs";
+import { EngineDebug } from "../debugger/debugger";
+import { ByteLength, ByteUtils } from "./bytes";
+import { isReactNative } from "./runtime";
+import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
 interface PoseidonModule {
@@ -11,21 +11,27 @@ interface PoseidonModule {
   poseidonHex?: (args: Array<string>) => string;
 }
 
-const { default: initPoseidonWasm, poseidon: poseidonWasm, poseidonHex: poseidonHexWasm } =
-
-  isReactNative ? {} : (require('@railgun-community/poseidon-hash-wasm') as PoseidonModule);
+const {
+  default: initPoseidonWasm,
+  poseidon: poseidonWasm,
+  poseidonHex: poseidonHexWasm,
+} = isReactNative
+  ? {}
+  : (require("@railgun-community/poseidon-hash-wasm") as PoseidonModule);
 
 const initPoseidon = (): Promise<void> => {
   try {
     // Try WASM implementation.
-    return typeof initPoseidonWasm === 'function' ? initPoseidonWasm() : Promise.resolve();
+    return typeof initPoseidonWasm === "function"
+      ? initPoseidonWasm()
+      : Promise.resolve();
   } catch (cause) {
     if (!(cause instanceof Error)) {
-      throw new Error('Non-error thrown from initPoseidon', { cause });
+      throw new Error("Non-error thrown from initPoseidon", { cause });
     }
 
     // Fallback to Javascript. No init needed.
-    EngineDebug.log('poseidon-hash-wasm init failed: Fallback to JavaScript');
+    EngineDebug.log("poseidon-hash-wasm init failed: Fallback to JavaScript");
     EngineDebug.error(cause);
 
     return Promise.resolve();
@@ -45,11 +51,11 @@ export const poseidon = (args: Array<bigint>): bigint => {
     return poseidonWasm(args);
   } catch (cause) {
     if (!(cause instanceof Error)) {
-      throw new Error('Non-error thrown from poseidon', { cause });
+      throw new Error("Non-error thrown from poseidon", { cause });
     }
 
     // Fallback to Javascript.
-    EngineDebug.log('poseidon in WASM failed: Fallback to JavaScript');
+    EngineDebug.log("poseidon in WASM failed: Fallback to JavaScript");
     EngineDebug.error(cause);
 
     return circom.poseidon(args);
@@ -60,7 +66,7 @@ export const poseidonHex = (args: Array<string>): string => {
   if (isReactNative || !poseidonHexWasm) {
     return ByteUtils.nToHex(
       circom.poseidon(args.map((x) => ByteUtils.hexToBigInt(x))),
-      ByteLength.UINT_256,
+      ByteLength.UINT_256
     );
   }
 
@@ -68,22 +74,27 @@ export const poseidonHex = (args: Array<string>): string => {
     // We need to strip 0x prefix from hex strings before passing to WASM,
     // however, let's first make sure we actually need to do this, to avoid
     // creating an unnecessary copy of the array (via `map`)
-    const needsStripping = args.some((arg) => arg.startsWith('0x'));
-    const strippedArgs = needsStripping ? args.map((x) => ByteUtils.strip0x(x)) : args;
+    const needsStripping = args.some((arg) => arg.startsWith("0x"));
+    const strippedArgs = needsStripping
+      ? args.map((x) => ByteUtils.strip0x(x))
+      : args;
 
-    return ByteUtils.padToLength(poseidonHexWasm(strippedArgs), ByteLength.UINT_256) as string;
+    return ByteUtils.padToLength(
+      poseidonHexWasm(strippedArgs),
+      ByteLength.UINT_256
+    ) as string;
   } catch (cause) {
     if (!(cause instanceof Error)) {
-      throw new Error('Non-error thrown from poseidonHex', { cause });
+      throw new Error("Non-error thrown from poseidonHex", { cause });
     }
 
     // Fallback to Javascript.
-    EngineDebug.log('poseidonHex in WASM failed: Fallback to JavaScript');
+    EngineDebug.log("poseidonHex in WASM failed: Fallback to JavaScript");
     EngineDebug.error(cause);
 
     return ByteUtils.nToHex(
       circom.poseidon(args.map((x) => ByteUtils.hexToBigInt(x))),
-      ByteLength.UINT_256,
+      ByteLength.UINT_256
     );
   }
 };

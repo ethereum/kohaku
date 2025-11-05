@@ -1,6 +1,6 @@
-import { Chain } from '../models/engine-types';
-import { TXIDVersion } from '../models/poi-types';
-import { isDefined } from './is-defined';
+import { Chain } from "../models/engine-types";
+import { TXIDVersion } from "../models/poi-types";
+import { isDefined } from "./is-defined";
 
 type ChainString = `${number}:${number}`;
 
@@ -37,7 +37,7 @@ export class Registry<T> {
   }
 
   private static deserializeChain(chainString: ChainString): Chain {
-    const [type, chainId] = chainString.split(':').map(Number);
+    const [type, chainId] = chainString.split(":").map(Number);
 
     if (type === undefined || chainId === undefined) {
       throw new Error(`Invalid chain string: ${chainString}`);
@@ -65,7 +65,9 @@ export class Registry<T> {
       const chainStr = Registry.serializeChain(chain);
 
       throw new Error(
-        `No value found for txidVersion=${String(txidVersion)} and chain=${chainStr}`,
+        `No value found for txidVersion=${String(
+          txidVersion
+        )} and chain=${chainStr}`
       );
     }
 
@@ -76,7 +78,9 @@ export class Registry<T> {
     this.selectMap(txidVersion).delete(Registry.serializeChain(chain));
   }
 
-  forEach(callback: (value: T, txidVersion: TXIDVersion | null, chain: Chain) => void) {
+  forEach(
+    callback: (value: T, txidVersion: TXIDVersion | null, chain: Chain) => void
+  ) {
     const taggedMaps: Array<[TXIDVersion | null, typeof this.v2Map]> = [
       [TXIDVersion.V2_PoseidonMerkle, this.v2Map],
       [TXIDVersion.V3_PoseidonMerkle, this.v3Map],
@@ -92,7 +96,9 @@ export class Registry<T> {
     }
   }
 
-  map<R>(callback: (value: T, txidVersion: TXIDVersion | null, chain: Chain) => R): R[] {
+  map<R>(
+    callback: (value: T, txidVersion: TXIDVersion | null, chain: Chain) => R
+  ): R[] {
     const result: R[] = [];
 
     this.forEach((value, txidVersion, chain) => {

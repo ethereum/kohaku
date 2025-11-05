@@ -7,10 +7,13 @@
  */
 function arrayToByteLength(byteArray: Uint8Array, length: number) {
   // Check the length of array requested is large enough to accommodate the original array
-  if (byteArray.length > length) throw new Error('BigInt byte size is larger than length');
+  if (byteArray.length > length)
+    throw new Error("BigInt byte size is larger than length");
 
   // Create Uint8Array of requested length
-  return new Uint8Array(new Array(length - byteArray.length).concat(...byteArray));
+  return new Uint8Array(
+    new Array(length - byteArray.length).concat(...byteArray)
+  );
 }
 
 /**
@@ -67,7 +70,7 @@ function bigIntToArray(bn: bigint, length: number): Uint8Array {
  */
 function arrayToHexString(array: Uint8Array, prefix: boolean) {
   // Create empty hex string
-  let hexString = '';
+  let hexString = "";
 
   // Loop through each byte of array
   array.forEach((byte) => {
@@ -75,7 +78,7 @@ function arrayToHexString(array: Uint8Array, prefix: boolean) {
     let hexByte = byte.toString(16);
 
     // Ensure 2 chars
-    hexByte = hexByte.length === 1 ? '0' + hexByte : hexByte;
+    hexByte = hexByte.length === 1 ? "0" + hexByte : hexByte;
 
     // Append to hexString
     hexString += hexByte;
@@ -93,7 +96,9 @@ function arrayToHexString(array: Uint8Array, prefix: boolean) {
  */
 function hexStringToArray(hexString: string) {
   // Strip leading 0x if present
-  const hexStringFormatted = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
+  const hexStringFormatted = hexString.startsWith("0x")
+    ? hexString.slice(2)
+    : hexString;
 
   // Create empty array
   const array = new Uint8Array(hexStringFormatted.length / 2);
@@ -101,7 +106,10 @@ function hexStringToArray(hexString: string) {
   // Fetch matching byte index from hex string and parse to integer
   array.map(
     (element, index) =>
-      (array[index] = parseInt(hexStringFormatted.substring(index * 2, index * 2 + 2), 16)),
+      (array[index] = parseInt(
+        hexStringFormatted.substring(index * 2, index * 2 + 2),
+        16
+      ))
   );
 
   return array;
@@ -145,11 +153,15 @@ function combine(chunks: Uint8Array[]): Uint8Array {
  * @param side - side to add padding
  * @returns padded data
  */
-function padToLength(data: Uint8Array, length: number, side: 'left' | 'right'): Uint8Array {
+function padToLength(
+  data: Uint8Array,
+  length: number,
+  side: "left" | "right"
+): Uint8Array {
   // Calculate amount of padding needed
   const slack = length - data.length;
 
-  if (side === 'left') {
+  if (side === "left") {
     // If padding is on left side, create new Uint8Array with 0 filled left
     return new Uint8Array([...new Uint8Array(slack), ...data]);
   } else {
@@ -159,7 +171,7 @@ function padToLength(data: Uint8Array, length: number, side: 'left' | 'right'): 
 }
 
 const railgunBase37 = {
-  CHARSET: ' 0123456789abcdefghijklmnopqrstuvwxyz',
+  CHARSET: " 0123456789abcdefghijklmnopqrstuvwxyz",
 
   /**
    * Railgun-base37 encodes text
@@ -201,7 +213,7 @@ const railgunBase37 = {
    */
   decode(bytes: Uint8Array): string {
     // Initialize output string
-    let output = '';
+    let output = "";
 
     // Convert input to number
     let inputNumber = arrayToBigInt(bytes);

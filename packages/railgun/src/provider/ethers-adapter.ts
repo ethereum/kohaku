@@ -1,6 +1,13 @@
-import type { JsonRpcProvider, Log, Wallet } from 'ethers';
-import type { RailgunLog, RailgunProvider, RailgunSigner, TransactionReceipt } from './provider';
-import { TxData } from '~/account/tx/base';
+import type { JsonRpcProvider, Log, Wallet } from "ethers";
+
+import { TxData } from "~/account/tx/base";
+
+import type {
+  RailgunLog,
+  RailgunProvider,
+  RailgunSigner,
+  TransactionReceipt,
+} from "./provider";
 
 /**
  * Ethers v6 provider adapter
@@ -15,7 +22,7 @@ export class EthersProviderAdapter implements RailgunProvider {
   }): Promise<RailgunLog[]> {
     const logs = await this.provider.getLogs(params);
 
-    return logs.map(log => this.convertLog(log));
+    return logs.map((log) => this.convertLog(log));
   }
 
   async getBlockNumber(): Promise<number> {
@@ -34,7 +41,9 @@ export class EthersProviderAdapter implements RailgunProvider {
     return await this.provider.getCode(address);
   }
 
-  async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
+  async getTransactionReceipt(
+    txHash: string
+  ): Promise<TransactionReceipt | null> {
     const receipt = await this.provider.getTransactionReceipt(txHash);
 
     if (!receipt) return null;
@@ -42,7 +51,7 @@ export class EthersProviderAdapter implements RailgunProvider {
     return {
       blockNumber: receipt.blockNumber,
       status: receipt.status ?? 0,
-      logs: receipt.logs.map(log => this.convertLog(log)),
+      logs: receipt.logs.map((log) => this.convertLog(log)),
       gasUsed: receipt.gasUsed,
     };
   }

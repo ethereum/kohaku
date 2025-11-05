@@ -1,7 +1,7 @@
-import { PoseidonMerkleVerifier } from '../abi/typechain';
-import { BoundParamsStruct } from '../abi/typechain/RailgunSmartWallet';
+import { PoseidonMerkleVerifier } from "../abi/typechain";
+import { BoundParamsStruct } from "../abi/typechain/RailgunSmartWallet";
 
-import { TXIDVersion } from './poi-types';
+import { TXIDVersion } from "./poi-types";
 
 export const enum Circuits {
   OneTwo,
@@ -65,7 +65,9 @@ export type RailgunTransactionRequestV3 = {
   boundParams: PoseidonMerkleVerifier.BoundParamsStruct;
 };
 
-export type RailgunTransactionRequest = RailgunTransactionRequestV2 | RailgunTransactionRequestV3;
+export type RailgunTransactionRequest =
+  | RailgunTransactionRequestV2
+  | RailgunTransactionRequestV3;
 
 export type UnprovedTransactionInputs = RailgunTransactionRequest & {
   signature: [bigint, bigint, bigint];

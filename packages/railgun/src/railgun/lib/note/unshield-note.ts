@@ -1,8 +1,12 @@
-import { CommitmentPreimageStruct } from '../abi/typechain/RailgunSmartWallet';
-import { UnshieldData } from '../models';
-import { TokenData } from '../models/formatted-types';
-import { ByteLength, ByteUtils } from '../utils/bytes';
-import { assertValidNoteToken, getNoteHash, serializePreImage } from './note-util';
+import { CommitmentPreimageStruct } from "../abi/typechain/RailgunSmartWallet";
+import { UnshieldData } from "../models";
+import { TokenData } from "../models/formatted-types";
+import { ByteLength, ByteUtils } from "../utils/bytes";
+import {
+  assertValidNoteToken,
+  getNoteHash,
+  serializePreImage,
+} from "./note-util";
 
 export abstract class UnshieldNote {
   readonly toAddress: string;
@@ -22,7 +26,12 @@ export abstract class UnshieldNote {
    * @param value - note value
    * @param tokenData
    */
-  constructor(toAddress: string, value: bigint, tokenData: TokenData, allowOverride: boolean) {
+  constructor(
+    toAddress: string,
+    value: bigint,
+    tokenData: TokenData,
+    allowOverride: boolean
+  ) {
     assertValidNoteToken(tokenData, value);
 
     this.toAddress = toAddress;
@@ -54,7 +63,12 @@ export abstract class UnshieldNote {
   }
 
   serialize(prefix: boolean = false) {
-    return serializePreImage(this.toAddress, this.tokenData, this.value, prefix);
+    return serializePreImage(
+      this.toAddress,
+      this.tokenData,
+      this.value,
+      prefix
+    );
   }
 
   get preImage(): CommitmentPreimageStruct {
@@ -65,7 +79,7 @@ export abstract class UnshieldNote {
 
   static getAmountFeeFromValue(
     value: bigint,
-    feeBasisPoints: bigint,
+    feeBasisPoints: bigint
   ): { amount: bigint; fee: bigint } {
     const BASIS_POINTS = 10000n;
     const fee = (value * feeBasisPoints) / BASIS_POINTS;

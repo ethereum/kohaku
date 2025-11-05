@@ -1,11 +1,11 @@
-import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
-import { POI, POIListType } from '../poi';
+import chai from "chai";
+import chaiAsPromised from "chai-as-promised";
+import { POI, POIListType } from "../poi";
 import {
   MOCK_LIST,
   MOCK_LIST_KEY,
   TestPOINodeInterface,
-} from '../../test/test-poi-node-interface.test';
+} from "../../test/test-poi-node-interface.test";
 import {
   Chain,
   CommitmentType,
@@ -16,14 +16,14 @@ import {
   TXOPOIListStatus,
   UnshieldStoredEvent,
   WalletBalanceBucket,
-} from '../../models';
-import { TransactNote } from '../../note/transact-note';
+} from "../../models";
+import { TransactNote } from "../../note/transact-note";
 
 chai.use(chaiAsPromised);
 const { expect } = chai;
 
-const activeList1 = 'activeList1';
-const activeList2 = 'activeList2';
+const activeList1 = "activeList1";
+const activeList2 = "activeList2";
 
 const invalidPOIsForList1 = {
   poisPerList: {
@@ -68,25 +68,30 @@ const shieldBlockedPOIsForList1 = {
 
 const chain: Chain = { type: 0, chainId: 1 };
 
-describe('poi', () => {
+describe("poi", () => {
   before(() => {
     POI.init(
       [
-        { key: MOCK_LIST_KEY, type: POIListType.Gather, name: 'mock list', description: 'mock' },
+        {
+          key: MOCK_LIST_KEY,
+          type: POIListType.Gather,
+          name: "mock list",
+          description: "mock",
+        },
         {
           key: activeList1,
           type: POIListType.Active,
-          name: 'active list 1',
-          description: 'active-1',
+          name: "active list 1",
+          description: "active-1",
         },
         {
           key: activeList2,
           type: POIListType.Active,
-          name: 'active list 2',
-          description: 'active-2',
+          name: "active list 2",
+          description: "active-2",
         },
       ],
-      new TestPOINodeInterface(),
+      new TestPOINodeInterface()
     );
     POI.launchBlocks.set(null, chain, 0);
   });
@@ -95,12 +100,12 @@ describe('poi', () => {
     POI.init([MOCK_LIST], new TestPOINodeInterface());
   });
 
-  it('Should get which list keys can generate spent POIs', async () => {
+  it("Should get which list keys can generate spent POIs", async () => {
     const listKeysLegacy = POI.getListKeysCanGenerateSpentPOIs(
       [invalidPOIsForList1 as TXO],
       [submittedPOIsForList1 as SentCommitment],
       [invalidPOIsForList1 as unknown as UnshieldStoredEvent],
-      true,
+      true
     );
 
     expect(listKeysLegacy).to.deep.equal([MOCK_LIST_KEY, activeList1]);
@@ -109,7 +114,7 @@ describe('poi', () => {
       [invalidPOIsForList1 as TXO],
       [{ ...submittedPOIsForList1, note: { value: 0n } } as SentCommitment],
       [submittedPOIsForList1 as unknown as UnshieldStoredEvent],
-      true,
+      true
     );
 
     expect(listKeysLegacyValue0).to.deep.equal([MOCK_LIST_KEY]);
@@ -118,7 +123,7 @@ describe('poi', () => {
       [invalidPOIsForList1 as TXO],
       [submittedPOIsForList1 as SentCommitment],
       [submittedPOIsForList1 as unknown as UnshieldStoredEvent],
-      false,
+      false
     );
 
     expect(listKeysNoInputProofs).to.deep.equal([]);
@@ -127,7 +132,7 @@ describe('poi', () => {
       [validPOIsForList1 as TXO],
       [submittedPOIsForList1 as SentCommitment],
       [validPOIsForList1 as unknown as UnshieldStoredEvent],
-      false,
+      false
     );
 
     expect(listKeysAllValidOutputProofs).to.deep.equal([]);
@@ -136,13 +141,13 @@ describe('poi', () => {
       [validPOIsForList1 as TXO],
       [submittedPOIsForList1 as SentCommitment],
       [invalidPOIsForList1 as unknown as UnshieldStoredEvent],
-      false,
+      false
     );
 
     expect(listKeysInvalidUnshieldProof).to.deep.equal([activeList1]);
   });
 
-  it('Should get listKeys to submit legacy transact events', async () => {
+  it("Should get listKeys to submit legacy transact events", async () => {
     const listKeys = POI.getListKeysCanSubmitLegacyTransactEvents([
       invalidPOIsForList1 as TXO,
       validPOIsForList1 as TXO,
@@ -151,7 +156,7 @@ describe('poi', () => {
     expect(listKeys).to.deep.equal([MOCK_LIST_KEY, activeList1]);
   });
 
-  it('Should get appropriate balance bucket for TXO', async () => {
+  it("Should get appropriate balance bucket for TXO", async () => {
     const changeNote = {
       outputType: OutputType.Change,
     } as TransactNote;
@@ -161,14 +166,18 @@ describe('poi', () => {
       spendtxid: false,
     } as TXO);
 
-    expect(balanceBucketChange).to.deep.equal(WalletBalanceBucket.MissingInternalPOI);
+    expect(balanceBucketChange).to.deep.equal(
+      WalletBalanceBucket.MissingInternalPOI
+    );
 
     const balanceBucketTransfer = POI.getBalanceBucket({
       note: { outputType: OutputType.Transfer } as TransactNote,
       spendtxid: false,
     } as TXO);
 
-    expect(balanceBucketTransfer).to.deep.equal(WalletBalanceBucket.MissingExternalPOI);
+    expect(balanceBucketTransfer).to.deep.equal(
+      WalletBalanceBucket.MissingExternalPOI
+    );
 
     const balanceBucketInvalid = POI.getBalanceBucket({
       ...invalidPOIsForList1,
@@ -176,7 +185,9 @@ describe('poi', () => {
       spendtxid: false,
     } as TXO);
 
-    expect(balanceBucketInvalid).to.deep.equal(WalletBalanceBucket.MissingInternalPOI);
+    expect(balanceBucketInvalid).to.deep.equal(
+      WalletBalanceBucket.MissingInternalPOI
+    );
 
     const balanceBucketSubmitted = POI.getBalanceBucket({
       ...submittedPOIsForList1,
@@ -184,7 +195,9 @@ describe('poi', () => {
       spendtxid: false,
     } as TXO);
 
-    expect(balanceBucketSubmitted).to.deep.equal(WalletBalanceBucket.ProofSubmitted);
+    expect(balanceBucketSubmitted).to.deep.equal(
+      WalletBalanceBucket.ProofSubmitted
+    );
 
     const balanceBucketValid = POI.getBalanceBucket({
       ...validPOIsForList1,
@@ -200,7 +213,9 @@ describe('poi', () => {
       spendtxid: false,
     } as TXO);
 
-    expect(balanceBucketShieldPending).to.deep.equal(WalletBalanceBucket.ShieldPending);
+    expect(balanceBucketShieldPending).to.deep.equal(
+      WalletBalanceBucket.ShieldPending
+    );
 
     const balanceBucketShieldBlocked = POI.getBalanceBucket({
       ...shieldBlockedPOIsForList1,
@@ -208,12 +223,14 @@ describe('poi', () => {
       spendtxid: false,
     } as TXO);
 
-    expect(balanceBucketShieldBlocked).to.deep.equal(WalletBalanceBucket.ShieldBlocked);
+    expect(balanceBucketShieldBlocked).to.deep.equal(
+      WalletBalanceBucket.ShieldBlocked
+    );
 
     const balanceBucketSpent = POI.getBalanceBucket({
       ...shieldBlockedPOIsForList1,
       note: changeNote,
-      spendtxid: '123',
+      spendtxid: "123",
     } as TXO);
 
     expect(balanceBucketSpent).to.deep.equal(WalletBalanceBucket.Spent);

@@ -1,13 +1,13 @@
-import { ZERO_ADDRESS } from '../../utils/constants';
-import { getTokenDataERC20 } from '../note-util';
-import { UnshieldNote } from '../unshield-note';
+import { ZERO_ADDRESS } from "../../utils/constants";
+import { getTokenDataERC20 } from "../note-util";
+import { UnshieldNote } from "../unshield-note";
 
 export class UnshieldNoteERC20 extends UnshieldNote {
   constructor(
     toAddress: string,
     value: bigint,
     tokenAddress: string,
-    allowOverride: boolean = false,
+    allowOverride: boolean = false
   ) {
     const tokenData = getTokenDataERC20(tokenAddress);
 

@@ -1,5 +1,9 @@
-import { poseidon } from '../utils/poseidon';
-import { AddressData, decodeAddress, encodeAddress } from '../key-derivation/bech32';
+import { poseidon } from "../utils/poseidon";
+import {
+  AddressData,
+  decodeAddress,
+  encodeAddress,
+} from "../key-derivation/bech32";
 import {
   Ciphertext,
   CiphertextXChaCha,
@@ -9,30 +13,30 @@ import {
   OutputType,
   TokenData,
   TokenType,
-} from '../models/formatted-types';
-import { MEMO_SENDER_RANDOM_NULL } from '../models/transaction-constants';
-import { TokenDataGetter } from '../token/token-data-getter';
-import { ByteLength, ByteUtils } from '../utils/bytes';
+} from "../models/formatted-types";
+import { MEMO_SENDER_RANDOM_NULL } from "../models/transaction-constants";
+import { TokenDataGetter } from "../token/token-data-getter";
+import { ByteLength, ByteUtils } from "../utils/bytes";
 import {
   ciphertextToEncryptedRandomData,
   encryptedDataToCiphertext,
-} from '../utils/encryption/ciphertext';
-import { AES } from '../utils/encryption/aes';
-import { unblindNoteKey } from '../utils/keys-utils';
-import { unblindNoteKeyLegacy } from '../utils/keys-utils-legacy';
-import { Memo } from './memo';
+} from "../utils/encryption/ciphertext";
+import { AES } from "../utils/encryption/aes";
+import { unblindNoteKey } from "../utils/keys-utils";
+import { unblindNoteKeyLegacy } from "../utils/keys-utils-legacy";
+import { Memo } from "./memo";
 import {
   assertValidNoteRandom,
   getTokenDataERC20,
   getTokenDataHash,
   ERC721_NOTE_VALUE,
   serializeTokenData,
-} from './note-util';
-import { isDefined } from '../utils/is-defined';
-import { WalletInfo } from '../wallet/wallet-info';
-import { TXIDVersion } from '../models/poi-types';
-import { Chain } from '../models/engine-types';
-import { XChaCha20 } from '../utils/encryption/x-cha-cha-20';
+} from "./note-util";
+import { isDefined } from "../utils/is-defined";
+import { WalletInfo } from "../wallet/wallet-info";
+import { TXIDVersion } from "../models/poi-types";
+import { Chain } from "../models/engine-types";
+import { XChaCha20 } from "../utils/encryption/x-cha-cha-20";
 
 /**
  *
@@ -102,7 +106,7 @@ export class TransactNote {
     senderRandom: Optional<string>,
     memoText: Optional<string>,
     shieldFee: Optional<string>,
-    blockNumber: Optional<number>,
+    blockNumber: Optional<number>
   ) {
     assertValidNoteRandom(random);
 
@@ -114,11 +118,15 @@ export class TransactNote {
     this.tokenData = serializeTokenData(
       tokenData.tokenAddress,
       tokenData.tokenType,
-      tokenData.tokenSubID,
+      tokenData.tokenSubID
     );
     this.tokenHash = getTokenDataHash(tokenData);
     this.notePublicKey = this.getNotePublicKey();
-    this.hash = TransactNote.getHash(this.notePublicKey, this.tokenHash, this.value);
+    this.hash = TransactNote.getHash(
+      this.notePublicKey,
+      this.tokenHash,
+      this.value
+    );
     this.outputType = outputType;
     this.walletSource = walletSource;
     this.senderRandom = senderRandom;
@@ -134,7 +142,7 @@ export class TransactNote {
     tokenData: TokenData,
     showSenderAddressToRecipient: boolean,
     outputType: OutputType,
-    memoText: Optional<string>,
+    memoText: Optional<string>
   ): TransactNote {
     // See note at top of file.
     const shouldCreateSenderRandom = !showSenderAddressToRecipient;
@@ -155,7 +163,7 @@ export class TransactNote {
       senderRandom,
       memoText,
       undefined, // shieldFee
-      undefined, // blockNumber
+      undefined // blockNumber
     );
   }
 
@@ -164,10 +172,12 @@ export class TransactNote {
     senderAddressData: Optional<AddressData>,
     tokenData: NFTTokenData,
     showSenderAddressToRecipient: boolean,
-    memoText: Optional<string>,
+    memoText: Optional<string>
   ): TransactNote {
     if (tokenData.tokenType !== TokenType.ERC721) {
-      throw new Error(`Invalid token type for ERC721 transfer: ${tokenData.tokenType}`);
+      throw new Error(
+        `Invalid token type for ERC721 transfer: ${tokenData.tokenType}`
+      );
     }
 
     return TransactNote.createTransfer(
@@ -177,7 +187,7 @@ export class TransactNote {
       tokenData,
       showSenderAddressToRecipient,
       OutputType.Transfer,
-      memoText,
+      memoText
     );
   }
 
@@ -187,10 +197,12 @@ export class TransactNote {
     tokenData: NFTTokenData,
     amount: bigint,
     showSenderAddressToRecipient: boolean,
-    memoText: Optional<string>,
+    memoText: Optional<string>
   ): TransactNote {
     if (tokenData.tokenType !== TokenType.ERC1155) {
-      throw new Error(`Invalid token type for ERC1155 transfer: ${tokenData.tokenType}`);
+      throw new Error(
+        `Invalid token type for ERC1155 transfer: ${tokenData.tokenType}`
+      );
     }
 
     return TransactNote.createTransfer(
@@ -200,7 +212,7 @@ export class TransactNote {
       tokenData,
       showSenderAddressToRecipient,
       OutputType.Transfer,
-      memoText,
+      memoText
     );
   }
 
@@ -213,7 +225,10 @@ export class TransactNote {
   }
 
   private getNotePublicKey(): bigint {
-    return poseidon([this.receiverAddressData.masterPublicKey, ByteUtils.hexToBigInt(this.random)]);
+    return poseidon([
+      this.receiverAddressData.masterPublicKey,
+      ByteUtils.hexToBigInt(this.random),
+    ]);
   }
 
   getSenderAddress(): Optional<string> {
@@ -228,7 +243,11 @@ export class TransactNote {
    * Get note hash
    * @returns {bigint} hash
    */
-  static getHash(notePublicKey: bigint, tokenHash: string, value: bigint): bigint {
+  static getHash(
+    notePublicKey: bigint,
+    tokenHash: string,
+    value: bigint
+  ): bigint {
     return poseidon([notePublicKey, ByteUtils.hexToBigInt(tokenHash), value]);
   }
 
@@ -241,14 +260,14 @@ export class TransactNote {
     sharedKey: Uint8Array,
     senderMasterPublicKey: bigint,
     senderRandom: Optional<string>,
-    viewingPrivateKey: Uint8Array,
+    viewingPrivateKey: Uint8Array
   ): {
     noteCiphertext: Ciphertext;
     noteMemo: string;
     annotationData: string;
   } {
     if (txidVersion !== TXIDVersion.V2_PoseidonMerkle) {
-      throw new Error('Invalid txidVersion for V2 encryption');
+      throw new Error("Invalid txidVersion for V2 encryption");
     }
 
     const prefix = false;
@@ -260,7 +279,7 @@ export class TransactNote {
     const encodedMasterPublicKey = TransactNote.getEncodedMasterPublicKey(
       senderRandom,
       receiverMasterPublicKey,
-      senderMasterPublicKey,
+      senderMasterPublicKey
     );
 
     const encodedMemoText = Memo.encodeMemoText(this.memoText);
@@ -271,26 +290,32 @@ export class TransactNote {
         `${random}${value}`,
         encodedMemoText,
       ],
-      sharedKey,
+      sharedKey
     );
 
     if (!isDefined(this.outputType)) {
-      throw new Error('Output type must be set for encrypted note annotation data');
+      throw new Error(
+        "Output type must be set for encrypted note annotation data"
+      );
     }
 
     if (!isDefined(this.senderRandom)) {
-      throw new Error('Sender random must be set for encrypted note annotation data');
+      throw new Error(
+        "Sender random must be set for encrypted note annotation data"
+      );
     }
 
     if (!isDefined(this.walletSource)) {
-      throw new Error('Wallet source must be set for encrypted note annotation data');
+      throw new Error(
+        "Wallet source must be set for encrypted note annotation data"
+      );
     }
 
     const annotationData = Memo.createEncryptedNoteAnnotationDataV2(
       this.outputType,
       this.senderRandom,
       this.walletSource,
-      viewingPrivateKey,
+      viewingPrivateKey
     );
 
     return {
@@ -310,10 +335,10 @@ export class TransactNote {
   encryptV3(
     txidVersion: TXIDVersion,
     sharedKey: Uint8Array,
-    senderMasterPublicKey: bigint,
+    senderMasterPublicKey: bigint
   ): CiphertextXChaCha {
     if (txidVersion !== TXIDVersion.V3_PoseidonMerkle) {
-      throw new Error('Invalid txidVersion for V3 encryption');
+      throw new Error("Invalid txidVersion for V3 encryption");
     }
 
     const prefix = false;
@@ -325,15 +350,19 @@ export class TransactNote {
     const encodedMasterPublicKey = TransactNote.getEncodedMasterPublicKey(
       this.senderRandom,
       receiverMasterPublicKey,
-      senderMasterPublicKey,
+      senderMasterPublicKey
     );
 
     if (!isDefined(this.senderRandom)) {
-      throw new Error('Sender random must be set for V3 encrypted note annotation data');
+      throw new Error(
+        "Sender random must be set for V3 encrypted note annotation data"
+      );
     }
 
     if (this.senderRandom.length !== 30) {
-      throw new Error('Invalid senderRandom length - expected 15 bytes (30 length)');
+      throw new Error(
+        "Invalid senderRandom length - expected 15 bytes (30 length)"
+      );
     }
 
     const encodedMemoText = Memo.encodeMemoText(this.memoText);
@@ -344,7 +373,7 @@ export class TransactNote {
       tokenHash, // 64 length
       this.senderRandom, // 30 length
       encodedMemoText, // variable length
-    ].join('');
+    ].join("");
 
     return XChaCha20.encryptChaCha20Poly1305(plaintext, sharedKey);
   }
@@ -353,7 +382,7 @@ export class TransactNote {
     random: string,
     blindedViewingPublicKey: Optional<Uint8Array>,
     senderRandom: Optional<string>,
-    isLegacyDecryption: boolean,
+    isLegacyDecryption: boolean
   ): Uint8Array {
     if (blindedViewingPublicKey && isDefined(senderRandom)) {
       const unblinded = isLegacyDecryption
@@ -386,29 +415,33 @@ export class TransactNote {
     isLegacyDecryption: boolean,
     tokenDataGetter: TokenDataGetter,
     blockNumber: Optional<number>,
-    transactCommitmentBatchIndexV3: Optional<number>,
+    transactCommitmentBatchIndexV3: Optional<number>
   ): Promise<TransactNote> {
     switch (txidVersion) {
       case TXIDVersion.V2_PoseidonMerkle: {
-        if (!('tag' in noteCiphertext)) {
-          throw new Error('Invalid ciphertext for V2 decryption');
+        if (!("tag" in noteCiphertext)) {
+          throw new Error("Invalid ciphertext for V2 decryption");
         }
 
-        const ciphertextDataWithMemoText = [...noteCiphertext.data, ByteUtils.strip0x(memoV2)];
+        const ciphertextDataWithMemoText = [
+          ...noteCiphertext.data,
+          ByteUtils.strip0x(memoV2),
+        ];
         const fullCiphertext: Ciphertext = {
           ...noteCiphertext,
           data: ciphertextDataWithMemoText,
         };
-        const decryptedCiphertext = AES.decryptGCM(fullCiphertext, sharedKey).map((value) =>
-          ByteUtils.hexlify(value),
-        );
+        const decryptedCiphertext = AES.decryptGCM(
+          fullCiphertext,
+          sharedKey
+        ).map((value) => ByteUtils.hexlify(value));
 
         const { random, value, memoText, tokenData, encodedMPK } =
           await this.getDecryptedValuesNoteCiphertextV2(
             txidVersion,
             chain,
             decryptedCiphertext,
-            tokenDataGetter,
+            tokenDataGetter
           );
 
         const noteAnnotationData = isSentNote
@@ -429,36 +462,41 @@ export class TransactNote {
           value,
           memoText,
           tokenData,
-          encodedMPK,
+          encodedMPK
         );
       }
       case TXIDVersion.V3_PoseidonMerkle: {
-        if ('tag' in noteCiphertext) {
-          throw new Error('Invalid ciphertext for V3 decryption');
+        if ("tag" in noteCiphertext) {
+          throw new Error("Invalid ciphertext for V3 decryption");
         }
 
-        const decryptedCiphertext = XChaCha20.decryptChaCha20Poly1305(noteCiphertext, sharedKey);
+        const decryptedCiphertext = XChaCha20.decryptChaCha20Poly1305(
+          noteCiphertext,
+          sharedKey
+        );
 
         const { random, value, memoText, tokenData, encodedMPK, senderRandom } =
           await this.getDecryptedValuesNoteCiphertextV3(
             txidVersion,
             chain,
             decryptedCiphertext,
-            tokenDataGetter,
+            tokenDataGetter
           );
 
         if (!isDefined(transactCommitmentBatchIndexV3)) {
-          throw new Error('transactCommitmentBatchIndex must be defined for V3 decryption');
+          throw new Error(
+            "transactCommitmentBatchIndex must be defined for V3 decryption"
+          );
         }
 
         const senderCiphertext = annotationData;
 
         const senderCiphertextDecrypted = isSentNote
           ? Memo.decryptSenderCiphertextV3(
-            senderCiphertext,
-            viewingPrivateKey,
-            transactCommitmentBatchIndexV3,
-          )
+              senderCiphertext,
+              viewingPrivateKey,
+              transactCommitmentBatchIndexV3
+            )
           : undefined;
 
         return this.noteFromDecryptedValues(
@@ -475,19 +513,19 @@ export class TransactNote {
           value,
           memoText,
           tokenData,
-          encodedMPK,
+          encodedMPK
         );
       }
     }
 
-    throw new Error('Invalid txidVersion for note decryption');
+    throw new Error("Invalid txidVersion for note decryption");
   }
 
   static getDecodedMasterPublicKey(
     currentWalletMasterPublicKey: bigint,
     encodedMasterPublicKey: bigint,
     senderRandom: Optional<string>,
-    isLegacyDecryption: boolean,
+    isLegacyDecryption: boolean
   ): bigint {
     if (
       isLegacyDecryption ||
@@ -502,7 +540,7 @@ export class TransactNote {
   static getEncodedMasterPublicKey(
     senderRandom: Optional<string>,
     receiverMasterPublicKey: bigint,
-    senderMasterPublicKey: bigint,
+    senderMasterPublicKey: bigint
   ): bigint {
     return isDefined(senderRandom) && senderRandom !== MEMO_SENDER_RANDOM_NULL
       ? receiverMasterPublicKey // Unencoded
@@ -513,7 +551,7 @@ export class TransactNote {
     txidVersion: TXIDVersion,
     chain: Chain,
     decryptedCiphertext: string[],
-    tokenDataGetter: TokenDataGetter,
+    tokenDataGetter: TokenDataGetter
   ): Promise<{
     random: string;
     value: bigint;
@@ -528,11 +566,19 @@ export class TransactNote {
     // 3 (+ more array values for legacy): Optional Memo string
 
     const random = decryptedCiphertext[2].substring(0, 32);
-    const value = ByteUtils.hexToBigInt(decryptedCiphertext[2].substring(32, 64));
+    const value = ByteUtils.hexToBigInt(
+      decryptedCiphertext[2].substring(32, 64)
+    );
     const tokenHash = decryptedCiphertext[1];
-    const memoText = Memo.decodeMemoText(ByteUtils.combine(decryptedCiphertext.slice(3)));
+    const memoText = Memo.decodeMemoText(
+      ByteUtils.combine(decryptedCiphertext.slice(3))
+    );
 
-    const tokenData = await tokenDataGetter.getTokenDataFromHash(txidVersion, chain, tokenHash);
+    const tokenData = await tokenDataGetter.getTokenDataFromHash(
+      txidVersion,
+      chain,
+      tokenHash
+    );
 
     const encodedMPK = ByteUtils.hexToBigInt(decryptedCiphertext[0]);
 
@@ -543,7 +589,7 @@ export class TransactNote {
     txidVersion: TXIDVersion,
     chain: Chain,
     decryptedCiphertextV3: string,
-    tokenDataGetter: TokenDataGetter,
+    tokenDataGetter: TokenDataGetter
   ): Promise<{
     random: string;
     value: bigint;
@@ -555,15 +601,23 @@ export class TransactNote {
     // Decrypted Values (V3):
 
     // - encodedMPK (senderMPK XOR receiverMPK - 32 bytes)
-    const encodedMPK = ByteUtils.hexToBigInt(decryptedCiphertextV3.substring(0, 64));
+    const encodedMPK = ByteUtils.hexToBigInt(
+      decryptedCiphertextV3.substring(0, 64)
+    );
 
     // - random & amount (16 bytes each)
     const random = decryptedCiphertextV3.substring(64, 96);
-    const value = ByteUtils.hexToBigInt(decryptedCiphertextV3.substring(96, 128));
+    const value = ByteUtils.hexToBigInt(
+      decryptedCiphertextV3.substring(96, 128)
+    );
 
     // - token (32 bytes)
     const tokenHash = decryptedCiphertextV3.substring(128, 192);
-    const tokenData = await tokenDataGetter.getTokenDataFromHash(txidVersion, chain, tokenHash);
+    const tokenData = await tokenDataGetter.getTokenDataFromHash(
+      txidVersion,
+      chain,
+      tokenHash
+    );
 
     // - senderRandom (15 bytes)
     const senderRandom = decryptedCiphertextV3.substring(192, 222); // Note: 30 length for 15 bytes
@@ -591,7 +645,7 @@ export class TransactNote {
     value: bigint,
     memoText: Optional<string>,
     tokenData: TokenData,
-    encodedMPK: bigint,
+    encodedMPK: bigint
   ) {
     if (isSentNote) {
       // SENT note.
@@ -600,13 +654,13 @@ export class TransactNote {
           currentWalletAddressData.masterPublicKey,
           encodedMPK,
           senderRandom,
-          isLegacyDecryption,
+          isLegacyDecryption
         ),
         viewingPublicKey: TransactNote.unblindViewingPublicKey(
           random,
           blindedReceiverViewingKey,
           senderRandom,
-          isLegacyDecryption,
+          isLegacyDecryption
         ),
       };
 
@@ -621,30 +675,31 @@ export class TransactNote {
         senderRandom,
         memoText,
         undefined, // shieldFee
-        blockNumber,
+        blockNumber
       );
     }
 
     // RECEIVE note.
     // Master public key will be encoded (different) if the sender wants address to be visible by receiver.
 
-    const senderAddressVisible = encodedMPK !== currentWalletAddressData.masterPublicKey;
+    const senderAddressVisible =
+      encodedMPK !== currentWalletAddressData.masterPublicKey;
 
     const senderAddressData: Optional<AddressData> = senderAddressVisible
       ? {
-        masterPublicKey: TransactNote.getDecodedMasterPublicKey(
-          currentWalletAddressData.masterPublicKey,
-          encodedMPK,
-          undefined, // Sender is not blinded, null senderRandom.
-          isLegacyDecryption,
-        ),
-        viewingPublicKey: TransactNote.unblindViewingPublicKey(
-          random,
-          blindedSenderViewingKey,
-          MEMO_SENDER_RANDOM_NULL, // Sender is not blinded, null senderRandom.
-          isLegacyDecryption,
-        ),
-      }
+          masterPublicKey: TransactNote.getDecodedMasterPublicKey(
+            currentWalletAddressData.masterPublicKey,
+            encodedMPK,
+            undefined, // Sender is not blinded, null senderRandom.
+            isLegacyDecryption
+          ),
+          viewingPublicKey: TransactNote.unblindViewingPublicKey(
+            random,
+            blindedSenderViewingKey,
+            MEMO_SENDER_RANDOM_NULL, // Sender is not blinded, null senderRandom.
+            isLegacyDecryption
+          ),
+        }
       : undefined;
 
     return new TransactNote(
@@ -658,16 +713,24 @@ export class TransactNote {
       senderRandom,
       memoText,
       undefined, // shieldFee
-      blockNumber,
+      blockNumber
     );
   }
 
   private formatFields(prefix: boolean = false) {
     return {
       npk: ByteUtils.nToHex(this.notePublicKey, ByteLength.UINT_256, prefix),
-      tokenHash: ByteUtils.formatToByteLength(this.tokenHash, ByteLength.UINT_256, prefix),
+      tokenHash: ByteUtils.formatToByteLength(
+        this.tokenHash,
+        ByteLength.UINT_256,
+        prefix
+      ),
       value: ByteUtils.nToHex(BigInt(this.value), ByteLength.UINT_128, prefix),
-      random: ByteUtils.formatToByteLength(this.random, ByteLength.UINT_128, prefix),
+      random: ByteUtils.formatToByteLength(
+        this.random,
+        ByteLength.UINT_128,
+        prefix
+      ),
       senderRandom: this.senderRandom ?? undefined,
       walletSource: this.walletSource ?? undefined,
       outputType: this.outputType ?? undefined,
@@ -680,8 +743,16 @@ export class TransactNote {
    * @returns serialized note
    */
   serialize(prefix?: boolean): NoteSerialized {
-    const { npk, tokenHash, value, random, walletSource, senderRandom, outputType, shieldFee } =
-      this.formatFields(prefix);
+    const {
+      npk,
+      tokenHash,
+      value,
+      random,
+      walletSource,
+      senderRandom,
+      outputType,
+      shieldFee,
+    } = this.formatFields(prefix);
 
     return {
       npk,
@@ -692,14 +763,19 @@ export class TransactNote {
       senderRandom,
       outputType,
       recipientAddress: encodeAddress(this.receiverAddressData),
-      senderAddress: this.senderAddressData ? encodeAddress(this.senderAddressData) : undefined,
+      senderAddress: this.senderAddressData
+        ? encodeAddress(this.senderAddressData)
+        : undefined,
       memoText: this.memoText,
       shieldFee,
       blockNumber: this.blockNumber,
     };
   }
 
-  serializeLegacy(viewingPrivateKey: Uint8Array, prefix?: boolean): LegacyNoteSerialized {
+  serializeLegacy(
+    viewingPrivateKey: Uint8Array,
+    prefix?: boolean
+  ): LegacyNoteSerialized {
     const { npk, tokenHash, value, random } = this.formatFields(prefix);
     const memoField: string[] = [];
     const randomCiphertext = AES.encryptGCM([random], viewingPrivateKey);
@@ -709,7 +785,9 @@ export class TransactNote {
       npk,
       tokenHash,
       value,
-      encryptedRandom: [ivTag, data].map((v) => ByteUtils.hexlify(v, prefix)) as [string, string],
+      encryptedRandom: [ivTag, data].map((v) =>
+        ByteUtils.hexlify(v, prefix)
+      ) as [string, string],
       memoField,
       recipientAddress: encodeAddress(this.receiverAddressData),
       memoText: this.memoText,
@@ -717,8 +795,10 @@ export class TransactNote {
     };
   }
 
-  static isLegacyTransactNote(noteData: NoteSerialized | LegacyNoteSerialized): boolean {
-    return 'encryptedRandom' in noteData;
+  static isLegacyTransactNote(
+    noteData: NoteSerialized | LegacyNoteSerialized
+  ): boolean {
+    return "encryptedRandom" in noteData;
   }
 
   /**
@@ -732,20 +812,26 @@ export class TransactNote {
     chain: Chain,
     noteData: NoteSerialized | LegacyNoteSerialized,
     viewingPrivateKey: Uint8Array,
-    tokenDataGetter: TokenDataGetter,
+    tokenDataGetter: TokenDataGetter
   ): Promise<TransactNote> {
-    if ('encryptedRandom' in noteData) {
+    if ("encryptedRandom" in noteData) {
       // LegacyNoteSerialized type.
       return TransactNote.deserializeLegacy(noteData, viewingPrivateKey);
     }
 
     const { tokenHash } = noteData;
-    const tokenData = await tokenDataGetter.getTokenDataFromHash(txidVersion, chain, tokenHash);
+    const tokenData = await tokenDataGetter.getTokenDataFromHash(
+      txidVersion,
+      chain,
+      tokenHash
+    );
 
     // NoteSerialized type.
     return new TransactNote(
       decodeAddress(noteData.recipientAddress),
-      isDefined(noteData.senderAddress) ? decodeAddress(noteData.senderAddress) : undefined,
+      isDefined(noteData.senderAddress)
+        ? decodeAddress(noteData.senderAddress)
+        : undefined,
       noteData.random,
       ByteUtils.hexToBigInt(noteData.value),
       tokenData,
@@ -754,7 +840,7 @@ export class TransactNote {
       noteData.senderRandom ?? undefined,
       noteData.memoText ?? undefined,
       noteData.shieldFee ?? undefined,
-      noteData.blockNumber ?? undefined,
+      noteData.blockNumber ?? undefined
     );
   }
 
@@ -766,9 +852,11 @@ export class TransactNote {
    */
   private static deserializeLegacy(
     noteData: LegacyNoteSerialized,
-    viewingPrivateKey: Uint8Array,
+    viewingPrivateKey: Uint8Array
   ): TransactNote {
-    const randomCiphertext = encryptedDataToCiphertext(noteData.encryptedRandom);
+    const randomCiphertext = encryptedDataToCiphertext(
+      noteData.encryptedRandom
+    );
     const decryptedRandom = AES.decryptGCM(randomCiphertext, viewingPrivateKey);
 
     // Legacy can only be erc20.
@@ -786,7 +874,7 @@ export class TransactNote {
       undefined, // senderRandom
       noteData.memoText ?? undefined,
       undefined, // shieldFee
-      noteData.blockNumber ?? undefined,
+      noteData.blockNumber ?? undefined
     );
   }
 
@@ -812,7 +900,7 @@ export class TransactNote {
       this.senderRandom,
       this.memoText,
       this.shieldFee,
-      undefined, // blockNumber
+      undefined // blockNumber
     );
   }
 
@@ -823,7 +911,10 @@ export class TransactNote {
    * TransactNote with tokenData and value, for a mimic Unshield Note during solution processing.
    * All other fields are placeholders.
    */
-  static createNullUnshieldNote(tokenData: TokenData, value: bigint): TransactNote {
+  static createNullUnshieldNote(
+    tokenData: TokenData,
+    value: bigint
+  ): TransactNote {
     const nullAddressData: AddressData = {
       masterPublicKey: 0n,
       viewingPublicKey: ByteUtils.nToBytes(0n, ByteLength.UINT_256),
@@ -840,7 +931,7 @@ export class TransactNote {
       undefined, // senderRandom
       undefined, // memoText
       undefined, // shieldFee
-      undefined, // blockNumber
+      undefined // blockNumber
     );
   }
 }

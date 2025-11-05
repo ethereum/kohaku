@@ -1,5 +1,5 @@
-import { Chain } from '../models/engine-types';
-import { ByteLength, ByteUtils } from '../utils/bytes';
+import { Chain } from "../models/engine-types";
+import { ByteLength, ByteUtils } from "../utils/bytes";
 
 const chainsSupportingV3: Chain[] = [];
 
@@ -7,12 +7,12 @@ const getChainFullNetworkID = (chain: Chain): string => {
   // 1 byte: chainType.
   const formattedChainType = ByteUtils.formatToByteLength(
     ByteUtils.hexlify(chain.type),
-    ByteLength.UINT_8,
+    ByteLength.UINT_8
   );
   // 7 bytes: chainID.
   const formattedChainID = ByteUtils.formatToByteLength(
     ByteUtils.hexlify(chain.chainId),
-    ByteLength.UINT_56,
+    ByteLength.UINT_56
   );
 
   return `${formattedChainType}${formattedChainID}`;
@@ -20,7 +20,10 @@ const getChainFullNetworkID = (chain: Chain): string => {
 
 export const getChainSupportsV3 = (chain: Chain): boolean => {
   for (const supportingV3Chain of chainsSupportingV3) {
-    if (chain.chainId === supportingV3Chain.chainId && chain.type === supportingV3Chain.type) {
+    if (
+      chain.chainId === supportingV3Chain.chainId &&
+      chain.type === supportingV3Chain.type
+    ) {
       return true;
     }
   }
@@ -31,7 +34,7 @@ export const getChainSupportsV3 = (chain: Chain): boolean => {
 export const assertChainSupportsV3 = (chain: Chain) => {
   if (!getChainSupportsV3(chain)) {
     throw new Error(
-      `Chain does not support V3: ${chain.type}:${chain.chainId}. Set supportsV3 'true' in loadNetwork.`,
+      `Chain does not support V3: ${chain.type}:${chain.chainId}. Set supportsV3 'true' in loadNetwork.`
     );
   }
 };

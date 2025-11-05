@@ -1,12 +1,16 @@
-import { bytesToHex } from 'ethereum-cryptography/utils';
-import { poseidon } from '../utils/poseidon';
-import { ShieldCiphertext, TokenData } from '../models/formatted-types';
-import { getPublicViewingKey } from '../utils';
-import { ByteLength, ByteUtils } from '../utils/bytes';
-import { assertValidNoteRandom, assertValidNoteToken, getTokenDataHash } from './note-util';
-import { ShieldRequestStruct } from '../abi/typechain/RailgunSmartWallet';
-import { getSharedSymmetricKey } from '../utils/keys-utils';
-import { AES } from '../utils/encryption/aes';
+import { bytesToHex } from "ethereum-cryptography/utils";
+import { poseidon } from "../utils/poseidon";
+import { ShieldCiphertext, TokenData } from "../models/formatted-types";
+import { getPublicViewingKey } from "../utils";
+import { ByteLength, ByteUtils } from "../utils/bytes";
+import {
+  assertValidNoteRandom,
+  assertValidNoteToken,
+  getTokenDataHash,
+} from "./note-util";
+import { ShieldRequestStruct } from "../abi/typechain/RailgunSmartWallet";
+import { getSharedSymmetricKey } from "../utils/keys-utils";
+import { AES } from "../utils/encryption/aes";
 
 export abstract class ShieldNote {
   readonly masterPublicKey: bigint;
@@ -21,7 +25,12 @@ export abstract class ShieldNote {
 
   readonly notePublicKey: bigint;
 
-  constructor(masterPublicKey: bigint, random: string, value: bigint, tokenData: TokenData) {
+  constructor(
+    masterPublicKey: bigint,
+    random: string,
+    value: bigint,
+    tokenData: TokenData
+  ) {
     assertValidNoteRandom(random);
     assertValidNoteToken(tokenData, value);
 
@@ -39,7 +48,7 @@ export abstract class ShieldNote {
    */
   static getShieldPrivateKeySignatureMessage() {
     // DO NOT MODIFY THIS CONSTANT.
-    return 'RAILGUN_SHIELD';
+    return "RAILGUN_SHIELD";
   }
 
   static getNotePublicKey(masterPublicKey: bigint, random: string): bigint {
@@ -49,12 +58,19 @@ export abstract class ShieldNote {
   static getShieldNoteHash(
     notePublicKey: bigint,
     tokenHash: string,
-    valueAfterFee: bigint,
+    valueAfterFee: bigint
   ): bigint {
-    return poseidon([notePublicKey, ByteUtils.hexToBigInt(tokenHash), valueAfterFee]);
+    return poseidon([
+      notePublicKey,
+      ByteUtils.hexToBigInt(tokenHash),
+      valueAfterFee,
+    ]);
   }
 
-  static decryptRandom(encryptedBundle: [string, string, string], sharedKey: Uint8Array): string {
+  static decryptRandom(
+    encryptedBundle: [string, string, string],
+    sharedKey: Uint8Array
+  ): string {
     const hexlified0 = ByteUtils.hexlify(encryptedBundle[0]);
     const hexlified1 = ByteUtils.hexlify(encryptedBundle[1]);
     const decrypted = AES.decryptGCM(
@@ -63,7 +79,7 @@ export abstract class ShieldNote {
         tag: hexlified0.slice(16, 64),
         data: [hexlified1.slice(0, 32)],
       },
-      sharedKey,
+      sharedKey
     )[0];
 
     return ByteUtils.hexlify(decrypted!);
@@ -77,13 +93,18 @@ export abstract class ShieldNote {
    */
   async serialize(
     shieldPrivateKey: Uint8Array,
-    receiverViewingPublicKey: Uint8Array,
+    receiverViewingPublicKey: Uint8Array
   ): Promise<ShieldRequestStruct> {
     // Get shared key
-    const sharedKey = await getSharedSymmetricKey(shieldPrivateKey, receiverViewingPublicKey);
+    const sharedKey = await getSharedSymmetricKey(
+      shieldPrivateKey,
+      receiverViewingPublicKey
+    );
 
     if (!sharedKey) {
-      throw new Error('Could not generated shared symmetric key for shielding.');
+      throw new Error(
+        "Could not generated shared symmetric key for shielding."
+      );
     }
 
     // Encrypt random
@@ -92,7 +113,7 @@ export abstract class ShieldNote {
     // Encrypt receiver public key
     const encryptedReceiver = AES.encryptCTR(
       [bytesToHex(receiverViewingPublicKey)],
-      shieldPrivateKey,
+      shieldPrivateKey
     );
 
     const shieldKey = bytesToHex(await getPublicViewingKey(shieldPrivateKey));
@@ -101,7 +122,10 @@ export abstract class ShieldNote {
     const ciphertext: ShieldCiphertext = {
       encryptedBundle: [
         ByteUtils.hexlify(`${encryptedRandom.iv}${encryptedRandom.tag}`, true),
-        ByteUtils.hexlify(ByteUtils.combine([...encryptedRandom.data, encryptedReceiver.iv]), true),
+        ByteUtils.hexlify(
+          ByteUtils.combine([...encryptedRandom.data, encryptedReceiver.iv]),
+          true
+        ),
         ByteUtils.hexlify(ByteUtils.combine(encryptedReceiver.data), true),
       ],
       shieldKey: ByteUtils.hexlify(shieldKey, true),

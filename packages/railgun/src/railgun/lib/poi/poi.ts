@@ -1,19 +1,22 @@
-import { Proof } from '../models/prover-types';
-import { Chain } from '../models/engine-types';
+import { Proof } from "../models/prover-types";
+import { Chain } from "../models/engine-types";
 import {
   BlindedCommitmentData,
   LegacyTransactProofData,
   POIsPerList,
   TXIDVersion,
   TXOPOIListStatus,
-} from '../models/poi-types';
-import { SentCommitment, TXO, WalletBalanceBucket } from '../models/txo-types';
-import { isDefined, removeUndefineds } from '../utils/is-defined';
-import { POINodeInterface } from './poi-node-interface';
-import { UnshieldStoredEvent } from '../models/event-types';
-import { OutputType } from '../models';
-import { isShieldCommitmentType, isTransactCommitmentType } from '../utils/commitment';
-import { Registry } from '../utils/registry';
+} from "../models/poi-types";
+import { SentCommitment, TXO, WalletBalanceBucket } from "../models/txo-types";
+import { isDefined, removeUndefineds } from "../utils/is-defined";
+import { POINodeInterface } from "./poi-node-interface";
+import { UnshieldStoredEvent } from "../models/event-types";
+import { OutputType } from "../models";
+import {
+  isShieldCommitmentType,
+  isTransactCommitmentType,
+} from "../utils/commitment";
+import { Registry } from "../utils/registry";
 
 export type POIList = {
   key: string;
@@ -23,8 +26,8 @@ export type POIList = {
 };
 
 export enum POIListType {
-  Active = 'Active',
-  Gather = 'Gather',
+  Active = "Active",
+  Gather = "Gather",
 }
 
 export class POI {
@@ -44,7 +47,9 @@ export class POI {
   }
 
   static getActiveListKeys(): string[] {
-    return this.lists.filter((list) => list.type === POIListType.Active).map((list) => list.key);
+    return this.lists
+      .filter((list) => list.type === POIListType.Active)
+      .map((list) => list.key);
   }
 
   static getBalanceBucket(txo: TXO): WalletBalanceBucket {
@@ -99,7 +104,7 @@ export class POI {
   private static validatePOIStatusForAllLists(
     pois: POIsPerList,
     listKeys: string[],
-    statuses: TXOPOIListStatus[],
+    statuses: TXOPOIListStatus[]
   ): boolean {
     if (!this.hasAllKeys(pois, listKeys)) {
       return false;
@@ -117,7 +122,9 @@ export class POI {
   private static hasValidPOIsAllLists(pois: POIsPerList): boolean {
     const listKeys = this.getAllListKeys();
 
-    return this.validatePOIStatusForAllLists(pois, listKeys, [TXOPOIListStatus.Valid]);
+    return this.validatePOIStatusForAllLists(pois, listKeys, [
+      TXOPOIListStatus.Valid,
+    ]);
   }
 
   static hasValidPOIsActiveLists(pois: Optional<POIsPerList>): boolean {
@@ -127,10 +134,14 @@ export class POI {
 
     const listKeys = this.getActiveListKeys();
 
-    return this.validatePOIStatusForAllLists(pois, listKeys, [TXOPOIListStatus.Valid]);
+    return this.validatePOIStatusForAllLists(pois, listKeys, [
+      TXOPOIListStatus.Valid,
+    ]);
   }
 
-  private static getAllListKeysWithValidInputPOIs(inputPOIsPerList: POIsPerList[]): string[] {
+  private static getAllListKeysWithValidInputPOIs(
+    inputPOIsPerList: POIsPerList[]
+  ): string[] {
     const listKeys = this.getAllListKeys();
     const listKeysShouldGenerateSpentPOIs: string[] = [];
 
@@ -147,19 +158,25 @@ export class POI {
     return listKeysShouldGenerateSpentPOIs;
   }
 
-  private static findListsForNewPOIs(poisPerList: Optional<POIsPerList>): string[] {
+  private static findListsForNewPOIs(
+    poisPerList: Optional<POIsPerList>
+  ): string[] {
     const listKeys = this.getAllListKeys();
 
     if (!isDefined(poisPerList)) {
       return listKeys;
     }
 
-    const submittedStatuses = [TXOPOIListStatus.ProofSubmitted, TXOPOIListStatus.Valid];
+    const submittedStatuses = [
+      TXOPOIListStatus.ProofSubmitted,
+      TXOPOIListStatus.Valid,
+    ];
     const needsSpendPOI: string[] = [];
 
     for (const listKey of listKeys) {
       const isUnsubmitted =
-        !isDefined(poisPerList[listKey]) || !submittedStatuses.includes(poisPerList[listKey]);
+        !isDefined(poisPerList[listKey]) ||
+        !submittedStatuses.includes(poisPerList[listKey]);
 
       if (isUnsubmitted) {
         needsSpendPOI.push(listKey);
@@ -177,37 +194,45 @@ export class POI {
     spentTXOs: TXO[],
     sentCommitments: SentCommitment[],
     unshieldEvents: UnshieldStoredEvent[],
-    isLegacyPOIProof: boolean,
+    isLegacyPOIProof: boolean
   ): string[] {
     if (!sentCommitments.length && !unshieldEvents.length) {
       return [];
     }
 
-    const inputPOIsPerList = removeUndefineds(spentTXOs.map((txo) => txo.poisPerList));
+    const inputPOIsPerList = removeUndefineds(
+      spentTXOs.map((txo) => txo.poisPerList)
+    );
     const listKeysWithValidInputPOIs = isLegacyPOIProof
       ? POI.getAllListKeys()
       : POI.getAllListKeysWithValidInputPOIs(inputPOIsPerList);
 
-    const validStatuses = [TXOPOIListStatus.Valid, TXOPOIListStatus.ProofSubmitted];
+    const validStatuses = [
+      TXOPOIListStatus.Valid,
+      TXOPOIListStatus.ProofSubmitted,
+    ];
 
     return listKeysWithValidInputPOIs.filter((listKey) => {
       // If all statuses are valid, then no need to generate new POIs.
-      const allSentCommitmentZeroOrPOIsValid = sentCommitments.every((sentCommitment) => {
-        if (sentCommitment.note.value === 0n) {
-          // If sentCommitment value is 0, then no need to generate new POIs.
-          return true;
+      const allSentCommitmentZeroOrPOIsValid = sentCommitments.every(
+        (sentCommitment) => {
+          if (sentCommitment.note.value === 0n) {
+            // If sentCommitment value is 0, then no need to generate new POIs.
+            return true;
+          }
+
+          const poiStatus = sentCommitment.poisPerList?.[listKey];
+
+          return poiStatus && validStatuses.includes(poiStatus);
         }
-
-        const poiStatus = sentCommitment.poisPerList?.[listKey];
-
-        return poiStatus && validStatuses.includes(poiStatus);
-      });
+      );
       const allUnshieldPOIsValid = unshieldEvents.every((unshieldEvent) => {
         const poiStatus = unshieldEvent.poisPerList?.[listKey];
 
         return poiStatus && validStatuses.includes(poiStatus);
       });
-      const allPOIsValid = allSentCommitmentZeroOrPOIsValid && allUnshieldPOIsValid;
+      const allPOIsValid =
+        allSentCommitmentZeroOrPOIsValid && allUnshieldPOIsValid;
 
       return !allPOIsValid;
     });
@@ -217,7 +242,9 @@ export class POI {
     const listKeys = this.getAllListKeys();
 
     return listKeys.filter((listKey) => {
-      return !TXOs.every((txo) => txo.poisPerList?.[listKey] === TXOPOIListStatus.Valid);
+      return !TXOs.every(
+        (txo) => txo.poisPerList?.[listKey] === TXOPOIListStatus.Valid
+      );
     });
   }
 
@@ -313,7 +340,9 @@ export class POI {
     return listKeys.length > 0;
   }
 
-  static shouldGenerateSpentPOIsUnshieldEvent(unshieldEvent: UnshieldStoredEvent) {
+  static shouldGenerateSpentPOIsUnshieldEvent(
+    unshieldEvent: UnshieldStoredEvent
+  ) {
     if (!isDefined(unshieldEvent.railgunTxid)) {
       return false;
     }
@@ -341,7 +370,9 @@ export class POI {
     return this.nodeInterface.isRequired(chain);
   }
 
-  static async getSpendableBalanceBuckets(chain: Chain): Promise<WalletBalanceBucket[]> {
+  static async getSpendableBalanceBuckets(
+    chain: Chain
+  ): Promise<WalletBalanceBucket[]> {
     const poiRequired = await this.isRequiredForChain(chain);
 
     return poiRequired
@@ -353,45 +384,62 @@ export class POI {
   static retrievePOIsForBlindedCommitments(
     txidVersion: TXIDVersion,
     chain: Chain,
-    blindedCommitmentDatas: BlindedCommitmentData[],
+    blindedCommitmentDatas: BlindedCommitmentData[]
   ): Promise<{ [blindedCommitment: string]: POIsPerList }> {
     if (!isDefined(this.nodeInterface)) {
-      throw new Error('POI node interface not initialized');
+      throw new Error("POI node interface not initialized");
     }
 
     if (blindedCommitmentDatas.length > 1000) {
-      throw new Error('Cannot retrieve POIs for more than 1000 blinded commitments at a time');
+      throw new Error(
+        "Cannot retrieve POIs for more than 1000 blinded commitments at a time"
+      );
     }
 
     const listKeys = this.getAllListKeys();
 
-    return this.nodeInterface.getPOIsPerList(txidVersion, chain, listKeys, blindedCommitmentDatas);
+    return this.nodeInterface.getPOIsPerList(
+      txidVersion,
+      chain,
+      listKeys,
+      blindedCommitmentDatas
+    );
   }
 
   static getPOIMerkleProofs(
     txidVersion: TXIDVersion,
     chain: Chain,
     listKey: string,
-    blindedCommitmentsIn: string[],
+    blindedCommitmentsIn: string[]
   ) {
     if (!isDefined(this.nodeInterface)) {
-      throw new Error('POI node interface not initialized');
+      throw new Error("POI node interface not initialized");
     }
 
-    return this.nodeInterface.getPOIMerkleProofs(txidVersion, chain, listKey, blindedCommitmentsIn);
+    return this.nodeInterface.getPOIMerkleProofs(
+      txidVersion,
+      chain,
+      listKey,
+      blindedCommitmentsIn
+    );
   }
 
   static validatePOIMerkleroots(
     txidVersion: TXIDVersion,
     chain: Chain,
     listKey: string,
-    poiMerkleroots: string[],
+    poiMerkleroots: string[]
   ): Promise<boolean> {
     if (!isDefined(this.nodeInterface)) {
-      throw new Error('POI node interface not initialized');
+      throw new Error("POI node interface not initialized");
     }
 
-    return this.nodeInterface.validatePOIMerkleroots(txidVersion, chain, listKey, poiMerkleroots);
+    return this.nodeInterface.validatePOIMerkleroots(
+      txidVersion,
+      chain,
+      listKey,
+      poiMerkleroots
+    );
   }
 
   static async submitPOI(
@@ -403,10 +451,10 @@ export class POI {
     txidMerkleroot: string,
     txidMerklerootIndex: number,
     blindedCommitmentsOut: string[],
-    railgunTxidIfHasUnshield: string,
+    railgunTxidIfHasUnshield: string
   ): Promise<void> {
     if (!isDefined(this.nodeInterface)) {
-      throw new Error('POI node interface not initialized');
+      throw new Error("POI node interface not initialized");
     }
 
     await this.nodeInterface.submitPOI(
@@ -418,7 +466,7 @@ export class POI {
       txidMerkleroot,
       txidMerklerootIndex,
       blindedCommitmentsOut,
-      railgunTxidIfHasUnshield,
+      railgunTxidIfHasUnshield
     );
   }
 
@@ -426,17 +474,17 @@ export class POI {
     txidVersion: TXIDVersion,
     chain: Chain,
     listKeys: string[],
-    legacyTransactProofDatas: LegacyTransactProofData[],
+    legacyTransactProofDatas: LegacyTransactProofData[]
   ) {
     if (!isDefined(this.nodeInterface)) {
-      throw new Error('POI node interface not initialized');
+      throw new Error("POI node interface not initialized");
     }
 
     await this.nodeInterface.submitLegacyTransactProofs(
       txidVersion,
       chain,
       listKeys,
-      legacyTransactProofDatas,
+      legacyTransactProofDatas
     );
   }
 }

@@ -1,5 +1,5 @@
-import { AbiCoder } from 'ethers';
-import { ProofBundle, prove, SolidityProof } from './prover';
+import { AbiCoder } from "ethers";
+import { ProofBundle, prove, SolidityProof } from "./prover";
 import {
   CommitmentCiphertext,
   CommitmentPreimage,
@@ -8,18 +8,23 @@ import {
   TokenData,
   UnshieldNote,
   SendNote,
-} from './note';
-import { hash, randomBytes } from '../global/crypto';
-import { hexStringToArray, arrayToBigInt, bigIntToArray, arrayToHexString } from '../global/bytes';
-import { SNARK_SCALAR_FIELD } from '../global/constants';
-import { MerkleTree } from './merkletree';
-import { getKeys } from './artifacts';
+} from "./note";
+import { hash, randomBytes } from "../global/crypto";
+import {
+  hexStringToArray,
+  arrayToBigInt,
+  bigIntToArray,
+  arrayToHexString,
+} from "../global/bytes";
+import { SNARK_SCALAR_FIELD } from "../global/constants";
+import { MerkleTree } from "./merkletree";
+import { getKeys } from "./artifacts";
 import {
   CommitmentCiphertextStructOutput,
   CommitmentPreimageStructOutput,
   ShieldCiphertextStructOutput,
   TokenDataStructOutput,
-} from '../typechain-types/contracts/logic/RailgunLogic';
+} from "../typechain-types/contracts/logic/RailgunLogic";
 
 export enum UnshieldType {
   NONE = 0,
@@ -83,7 +88,7 @@ const dummyProof: ProofBundle = {
       [0n, 0n],
     ],
     pi_c: [0n, 0n],
-    protocol: 'groth16',
+    protocol: "groth16",
   },
   solidity: {
     a: { x: 0n, y: 0n },
@@ -103,10 +108,10 @@ function hashBoundParams(boundParams: BoundParams): Uint8Array {
   const encodedBytes = hexStringToArray(
     AbiCoder.defaultAbiCoder().encode(
       [
-        'tuple(uint16 treeNumber, uint48 minGasPrice, uint8 unshield, uint64 chainID, address adaptContract, bytes32 adaptParams, tuple(bytes32[4] ciphertext, bytes32 blindedSenderViewingKey, bytes32 blindedReceiverViewingKey, bytes annotationData, bytes memo)[] commitmentCiphertext) boundParams',
+        "tuple(uint16 treeNumber, uint48 minGasPrice, uint8 unshield, uint64 chainID, address adaptContract, bytes32 adaptParams, tuple(bytes32[4] ciphertext, bytes32 blindedSenderViewingKey, bytes32 blindedReceiverViewingKey, bytes annotationData, bytes memo)[] commitmentCiphertext) boundParams",
       ],
-      [boundParams],
-    ),
+      [boundParams]
+    )
   );
 
   // Keccak hash
@@ -130,7 +135,7 @@ function nullifiersMatcher(nullifiers: Uint8Array[]) {
     // Loop through each nullifier and check if they match
     const nullifiersMatched = contractNullifiers.map(
       (nullifier, nullifierIndex) =>
-        arrayToHexString(nullifiers[nullifierIndex], true) === nullifier,
+        arrayToHexString(nullifiers[nullifierIndex], true) === nullifier
     );
 
     // Return false if any elements returned false
@@ -160,42 +165,55 @@ function ciphertextMatcher(ciphertextVector: CommitmentCiphertext[]) {
     // If lengths don't match return false
     if (ciphertextVector.length !== contractCipherText.length) return false;
 
-    const ciphertextMatched = contractCipherText.map((ciphertext, ciphertextIndex) => {
-      // Check ciphertext words match
-      const cipherMatched = ciphertext.ciphertext.map(
-        (element, elementIndex) =>
-          arrayToHexString(ciphertextVector[ciphertextIndex].ciphertext[elementIndex], true) ===
-          element,
-      );
+    const ciphertextMatched = contractCipherText.map(
+      (ciphertext, ciphertextIndex) => {
+        // Check ciphertext words match
+        const cipherMatched = ciphertext.ciphertext.map(
+          (element, elementIndex) =>
+            arrayToHexString(
+              ciphertextVector[ciphertextIndex].ciphertext[elementIndex],
+              true
+            ) === element
+        );
 
-      // Return false if any ciphertext words didn't match
-      if (cipherMatched.includes(false)) return false;
+        // Return false if any ciphertext words didn't match
+        if (cipherMatched.includes(false)) return false;
 
-      // Check blinded keys match
-      if (
-        arrayToHexString(ciphertextVector[ciphertextIndex].blindedReceiverViewingKey, true) !==
-        ciphertext.blindedReceiverViewingKey
-      )
-        return false;
+        // Check blinded keys match
+        if (
+          arrayToHexString(
+            ciphertextVector[ciphertextIndex].blindedReceiverViewingKey,
+            true
+          ) !== ciphertext.blindedReceiverViewingKey
+        )
+          return false;
 
-      if (
-        arrayToHexString(ciphertextVector[ciphertextIndex].blindedSenderViewingKey, true) !==
-        ciphertext.blindedSenderViewingKey
-      )
-        return false;
+        if (
+          arrayToHexString(
+            ciphertextVector[ciphertextIndex].blindedSenderViewingKey,
+            true
+          ) !== ciphertext.blindedSenderViewingKey
+        )
+          return false;
 
-      // Check memo and annotated data match
-      if (arrayToHexString(ciphertextVector[ciphertextIndex].memo, true) !== ciphertext.memo)
-        return false;
+        // Check memo and annotated data match
+        if (
+          arrayToHexString(ciphertextVector[ciphertextIndex].memo, true) !==
+          ciphertext.memo
+        )
+          return false;
 
-      if (
-        arrayToHexString(ciphertextVector[ciphertextIndex].annotationData, true) !==
-        ciphertext.annotationData
-      )
-        return false;
+        if (
+          arrayToHexString(
+            ciphertextVector[ciphertextIndex].annotationData,
+            true
+          ) !== ciphertext.annotationData
+        )
+          return false;
 
-      return true;
-    });
+        return true;
+      }
+    );
 
     // Return false if any ciphertext returned false
     return !ciphertextMatched.includes(false);
@@ -210,9 +228,12 @@ function ciphertextMatcher(ciphertextVector: CommitmentCiphertext[]) {
  */
 function shieldCiphertextMatcher(shieldCiphertext: ShieldCiphertext[]) {
   // Return constructed matcher function
-  return (contractShieldCiphertext: ShieldCiphertextStructOutput[]): boolean => {
+  return (
+    contractShieldCiphertext: ShieldCiphertextStructOutput[]
+  ): boolean => {
     // If lengths don't match return false
-    if (shieldCiphertext.length !== contractShieldCiphertext.length) return false;
+    if (shieldCiphertext.length !== contractShieldCiphertext.length)
+      return false;
 
     // Loop through each shield ciphertext and check if they match
     const shieldCiphertextMatched = contractShieldCiphertext.map(
@@ -221,9 +242,11 @@ function shieldCiphertextMatcher(shieldCiphertext: ShieldCiphertext[]) {
         const encryptedBundleMatched = ciphertext.encryptedBundle.map(
           (element, elementIndex) =>
             arrayToHexString(
-              shieldCiphertext[shieldCiphertextIndex].encryptedBundle[elementIndex],
-              true,
-            ) === element,
+              shieldCiphertext[shieldCiphertextIndex].encryptedBundle[
+                elementIndex
+              ],
+              true
+            ) === element
         );
 
         // Return false if any elements returned false
@@ -232,9 +255,12 @@ function shieldCiphertextMatcher(shieldCiphertext: ShieldCiphertext[]) {
         // Return false if ephemeral key doesn't match
         return (
           ciphertext.shieldKey ===
-          arrayToHexString(shieldCiphertext[shieldCiphertextIndex].shieldKey, true)
+          arrayToHexString(
+            shieldCiphertext[shieldCiphertextIndex].shieldKey,
+            true
+          )
         );
-      },
+      }
     );
 
     // Return false if any ciphertext returned false
@@ -251,21 +277,38 @@ function shieldCiphertextMatcher(shieldCiphertext: ShieldCiphertext[]) {
 function commitmentPreimageMatcher(commitmentPreimages: CommitmentPreimage[]) {
   return (contractPreimages: CommitmentPreimageStructOutput[]): boolean => {
     // Loop through each preimage and check if they match
-    const preimagesMatched = contractPreimages.map((preimage, index): boolean => {
-      if (preimage.npk !== arrayToHexString(commitmentPreimages[index].npk, true)) return false;
+    const preimagesMatched = contractPreimages.map(
+      (preimage, index): boolean => {
+        if (
+          preimage.npk !==
+          arrayToHexString(commitmentPreimages[index].npk, true)
+        )
+          return false;
 
-      if (preimage.token.tokenType.toString() !== commitmentPreimages[index].token.tokenType.toString()) return false;
+        if (
+          preimage.token.tokenType.toString() !==
+          commitmentPreimages[index].token.tokenType.toString()
+        )
+          return false;
 
-      if (preimage.token.tokenAddress !== commitmentPreimages[index].token.tokenAddress)
-        return false;
+        if (
+          preimage.token.tokenAddress !==
+          commitmentPreimages[index].token.tokenAddress
+        )
+          return false;
 
-      if (BigInt(preimage.token.tokenSubID) !== commitmentPreimages[index].token.tokenSubID)
-        return false;
+        if (
+          BigInt(preimage.token.tokenSubID) !==
+          commitmentPreimages[index].token.tokenSubID
+        )
+          return false;
 
-      if (BigInt(preimage.value) !== commitmentPreimages[index].value) return false;
+        if (BigInt(preimage.value) !== commitmentPreimages[index].value)
+          return false;
 
-      return true;
-    });
+        return true;
+      }
+    );
 
     // Return false if any preimage matches returned false
     return !preimagesMatched.includes(false);
@@ -282,9 +325,13 @@ function tokenDataMatcher(tokenData: TokenData) {
   return (contractTokenData: TokenDataStructOutput): boolean => {
     if (contractTokenData.tokenAddress !== tokenData.tokenAddress) return false;
 
-    if (contractTokenData.tokenType.toString() !== tokenData.tokenType.toString()) return false;
+    if (
+      contractTokenData.tokenType.toString() !== tokenData.tokenType.toString()
+    )
+      return false;
 
-    if (BigInt(contractTokenData.tokenSubID) !== tokenData.tokenSubID) return false;
+    if (BigInt(contractTokenData.tokenSubID) !== tokenData.tokenSubID)
+      return false;
 
     return true;
   };
@@ -297,14 +344,17 @@ function tokenDataMatcher(tokenData: TokenData) {
  * @param outputsLength - number of outputs to pad to
  * @returns inputs and outputs to use for test
  */
-function padWithDummyNotes(originalBundle: InputOutputBundle, outputsLength: number) {
+function padWithDummyNotes(
+  originalBundle: InputOutputBundle,
+  outputsLength: number
+) {
   const dummyNote = new Note(
     new Uint8Array(32),
     new Uint8Array(32),
     0n,
     randomBytes(16),
     originalBundle.inputs[0].tokenData,
-    '',
+    ""
   );
 
   const outputPadding = new Array(outputsLength - originalBundle.outputs.length)
@@ -343,7 +393,7 @@ async function formatPublicInputs(
   adaptParams: Uint8Array,
   notesIn: Note[],
   notesOut: (Note | UnshieldNote | SendNote)[],
-  commitmentCiphertext: CommitmentCiphertext[],
+  commitmentCiphertext: CommitmentCiphertext[]
 ): Promise<PublicInputs> {
   // Get Merkle Root
   const merkleRoot = merkletree.root;
@@ -359,7 +409,7 @@ async function formatPublicInputs(
 
       // Generate nullifier from merkle proof indices
       return note.getNullifier(merkleProof.indices);
-    }),
+    })
   );
 
   // Loop through notes out and calculate hash
@@ -410,7 +460,7 @@ async function formatCircuitInputs(
   adaptParams: Uint8Array,
   notesIn: Note[],
   notesOut: (Note | UnshieldNote | SendNote)[],
-  commitmentCiphertext: CommitmentCiphertext[],
+  commitmentCiphertext: CommitmentCiphertext[]
 ): Promise<CircuitInputs> {
   // PUBLIC INPUTS
   // Get Merkle Root
@@ -438,16 +488,23 @@ async function formatCircuitInputs(
 
       // Generate nullifier from merkle proof indices
       return note.getNullifier(merkleProof.indices);
-    }),
+    })
   );
 
   // Loop through notes out and calculate hash
-  const commitmentsOut = await Promise.all(notesOut.map((note) => note.getHash()));
+  const commitmentsOut = await Promise.all(
+    notesOut.map((note) => note.getHash())
+  );
 
   // PRIVATE INPUTS
   const token = notesIn[0].getTokenID();
   const publicKey = await notesIn[0].getSpendingPublicKey();
-  const signature = await notesIn[0].sign(merkleRoot, boundParamsHash, nullifiers, commitmentsOut);
+  const signature = await notesIn[0].sign(
+    merkleRoot,
+    boundParamsHash,
+    nullifiers,
+    commitmentsOut
+  );
   const randomIn = notesIn.map((note) => note.random);
   const valueIn = notesIn.map((note) => note.value);
   const pathElements = await Promise.all(
@@ -455,17 +512,19 @@ async function formatCircuitInputs(
       const merkleProof = merkletree.generateProof(await note.getHash());
 
       return merkleProof.elements;
-    }),
+    })
   );
   const leavesIndices = await Promise.all(
     notesIn.map(async (note) => {
       const merkleProof = merkletree.generateProof(await note.getHash());
 
       return merkleProof.indices;
-    }),
+    })
   );
   const nullifyingKey = await notesIn[0].getNullifyingKey();
-  const npkOut = await Promise.all(notesOut.map((note) => note.getNotePublicKey()));
+  const npkOut = await Promise.all(
+    notesOut.map((note) => note.getNotePublicKey())
+  );
   const valueOut = notesOut.map((note) => note.value);
 
   return {
@@ -511,17 +570,20 @@ async function dummyTransact(
   adaptContract: string,
   adaptParams: Uint8Array,
   notesIn: Note[],
-  notesOut: (Note | UnshieldNote)[],
+  notesOut: (Note | UnshieldNote)[]
 ): Promise<PublicInputs> {
   // Get required ciphertext length
-  const ciphertextLength = unshield === 0 ? notesOut.length : notesOut.length - 1;
+  const ciphertextLength =
+    unshield === 0 ? notesOut.length : notesOut.length - 1;
 
   // Get sender viewing private key
   const senderViewingPrivateKey = notesIn[0].viewingKey;
 
   // Create ciphertext
   const commitmentCiphertext = await Promise.all(
-    notesOut.slice(0, ciphertextLength).map((note) => note.encrypt(senderViewingPrivateKey, false)),
+    notesOut
+      .slice(0, ciphertextLength)
+      .map((note) => note.encrypt(senderViewingPrivateKey, false))
   );
 
   // Return formatted public inputs
@@ -535,7 +597,7 @@ async function dummyTransact(
     adaptParams,
     notesIn,
     notesOut,
-    commitmentCiphertext,
+    commitmentCiphertext
   );
 }
 
@@ -561,20 +623,23 @@ async function transact(
   adaptContract: string,
   adaptParams: Uint8Array,
   notesIn: Note[],
-  notesOut: (Note | UnshieldNote | SendNote)[],
+  notesOut: (Note | UnshieldNote | SendNote)[]
 ): Promise<PublicInputs> {
   // Get artifact
   const artifact = getKeys(notesIn.length, notesOut.length);
 
   // Get required ciphertext length
-  const ciphertextLength = unshield === 0 ? notesOut.length : notesOut.length - 1;
+  const ciphertextLength =
+    unshield === 0 ? notesOut.length : notesOut.length - 1;
 
   // Get sender viewing private key
   const senderViewingPrivateKey = notesIn[0].viewingKey;
 
   // Create ciphertext
   const commitmentCiphertext = await Promise.all(
-    notesOut.slice(0, ciphertextLength).map((note) => note.encrypt(senderViewingPrivateKey, false)),
+    notesOut
+      .slice(0, ciphertextLength)
+      .map((note) => note.encrypt(senderViewingPrivateKey, false))
   );
 
   // Get circuit inputs
@@ -587,12 +652,11 @@ async function transact(
     adaptParams,
     notesIn,
     notesOut,
-    commitmentCiphertext,
+    commitmentCiphertext
   );
 
   // Generate proof
   const proof = await prove(artifact, inputs);
-
 
   // Return public inputs
   return formatPublicInputs(
@@ -605,7 +669,7 @@ async function transact(
     adaptParams,
     notesIn,
     notesOut,
-    commitmentCiphertext,
+    commitmentCiphertext
   );
 }
 
@@ -620,7 +684,7 @@ async function transact(
 function getFee(
   amount: bigint,
   isInclusive: boolean,
-  feeBP: bigint,
+  feeBP: bigint
 ): { base: bigint; fee: bigint } {
   // Define number of basis points in 100%
   const BASIS_POINTS = 10000n;

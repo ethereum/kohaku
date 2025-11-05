@@ -1,30 +1,34 @@
-import { readFile, writeFile } from "fs/promises";
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { StorageLayer } from "../base";
-import { existsSync } from "fs";
-import { join } from "path";
 
 export type FileStorageParams = {
-    skipWrite?: boolean;
+  skipWrite?: boolean;
 };
 
-export const createFileStorageLayer = (path: string, params?: FileStorageParams): StorageLayer => {
-    const fullPath = join(process.cwd(), path);
-    const skipWrite = params?.skipWrite ?? false;
+export const createFileStorageLayer = (
+  path: string,
+  params?: FileStorageParams
+): StorageLayer => {
+  const fullPath = join(process.cwd(), path);
+  const skipWrite = params?.skipWrite ?? false;
 
-    console.log('fullPath', fullPath);
+  console.log("fullPath", fullPath);
 
-    return {
-        async read() {
-            if (!existsSync(fullPath)) return;
+  return {
+    async read() {
+      if (!existsSync(fullPath)) return;
 
-            return JSON.parse(await readFile(fullPath, 'utf8'));
-        },
-        async write(data) {
-            console.log('writing to file', fullPath);
+      return JSON.parse(await readFile(fullPath, "utf8"));
+    },
+    async write(data) {
+      console.log("writing to file", fullPath);
 
-            if (skipWrite) return;
+      if (skipWrite) return;
 
-            await writeFile(fullPath, JSON.stringify(data));
-        },
-    }
-}
+      await writeFile(fullPath, JSON.stringify(data));
+    },
+  };
+};
