@@ -90,7 +90,7 @@ export abstract class ShieldNote {
     const encryptedRandom = await AES.encryptGCM([this.random], sharedKey);
 
     // Encrypt receiver public key
-    const encryptedReceiver = AES.encryptCTR(
+    const encryptedReceiver = await AES.encryptCTR(
       [bytesToHex(receiverViewingPublicKey)],
       shieldPrivateKey,
     );

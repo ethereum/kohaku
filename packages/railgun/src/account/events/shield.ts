@@ -79,46 +79,46 @@ export const makeHandleShieldEvent = async ({ notebooks, getTrees, viewing, spen
             }
         }
 
-        event.shieldCiphertext.map((shieldCiphertext, index) => {
-            // Try to decrypt
-            const decrypted = Note.decryptShield(
-                hexStringToArray(shieldCiphertext.shieldKey),
-                shieldCiphertext.encryptedBundle.map(hexStringToArray) as [
-                    Uint8Array,
-                    Uint8Array,
-                    Uint8Array,
-                ],
-                {
-                    tokenType: Number(event.commitments[index]!.token.tokenType.toString()) as TokenType,
-                    tokenAddress: event.commitments[index]!.token.tokenAddress,
-                    tokenSubID: BigInt(event.commitments[index]!.token.tokenSubID),
-                },
-                BigInt(event.commitments[index]!.value),
-                viewingKey,
-                spendingKey,
-            );
+        await Promise.all(
+            event.shieldCiphertext.map(async (shieldCiphertext, index) => {
+                // Try to decrypt
+                const decrypted = await Note.decryptShield(
+                    hexStringToArray(shieldCiphertext.shieldKey),
+                    shieldCiphertext.encryptedBundle.map(hexStringToArray) as [
+                        Uint8Array,
+                        Uint8Array,
+                        Uint8Array,
+                    ],
+                    {
+                        tokenType: Number(event.commitments[index]!.token.tokenType.toString()) as TokenType,
+                        tokenAddress: event.commitments[index]!.token.tokenAddress,
+                        tokenSubID: BigInt(event.commitments[index]!.token.tokenSubID),
+                    },
+                    BigInt(event.commitments[index]!.value),
+                    viewingKey,
+                    spendingKey,
+                );
 
-            // Insert into note array in same index as merkle tree
-            if (decrypted) {
-                console.log('decrypted');
+                // Insert into note array in same index as merkle tree
+                if (decrypted) {
+                    if (startPosition + index >= TOTAL_LEAVES) {
+                        if (!notebooks[treeNumber + 1]) {
+                            notebooks[treeNumber + 1] = new Notebook();
+                        }
 
-                if (startPosition + index >= TOTAL_LEAVES) {
-                    if (!notebooks[treeNumber + 1]) {
-                        notebooks[treeNumber + 1] = new Notebook();
+                        notebooks[treeNumber + 1]!.notes[startPosition + index - TOTAL_LEAVES] = decrypted;
+                    } else {
+                        if (!notebooks[treeNumber]) {
+                            notebooks[treeNumber] = new Notebook();
+                        }
+
+                        notebooks[treeNumber]!.notes[startPosition + index] = decrypted;
                     }
 
-                    notebooks[treeNumber + 1]!.notes[startPosition + index - TOTAL_LEAVES] = decrypted;
-                } else {
-                    if (!notebooks[treeNumber]) {
-                        notebooks[treeNumber] = new Notebook();
-                    }
-
-                    notebooks[treeNumber]!.notes[startPosition + index] = decrypted;
+                    await saveNotebooks();
                 }
-
-                saveNotebooks();
-            }
-        });
+            })
+        );
 
         // Update account endBlock to the maximum of current endBlock and this event's block number
         // This ensures we track the highest block processed, even if events are processed out of order

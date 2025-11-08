@@ -286,7 +286,7 @@ export class TransactNote {
       throw new Error('Wallet source must be set for encrypted note annotation data');
     }
 
-    const annotationData = Memo.createEncryptedNoteAnnotationDataV2(
+    const annotationData = await Memo.createEncryptedNoteAnnotationDataV2(
       this.outputType,
       this.senderRandom,
       this.walletSource,
@@ -412,7 +412,7 @@ export class TransactNote {
           );
 
         const noteAnnotationData = isSentNote
-          ? Memo.decryptNoteAnnotationData(annotationData, viewingPrivateKey)
+          ? await Memo.decryptNoteAnnotationData(annotationData, viewingPrivateKey)
           : undefined;
 
         return this.noteFromDecryptedValues(

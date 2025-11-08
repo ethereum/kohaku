@@ -75,7 +75,7 @@ export const makeHandleShieldEvent = async ({ getTrees, accounts }: HandleShield
         }
 
         await Promise.all(accounts.map(async (account) => {
-            account._internal.handleShieldEvent(event, skipMerkleTree, blockNumber);
+            await account._internal.handleShieldEvent(event, skipMerkleTree, blockNumber);
       }));
     }
 }

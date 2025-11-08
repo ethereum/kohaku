@@ -4,6 +4,212 @@ import { isNodejs } from '../runtime';
 
 type Ciphers = Pick<typeof import('crypto'), 'createCipheriv' | 'createDecipheriv'>;
 
+// Browser-compatible implementations using Web Crypto API
+async function browserEncryptGCM(plaintext: string[], key: Uint8Array): Promise<Ciphertext> {
+  const iv = ByteUtils.fastHexToBytes(ByteUtils.randomHex(16));
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt']
+  );
+
+  // Convert all plaintext blocks to bytes and track their lengths
+  const plaintextBlocks: Uint8Array[] = [];
+  const blockLengths: number[] = [];
+
+  for (let i = 0; i < plaintext.length; i += 1) {
+    const plaintextBytes = ByteUtils.fastHexToBytes(ByteUtils.strip0x(plaintext[i]));
+
+    plaintextBlocks.push(plaintextBytes);
+    blockLengths.push(plaintextBytes.length);
+  }
+
+  // Combine all plaintext blocks into one array
+  const totalLength = blockLengths.reduce((sum, len) => sum + len, 0);
+  const combinedPlaintext = new Uint8Array(totalLength);
+  let offset = 0;
+
+  for (const block of plaintextBlocks) {
+    combinedPlaintext.set(block, offset);
+    offset += block.length;
+  }
+
+  // Encrypt all blocks together as one GCM operation
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, tagLength: 128 },
+    cryptoKey,
+    combinedPlaintext
+  );
+
+  // Web Crypto API returns ciphertext with tag appended
+  const encryptedArray = new Uint8Array(encrypted);
+  const tag = encryptedArray.slice(-16);
+  const ciphertextOnly = encryptedArray.slice(0, -16);
+
+  // Split ciphertext back into blocks based on original plaintext lengths
+  // (GCM ciphertext length equals plaintext length)
+  const data = new Array<string>(plaintext.length);
+
+  offset = 0;
+
+  for (let i = 0; i < plaintext.length; i += 1) {
+    const blockLength = blockLengths[i];
+    const ciphertextBlock = ciphertextOnly.slice(offset, offset + blockLength);
+
+    data[i] = ByteUtils.fastBytesToHex(ciphertextBlock);
+    offset += blockLength;
+  }
+
+  return {
+    iv: ByteUtils.formatToByteLength(iv, ByteLength.UINT_128, false),
+    tag: ByteUtils.formatToByteLength(tag, ByteLength.UINT_128, false),
+    data,
+  };
+}
+
+async function browserDecryptGCM(ciphertext: Ciphertext, key: Uint8Array): Promise<BytesData[]> {
+  try {
+    const ivFormatted = ByteUtils.fastHexToBytes(ByteUtils.trim(ciphertext.iv, 16) as string);
+    const tagFormatted = ByteUtils.fastHexToBytes(ByteUtils.trim(ciphertext.tag, 16) as string);
+
+    if (ivFormatted.byteLength !== 16) {
+      throw new Error(
+        `Invalid iv length. Expected 16 bytes. Received ${ivFormatted.byteLength} bytes.`,
+      );
+    }
+
+    if (tagFormatted.byteLength !== 16) {
+      throw new Error(
+        `Invalid tag length. Expected 16 bytes. Received ${tagFormatted.byteLength} bytes.`,
+      );
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      key,
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+
+    // Convert all ciphertext blocks to bytes and track their lengths
+    const ciphertextBlocks: Uint8Array[] = [];
+    const blockLengths: number[] = [];
+
+    for (let i = 0; i < ciphertext.data.length; i += 1) {
+      const ciphertextBytes = ByteUtils.fastHexToBytes(ciphertext.data[i]);
+
+      ciphertextBlocks.push(ciphertextBytes);
+      blockLengths.push(ciphertextBytes.length);
+    }
+
+    // Combine all ciphertext blocks into one array
+    const totalLength = blockLengths.reduce((sum, len) => sum + len, 0);
+    const combinedCiphertext = new Uint8Array(totalLength);
+    let offset = 0;
+
+    for (const block of ciphertextBlocks) {
+      combinedCiphertext.set(block, offset);
+      offset += block.length;
+    }
+
+    // Append tag to combined ciphertext (GCM requires ciphertext + tag)
+    const ciphertextWithTag = new Uint8Array(combinedCiphertext.length + tagFormatted.length);
+
+    ciphertextWithTag.set(combinedCiphertext, 0);
+    ciphertextWithTag.set(tagFormatted, combinedCiphertext.length);
+
+    // Decrypt all blocks together as one GCM operation
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: ivFormatted, tagLength: 128 },
+      cryptoKey,
+      ciphertextWithTag
+    );
+
+    // Split decrypted plaintext back into blocks based on original ciphertext lengths
+    // (GCM plaintext length equals ciphertext length)
+    const decryptedArray = new Uint8Array(decrypted);
+    const data = new Array<string>(ciphertext.data.length);
+
+    offset = 0;
+
+    for (let i = 0; i < ciphertext.data.length; i += 1) {
+      const blockLength = blockLengths[i];
+      const plaintextBlock = decryptedArray.slice(offset, offset + blockLength);
+
+      data[i] = ByteUtils.fastBytesToHex(plaintextBlock);
+      offset += blockLength;
+    }
+
+    return data;
+  } catch (cause) {
+    throw new Error('Unable to decrypt ciphertext.', { cause });
+  }
+}
+
+async function browserEncryptCTR(plaintext: string[], key: Uint8Array): Promise<CiphertextCTR> {
+  const iv = ByteUtils.fastHexToBytes(ByteUtils.randomHex(16));
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'AES-CTR', counter: iv, length: 128 },
+    false,
+    ['encrypt']
+  );
+  const data = new Array<string>(plaintext.length);
+
+  for (let i = 0; i < plaintext.length; i += 1) {
+    const plaintextBytes = ByteUtils.fastHexToBytes(plaintext[i]);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-CTR', counter: iv, length: 128 },
+      cryptoKey,
+      plaintextBytes
+    );
+
+    data[i] = ByteUtils.fastBytesToHex(new Uint8Array(encrypted));
+  }
+
+  return {
+    iv: ByteUtils.formatToByteLength(iv, ByteLength.UINT_128, false),
+    data,
+  };
+}
+
+async function browserDecryptCTR(ciphertext: CiphertextCTR, key: Uint8Array): Promise<string[]> {
+  const ivFormatted = ByteUtils.fastHexToBytes(ciphertext.iv);
+
+  if (ivFormatted.byteLength !== 16) {
+    throw new Error(
+      `Invalid iv length. Expected 16 bytes. Received ${ivFormatted.byteLength} bytes.`,
+    );
+  }
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'AES-CTR', counter: ivFormatted, length: 128 },
+    false,
+    ['decrypt']
+  );
+  const data = new Array<string>(ciphertext.data.length);
+
+  for (let i = 0; i < ciphertext.data.length; i += 1) {
+    const ciphertextBytes = ByteUtils.fastHexToBytes(ciphertext.data[i]);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-CTR', counter: ivFormatted, length: 128 },
+      cryptoKey,
+      ciphertextBytes
+    );
+
+    data[i] = ByteUtils.fastBytesToHex(new Uint8Array(decrypted));
+  }
+
+  return data;
+}
+
 // Browser-safe cipher implementation using Web Crypto API
 class BrowserCipher {
   private key: CryptoKey | null = null;
@@ -358,6 +564,11 @@ export class AES {
       );
     }
 
+    // Use browser async implementation when in browser
+    if (!isNodejs) {
+      return browserEncryptGCM(plaintext, keyFormatted);
+    }
+
     const iv = AES.getRandomIV();
     const ivFormatted = ByteUtils.fastHexToBytes(iv);
 
@@ -408,6 +619,11 @@ export class AES {
         );
       }
 
+      // Use browser async implementation when in browser
+      if (!isNodejs) {
+        return browserDecryptGCM(ciphertext, keyFormatted);
+      }
+
       const ivFormatted = ByteUtils.fastHexToBytes(ByteUtils.trim(ciphertext.iv, 16) as string);
       const tagFormatted = ByteUtils.fastHexToBytes(ByteUtils.trim(ciphertext.tag, 16) as string);
 
@@ -454,7 +670,7 @@ export class AES {
    * @param key - key to encrypt with
    * @returns ciphertext bundle
    */
-  static encryptCTR(plaintext: string[], key: string | Uint8Array): CiphertextCTR {
+  static async encryptCTR(plaintext: string[], key: string | Uint8Array): Promise<CiphertextCTR> {
     // If types are strings, convert to bytes array
     const keyFormatted = typeof key === 'string' ? ByteUtils.fastHexToBytes(key) : key;
 
@@ -462,6 +678,11 @@ export class AES {
       throw new Error(
         `Invalid key length. Expected 32 bytes. Received ${keyFormatted.byteLength} bytes.`,
       );
+    }
+
+    // Use browser async implementation when in browser
+    if (!isNodejs) {
+      return browserEncryptCTR(plaintext, keyFormatted);
     }
 
     const iv = AES.getRandomIV();
@@ -492,7 +713,7 @@ export class AES {
    * @param key - key to decrypt with
    * @returns - plaintext
    */
-  static decryptCTR(ciphertext: CiphertextCTR, key: string | Uint8Array): string[] {
+  static async decryptCTR(ciphertext: CiphertextCTR, key: string | Uint8Array): Promise<string[]> {
     // If types are strings, convert to bytes array
     const keyFormatted = typeof key === 'string' ? ByteUtils.fastHexToBytes(key) : key;
 
@@ -500,6 +721,11 @@ export class AES {
       throw new Error(
         `Invalid key length. Expected 32 bytes. Received ${keyFormatted.byteLength} bytes.`,
       );
+    }
+
+    // Use browser async implementation when in browser
+    if (!isNodejs) {
+      return browserDecryptCTR(ciphertext, keyFormatted);
     }
 
     const ivFormatted = ByteUtils.fastHexToBytes(ciphertext.iv);
