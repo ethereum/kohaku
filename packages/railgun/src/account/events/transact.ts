@@ -19,16 +19,18 @@ export type TransactEvent = {
 export type HandleTransactEventContext = {
     notebooks: Notebook[];
     saveNotebooks: () => Promise<void>;
+    getAccountEndBlock: () => number;
+    setAccountEndBlock: (endBlock: number) => void;
 } & Pick<DerivedKeys, 'viewing' | 'spending'> & Pick<Indexer, 'getTrees'>;
 
-export type HandleTransactEventFn = (event: TransactEvent, skipMerkleTree: boolean) => Promise<void>;
+export type HandleTransactEventFn = (event: TransactEvent, skipMerkleTree: boolean, blockNumber: number) => Promise<void>;
 export type HandleTransactEvent = { handleTransactEvent: HandleTransactEventFn };
 
-export const makeHandleTransactEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
+export const makeHandleTransactEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
     const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-    return async (event: TransactEvent, skipMerkleTree: boolean) => {
+    return async (event: TransactEvent, skipMerkleTree: boolean, blockNumber: number) => {
         // Get start position
         const startPosition = Number(event.startPosition.toString());
 
@@ -106,5 +108,11 @@ export const makeHandleTransactEvent = async ({ notebooks, getTrees, viewing, sp
                 saveNotebooks();
             }),
         );
+
+        // Update account endBlock to the maximum of current endBlock and this event's block number
+        // This ensures we track the highest block processed, even if events are processed out of order
+        const currentEndBlock = getAccountEndBlock();
+
+        setAccountEndBlock(Math.max(currentEndBlock, blockNumber));
     }
 }

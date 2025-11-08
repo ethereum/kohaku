@@ -1,25 +1,13 @@
 import * as nobleED25519 from '@noble/ed25519';
-import { sha256 } from '@noble/hashes/sha256';
-import { sha512 } from '@noble/hashes/sha512';
+import { sha256, sha512 } from '@noble/hashes/sha2';
 import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
 import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
 import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
 import { getRandomBytesSync } from 'ethereum-cryptography/random';
 import { isNodejs } from '../../lib/utils/runtime.js';
-import { createRequire } from 'node:module';
 
 // Browser-compatible random bytes
-let nodeCrypto: typeof import('crypto') | null = null;
-
-if (isNodejs) {
-  try {
-    const require = createRequire(import.meta.url);
-
-    nodeCrypto = require('crypto');
-  } catch {
-    // Fallback to browser crypto
-  }
-}
+const nodeCrypto: typeof import('crypto') | null = null;
 
 /**
  * Gets random bytes (browser-compatible)
@@ -37,17 +25,323 @@ function randomBytes(length: number) {
 
 // Browser-compatible crypto ciphers
 type Ciphers = Pick<typeof import('crypto'), 'createCipheriv' | 'createDecipheriv'>;
-let ciphers: Ciphers;
-const require = createRequire(import.meta.url);
 
-if (isNodejs) {
-  try {
-    ciphers = require('crypto') as Ciphers;
-  } catch {
-    ciphers = require('browserify-aes/browser') as Ciphers;
+// Browser-safe cipher implementation using Web Crypto API
+class BrowserCipher {
+  private key: CryptoKey | null = null;
+  private keyPromise: Promise<CryptoKey>;
+  private iv: Uint8Array;
+  private mode: 'gcm' | 'ctr';
+  private buffer: Uint8Array[] = [];
+  private authTagLength?: number;
+  private authTag?: Uint8Array;
+  private encryptedBlocks: Uint8Array[] = [];
+  private finalized: boolean = false;
+
+  constructor(algorithm: string, key: Uint8Array, iv: Uint8Array, options?: { authTagLength?: number }) {
+    this.iv = iv;
+    this.mode = algorithm.includes('gcm') ? 'gcm' : 'ctr';
+    this.authTagLength = options?.authTagLength;
+
+    const algo = this.mode === 'gcm' 
+      ? { name: 'AES-GCM', length: key.length * 8 }
+      : { name: 'AES-CTR', length: key.length * 8 };
+
+    this.keyPromise = crypto.subtle.importKey('raw', key.buffer as ArrayBuffer, algo, false, ['encrypt', 'decrypt']);
   }
-} else {
-  ciphers = require('browserify-aes/browser') as Ciphers;
+
+  private async _ensureKey(): Promise<CryptoKey> {
+    if (!this.key) {
+      this.key = await this.keyPromise;
+    }
+
+    return this.key;
+  }
+
+  update(data: Uint8Array): Uint8Array {
+    if (this.finalized) {
+      const block = this.encryptedBlocks.shift();
+
+      return block || new Uint8Array(0);
+    }
+
+    this.buffer.push(new Uint8Array(data));
+
+    return new Uint8Array(0);
+  }
+
+  final(): void {
+    if (this.finalized) {
+      return;
+    }
+
+    let keyReady = false;
+    let error: Error | null = null;
+    let result: Uint8Array | null = null;
+
+    this._ensureKey().then(async (key) => {
+      this.key = key;
+      const combined = new Uint8Array(this.buffer.reduce((acc, buf) => acc + buf.length, 0));
+      let offset = 0;
+
+      for (const buf of this.buffer) {
+        combined.set(buf, offset);
+        offset += buf.length;
+      }
+
+      if (this.mode === 'gcm') {
+        const encrypted = await crypto.subtle.encrypt(
+          {
+            name: 'AES-GCM',
+            iv: this.iv.buffer as ArrayBuffer,
+            tagLength: (this.authTagLength || 16) * 8,
+          },
+          key,
+          combined.buffer as ArrayBuffer
+        );
+        const encryptedData = new Uint8Array(encrypted);
+        const tagLength = this.authTagLength || 16;
+
+        this.authTag = encryptedData.slice(-tagLength);
+        result = encryptedData.slice(0, -tagLength);
+      } else {
+        const encrypted = await crypto.subtle.encrypt(
+          {
+            name: 'AES-CTR',
+            counter: this.iv.buffer as ArrayBuffer,
+            length: 128,
+          },
+          key,
+          combined.buffer as ArrayBuffer
+        );
+
+        result = new Uint8Array(encrypted);
+      }
+
+      keyReady = true;
+    }).catch((err) => {
+      error = err;
+      keyReady = true;
+    });
+
+    const start = Date.now();
+
+    while (!keyReady && Date.now() - start < 1000) {
+      // Wait up to 1 second
+    }
+
+    if (error) {
+      throw error;
+    }
+
+    if (!result) {
+      throw new Error('Encryption timeout or failed');
+    }
+
+    const finalResult: Uint8Array = result as Uint8Array;
+    let offset = 0;
+
+    for (const buf of this.buffer) {
+      this.encryptedBlocks.push(finalResult.slice(offset, offset + buf.length));
+      offset += buf.length;
+    }
+
+    this.finalized = true;
+  }
+
+  getAuthTag(): Uint8Array {
+    if (!this.authTag) {
+      throw new Error('Auth tag not available');
+    }
+
+    return this.authTag;
+  }
+}
+
+class BrowserDecipher {
+  private key: CryptoKey | null = null;
+  private keyPromise: Promise<CryptoKey>;
+  private iv: Uint8Array;
+  private mode: 'gcm' | 'ctr';
+  private buffer: Uint8Array[] = [];
+  private authTagLength?: number;
+  private authTag?: Uint8Array;
+  private decryptedBlocks: Uint8Array[] = [];
+  private finalized: boolean = false;
+
+  constructor(algorithm: string, key: Uint8Array, iv: Uint8Array, options?: { authTagLength?: number }) {
+    this.iv = iv;
+    this.mode = algorithm.includes('gcm') ? 'gcm' : 'ctr';
+    this.authTagLength = options?.authTagLength;
+
+    const algo = this.mode === 'gcm' 
+      ? { name: 'AES-GCM', length: key.length * 8 }
+      : { name: 'AES-CTR', length: key.length * 8 };
+
+    this.keyPromise = crypto.subtle.importKey('raw', key.buffer as ArrayBuffer, algo, false, ['encrypt', 'decrypt']);
+  }
+
+  private async _ensureKey(): Promise<CryptoKey> {
+    if (!this.key) {
+      this.key = await this.keyPromise;
+    }
+
+    return this.key;
+  }
+
+  setAuthTag(tag: Uint8Array): void {
+    this.authTag = tag;
+  }
+
+  update(data: Uint8Array): Uint8Array {
+    if (this.finalized) {
+      const block = this.decryptedBlocks.shift();
+
+      return block || new Uint8Array(0);
+    }
+
+    this.buffer.push(new Uint8Array(data));
+
+    return new Uint8Array(0);
+  }
+
+  final(): void {
+    if (this.finalized) {
+      return;
+    }
+
+    let keyReady = false;
+    let error: Error | null = null;
+    let result: Uint8Array | null = null;
+
+    this._ensureKey().then(async (key) => {
+      this.key = key;
+      const combined = new Uint8Array(this.buffer.reduce((acc, buf) => acc + buf.length, 0));
+      let offset = 0;
+
+      for (const buf of this.buffer) {
+        combined.set(buf, offset);
+        offset += buf.length;
+      }
+
+      if (this.mode === 'gcm') {
+        if (!this.authTag) {
+          throw new Error('Auth tag must be set for GCM mode');
+        }
+
+        const ciphertextWithTag = new Uint8Array(combined.length + this.authTag.length);
+
+        ciphertextWithTag.set(combined, 0);
+        ciphertextWithTag.set(this.authTag, combined.length);
+
+        const decrypted = await crypto.subtle.decrypt(
+          {
+            name: 'AES-GCM',
+            iv: this.iv.buffer as ArrayBuffer,
+            tagLength: (this.authTagLength || 16) * 8,
+          },
+          key,
+          ciphertextWithTag.buffer as ArrayBuffer
+        );
+
+        result = new Uint8Array(decrypted);
+      } else {
+        const decrypted = await crypto.subtle.decrypt(
+          {
+            name: 'AES-CTR',
+            counter: this.iv.buffer as ArrayBuffer,
+            length: 128,
+          },
+          key,
+          combined.buffer as ArrayBuffer
+        );
+
+        result = new Uint8Array(decrypted);
+      }
+
+      keyReady = true;
+    }).catch((err) => {
+      error = err;
+      keyReady = true;
+    });
+
+    const start = Date.now();
+
+    while (!keyReady && Date.now() - start < 1000) {
+      // Wait up to 1 second
+    }
+
+    if (error) {
+      throw error;
+    }
+
+    if (!result) {
+      throw new Error('Decryption timeout or failed');
+    }
+
+    const finalResult: Uint8Array = result as Uint8Array;
+    let offset = 0;
+
+    for (const buf of this.buffer) {
+      this.decryptedBlocks.push(finalResult.slice(offset, offset + buf.length));
+      offset += buf.length;
+    }
+
+    this.finalized = true;
+  }
+}
+
+// Browser-safe cipher factory
+function createBrowserCiphers(): Ciphers {
+  return {
+    createCipheriv(algorithm: string, key: Uint8Array, iv: Uint8Array, options?: { authTagLength?: number }) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return new BrowserCipher(algorithm, key, iv, options) as any;
+    },
+    createDecipheriv(algorithm: string, key: Uint8Array, iv: Uint8Array, options?: { authTagLength?: number }) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return new BrowserDecipher(algorithm, key, iv, options) as any;
+    },
+  } as Ciphers;
+}
+
+let ciphers: Ciphers | null = null;
+
+function getCiphers(): Ciphers {
+  if (ciphers) {
+    return ciphers;
+  }
+
+  if (isNodejs) {
+    try {
+      // In Node.js, use createRequire to load crypto
+      // @ts-expect-error - dynamic access to avoid webpack bundling
+       
+      const nodeModule = (typeof __non_webpack_require__ !== 'undefined' 
+        ? __non_webpack_require__
+        : typeof require !== 'undefined' 
+         
+        ? require
+        : null)('node:module');
+
+      if (nodeModule?.createRequire) {
+        const requireFn = nodeModule.createRequire(import.meta.url);
+
+        ciphers = requireFn('crypto') as Ciphers;
+
+        return ciphers;
+      }
+
+      throw new Error('createRequire not available');
+    } catch {
+      throw new Error('Failed to load Node.js crypto module');
+    }
+  } else {
+    // In browser, use Web Crypto API implementation
+    ciphers = createBrowserCiphers();
+
+    return ciphers;
+  }
 }
 
 const poseidonPromise = buildPoseidonOpt();
@@ -125,7 +419,7 @@ const aes = {
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
       const iv = randomBytes(16);
 
-      const cipher = ciphers.createCipheriv('aes-256-gcm', key, iv, {
+      const cipher = getCiphers().createCipheriv('aes-256-gcm', key, iv, {
         authTagLength: 16,
       });
 
@@ -148,11 +442,17 @@ const aes = {
      * @returns plaintext
      */
     decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = ciphertext[0].subarray(0, 16);
-      const tag = ciphertext[0].subarray(16, 32);
+      const firstBlock = ciphertext[0];
+
+      if (!firstBlock || firstBlock.length < 32) {
+        throw new Error('Invalid ciphertext: missing IV or tag');
+      }
+
+      const iv = firstBlock.subarray(0, 16);
+      const tag = firstBlock.subarray(16, 32);
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = ciphers.createDecipheriv('aes-256-gcm', key, iv, {
+      const decipher = getCiphers().createDecipheriv('aes-256-gcm', key, iv, {
         authTagLength: 16,
       });
 
@@ -177,7 +477,7 @@ const aes = {
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
       const iv = randomBytes(16);
 
-      const cipher = ciphers.createCipheriv('aes-256-ctr', key, iv);
+      const cipher = getCiphers().createCipheriv('aes-256-ctr', key, iv);
 
       const data = plaintext
         .map((block) => cipher.update(block))
@@ -196,10 +496,14 @@ const aes = {
      * @returns plaintext
      */
     decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
+      if (ciphertext.length === 0 || !ciphertext[0]) {
+        throw new Error('Invalid ciphertext: missing IV');
+      }
+
       const iv = ciphertext[0];
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = ciphers.createDecipheriv('aes-256-ctr', key, iv);
+      const decipher = getCiphers().createDecipheriv('aes-256-ctr', key, iv, undefined);
 
       // Loop through ciphertext and decrypt then return
       const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
@@ -224,27 +528,31 @@ const ed25519 = {
   adjustBytes25519(bytes: Uint8Array, endian: 'be' | 'le'): Uint8Array {
     // Create new array to prevent side effects
     const adjustedBytes = new Uint8Array(bytes);
+    
+    if (adjustedBytes.length < 32) {
+      throw new Error('Bytes must be at least 32 bytes long');
+    }
 
     if (endian === 'be') {
       // BIG ENDIAN
       // AND operation to ensure the last 3 bits of the last byte are 0 leaving the rest unchanged
-      adjustedBytes[31] &= 0b11111000;
+      adjustedBytes[31]! &= 0b11111000;
 
       // AND operation to ensure the first bit of the first byte is 0 leaving the rest unchanged
-      adjustedBytes[0] &= 0b01111111;
+      adjustedBytes[0]! &= 0b01111111;
 
       // OR operation to ensure the second bit of the first byte is 0 leaving the rest unchanged
-      adjustedBytes[0] |= 0b01000000;
+      adjustedBytes[0]! |= 0b01000000;
     } else {
       // LITTLE ENDIAN
       // AND operation to ensure the last 3 bits of the first byte are 0 leaving the rest unchanged
-      adjustedBytes[0] &= 0b11111000;
+      adjustedBytes[0]! &= 0b11111000;
 
       // AND operation to ensure the first bit of the last byte is 0 leaving the rest unchanged
-      adjustedBytes[31] &= 0b01111111;
+      adjustedBytes[31]! &= 0b01111111;
 
       // OR operation to ensure the second bit of the last byte is 0 leaving the rest unchanged
-      adjustedBytes[31] |= 0b01000000;
+      adjustedBytes[31]! |= 0b01000000;
     }
 
     // Return adjusted bytes

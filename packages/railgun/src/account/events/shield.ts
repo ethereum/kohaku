@@ -23,16 +23,18 @@ export type ShieldEvent = {
 export type HandleShieldEventContext = {
     notebooks: Notebook[];
     saveNotebooks: () => Promise<void>;
+    getAccountEndBlock: () => number;
+    setAccountEndBlock: (endBlock: number) => void;
 } & Pick<DerivedKeys, 'viewing' | 'spending'> & Pick<Indexer, 'getTrees'>;
 
-export type HandleShieldEventFn = (event: ShieldEvent, skipMerkleTree: boolean) => Promise<void>;
+export type HandleShieldEventFn = (event: ShieldEvent, skipMerkleTree: boolean, blockNumber: number) => Promise<void>;
 export type HandleShieldEvent = { handleShieldEvent: HandleShieldEventFn };
 
-export const makeHandleShieldEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks }: HandleShieldEventContext): Promise<HandleShieldEventFn> => {
+export const makeHandleShieldEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: HandleShieldEventContext): Promise<HandleShieldEventFn> => {
     const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-    return async (event: ShieldEvent, skipMerkleTree: boolean) => {
+    return async (event: ShieldEvent, skipMerkleTree: boolean, blockNumber: number) => {
         // Get start position
         const startPosition = Number(event.startPosition.toString());
 
@@ -117,5 +119,11 @@ export const makeHandleShieldEvent = async ({ notebooks, getTrees, viewing, spen
                 saveNotebooks();
             }
         });
+
+        // Update account endBlock to the maximum of current endBlock and this event's block number
+        // This ensures we track the highest block processed, even if events are processed out of order
+        const currentEndBlock = getAccountEndBlock();
+
+        setAccountEndBlock(Math.max(currentEndBlock, blockNumber));
     }
 }

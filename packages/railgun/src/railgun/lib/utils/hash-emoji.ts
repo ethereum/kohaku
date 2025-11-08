@@ -1,5 +1,5 @@
 import { ByteUtils } from './bytes';
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from 'ethereum-cryptography/utils';
 import EMOJIS from './emojis.json';
 

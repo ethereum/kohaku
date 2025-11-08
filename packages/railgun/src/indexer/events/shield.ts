@@ -22,13 +22,13 @@ export type ShieldEvent = {
 
 export type HandleShieldEventContext = Pick<Indexer, 'getTrees'> & { accounts: RailgunAccount[] };
 
-export type HandleShieldEventFn = (event: ShieldEvent, skipMerkleTree: boolean) => Promise<void>;
+export type HandleShieldEventFn = (event: ShieldEvent, skipMerkleTree: boolean, blockNumber: number) => Promise<void>;
 
 export const makeHandleShieldEvent = async ({ getTrees, accounts }: HandleShieldEventContext): Promise<HandleShieldEventFn> => {
     // const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     // const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-    return async (event: ShieldEvent, skipMerkleTree: boolean) => {
+    return async (event: ShieldEvent, skipMerkleTree: boolean, blockNumber: number) => {
 
         // Get start position
         const startPosition = Number(event.startPosition.toString());
@@ -75,7 +75,7 @@ export const makeHandleShieldEvent = async ({ getTrees, accounts }: HandleShield
         }
 
         await Promise.all(accounts.map(async (account) => {
-            account._internal.handleShieldEvent(event, skipMerkleTree);
+            account._internal.handleShieldEvent(event, skipMerkleTree, blockNumber);
       }));
     }
 }

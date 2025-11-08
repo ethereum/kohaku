@@ -57,13 +57,14 @@ export type RailgunAccount = GetRailgunAddress &
 
 export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, loadState, ...params }) => {
     const { spending, viewing, master, signer } = await deriveKeys(credential);
-    const { notebooks, endBlock: accountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadState, spending, viewing });
+    const { notebooks, getEndBlock: getAccountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadState, spending, viewing });
     const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider });
     const { getTrees, network } = indexer;
 
     // Validate that account endBlock doesn't exceed indexer endBlock
     // Account notebooks can't reference merkle tree state that doesn't exist yet
     const indexerEndBlock = indexer.getSerializedState().endBlock;
+    const accountEndBlock = getAccountEndBlock();
 
     if (accountEndBlock > indexerEndBlock) {
         console.warn(
@@ -79,7 +80,7 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
     const getBalance = makeGetBalance({ notebooks, network, getTrees });
     const getNotes = await makeGetNotes({ notebooks, getTrees, spending, viewing });
     const { getTransactNotes } = getNotes;
-    const processLog = await makeProcessLog({ notebooks, getTrees, viewing, spending, saveNotebooks, setAccountEndBlock });
+    const processLog = await makeProcessLog({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock });
 
     const shield = await makeCreateShield({ network, master, viewing, signer });
     const transfer = await makeCreateTransfer({ network, getTrees, getTransactNotes });
@@ -89,10 +90,10 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
 
     const getNetwork = () => network;
 
-    const getEndBlock = () => accountEndBlock;
+    const getEndBlock = () => getAccountEndBlock();
 
     const getSerializedState = () => {
-        return serializeAccountStorage({ notebooks, endBlock: accountEndBlock });
+        return serializeAccountStorage({ notebooks, endBlock: getAccountEndBlock() });
     };
 
     const _internal = {
@@ -101,7 +102,9 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
         master,
         signer,
         ...processLog,
-        accountEndBlock,
+        get accountEndBlock() {
+            return getAccountEndBlock();
+        },
         setAccountEndBlock,
     };
 

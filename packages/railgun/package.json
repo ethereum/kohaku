@@ -70,7 +70,7 @@
   "dependencies": {
     "@noble/ciphers": "^1.0.0",
     "@noble/ed25519": "^1.7.1",
-    "@noble/hashes": "^2.0.0",
+    "@noble/hashes": "1.8.0",
     "@railgun-community/circomlibjs": "0.0.8",
     "@railgun-community/curve25519-scalarmult-wasm": "0.1.5",
     "@railgun-community/poseidon-hash-wasm": "1.0.1",
@@ -94,6 +94,7 @@
     "chai-as-promised": "^7.1.2",
     "dotenv": "^17.2.1",
     "mocha": "^11.7.1",
+    "prool": "^0.0.24",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",

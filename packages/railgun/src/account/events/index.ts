@@ -8,6 +8,7 @@ import { Indexer } from "~/indexer/base";
 export type ProcessLogContext = {
     notebooks: Notebook[];
     saveNotebooks: () => Promise<void>;
+    getAccountEndBlock: () => number;
     setAccountEndBlock: (endBlock: number) => void;
 } & Pick<DerivedKeys, 'viewing' | 'spending'> & Pick<Indexer, 'getTrees'>;
 
@@ -20,10 +21,10 @@ export type ProcessLogParams = {
 
 export type ProcessLog = HandleShieldEvent & HandleTransactEvent;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const makeProcessLog = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, setAccountEndBlock }: ProcessLogContext): Promise<ProcessLog> => {
-    const handleShieldEvent = await makeHandleShieldEvent({ notebooks, getTrees, viewing, spending, saveNotebooks });
-    const handleTransactEvent = await makeHandleTransactEvent({ notebooks, getTrees, viewing, spending, saveNotebooks });
+ 
+export const makeProcessLog = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: ProcessLogContext): Promise<ProcessLog> => {
+    const handleShieldEvent = await makeHandleShieldEvent({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock });
+    const handleTransactEvent = await makeHandleTransactEvent({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock });
 
     return { handleShieldEvent, handleTransactEvent };
 };

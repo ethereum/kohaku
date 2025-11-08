@@ -1,5 +1,8 @@
 declare type Optional<T> = T | undefined;
 
+// Webpack global for non-webpack requires
+declare const __non_webpack_require__: typeof require | undefined;
+
 declare module '@railgun-community/circomlibjs' {
   export type Signature = {
     R8: [bigint, bigint];

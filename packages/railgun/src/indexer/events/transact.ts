@@ -16,13 +16,13 @@ export type TransactEvent = {
 
 export type HandleTransactEventContext = Pick<Indexer, 'getTrees'> & Pick<Indexer, 'accounts'>;
 
-export type HandleTransactEventFn = (event: TransactEvent, skipMerkleTree: boolean) => Promise<void>;
+export type HandleTransactEventFn = (event: TransactEvent, skipMerkleTree: boolean, blockNumber: number) => Promise<void>;
 
 export const makeHandleTransactEvent = async ({ getTrees, accounts }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
     // const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     // const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-    return async (event: TransactEvent, skipMerkleTree: boolean) => {
+    return async (event: TransactEvent, skipMerkleTree: boolean, blockNumber: number) => {
         console.log('handleTransactEvent', event);
 
         // Get start position
@@ -57,7 +57,7 @@ export const makeHandleTransactEvent = async ({ getTrees, accounts }: HandleTran
         }
 
         await Promise.all(accounts.map(async (account) => {
-            account._internal.handleTransactEvent(event, skipMerkleTree);
+            account._internal.handleTransactEvent(event, skipMerkleTree, blockNumber);
         }));
     }
 }

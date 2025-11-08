@@ -3,19 +3,46 @@ import { bytesToHex } from 'ethereum-cryptography/utils';
 import { EngineDebug } from '../debugger/debugger';
 import { ByteLength, ByteUtils } from './bytes';
 import { isReactNative } from './runtime';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
 
 interface ScalarMultMod {
   default?: () => Promise<void>;
   scalarMultiply?: (point: Uint8Array, scalar: Uint8Array) => Uint8Array;
 }
 
-const { default: initCurve25519wasm, scalarMultiply: scalarMultiplyWasm } =
+let scalarMultModule: ScalarMultMod | null = null;
 
-  isReactNative
-    ? ({} as unknown as ScalarMultMod)
-    : (require('@railgun-community/curve25519-scalarmult-wasm') as ScalarMultMod)
+function getScalarMultModule(): ScalarMultMod {
+  if (scalarMultModule) {
+    return scalarMultModule;
+  }
+
+  if (isReactNative) {
+    scalarMultModule = {} as unknown as ScalarMultMod;
+
+    return scalarMultModule;
+  }
+
+  try {
+    // @ts-expect-error - webpack will handle this as an external
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    scalarMultModule = require('@railgun-community/curve25519-scalarmult-wasm') as ScalarMultMod;
+
+    return scalarMultModule;
+  } catch {
+    scalarMultModule = {} as unknown as ScalarMultMod;
+
+    return scalarMultModule;
+  }
+}
+
+const { default: initCurve25519wasm, scalarMultiply: scalarMultiplyWasm } = {
+  get default() {
+    return getScalarMultModule().default;
+  },
+  get scalarMultiply() {
+    return getScalarMultModule().scalarMultiply;
+  }
+} as ScalarMultMod;
 
 const initCurve25519Wasm = (): Promise<void> => {
   try {

@@ -26,6 +26,7 @@ export * from './indexer/storage.js';
 // Account functionality
 export * from './account/base.js';
 export * from './account/storage.js';
+export * from './account/actions/address.js';
 
 // Key derivation utilities (re-export for convenience)
 export * from './railgun/lib/key-derivation';

@@ -43,5 +43,8 @@ export default defineConfig(({ mode }) => ({
       '~/*': path.resolve(__dirname, './src/*'),
     },
   },
+  optimizeDeps: {
+    include: ['@noble/hashes/sha2', '@noble/hashes/sha3'],
+  },
   plugins: [tsconfigPaths()]
 }));

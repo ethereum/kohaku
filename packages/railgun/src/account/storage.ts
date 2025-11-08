@@ -107,7 +107,7 @@ export const createAccountStorage = async (
 
     return {
         notebooks: accountState.notebooks,
-        endBlock: accountState.endBlock,
+        getEndBlock: () => accountState.endBlock,
         saveNotebooks,
         setEndBlock: (endBlock: number) => {
             accountState.endBlock = endBlock;
