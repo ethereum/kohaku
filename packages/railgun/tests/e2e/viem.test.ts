@@ -126,10 +126,11 @@ describe('Railgun E2E Flow (Viem)', () => {
 
     // Accounts already attached during creation
 
-    // Initialize indexer with cached Merkle trees and sync
+    // Initialize indexer with cached Merkle trees and sync to fork block
     console.log('\nLoading cached state into indexer...');
     // await indexer.loadState({ merkleTrees: cachedMerkleTrees, latestSyncedBlock: forkBlock });
-    await indexer.sync();
+    // Sync to fork block to initialize state (no new logs expected yet)
+    await indexer.sync!({ toBlock: forkBlock, logProgress: false });
     console.log('Cached state loaded');
 
     await anvil.mine(3);
@@ -192,7 +193,7 @@ describe('Railgun E2E Flow (Viem)', () => {
     // console.log(`Fetched ${newLogs.length} new logs (expected logs from block ${receipt?.blockNumber})`);
 
     // await indexer.processLogs(newLogs);
-    await indexer.sync({ toBlock: currentBlock, logProgress: true });
+    await indexer.sync!({ fromBlock: forkBlock, toBlock: currentBlock, logProgress: true });
     console.log('Accounts synced');
     const currentRootA2 = aliceRailgunAccount.getLatestMerkleRoot();
 
@@ -234,7 +235,7 @@ describe('Railgun E2E Flow (Viem)', () => {
     // const transferLogs = await indexer.fetchLogs(currentBlock, newBlock);
 
     // await indexer.processLogs(transferLogs);
-    await indexer.sync({ toBlock: newBlock, logProgress: true });
+    await indexer.sync!({ toBlock: newBlock, logProgress: true });
 
     const aliceRoot = aliceRailgunAccount.getLatestMerkleRoot();
     const bobRoot = bobRailgunAccount.getLatestMerkleRoot();

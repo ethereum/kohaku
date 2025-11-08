@@ -1,4 +1,4 @@
-import { MerkleTree } from "~/railgun/logic/logic/merkletree";
+import { MerkleTree } from "../../railgun/logic/logic/merkletree.js";
 
 export type GetMerkleRootFn = (treeIndex: number) => Uint8Array<ArrayBufferLike>;
 export type GetLatestMerkleRootFn = () => Uint8Array<ArrayBufferLike>;
@@ -20,6 +20,12 @@ export const makeGetMerkleRoot = ({ getTrees }: GetMerkleRootFnParams) => ({
         return getTrees()[treeIndex]!.root;
     },
     getLatestMerkleRoot() {
-        return getTrees()[getTrees().length - 1]!.root;
+        const trees = getTrees();
+
+        if (trees.length === 0) {
+            throw new Error('No merkle trees available. Sync indexer first or load preloaded state.');
+        }
+
+        return trees[trees.length - 1]!.root;
     }
 })

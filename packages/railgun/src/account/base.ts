@@ -12,14 +12,15 @@ import { CreateTransfer, makeCreateTransfer } from "./tx/transfer";
 import { createRailgunIndexer, Indexer } from "~/indexer/base";
 import { RailgunProvider } from "~/provider";
 import { StorageLayer } from "~/storage/base";
-import { createAccountStorage } from "./storage";
+import { createAccountStorage, serializeAccountStorage, CachedAccountStorage } from "./storage";
 
 export type RailgunAccountBaseParameters = {
     // Key configuration for the account, either a private key or a mnemonic.
     credential: KeyConfig,
-    // Storage layer for notebooks
-    storage: StorageLayer,
-};
+} & (
+    | { storage: StorageLayer; loadData?: never }
+    | { storage?: never; loadData?: CachedAccountStorage }
+);
 
 export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
     // Indexer configuration
@@ -28,14 +29,17 @@ export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
 
 export type RailgunAccountParamsIndexerConfig = RailgunAccountBaseParameters & {
     // Indexer configuration
-    provider: RailgunProvider;
+    provider?: RailgunProvider;
     // Network configuration
     network: RailgunNetworkConfig;
 };
 
 export type RailgunAccountParameters = RailgunAccountParamsIndexer | RailgunAccountParamsIndexerConfig;
 
-export type InternalRailgunAccount = DerivedKeys & ProcessLog;
+export type InternalRailgunAccount = DerivedKeys & ProcessLog & {
+    accountEndBlock: number;
+    setAccountEndBlock?: (endBlock: number) => void;
+};
 
 export type RailgunAccount = GetRailgunAddress &
     GetMasterPublicKey &
@@ -46,19 +50,35 @@ export type RailgunAccount = GetRailgunAddress &
     CreateTransfer &
     CreateUnshield &
 { indexer: Indexer } &
-{ _internal: InternalRailgunAccount };
+{ _internal: InternalRailgunAccount } &
+{ getEndBlock: () => number } &
+{ getSerializedState: () => CachedAccountStorage };
 
-export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, ...params }) => {
+export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, loadData, ...params }) => {
     const { spending, viewing, master, signer } = await deriveKeys(credential);
-    const { notebooks, saveNotebooks } = await createAccountStorage(storage, { spending, viewing });
+    const { notebooks, endBlock: accountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadData, spending, viewing });
     const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider });
     const { getTrees, network } = indexer;
+
+    // Validate that account endBlock doesn't exceed indexer endBlock
+    // Account notebooks can't reference merkle tree state that doesn't exist yet
+    const indexerEndBlock = indexer.getSerializedState().endBlock;
+
+    if (accountEndBlock > indexerEndBlock) {
+        console.warn(
+            `Account endBlock (${accountEndBlock}) exceeds indexer endBlock (${indexerEndBlock}). ` +
+            `Account notebooks may reference commitments that don't exist in merkle trees. ` +
+            `This could cause errors when querying balances or notes.`
+        );
+        // Cap account endBlock to indexer endBlock to prevent issues
+        setAccountEndBlock(indexerEndBlock);
+    }
 
     const getRailgunAddress = makeGetRailgunAddress({ master, viewing });
     const getBalance = makeGetBalance({ notebooks, network, getTrees });
     const getNotes = await makeGetNotes({ notebooks, getTrees, spending, viewing });
     const { getTransactNotes } = getNotes;
-    const processLog = await makeProcessLog({ notebooks, getTrees, viewing, spending, saveNotebooks });
+    const processLog = await makeProcessLog({ notebooks, getTrees, viewing, spending, saveNotebooks, setAccountEndBlock });
 
     const shield = await makeCreateShield({ network, master, viewing, signer });
     const transfer = await makeCreateTransfer({ network, getTrees, getTransactNotes });
@@ -66,12 +86,20 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
 
     const getMerkleRoot = makeGetMerkleRoot({ getTrees });
 
+    const getEndBlock = () => accountEndBlock;
+
+    const getSerializedState = () => {
+        return serializeAccountStorage({ notebooks, endBlock: accountEndBlock });
+    };
+
     const _internal = {
         spending,
         viewing,
         master,
         signer,
         ...processLog,
+        accountEndBlock,
+        setAccountEndBlock,
     };
 
     const account = Object.assign({
@@ -80,6 +108,8 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
         getBalance,
         indexer,
         _internal,
+        getEndBlock,
+        getSerializedState,
     }, getMerkleRoot, getNotes, shield, transfer, unshield);
 
     indexer.registerAccount(account);

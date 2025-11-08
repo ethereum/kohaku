@@ -1,18 +1,52 @@
-import crypto from 'crypto';
 import * as nobleED25519 from '@noble/ed25519';
 import { sha256, sha512 } from '@noble/hashes/sha2';
 import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
 import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
 import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
+import { getRandomBytesSync } from 'ethereum-cryptography/random';
+import { isNodejs } from '../../lib/utils/runtime.js';
+import { createRequire } from 'node:module';
+
+// Browser-compatible random bytes
+let nodeCrypto: typeof import('crypto') | null = null;
+
+if (isNodejs) {
+  try {
+    const require = createRequire(import.meta.url);
+
+    nodeCrypto = require('crypto');
+  } catch {
+    // Fallback to browser crypto
+  }
+}
 
 /**
- * Gets random bytes
+ * Gets random bytes (browser-compatible)
  *
  * @param length - random bytes length
  * @returns random bytes
  */
 function randomBytes(length: number) {
-  return new Uint8Array(crypto.randomBytes(length));
+  if (nodeCrypto) {
+    return new Uint8Array(nodeCrypto.randomBytes(length));
+  }
+
+  return getRandomBytesSync(length);
+}
+
+// Browser-compatible crypto ciphers
+type Ciphers = Pick<typeof import('crypto'), 'createCipheriv' | 'createDecipheriv'>;
+let ciphers: Ciphers;
+const require = createRequire(import.meta.url);
+
+if (isNodejs) {
+  try {
+    ciphers = require('crypto') as Ciphers;
+  } catch {
+    ciphers = require('browserify-aes/browser') as Ciphers;
+  }
+} else {
+  ciphers = require('browserify-aes/browser') as Ciphers;
 }
 
 const poseidonPromise = buildPoseidonOpt();
@@ -90,7 +124,7 @@ const aes = {
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
       const iv = randomBytes(16);
 
-      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, {
+      const cipher = ciphers.createCipheriv('aes-256-gcm', key, iv, {
         authTagLength: 16,
       });
 
@@ -117,7 +151,7 @@ const aes = {
       const tag = ciphertext[0].subarray(16, 32);
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
+      const decipher = ciphers.createDecipheriv('aes-256-gcm', key, iv, {
         authTagLength: 16,
       });
 
@@ -142,7 +176,7 @@ const aes = {
     encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
       const iv = randomBytes(16);
 
-      const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+      const cipher = ciphers.createCipheriv('aes-256-ctr', key, iv);
 
       const data = plaintext
         .map((block) => cipher.update(block))
@@ -164,7 +198,7 @@ const aes = {
       const iv = ciphertext[0];
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
+      const decipher = ciphers.createDecipheriv('aes-256-ctr', key, iv);
 
       // Loop through ciphertext and decrypt then return
       const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));

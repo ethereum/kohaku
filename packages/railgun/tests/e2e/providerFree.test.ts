@@ -4,16 +4,18 @@ import { Wallet, Contract } from 'ethers';
 import {
   createRailgunAccount,
   createRailgunIndexer,
+  type RailgunLog,
+  type CachedAccountStorage,
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
 import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
-// import { loadOrCreateCache } from '../utils/cache';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import { formatEther } from 'viem';
-import { createFileStorageLayer } from '../../src/storage/layers/file';
-import { createEmptyStorageLayer } from '../../src/storage/layers/empty';
+import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
+import { KeyConfig } from '../../src/account/keys';
 
 // Helper to get environment variable with fallback
 function getEnv(key: string, fallback: string): string {
@@ -24,14 +26,124 @@ function getEnv(key: string, fallback: string): string {
   return fallback;
 }
 
-describe('Railgun E2E Flow', () => {
+// Load checkpoint file to initialize indexer state (demonstrates loading preloaded state)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadCheckpointState(): Promise<{ merkleTrees: any; endBlock: number } | undefined> {
+  const checkpointPath = './checkpoints/sepolia_public_checkpoint.json';
+
+  if (!existsSync(checkpointPath)) {
+    console.log('No checkpoint file found, starting fresh');
+
+    return undefined;
+  }
+
+  const data = JSON.parse(await readFile(checkpointPath, 'utf8'));
+
+  return {
+    merkleTrees: data.merkleTrees || [],
+    endBlock: data.endBlock || 0,
+  };
+}
+
+// In-memory state (demonstrates serialization without file I/O)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let indexerState: { merkleTrees: any; endBlock: number } | undefined;
+let aliceAccountState: CachedAccountStorage | undefined = undefined;
+let bobAccountState: CachedAccountStorage | undefined = undefined;
+
+// External log fetching (duplicated from sync.ts)
+async function* getLogs(
+  provider: EthersProviderAdapter,
+  network: typeof RAILGUN_CONFIG_BY_CHAIN_ID['11155111'],
+  startBlock: number,
+  endBlock: number
+): AsyncGenerator<{ logs: RailgunLog[]; toBlock: number }> {
+  const MAX_BATCH = 200;
+  const MIN_BATCH = 1;
+  const railgunAddress = network.RAILGUN_ADDRESS;
+  let batch = Math.min(MAX_BATCH, Math.max(1, endBlock - startBlock + 1));
+  let fromBlock = startBlock;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function isRangeErr(e: any) {
+    return (
+      e?.error?.code === -32001 ||
+      /Under the Free/.test(e['info']?.['responseBody'] || '') ||
+      /failed to resolve block range/i.test(String(e?.error?.message || e?.message || e?.info?.responseBody || e?.toString() || ''))
+    );
+  }
+
+  while (fromBlock <= endBlock) {
+    const toBlock = Math.min(fromBlock + batch - 1, endBlock);
+
+    try {
+      console.log(`[getLogs]: fetching logs from block ${fromBlock} to ${toBlock}`);
+      const startTime = Date.now();
+
+      await new Promise(r => setTimeout(r, 400)); // light pacing
+      const logs = await provider.getLogs({
+        address: railgunAddress!,
+        fromBlock,
+        toBlock,
+      });
+
+      const duration = Date.now() - startTime;
+
+      console.log(`[getLogs]: fetched ${logs.length} logs (duration: ${duration}ms)`);
+
+      yield { logs, toBlock };
+
+      fromBlock = toBlock + 1;                 // advance
+      batch = Math.min(batch * 1.2, MAX_BATCH); // grow again after success
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      if (isRangeErr(e)) {
+        console.log('[getLogs]: range error, retrying with smaller batch');
+
+        if (batch > MIN_BATCH) {
+          batch = Math.max(MIN_BATCH, Math.floor(batch / 2)); // shrink and retry same 'from'
+          console.log(`[getLogs]: shrinking batch to ${batch}`);
+          continue;
+        }
+
+        // single-block still fails: skip this block to move on
+        fromBlock = toBlock + 1;
+        continue;
+      }
+
+      console.log('[getLogs]: non range error', Object.keys(e));
+      throw e; // non-range error -> surface it
+    }
+  }
+}
+
+async function fetchAndProcessLogs(
+  provider: EthersProviderAdapter,
+  indexer: Awaited<ReturnType<typeof createRailgunIndexer>>,
+  fromBlock: number,
+  toBlock: number
+) {
+  const network = RAILGUN_CONFIG_BY_CHAIN_ID['11155111']!;
+  const allLogs: RailgunLog[] = [];
+
+  // Fetch all logs
+  for await (const { logs } of getLogs(provider, network, fromBlock, toBlock)) {
+    allLogs.push(...logs);
+  }
+
+  // Process all logs
+  if (allLogs.length > 0) {
+    console.log(`[fetchAndProcessLogs]: processing ${allLogs.length} logs`);
+    await indexer.processLogs(allLogs, { skipMerkleTree: false });
+  }
+}
+
+describe('Railgun E2E Flow (Provider-Free)', () => {
   let anvil: AnvilInstance;
   let provider: EthersProviderAdapter;
   let alice: Wallet;
   let bob: Wallet;
   let charlie: Wallet;
-  // let cachedLogs: RailgunLog[];
-  // let cachedMerkleTrees: { tree: string[][]; nullifiers: string[] }[];
   let forkBlock: number;
 
   // Use environment variable or fallback to alternative public RPC endpoints
@@ -49,7 +161,7 @@ describe('Railgun E2E Flow', () => {
     // Setup anvil forking Sepolia
     anvil = defineAnvil({
       forkUrl: SEPOLIA_FORK_URL,
-      port: 8545,
+      port: 8547, // Different port from other tests
       chainId: 11155111,
       forkBlockNumber: forkBlock,
     });
@@ -59,14 +171,6 @@ describe('Railgun E2E Flow', () => {
     const jsonRpcProvider = await anvil.getProvider();
 
     provider = new EthersProviderAdapter(jsonRpcProvider);
-
-    // Load or create cache for this fork block (this is the slow part on first run)
-    console.log(`\nLoading cache for fork block ${forkBlock}...`);
-    // const cache = await loadOrCreateCache(provider, chainId, forkBlock);
-
-    // cachedLogs = cache.logs;
-    // cachedMerkleTrees = cache.merkleTrees;
-    // console.log(`Cache loaded: ${cachedLogs.length} logs, ${cachedMerkleTrees.length} trees\n`);
 
     // Setup test accounts
     alice = new Wallet(TEST_ACCOUNTS.alice.privateKey, await anvil.getProvider());
@@ -86,30 +190,44 @@ describe('Railgun E2E Flow', () => {
   });
 
   it('should complete full shield -> transfer -> unshield flow', async () => {
-    console.log('\n=== Starting Railgun E2E Test ===\n');
+    console.log('\n=== Starting Railgun E2E Test (Provider-Free) ===\n');
 
-    // Step 1: Create two Railgun accounts and load cached state
+    // Load checkpoint state from file to initialize indexer (demonstrates loading preloaded state)
+    indexerState = await loadCheckpointState();
+
+    // Step 1: Create two Railgun accounts with external storage
     console.log('Step 1: Creating Railgun accounts...');
     const aliceSigner = new EthersSignerAdapter(alice);
     const bobSigner = new EthersSignerAdapter(bob);
 
-    const indexer = await createRailgunIndexer({
+    // Create indexer WITHOUT provider or storage, using preloaded state from checkpoint
+    console.log(`Using indexer state: endBlock=${indexerState?.endBlock || 0}, trees=${indexerState?.merkleTrees.length || 0}`);
+
+    let indexer = await createRailgunIndexer({
       network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
-      provider,
-      storage: createFileStorageLayer('./checkpoints/sepolia_public_checkpoint.json', { skipWrite: true }),
-      startBlock: forkBlock,
+      // No provider - we'll fetch logs externally
+      // No storage - using in-memory serialized state
+      startBlock: indexerState?.endBlock || forkBlock,
+      loadData: indexerState,
     });
 
-    const aliceRailgunAccount = await createRailgunAccount({
-      credential: { type: 'mnemonic', mnemonic: 'test test test test test test test test test test test junk', accountIndex: 0 },
+    const aliceCredential = { type: 'mnemonic', mnemonic: 'test test test test test test test test test test test junk', accountIndex: 0 };
+    const bobCredential = { type: 'mnemonic', mnemonic: 'test test test test test test test test test test test test', accountIndex: 0 };
+
+    // Create accounts WITHOUT storage, using in-memory serialized state
+    // This demonstrates serialization/deserialization without file I/O
+    let aliceRailgunAccount = await createRailgunAccount({
+      credential: aliceCredential as KeyConfig,
       indexer,
-      storage: createEmptyStorageLayer(),
+      // No storage - using in-memory serialized state
+      loadData: aliceAccountState,
     });
 
-    const bobRailgunAccount = await createRailgunAccount({
-      credential: { type: 'mnemonic', mnemonic: 'test test test test test test test test test test junk junk', accountIndex: 0 },
+    let bobRailgunAccount = await createRailgunAccount({
+      credential: bobCredential as KeyConfig,
       indexer,
-      storage: createEmptyStorageLayer(),
+      // No storage - using in-memory serialized state
+      loadData: bobAccountState,
     });
 
     const aliceRailgunAddress = await aliceRailgunAccount.getRailgunAddress();
@@ -118,11 +236,22 @@ describe('Railgun E2E Flow', () => {
     console.log(`Alice Railgun address: ${aliceRailgunAddress}`);
     console.log(`Bob Railgun address: ${bobRailgunAddress}`);
 
-
-    // Initialize indexer with cached Merkle trees and sync to latest
+    // Initialize indexer by fetching and processing logs up to fork block
     console.log('\nLoading cached state into indexer...');
-    // await indexer.loadState({ merkleTrees: cachedMerkleTrees, latestSyncedBlock: forkBlock });
-    await indexer.sync({ logProgress: true });
+    let currentEndBlock = indexerState?.endBlock || forkBlock;
+
+    if (currentEndBlock < forkBlock) {
+      console.log(`Syncing from block ${currentEndBlock} to ${forkBlock}`);
+      await fetchAndProcessLogs(provider, indexer, currentEndBlock, forkBlock);
+
+      // Serialize indexer state in-memory (demonstrates serialization capability)
+      indexerState = indexer.getSerializedState();
+      currentEndBlock = indexerState.endBlock;
+    }
+
+    // Ensure we start from at least forkBlock for subsequent syncs (to capture new transactions)
+    currentEndBlock = Math.max(currentEndBlock, forkBlock);
+
     console.log('Cached state loaded');
 
     await anvil.mine(3);
@@ -133,14 +262,12 @@ describe('Railgun E2E Flow', () => {
       provider,
       alice.address
     );
-    const currentRootA = await aliceRailgunAccount.getLatestMerkleRoot();
-    const currentRootB = await bobRailgunAccount.getLatestMerkleRoot();
+    const currentRootA = aliceRailgunAccount.getLatestMerkleRoot();
+    const currentRootB = bobRailgunAccount.getLatestMerkleRoot();
 
     console.log(`Alice initial ETH balance: ${aliceInitialEthBalance.toString()}`);
     console.log(`Alice initial root: ${currentRootA}`);
     console.log(`Bob initial root: ${currentRootB}`);
-
-    const startBlock = forkBlock;
 
     // Verify contracts exist on Anvil fork
     console.log('\n=== Verifying contracts exist on fork ===');
@@ -224,17 +351,42 @@ describe('Railgun E2E Flow', () => {
     // Mine a few more blocks to ensure finality
     await anvil.mine(3);
 
-    // Step 4: Sync Alice's account with new logs (from start of fork to include all new txs)
-    console.log('\nStep 4: Syncing Alice account with new logs...');
+    // Step 4: Fetch and process logs externally (from start of fork to include all new txs)
+    console.log('\nStep 4: Fetching and processing logs externally...');
 
     // Use receipt block + mined blocks as the end range (ethers provider caches block numbers)
     const currentBlock = (receipt?.blockNumber ?? forkBlock) + 3;
 
-    console.log(`Querying logs from block ${startBlock} to ${currentBlock}`);
+    console.log(`Querying logs from block ${forkBlock} to ${currentBlock}`);
 
-    // Query from forkBlock (not forkBlock + 1) to capture any logs at the fork block
-    await indexer.sync({ fromBlock: startBlock, toBlock: currentBlock, logProgress: true });
-    console.log('Accounts synced');
+    // Fetch logs externally and process them (from forkBlock to capture all new transactions)
+    await fetchAndProcessLogs(provider, indexer, forkBlock, currentBlock);
+
+    // Serialize indexer and account states in-memory (demonstrates serialization capability)
+    indexerState = indexer.getSerializedState();
+    currentEndBlock = indexerState.endBlock;
+    aliceAccountState = aliceRailgunAccount.getSerializedState();
+    bobAccountState = bobRailgunAccount.getSerializedState();
+    console.log('States serialized in-memory (demonstrates serialization without file I/O)');
+
+    console.log('Accounts synced and state saved');
+    // verify account reconstitution
+    indexer = await createRailgunIndexer({
+      network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
+      startBlock: indexerState?.endBlock || forkBlock,
+      loadData: indexerState,
+    });
+    aliceRailgunAccount = await createRailgunAccount({
+      credential: aliceCredential as KeyConfig,
+      indexer,
+      loadData: aliceAccountState,
+    });
+
+    bobRailgunAccount = await createRailgunAccount({
+      credential: bobCredential as KeyConfig,
+      indexer,
+      loadData: bobAccountState,
+    });
     const currentRootA2 = aliceRailgunAccount.getLatestMerkleRoot();
 
     console.log(`Alice new root: ${currentRootA2}`);
@@ -271,11 +423,17 @@ describe('Railgun E2E Flow', () => {
 
     await anvil.mine(3);
 
-    // Step 6: Sync both accounts with transfer logs
-    console.log('\nStep 6: Syncing accounts after transfer...');
+    // Step 6: Fetch and process logs externally after transfer
+    console.log('\nStep 6: Fetching and processing logs after transfer...');
     const newBlock = await provider.getBlockNumber();
 
-    await indexer.sync({ toBlock: newBlock, logProgress: true });
+    await fetchAndProcessLogs(provider, indexer, currentEndBlock, newBlock);
+
+    // Serialize indexer and account states in-memory
+    indexerState = indexer.getSerializedState();
+    currentEndBlock = indexerState.endBlock;
+    aliceAccountState = aliceRailgunAccount.getSerializedState();
+    bobAccountState = bobRailgunAccount.getSerializedState();
 
     const aliceRoot = aliceRailgunAccount.getLatestMerkleRoot();
 
@@ -328,10 +486,21 @@ describe('Railgun E2E Flow', () => {
 
     await anvil.mine(3);
 
+    // Fetch and process logs after unshield
+    const finalBlock = await provider.getBlockNumber();
+
+    await fetchAndProcessLogs(provider, indexer, currentEndBlock, finalBlock);
+
+    // Serialize final state in-memory (demonstrates serialization without file I/O)
+    indexerState = indexer.getSerializedState();
+    aliceAccountState = aliceRailgunAccount.getSerializedState();
+    bobAccountState = bobRailgunAccount.getSerializedState();
+
+    console.log('Final states serialized in-memory (demonstrates serialization capability)');
+
     const charlieBalanceWETHAfterUnshield = await wethContract.balanceOf(charlie.address);
 
     console.log(`Charlie's WETH balance after unshield: ${charlieBalanceWETHAfterUnshield.toString()} ${formatEther(charlieBalanceWETHAfterUnshield)}`);
-
 
     expect(charlieBalanceWETHAfterUnshield).toBeGreaterThan(
       charlieBalanceWETHBeforeUnshield
@@ -340,3 +509,4 @@ describe('Railgun E2E Flow', () => {
     console.log('\n=== Test completed successfully ===\n');
   }, 180000); // 3 minute timeout for the full flow
 });
+

@@ -1,5 +1,6 @@
-import crypto from 'crypto';
 import { ByteUtils } from './bytes';
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex } from 'ethereum-cryptography/utils';
 import EMOJIS from './emojis.json';
 
 export const emojiHash = (str: string, length?: number): string => {
@@ -11,11 +12,8 @@ export const emojiHashForPOIStatusInfo = (str: string): string => {
 };
 
 const hashEmoji = (string: string, hashLength = 1) => {
-  const hash = crypto.createHash('sha256');
-
-  hash.update(`${string}`);
-
-  const hexHash = hash.digest('hex');
+  const hashBytes = sha256(`${string}`);
+  const hexHash = bytesToHex(hashBytes);
   const decimalHash = parseInt(hexHash, 16);
   let emojiIndex = decimalHash % EMOJIS.length ** hashLength;
 

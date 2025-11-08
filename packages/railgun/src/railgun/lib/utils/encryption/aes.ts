@@ -23,7 +23,7 @@ export class AES {
    * @param key - key to encrypt with
    * @returns ciphertext bundle
    */
-  static encryptGCM(plaintext: string[], key: string | Uint8Array): Ciphertext {
+  static async encryptGCM(plaintext: string[], key: string | Uint8Array): Promise<Ciphertext> {
     // If types are strings, convert to bytes array
     const keyFormatted = typeof key === 'string' ? ByteUtils.fastHexToBytes(key) : key;
 
@@ -69,7 +69,7 @@ export class AES {
    * @param key - key to decrypt with
    * @returns - plaintext
    */
-  static decryptGCM(ciphertext: Ciphertext, key: string | Uint8Array): BytesData[] {
+  static async decryptGCM(ciphertext: Ciphertext, key: string | Uint8Array): Promise<BytesData[]> {
     try {
       // Ensure that inputs are Uint8Arrays of the correct length
       const keyFormatted =

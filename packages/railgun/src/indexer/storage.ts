@@ -39,7 +39,19 @@ export const serializeMerkleTrees = (trees: MerkleTree[]): CachedMerkleTrees => 
     return merkleTrees;
 };
 
-export const createIndexerStorage = async (storage: StorageLayer | undefined, { startBlock }: { startBlock?: number }) => {
+export type IndexerLoadData = {
+    merkleTrees: CachedMerkleTrees;
+    endBlock: number;
+};
+
+export const createIndexerStorage = async (
+    { startBlock, storage, loadData }: { startBlock?: number; storage?: StorageLayer; loadData?: IndexerLoadData }
+) => {
+    // Validate: storage and loadData are mutually exclusive
+    if (storage !== undefined && loadData !== undefined) {
+        throw new Error('Cannot provide both storage and loadData. Use one or the other.');
+    }
+
     const layer = storage || createEmptyStorageLayer();
     const { load, save } = createBaseStorage<IndexerCache, IndexerCacheD>(layer, {
         async parse({ merkleTrees, endBlock }  = { merkleTrees: [], endBlock: startBlock || 0 }) {
@@ -53,7 +65,14 @@ export const createIndexerStorage = async (storage: StorageLayer | undefined, { 
         },
     });
 
-    const cache = await load();
+    // Load from loadData if provided, otherwise from storage if available
+    const cache = loadData
+        ? {
+            trees: await loadCachedMerkleTrees(loadData.merkleTrees),
+            endBlock: loadData.endBlock,
+        }
+        : await load();
+    
     const saveTrees = () => save(cache);
 
     return {

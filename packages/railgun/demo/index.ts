@@ -18,7 +18,7 @@ dotenv.config({ path: resolve(__dirname, '.env') });
 type ProcessEnv = {
   MNEMONIC: string;
   ACCOUNT_INDEX: string;
-  RPC_URL: string;
+  SEPOLIA_RPC_URL: string;
   TX_SIGNER_KEY: string;
 }
 
@@ -26,7 +26,7 @@ const env: ProcessEnv = process.env as unknown as ProcessEnv;
 
 const MNEMONIC = env.MNEMONIC || 'test test test test test test test test test test test junk';
 const ACCOUNT_INDEX = Number(env.ACCOUNT_INDEX) || 0;
-const RPC_URL = env.RPC_URL || '';
+const SEPOLIA_RPC_URL = env.SEPOLIA_RPC_URL || '';
 const TX_SIGNER_KEY = env.TX_SIGNER_KEY || '';
 const VALUE = 10000000000000n; // 0.00001 ETH
 const RANDOM_RAILGUN_RECEIVER = "0zk1qyhl9p096zdc34x0eh7vdarr73xjfymq2xeef3nhkvgg2vlynzwdlrv7j6fe3z53lalqtuna0f5hkrt3ket0wl9mket7ck8jthq807d7fyq5u4havp4v2u70sva";
@@ -36,12 +36,12 @@ async function main() {
   const chainId = '11155111' as const;
 
   // 3. sync account and display state
-  if (RPC_URL === '') {
-    console.error("\nERROR: RPC_URL not set");
+  if (SEPOLIA_RPC_URL === '') {
+    console.error("\nERROR: SEPOLIA_RPC_URL not set");
     process.exit(1);
   }
 
-  const baseProvider = new JsonRpcProvider(RPC_URL);
+  const baseProvider = new JsonRpcProvider(SEPOLIA_RPC_URL);
   const network = await baseProvider.getNetwork();
 
   if (network.chainId !== BigInt(chainId)) {
@@ -49,7 +49,7 @@ async function main() {
     process.exit(1);
   }
 
-  const provider = new EthersProviderAdapter(new JsonRpcProvider(RPC_URL, network, {
+  const provider = new EthersProviderAdapter(new JsonRpcProvider(SEPOLIA_RPC_URL, network, {
     staticNetwork: true,
     batchMaxCount: 1,
     batchMaxSize: 0,
@@ -133,7 +133,7 @@ async function main() {
 
   // console.log(`    -> fetching new logs from start block (${startBlock}) to latest block (${endBlock})...`);
   // const newLogs = await indexer.fetchLogs(startBlock, endBlock);
-  await indexer.sync({ toBlock: endBlock, logProgress: true });
+  await indexer.sync!({ toBlock: endBlock, logProgress: true });
 
   // if (newLogs.length > 0) {
   //   console.log(`    -> syncing ${newLogs.length} new logs...`);
@@ -174,7 +174,7 @@ async function main() {
   await new Promise(resolve => setTimeout(resolve, 2000));
 
   endBlock = await provider.getBlockNumber();
-  await indexer.sync({ toBlock: endBlock, logProgress: true });
+  await indexer.sync!({ toBlock: endBlock, logProgress: true });
 
   const balance2 = await railgunAccount.getBalance();
 
@@ -196,7 +196,7 @@ async function main() {
   // 9. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
   endBlock = await provider.getBlockNumber();
-  await indexer.sync({ toBlock: endBlock, logProgress: true });
+  await indexer.sync!({ toBlock: endBlock, logProgress: true });
 
   const balance3 = await railgunAccount.getBalance();
 
@@ -217,7 +217,7 @@ async function main() {
   // 12. refresh account, show new balance and merkle root
   await new Promise(resolve => setTimeout(resolve, 2000));
   endBlock = await provider.getBlockNumber();
-  await indexer.sync({ toBlock: endBlock, logProgress: true });
+  await indexer.sync!({ toBlock: endBlock, logProgress: true });
 
   const balance4 = await railgunAccount.getBalance();
 

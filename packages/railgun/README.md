@@ -58,7 +58,7 @@ See [full documentation](../../docs) for more examples.
 
 create and fill `demo/.env` file similar to `demo/.env.example`
 
-You need a `RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixed private key funded with some sepolia ETH)
+You need a `SEPOLIA_RPC_URL` (a sepolia RPC e.g. infura) and `TX_SIGNER_KEY` (0x prefixed private key funded with some sepolia ETH)
 
 from monorepo root directory, after installing deps with `pnpm install`, run:
 

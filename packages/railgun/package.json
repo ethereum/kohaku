@@ -4,17 +4,23 @@
   "description": "Simplified Railgun TS utils",
   "type": "module",
   "private": false,
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "browser": {
+        "types": "./dist/index.browser.d.ts",
+        "import": "./dist/index.browser.js"
+      },
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./storage/layers/file": {
       "types": "./dist/storage/layers/file.d.ts",
-      "import": "./dist/storage/layers/file.js"
+      "import": "./dist/storage/layers/file.js",
+      "browser": false
     },
     "./storage/layers/empty": {
       "types": "./dist/storage/layers/empty.d.ts",
@@ -22,8 +28,14 @@
     },
     "./package.json": "./package.json"
   },
+  "browser": {
+    "module": false,
+    "crypto": false,
+    "fs": false,
+    "path": false
+  },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
@@ -48,50 +60,47 @@
   "author": "",
   "license": "MIT",
   "peerDependencies": {
-    "ethers": "^6"
+    "ethers": "^6.13.1",
+    "snarkjs": "^0.7.5",
+    "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz"
   },
   "peerDependenciesMeta": {
-    "ethers": {
+    "snarkjs": {
+      "optional": true
+    },
+    "@railgun-community/circuit-artifacts": {
       "optional": true
     }
   },
   "dependencies": {
-    "@noble/ciphers": "^1.3.0",
     "@noble/ed25519": "^1.7.1",
-    "@noble/hashes": "^1.8.0",
+    "@noble/hashes": "^2.0.0",
     "@railgun-community/circomlibjs": "0.0.8",
-    "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz",
     "@railgun-community/curve25519-scalarmult-wasm": "0.1.5",
     "@railgun-community/poseidon-hash-wasm": "1.0.1",
     "@scure/base": "^2.0.0",
+    "browserify-aes": "^1.2.0",
     "buffer-xor": "^2.0.2",
     "circomlibjs": "^0.1.7",
     "ethereum-cryptography": "^3.2.0",
-    "fast-text-encoding": "^1.0.6",
-    "snarkjs": "^0.7.5",
-    "ts-pattern": "^5.9.0"
+    "fast-text-encoding": "^1.0.6"
   },
   "devDependencies": {
     "@typechain/ethers-v6": "^0.5.1",
-    "@types/buffer-xor": "^2.0.2",
     "@types/chai": "^4.3.20",
     "@types/chai-as-promised": "^7.1.8",
     "@types/circomlibjs": "^0.1.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.1.0",
-    "@vitest/ui": "^3.2.4",
     "chai": "^4.5.0",
     "chai-as-promised": "^7.1.2",
     "dotenv": "^17.2.1",
     "mocha": "^11.7.1",
-    "prool": "^0.0.24",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",
     "typescript": "^5.9.2",
-    "viem": "^2.37.9",
-    "vite": "^7.1.9",
-    "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.4"
+    "snarkjs": "^0.7.5",
+    "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz"
   }
 }
