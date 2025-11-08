@@ -81,11 +81,11 @@ export const serializeAccountStorage = (storage: AccountStorage): CachedAccountS
 };
 
 export const createAccountStorage = async (
-    { storage, loadData, spending, viewing }: { storage?: StorageLayer; loadData?: CachedAccountStorage } & AccountStorageContext
+    { storage, loadState, spending, viewing }: { storage?: StorageLayer; loadState?: CachedAccountStorage } & AccountStorageContext
 ) => {
-    // Validate: storage and loadData are mutually exclusive
-    if (storage !== undefined && loadData !== undefined) {
-        throw new Error('Cannot provide both storage and loadData. Use one or the other.');
+    // Validate: storage and loadState are mutually exclusive
+    if (storage !== undefined && loadState !== undefined) {
+        throw new Error('Cannot provide both storage and loadState. Use one or the other.');
     }
 
     const layer = storage || createEmptyStorageLayer();
@@ -98,9 +98,9 @@ export const createAccountStorage = async (
         },
     });
 
-    // Load from loadData if provided, otherwise from storage if available
-    const accountState = loadData
-        ? await parseAccountStorage(loadData, { spending, viewing })
+    // Load from loadState if provided, otherwise from storage if available
+    const accountState = loadState
+        ? await parseAccountStorage(loadState, { spending, viewing })
         : await load();
 
     const saveNotebooks = () => save(accountState);

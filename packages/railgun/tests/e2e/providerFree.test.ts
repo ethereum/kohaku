@@ -208,7 +208,7 @@ describe('Railgun E2E Flow (Provider-Free)', () => {
       // No provider - we'll fetch logs externally
       // No storage - using in-memory serialized state
       startBlock: indexerState?.endBlock || forkBlock,
-      loadData: indexerState,
+      loadState: indexerState,
     });
 
     const aliceCredential = { type: 'mnemonic', mnemonic: 'test test test test test test test test test test test junk', accountIndex: 0 };
@@ -220,14 +220,14 @@ describe('Railgun E2E Flow (Provider-Free)', () => {
       credential: aliceCredential as KeyConfig,
       indexer,
       // No storage - using in-memory serialized state
-      loadData: aliceAccountState,
+      loadState: aliceAccountState,
     });
 
     let bobRailgunAccount = await createRailgunAccount({
       credential: bobCredential as KeyConfig,
       indexer,
       // No storage - using in-memory serialized state
-      loadData: bobAccountState,
+      loadState: bobAccountState,
     });
 
     const aliceRailgunAddress = await aliceRailgunAccount.getRailgunAddress();
@@ -374,18 +374,18 @@ describe('Railgun E2E Flow (Provider-Free)', () => {
     indexer = await createRailgunIndexer({
       network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
       startBlock: indexerState?.endBlock || forkBlock,
-      loadData: indexerState,
+      loadState: indexerState,
     });
     aliceRailgunAccount = await createRailgunAccount({
       credential: aliceCredential as KeyConfig,
       indexer,
-      loadData: aliceAccountState,
+      loadState: aliceAccountState,
     });
 
     bobRailgunAccount = await createRailgunAccount({
       credential: bobCredential as KeyConfig,
       indexer,
-      loadData: bobAccountState,
+      loadState: bobAccountState,
     });
     const currentRootA2 = aliceRailgunAccount.getLatestMerkleRoot();
 

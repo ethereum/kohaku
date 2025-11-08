@@ -1,6 +1,54 @@
-import artifacts from '@railgun-community/circuit-artifacts';
 import type { Artifact, VKey } from '@railgun-community/circuit-artifacts';
 import { Verifier } from '../typechain-types';
+
+// Lazy-loaded artifacts module
+let artifactsModule: typeof import('@railgun-community/circuit-artifacts') | null = null;
+let artifactsLoadError: Error | null = null;
+
+/**
+ * Loads the circuit artifacts module dynamically with helpful error message if missing
+ */
+async function loadArtifacts(): Promise<typeof import('@railgun-community/circuit-artifacts')> {
+  if (artifactsModule) {
+    return artifactsModule;
+  }
+
+  if (artifactsLoadError) {
+    throw artifactsLoadError;
+  }
+
+  try {
+    artifactsModule = await import('@railgun-community/circuit-artifacts');
+
+    return artifactsModule;
+  } catch {
+    const installCommand = 'pnpm add @railgun-community/circuit-artifacts@https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz';
+    const errorMessage = 
+      `\n❌ Missing required dependency: @railgun-community/circuit-artifacts\n\n` +
+      `   Transfer and unshield operations require proof generation, which needs circuit artifacts.\n` +
+      `   Please install the package:\n\n` +
+      `   ${installCommand}\n\n` +
+      `   See README for more details.\n`;
+
+    artifactsLoadError = new Error(errorMessage);
+    throw artifactsLoadError;
+  }
+}
+
+/**
+ * Gets the artifacts module, loading it if necessary
+ * This is synchronous for backward compatibility but will throw if not loaded
+ */
+function getArtifacts(): typeof import('@railgun-community/circuit-artifacts') {
+  if (!artifactsModule) {
+    throw new Error(
+      'Circuit artifacts not loaded. Call ensureArtifactsLoaded() first, or use async functions.\n' +
+      'Install with: pnpm add @railgun-community/circuit-artifacts@https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz'
+    );
+  }
+
+  return artifactsModule;
+}
 
 export interface SolidityG1Point {
   x: bigint;
@@ -209,6 +257,7 @@ function formatVKeyMatcher(vkey: VKey): EventVKeyMatcher {
  */
 function getKeys(nullifiers: number, commitments: number): FormattedArtifact {
   // Get artifact or undefined
+  const artifacts = getArtifacts();
   const artifact = artifacts.getArtifact(nullifiers, commitments);
 
   // Get format solidity vkey
@@ -229,6 +278,7 @@ function getKeys(nullifiers: number, commitments: number): FormattedArtifact {
 function allArtifacts(): (undefined | (undefined | FormattedArtifact)[])[] {
   // Map each existing artifact to formatted artifact
   const circuitArtifacts: (undefined | (undefined | FormattedArtifact)[])[] = [];
+  const artifacts = getArtifacts();
 
   circuitList.forEach((circuit) => {
     if (!circuitArtifacts[circuit.nullifiers]) circuitArtifacts[circuit.nullifiers] = [];
@@ -262,6 +312,8 @@ function availableArtifacts() {
  * @returns complete
  */
 async function loadAllArtifacts(verifierContract: Verifier) {
+  const artifacts = await loadArtifacts();
+
   for (const artifactConfig of artifacts.listArtifacts()) {
     const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
 
@@ -282,6 +334,8 @@ async function loadAllArtifacts(verifierContract: Verifier) {
  * @returns complete
  */
 async function loadAvailableArtifacts(verifierContract: Verifier) {
+  await loadArtifacts();
+
   for (const artifactConfig of availableArtifacts()) {
     const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
 
@@ -295,6 +349,15 @@ async function loadAvailableArtifacts(verifierContract: Verifier) {
   }
 }
 
+/**
+ * Ensures artifacts are loaded (call this before using getKeys in async contexts)
+ * This is automatically called by async functions, but you may need to call it manually
+ * if using getKeys() synchronously after an async operation.
+ */
+async function ensureArtifactsLoaded(): Promise<void> {
+  await loadArtifacts();
+}
+
 export {
   formatVKey,
   formatVKeyMatcher,
@@ -303,4 +366,6 @@ export {
   availableArtifacts,
   loadAllArtifacts,
   loadAvailableArtifacts,
+  ensureArtifactsLoaded,
+  loadArtifacts,
 };

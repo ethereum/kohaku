@@ -45,11 +45,11 @@ export type IndexerLoadData = {
 };
 
 export const createIndexerStorage = async (
-    { startBlock, storage, loadData }: { startBlock?: number; storage?: StorageLayer; loadData?: IndexerLoadData }
+    { startBlock, storage, loadState }: { startBlock?: number; storage?: StorageLayer; loadState?: IndexerLoadData }
 ) => {
-    // Validate: storage and loadData are mutually exclusive
-    if (storage !== undefined && loadData !== undefined) {
-        throw new Error('Cannot provide both storage and loadData. Use one or the other.');
+    // Validate: storage and loadState are mutually exclusive
+    if (storage !== undefined && loadState !== undefined) {
+        throw new Error('Cannot provide both storage and loadState. If defining storage, write loadState to storage file');
     }
 
     const layer = storage || createEmptyStorageLayer();
@@ -65,11 +65,11 @@ export const createIndexerStorage = async (
         },
     });
 
-    // Load from loadData if provided, otherwise from storage if available
-    const cache = loadData
+    // Load from loadState if provided, otherwise from storage if available
+    const cache = loadState
         ? {
-            trees: await loadCachedMerkleTrees(loadData.merkleTrees),
-            endBlock: loadData.endBlock,
+            trees: await loadCachedMerkleTrees(loadState.merkleTrees),
+            endBlock: loadState.endBlock,
         }
         : await load();
     

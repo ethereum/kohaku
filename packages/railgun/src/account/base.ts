@@ -18,8 +18,8 @@ export type RailgunAccountBaseParameters = {
     // Key configuration for the account, either a private key or a mnemonic.
     credential: KeyConfig,
 } & (
-    | { storage: StorageLayer; loadData?: never }
-    | { storage?: never; loadData?: CachedAccountStorage }
+    | { storage: StorageLayer; loadState?: never }
+    | { storage?: never; loadState?: CachedAccountStorage }
 );
 
 export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
@@ -51,12 +51,13 @@ export type RailgunAccount = GetRailgunAddress &
     CreateUnshield &
 { indexer: Indexer } &
 { _internal: InternalRailgunAccount } &
+{ getNetwork: () => RailgunNetworkConfig } &
 { getEndBlock: () => number } &
 { getSerializedState: () => CachedAccountStorage };
 
-export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, loadData, ...params }) => {
+export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, loadState, ...params }) => {
     const { spending, viewing, master, signer } = await deriveKeys(credential);
-    const { notebooks, endBlock: accountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadData, spending, viewing });
+    const { notebooks, endBlock: accountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadState, spending, viewing });
     const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider });
     const { getTrees, network } = indexer;
 
@@ -86,6 +87,8 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
 
     const getMerkleRoot = makeGetMerkleRoot({ getTrees });
 
+    const getNetwork = () => network;
+
     const getEndBlock = () => accountEndBlock;
 
     const getSerializedState = () => {
@@ -108,6 +111,7 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
         getBalance,
         indexer,
         _internal,
+        getNetwork,
         getEndBlock,
         getSerializedState,
     }, getMerkleRoot, getNotes, shield, transfer, unshield);

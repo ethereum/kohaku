@@ -13,8 +13,8 @@ export type IndexerConfig = {
     checkpoint?: string;
     startBlock?: number;
 } & (
-    | { storage: StorageLayer; loadData?: never }
-    | { storage?: never; loadData?: IndexerLoadData }
+    | { storage: StorageLayer; loadState?: never }
+    | { storage?: never; loadState?: IndexerLoadData }
 );
 
 export type ProcessLogsOptions = {
@@ -28,6 +28,7 @@ export type Indexer = {
     accounts: RailgunAccount[];
     registerAccount: (account: RailgunAccount) => void;
     processLogs: (logs: RailgunLog[], options?: ProcessLogsOptions) => Promise<void>;
+    getNetwork: () => RailgunNetworkConfig;
     getEndBlock: () => number;
     getSerializedState: () => { merkleTrees: ReturnType<typeof serializeMerkleTrees>; endBlock: number };
     sync?: RpcSync['sync'];
@@ -35,9 +36,9 @@ export type Indexer = {
 
 export type CreateRailgunIndexerFn = (config: IndexerConfig) => Promise<Indexer>;
 
-export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, provider, startBlock, storage, loadData }) => {
+export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, provider, startBlock, storage, loadState }) => {
     const accounts: RailgunAccount[] = [];
-    const { trees, saveTrees, getCurrentBlock, setEndBlock } = await createIndexerStorage({ startBlock, storage, loadData });
+    const { trees, saveTrees, getCurrentBlock, setEndBlock } = await createIndexerStorage({ startBlock, storage, loadState });
     const getTrees = () => trees;
     const processLog = await makeProcessLog({ getTrees, accounts });
 
@@ -105,6 +106,7 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, pr
             accounts.push(account);
         },
         processLogs,
+        getNetwork: () => network,
         getEndBlock: getCurrentBlock,
         getSerializedState,
     };

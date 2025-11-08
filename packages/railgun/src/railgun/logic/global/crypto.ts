@@ -1,5 +1,6 @@
 import * as nobleED25519 from '@noble/ed25519';
-import { sha256, sha512 } from '@noble/hashes/sha2';
+import { sha256 } from '@noble/hashes/sha256';
+import { sha512 } from '@noble/hashes/sha512';
 import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
 import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
 import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';

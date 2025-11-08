@@ -19,8 +19,7 @@
     },
     "./storage/layers/file": {
       "types": "./dist/storage/layers/file.d.ts",
-      "import": "./dist/storage/layers/file.js",
-      "browser": false
+      "import": "./dist/storage/layers/file.js"
     },
     "./storage/layers/empty": {
       "types": "./dist/storage/layers/empty.d.ts",
@@ -61,18 +60,15 @@
   "license": "MIT",
   "peerDependencies": {
     "ethers": "^6.13.1",
-    "snarkjs": "^0.7.5",
-    "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz"
+    "snarkjs": "^0.7.5"
   },
   "peerDependenciesMeta": {
     "snarkjs": {
       "optional": true
-    },
-    "@railgun-community/circuit-artifacts": {
-      "optional": true
     }
   },
   "dependencies": {
+    "@noble/ciphers": "^1.0.0",
     "@noble/ed25519": "^1.7.1",
     "@noble/hashes": "^2.0.0",
     "@railgun-community/circomlibjs": "0.0.8",
@@ -83,10 +79,12 @@
     "buffer-xor": "^2.0.2",
     "circomlibjs": "^0.1.7",
     "ethereum-cryptography": "^3.2.0",
-    "fast-text-encoding": "^1.0.6"
+    "fast-text-encoding": "^1.0.6",
+    "ts-pattern": "^5.4.0"
   },
   "devDependencies": {
     "@typechain/ethers-v6": "^0.5.1",
+    "@types/buffer-xor": "^2.0.0",
     "@types/chai": "^4.3.20",
     "@types/chai-as-promised": "^7.1.8",
     "@types/circomlibjs": "^0.1.6",
@@ -100,6 +98,10 @@
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",
     "typescript": "^5.9.2",
+    "viem": "^2.0.0",
+    "vite": "^6.0.0",
+    "vite-tsconfig-paths": "^5.1.0",
+    "vitest": "^2.0.0",
     "snarkjs": "^0.7.5",
     "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz"
   }
