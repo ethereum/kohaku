@@ -25,6 +25,11 @@
       "types": "./dist/storage/layers/empty.d.ts",
       "import": "./dist/storage/layers/empty.js"
     },
+    "./global": {
+      "types": "./dist/global.d.ts",
+      "import": "./dist/global.js",
+      "require": "./dist/global.cjs"
+    },
     "./package.json": "./package.json"
   },
   "browser": {

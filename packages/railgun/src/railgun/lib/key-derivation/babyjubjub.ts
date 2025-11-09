@@ -1,3 +1,4 @@
+/// <reference path="../../../global.d.ts" />
 import { babyjub } from '@railgun-community/circomlibjs';
 
 export class Babyjubjub {

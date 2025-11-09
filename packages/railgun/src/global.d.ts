@@ -3,6 +3,10 @@ declare type Optional<T> = T | undefined;
 // Webpack global for non-webpack requires
 declare const __non_webpack_require__: typeof require | undefined;
 
+// Polyfill __dirname for browser environments
+// This is set by global.ts to enable npm packages that use __dirname
+declare const __dirname: string;
+
 declare module '@railgun-community/circomlibjs' {
   export type Signature = {
     R8: [bigint, bigint];
@@ -27,18 +31,18 @@ declare type Artifact = {
   vkey: object;
 };
 
-// declare module 'railgun-community-circuit-artifacts' {
-//   type ArtifactListMetadata = {
-//     nullifiers: number;
-//     commitments: number;
-//   }[];
+declare module 'railgun-community-circuit-artifacts' {
+  type ArtifactListMetadata = {
+    nullifiers: number;
+    commitments: number;
+  }[];
 
-//   export function getArtifact(nullifiers: number, commitments: number): Artifact;
+  export function getArtifact(nullifiers: number, commitments: number): Artifact;
 
-//   export function getVKey(nullifiers: number, commitments: number): string;
+  export function getVKey(nullifiers: number, commitments: number): string;
 
-//   export function listArtifacts(): ArtifactListMetadata;
-// }
+  export function listArtifacts(): ArtifactListMetadata;
+}
 
 declare module 'snarkjs' {
   export type Protocols = 'groth16';

@@ -593,8 +593,14 @@ async function transact(
     commitmentCiphertext,
   );
 
+  console.log("circuit inputs", inputs);
+
+  console.log("attempting proof");
+
   // Generate proof
   const proof = await prove(artifact, inputs);
+
+  console.log("proof completed");
 
 
   // Return public inputs

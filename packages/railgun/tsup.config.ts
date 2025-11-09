@@ -7,10 +7,16 @@ export default defineConfig([
     entry: { 
       index: 'src/index.ts', 
       'storage/layers/file': 'src/storage/layers/file.ts', 
-      'storage/layers/empty': 'src/storage/layers/empty.ts' 
+      'storage/layers/empty': 'src/storage/layers/empty.ts',
+      'global': 'src/global.ts'
     },
     format: ['esm', 'cjs'],
-    dts: true,
+    dts: {
+      resolve: true,
+      compilerOptions: {
+        skipLibCheck: true,
+      },
+    },
     sourcemap: true,
     clean: true,
     target: 'es2022',
@@ -32,10 +38,16 @@ export default defineConfig([
   // Browser build (ESM only, no file storage)
   {
     entry: { 
-      'index.browser': 'src/index.browser.ts'
+      'index.browser': 'src/index.browser.ts',
+      'global': 'src/global.ts'
     },
     format: ['esm'],
-    dts: true,
+    dts: {
+      resolve: true,
+      compilerOptions: {
+        skipLibCheck: true,
+      },
+    },
     sourcemap: true,
     target: 'es2022',
     treeshake: true,
