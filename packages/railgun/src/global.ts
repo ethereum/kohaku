@@ -1,3 +1,5 @@
+/* eslint-disable */
+// @ts-nocheck
 /// <reference path="./global.d.ts" />
 import './global.d.ts';
 // A safe browser shim for Node's `fs` module.
@@ -54,14 +56,18 @@ function extractArtifactPath(path: string): string | null {
   // Handle paths like "//1x2/zkey.br" (from empty __dirname)
   if (path.startsWith('//')) {
     const artifactPath = path.slice(2); // Remove "//"
+
     return artifactPath ? `assets/circuits/${artifactPath}` : null;
   }
+
   // Handle paths like "/1x2/zkey.br"
   if (path.startsWith('/')) {
     const match = path.match(/^\/(\d+x\d+\/.+)$/);
     const artifactPath = match && match[1] ? match[1] : null;
+
     return artifactPath ? `assets/circuits/${artifactPath}` : null;
   }
+
   return null;
 }
 
@@ -72,6 +78,7 @@ function extractArtifactPath(path: string): string | null {
 function fetchFileSync(assetUrl: string): Buffer {
   // Check if there's already a pending fetch - wait for it
   const existingPromise = pendingFetches.get(assetUrl);
+
   if (existingPromise) {
     // Wait for the existing promise to resolve by polling the cache
     const startTime = Date.now();
@@ -81,25 +88,31 @@ function fetchFileSync(assetUrl: string): Buffer {
       if (Date.now() - startTime > timeout) {
         throw new Error(`Timeout waiting for file to load: ${assetUrl}`);
       }
+
       // Small delay to allow async operations to progress
       // In practice, this will be very fast since the fetch is already in progress
       const end = Date.now() + 1;
+
       while (Date.now() < end) {
         // Busy wait for 1ms
       }
     }
     
     const cached = fileCache.get(assetUrl);
+
     if (cached === undefined) {
       throw new Error(`File not found after fetch: ${assetUrl}`);
     }
+
     if (cached instanceof Buffer) {
       return cached;
     }
+
     // cached is a string at this point, convert to Buffer
     if (typeof cached === 'string') {
       return Buffer.from(cached, 'utf8');
     }
+
     // Fallback (should never happen)
     throw new Error(`Unexpected cache value type for ${assetUrl}`);
   }
@@ -109,6 +122,7 @@ function fetchFileSync(assetUrl: string): Buffer {
   // Cannot set responseType on synchronous XHR, so we use responseText and convert
   // overrideMimeType must be called before open() to treat response as binary
   const xhr = new XMLHttpRequest();
+
   xhr.overrideMimeType('text/plain; charset=x-user-defined');
   xhr.open('GET', assetUrl, false); // false = synchronous
   
@@ -122,6 +136,7 @@ function fetchFileSync(assetUrl: string): Buffer {
     // For synchronous XHR, we can't use responseType, so we use responseText
     // Convert the binary string to a Buffer
     const responseText = xhr.responseText;
+
     if (!responseText || responseText.length === 0) {
       throw new Error(`No data received for ${assetUrl}`);
     }
@@ -129,6 +144,7 @@ function fetchFileSync(assetUrl: string): Buffer {
     // Convert binary string to Buffer
     // Each character in responseText is a byte (0-255)
     const bytes = new Uint8Array(responseText.length);
+
     for (let i = 0; i < responseText.length; i++) {
       bytes[i] = responseText.charCodeAt(i) & 0xff;
     }
@@ -197,15 +213,18 @@ function notSupported(name: string): never {
 export function readFileSync(path: string, encoding?: BufferEncoding): string | Buffer | undefined {
   // Check cache with exact path
   const artifactPath = extractArtifactPath(path);
+
   if (!artifactPath) {
     throw new Error(`Invalid path: ${path}`);
   }
+
   console.log('artifactPath:', artifactPath);
   let content = fileCache.get(artifactPath);
 
   if (content === undefined) {
     // Fetch synchronously
     const buffer = fetchFileSync(artifactPath);
+
     content = buffer;
   }
   

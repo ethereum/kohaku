@@ -1,9 +1,8 @@
 import { BigNumberish } from "ethers";
 import { TOTAL_LEAVES } from "~/config";
 import { TokenType } from "~/railgun/lib/models";
-import { bigIntToArray, hexStringToArray } from "~/railgun/logic/global/bytes";
-import { hash } from "~/railgun/logic/global/crypto";
-import { getTokenID, Note } from "~/railgun/logic/logic/note";
+import { hexStringToArray } from "~/railgun/logic/global/bytes";
+import { Note } from "~/railgun/logic/logic/note";
 import {
     ShieldCiphertextStructOutput,
     CommitmentPreimageStructOutput
@@ -27,57 +26,19 @@ export type HandleShieldEventContext = {
     setAccountEndBlock: (endBlock: number) => void;
 } & Pick<DerivedKeys, 'viewing' | 'spending'> & Pick<Indexer, 'getTrees'>;
 
-export type HandleShieldEventFn = (event: ShieldEvent, skipMerkleTree: boolean, blockNumber: number) => Promise<void>;
+export type HandleShieldEventFn = (event: ShieldEvent, blockNumber: number) => Promise<void>;
 export type HandleShieldEvent = { handleShieldEvent: HandleShieldEventFn };
 
-export const makeHandleShieldEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: HandleShieldEventContext): Promise<HandleShieldEventFn> => {
+export const makeHandleShieldEvent = async ({ notebooks, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: HandleShieldEventContext): Promise<HandleShieldEventFn> => {
     const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-    return async (event: ShieldEvent, skipMerkleTree: boolean, blockNumber: number) => {
+    return async (event: ShieldEvent, blockNumber: number) => {
         // Get start position
         const startPosition = Number(event.startPosition.toString());
 
         // Get tree number
         const treeNumber = Number(event.treeNumber.toString());
-
-        if (!skipMerkleTree) {
-            // Check tree boundary
-            const isCrossingTreeBoundary = startPosition + event.commitments.length > TOTAL_LEAVES;
-
-            // Get leaves
-            const leaves = await Promise.all(
-                event.commitments.map((commitment) =>
-                    hash.poseidon([
-                        hexStringToArray(commitment.npk),
-                        getTokenID({
-                            tokenType: Number(commitment.token.tokenType.toString()) as TokenType,
-                            tokenAddress: commitment.token.tokenAddress,
-                            tokenSubID: BigInt(commitment.token.tokenSubID),
-                        }),
-                        bigIntToArray(BigInt(commitment.value), 32),
-                    ]),
-                ),
-            );
-
-            // Insert leaves
-            if (isCrossingTreeBoundary) {
-                if (!getTrees()[treeNumber + 1]) {
-                    // todo verify this works
-                    //   getTrees()[treeNumber + 1] = await MerkleTree.createTree(treeNumber + 1);
-                    notebooks[treeNumber + 1] = new Notebook();
-                }
-
-                getTrees()[treeNumber + 1]!.insertLeaves(leaves, 0);
-            } else {
-                if (!getTrees()[treeNumber]) {
-                    //   getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
-                    notebooks[treeNumber] = new Notebook();
-                }
-
-                //   getTrees()[treeNumber]!.insertLeaves(leaves, startPosition);
-            }
-        }
 
         await Promise.all(
             event.shieldCiphertext.map(async (shieldCiphertext, index) => {

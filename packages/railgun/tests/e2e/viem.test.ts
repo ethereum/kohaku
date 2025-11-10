@@ -103,7 +103,7 @@ describe('Railgun E2E Flow (Viem)', () => {
       network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
       startBlock: forkBlock,
       provider,
-      storage: createFileStorageLayer('./checkpoints/sepolia_public_checkpoint.json', { skipWrite: true }),
+      storage: createFileStorageLayer('./tests/utils/checkpoints/sepolia_public_checkpoint.json', { skipWrite: true }),
     });
 
     const aliceRailgunAccount = await createRailgunAccount({

@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="../../../global.d.ts" />
 import { bech32m } from '@scure/base';
 import xor from 'buffer-xor';

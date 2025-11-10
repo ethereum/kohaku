@@ -23,44 +23,19 @@ export type HandleTransactEventContext = {
     setAccountEndBlock: (endBlock: number) => void;
 } & Pick<DerivedKeys, 'viewing' | 'spending'> & Pick<Indexer, 'getTrees'>;
 
-export type HandleTransactEventFn = (event: TransactEvent, skipMerkleTree: boolean, blockNumber: number) => Promise<void>;
+export type HandleTransactEventFn = (event: TransactEvent, blockNumber: number) => Promise<void>;
 export type HandleTransactEvent = { handleTransactEvent: HandleTransactEventFn };
 
-export const makeHandleTransactEvent = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
+export const makeHandleTransactEvent = async ({ notebooks, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: HandleTransactEventContext): Promise<HandleTransactEventFn> => {
     const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
     const spendingKey = spending.getSpendingKeyPair().privateKey;
 
-    return async (event: TransactEvent, skipMerkleTree: boolean, blockNumber: number) => {
+    return async (event: TransactEvent, blockNumber: number) => {
         // Get start position
         const startPosition = Number(event.startPosition.toString());
 
         // Get tree number
         const treeNumber = Number(event.treeNumber.toString());
-
-        if (!skipMerkleTree) {
-            // Check tree boundary
-            const isCrossingTreeBoundary = startPosition + event.hash.length > TOTAL_LEAVES;
-
-            // Get leaves
-            // const leaves = event.hash.map((noteHash) => hexStringToArray(noteHash));
-
-            // Insert leaves
-            if (isCrossingTreeBoundary) {
-                if (!getTrees()[treeNumber + 1]) {
-                    // getTrees()[treeNumber + 1] = await MerkleTree.createTree(treeNumber + 1);
-                    notebooks[treeNumber + 1] = new Notebook();
-                }
-
-                // getTrees()[treeNumber + 1]!.insertLeaves(leaves, 0);
-            } else {
-                if (!getTrees()[treeNumber]) {
-                    // getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
-                    notebooks[treeNumber] = new Notebook();
-                }
-
-                // getTrees()[treeNumber]!.insertLeaves(leaves, startPosition);
-            }
-        }
 
         // Loop through each token we're scanning
         await Promise.all(

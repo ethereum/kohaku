@@ -4,31 +4,6 @@ import { createEmptyStorageLayer } from "~/storage/layers/empty";
 import { Notebook } from "~/utils/notebook";
 import { DerivedKeys } from "./keys";
 
-export type CachedNotebooks = SerializedNoteData[][];
-
-// export type AccountStorage = createStorage<CachedNotebooks, Notebook[]>();
-
-// export type LoadCachedNotebooksParams = {
-//   notebooks: Notebook[];
-// } & Pick<DerivedKeys, 'viewing' | 'spending'>;
-
-// export const loadCachedNotebooks = async (cached: CachedNotebooks, { viewing, spending, trees, notebooks }: LoadCachedNotebooksParams) => {
-//   const viewingKey = (await viewing.getViewingKeyPair()).privateKey;
-//   const spendingKey = spending.getSpendingKeyPair().privateKey;
-
-//   for (let i = 0; i < cached.length; i++) {
-//     if (!trees[i]) {
-//       trees[i] = await MerkleTree.createTree(i);
-//     }
-
-//     cached[i]!.forEach((noteData, j) => {
-//       if (noteData !== null) {
-//         notebooks[i]!.notes[j] = Note.fromSerializedNoteData(spendingKey, viewingKey, noteData);
-//       }
-//     });
-//   }
-// };
-
 export type AccountStorage = {
     notebooks: Notebook[];
     endBlock: number;

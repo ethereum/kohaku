@@ -44,7 +44,6 @@
   "scripts": {
     "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
-    "demo": "tsx demo/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

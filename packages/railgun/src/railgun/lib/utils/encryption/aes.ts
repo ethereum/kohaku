@@ -505,19 +505,25 @@ function getCiphers(): Ciphers {
 
   if (isNodejs) {
     try {
-      // @ts-expect-error - dynamic require to avoid webpack bundling
-       
+      // Check for require in multiple places:
+      // 1. __non_webpack_require__ (webpack environments)
+      // 2. globalThis.require (set by demo script for tsx ESM compatibility)
+      // 3. require (CommonJS or environments where it's available)
       const nodeModule = typeof __non_webpack_require__ !== 'undefined' 
         ? __non_webpack_require__('node:module')
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        : require('node:module');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        : (typeof globalThis !== 'undefined' && (globalThis as any).require)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? (globalThis as any).require('node:module')
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          : require('node:module');
       const requireFn = nodeModule.createRequire(import.meta.url);
 
       ciphers = requireFn('crypto') as Ciphers;
 
       return ciphers;
-    } catch {
-      throw new Error('Failed to load Node.js crypto module');
+    } catch (error) {
+      throw new Error(`Failed to load Node.js crypto module: ${error instanceof Error ? error.message : String(error)}`);
     }
   } else {
     // In browser, use Web Crypto API implementation

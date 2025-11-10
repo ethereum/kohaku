@@ -29,7 +29,7 @@ function getEnv(key: string, fallback: string): string {
 // Load checkpoint file to initialize indexer state (demonstrates loading preloaded state)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadCheckpointState(): Promise<{ merkleTrees: any; endBlock: number } | undefined> {
-  const checkpointPath = './checkpoints/sepolia_public_checkpoint.json';
+  const checkpointPath = './tests/utils/checkpoints/sepolia_public_checkpoint.json';
 
   if (!existsSync(checkpointPath)) {
     console.log('No checkpoint file found, starting fresh');

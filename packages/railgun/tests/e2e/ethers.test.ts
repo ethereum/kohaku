@@ -96,7 +96,7 @@ describe('Railgun E2E Flow', () => {
     const indexer = await createRailgunIndexer({
       network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
       provider,
-      storage: createFileStorageLayer('./checkpoints/sepolia_public_checkpoint.json', { skipWrite: true }),
+      storage: createFileStorageLayer('./tests/utils/checkpoints/sepolia_public_checkpoint.json', { skipWrite: true }),
       startBlock: forkBlock,
     });
 
