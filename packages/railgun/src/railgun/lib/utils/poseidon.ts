@@ -2,8 +2,6 @@ import circom from '@railgun-community/circomlibjs';
 import { EngineDebug } from '../debugger/debugger';
 import { ByteLength, ByteUtils } from './bytes';
 import { isReactNative } from './runtime';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
 
 interface PoseidonModule {
   default?: () => Promise<void>;
@@ -11,9 +9,43 @@ interface PoseidonModule {
   poseidonHex?: (args: Array<string>) => string;
 }
 
-const { default: initPoseidonWasm, poseidon: poseidonWasm, poseidonHex: poseidonHexWasm } =
+let poseidonModule: PoseidonModule | null = null;
 
-  isReactNative ? {} : (require('@railgun-community/poseidon-hash-wasm') as PoseidonModule);
+function getPoseidonModule(): PoseidonModule {
+  if (poseidonModule) {
+    return poseidonModule;
+  }
+
+  if (isReactNative) {
+    poseidonModule = {} as PoseidonModule;
+
+    return poseidonModule;
+  }
+
+  try {
+    // @ts-expect-error - webpack will handle this as an external
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    poseidonModule = require('@railgun-community/poseidon-hash-wasm') as PoseidonModule;
+
+    return poseidonModule;
+  } catch {
+    poseidonModule = {} as PoseidonModule;
+
+    return poseidonModule;
+  }
+}
+
+const { default: initPoseidonWasm, poseidon: poseidonWasm, poseidonHex: poseidonHexWasm } = {
+  get default() {
+    return getPoseidonModule().default;
+  },
+  get poseidon() {
+    return getPoseidonModule().poseidon;
+  },
+  get poseidonHex() {
+    return getPoseidonModule().poseidonHex;
+  }
+} as PoseidonModule;
 
 const initPoseidon = (): Promise<void> => {
   try {

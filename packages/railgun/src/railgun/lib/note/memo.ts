@@ -26,10 +26,10 @@ if (isReactNative) {
 export const LEGACY_MEMO_METADATA_BYTE_CHUNKS = 2;
 
 export class Memo {
-  static decryptNoteAnnotationData(
+  static async decryptNoteAnnotationData(
     annotationData: string,
     viewingPrivateKey: Uint8Array,
-  ): Optional<NoteAnnotationData> {
+  ): Promise<Optional<NoteAnnotationData>> {
     if (!annotationData || !annotationData.length) {
       return undefined;
     }
@@ -46,7 +46,7 @@ export class Memo {
           ? [hexlified.substring(32, 64), hexlified.substring(64, 96), hexlified.substring(96, 128)]
           : [hexlified.substring(32, 64)],
       };
-      const decrypted = AES.decryptCTR(metadataCiphertext, viewingPrivateKey);
+      const decrypted = await AES.decryptCTR(metadataCiphertext, viewingPrivateKey);
 
       const walletSource: Optional<string> = hasTwoBytes
         ? this.decodeWalletSource(decrypted[2])
@@ -115,8 +115,8 @@ export class Memo {
     }
   }
 
-  static decryptSenderRandom = (annotationData: string, viewingPrivateKey: Uint8Array): string => {
-    const noteAnnotationData = Memo.decryptNoteAnnotationData(annotationData, viewingPrivateKey);
+  static decryptSenderRandom = async (annotationData: string, viewingPrivateKey: Uint8Array): Promise<string> => {
+    const noteAnnotationData = await Memo.decryptNoteAnnotationData(annotationData, viewingPrivateKey);
 
     return noteAnnotationData ? noteAnnotationData.senderRandom : MEMO_SENDER_RANDOM_NULL;
   };
@@ -146,12 +146,12 @@ export class Memo {
     }
   }
 
-  static createEncryptedNoteAnnotationDataV2(
+  static async createEncryptedNoteAnnotationDataV2(
     outputType: OutputType,
     senderRandom: string,
     walletSource: string,
     viewingPrivateKey: Uint8Array,
-  ): EncryptedNoteAnnotationData {
+  ): Promise<EncryptedNoteAnnotationData> {
     const outputTypeFormatted = ByteUtils.nToHex(BigInt(outputType), ByteLength.UINT_8); // 1 byte
     const senderRandomFormatted = senderRandom; // 15 bytes
     const metadataField0: string = `${outputTypeFormatted}${senderRandomFormatted}`;
@@ -170,7 +170,7 @@ export class Memo {
 
     const toEncrypt = [metadataField0, metadataField1, metadataField2];
 
-    const metadataCiphertext: CiphertextCTR = AES.encryptCTR(toEncrypt, viewingPrivateKey);
+    const metadataCiphertext: CiphertextCTR = await AES.encryptCTR(toEncrypt, viewingPrivateKey);
 
     return (
       metadataCiphertext.iv + // ciphertext IV

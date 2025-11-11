@@ -13,7 +13,7 @@ import { hash, randomBytes } from '../global/crypto';
 import { hexStringToArray, arrayToBigInt, bigIntToArray, arrayToHexString } from '../global/bytes';
 import { SNARK_SCALAR_FIELD } from '../global/constants';
 import { MerkleTree } from './merkletree';
-import { getKeys } from './artifacts';
+import { getKeys, loadArtifacts } from './artifacts';
 import {
   CommitmentCiphertextStructOutput,
   CommitmentPreimageStructOutput,
@@ -563,6 +563,9 @@ async function transact(
   notesIn: Note[],
   notesOut: (Note | UnshieldNote | SendNote)[],
 ): Promise<PublicInputs> {
+  // Ensure artifacts are loaded (will throw helpful error if missing)
+  await loadArtifacts();
+
   // Get artifact
   const artifact = getKeys(notesIn.length, notesOut.length);
 
@@ -590,8 +593,14 @@ async function transact(
     commitmentCiphertext,
   );
 
+  console.log("circuit inputs", inputs);
+
+  console.log("attempting proof");
+
   // Generate proof
   const proof = await prove(artifact, inputs);
+
+  console.log("proof completed");
 
 
   // Return public inputs

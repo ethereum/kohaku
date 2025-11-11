@@ -1,5 +1,5 @@
 import { xchacha20, xchacha20poly1305 } from '@noble/ciphers/chacha';
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2';
 import { ByteUtils } from '../bytes';
 import { CiphertextXChaCha, XChaChaEncryptionAlgorithm } from '../../models/formatted-types';
 

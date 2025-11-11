@@ -20,11 +20,11 @@ export const makeHandleNullifiedEvent = async ({ getTrees }: HandleNullifiedEven
 
          // Create new merkleTrees and noteBooks if necessary
          if (!getTrees()[treeNumber]) {
-             getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
+            getTrees()[treeNumber] = await MerkleTree.createTree(treeNumber);
          }
 
          const nullifiersFormatted = event.nullifier.map((nullifier) =>
-             hexStringToArray(nullifier),
+            hexStringToArray(nullifier),
          );
 
          getTrees()[treeNumber]!.nullifiers.push(...nullifiersFormatted);

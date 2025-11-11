@@ -236,17 +236,17 @@ export class TransactNote {
    * AES-256-GCM encrypts note data
    * @param sharedKey - key to encrypt with
    */
-  encryptV2(
+  async encryptV2(
     txidVersion: TXIDVersion,
     sharedKey: Uint8Array,
     senderMasterPublicKey: bigint,
     senderRandom: Optional<string>,
     viewingPrivateKey: Uint8Array,
-  ): {
+  ): Promise<{
     noteCiphertext: Ciphertext;
     noteMemo: string;
     annotationData: string;
-  } {
+  }> {
     if (txidVersion !== TXIDVersion.V2_PoseidonMerkle) {
       throw new Error('Invalid txidVersion for V2 encryption');
     }
@@ -264,7 +264,7 @@ export class TransactNote {
     );
 
     const encodedMemoText = Memo.encodeMemoText(this.memoText);
-    const ciphertext = AES.encryptGCM(
+    const ciphertext = await AES.encryptGCM(
       [
         ByteUtils.nToHex(encodedMasterPublicKey, ByteLength.UINT_256),
         tokenHash,
@@ -286,7 +286,7 @@ export class TransactNote {
       throw new Error('Wallet source must be set for encrypted note annotation data');
     }
 
-    const annotationData = Memo.createEncryptedNoteAnnotationDataV2(
+    const annotationData = await Memo.createEncryptedNoteAnnotationDataV2(
       this.outputType,
       this.senderRandom,
       this.walletSource,
@@ -399,7 +399,7 @@ export class TransactNote {
           ...noteCiphertext,
           data: ciphertextDataWithMemoText,
         };
-        const decryptedCiphertext = AES.decryptGCM(fullCiphertext, sharedKey).map((value) =>
+        const decryptedCiphertext = (await AES.decryptGCM(fullCiphertext, sharedKey)).map((value) =>
           ByteUtils.hexlify(value),
         );
 
@@ -412,7 +412,7 @@ export class TransactNote {
           );
 
         const noteAnnotationData = isSentNote
-          ? Memo.decryptNoteAnnotationData(annotationData, viewingPrivateKey)
+          ? await Memo.decryptNoteAnnotationData(annotationData, viewingPrivateKey)
           : undefined;
 
         return this.noteFromDecryptedValues(
@@ -699,10 +699,10 @@ export class TransactNote {
     };
   }
 
-  serializeLegacy(viewingPrivateKey: Uint8Array, prefix?: boolean): LegacyNoteSerialized {
+  async serializeLegacy(viewingPrivateKey: Uint8Array, prefix?: boolean): Promise<LegacyNoteSerialized> {
     const { npk, tokenHash, value, random } = this.formatFields(prefix);
     const memoField: string[] = [];
-    const randomCiphertext = AES.encryptGCM([random], viewingPrivateKey);
+    const randomCiphertext = await AES.encryptGCM([random], viewingPrivateKey);
     const [ivTag, data] = ciphertextToEncryptedRandomData(randomCiphertext);
 
     return {
@@ -736,7 +736,7 @@ export class TransactNote {
   ): Promise<TransactNote> {
     if ('encryptedRandom' in noteData) {
       // LegacyNoteSerialized type.
-      return TransactNote.deserializeLegacy(noteData, viewingPrivateKey);
+      return await TransactNote.deserializeLegacy(noteData, viewingPrivateKey);
     }
 
     const { tokenHash } = noteData;
@@ -764,12 +764,12 @@ export class TransactNote {
    * @param viewingPrivateKey - viewing private key for decryption
    * @returns TransactNote
    */
-  private static deserializeLegacy(
+  private static async deserializeLegacy(
     noteData: LegacyNoteSerialized,
     viewingPrivateKey: Uint8Array,
-  ): TransactNote {
+  ): Promise<TransactNote> {
     const randomCiphertext = encryptedDataToCiphertext(noteData.encryptedRandom);
-    const decryptedRandom = AES.decryptGCM(randomCiphertext, viewingPrivateKey);
+    const decryptedRandom = await AES.decryptGCM(randomCiphertext, viewingPrivateKey);
 
     // Legacy can only be erc20.
     const { tokenHash } = noteData;

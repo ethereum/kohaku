@@ -34,10 +34,11 @@ export const makeProcessLog = async ({ getTrees, accounts }: ProcessLogContext):
         if (!parsedLog) return;
 
         const event = parsedLog as unknown as RailgunLogEvent;
+        const blockNumber = log.blockNumber;
 
         await match(event)
-            .with({ name: 'Shield' }, (event) => handleShieldEvent(event.args, skipMerkleTree))
-            .with({ name: 'Transact' }, (event) => handleTransactEvent(event.args, skipMerkleTree))
+            .with({ name: 'Shield' }, (event) => handleShieldEvent(event.args, skipMerkleTree, blockNumber))
+            .with({ name: 'Transact' }, (event) => handleTransactEvent(event.args, skipMerkleTree, blockNumber))
             .with({ name: 'Nullified' }, (event) => handleNullifiedEvent(event.args, skipMerkleTree))
             .otherwise(() => {
                 // throw new Error(`Unknown event: ${parsedLog.name}`);

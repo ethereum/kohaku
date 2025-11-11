@@ -1,19 +1,31 @@
-import crypto from 'crypto';
 import * as nobleED25519 from '@noble/ed25519';
 import { sha256, sha512 } from '@noble/hashes/sha2';
 import { keccak_256, keccak_512 } from '@noble/hashes/sha3';
 import { buildEddsa, buildPoseidonOpt } from 'circomlibjs';
 import { arrayToBigInt, bigIntToArray, arrayToByteLength } from './bytes';
+import { getRandomBytesSync } from 'ethereum-cryptography/random';
+import { AES } from '../../lib/utils/encryption/aes';
+import { ByteUtils } from '../../lib/utils/bytes';
+
+// Browser-compatible random bytes
+const nodeCrypto: typeof import('crypto') | null = null;
 
 /**
- * Gets random bytes
+ * Gets random bytes (browser-compatible)
  *
  * @param length - random bytes length
  * @returns random bytes
  */
 function randomBytes(length: number) {
-  return new Uint8Array(crypto.randomBytes(length));
+  if (nodeCrypto) {
+    return new Uint8Array(nodeCrypto.randomBytes(length));
+  }
+
+  return getRandomBytesSync(length);
 }
+
+// Note: Browser cipher implementations (BrowserCipher, BrowserDecipher, createBrowserCiphers)
+// are no longer used here as we delegate to the AES class which handles browser/Node.js split internally
 
 const poseidonPromise = buildPoseidonOpt();
 
@@ -87,20 +99,13 @@ const aes = {
      * @param key - key to encrypt with
      * @returns encrypted bundle
      */
-    encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = randomBytes(16);
+    async encrypt(plaintext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      const plaintextHex = plaintext.map((p) => ByteUtils.hexlify(p, false));
+      const ciphertext = await AES.encryptGCM(plaintextHex, key);
 
-      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, {
-        authTagLength: 16,
-      });
-
-      const data = plaintext
-        .map((block) => cipher.update(block))
-        .map((block) => new Uint8Array(block));
-
-      cipher.final();
-
-      const tag = cipher.getAuthTag();
+      const iv = ByteUtils.hexToBytes(ciphertext.iv);
+      const tag = ByteUtils.hexToBytes(ciphertext.tag);
+      const data = ciphertext.data.map((d) => ByteUtils.hexToBytes(d));
 
       return [new Uint8Array([...iv, ...tag]), ...data];
     },
@@ -112,66 +117,63 @@ const aes = {
      * @param key - key to decrypt with
      * @returns plaintext
      */
-    decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
+    async decrypt(ciphertext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
       const iv = ciphertext[0].subarray(0, 16);
       const tag = ciphertext[0].subarray(16, 32);
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
-        authTagLength: 16,
-      });
+      const ciphertextObj = {
+        iv: ByteUtils.hexlify(iv, false),
+        tag: ByteUtils.hexlify(tag, false),
+        data: encryptedData.map((d) => ByteUtils.hexlify(d, false)),
+      };
 
-      decipher.setAuthTag(tag);
+      const decrypted = await AES.decryptGCM(ciphertextObj, key);
 
-      // Loop through ciphertext and decrypt then return
-      const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
-
-      decipher.final();
-
-      return data;
+      return decrypted.map((d) => ByteUtils.hexToBytes(d));
     },
   },
   ctr: {
     /**
-     * Encrypt plaintext with AES-GCM-256
+     * Encrypt plaintext with AES-CTR-256
      *
      * @param plaintext - plaintext to encrypt
      * @param key - key to encrypt with
      * @returns encrypted bundle
      */
-    encrypt(plaintext: Uint8Array[], key: Uint8Array): Uint8Array[] {
-      const iv = randomBytes(16);
+    async encrypt(plaintext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      const plaintextHex = plaintext.map((p) => ByteUtils.hexlify(p, false));
+      const ciphertext = await AES.encryptCTR(plaintextHex, key);
 
-      const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
-
-      const data = plaintext
-        .map((block) => cipher.update(block))
-        .map((block) => new Uint8Array(block));
-
-      cipher.final();
+      const iv = ByteUtils.hexToBytes(ciphertext.iv);
+      const data = ciphertext.data.map((d) => ByteUtils.hexToBytes(d));
 
       return [iv, ...data];
     },
 
     /**
-     * Decrypt encrypted bundle with AES-GCM-256
+     * Decrypt encrypted bundle with AES-CTR-256
      *
      * @param ciphertext - encrypted bundle to decrypt
      * @param key - key to decrypt with
      * @returns plaintext
      */
-    decrypt(ciphertext: Uint8Array[], key: Uint8Array): Uint8Array[] {
+    async decrypt(ciphertext: Uint8Array[], key: Uint8Array): Promise<Uint8Array[]> {
+      if (ciphertext.length === 0 || !ciphertext[0]) {
+        throw new Error('Invalid ciphertext: missing IV');
+      }
+
       const iv = ciphertext[0];
       const encryptedData = ciphertext.slice(1);
 
-      const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
+      const ciphertextObj = {
+        iv: ByteUtils.hexlify(iv, false),
+        data: encryptedData.map((d) => ByteUtils.hexlify(d, false)),
+      };
 
-      // Loop through ciphertext and decrypt then return
-      const data = encryptedData.slice().map((block) => new Uint8Array(decipher.update(block)));
+      const decrypted = await AES.decryptCTR(ciphertextObj, key);
 
-      decipher.final();
-
-      return data;
+      return decrypted.map((d) => ByteUtils.hexToBytes(d));
     },
   },
 };
@@ -189,27 +191,31 @@ const ed25519 = {
   adjustBytes25519(bytes: Uint8Array, endian: 'be' | 'le'): Uint8Array {
     // Create new array to prevent side effects
     const adjustedBytes = new Uint8Array(bytes);
+    
+    if (adjustedBytes.length < 32) {
+      throw new Error('Bytes must be at least 32 bytes long');
+    }
 
     if (endian === 'be') {
       // BIG ENDIAN
       // AND operation to ensure the last 3 bits of the last byte are 0 leaving the rest unchanged
-      adjustedBytes[31] &= 0b11111000;
+      adjustedBytes[31]! &= 0b11111000;
 
       // AND operation to ensure the first bit of the first byte is 0 leaving the rest unchanged
-      adjustedBytes[0] &= 0b01111111;
+      adjustedBytes[0]! &= 0b01111111;
 
       // OR operation to ensure the second bit of the first byte is 0 leaving the rest unchanged
-      adjustedBytes[0] |= 0b01000000;
+      adjustedBytes[0]! |= 0b01000000;
     } else {
       // LITTLE ENDIAN
       // AND operation to ensure the last 3 bits of the first byte are 0 leaving the rest unchanged
-      adjustedBytes[0] &= 0b11111000;
+      adjustedBytes[0]! &= 0b11111000;
 
       // AND operation to ensure the first bit of the last byte is 0 leaving the rest unchanged
-      adjustedBytes[31] &= 0b01111111;
+      adjustedBytes[31]! &= 0b01111111;
 
       // OR operation to ensure the second bit of the last byte is 0 leaving the rest unchanged
-      adjustedBytes[31] |= 0b01000000;
+      adjustedBytes[31]! |= 0b01000000;
     }
 
     // Return adjusted bytes

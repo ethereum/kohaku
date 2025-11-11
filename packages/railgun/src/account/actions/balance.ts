@@ -13,7 +13,7 @@ export type GetBalanceFnParams = {
 } & Pick<Indexer, 'getTrees'>;
 
 export const makeGetBalance = ({ notebooks, getTrees, network }: GetBalanceFnParams): GetBalanceFn => async (token: Address = ZERO_ADDRESS) => {
-    const fixedToken = token === ZERO_ADDRESS || token === E_ADDRESS ? network.WETH : token;
+    const fixedToken = token === ZERO_ADDRESS || token.toLowerCase() === E_ADDRESS ? network.WETH : token;
     const tokenData = getERC20TokenData(fixedToken);
     let totalBalance = 0n;
 

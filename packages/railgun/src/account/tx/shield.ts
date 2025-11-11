@@ -78,7 +78,7 @@ export const makeCreateShield = async ({ network, master, viewing, signer }: Cre
         const requests: ShieldRequestStruct[] = [];
 
         for (let i = 0; i < tokens.length; i++) {
-            if (tokens[i] === ZERO_ADDRESS || tokens[i] === E_ADDRESS) {
+            if (tokens[i] === ZERO_ADDRESS || tokens[i]?.toLowerCase() === E_ADDRESS) {
                 nativeValue += values[i]!;
                 requests.push(await createShieldRequest(network.WETH, values[i]!));
             } else {
