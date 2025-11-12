@@ -53,7 +53,7 @@ export const makeHandleTransactEvent = async ({ getTrees, accounts }: HandleTran
         }
 
         await Promise.all(accounts.map(async (account) => {
-            account._internal.handleTransactEvent(event, blockNumber);
+            await account._internal.handleTransactEvent(event, blockNumber);
         }));
     }
 }
