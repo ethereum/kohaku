@@ -1,0 +1,176 @@
+# Note selection algorithm spec
+
+### Problem framework
+
+The  problem is the **selection of a subset of a user's private notes to fund a public withdrawal, in a way that maximizes the user's privacy while satisfying immutable domain constraints.** This is formally classified as a **Constrained Multi-Objective Combinatorial Optimization (MOCO)** problem.
+
+It is **Combinatorial** because we make a discrete choice for each note ("use" or "don't use")
+
+**Multi-Objective** because we balance conflicting goals (privacy vs. cost)  and **Constrained** because any solution must satisfy the financial rules of the withdrawal.
+
+> *To solve this, we model the problem by defining eight distinct objective functions, one for each conflicting goal. Our algorithm then uses a heuristic approach to generate and score candidate solutions, ultimately selecting the one that offers the best balance of privacy and cost.*
+> 
+
+**Assumptions of our model:**
+
+- **Data Access:** The model assumes it has access to a complete and up to date dataset of all historical deposits in the pool. This is achieved by querying a blockchain analytics service (e.g., Dune Analytics) to build a statistical model of the anonymity set.
+    
+    [Run this query](https://dune.com/queries/5941147/9589424)
+    
+- **Derivation**: The model assumes we know if a note is derivated from a mnemonic (legacy) or an appSecret (native)
+- **Gas Cost:** To quantify the trade off between privacy and onchain fees, the model employs a proxy for transaction cost rather than attempting to predict exact gas usage. This proxy function assumes the total cost is proportional to the transaction's structural complexity, which is driven by two main onchain operations:
+    - **Input Processing:** Each note used as an input requires an onchain zk proof verification, incurring a base cost.
+    - **Output Creation (Splits):** Each new note created as an output (i.e., a change note from a partial spend) requires a new commitment to be added to the contract's state, which is a gas expense.
+
+**Core Privacy Invariants:**
+The algorithm must be designed around these fundamental principles:
+
+1. **Value Pattern Resistance**: Avoid creating identifiable spending patterns by favoring common withdrawal amounts to maximize the anonymity set.
+2. **Temporal Correlation Avoidance**: Mitigate linkability by avoiding the combined use of notes with widely different creation timestamps.
+3. **Legacy Note Priority**: Prioritize spending notes derived from legacy mnemonic-based accounts. Reducing the risk of fund loss if the mnemonic is compromised elsewhere.
+4. **Gas Cost Optimization**: While secondary to privacy, the number of input notes should be minimized to reduce onchain costs. Our model proxies this by simply counting the number of inputs.
+5. **Wallet Health Maintenance***:* A good strategy should not create problematic "change" outputs. It should avoid creating new, low value notes ("dust") that have a poor anonymity set and will be hard to spend privately in the future.
+6. **Preservation of Healthy Notes***:* A strategy should avoid spending its most private notes (those with the highest anonymity sets) if less private alternatives exist. These "healthy" notes are a valuable resource to be preserved for future transactions.
+
+### Maths
+
+Our goal is to find an optimal note selection strategy, (S), by minimizing a vector of four distinct objective functions subject to a primary withdrawal constraint.
+
+**Objective Functions to Minimize:**
+
+| Function | Goal | Why it Matters |
+| --- | --- | --- |
+| f₁(Spend Pattern Anonymity) | Maximize anonymity of the smallest output chunk. | The privacy of a transaction is only as strong as its weakest link. This penalizes plans that create any single, easily identifiable output amount. |
+| f₂(Temporal Linkability) | Penalize using new notes. | Mitigates the risk of linking a deposit to a near-immediate withdrawal by favoring older notes. |
+| f₃(Derivation Type) | Prioritize spending legacy notes. | Encourages migrating funds away from potentially compromised mnemonic based accounts to safer appSecret based notes. |
+| f₄(Gas Cost) | Minimize the number of inputs. | Proxies the onchain transaction cost. Fewer inputs are cheaper. |
+| f₅(Random Noise) | Introduce non-determinism. | Acts as a small tie-breaker to prevent identical scenarios from always producing the exact same plan. |
+| f₆(Wallet Health) | Penalize creating bad change. | Discourages strategies that leave the user with a new, low value, low anonymity "dust" note in their wallet. |
+| f₇(Spend Anonymity Cost) | Penalize the total anonymity cost of all outputs. | Complements f₁. While f₁ focuses on the worst case output, f₇ considers the cumulative privacy cost of the entire spending pattern. |
+| f₈(Preserve Healthy Notes) | Penalize spending very high anonymity notes. | Discourages "burning" the user's best, most private notes on a routine transaction when other, less private notes could be spent instead. |
+
+Our overall problem is to find a solution (S) that best balances these eight competing objectives. Formally, this is a multi-objective optimization problem:
+
+**minimize** F(S) = (f₁(S), f₂(S), …, f₈(S))
+
+**subject to** Σvᵢ = W
+
+Where W is the desired withdrawal amount, and vᵢ is the value spent from each input note in the plan S.
+
+Since finding the true global optimum is an NP-hard problem our algorithm takes a heuristic approach. It generates a diverse set of candidate solutions using several strategic generators
+
+---
+
+## Anonymity Set analysis
+
+The most critical part of our model is implementing the `AnonymitySet(s)` function for (f₁) accurately. This value must be derived from real world, onchain data. We achieve this by pre-calculating a **cumulative distribution** of all deposits in the pool using the following SQL
+
+```sql
+WITH deposits AS (
+  SELECT
+    _value / 1e18 AS eth_amount,
+    COUNT(*)      AS n
+  FROM zeroxbow_ethereum.privacypoolsimple_evt_deposited
+  WHERE _value > 0
+  GROUP BY 1
+),
+ragequits AS (
+  SELECT
+    _value / 1e18 AS eth_amount,
+    COUNT(*)      AS n
+  FROM zeroxbow_ethereum.privacypoolsimple_evt_ragequit
+  GROUP BY 1
+),
+active_by_value AS (
+  SELECT
+    d.eth_amount AS eth_amount,
+    GREATEST(d.n - COALESCE(r.n, 0), 0) AS active_count
+  FROM deposits d
+  LEFT JOIN ragequits r ON r.eth_amount = d.eth_amount
+),
+cdf AS (
+  SELECT
+    eth_amount,
+    active_count,
+    SUM(active_count) OVER (ORDER BY eth_amount DESC) AS anonymity_set_size
+  FROM active_by_value
+)
+SELECT
+  eth_amount,
+  active_count                AS num_active_deposits_at_value,
+  anonymity_set_size          AS anonymity_set_size
+FROM cdf
+ORDER BY eth_amount ASC;
+```
+
+The following chart plots the deposit amount `s` (x-axis) against its pre-calculated anonymity set size (y-axis).
+
+![image.png](note-selection-algorithm-spec/image.png)
+
+**Observations**
+
+1. The distribution is highly non linear, dominated by a peak and subsequent "cliff" at the standard deposit amount of **0.1 ETH**. The anonymity set size for exactly 0.1 ETH is over **1,600**, but it drops by more than 50% for any value even slightly greater, immediately highlighting the importance of using standard denominations.
+2. For values greater than approximately **1.4 ETH**, the anonymity set size decays asymptotically towards a negligible number. This visually confirms that the privacy offered for large, non standard amounts is minimal, and the model must strongly penalize strategies that create such outputs. 
+3. A "high-liquidity plateau" exists between roughly **0.1 ETH and 0.8 ETH**. Within this range, while the anonymity set is smaller than the peak, it remains high (in the hundreds) and degrades more gracefully than at the sharp cliff boundaries. The algorithm should favor strategies where all spend outputs land within this zone.
+
+## **Heuristic**
+
+Given that the problem is NP-hard, we employ a **multi-strategy greedy heuristic**. We run several different greedy algorithms in parallel, each with a different priority, and then score the results to find the best overall balance.
+
+### Process
+
+1. **Candidate strategies:** The algorithm generates a small, diverse set of potential solutions based on simple, competing goals. Key generators include:
+    - **Greedy Large:** Finds the single smallest note that is large enough to cover the entire withdrawal. This prioritizes low gas cost (f₄) at the potential expense of privacy (f₁, f₇).
+    - **Dust Aggregation:** Combines the user's smallest notes until the withdrawal amount is met. This is effective for wallet cleanup but is now penalized by f₈ if it uses very high-anonymity notes.
+    - ***Sanitizer* :** Attempts to pay for the withdrawal by taking multiple  “bites” of standard sizes (e.g., 0.1, 0.2) from **only the user's unhealthy notes**. This strategy is great for creating clean spend patterns from bad assets.
+    - ***Anchor Sanitizer* (”Consolidator"):** Takes one small, standard-sized "bite" from an unhealthy note (the "anchor") and then combines it with healthy notes to complete the payment. This is a powerful hybrid strategy that simultaneously sanitizes a bad note while preserving the bulk of the user's healthy ones.
+2.  ****Score and Normalize:** Each candidate strategy is evaluated against all objective functions (f₁ through f₈). Because the raw scores have wildly different scales (e.g., gas cost is a small integer, while anonymity penalties can be large floats) they must be normalized. The algorithm uses **Min-Max Normalization** on the fly for each withdrawal request:
+- For each objective function (e.g., f₄), the algorithm finds the minimum and maximum raw score among all generated candidates for that specific run.
+- It then scales each candidate's raw score to a `[0, 1]` range using the formula:
+
+     f'ₙₒᵣₘ = (fᵣₐᵥᵥ - fₘᵢₙ) / (fₘₐₓ - fₘᵢₙ). This dynamic approach ensures that the normalization is always relative to the set of actually achievable options for a given withdrawal, making the comparison much more robust.
+    
+3. **Final Selection:** The normalized scores for each candidate are combined into a final `Score` using a weighted sum. The algorithm is **deterministic** and selects the candidate with the lowest final `Score`, representing the optimal balance of privacy and cost for that specific transaction.
+
+**PrivacyScore(S) =**
+- 0.40 × f'₁(Pattern Anonymity)
+- + 0.20 × f'₇(Anonymity Cost)
+- + 0.15 × f'₈(Preserve Healthy Notes)
+- + 0.10 × f'₆(Wallet Health)
+- + 0.05 × f'₄(Gas)
+- + 0.05 × f'₂(Time)
+- + 0.04 × f'₃(Derivation)
+- + 0.01 × f'₅(Noise)
+
+### Adversarial Testing
+
+To ensure the algorithm is robust, it was tested against "adversarial" scenarios designed to trick a naive algorithm (e.g., forcing a choice between good gas price and good privacy). This testing process was used to tune the objective function weights to their final values. The resulting distribution reflects the model's core principles:
+
+1. **Prioritizing Transaction Privacy:** The highest weights are assigned to f'₁ (Pattern Anonymity) and f'₇ (Anonymity Cost), totaling 60% of the score. This enforces the primary directive: the privacy of the on-chain footprint is paramount.
+2. **Enforcing Long-Term Strategy:** The introduction and significant weighting of f'₈ (Preserve Healthy Notes) and f'₆ (Wallet Health) represent a sophisticated, long term view. The model is explicitly taught to not only perform a private withdrawal *now*, but to do so while sanitizing its worst assets and preserving its best ones for the future.
+3. **Balancing Secondary Costs:** Objectives like gas (f'₄), note age (f'₂), and legacy status (f'₃) are given smaller weights. They serve as crucial tiebreakers and guide the decision when primary privacy objectives are met, but they do not override the core mission of onchain privacy and wallet health.
+
+## **Evolution of the Model**
+
+The previous version of this model focused exclusively on **input selection**. This latest version has evolved to include **intelligent output optimization**.
+
+This is achieved through two key objective functions:
+
+- **f₆(Wallet Health):** Directly penalizes plans that would create low value, low privacy "dust" change notes, improving the long term health of the user's wallet.
+- **f₈(Preserve Healthy Notes):** Incentivizes the algorithm to "clean" the wallet by spending its worst assets first, preserving its best assets for future use.
+
+# Withdrawal warning suggestion
+
+![withdrawal warning criteria.png](note-selection-algorithm-spec/withdrawal_warning_criteria.png)
+
+Beyond selecting the right input notes, robust privacy requires a user's *actions* to blend in with the crowd. Our model extends from structural anonymity (the deposit pool) to **behavioral anonymity** by analyzing the historical patterns of all user withdrawals.
+
+To quantify this, we analyze the historical distribution of all past withdrawals from the pool, creating a **withdrawal survival function**. As shown in the chart below, this function answers the question: *"For any given withdrawal amount X, how many withdrawals of size X or greater have ever occurred in the pool's history?"*
+
+The vast majority of withdrawals are concentrated at lower values. To create a data driven definition of a "rare" and potentially deanonymizing transaction, we calculate the **95th percentile** of all historical withdrawal amounts. Any withdrawal request exceeding this value places the user in the top 5% of largest withdrawals ever made, making them a significant statistical outlier.
+
+As the chart demonstrates, this threshold is currently at **1.70 ETH**. If a user requests a withdrawal amount greater than this value, the wallet should present a strong warning, explaining that their action is highly unusual and could compromise their privacy by making their transaction a distinguishable outlier, regardless of how well the input notes are selected.
+
+# Implementation example
+
+[https://colab.research.google.com/drive/165lczftG4KheasyGs7jMDk486PcBMlJM#scrollTo=PmxwX0XsjQ52](https://colab.research.google.com/drive/165lczftG4KheasyGs7jMDk486PcBMlJM#scrollTo=PmxwX0XsjQ52)
