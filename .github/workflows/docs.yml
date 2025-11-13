@@ -2,7 +2,7 @@ name: Docs
 
 on:
   push:
-    branches: ["master", "wonderland/feat/tech-design-document"]
+    branches: ["master"]
 
 permissions:
   contents: read
@@ -30,13 +30,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: 'pnpm'
+          cache: "pnpm"
       - name: Install
         run: pnpm install --frozen-lockfile=false
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium
       # - name: Lint
-        # run: pnpm lint
+      # run: pnpm lint
       - name: Build Docs
         run: pnpm --filter docs build
       - name: Setup Pages
@@ -44,7 +44,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/dist'
+          path: "docs/dist"
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
