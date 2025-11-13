@@ -33,8 +33,6 @@ jobs:
           cache: "pnpm"
       - name: Install
         run: pnpm install --frozen-lockfile=false
-      - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps chromium
       # - name: Lint
       # run: pnpm lint
       - name: Build Docs
