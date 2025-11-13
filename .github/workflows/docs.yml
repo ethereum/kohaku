@@ -2,7 +2,7 @@ name: Docs
 
 on:
   push:
-    branches: ["master"]
+    branches: ["master", "wonderland/feat/tech-design-document"]
 
 permissions:
   contents: read
