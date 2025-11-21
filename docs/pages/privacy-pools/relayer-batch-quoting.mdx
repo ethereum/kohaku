@@ -77,20 +77,7 @@ Given `chainId`, `batchSize`, `netAmount`:
 
 ## Client flow
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant R as Relayer
-
-    C->>C: Select for desiredNet → noteCount1, gross≈desiredNet
-    C->>R: POST /batch/quote { netAmount=desiredNet, batchSize=noteCount1 }
-    R-->>C: relayFeeBPS, grossNeeded, estimatedGas
-    C->>C: Select for grossNeeded → noteCount2, grossFromPlan
-    C->>R: POST /batch/quote { totalAmount=grossFromPlan, batchSize=noteCount2, recipient }
-    R-->>C: relayFeeBPS, signed commitment
-    C->>R: Execute with commitment
-
-```
+![client-flow.svg](/privacy-pools/client-flow.svg)
 
 ## Example Flow
 
