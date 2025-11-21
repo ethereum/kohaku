@@ -1,0 +1,339 @@
+# Privacy Methods Specification
+
+# Data structures
+
+```tsx
+interface AggregatedPrivateAccount {
+  accounts: Map<number, Account>;
+  // per-scope cursors for incremental sync
+  last_synced_block: Map<Scope, number>;
+}
+
+interface Account {
+  account_idx: number;
+  master_nullifier: number;
+  master_secret: number;
+  pool_accounts: Map<Scope, PoolAccount[]>;
+}
+
+interface PoolAccount {
+  idx: number;
+  precommitment: number;
+  label: number;
+  asp_status: 'Approved' | 'Rejected' | 'Pending' | 'Unknown';
+  depositor: string;
+  deposit: Note;
+  withdrawals?: Note[];
+  ragequit?: Ragequit;
+}
+
+interface Note {
+  idx: number;
+  label: number;
+  value: number;
+  hash: number;
+  nullifier: number;
+  secret: number;
+  tx: Hash;
+  block: number;
+}
+
+interface Ragequit {
+  value: number;
+  tx: Hash;
+  block: number;
+}
+```
+
+# `AccountService`
+
+## Properties
+
+- aggregated_account
+- data_service
+
+## Methods
+
+### `constructor`
+
+Initializes the service and registers the initial account (no auto-sync).
+
+- store account
+
+Args:
+
+- `main_acc_keys: { master_nullifier: number; master_secret: number } | { mnemonic: string }`
+- `pool_info: { scopes: Scope[]; deployment_block?: number }`
+- `data_service: DataService`
+
+Steps:
+
+1. If mnemonic, derive keys; else use provided keys.
+2. Create in-memory Account; insert into `aggregated_account.accounts`.
+3. Optionally trigger initial sync for this account.
+
+### `addAccount`
+
+Registers a new account and immediately starts a sync for it.
+
+- store account
+- sync(account_id, false)
+
+Args:
+
+- `keys: { master_nullifier: number; master_secret: number }`
+
+Steps:
+
+1. Create Account; insert into registry.
+2. Initialize empty `pool_accounts` for known scopes.
+3. Call `sync(account_idx, false)`.
+
+### `addAccountWithMnemonic`
+
+Derives keys from a mnemonic and registers the resulting account.
+
+Args:
+
+- `mnemonic: string`
+
+Steps:
+
+1. Derive keys; call `addAccount`.
+
+### `syncAll`
+
+Performs a global incremental sync from the oldest synced block across scopes for all accounts in parallel.
+
+- get oldest synced block
+- re-fetch events from oldest synced block
+- run discovery for all accounts in parallel
+
+Args: none
+
+Steps:
+
+1. For each scope: compute from_block(scope) = min(last synced across accounts for that scope) or deployment if unknown.
+2. data_service.getLogs(pool_info.scopes, from_block) using address-only filters (no user-derived topics) to reuse logs across accounts.
+3. For each account (parallel): reuse the mapped logs to discover deposits/withdrawals/ragequits; update that account’s own last processed block.
+4. Persist updated notes and set aggregated last_synced_block per scope to the min of all accounts’ last processed blocks (batched write).
+
+### `sync`
+
+Synchronizes a single account and runs the account recovery (note discovery) logic.
+
+Args:
+
+- `account_id: number`
+- `from_last_synced_block: boolean`
+
+Steps:
+
+1. For each scope: determine from_block(scope) = this account’s last processed block for the scope (if from_last_synced_block) or deployment.
+2. Fetch logs once: `maps = data_service.getLogs(pool_info.scopes, from_block)` (address-only; no user-derived topics).
+3. Call `discoverNotes(account_id, maps)` to recover deposits, withdrawals, and ragequits deterministically.
+4. Persist new/updated notes and advance this account’s last processed block per scope to the latest processed block; update aggregated last_synced_block (min across accounts).
+5. Return a summary (counts per scope) for UI/progress.
+
+### `discoverNotes`
+
+Reconstructs an account’s state from mapped logs by deterministically discovering deposits, withdrawals, and ragequits.
+
+Args:
+
+- `account_id: number`
+- `maps: { depositsMap: Map<Scope, Map<number, DepositEvent>>; withdrawalsMap: Map<Scope, Map<number, WithdrawalEvent>>; ragequitsMap: Map<Scope, Map<number, Ragequit>> }`
+
+Steps:
+
+1. Deposits per scope:
+    - Start at current deposit index; for i = 0.. use deterministic precommitment; if found in `deps[scope]`, create PoolAccount, compute deposit note hash = Poseidon([value, label, precommitment]), and continue.
+    - Use a bounded miss window near head to stop scanning when no more deposits.
+2. Withdrawals per PoolAccount chain:
+    - For each PoolAccount (label), set `current = deposit` and loop:
+        - Compute `spentNullifier = Poseidon([current.nullifier])` and look up in `withdrawalsMap[scope]`.
+        - If found, derive next nullifier/secret, compute child note hash = Poseidon([newValue, label, Poseidon([nullifier, secret])]), append child note, set `current = child`; else stop.
+3. Ragequits:
+    - If `rqs[scope]` has an entry for the PoolAccount’s label, attach `ragequit`.
+4. Ignore duplicates (idempotent): skip creating notes that already exist for the same tx/block/label.
+5. Done; return counts of new deposits/withdrawals/ragequits.
+
+### `createDepositSecrets`
+
+Deterministically derives deposit nullifier/secret/precommitment for an account and scope.
+
+Args:
+
+- `account_id: number`
+- `scope: Scope`
+
+Returns: `{ nullifier: number; secret: number; precommitment: number; idx: number }`
+
+Steps:
+
+1. idx = current deposit count for (acc_id, scope) or a stored counter.
+2. Derive nullifier/secret/precommitment deterministically (Poseidon inputs ordered as [masterKey, scope, idx] and [nullifier, secret]).
+3. Return values (commitment hash is computed later when deposit value is known).
+
+### `createWithdrawalSecrets`
+
+Derives withdrawal nullifier/secret for the next child of a given parent note.
+
+Args:
+
+- `note: Note` (parent)
+
+Returns: `{ nullifier: number; secret: number }`
+
+Steps:
+
+1. child_idx = current withdrawals length for note.label.
+2. Derive nullifier/secret deterministically from (label, child_idx) (Poseidon inputs ordered as [masterKey, label, child_idx]).
+3. Commitment hash will be computed when the new value is known.
+
+### `addPoolAccount`
+
+Creates and records a new PoolAccount (deposit) for an account and scope.
+
+Args:
+
+- `account_id: number`
+- `depositEvent: { scope: Scope; value: number; label: number; precommitment: number; depositor: string; blockNumber: number; transactionHash: Hash }`
+- `derived: { nullifier: number; secret: number }`
+
+Steps:
+
+1. Create PoolAccount with asp_status: 'Unknown'; set depositor = depositEvent.depositor.
+2. Build deposit Note from depositEvent and derived secrets; compute hash = Poseidon([value, label, precommitment]).
+3. Insert into `pool_accounts` for the scope.
+4. Update local counters if needed.
+
+### `addWithdrawal`
+
+Appends a withdrawal note to the PoolAccount identified by label.
+
+Args:
+
+- `account_id: number`
+- `label: number`
+- `withdrawalEvent: { withdrawn: number; spentNullifier: number; blockNumber: number; transactionHash: Hash }`
+
+Steps:
+
+1. Find PoolAccount by label; compute new value = current.value - withdrawalEvent.withdrawn.
+2. Derive child nullifier/secret deterministically; compute child precommitment and hash; append withdrawal note with blockNumber/transactionHash.
+
+### `addRagequit`
+
+Attaches a ragequit event to the PoolAccount identified by label.
+
+Args:
+
+- `acc_id: number`
+- `label: number`
+- `RqInfo: { value: number; block: number; tx: Hash }`
+
+Steps:
+
+1. Find PoolAccount by label; set ragequit.
+
+### `prepareWithdrawal`
+
+Selects a set of spendable notes in a scope to meet a target withdrawal amount.
+
+Args:
+
+- `scope: Scope`
+- `total_withdrawn_value: number`
+
+Steps:
+
+1. Collect all spendable notes for the scope (criteria: value > 0, PoolAccount has no ragequit, and note is the last note in its chain).
+2. Call the note selection algorithm with (notes, total_withdrawn_value). The algorithm should be deterministic given the same inputs.
+3. Validate selection: no duplicate labels, sum(selected.values) ≥ total_withdrawn_value. Return selected notes for batch withdrawal.
+
+### `getSpendableNotes`
+
+Returns the list of spendable notes for a scope across all accounts.
+
+Args:
+
+- `scope: Scope`
+
+Steps:
+
+1. For each account’s PoolAccounts under the scope, take the last note in the chain if value > 0 and no ragequit.
+2. Return the collected list, optionally sorted by value or block for UI.
+
+### `storeAccount`
+
+Persists aggregated account metadata and recent changes to storage.
+
+Args: none
+
+Steps:
+
+1. Persist accounts (keys), pool_accounts (with depositor), commitments (notes with hash), and last_synced_block to IDB.
+2. Use batched writes per sync to reduce overhead.
+
+### `loadAccount`
+
+Loads an account and its notes from storage and rehydrates in-memory state.
+
+Args:
+
+- `acc_idx: number`
+
+Steps:
+
+1. Load account and related notes from storage.
+2. Rehydrate in-memory maps.
+
+### `applyAspAttestations`
+
+Applies ASP-approved and ASP-rejected labels to notes across all accounts.
+
+Args:
+
+- `approved_labels: number[]`
+- `rejected_labels: number[]`
+
+Steps:
+
+1. For each PoolAccount (label), set asp_status: 'Rejected' if in rejected_labels; else 'Approved' if in approved_labels; else keep as-is or 'Unknown'.
+2. Persist status updates (batched) and return counts updated.
+
+# `DataService`
+
+## Properties
+
+- `pool_info`
+- `RPC?`
+- `last_synced_block` (per-scope): `Map<Scope, number>`
+- (transient, per call) `depositsMap`/`withdrawalsMap`/`ragequitsMap`
+
+## Methods
+
+### `getLogs`
+
+Fetches, sanitizes, and maps logs for the provided pools from a starting block, keeping maps only for the current sync.
+
+- fetch logs
+- sanitize
+- map results
+- store maps (ephemeral only for this sync call)
+
+Args:
+
+- `pools: Scope[]`
+- `from_block: number | Map<Scope, number>` (pass a single min block or per-scope blocks)
+
+Steps:
+
+1. Fetch logs for pools from from_block to head (address-only, no user-derived filters).
+2. Sanitize/parse events to numeric types expected by the SDK.
+3. Map to per-scope structures:
+    - deps: `Map<precommitment, DepositEvent>`
+    - withds: `Map<spentNullifier, WithdrawalEvent>`
+    - rqs: `Map<label, Ragequit>`
+4. Keep maps only for the duration of the sync; discard afterward.
