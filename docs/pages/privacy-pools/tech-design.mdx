@@ -29,12 +29,9 @@ The wallet maintains two conceptual account types:
 - **Public accounts**: Standard Ethereum addresses with public balances
 - **Private account**: An aggregated view of privacy-preserving balances across supported protocols
 
-<aside>
-🔬
-
-Privacy Pools v1 does not support incremental deposits, resulting in fragmented balances across multiple notes. The wallet abstracts this complexity by presenting a unified balance to users while handling batch operations transparently.
-
-</aside>
+> 🔬
+>
+> Privacy Pools v1 does not support incremental deposits, resulting in fragmented balances across multiple notes. The wallet abstracts this complexity by presenting a unified balance to users while handling batch operations transparently.
 
 ### Requirements
 
@@ -186,7 +183,7 @@ Private keys must never leave the wallet's secure enclav**e**. This means:
 
 [Deterministic secret generation from a signature](/privacy-pools/deterministic-secret)
 
-[Signature-Based Derivation Implementation Guide](/privacy-pools/signature-base-derivation)
+[Signature-based derivation implementation guide](/privacy-pools/signature-base-derivation)
 
 ![security-model.svg](/privacy-pools/security-model.svg)
 
