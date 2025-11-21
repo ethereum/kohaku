@@ -1,0 +1,130 @@
+# Detailed User Stories
+
+### **US-001: Import Existing Mnemonic [High]**
+
+**As a** user with an existing Privacy Pools mnemonic
+
+**I want to** import my mnemonic
+
+**So that** I can access my existing private funds
+
+**Acceptance Criteria:**
+
+- Mnemonic import option available during onboarding
+- Automatic balance discovery upon import
+
+### **US-002: Privacy Account from Wallet Seed [High]**
+
+**As a** user with a wallet seed
+
+**I want to** automatically derive privacy keys from my master seed
+
+**So that** I can use privacy features without managing additional secrets
+
+**Acceptance Criteria:**
+
+- Deterministic derivation using HKDF and signature-based design from a never exposed address
+- No exposure of private keys to external SDKs
+- One-time setup with persistent account access
+- Full recoverability from master seed alone
+
+### **US-003: Deposit Public Funds [High]**
+
+**As a** user with public ETH
+
+**I want to** deposit funds into my private balance
+
+**So that** I can make private transfers
+
+**Acceptance Criteria:**
+
+- One-click deposit from public account
+- Automatic secret generation for each deposit
+- Clear fee disclosure before confirmation
+- Pending state indication until ASP approval
+
+### **US-005: Private Withdrawal with Relayer [High]**
+
+**As a** user with approved private balance
+
+**I want to** send funds privately to any address
+
+**So that** the recipient receives funds with no link to my identity
+
+**Acceptance Criteria:**
+
+- Automatic optimal note selection
+- Batch processing for multi-note withdrawals
+- Relayer fee transparency
+- Atomic execution
+
+### **US-006: Note Aggregation UI [High]**
+
+**As a** user with multiple privacy pool deposits
+
+**I want to** see a single aggregated balance in my wallet
+
+**So that** I don't have to manually track fragmented notes
+
+**Acceptance Criteria:**
+
+- Single balance display aggregating all spendable notes
+- Automatic batching during withdrawals
+- No manual note management required
+
+### **US-007: ASP Status Monitoring [Medium]**
+
+**As a** user who has deposited into privacy pools
+
+**I want to** see the status of my deposit approval
+
+**So that** I know when my funds are available for private sends
+
+**Acceptance Criteria:**
+
+- Clear pending/approved status indicators
+- Balance added to my private account once approved
+
+### **US-008: Privacy Metrics [Medium]**
+
+**As a** privacy conscious user
+
+**I want to** view a privacy score
+
+**So that** I can make informed decisions about my transfers
+
+**Acceptance Criteria:**
+
+- Privacy score based on withdrawal patterns
+- Recommendations for optimal privacy
+- Clear privacy warnings when needed
+
+### **US-009: Self-Relay Option [Low]**
+
+**As a** advanced user who doesn't trust third parties 
+
+**I want to** relay my own withdrawals
+
+**So that** I maintain maximum control over my privacy
+
+**Acceptance Criteria:**
+
+- Option to bypass third-party relayers
+- Clear gas payment requirements
+- Address rotation guidance
+- Warning about privacy tradeoffs
+
+### **US-010: Manual Note Selection [Low]**
+
+**As a** power user
+
+**I want to** manually select which notes to use
+
+**So that** I have full control over my withdrawal strategy
+
+**Acceptance Criteria:**
+
+- Advanced mode toggle
+- List view of all available notes
+- Manual selection interface
+- Override of automatic optimization

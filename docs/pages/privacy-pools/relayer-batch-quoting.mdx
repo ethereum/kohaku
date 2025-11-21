@@ -1,0 +1,171 @@
+# Relayer batch quoting
+
+## Problem
+
+- You want to receive a specific amount after fees (`desiredNet`, e.g., 1.0 ETH).
+- The note selection algo chooses which notes to use (`noteCount`) and how much to withdraw from each.
+- The relayer fee is a percentage of the pre-fee amount (`grossAmount`) and depends on:
+    - `noteCount` (more notes → more gas → higher fee), and
+    - `grossAmount` (larger gross spreads fixed gas → lower fee percent).
+- This creates a loop: select for `desiredNet` → quote changes fee → required `grossAmount` changes → reselect → `noteCount` may change → fee changes again.
+
+## Solution
+
+- Extend `POST /batch/quote` to accept `netAmount` in addition to the existing `totalAmount`.
+- Client provides `chainId`, `batchSize` (note amount), and exactly one of:
+    - `netAmount`: “Tell me the gross needed to deliver this net for this batch size.”
+    - `totalAmount`: current behavior (fee for a given gross).
+- If `netAmount` is provided, the relayer returns the required `grossNeeded` for that `batchSize`, the applicable `relayFeeBPS`, and optional signed commitment.
+
+## API
+
+- Request (one-of):
+
+```json
+{
+  "chainId": 1,
+  "batchSize": 3,
+  "netAmount": "1000000000000000000",
+  "recipient": "0xRecipientOptional"
+}
+```
+
+or
+
+```json
+{
+  "chainId": 1,
+  "batchSize": 3,
+  "totalAmount": "1050000000000000000",
+  "recipient": "0xRecipientOptional"
+}
+```
+
+- Response (net-aware):
+
+```json
+{
+  "relayFeeBPS": 462,
+  "grossNeeded": "1050500000000000000",
+  "estimatedFee": "48600000000000000",
+  "estimatedGas": "2110500",
+  "expiresAt": 1730000000000,
+  "batchFeeCommitment": { "batchRelayData": "0x...", "expiration": 1730000000000, "signedBatchRelayerCommitment": "0x..." }
+}
+```
+
+## Updated relayer quoting logic (net-aware)
+
+Given `chainId`, `batchSize`, `netAmount`:
+
+1. `gasUnits = 160,500 + 650,000 × batchSize`
+2. `bufferedGasCostWei = gasUnits × gasPrice × 1.2` (20% buffer)
+3. `profitBPS = getBatchRelayFeeBPS(chainId)`, enforce `maxBatchRelayFeeBPS`
+4. `grossNeeded = ceil((netAmount × 10000 + bufferedGasCostWei × 10000) / (10000 − profitBPS))`
+5. `gasFeeBPS = ceil(bufferedGasCostWei × 10000 / grossNeeded)`
+6. `relayFeeBPS = profitBPS + gasFeeBPS`
+7. `estimatedFee = grossNeeded × relayFeeBPS / 10000`
+8. Optionally sign commitment with `{ recipient, feeRecipient, relayFeeBPS, batchSize, totalValue: grossNeeded }`.
+
+## Why this removes the loop
+
+- Fee varies with `noteCount` (gas units) and the current `gasPrice` (and configured `profitBPS`/caps). Once you fix `batchSize` and use the current `gasPrice` at quote time, the relayer computes `grossNeeded` and `relayFeeBPS` in one step for that snapshot.
+    - Note: if `gasPrice` moves between quotes, the numbers can change accordingly. For batch (native ETH) there’s no token price dependency; for non-native assets, an exchange rate could also affect fees (not used in batch flow today).
+- Practical flows are bounded:
+    - At-least-net: two quotes total.
+    - Exact-net: three quotes at most (one extra net-aware quote using the final note amount).
+
+## Client flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant R as Relayer
+
+    C->>C: Select for desiredNet → noteCount1, gross≈desiredNet
+    C->>R: POST /batch/quote { netAmount=desiredNet, batchSize=noteCount1 }
+    R-->>C: relayFeeBPS, grossNeeded, estimatedGas
+    C->>C: Select for grossNeeded → noteCount2, grossFromPlan
+    C->>R: POST /batch/quote { totalAmount=grossFromPlan, batchSize=noteCount2, recipient }
+    R-->>C: relayFeeBPS, signed commitment
+    C->>R: Execute with commitment
+
+```
+
+## Example Flow
+
+Assumptions
+
+- Gas model: `gasUnits = 160,500 + 650,000 × noteCount`
+- Gas price: `15 gwei`; Buffer: `20%`; `profitBPS = 100`
+
+**Example A — note count stays the same**
+
+- Wallet notes: `[0.6, 0.4, 0.3]` ETH; `desiredNet = 1.0000` ETH
+- Select: `noteCount1 = 2` (0.6 + 0.4), `gross≈1.0000`
+- Net-aware quote (`batchSize=2`):
+    - `gasUnits = 1,460,500`; `bufferedGasCostWei ≈ 0.026289` ETH
+    - `grossNeeded ≈ ceil((1.0000×10000 + 0.026289×10000)/9900) ≈ 1.0367` ETH
+    - `gasFeeBPS ≈ 254` → `relayFeeBPS ≈ 354`
+- Select for `1.0367`: still `noteCount2 = 2`, `gross≈1.0367`
+- Final quote (`batchSize=2`, `total≈1.0367`): deliveredNet ≈ `1.001` ETH ≥ `desiredNet`
+- Done (two quotes), no loop.
+
+**Example B — note count changes**
+
+- Wallet notes: `[0.7, 0.6, 0.4, 0.3, 0.2]` ETH; `desiredNet = 1.0000` ETH
+- Select: `noteCount1 = 3` (e.g., 0.6 + 0.3 + 0.1), `gross≈1.0000`
+- Net-aware quote (`batchSize=3`): `grossNeeded ≈ 1.0505` ETH, `relayFeeBPS ≈ 462`
+- Select for `1.0505`: `noteCount2 = 2` (e.g., 0.7 + 0.3505), `gross≈1.0505`
+- Final quote (`batchSize=2`, `total≈1.0505`): `relayFeeBPS ≈ 351` → deliveredNet ≈ `1.0137` ETH ≥ `desiredNet`
+- If exact net is required: do one more net-aware quote with `{ batchSize: 2, netAmount: desiredNet }` → get `grossNeededFinal`, then finalize.
+
+---
+
+## Required relayer code changes
+
+- Update schema: `packages/relayer/src/schemes/relayer/batchQuote.scheme.ts`
+    - Add optional `netAmount` (string wei) and enforce XOR with `totalAmount`.
+- Update interfaces: `packages/relayer/src/interfaces/relayer/batchRequest.ts`
+    - Extend `BatchRelayQuoteRequest` to include optional `netAmount`.
+    - Extend `BatchRelayQuoteResponse` to include optional `grossNeeded` when `netAmount` is used.
+- Update handler: `packages/relayer/src/handlers/relayer/batchQuote.ts`
+    - If `netAmount` present: compute `grossNeeded` using current gas price and config (as described), compute `relayFeeBPS`, include optional commitment built with `grossNeeded`.
+    - Else: keep current behavior for `totalAmount`.
+- Update marshaller: `packages/relayer/src/types.ts`
+    - `BatchQuoteMarshall` should serialize `grossNeeded` when present.
+- Routes: `packages/relayer/src/routes/index.ts`
+    - No change to paths; reuse POST `/batch/quote`.
+- No changes needed in request processing: `batchRelayRequestHandler` and `BatchRelayService`.
+
+**Fee-params endpoint (nice to have)**
+
+Clients can compute `grossNeeded` and `feeBPS` locally from a single snapshot (gasUnits, gasPrice, profitBPS), run their the note selection once, and then make just one final `/batch/quote` call to get the signed commitment. This reduces round-trips and eliminates iterative re-quoting while keeping safety via a short `expiresAt` and profitability recheck at execution.
+
+- Route: add `GET /batch/fee-params` in `packages/relayer/src/routes/index.ts`.
+- Handler: create `packages/relayer/src/handlers/relayer/feeParams.ts` that:
+    - Parses `chainId` and `batchSize` from query.
+    - Computes `gasUnits = 160_500n + 650_000n * BigInt(batchSize)` (or `calculateBatchGasUnits(batchSize)`).
+    - Reads `gasPriceWei = await web3Provider.getGasPrice(chainId)`.
+    - Uses bufferBps = 2000 (20%) from `GAS_PRICE_BUFFER` or a constant.
+    - `bufferedGasCostWei = gasUnits * gasPriceWei * (1 + bufferBps/10000)`.
+    - Reads `profitBPS = getBatchRelayFeeBPS(chainId)` and `maxFeeBPS = getMaxBatchRelayFeeBPS(chainId)`.
+    - Sets `expiresAt = Date.now() + 20_000` (match other quote TTLs).
+    - Returns JSON:
+        
+        ```json
+        {
+          "chainId": 1,
+          "batchSize": 3,
+          "gasUnits": "2110500",
+          "gasPriceWei": "15000000000",
+          "bufferBps": 2000,
+          "bufferedGasCostWei": "37989000000000000",
+          "profitBPS": 100,
+          "maxFeeBPS": 1000,
+          "expiresAt": 1730000000000
+        }
+        ```
+        
+- Schema (optional): add `packages/relayer/src/schemes/relayer/feeParams.scheme.ts` to validate query (`chainId`, `batchSize`).
+- Middleware: wire `validateFeeParamsQueryMiddleware` in `packages/relayer/src/middlewares/relayer/request.ts` (optional).
