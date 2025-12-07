@@ -1,0 +1,49 @@
+{
+  "name": "@kohaku-eth/webtor",
+  "version": "0.0.1",
+  "description": "Tor integration for browser via WebAssembly",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "echo Building @kohaku-eth/webtor && tsup --config tsup.config.ts",
+    "dev": "tsup --config tsup.config.ts --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "tor",
+    "wasm",
+    "privacy",
+    "anonymity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "webtor-wasm": "file:../../../../webtor-rs/webtor-wasm/pkg"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  }
+}
