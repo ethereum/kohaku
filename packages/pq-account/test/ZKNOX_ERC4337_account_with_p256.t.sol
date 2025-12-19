@@ -62,7 +62,7 @@ contract TestERC4337_Account_With_P256 is Test {
         // Actually deploying the v0.8 EntryPoint
         entryPoint = new EntryPoint();
 
-        (uint256 x, uint256 y) = vm.publicKeyP256(Constants.SEED);
+        (uint256 x, uint256 y) = vm.publicKeyP256(Constants.SEED_PREQUANTUM);
         bytes memory preQuantumPubKey = abi.encodePacked(x, y);
         bytes memory postQuantumPubKey = abi.encodePacked(postQuantumAddress);
 
@@ -94,11 +94,11 @@ contract TestERC4337_Account_With_P256 is Test {
         // Sign the userOpHash with both MLDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
         string memory mode = "NIST";
-        string memory seedStr = Constants.SEED_STR;
-        (bytes memory cTilde, bytes memory z, bytes memory h,,,) =
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (bytes memory cTilde, bytes memory z, bytes memory h) =
             pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
         // overwrite with a p256 signature
-        (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED, userOpHash);
+        (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s);
         bytes memory postQuantumSig = abi.encodePacked(cTilde, z, h);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
@@ -140,11 +140,11 @@ contract TestERC4337_Account_With_P256 is Test {
         // Sign the userOpHash with both MLDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
         string memory mode = "NIST";
-        string memory seedStr = Constants.SEED_STR;
-        (bytes memory cTilde, bytes memory z, bytes memory h,,,) =
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (bytes memory cTilde, bytes memory z, bytes memory h) =
             pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
         // overwrite with a p256 signature
-        (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED, userOpHash);
+        (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s);
         bytes memory postQuantumSig = abi.encodePacked(cTilde, z, h);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);

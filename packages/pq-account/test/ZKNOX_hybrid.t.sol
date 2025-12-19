@@ -49,7 +49,7 @@ contract TestHybridVerifier is Test {
     function testHybridVerify() public {
         ZKNOX_HybridVerifier hybrid;
         hybrid = new ZKNOX_HybridVerifier();
-        address ethAddress = Constants.ADDR;
+        address ethAddress = Constants.ADDR_PREQUANTUM;
 
         bytes32 dataBytes32 = hex"1111222233334444111122223333444411112222333344441111222233334444";
         string memory data = vm.toString(dataBytes32);
@@ -57,9 +57,10 @@ contract TestHybridVerifier is Test {
         bytes memory postQuantumSig;
         {
             string memory mode = "NIST";
-            string memory seedStr = Constants.SEED_STR;
-            (bytes memory cTilde, bytes memory z, bytes memory h, uint8 v, uint256 r, uint256 s) =
+            string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+            (bytes memory cTilde, bytes memory z, bytes memory h) =
                 pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, dataBytes32);
             preQuantumSig = abi.encodePacked(r, s, v);
             postQuantumSig = abi.encodePacked(cTilde, z, h);
         }
@@ -85,7 +86,7 @@ contract TestHybridVerifier is Test {
     function testHybridVerifyETH() public {
         ZKNOX_HybridVerifier hybrid;
         hybrid = new ZKNOX_HybridVerifier();
-        address ethAddress = Constants.ADDR;
+        address ethAddress = Constants.ADDR_PREQUANTUM;
 
         bytes32 dataBytes32 = hex"1111222233334444111122223333444411112222333344441111222233334444";
         string memory data = vm.toString(dataBytes32);
@@ -93,9 +94,10 @@ contract TestHybridVerifier is Test {
         bytes memory postQuantumSig;
         {
             string memory mode = "ETH";
-            string memory seedStr = Constants.SEED_STR;
-            (bytes memory cTilde, bytes memory z, bytes memory h, uint8 v, uint256 r, uint256 s) =
+            string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+            (bytes memory cTilde, bytes memory z, bytes memory h) =
                 pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, dataBytes32);
             preQuantumSig = abi.encodePacked(r, s, v);
             postQuantumSig = abi.encodePacked(cTilde, z, h);
         }

@@ -2,10 +2,13 @@
   "lib/ETHDILITHIUM": {
     "rev": "45bac750d81f65eb4ab4622df360c8f83c227f19"
   },
+  "lib/ETHFALCON": {
+    "rev": "b1f2a263d59b32f9f2d457de816daa12fc9da190"
+  },
   "lib/account-abstraction": {
     "tag": {
-      "name": "v0.9.0",
-      "rev": "b36a1ed52ae00da6f8a4c8d50181e2877e4fa410"
+      "name": "v0.8.0",
+      "rev": "4cbc06072cdc19fd60f285c5997f4f7f57a588de"
     }
   },
   "lib/forge-std": {

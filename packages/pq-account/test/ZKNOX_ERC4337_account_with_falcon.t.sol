@@ -14,6 +14,13 @@ import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
 import {Script_Deploy_Hybrid_Verifier} from "../script/DeployHybridVerifier.s.sol";
 
+import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
+import {Script_Deploy_Falcon} from "ETHFALCON/script/DeployFalcon.s.sol";
+import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
+// TODO: This is not part of Dilithium so it should be moved in the future
+import {Script_Deploy_ECDSA} from "ETHDILITHIUM/script/DeployECDSA.s.sol";
+import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
+
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
 }
@@ -22,13 +29,10 @@ contract TestERC4337_Account is Test {
     ZKNOX_ERC4337_account public account;
     IEntryPoint public entryPoint;
     ZKNOX_HybridVerifier public hybridVerifier;
-    PKContract public pkContract;
     TestTarget target;
 
     address public owner;
     uint256 public ownerPrivateKey;
-    Signature signature;
-
     PythonSigner pythonSigner = new PythonSigner();
 
     function setUp() public {
@@ -47,8 +51,12 @@ contract TestERC4337_Account is Test {
 
         entryPoint = new EntryPoint();
 
-        bytes memory preQuantumPubKey = abi.encodePacked(Constants.ADDR);
-        bytes memory postQuantumPubKey = abi.encodePacked("???");
+        bytes memory preQuantumPubKey = abi.encodePacked(Constants.ADDR_PREQUANTUM);
+
+        // Signing a nonce to get access to pubkey
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (uint256[32] memory pk_compact,,) = pythonSigner.sign("lib/ETHFALCON/pythonref", "0xabcd", "NIST", seedStr);
+        bytes memory postQuantumPubKey = _packUint256Array(pk_compact);
 
         // Deploy the Smart Account
         account = new ZKNOX_ERC4337_account(
@@ -76,15 +84,13 @@ contract TestERC4337_Account is Test {
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
 
         // Sign the userOpHash with both FNDSA and ECDSA
-        // TODO SIGN WITH FALCON HERE
-        // string memory data = bytes32ToHex(userOpHash);
-        // string memory mode = "NIST";
-        // string memory seedStr = Constants.SEED_STR;
-        // (bytes memory cTilde, bytes memory z, bytes memory h, uint8 v, uint256 r, uint256 s) =
-        //     pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
-        bytes memory s2 = hex"";
+        string memory data = bytes32ToHex(userOpHash);
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (, bytes memory salt, uint256[32] memory s2_compact) =
+            pythonSigner.sign("lib/ETHFALCON/pythonref", data, "NIST", seedStr);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s, v);
-        bytes memory postQuantumSig = abi.encodePacked(s2);
+        bytes memory postQuantumSig = _packSignature(salt, s2_compact);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
 
         vm.prank(address(entryPoint));
@@ -120,15 +126,13 @@ contract TestERC4337_Account is Test {
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
 
         // Sign the userOpHash with both FNDSA and ECDSA
-        // TODO SIGN WITH FALCON HERE
-        // string memory data = bytes32ToHex(userOpHash);
-        // string memory mode = "NIST";
-        // string memory seedStr = Constants.SEED_STR;
-        // (bytes memory cTilde, bytes memory z, bytes memory h, uint8 v, uint256 r, uint256 s) =
-        //     pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
-        bytes memory s2 = hex"";
+        string memory data = bytes32ToHex(userOpHash);
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (, bytes memory salt, uint256[32] memory s2_compact) =
+            pythonSigner.sign("lib/ETHFALCON/pythonref", data, "NIST", seedStr);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s, v);
-        bytes memory postQuantumSig = abi.encodePacked(s2);
+        bytes memory postQuantumSig = _packSignature(salt, s2_compact);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
 
         // Create an array with a single UserOperation

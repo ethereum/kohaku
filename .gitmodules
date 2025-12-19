@@ -7,3 +7,6 @@
 [submodule "packages/pq-account/lib/openzeppelin-contracts"]
 	path = packages/pq-account/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "packages/pq-account/lib/ETHFALCON"]
+	path = packages/pq-account/lib/ETHFALCON
+	url = https://github.com/ZKNOXHQ/ETHFALCON

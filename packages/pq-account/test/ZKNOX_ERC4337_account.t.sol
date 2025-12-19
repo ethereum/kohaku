@@ -58,7 +58,7 @@ contract TestERC4337_Account is Test {
 
         entryPoint = new EntryPoint();
 
-        bytes memory preQuantumPubKey = abi.encodePacked(Constants.ADDR);
+        bytes memory preQuantumPubKey = abi.encodePacked(Constants.ADDR_PREQUANTUM);
         bytes memory postQuantumPubKey = abi.encodePacked(postQuantumAddress);
 
         // Deploy the Smart Account
@@ -88,10 +88,10 @@ contract TestERC4337_Account is Test {
 
         // Sign the userOpHash with both MLDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
-        string memory mode = "NIST";
-        string memory seedStr = Constants.SEED_STR;
-        (bytes memory cTilde, bytes memory z, bytes memory h, uint8 v, uint256 r, uint256 s) =
-            pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (bytes memory cTilde, bytes memory z, bytes memory h) =
+            pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, "NIST", seedStr);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s, v);
         bytes memory postQuantumSig = abi.encodePacked(cTilde, z, h);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
@@ -132,10 +132,10 @@ contract TestERC4337_Account is Test {
 
         // Sign the userOpHash with both MLDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
-        string memory mode = "NIST";
-        string memory seedStr = Constants.SEED_STR;
-        (bytes memory cTilde, bytes memory z, bytes memory h, uint8 v, uint256 r, uint256 s) =
-            pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
+        string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
+        (bytes memory cTilde, bytes memory z, bytes memory h) =
+            pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, "NIST", seedStr);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s, v);
         bytes memory postQuantumSig = abi.encodePacked(cTilde, z, h);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
