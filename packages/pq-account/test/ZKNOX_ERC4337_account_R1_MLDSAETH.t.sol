@@ -18,8 +18,8 @@ import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
 import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
-import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSA_PK.s.sol";
-import {Script_Deploy_Dilithium} from "ETHDILITHIUM/script/DeployDilithium.s.sol";
+import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSAETH_PK.s.sol";
+import {Script_Deploy_ETHDilithium} from "ETHDILITHIUM/script/DeployETHDilithium.s.sol";
 
 import {Script_Deploy_Hybrid_Verifier} from "../script/DeployHybridVerifier.s.sol";
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
@@ -53,8 +53,8 @@ contract TestERC4337_Account is Test {
         Script_Deploy_Hybrid_Verifier scriptDeployHybridVerifier = new Script_Deploy_Hybrid_Verifier();
         address hybridVerifierLogicAddress = scriptDeployHybridVerifier.run();
 
-        Script_Deploy_Dilithium scriptDeployDilithium = new Script_Deploy_Dilithium();
-        address postQuantumLogicAddress = scriptDeployDilithium.run();
+        Script_Deploy_ETHDilithium scriptDeployEthDilithium = new Script_Deploy_ETHDilithium();
+        address postQuantumLogicAddress = scriptDeployEthDilithium.run();
 
         IERC7913SignatureVerifier scriptDeployEcdsa = new ERC7913P256Verifier();
         address preQuantumLogicAddress = address(scriptDeployEcdsa);
@@ -93,7 +93,7 @@ contract TestERC4337_Account is Test {
 
         // Sign the userOpHash with both MLDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
-        string memory mode = "NIST";
+        string memory mode = "ETH";
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
         (bytes memory cTilde, bytes memory z, bytes memory h) =
             pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
@@ -139,7 +139,7 @@ contract TestERC4337_Account is Test {
 
         // Sign the userOpHash with both MLDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
-        string memory mode = "NIST";
+        string memory mode = "ETH";
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
         (bytes memory cTilde, bytes memory z, bytes memory h) =
             pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, mode, seedStr);
