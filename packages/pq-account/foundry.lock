@@ -1,0 +1,23 @@
+{
+  "lib/ETHDILITHIUM": {
+    "rev": "45bac750d81f65eb4ab4622df360c8f83c227f19"
+  },
+  "lib/account-abstraction": {
+    "tag": {
+      "name": "v0.9.0",
+      "rev": "b36a1ed52ae00da6f8a4c8d50181e2877e4fa410"
+    }
+  },
+  "lib/forge-std": {
+    "tag": {
+      "name": "v1.12.0",
+      "rev": "7117c90c8cf6c68e5acce4f09a6b24715cea4de6"
+    }
+  },
+  "lib/openzeppelin-contracts": {
+    "tag": {
+      "name": "v5.5.0",
+      "rev": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    }
+  }
+}
