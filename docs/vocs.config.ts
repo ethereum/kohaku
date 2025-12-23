@@ -37,7 +37,6 @@ export default defineConfig({
         },
         {
           text: 'Shielding',
-          link: '/railgun/shielding',
           collapsed: true,
           items: [
             {
