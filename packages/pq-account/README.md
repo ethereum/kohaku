@@ -20,21 +20,16 @@ In order to run tests separately:
     ```
     forge test test/ZKNOX_hybrid.t.sol  -vv
     ```
-- ERC4337 account (ECDSA+MLDSA):
+- ERC4337 accounts:
     ```
-    forge test test/ZKNOX_ERC4337_account.t.sol -vv
-    ```
-- ERC4337 account (ECDSA+MLDSAETH):
-    ```
-    forge test test/ZKNOX_ERC4337_account_with_eth.t.sol -vv
-    ```
-- ERC4337 account (P256VERIFY+MLDSA):
-    ```
-    forge test test/ZKNOX_ERC4337_account_with_p256.t.sol -vv
-    ```
-- ERC4337 account (ECDSA+FALCON):
-    ```
-    forge test test/ZKNOX_ERC4337_account_with_falcon.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_K1_ETHFALCON.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_K1_FALCON.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_K1_MLDSA.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_K1_MLDSAETH.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_R1_ETHFALCON.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_R1_FALCON.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_R1_MLDSA.t.sol -vv
+    forge test test/ZKNOX_ERC4337_account_R1_MLDSAETH.t.sol -vv
     ```
 
 ## Fixed contracts
