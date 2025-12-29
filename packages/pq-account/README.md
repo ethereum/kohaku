@@ -54,3 +54,13 @@ Each user owns a 4337 account contract which contains:
 - a `hybrid_verifier_logic_contract_address` referring to the hybrid verifier contract above.
 
 Note: for MLDSA, this requires an extra contract `PKContract` storing the MLDSA public key.
+
+## Onchain Sepolia Arbitrum Testnet
+Because of the high gas amount, we decided to deploy the contracts on both L1 Sepolia and Arbitrum Sepolia first. The contract addresses are the following:
+|Signature scheme| Address on L1 Sepolia | Address on Arbitrum Sepolia|
+|-|-|-|
+|MLDSA    | [0xc15278300d4736C10c465E0f73b2D9eCC1c0d94B](https://sepolia.etherscan.io/address/0xc15278300d4736C10c465E0f73b2D9eCC1c0d94B#code) | [0xbfF3cd81fDf061D002A91dE3cD589E814AfdC94a](https://sepolia.arbiscan.io/address/0xbfF3cd81fDf061D002A91dE3cD589E814AfdC94a#code) | 
+|MLDSAETH | [0xa3B09eF2A08f5EF5EB1C091d41a47A39eCB87433](https://sepolia.etherscan.io/address/0xa3B09eF2A08f5EF5EB1C091d41a47A39eCB87433#code) | [0x238045D114024576bf75700aa0eCFEfb47EF764F](https://sepolia.arbiscan.io/address/0x238045D114024576bf75700aa0eCFEfb47EF764F#code) | 
+|FALCON   | [0x8f44FC27b333F0064f13a8c5e3451d4f65D75E60](https://sepolia.etherscan.io/address/0x8f44FC27b333F0064f13a8c5e3451d4f65D75E60#code) | [0x5Ce696b0F838C70A64be9D3Ee9017f35A4CBb091](https://sepolia.arbiscan.io/address/0x5Ce696b0F838C70A64be9D3Ee9017f35A4CBb091#code) |
+|ETHFALCON| [0x544F59a8Adb31818bfcFEA4759DD8495aFF2E30f](https://sepolia.etherscan.io/address/0x544F59a8Adb31818bfcFEA4759DD8495aFF2E30f#code) | [0x8B210Cd6E66a5d6EABD50cefE8Ef66A0e5b3e7a2](https://sepolia.arbiscan.io/address/0x8B210Cd6E66a5d6EABD50cefE8Ef66A0e5b3e7a2#code) | 
+|ECDSAK1  | [0x70b7bB1CD374768Af0d2Ad76aB7EBD0Aca4b54d6](https://sepolia.etherscan.io/address/0x70b7bB1CD374768Af0d2Ad76aB7EBD0Aca4b54d6#code) | [0x51dD569c0A1be3Ed093992dc8745cf324d203bb5](https://sepolia.arbiscan.io/address/0x51dD569c0A1be3Ed093992dc8745cf324d203bb5#code) | 
