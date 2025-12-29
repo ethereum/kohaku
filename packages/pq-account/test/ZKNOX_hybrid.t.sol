@@ -7,9 +7,7 @@ import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
 import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSA_PK.s.sol";
 import {DeployPKContract as DeployMLDSAETHPKContract} from "ETHDILITHIUM/script/Deploy_MLDSAETH_PK.s.sol";
-import {Script_Deploy_Dilithium} from "ETHDILITHIUM/script/DeployDilithium.s.sol";
-import {Script_Deploy_ETHDilithium} from "ETHDILITHIUM/script/DeployETHDilithium.s.sol";
-import {Script_Deploy_ECDSA} from "ETHDILITHIUM/script/DeployECDSA.s.sol";
+import {MLDSAFixedContract, MLDSAETHFixedContract, ECDSAK1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
 
@@ -34,16 +32,16 @@ contract TestHybridVerifier is Test {
         mldsaEthAddress = deployMldsaEthPkContract.run();
 
         // deploy the contract containing the MLDSA core algorithm
-        Script_Deploy_Dilithium deployVerifierContract = new Script_Deploy_Dilithium();
-        verifierAddress = deployVerifierContract.run();
+        MLDSAFixedContract MLDSA = new MLDSAFixedContract();
+        verifierAddress = MLDSA.run();
 
         // deploy the contract containing the MLDSAETH core algorithm
-        Script_Deploy_ETHDilithium deployEthVerifierContract = new Script_Deploy_ETHDilithium();
-        verifierEthAddress = deployEthVerifierContract.run();
+        MLDSAETHFixedContract MLDSAETH = new MLDSAETHFixedContract();
+        verifierEthAddress = MLDSAETH.run();
 
         // deploy the contract containing the ECDSA core algorithm
-        Script_Deploy_ECDSA deployEcdsaVerifierContract = new Script_Deploy_ECDSA();
-        ecdsaVerifierAddress = deployEcdsaVerifierContract.run();
+        ECDSAK1FixedContract ECDSAK1 = new ECDSAK1FixedContract();
+        ecdsaVerifierAddress = ECDSAK1.run();
     }
 
     function testHybridVerify() public {

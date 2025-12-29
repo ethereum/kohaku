@@ -18,7 +18,7 @@ import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
 import {Script_Deploy_Falcon} from "ETHFALCON/script/DeployFalcon.s.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
 // TODO: This is not part of Dilithium so it should be moved in the future
-import {Script_Deploy_ECDSA} from "ETHDILITHIUM/script/DeployECDSA.s.sol";
+import {ECDSAK1FixedContract} from "../script/DeployFixedContracts.s.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
@@ -45,8 +45,8 @@ contract TestERC4337_Account is Test {
         Script_Deploy_Falcon scriptDeployFalcon = new Script_Deploy_Falcon();
         address postQuantumLogicAddress = scriptDeployFalcon.run();
 
-        Script_Deploy_ECDSA scriptDeployEcdsa = new Script_Deploy_ECDSA();
-        address preQuantumLogicAddress = scriptDeployEcdsa.run();
+        ECDSAK1FixedContract ECDSA = new ECDSAK1FixedContract();
+        address preQuantumLogicAddress = ECDSA.run();
 
         entryPoint = new EntryPoint();
 
