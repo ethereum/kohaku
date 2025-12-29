@@ -11,8 +11,19 @@ import {ZKNOX_ecdsa} from "ETHDILITHIUM/src/ZKNOX_ECDSA.sol";
 import {ZKNOX_falcon} from "ETHFALCON/src/ZKNOX_falcon.sol";
 import {ZKNOX_ethfalcon} from "ETHFALCON/src/ZKNOX_ethfalcon.sol";
 
-
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
+
+contract HybridVerifierFixedContract is BaseScript {
+    // SPDX-License-Identifier: MIT
+
+    function run() external returns (address) {
+        vm.startBroadcast();
+        ZKNOX_HybridVerifier hybridVerifier = new ZKNOX_HybridVerifier();
+        console.log("hybridVerifier deployed at:", address(hybridVerifier));
+        vm.stopBroadcast();
+        return address(hybridVerifier);
+    }
+}
 
 contract MLDSAFixedContract is BaseScript {
     // SPDX-License-Identifier: MIT

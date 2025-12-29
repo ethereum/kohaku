@@ -12,7 +12,7 @@ import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {Script_Deploy_Hybrid_Verifier} from "../script/DeployHybridVerifier.s.sol";
+import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
 import {Script_Deploy_Falcon} from "ETHFALCON/script/DeployETHFalcon.s.sol";
@@ -28,7 +28,6 @@ function bytes32ToHex(bytes32 value) pure returns (string memory) {
 contract TestERC4337_Account is Test {
     ZKNOX_ERC4337_account public account;
     IEntryPoint public entryPoint;
-    ZKNOX_HybridVerifier public hybridVerifier;
     TestTarget target;
 
     address public owner;
@@ -40,8 +39,8 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        Script_Deploy_Hybrid_Verifier scriptDeployHybridVerifier = new Script_Deploy_Hybrid_Verifier();
-        address hybridVerifierLogicAddress = scriptDeployHybridVerifier.run();
+        HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
+        address hybridVerifierLogicAddress = HybridVerifierContract.run();
 
         Script_Deploy_Falcon scriptDeployEthFalcon = new Script_Deploy_Falcon();
         address postQuantumLogicAddress = scriptDeployEthFalcon.run();

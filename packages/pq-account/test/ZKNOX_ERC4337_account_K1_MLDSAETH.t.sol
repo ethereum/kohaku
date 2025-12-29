@@ -20,7 +20,7 @@ import {Script_Deploy_ECDSA} from "ETHDILITHIUM/script/DeployECDSA.s.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {Script_Deploy_Hybrid_Verifier} from "../script/DeployHybridVerifier.s.sol";
+import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
@@ -47,8 +47,8 @@ contract TestERC4337_Account is Test {
         DeployPKContract deployPkContract = new DeployPKContract();
         address postQuantumAddress = deployPkContract.run();
 
-        Script_Deploy_Hybrid_Verifier scriptDeployHybridVerifier = new Script_Deploy_Hybrid_Verifier();
-        address hybridVerifierLogicAddress = scriptDeployHybridVerifier.run();
+        HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
+        address hybridVerifierLogicAddress = HybridVerifierContract.run();
 
         Script_Deploy_ETHDilithium scriptDeployEthDilithium = new Script_Deploy_ETHDilithium();
         address postQuantumLogicAddress = scriptDeployEthDilithium.run();
