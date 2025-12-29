@@ -31,7 +31,6 @@ function bytes32ToHex(bytes32 value) pure returns (string memory) {
 contract TestERC4337_Account is Test {
     ZKNOX_ERC4337_account public account;
     IEntryPoint public entryPoint;
-    ZKNOX_HybridVerifier public hybridVerifier;
     PKContract public pkContract;
     TestTarget target;
 
