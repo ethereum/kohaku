@@ -69,6 +69,10 @@ The signature verifier contract addresses are fixed and deployed once for all:
 |ETHFALCON| [0x544F59a8Adb31818bfcFEA4759DD8495aFF2E30f](https://sepolia.etherscan.io/address/0x544F59a8Adb31818bfcFEA4759DD8495aFF2E30f#code) | [0x8B210Cd6E66a5d6EABD50cefE8Ef66A0e5b3e7a2](https://sepolia.arbiscan.io/address/0x8B210Cd6E66a5d6EABD50cefE8Ef66A0e5b3e7a2#code) | 
 |ECDSAK1  | [0x70b7bB1CD374768Af0d2Ad76aB7EBD0Aca4b54d6](https://sepolia.etherscan.io/address/0x70b7bB1CD374768Af0d2Ad76aB7EBD0Aca4b54d6#code) | [0x51dD569c0A1be3Ed093992dc8745cf324d203bb5](https://sepolia.arbiscan.io/address/0x51dD569c0A1be3Ed093992dc8745cf324d203bb5#code) | 
 
+The hybrid verifier contract is provided for both testnets:
+- [0x48237092dFe6387B1d7D2AacDA42bc43EdA44aEa](https://sepolia.arbiscan.io/address/0x48237092dFe6387B1d7D2AacDA42bc43EdA44aEa#code) (for Arbitrum Sepolia),
+- [0x78E229b83378DF8A9AC1164156b542eBbDE2a1D5](https://sepolia.etherscan.io/address/0x78E229b83378DF8A9AC1164156b542eBbDE2a1D5#code) (for L1 Sepolia).
+
 ### Example of user MLDSA PK contracts
 MLDSA public keys are large and we decided to write them inside contracts. Thus, each user needs to submit his (20kB) expanded MLDSA public key as an initialization step.
 
