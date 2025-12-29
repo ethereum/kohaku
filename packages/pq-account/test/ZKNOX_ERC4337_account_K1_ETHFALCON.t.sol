@@ -15,10 +15,9 @@ import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
 import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
-import {Script_Deploy_Falcon} from "ETHFALCON/script/DeployETHFalcon.s.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
 // TODO: This is not part of Dilithium so it should be moved in the future
-import {ECDSAK1FixedContract} from "../script/DeployFixedContracts.s.sol";
+import {ETHFALCONFixedContract, ECDSAK1FixedContract} from "../script/DeployFixedContracts.s.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
@@ -42,8 +41,8 @@ contract TestERC4337_Account is Test {
         HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
         address hybridVerifierLogicAddress = HybridVerifierContract.run();
 
-        Script_Deploy_Falcon scriptDeployEthFalcon = new Script_Deploy_Falcon();
-        address postQuantumLogicAddress = scriptDeployEthFalcon.run();
+        ETHFALCONFixedContract ETHFALCON = new ETHFALCONFixedContract();
+        address postQuantumLogicAddress = ETHFALCON.run();
 
         ECDSAK1FixedContract ECDSA = new ECDSAK1FixedContract();
         address preQuantumLogicAddress = ECDSA.run();

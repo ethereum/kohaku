@@ -76,8 +76,9 @@ The hybrid verifier contract is provided for both testnets:
 ### Example of user MLDSA PK contracts
 MLDSA public keys are large and we decided to write them inside contracts. Thus, each user needs to submit his (20kB) expanded MLDSA public key as an initialization step.
 
-We provide an example of public key contract:
-- For MLDSA: [0xFD12b5E43fbC3f69997a3318cfE5a384c65eE9F9](https://sepolia.arbiscan.io/address/0xFD12b5E43fbC3f69997a3318cfE5a384c65eE9F9#code) (on Arbitrum),
-- For MLDSAETH: [0x6C53d11B354612067C5261DC2845f3949F4aaAaB](https://sepolia.arbiscan.io/address/0x6C53d11B354612067C5261DC2845f3949F4aaAaB#code) (on Arbitrum).
+We provide an example of public key contract for both MLDSA and MLDSAETH, on the two testnets:
 
-Deploying these examples costs 20M of gas, and it is for now not possible to deploy them on L1 (limit of 16M gas).
+|Expanded PubKey Example for|Address on L1 Sepolia | Address on Arbitrum Sepolia|
+|-|-|-|
+|MLDSA   | [0xCc28B19d743F3E139D6D8078B6600bad95CD7B2c](https://sepolia.etherscan.io/address/0x898Fec6390D8297BC0C92F834E4210a821ccD8B8#code) | [0x8e130f25f30c9375971c9469f2adc30b6e91846f](https://sepolia.arbiscan.io/address/0x8e130f25f30c9375971c9469f2adc30b6e91846f#code) |
+|MLDSAETH| [0x898Fec6390D8297BC0C92F834E4210a821ccD8B8](https://sepolia.etherscan.io/address/0xCc28B19d743F3E139D6D8078B6600bad95CD7B2c#code) | [0xa854bf182dd854c7b85e35566aa5a46678e2be37](https://sepolia.arbiscan.io/address/0xa854bf182dd854c7b85e35566aa5a46678e2be37#code) |

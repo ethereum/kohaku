@@ -19,9 +19,8 @@ import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
 import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSAETH_PK.s.sol";
-import {Script_Deploy_ETHDilithium} from "ETHDILITHIUM/script/DeployETHDilithium.s.sol";
+import {MLDSAETHFixedContract, HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
 
-import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
 
@@ -53,11 +52,11 @@ contract TestERC4337_Account is Test {
         HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
         address hybridVerifierLogicAddress = HybridVerifierContract.run();
 
-        Script_Deploy_ETHDilithium scriptDeployEthDilithium = new Script_Deploy_ETHDilithium();
-        address postQuantumLogicAddress = scriptDeployEthDilithium.run();
+        MLDSAETHFixedContract MLDSAETH = new MLDSAETHFixedContract();
+        address postQuantumLogicAddress = MLDSAETH.run();
 
-        IERC7913SignatureVerifier scriptDeployEcdsa = new ERC7913P256Verifier();
-        address preQuantumLogicAddress = address(scriptDeployEcdsa);
+        IERC7913SignatureVerifier ECDSA = new ERC7913P256Verifier();
+        address preQuantumLogicAddress = address(ECDSA);
 
         // Actually deploying the v0.8 EntryPoint
         entryPoint = new EntryPoint();
