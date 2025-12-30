@@ -68,7 +68,8 @@ The signature verifier contract addresses are fixed and deployed once for all:
 |FALCON   | [0x8f44FC27b333F0064f13a8c5e3451d4f65D75E60](https://sepolia.etherscan.io/address/0x8f44FC27b333F0064f13a8c5e3451d4f65D75E60#code) | [0x5Ce696b0F838C70A64be9D3Ee9017f35A4CBb091](https://sepolia.arbiscan.io/address/0x5Ce696b0F838C70A64be9D3Ee9017f35A4CBb091#code) |
 |ETHFALCON| [0x544F59a8Adb31818bfcFEA4759DD8495aFF2E30f](https://sepolia.etherscan.io/address/0x544F59a8Adb31818bfcFEA4759DD8495aFF2E30f#code) | [0x8B210Cd6E66a5d6EABD50cefE8Ef66A0e5b3e7a2](https://sepolia.arbiscan.io/address/0x8B210Cd6E66a5d6EABD50cefE8Ef66A0e5b3e7a2#code) | 
 |ECDSAK1  | [0x70b7bB1CD374768Af0d2Ad76aB7EBD0Aca4b54d6](https://sepolia.etherscan.io/address/0x70b7bB1CD374768Af0d2Ad76aB7EBD0Aca4b54d6#code) | [0x51dD569c0A1be3Ed093992dc8745cf324d203bb5](https://sepolia.arbiscan.io/address/0x51dD569c0A1be3Ed093992dc8745cf324d203bb5#code) | 
-
+|ECDSAR1 | [0x2AeC9200a5817fBdf235069B82E3b2EA24196ebC](https://sepolia.etherscan.io/address/0x2aec9200a5817fbdf235069b82e3b2ea24196ebc#code) | [0x8Ca9D03C4098814A817eBf253D0B2eD1A6b25E1e](https://sepolia.arbiscan.io/address/0x8ca9d03c4098814a817ebf253d0b2ed1a6b25e1e#code) |
+ 
 The hybrid verifier contract is provided for both testnets:
 - [0x48237092dFe6387B1d7D2AacDA42bc43EdA44aEa](https://sepolia.arbiscan.io/address/0x48237092dFe6387B1d7D2AacDA42bc43EdA44aEa#code) (for Arbitrum Sepolia),
 - [0x78E229b83378DF8A9AC1164156b542eBbDE2a1D5](https://sepolia.etherscan.io/address/0x78E229b83378DF8A9AC1164156b542eBbDE2a1D5#code) (for L1 Sepolia).

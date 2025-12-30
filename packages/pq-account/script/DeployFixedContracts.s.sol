@@ -2,6 +2,9 @@ pragma solidity ^0.8.25;
 
 import {console} from "forge-std/Test.sol";
 
+import {ERC7913P256Verifier} from "openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol";
+import {IERC7913SignatureVerifier} from "openzeppelin-contracts/contracts/interfaces/IERC7913.sol";
+
 import {BaseScript} from "ETHDILITHIUM/script/BaseScript.sol";
 import {ZKNOX_dilithium} from "ETHDILITHIUM/src/ZKNOX_dilithium.sol";
 import {ZKNOX_ethdilithium} from "ETHDILITHIUM/src/ZKNOX_ethdilithium.sol";
@@ -132,6 +135,26 @@ contract ECDSAK1FixedContract is BaseScript {
         } else {
             vm.startBroadcast();
             ZKNOX_ecdsa ecdsa = new ZKNOX_ecdsa();
+            vm.stopBroadcast();
+            return address(ecdsa);
+        }
+    }
+}
+
+contract ECDSAR1FixedContract is BaseScript {
+    // SPDX-License-Identifier: MIT
+
+    function run() external returns (address) {
+        uint256 chainId = block.chainid;
+        if (chainId == 11155111) {
+            // deployment on Sepolia L1
+            return address(0x2AeC9200a5817fBdf235069B82E3b2EA24196ebC);
+        } else if (chainId == 421614) {
+            // deployment on Sepolia Arbitrum
+            return address(0x8Ca9D03C4098814A817eBf253D0B2eD1A6b25E1e);
+        } else {
+            vm.startBroadcast();
+            IERC7913SignatureVerifier ecdsa = new ERC7913P256Verifier();
             vm.stopBroadcast();
             return address(ecdsa);
         }
