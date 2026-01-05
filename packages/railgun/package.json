@@ -63,10 +63,14 @@
   "author": "",
   "license": "MIT",
   "peerDependencies": {
+    "@corpus-core/colibri-stateless": ">=1.1.0 <2",
     "ethers": "^6.13.1",
     "snarkjs": "^0.7.5"
   },
   "peerDependenciesMeta": {
+    "@corpus-core/colibri-stateless": {
+      "optional": true
+    },
     "snarkjs": {
       "optional": true
     }

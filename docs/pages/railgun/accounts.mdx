@@ -32,12 +32,13 @@ Putting it all together
 
 ```ts twoslash filename="result.ts"
 // @noErrors
-import { createRailgunAccount, createRailgunIndexer, ViemProviderAdapter } from '@kohaku-eth/railgun'
+import { createRailgunAccount, createRailgunIndexer, ViemProviderAdapter, RAILGUN_CONFIG_BY_CHAIN_ID } from '@kohaku-eth/railgun'
 import { createPublicClient, http } from 'viem'
 
 const mnemonic = 'test test test test test test test test test test test junk'
 const accountIndex = 0
 const chainId = '11155111' as const
+const network = RAILGUN_CONFIG_BY_CHAIN_ID[chainId]
 
 // Create a provider first
 const publicClient = createPublicClient({
@@ -46,13 +47,13 @@ const publicClient = createPublicClient({
 
 // Create the indexer
 const indexer = await createRailgunIndexer({
-  chainId,
+  network,
   provider: new ViemProviderAdapter(publicClient),
 })
 
 // Create the account with specified signer and indexer
 const account = await createRailgunAccount({
-  credentials: { mnemonic, accountIndex },
+  credential: { type: 'mnemonic', mnemonic, accountIndex },
   indexer,
 });
 
@@ -74,18 +75,20 @@ const zkAddress = await account.getRailgunAddress();
 ```
 
 ```ts twoslash [config.ts] filename="config.ts"
-import { createRailgunAccount, ViemProviderAdapter } from '@kohaku-eth/railgun';
+import { createRailgunAccount, createRailgunIndexer, ViemProviderAdapter, RAILGUN_CONFIG_BY_CHAIN_ID } from '@kohaku-eth/railgun';
 import { createPublicClient, http } from 'viem';
 
 const mnemonic = 'test test test test test test test test test test test junk'
+const chainId = '11155111' as const
+const network = RAILGUN_CONFIG_BY_CHAIN_ID[chainId]
 
 const indexer = await createRailgunIndexer({
-  chainId: '11155111',
+  network,
   provider: new ViemProviderAdapter(createPublicClient({ transport: http('https://sepolia.rpc.example') })),
-});
+})
 
 export const account = await createRailgunAccount({
-  credentials: { mnemonic, accountIndex: 0 },
+  credential: { type: 'mnemonic', mnemonic, accountIndex: 0 },
   indexer,
 });
 ```
@@ -103,6 +106,7 @@ import { createPublicClient, http } from 'viem';
 
 
 const chainId = '11155111' as const
+const network = RAILGUN_CONFIG_BY_CHAIN_ID[chainId]
 const startBlock = 4495479
 const mnemonic = 'test test test test test test test test test test test junk'
 
@@ -114,13 +118,13 @@ const endBlock = await publicClient.getBlockNumber()
 
 // Create indexer and sync
 const indexer = await createRailgunIndexer({
-  chainId,
+  network,
   provider: new ViemProviderAdapter(publicClient),
 });
 
 // Create account
 export const account = await createRailgunAccount({
-  credentials: { mnemonic, accountIndex: 0 },
+  credential: { type: 'mnemonic', mnemonic, accountIndex: 0 },
   indexer,
 });
 
@@ -144,12 +148,12 @@ export const publicClient = createPublicClient({
 });
 
 export const indexer = await createRailgunIndexer({
-  chainId,
+  network,
   provider: new ViemProviderAdapter(publicClient),
 });
 
 export const account = await createRailgunAccount({
-  credentials: { mnemonic, accountIndex },
+  credential: { type: 'mnemonic', mnemonic, accountIndex },
   indexer,
 });
 

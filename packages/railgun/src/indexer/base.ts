@@ -6,16 +6,18 @@ import { RailgunAccount } from "~/account/base";
 import { makeProcessLog } from "./events";
 import { StorageLayer } from "~/storage/base";
 import { createIndexerStorage, serializeMerkleTrees, IndexerLoadData } from "./storage";
+import { createRailgunProviderFromRpc, type RailgunRpcConfig } from "../provider/colibri";
 
 export type IndexerConfig = {
     network: RailgunNetworkConfig;
     provider?: RailgunProvider;
+    rpc?: RailgunRpcConfig;
     checkpoint?: string;
     startBlock?: number;
 } & (
-    | { storage: StorageLayer; loadState?: never }
-    | { storage?: never; loadState?: IndexerLoadData }
-);
+        | { storage: StorageLayer; loadState?: never }
+        | { storage?: never; loadState?: IndexerLoadData }
+    );
 
 export type ProcessLogsOptions = {
     skipMerkleTree?: boolean;
@@ -36,7 +38,14 @@ export type Indexer = {
 
 export type CreateRailgunIndexerFn = (config: IndexerConfig) => Promise<Indexer>;
 
-export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, provider, startBlock, storage, loadState }) => {
+export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
+    network,
+    provider,
+    rpc,
+    startBlock,
+    storage,
+    loadState,
+}) => {
     const accounts: RailgunAccount[] = [];
     const { trees, saveTrees, getCurrentBlock, setEndBlock } = await createIndexerStorage({ startBlock, storage, loadState });
     const getTrees = () => trees;
@@ -44,6 +53,14 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, pr
 
     // Only create sync if provider is provided
     let sync: RpcSync['sync'] | undefined;
+
+    if (provider && rpc) {
+        throw new Error("Provide either 'provider' or 'rpc', not both.");
+    }
+
+    if (!provider && rpc) {
+        provider = await createRailgunProviderFromRpc(network, rpc);
+    }
 
     if (provider) {
         const rpcSync = await createRpcSync({ network, provider, getCurrentBlock, accounts, processLog, getTrees, saveTrees, setEndBlock });

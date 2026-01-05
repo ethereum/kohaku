@@ -13,14 +13,15 @@ import { createRailgunIndexer, Indexer } from "~/indexer/base";
 import { RailgunProvider } from "~/provider";
 import { StorageLayer } from "~/storage/base";
 import { createAccountStorage, serializeAccountStorage, CachedAccountStorage } from "./storage";
+import type { RailgunRpcConfig } from "../provider/colibri";
 
 export type RailgunAccountBaseParameters = {
     // Key configuration for the account, either a private key or a mnemonic.
     credential: KeyConfig,
 } & (
-    | { storage: StorageLayer; loadState?: never }
-    | { storage?: never; loadState?: CachedAccountStorage }
-);
+        | { storage: StorageLayer; loadState?: never }
+        | { storage?: never; loadState?: CachedAccountStorage }
+    );
 
 export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
     // Indexer configuration
@@ -30,6 +31,7 @@ export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
 export type RailgunAccountParamsIndexerConfig = RailgunAccountBaseParameters & {
     // Indexer configuration
     provider?: RailgunProvider;
+    rpc?: RailgunRpcConfig;
     // Network configuration
     network: RailgunNetworkConfig;
 };
@@ -58,7 +60,7 @@ export type RailgunAccount = GetRailgunAddress &
 export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, loadState, ...params }) => {
     const { spending, viewing, master, signer } = await deriveKeys(credential);
     const { notebooks, getEndBlock: getAccountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadState, spending, viewing });
-    const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider });
+    const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider, rpc: params.rpc });
     const { getTrees, network } = indexer;
 
     // Validate that account endBlock doesn't exceed indexer endBlock

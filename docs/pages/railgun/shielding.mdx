@@ -15,10 +15,9 @@ This transaction comes from the account you want to shield from.
 // @noErrors
 import { account, wallet } from './config.ts';
 
-const chainId = '11155111' as const;
 const VALUE = 10000000000000n; // 0.00001 ETH
 // Shield native ETH (auto-wraps to WETH)
-const tx = await account.shield(chainId, '0xfFf9976782d46CC05630D92EE39e704800271F7D', VALUE); // [!code focus]
+const tx = await account.shieldNative(VALUE); // [!code focus]
 
 // Eoa that will send the tx
 await wallet.sendTransaction({
@@ -35,6 +34,7 @@ import {
   createRailgunAccount,
   createRailgunIndexer,
   ViemProviderAdapter,
+  RAILGUN_CONFIG_BY_CHAIN_ID,
 } from '@kohaku-eth/railgun';
 import { createPublicClient, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -44,7 +44,8 @@ const publicClient = createPublicClient({ transport: http(rpcUrl) });
 
 const mnemonic = 'test test test test test test test test test test test junk';
 const accountIndex = 0;
-const chainId = '11155111';
+const chainId = '11155111' as const;
+const network = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
 
 // Create wallet client for signing
 export const wallet = createWalletClient({
@@ -52,13 +53,13 @@ export const wallet = createWalletClient({
 });
 
 const indexer = await createRailgunIndexer({
-  chainId,
+  network,
   provider: new ViemProviderAdapter(publicClient),
 });
 
 // Create the account with provided credentials and indexer
 export const account = await createRailgunAccount({
-  credentials: { mnemonic, accountIndex },
+  credential: { type: 'mnemonic', mnemonic, accountIndex },
   indexer,
 });
 
@@ -84,7 +85,6 @@ import type { WalletClient } from 'viem';
 declare const account: RailgunAccount;
 declare const wallet: WalletClient;
 
-const chainId = '11155111';
 const VALUE = 10000000000000n; // 0.00001 WETH
 const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D';
 const tx = await account.shield(WETH, VALUE); // [!code focus]
@@ -110,7 +110,6 @@ import type { WalletClient } from 'viem';
 declare const account: RailgunAccount;
 declare const wallet: WalletClient;
 
-const chainId = '11155111' as const;
 const WETH = '0xfFf9976782d46CC05630D92EE39e704800271F7D' as const;
 const amount = 50000000000000n; // 0.05 WETH
 const recipientZkAddress = '0zk1qy...'; // recipient's 0zk address
@@ -161,6 +160,26 @@ await indexer.sync();
 
 const root = await indexer.getLatestMerkleRoot();
 console.log('root: ', root);
+```
+
+## Using Colibri-Stateless as RPC Provider
+
+Colibri implements the EIP-1193 provider interface, so it can be used directly as the RPC source for the indexer.
+See the Colibri JS/TS bindings docs: [`colibri-stateless JS/TS bindings`](https://corpus-core.gitbook.io/specification-colibri-stateless/developer-guide/bindings/javascript-typescript).
+
+```ts
+import { createRailgunIndexer, RAILGUN_CONFIG_BY_CHAIN_ID } from '@kohaku-eth/railgun';
+
+const chainId = '1' as const;
+const network = RAILGUN_CONFIG_BY_CHAIN_ID[chainId];
+
+const indexer = await createRailgunIndexer({
+  network,
+  rpc: {
+    type: 'colibri',
+    colibri: { prover: ['https://mainnet.colibri-proof.tech'] },
+  },
+});
 ```
 
 ## Considerations
