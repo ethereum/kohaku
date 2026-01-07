@@ -3,7 +3,7 @@ pragma solidity ^0.8.25;
 
 import {Script, console} from "forge-std/Script.sol";
 import {IEntryPoint} from "account-abstraction/contracts/interfaces/IEntryPoint.sol";
-import {ZKNOX_AccountFactory} from "../src/ZKNOX_AccountFactory.sol";
+import {ZKNOX_AccountFactory} from "../src/ZKNOX_PQFactory.sol";
 
 contract DeployFactory is Script {
     // EntryPoint v0.7 canonical address
