@@ -5,6 +5,9 @@
   "lib/ETHFALCON": {
     "rev": "b1f2a263d59b32f9f2d457de816daa12fc9da190"
   },
+  "lib/InterfaceVerifier": {
+    "rev": "5ec0596c7fad2fcdde8bdb2dd50565858c84007c"
+  },
   "lib/account-abstraction": {
     "tag": {
       "name": "v0.8.0",

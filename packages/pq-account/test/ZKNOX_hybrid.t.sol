@@ -7,7 +7,7 @@ import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
 import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSA_PK.s.sol";
 import {DeployPKContract as DeployMLDSAETHPKContract} from "ETHDILITHIUM/script/Deploy_MLDSAETH_PK.s.sol";
-import {MLDSAFixedContract, MLDSAETHFixedContract, ECDSAK1FixedContract} from "../script/DeployFixedContracts.s.sol";
+import {MLDSAFixedContract, MLDSAETHFixedContract, ECDSAk1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
 
@@ -40,8 +40,8 @@ contract TestHybridVerifier is Test {
         verifierEthAddress = MLDSAETH.run();
 
         // deploy the contract containing the ECDSA core algorithm
-        ECDSAK1FixedContract ECDSAK1 = new ECDSAK1FixedContract();
-        ecdsaVerifierAddress = ECDSAK1.run();
+        ECDSAk1FixedContract ECDSAk1 = new ECDSAk1FixedContract();
+        ecdsaVerifierAddress = ECDSAk1.run();
     }
 
     function testHybridVerify() public {

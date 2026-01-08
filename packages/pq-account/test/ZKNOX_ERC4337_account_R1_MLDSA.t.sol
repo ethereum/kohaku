@@ -9,17 +9,13 @@ import {IStakeManager} from "account-abstraction/contracts/interfaces/IStakeMana
 import {PackedUserOperation} from "account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
-import {
-    ERC7913P256Verifier
-} from "openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol";
-import {IERC7913SignatureVerifier} from "openzeppelin-contracts/contracts/interfaces/IERC7913.sol";
 
 import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
 import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
 import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSA_PK.s.sol";
-import {MLDSAFixedContract, HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
+import {MLDSAFixedContract, HybridVerifierFixedContract, ECDSAr1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
@@ -45,24 +41,21 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        DeployPKContract deployPkContract = new DeployPKContract();
-        address postQuantumAddress = deployPkContract.run();
-
         HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
         address hybridVerifierLogicAddress = HybridVerifierContract.run();
 
         MLDSAFixedContract MLDSA = new MLDSAFixedContract();
         address postQuantumLogicAddress = MLDSA.run();
 
-        IERC7913SignatureVerifier ECDSA = new ERC7913P256Verifier();
-        address preQuantumLogicAddress = address(ECDSA);
+        ECDSAr1FixedContract ECDSA = new ECDSAr1FixedContract();
+        address preQuantumLogicAddress = ECDSA.run();
 
         // Actually deploying the v0.8 EntryPoint
         entryPoint = new EntryPoint();
 
         (uint256 x, uint256 y) = vm.publicKeyP256(Constants.SEED_PREQUANTUM);
         bytes memory preQuantumPubKey = abi.encodePacked(x, y);
-        bytes memory postQuantumPubKey = abi.encodePacked(postQuantumAddress);
+        bytes memory postQuantumPubKey = pythonSigner.getPubKey("lib/ETHDILITHIUM/pythonref", "NIST", Constants.SEED_POSTQUANTUM_STR);
 
         // Deploy the Smart Account
         account = new ZKNOX_ERC4337_account(

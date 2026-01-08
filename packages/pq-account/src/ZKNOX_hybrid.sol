@@ -38,7 +38,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import {IERC7913SignatureVerifier} from "@openzeppelin/contracts/interfaces/IERC7913.sol";
+import {ISigVerifier} from "InterfaceVerifier/IVerifier.sol";
 
 /// @notice Contract designed for being delegated to by EOAs to authorize a IVerifier key to transact on their behalf.
 contract ZKNOX_HybridVerifier {
@@ -66,13 +66,13 @@ contract ZKNOX_HybridVerifier {
         }
 
         // Verify pre-quantum signature
-        IERC7913SignatureVerifier preQuantumCore = IERC7913SignatureVerifier(preQuantumLogicContractAddress);
+        ISigVerifier preQuantumCore = ISigVerifier(preQuantumLogicContractAddress);
         if (preQuantumCore.verify(preQuantumPubKey, digest, preQuantumSig) != preQuantumCore.verify.selector) {
             return false;
         }
 
         // Verify post-quantum signature
-        IERC7913SignatureVerifier postQuantumCore = IERC7913SignatureVerifier(postQuantumLogicContractAddress);
+        ISigVerifier postQuantumCore = ISigVerifier(postQuantumLogicContractAddress);
         if (postQuantumCore.verify(postQuantumPubKey, digest, postQuantumSig) != postQuantumCore.verify.selector) {
             return false;
         }

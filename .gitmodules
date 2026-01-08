@@ -10,3 +10,6 @@
 [submodule "packages/pq-account/lib/ETHFALCON"]
 	path = packages/pq-account/lib/ETHFALCON
 	url = https://github.com/ZKNOXHQ/ETHFALCON
+[submodule "packages/pq-account/lib/InterfaceVerifier"]
+	path = packages/pq-account/lib/InterfaceVerifier
+	url = https://github.com/ZKNOXHQ/InterfaceVerifier

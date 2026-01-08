@@ -5,6 +5,7 @@ import {BaseAccount, PackedUserOperation} from "account-abstraction/contracts/co
 import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "account-abstraction/contracts/core/Helpers.sol";
 import {IEntryPoint} from "account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {ZKNOX_HybridVerifier} from "./ZKNOX_hybrid.sol";
+import {ISigVerifier} from "InterfaceVerifier/IVerifier.sol";
 
 contract ZKNOX_ERC4337_account is BaseAccount {
     IEntryPoint private _entryPoint;
@@ -23,10 +24,13 @@ contract ZKNOX_ERC4337_account is BaseAccount {
         address _hybridVerifierLogicContractAddress
     ) {
         _entryPoint = _entryPoint0;
-        preQuantumPubKey = _preQuantumPubKey;
-        postQuantumPubKey = _postQuantumPubKey;
+        // prequantum logic and key
         preQuantumLogicContractAddress = _preQuantumLogicContractAddress;
+        preQuantumPubKey = ISigVerifier(preQuantumLogicContractAddress).setKey(_preQuantumPubKey);
+        // postquantum logic and key
         postQuantumLogicContractAddress = _postQuantumLogicContractAddress;
+        postQuantumPubKey = ISigVerifier(postQuantumLogicContractAddress).setKey(_postQuantumPubKey);
+        // hybrid logic
         hybridVerifierLogicContractAddress = _hybridVerifierLogicContractAddress;
     }
 

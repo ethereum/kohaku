@@ -9,14 +9,10 @@ import {IStakeManager} from "account-abstraction/contracts/interfaces/IStakeMana
 import {PackedUserOperation} from "account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
-import {
-    ERC7913P256Verifier
-} from "openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol";
-import {IERC7913SignatureVerifier} from "openzeppelin-contracts/contracts/interfaces/IERC7913.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {FALCONFixedContract, HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
+import {FALCONFixedContract, HybridVerifierFixedContract, ECDSAr1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
@@ -47,8 +43,8 @@ contract TestERC4337_Account is Test {
         FALCONFixedContract FALCON = new FALCONFixedContract();
         address postQuantumLogicAddress = FALCON.run();
 
-        IERC7913SignatureVerifier ECDSA = new ERC7913P256Verifier();
-        address preQuantumLogicAddress = address(ECDSA);
+        ECDSAr1FixedContract ECDSA = new ECDSAr1FixedContract();
+        address preQuantumLogicAddress = ECDSA.run();
 
         entryPoint = new EntryPoint();
 

@@ -2,14 +2,12 @@ pragma solidity ^0.8.25;
 
 import {console} from "forge-std/Test.sol";
 
-import {ERC7913P256Verifier} from "openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol";
-import {IERC7913SignatureVerifier} from "openzeppelin-contracts/contracts/interfaces/IERC7913.sol";
-
 import {BaseScript} from "ETHDILITHIUM/script/BaseScript.sol";
 import {ZKNOX_dilithium} from "ETHDILITHIUM/src/ZKNOX_dilithium.sol";
 import {ZKNOX_ethdilithium} from "ETHDILITHIUM/src/ZKNOX_ethdilithium.sol";
 
-import {ZKNOX_ecdsa} from "ETHDILITHIUM/src/ZKNOX_ECDSA.sol";
+import {ECDSAk1Verifier} from "InterfaceVerifier/VerifierECDSAk1.sol";
+import {ECDSAr1Verifier} from "InterfaceVerifier/VerifierECDSAr1.sol";
 
 import {ZKNOX_falcon} from "ETHFALCON/src/ZKNOX_falcon.sol";
 import {ZKNOX_ethfalcon} from "ETHFALCON/src/ZKNOX_ethfalcon.sol";
@@ -82,20 +80,20 @@ contract HybridVerifierFixedContract is VerifierDeployer {
     }
 }
 
-contract ECDSAK1FixedContract is VerifierDeployer {
+contract ECDSAk1FixedContract is VerifierDeployer {
     constructor() {
         saltLabel = "ZKNOX_ECDSA_K1_VERIFIER_V1";
     }
     function deployContract(bytes32 salt) internal override returns (address) {
-        return address(new ZKNOX_ecdsa{salt: salt}());
+        return address(new ECDSAk1Verifier{salt: salt}());
     }
 }
 
-contract ECDSAR1FixedContract is VerifierDeployer {
+contract ECDSAr1FixedContract is VerifierDeployer {
     constructor() {
         saltLabel = "ZKNOX_ECDSA_R1_VERIFIER_V1";
     }
     function deployContract(bytes32 salt) internal override returns (address) {
-        return address(new ERC7913P256Verifier{salt: salt}());
+        return address(new ECDSAr1Verifier{salt: salt}());
     }
 }

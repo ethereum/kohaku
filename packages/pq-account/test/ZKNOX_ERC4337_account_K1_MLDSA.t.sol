@@ -14,8 +14,7 @@ import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
 import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
-import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSA_PK.s.sol";
-import {MLDSAFixedContract, ECDSAK1FixedContract} from "../script/DeployFixedContracts.s.sol";
+import {MLDSAFixedContract, ECDSAk1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
@@ -42,8 +41,6 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        DeployPKContract deployPkContract = new DeployPKContract();
-        address postQuantumAddress = deployPkContract.run();
 
         HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
         address hybridVerifierLogicAddress = HybridVerifierContract.run();
@@ -51,13 +48,13 @@ contract TestERC4337_Account is Test {
         MLDSAFixedContract MLDSA = new MLDSAFixedContract();
         address postQuantumLogicAddress = MLDSA.run();
 
-        ECDSAK1FixedContract ECDSA = new ECDSAK1FixedContract();
+        ECDSAk1FixedContract ECDSA = new ECDSAk1FixedContract();
         address preQuantumLogicAddress = ECDSA.run();
 
         entryPoint = new EntryPoint();
 
         bytes memory preQuantumPubKey = abi.encodePacked(Constants.ADDR_PREQUANTUM);
-        bytes memory postQuantumPubKey = abi.encodePacked(postQuantumAddress);
+        bytes memory postQuantumPubKey = pythonSigner.getPubKey("lib/ETHDILITHIUM/pythonref", "NIST", Constants.SEED_POSTQUANTUM_STR);
 
         // Deploy the Smart Account
         account = new ZKNOX_ERC4337_account(

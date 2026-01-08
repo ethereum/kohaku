@@ -3,6 +3,7 @@ install:
 	foundryup
 	forge install ZKNOXHQ/ETHDILITHIUM
 	forge install ZKNOXHQ/ETHFALCON
+	forge install ZKNOXHQ/InterfaceVerifier
 	forge install eth-infinitism/account-abstraction@v0.8.0
 	forge install OpenZeppelin/openzeppelin-contracts
 	cd lib/ETHDILITHIUM/pythonref;make install
