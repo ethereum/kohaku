@@ -30,10 +30,6 @@ forge script $CONTRACT_NAME \
 --priority-gas-price 1 \
 -vvvv
 
-# Wait for network propagation
-echo "Waiting 10 seconds for network propagation..."
-sleep 10
-
 # Verify
 forge script $CONTRACT_NAME \
 --rpc-url $RPC \
