@@ -21,7 +21,6 @@ echo "balance:"
 
 cast balance $PUB_KEY --rpc-url $RPC
 
-
 forge script $CONTRACT_NAME \
 --rpc-url $RPC \
 --private-key $PRIVATE_KEY \
@@ -30,9 +29,9 @@ forge script $CONTRACT_NAME \
 --priority-gas-price 1 \
 -vvvv
 
-# Wait for network propagation
-echo "Waiting 30 seconds for network propagation..."
-sleep 30
+# # Wait for network propagation
+# echo "Waiting 30 seconds for network propagation..."
+# sleep 30
 
 # Verify
 forge script $CONTRACT_NAME \
@@ -41,8 +40,7 @@ forge script $CONTRACT_NAME \
 --broadcast \
 --tc $3 \
 --etherscan-api-key $API_KEY \
---verify \
---resume
+--verify
 
 # # with ledger
 # forge script $CONTRACT_NAME --rpc-url $RPC --ledger --broadcast --tc Script_Deploy_ETHDilithium --etherscan-api-key $API_KEY_OPTIMISM --verify --priority-gas-price 1

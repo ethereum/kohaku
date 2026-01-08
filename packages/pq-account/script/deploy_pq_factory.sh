@@ -5,7 +5,7 @@
 # $3: Contract name to deploy
 
 # Configuration
-CONTRACT_NAME="deploy_PQfactory.s.sol"   
+CONTRACT_NAME="DeployPQFactory.s.sol"   
 
 PRIVATE_KEY=$1
 PUB_KEY="0x9140286CDA95d59fa5f29ecb11dDe1F817999F9E"

@@ -10,7 +10,7 @@ contract DeployFactory is Script {
     address constant ENTRYPOINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     
     // Salt label for deterministic deployment
-    string constant SALT_LABEL = "ZKNOX_ERC4337_FACTORY_V1";
+    string constant SALT_LABEL = "ZKNOX_ERC4337_FACTORY_V0_0_1";
 
     function run() external {
         string memory json = vm.readFile("deployments/deployments.json");
@@ -48,8 +48,7 @@ contract DeployFactory is Script {
         ZKNOX_AccountFactory factory = new ZKNOX_AccountFactory{salt: salt}(
             IEntryPoint(ENTRYPOINT_V07),
             ecdsaK1,    // preQuantumLogic
-            mldsa,      // postQuantumLogic
-            hybrid      // hybridVerifierLogic
+            mldsa      // postQuantumLogic
         );
 
         vm.stopBroadcast();

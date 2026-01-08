@@ -13,13 +13,11 @@ contract ZKNOX_AccountFactory {
     constructor(
         IEntryPoint _entryPoint,
         address _preQuantumLogic,
-        address _postQuantumLogic,
-        address _hybridVerifierLogic
+        address _postQuantumLogic
     ) {
         entryPoint = _entryPoint;
         preQuantumLogic = _preQuantumLogic;
         postQuantumLogic = _postQuantumLogic;
-        hybridVerifierLogic = _hybridVerifierLogic;
     }
 
     function createAccount(
@@ -36,8 +34,7 @@ contract ZKNOX_AccountFactory {
             preQuantumPubKey,
             postQuantumPubKey,
             preQuantumLogic,
-            postQuantumLogic,
-            hybridVerifierLogic
+            postQuantumLogic
         );
     }
 
@@ -57,8 +54,7 @@ contract ZKNOX_AccountFactory {
                     preQuantumPubKey,
                     postQuantumPubKey,
                     preQuantumLogic,
-                    postQuantumLogic,
-                    hybridVerifierLogic
+                    postQuantumLogic
                 )
             ))
         )))));

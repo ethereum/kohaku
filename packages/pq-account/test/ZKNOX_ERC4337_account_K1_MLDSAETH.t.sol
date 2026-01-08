@@ -14,11 +14,10 @@ import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
 import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
-import {MLDSAETHFixedContract, ECDSAk1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
-import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
+import {ZKNOX_ethdilithium} from "ETHDILITHIUM/src/ZKNOX_ethdilithium.sol";
+import {ECDSAk1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAk1.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
@@ -41,14 +40,8 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
-        address hybridVerifierLogicAddress = HybridVerifierContract.run();
-
-        MLDSAETHFixedContract MLDSAETH = new MLDSAETHFixedContract();
-        address postQuantumLogicAddress = MLDSAETH.run();
-
-        ECDSAk1FixedContract ECDSA = new ECDSAk1FixedContract();
-        address preQuantumLogicAddress = ECDSA.run();
+        address postQuantumLogicAddress = address(new ZKNOX_ethdilithium());
+        address preQuantumLogicAddress = address(new ECDSAk1Verifier());
 
         // Actually deploying the v0.8 EntryPoint
         entryPoint = new EntryPoint();
@@ -62,8 +55,7 @@ contract TestERC4337_Account is Test {
             preQuantumPubKey,
             postQuantumPubKey,
             preQuantumLogicAddress,
-            postQuantumLogicAddress,
-            hybridVerifierLogicAddress
+            postQuantumLogicAddress
         );
         // Deploy TestTarget
         target = new TestTarget();
@@ -80,33 +72,14 @@ contract TestERC4337_Account is Test {
     
     string memory data = bytes32ToHex(userOpHash);
     string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-    
-    console.log("=== Signing ===");
     (bytes memory cTilde, bytes memory z, bytes memory h) =
         pythonSigner.sign("lib/ETHDILITHIUM/pythonref", data, "ETH", seedStr);
-    
-    console.log("cTilde length:", cTilde.length);
-    console.log("z length:", z.length);
-    console.log("h length:", h.length);
-    
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(Constants.SEED_PREQUANTUM, userOpHash);
     bytes memory preQuantumSig = abi.encodePacked(r, s, v);
     bytes memory postQuantumSig = abi.encodePacked(cTilde, z, h);
-    
-    console.log("preQuantumSig length:", preQuantumSig.length);
-    console.log("postQuantumSig length:", postQuantumSig.length);
-    
     userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
-    
-    console.log("\n=== Verifying ===");
-    console.log("userOpHash:", vm.toString(userOpHash));
-    
     vm.prank(address(entryPoint));
     uint256 validationData = account.validateUserOp(userOp, userOpHash, 0);
-    
-    console.log("validationData:", validationData);
-    
-    // 0 = success, 1 = SIG_VALIDATION_FAILED
     assertEq(validationData, 0, "Signature validation should succeed");
 }
 

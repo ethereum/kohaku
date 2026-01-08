@@ -14,11 +14,10 @@ import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
 import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
-import {MLDSAFixedContract, ECDSAk1FixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
-import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
+import {ZKNOX_dilithium} from "ETHDILITHIUM/src/ZKNOX_dilithium.sol";
+import {ECDSAk1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAk1.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
@@ -42,14 +41,8 @@ contract TestERC4337_Account is Test {
          */
 
 
-        HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
-        address hybridVerifierLogicAddress = HybridVerifierContract.run();
-
-        MLDSAFixedContract MLDSA = new MLDSAFixedContract();
-        address postQuantumLogicAddress = MLDSA.run();
-
-        ECDSAk1FixedContract ECDSA = new ECDSAk1FixedContract();
-        address preQuantumLogicAddress = ECDSA.run();
+        address postQuantumLogicAddress = address(new ZKNOX_dilithium());
+        address preQuantumLogicAddress = address(new ECDSAk1Verifier());
 
         entryPoint = new EntryPoint();
 
@@ -62,8 +55,7 @@ contract TestERC4337_Account is Test {
             preQuantumPubKey,
             postQuantumPubKey,
             preQuantumLogicAddress,
-            postQuantumLogicAddress,
-            hybridVerifierLogicAddress
+            postQuantumLogicAddress
         );
         // Deploy TestTarget
         target = new TestTarget();

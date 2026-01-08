@@ -11,14 +11,13 @@ import {PackedUserOperation} from "account-abstraction/contracts/interfaces/Pack
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
-import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {HybridVerifierFixedContract} from "../script/DeployFixedContracts.s.sol";
 
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
-// TODO: This is not part of Dilithium so it should be moved in the future
-import {FALCONFixedContract, ECDSAk1FixedContract} from "../script/DeployFixedContracts.s.sol";
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
+
+import {ZKNOX_falcon} from "ETHFALCON/src/ZKNOX_falcon.sol";
+import {ECDSAk1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAk1.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
@@ -38,14 +37,8 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        HybridVerifierFixedContract HybridVerifierContract = new HybridVerifierFixedContract();
-        address hybridVerifierLogicAddress = HybridVerifierContract.run();
-
-        FALCONFixedContract FALCON = new FALCONFixedContract();
-        address postQuantumLogicAddress = FALCON.run();
-
-        ECDSAk1FixedContract ECDSA = new ECDSAk1FixedContract();
-        address preQuantumLogicAddress = ECDSA.run();
+        address postQuantumLogicAddress = address(new ZKNOX_falcon());
+        address preQuantumLogicAddress = address(new ECDSAk1Verifier());
 
         entryPoint = new EntryPoint();
 
@@ -62,8 +55,7 @@ contract TestERC4337_Account is Test {
             preQuantumPubKey,
             postQuantumPubKey,
             preQuantumLogicAddress,
-            postQuantumLogicAddress,
-            hybridVerifierLogicAddress
+            postQuantumLogicAddress
         );
         // Deploy TestTarget
         target = new TestTarget();
