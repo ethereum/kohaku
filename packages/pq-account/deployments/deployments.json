@@ -33,25 +33,10 @@
         "saltLabel": "ZKNOX_ECDSA_R1_VERIFIER_V0_0_1"
       }
     },
-    "hybrid": {
-      "address": "0xD22492F0b9dd284a9EC0fFef3C1675deA9f01d85",
-      "salt": "0x59d6e6db156f1f3f33b295e79ee8709db79e8e788e13d4f22a5c4057a408031d",
-      "saltLabel": "ZKNOX_HYBRID_VERIFIER_V1"
-    },
     "account": {
       "address": "0x6aA545dE6Dc114192f2EA34Dde63ba77aABaC6CF",
       "salt": "0xc71052f224fb96a01de987f65d5fd42f559e9d5dcdbd119d7a86a53d9d7c3954",
       "saltLabel": "ZKNOX_ERC4337_FACTORY_V0_0_1"
     }
-  },
-  "local": {
-    "verifiers": {
-      "mldsaeth": {
-        "address": "0xbfF02B9D0EB96f1Fe1BeB57817F0d6085813f1c0",
-        "salt": "0xbcfe7195d98b9dca9b668c1b4dae00d8f8f6852a2cf4c78f0defeef9000b12b0",
-        "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_1"
-      }
-    }
   }
-}
 }

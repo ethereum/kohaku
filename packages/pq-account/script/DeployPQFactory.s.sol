@@ -30,7 +30,6 @@ contract DeployFactory is Script {
         
         address mldsa = vm.parseJsonAddress(json, string.concat(basePath, ".verifiers.mldsa.address"));
         address ecdsaK1 = vm.parseJsonAddress(json, string.concat(basePath, ".verifiers.ecdsak1.address"));
-        address hybrid = vm.parseJsonAddress(json, string.concat(basePath, ".hybrid.address"));
 
         // Compute salt from label
         bytes32 salt = keccak256(abi.encodePacked(SALT_LABEL));
@@ -41,7 +40,6 @@ contract DeployFactory is Script {
         console.log("  EntryPoint:", ENTRYPOINT_V07);
         console.log("  PreQuantum (ECDSA K1):", ecdsaK1);
         console.log("  PostQuantum (MLDSA):", mldsa);
-        console.log("  Hybrid Verifier:", hybrid);
 
         vm.startBroadcast();
 

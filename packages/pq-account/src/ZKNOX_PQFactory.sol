@@ -5,19 +5,18 @@ import {IEntryPoint} from "account-abstraction/contracts/interfaces/IEntryPoint.
 import {ZKNOX_ERC4337_account} from "./ZKNOX_ERC4337_account.sol";
 
 contract ZKNOX_AccountFactory {
-    IEntryPoint public immutable entryPoint;
-    address public immutable preQuantumLogic;
-    address public immutable postQuantumLogic;
-    address public immutable hybridVerifierLogic;
+    IEntryPoint public immutable ENTRY_POINT;
+    address public immutable PRE_QUANTUM_LOGIC;
+    address public immutable POST_QUANTUM_LOGIC;
 
     constructor(
         IEntryPoint _entryPoint,
         address _preQuantumLogic,
         address _postQuantumLogic
     ) {
-        entryPoint = _entryPoint;
-        preQuantumLogic = _preQuantumLogic;
-        postQuantumLogic = _postQuantumLogic;
+        ENTRY_POINT = _entryPoint;
+        PRE_QUANTUM_LOGIC = _preQuantumLogic;
+        POST_QUANTUM_LOGIC = _postQuantumLogic;
     }
 
     function createAccount(
@@ -30,11 +29,11 @@ contract ZKNOX_AccountFactory {
         }
         bytes32 salt = keccak256(abi.encodePacked(preQuantumPubKey, postQuantumPubKey));
         return new ZKNOX_ERC4337_account{salt: salt}(
-            entryPoint,
+            ENTRY_POINT,
             preQuantumPubKey,
             postQuantumPubKey,
-            preQuantumLogic,
-            postQuantumLogic
+            PRE_QUANTUM_LOGIC,
+            POST_QUANTUM_LOGIC
         );
     }
 
@@ -50,11 +49,11 @@ contract ZKNOX_AccountFactory {
             keccak256(abi.encodePacked(
                 type(ZKNOX_ERC4337_account).creationCode,
                 abi.encode(
-                    entryPoint,
+                    ENTRY_POINT,
                     preQuantumPubKey,
                     postQuantumPubKey,
-                    preQuantumLogic,
-                    postQuantumLogic
+                    PRE_QUANTUM_LOGIC,
+                    POST_QUANTUM_LOGIC
                 )
             ))
         )))));

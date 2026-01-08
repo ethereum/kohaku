@@ -11,7 +11,7 @@ import {PackedUserOperation} from "account-abstraction/contracts/interfaces/Pack
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
-import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
+
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
 
@@ -26,7 +26,6 @@ function bytes32ToHex(bytes32 value) pure returns (string memory) {
 contract TestERC4337_Account is Test {
     ZKNOX_ERC4337_account public account;
     IEntryPoint public entryPoint;
-    PKContract public pkContract;
     TestTarget target;
 
     address public owner;

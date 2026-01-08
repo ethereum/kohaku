@@ -47,8 +47,8 @@ contract TestERC4337_Account is Test {
 
         // Signing a nonce to get access to pubkey
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-        (uint256[32] memory pk_compact,,) = pythonSigner.sign("lib/ETHFALCON/pythonref", "0xabcd", "NIST", seedStr);
-        bytes memory postQuantumPubKey = _packUint256Array(pk_compact);
+        (uint256[32] memory pkCompact,,) = pythonSigner.sign("lib/ETHFALCON/pythonref", "0xabcd", "NIST", seedStr);
+        bytes memory postQuantumPubKey = _packUint256Array(pkCompact);
 
         // Deploy the Smart Account
         account = new ZKNOX_ERC4337_account(
@@ -77,11 +77,11 @@ contract TestERC4337_Account is Test {
         // Sign the userOpHash with both FNDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-        (, bytes memory salt, uint256[32] memory s2_compact) =
+        (, bytes memory salt, uint256[32] memory s2Compact) =
             pythonSigner.sign("lib/ETHFALCON/pythonref", data, "NIST", seedStr);
         (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s);
-        bytes memory postQuantumSig = _packSignature(salt, s2_compact);
+        bytes memory postQuantumSig = _packSignature(salt, s2Compact);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
 
         vm.prank(address(entryPoint));
@@ -119,11 +119,11 @@ contract TestERC4337_Account is Test {
         // Sign the userOpHash with both FNDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-        (, bytes memory salt, uint256[32] memory s2_compact) =
+        (, bytes memory salt, uint256[32] memory s2Compact) =
             pythonSigner.sign("lib/ETHFALCON/pythonref", data, "NIST", seedStr);
         (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s);
-        bytes memory postQuantumSig = _packSignature(salt, s2_compact);
+        bytes memory postQuantumSig = _packSignature(salt, s2Compact);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
 
         // Create an array with a single UserOperation
