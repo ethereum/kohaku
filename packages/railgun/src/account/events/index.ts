@@ -21,7 +21,7 @@ export type ProcessLogParams = {
 
 export type ProcessLog = HandleShieldEvent & HandleTransactEvent;
 
- 
+
 export const makeProcessLog = async ({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock }: ProcessLogContext): Promise<ProcessLog> => {
     const handleShieldEvent = await makeHandleShieldEvent({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock });
     const handleTransactEvent = await makeHandleTransactEvent({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock });

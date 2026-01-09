@@ -75,6 +75,7 @@ export async function createRailgunProviderFromRpc(
         default: {
             // Exhaustiveness guard
             const _exhaustive: never = rpc;
+
             throw new Error(`Unsupported rpc type: ${(_exhaustive as unknown as { type?: string }).type ?? 'unknown'}`);
         }
     }

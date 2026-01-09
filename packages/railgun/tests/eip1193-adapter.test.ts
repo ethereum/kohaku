@@ -6,9 +6,11 @@ function makeMockProvider(impl: (args: { method: string; params?: unknown }) => 
     const provider: Eip1193Provider = {
         request: async (args) => {
             calls.push({ method: args.method, params: args.params });
+
             return await impl({ method: args.method, params: args.params });
         },
     };
+
     return { provider, calls };
 }
 
@@ -16,10 +18,12 @@ describe('Eip1193ProviderAdapter', () => {
     it('getBlockNumber maps eth_blockNumber and parses hex quantity', async () => {
         const { provider, calls } = makeMockProvider(({ method }) => {
             if (method === 'eth_blockNumber') return '0x10';
+
             throw new Error(`Unexpected method: ${method}`);
         });
 
         const adapter = new Eip1193ProviderAdapter(provider);
+
         await expect(adapter.getBlockNumber()).resolves.toBe(16);
         expect(calls).toEqual([{ method: 'eth_blockNumber', params: undefined }]);
     });
@@ -29,6 +33,7 @@ describe('Eip1193ProviderAdapter', () => {
             if (method !== 'eth_getLogs') throw new Error(`Unexpected method: ${method}`);
 
             const [filter] = (params as unknown[]) ?? [];
+
             expect(filter).toEqual({ fromBlock: '0x1', toBlock: '0x2' });
 
             return [
@@ -58,6 +63,7 @@ describe('Eip1193ProviderAdapter', () => {
     it('getTransactionReceipt maps and converts fields', async () => {
         const { provider } = makeMockProvider(({ method }) => {
             if (method !== 'eth_getTransactionReceipt') throw new Error(`Unexpected method: ${method}`);
+
             return {
                 blockNumber: '0x5',
                 status: '0x1',
@@ -97,8 +103,11 @@ describe('Eip1193ProviderAdapter', () => {
         let polls = 0;
         const { provider } = makeMockProvider(({ method }) => {
             if (method !== 'eth_getTransactionReceipt') throw new Error(`Unexpected method: ${method}`);
+
             polls += 1;
+
             if (polls < 3) return null;
+
             return {
                 blockNumber: '0x1',
                 status: '0x1',
@@ -116,5 +125,3 @@ describe('Eip1193ProviderAdapter', () => {
         vi.useRealTimers();
     });
 });
-
-

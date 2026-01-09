@@ -14,7 +14,7 @@ const pendingFetches = new Map<string, Promise<Buffer>>();
 /**
  * Register a file in the browser file cache.
  * This allows readFileSync to work in browser environments.
- * 
+ *
  * @param path - File path (exact path as used by the npm package, e.g., "//1x2/zkey.br")
  * @param content - File content as string or Buffer
  */
@@ -24,7 +24,7 @@ export function registerFile(path: string, content: string | Buffer): void {
 
 /**
  * Remove a file from the browser file cache.
- * 
+ *
  * @param path - File path to remove
  */
 export function unregisterFile(path: string): void {
@@ -40,7 +40,7 @@ export function clearFileCache(): void {
 
 /**
  * Check if a file exists in the cache.
- * 
+ *
  * @param path - File path to check
  * @returns true if the file exists in cache
  */
@@ -83,7 +83,7 @@ function fetchFileSync(assetUrl: string): Buffer {
     // Wait for the existing promise to resolve by polling the cache
     const startTime = Date.now();
     const timeout = 30000; // 30 second timeout
-    
+
     while (!fileCache.has(assetUrl)) {
       if (Date.now() - startTime > timeout) {
         throw new Error(`Timeout waiting for file to load: ${assetUrl}`);
@@ -97,7 +97,7 @@ function fetchFileSync(assetUrl: string): Buffer {
         // Busy wait for 1ms
       }
     }
-    
+
     const cached = fileCache.get(assetUrl);
 
     if (cached === undefined) {
@@ -116,7 +116,7 @@ function fetchFileSync(assetUrl: string): Buffer {
     // Fallback (should never happen)
     throw new Error(`Unexpected cache value type for ${assetUrl}`);
   }
-  
+
   // Use synchronous XMLHttpRequest for truly synchronous behavior
   // Note: This is deprecated but necessary for synchronous file reading
   // Cannot set responseType on synchronous XHR, so we use responseText and convert
@@ -125,14 +125,14 @@ function fetchFileSync(assetUrl: string): Buffer {
 
   xhr.overrideMimeType('text/plain; charset=x-user-defined');
   xhr.open('GET', assetUrl, false); // false = synchronous
-  
+
   try {
     xhr.send(null);
-    
+
     if (xhr.status !== 200 && xhr.status !== 0) {
       throw new Error(`Failed to fetch ${assetUrl}: ${xhr.status} ${xhr.statusText}`);
     }
-    
+
     // For synchronous XHR, we can't use responseType, so we use responseText
     // Convert the binary string to a Buffer
     const responseText = xhr.responseText;
@@ -140,7 +140,7 @@ function fetchFileSync(assetUrl: string): Buffer {
     if (!responseText || responseText.length === 0) {
       throw new Error(`No data received for ${assetUrl}`);
     }
-    
+
     // Convert binary string to Buffer
     // Each character in responseText is a byte (0-255)
     const bytes = new Uint8Array(responseText.length);
@@ -149,10 +149,10 @@ function fetchFileSync(assetUrl: string): Buffer {
       bytes[i] = responseText.charCodeAt(i) & 0xff;
     }
     const buffer = Buffer.from(bytes);
-    
+
     // Register in cache
     registerFile(assetUrl, buffer);
-    
+
     return buffer;
   } catch (error) {
     throw new Error(`Failed to synchronously fetch ${assetUrl}: ${error instanceof Error ? error.message : String(error)}`);
@@ -162,7 +162,7 @@ function fetchFileSync(assetUrl: string): Buffer {
 /**
  * Preload an artifact file from the webpack-bundled assets.
  * This should be called before using artifacts to ensure files are in the cache.
- * 
+ *
  * @param nullifiers - Number of nullifiers (e.g., 1)
  * @param commitments - Number of commitments (e.g., 2)
  * @param filename - Filename (e.g., 'zkey.br', 'wasm.br', 'vkey')
@@ -177,19 +177,19 @@ function fetchFileSync(assetUrl: string): Buffer {
 //   const cachePath = `//${nullifiers}x${commitments}/${filename}`;
 //   const assetPath = `${nullifiers}x${commitments}/${filename}`;
 //   const assetUrl = `assets/circuits/${assetPath}`;
-  
+
 //   // If already in cache, return immediately
 //   if (fileCache.has(cachePath)) {
 //     return;
 //   }
-  
+
 //   // Fetch and register the file
 //   await fetchAndRegisterFile(cachePath, assetUrl);
 // }
 
 // /**
 //  * Preload all artifact files for a given circuit configuration.
-//  * 
+//  *
 //  * @param nullifiers - Number of nullifiers
 //  * @param commitments - Number of commitments
 //  * @returns Promise that resolves when all files are loaded
@@ -227,7 +227,7 @@ export function readFileSync(path: string, encoding?: BufferEncoding): string | 
 
     content = buffer;
   }
-  
+
   // If encoding is specified, always return string (matches Node.js behavior)
   if (encoding) {
     if (typeof content === 'string') {
@@ -237,13 +237,13 @@ export function readFileSync(path: string, encoding?: BufferEncoding): string | 
       return content.toString(encoding);
     }
   }
-  
+
   // If no encoding specified, return Buffer (or convert string to Buffer)
   if (typeof content === 'string') {
     // Convert string to Buffer for consistency with Node.js behavior
     return Buffer.from(content, 'utf8');
   }
-  
+
   return content;
 }
 

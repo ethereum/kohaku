@@ -53,19 +53,23 @@ function assertHexQuantity(value: string): asserts value is HexString {
 
 function toQuantityHex(value: number | bigint): HexString {
     const v = typeof value === 'bigint' ? value : BigInt(value);
+
     if (v < 0n) {
         throw new Error(`Expected non-negative quantity, got: ${String(value)}`);
     }
+
     return `0x${v.toString(16)}`;
 }
 
 function hexToBigInt(value: string): bigint {
     assertHexQuantity(value);
+
     return BigInt(value);
 }
 
 function hexToNumber(value: string): number {
     const n = hexToBigInt(value);
+
     return Number(n);
 }
 
@@ -109,6 +113,7 @@ export class Eip1193ProviderAdapter implements RailgunProvider {
 
     private async request<T>(method: string, params?: unknown[] | Record<string, unknown>): Promise<T> {
         const result = await this.provider.request({ method, ...(params ? { params } : {}) });
+
         return result as T;
     }
 
@@ -125,20 +130,23 @@ export class Eip1193ProviderAdapter implements RailgunProvider {
         }
 
         const logs = await this.request<RpcLog[]>('eth_getLogs', [filter]);
+
         return logs.map(convertLog);
     }
 
     async getBlockNumber(): Promise<number> {
         const hex = await this.request<HexString>('eth_blockNumber');
+
         return hexToNumber(hex);
     }
 
     async waitForTransaction(txHash: string): Promise<void> {
         const start = Date.now();
 
-        // eslint-disable-next-line no-constant-condition
+         
         while (true) {
             const receipt = await this.getTransactionReceipt(txHash);
+
             if (receipt) return;
 
             if (Date.now() - start > this.timeoutMs) {
@@ -151,17 +159,21 @@ export class Eip1193ProviderAdapter implements RailgunProvider {
 
     async getBalance(address: string): Promise<bigint> {
         const hex = await this.request<HexString>('eth_getBalance', [address, 'latest']);
+
         return hexToBigInt(hex);
     }
 
     async getCode(address: string): Promise<string> {
         const code = await this.request<HexString>('eth_getCode', [address, 'latest']);
+
         return code ?? '0x';
     }
 
     async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
         const receipt = await this.request<RpcReceipt | null>('eth_getTransactionReceipt', [txHash]);
+
         if (!receipt) return null;
+
         return convertReceipt(receipt);
     }
 }

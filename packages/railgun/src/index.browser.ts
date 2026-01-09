@@ -21,4 +21,3 @@ export * from './railgun/lib/key-derivation';
 
 // Note: file storage layers are NOT exported in browser build
 // Use empty storage layer or custom storage implementation
-

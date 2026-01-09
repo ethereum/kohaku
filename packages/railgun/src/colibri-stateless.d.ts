@@ -1,3 +1,4 @@
+/* eslint-disable import/no-default-export */
 declare module '@corpus-core/colibri-stateless' {
     export interface RequestArguments {
         method: string;
@@ -60,5 +61,3 @@ declare module '@corpus-core/colibri-stateless' {
 
     export default Colibri;
 }
-
-

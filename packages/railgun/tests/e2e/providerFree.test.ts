@@ -509,4 +509,3 @@ describe('Railgun E2E Flow (Provider-Free)', () => {
     console.log('\n=== Test completed successfully ===\n');
   }, 180000); // 3 minute timeout for the full flow
 });
-

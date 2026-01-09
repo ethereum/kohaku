@@ -23,10 +23,10 @@ export const makeGetRailgunAddress = ({ master, viewing }: GetRailgunAddressFnPa
 /**
  * Get a Railgun address from a credential (mnemonic or private keys) without creating a full account.
  * This is useful when you only need the address and don't need to interact with the blockchain.
- * 
+ *
  * @param credential - Key configuration (mnemonic or private keys)
  * @returns The Railgun address
- * 
+ *
  * @example
  * ```ts
  * const address = await getRailgunAddress({
