@@ -1,7 +1,7 @@
-# Deploy a PKContract
+# Deploy an ERC 4337 account
 
 ## Prerequisites
-Deploying a PKContract requires the installation of `noble` library
+Deploying an ERC 4337 account requires the installation of `noble` library
 ```
 npm install ethers
 npm install @noble/hashes
