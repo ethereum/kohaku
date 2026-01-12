@@ -1,1 +1,1 @@
-// privacy pools
+export * from './account/base';
