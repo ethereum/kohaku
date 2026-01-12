@@ -1,3 +1,4 @@
+import assert from "assert";
 import { ethers } from 'ethers';
 import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 
@@ -24,16 +25,17 @@ async function main() {
     const wallet = new ethers.Wallet(prequantum_seed);
     const prequantum_pubkey = wallet.address;
     const prequantum_signature = await wallet.signMessage(message);
+    const recovered  = ethers.verifyMessage(message, prequantum_signature);
+    assert.strictEqual(recovered, prequantum_pubkey);
 
     // post-quantum signature
     const postquantum_seed = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-    const { postquantum_pubkey, secretKey } = ml_dsa44.keygen(hexToU8(postquantum_seed));
-    const postquantum_sig = ml_dsa44.sign(message, secretKey);
+    const { secretKey: postquantum_secretkey, publicKey: postquantum_pubkey } = ml_dsa44.keygen(hexToU8(postquantum_seed));
 
-    // Verification
-    console.log(prequantum_pubkey);
-    console.log(ethers.verifyMessage(message, prequantum_signature));
-    assert(ml_dsa44.verify(sig, message, publicKey));
+    const zeroNonce = new Uint8Array(32); // all zeros
+    const postquantum_sig = ml_dsa44.sign(message, postquantum_secretkey,{ random: zeroNonce });
+    assert(ml_dsa44.verify(postquantum_sig, message, postquantum_pubkey));
+    console.log(postquantum_sig);
 }
 
 main().catch(console.error);

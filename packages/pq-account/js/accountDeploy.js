@@ -10,102 +10,96 @@ const ACCOUNT_FACTORY_ABI = [
 ];
 
 /**
- * Deploy an ERC4337 account using the PKContract address
+ * Deploy an ERC4337 account using an external signer
+ * Works with MetaMask, Rabby, Ledger (via browser), and any ethers.js Signer
  */
 export async function deployERC4337Account(
     factoryAddress,
     preQuantumPubKey,
     postQuantumPubKey,
-    providerUrl,
-    privateKey
+    signerOrProvider
 ) {
     try {
-        console.log("\n🏭 Deploying ERC4337 Account...");
+        console.log("");
+        console.log("🏭 Deploying ERC4337 Account...");
         
-        const provider = new ethers.JsonRpcProvider(providerUrl);
-        const wallet = new ethers.Wallet(privateKey, provider);
+        // Get provider and signer
+        let provider, signer;
         
-        const balance = await provider.getBalance(wallet.address);
-        console.log("\n💰 Deployer Info:");
-        console.log("- Address:", wallet.address);
-        console.log("- Balance:", ethers.formatEther(balance), "ETH");
+        if (signerOrProvider.signTransaction) {
+            // Already a signer (has signTransaction method)
+            signer = signerOrProvider;
+            provider = signer.provider;
+        } else if (signerOrProvider.request) {
+            // Browser wallet provider (MetaMask, Rabby, Ledger via browser)
+            console.log("🔌 Connecting to browser wallet...");
+            provider = new ethers.BrowserProvider(signerOrProvider);
+            signer = await provider.getSigner();
+            console.log("✅ Wallet connected");
+        } else if (signerOrProvider.getNetwork) {
+            // It's a provider, ask for signer
+            provider = signerOrProvider;
+            signer = await provider.getSigner();
+        } else {
+            throw new Error("Invalid signer or provider. Please provide window.ethereum, an ethers Signer, or an ethers Provider.");
+        }
+        
+        const address = await signer.getAddress();
+        const balance = await provider.getBalance(address);
+        
+        console.log("");
+        console.log("💰 Deployer Info:");
+        console.log("- Address: " + address);
+        console.log("- Balance: " + ethers.formatEther(balance) + " ETH");
         
         const network = await provider.getNetwork();
-        console.log("- Network:", network.name, `(Chain ID: ${network.chainId})`);
+        console.log("- Network: " + network.name + " (Chain ID: " + network.chainId + ")");
         
         // Check factory exists
-        console.log("\n🔍 Verifying factory contract...");
+        console.log("");
+        console.log("🔍 Verifying factory contract...");
         const factoryCode = await provider.getCode(factoryAddress);
         if (factoryCode === '0x') {
             throw new Error("No contract deployed at factory address!");
         }
         console.log("- Factory contract exists ✓");
         
-        // Connect to factory
-        const factory = new ethers.Contract(factoryAddress, ACCOUNT_FACTORY_ABI, wallet);
-        
-        // Get factory configuration with error handling
-        console.log("\n🔧 Factory Configuration:");
-        try {
-            const entryPoint = await factory.entryPoint();
-            const preQuantumLogic = await factory.preQuantumLogic();
-            const postQuantumLogic = await factory.postQuantumLogic();
-            const hybridVerifierLogic = await factory.hybridVerifierLogic();
-            
-            console.log("- EntryPoint:", entryPoint);
-            console.log("- Pre-quantum logic:", preQuantumLogic);
-            console.log("- Post-quantum logic:", postQuantumLogic);
-            console.log("- Hybrid verifier logic:", hybridVerifierLogic);
-        } catch (error) {
-            console.log("⚠️  Could not read factory configuration:", error.message);
-            console.log("This might indicate ABI mismatch. Continuing anyway...");
-        }
-        
+        // Connect to the existing factory contract (already deployed on-chain)
+        const factory = new ethers.Contract(factoryAddress, ACCOUNT_FACTORY_ABI, signer);
+                
         // Calculate the expected account address
-        console.log("\n📍 Calculating expected address...");
+        console.log("");
+        console.log("📍 Calculating expected address...");
         let expectedAddress;
         
         try {
-            // Encode the function call manually
             const iface = new ethers.Interface(ACCOUNT_FACTORY_ABI);
             const callData = iface.encodeFunctionData("getAddress", [
                 preQuantumPubKey,
                 postQuantumPubKey
             ]);
             
-            console.log("- Calling getAddress with calldata length:", callData.length);
+            console.log("- Calling getAddress...");
             
-            // Make static call
             const result = await provider.call({
                 to: factoryAddress,
                 data: callData
             });
             
-            console.log("- Raw result:", result);
-            
-            // Decode result
             expectedAddress = iface.decodeFunctionResult("getAddress", result)[0];
-            console.log("- Decoded address:", expectedAddress);
+            console.log("- Calculated address: " + expectedAddress);
             
         } catch (error) {
-            console.error("❌ Failed to calculate address:", error.message);
-            
-            // If this fails, something is wrong with the contract or ABI
-            throw new Error(`Cannot calculate account address: ${error.message}`);
+            console.error("❌ Failed to calculate address: " + error.message);
+            throw new Error("Cannot calculate account address: " + error.message);
         }
-        
-        // Sanity check
-        if (expectedAddress === factoryAddress) {
-            console.log("⚠️  WARNING: Expected address equals factory address!");
-            console.log("This suggests the factory's getAddress() is returning address(this)");
-            console.log("The factory contract may need to be fixed and redeployed.");
-        }
-        
+ 
         if (!ethers.isAddress(expectedAddress)) {
             throw new Error("Invalid address returned from getAddress()");
         }
         
-        console.log("\n📍 Expected account address:", expectedAddress);
+        console.log("");
+        console.log("📍 Expected account address: " + expectedAddress);
         
         // Check if account already exists
         const code = await provider.getCode(expectedAddress);
@@ -119,28 +113,31 @@ export async function deployERC4337Account(
         }
         
         // Estimate gas
-        console.log("\n⛽ Estimating gas...");
+        console.log("");
+        console.log("⛽ Estimating gas...");
         let estimatedGas;
         try {
             estimatedGas = await factory.createAccount.estimateGas(
                 preQuantumPubKey,
                 postQuantumPubKey
             );
-            console.log("- Estimated gas:", estimatedGas.toString());
+            console.log("- Estimated gas: " + estimatedGas.toString());
         } catch (error) {
-            console.error("Gas estimation failed:", error.message);
-            // Use a default high gas limit
+            console.error("⚠️  Gas estimation failed: " + error.message);
             estimatedGas = 5000000n;
-            console.log("- Using default gas limit:", estimatedGas.toString());
+            console.log("- Using default gas limit: " + estimatedGas.toString());
         }
         
         const feeData = await provider.getFeeData();
         const gasCostWei = estimatedGas * (feeData.gasPrice || feeData.maxFeePerGas || 0n);
-        console.log("- Gas price:", ethers.formatUnits(feeData.gasPrice || feeData.maxFeePerGas || 0n, "gwei"), "gwei");
-        console.log("- Estimated cost:", ethers.formatEther(gasCostWei), "ETH");
+        console.log("- Gas price: " + ethers.formatUnits(feeData.gasPrice || feeData.maxFeePerGas || 0n, "gwei") + " gwei");
+        console.log("- Estimated cost: " + ethers.formatEther(gasCostWei) + " ETH");
         
         // Deploy the account
-        console.log("\n🚀 Creating ERC4337 account...");
+        console.log("");
+        console.log("🚀 Creating ERC4337 account...");
+        console.log("⏳ Please confirm the transaction in your wallet...");
+        
         const tx = await factory.createAccount(
             preQuantumPubKey,
             postQuantumPubKey,
@@ -150,23 +147,24 @@ export async function deployERC4337Account(
         );
         
         const txHash = tx.hash;
-        console.log("- Transaction hash:", txHash);
+        console.log("✅ Transaction signed!");
+        console.log("- Transaction hash: " + txHash);
         
         // Determine block explorer URL
         let explorerUrl = "";
         if (network.chainId === 1n) {
-            explorerUrl = `https://etherscan.io/tx/${txHash}`;
+            explorerUrl = "https://etherscan.io/tx/" + txHash;
         } else if (network.chainId === 11155111n) {
-            explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
+            explorerUrl = "https://sepolia.etherscan.io/tx/" + txHash;
         }
         
         if (explorerUrl) {
-            console.log("- Block explorer:", explorerUrl);
+            console.log("- Block explorer: " + explorerUrl);
         }
         
         console.log("- Waiting for confirmation...");
         
-        // Wait with polling
+        // Wait for receipt (browser-compatible way)
         let receipt = null;
         let attempts = 0;
         const maxAttempts = 60;
@@ -177,7 +175,7 @@ export async function deployERC4337Account(
                 if (!receipt) {
                     attempts++;
                     const elapsed = attempts * 5;
-                    process.stdout.write(`\r  Waiting... ${elapsed}s elapsed`);
+                    console.log("  ⏳ Waiting... " + elapsed + "s elapsed");
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
             } catch (error) {
@@ -186,11 +184,10 @@ export async function deployERC4337Account(
             }
         }
         
-        process.stdout.write('\r                                        \r');
-        
         if (!receipt) {
-            console.log("\n⚠️  Transaction is taking longer than expected");
-            console.log("Check status at:", explorerUrl || txHash);
+            console.log("");
+            console.log("⚠️  Transaction is taking longer than expected");
+            console.log("Check status at: " + (explorerUrl || txHash));
             return {
                 success: false,
                 pending: true,
@@ -200,7 +197,8 @@ export async function deployERC4337Account(
         }
         
         if (receipt.status === 0) {
-            console.log("\n❌ Transaction failed (reverted)");
+            console.log("");
+            console.log("❌ Transaction failed (reverted)");
             return {
                 success: false,
                 error: "Transaction reverted",
@@ -208,19 +206,21 @@ export async function deployERC4337Account(
             };
         }
         
-        console.log("\n✅ ERC4337 Account created successfully!");
-        console.log("- Account address:", expectedAddress);
-        console.log("- Block number:", receipt.blockNumber);
-        console.log("- Gas used:", receipt.gasUsed.toString());
+        console.log("");
+        console.log("✅ ERC4337 Account created successfully!");
+        console.log("- Account address: " + expectedAddress);
+        console.log("- Block number: " + receipt.blockNumber);
+        console.log("- Gas used: " + receipt.gasUsed.toString());
         
         const actualCost = receipt.gasUsed * (receipt.gasPrice || receipt.effectiveGasPrice || 0n);
-        console.log("- Actual cost:", ethers.formatEther(actualCost), "ETH");
+        console.log("- Actual cost: " + ethers.formatEther(actualCost) + " ETH");
         
         // Verify the deployment
-        console.log("\n🔍 Verifying deployment...");
+        console.log("");
+        console.log("🔍 Verifying deployment...");
         const deployedCode = await provider.getCode(expectedAddress);
         const isDeployed = deployedCode !== '0x';
-        console.log("- Account deployed:", isDeployed ? "✓" : "✗");
+        console.log("- Account deployed: " + (isDeployed ? "✓" : "✗"));
         
         return {
             success: true,
@@ -232,9 +232,10 @@ export async function deployERC4337Account(
         };
         
     } catch (error) {
-        console.error("\n❌ Account creation failed:", error.message);
-        if (error.stack) {
-            console.error("Stack trace:", error.stack);
+        console.log("");
+        console.error("❌ Account creation failed: " + error.message);
+        if (error.code === 'ACTION_REJECTED' || error.code === 4001) {
+            console.log("(User rejected the transaction in wallet)");
         }
         return {
             success: false,

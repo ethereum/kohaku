@@ -16,17 +16,17 @@ function hexToU8(hex) {
 async function main() {
     const privateKey = process.argv[2];
     const providerUrl = "https://eth-sepolia-testnet.api.pocket.network";
-    const factoryAddress = "0x6aA545dE6Dc114192f2EA34Dde63ba77aABaC6CF";
+    const factoryAddress = "0x82af6d1f821b1032fDfdEAa2247008d97999309f";
     
     // seeds
-    const prequantum_seed = "0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafc";
+    const prequantum_seed = "0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe";
     const postquantum_seed = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     
     // prequantum pubkey
     const preQuantumPubKey = new ethers.Wallet(prequantum_seed).address;
     
     // postquantum pubkey
-    const { publicKey, _ } = ml_dsa44.keygen(hexToU8(postquantum_seed));
+    const { _, publicKey } = ml_dsa44.keygen(hexToU8(postquantum_seed));
     const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
 
     // Step 3: Deploy ERC4337 Account
