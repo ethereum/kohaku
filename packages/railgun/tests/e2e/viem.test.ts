@@ -8,7 +8,8 @@ import {
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
-import { ViemProviderAdapter, ViemSignerAdapter } from '../../src/provider';
+import { viem, ViemSignerAdapter } from '@kohaku-eth/provider/viem';
+import { EthereumProvider } from '@kohaku-eth/provider';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import { formatEther, getContract } from 'viem';
@@ -26,7 +27,7 @@ function getEnv(key: string, fallback: string): string {
 
 describe('Railgun E2E Flow (Viem)', () => {
   let anvil: AnvilInstance;
-  let provider: ViemProviderAdapter;
+  let provider: EthereumProvider;
   let publicClient: PublicClient;
   let aliceWalletClient: WalletClient;
   let bobWalletClient: WalletClient;
@@ -72,7 +73,7 @@ describe('Railgun E2E Flow (Viem)', () => {
       transport: http(anvil.rpcUrl),
     });
 
-    provider = new ViemProviderAdapter(publicClient);
+    provider = viem(publicClient);
 
     // Load or create cache for this fork block (this is the slow part on first run)
     console.log(`\nLoading cache for fork block ${forkBlock}...`);

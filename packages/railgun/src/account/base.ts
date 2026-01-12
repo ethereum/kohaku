@@ -10,10 +10,9 @@ import { CreateShield, makeCreateShield } from "./tx/shield";
 import { CreateUnshield, makeCreateUnshield } from "./tx/unshield";
 import { CreateTransfer, makeCreateTransfer } from "./tx/transfer";
 import { createRailgunIndexer, Indexer } from "~/indexer/base";
-import { RailgunProvider } from "~/provider";
+import { EthereumProvider } from "@kohaku-eth/provider";
 import { StorageLayer } from "~/storage/base";
 import { createAccountStorage, serializeAccountStorage, CachedAccountStorage } from "./storage";
-import type { RailgunRpcConfig } from "../provider/colibri";
 
 export type RailgunAccountBaseParameters = {
     // Key configuration for the account, either a private key or a mnemonic.
@@ -30,8 +29,7 @@ export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
 
 export type RailgunAccountParamsIndexerConfig = RailgunAccountBaseParameters & {
     // Indexer configuration
-    provider?: RailgunProvider;
-    rpc?: RailgunRpcConfig;
+    provider?: EthereumProvider;
     // Network configuration
     network: RailgunNetworkConfig;
 };
@@ -60,7 +58,7 @@ export type RailgunAccount = GetRailgunAddress &
 export const createRailgunAccount: (params: RailgunAccountParameters) => Promise<RailgunAccount> = async ({ credential, storage, loadState, ...params }) => {
     const { spending, viewing, master, signer } = await deriveKeys(credential);
     const { notebooks, getEndBlock: getAccountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadState, spending, viewing });
-    const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider, rpc: params.rpc });
+    const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider });
     const { getTrees, network } = indexer;
 
     // Validate that account endBlock doesn't exceed indexer endBlock

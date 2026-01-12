@@ -4,13 +4,13 @@ import { ABIRailgunSmartWallet } from "~/railgun/lib/abi/abi";
 import { makeHandleShieldEvent, ShieldEvent } from "./shield";
 import { makeHandleNullifiedEvent, NullifiedEvent } from "./nullified";
 import { makeHandleTransactEvent, TransactEvent } from "./transact";
-import { RailgunLog } from "~/provider";
+import { TxLog } from "@kohaku-eth/provider";
 import { Indexer } from "~/indexer/base";
 
 export type ProcessLogContext = Pick<Indexer, 'getTrees' | 'accounts'>;
 
 export type ProcessLogParams = {
-    log: RailgunLog;
+    log: TxLog;
     skipMerkleTree: boolean;
 };
 

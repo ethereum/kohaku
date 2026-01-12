@@ -3,14 +3,14 @@ import { Wallet } from 'ethers';
 import {
   createRailgunAccount,
   createRailgunIndexer,
-  type RailgunLog,
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH } from '../utils/test-helpers';
-import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
+import { ethers, EthersSignerAdapter } from '@kohaku-eth/provider/ethers';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import { KeyConfig } from '../../src/account/keys';
+import { EthereumProvider, TxLog } from '@kohaku-eth/provider';
 
 // Use globalThis to store the flag - this is available before module initialization
 declare global {
@@ -49,7 +49,7 @@ vi.mock('../../src/railgun/lib/utils/runtime', async () => {
  */
 describe('Note Decryption - Browser vs Node.js Paths', () => {
   let anvil: AnvilInstance;
-  let provider: EthersProviderAdapter;
+  let provider: EthereumProvider;
   let alice: Wallet;
   let forkBlock: number;
 
@@ -71,7 +71,7 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
 
     const jsonRpcProvider = await anvil.getProvider();
 
-    provider = new EthersProviderAdapter(jsonRpcProvider);
+    provider = ethers(jsonRpcProvider);
 
     alice = new Wallet(TEST_ACCOUNTS.alice.privateKey, await anvil.getProvider());
 
@@ -139,7 +139,7 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
       indexer: indexerNode,
     });
 
-    await indexerNode.processLogs(logs as RailgunLog[], { skipMerkleTree: false });
+    await indexerNode.processLogs(logs as TxLog[], { skipMerkleTree: false });
     const balanceNode = await accountNode.getBalance();
 
     expect(balanceNode).toBeGreaterThan(0n);
@@ -200,7 +200,7 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
       });
 
       // Process the same logs with browser path
-      await indexerBrowser.processLogs(logs as RailgunLog[], { skipMerkleTree: false });
+      await indexerBrowser.processLogs(logs as TxLog[], { skipMerkleTree: false });
       const balanceBrowser = await accountBrowser.getBalance();
 
       expect(balanceBrowser).toBeGreaterThan(0n);

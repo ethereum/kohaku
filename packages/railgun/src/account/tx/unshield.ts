@@ -1,5 +1,5 @@
 import { RailgunNetworkConfig, ZERO_ADDRESS, ZERO_ARRAY } from "~/config";
-import { createTx, TxData } from "./base";
+import { createTx, TxData } from "@kohaku-eth/provider";
 import { Address } from "viem";
 import { transact, PublicInputs } from '~/railgun/logic/logic/transaction';
 import { ABIRailgunSmartWallet, ABIRelayAdapt } from "~/railgun/lib/abi/abi";

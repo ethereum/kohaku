@@ -2,7 +2,7 @@ import { HandleShieldEvent, makeHandleShieldEvent } from "./shield";
 import { HandleTransactEvent, makeHandleTransactEvent } from "./transact";
 import { DerivedKeys } from "../keys";
 import { Notebook } from "~/utils/notebook";
-import { RailgunLog } from "~/provider";
+import { TxLog } from "@kohaku-eth/provider";
 import { Indexer } from "~/indexer/base";
 
 export type ProcessLogContext = {
@@ -15,7 +15,7 @@ export type ProcessLogContext = {
 // Note: setAccountEndBlock is used internally by event handlers to update account endBlock
 
 export type ProcessLogParams = {
-    log: RailgunLog;
+    log: TxLog;
     skipMerkleTree: boolean;
 };
 

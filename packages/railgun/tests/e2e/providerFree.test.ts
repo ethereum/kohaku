@@ -4,18 +4,18 @@ import { Wallet, Contract } from 'ethers';
 import {
   createRailgunAccount,
   createRailgunIndexer,
-  type RailgunLog,
   type CachedAccountStorage,
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
-import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
+import { ethers, EthersSignerAdapter } from '@kohaku-eth/provider/ethers';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import { formatEther } from 'viem';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { KeyConfig } from '../../src/account/keys';
+import { EthereumProvider, TxLog } from '@kohaku-eth/provider';
 
 // Helper to get environment variable with fallback
 function getEnv(key: string, fallback: string): string {
@@ -53,11 +53,11 @@ let bobAccountState: CachedAccountStorage | undefined = undefined;
 
 // External log fetching (duplicated from sync.ts)
 async function* getLogs(
-  provider: EthersProviderAdapter,
+  provider: EthereumProvider,
   network: typeof RAILGUN_CONFIG_BY_CHAIN_ID['11155111'],
   startBlock: number,
   endBlock: number
-): AsyncGenerator<{ logs: RailgunLog[]; toBlock: number }> {
+): AsyncGenerator<{ logs: TxLog[]; toBlock: number }> {
   const MAX_BATCH = 200;
   const MIN_BATCH = 1;
   const railgunAddress = network.RAILGUN_ADDRESS;
@@ -118,13 +118,13 @@ async function* getLogs(
 }
 
 async function fetchAndProcessLogs(
-  provider: EthersProviderAdapter,
+  provider: EthereumProvider,
   indexer: Awaited<ReturnType<typeof createRailgunIndexer>>,
   fromBlock: number,
   toBlock: number
 ) {
   const network = RAILGUN_CONFIG_BY_CHAIN_ID['11155111']!;
-  const allLogs: RailgunLog[] = [];
+  const allLogs: TxLog[] = [];
 
   // Fetch all logs
   for await (const { logs } of getLogs(provider, network, fromBlock, toBlock)) {
@@ -140,7 +140,7 @@ async function fetchAndProcessLogs(
 
 describe('Railgun E2E Flow (Provider-Free)', () => {
   let anvil: AnvilInstance;
-  let provider: EthersProviderAdapter;
+  let provider: EthereumProvider;
   let alice: Wallet;
   let bob: Wallet;
   let charlie: Wallet;
@@ -170,7 +170,7 @@ describe('Railgun E2E Flow (Provider-Free)', () => {
 
     const jsonRpcProvider = await anvil.getProvider();
 
-    provider = new EthersProviderAdapter(jsonRpcProvider);
+    provider = ethers(jsonRpcProvider);
 
     // Setup test accounts
     alice = new Wallet(TEST_ACCOUNTS.alice.privateKey, await anvil.getProvider());

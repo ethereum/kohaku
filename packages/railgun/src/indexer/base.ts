@@ -1,17 +1,15 @@
 import { RailgunNetworkConfig } from "~/config";
-import { RailgunProvider, RailgunLog } from "~/provider";
+import { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { createRpcSync, RpcSync } from "./sync";
 import { RailgunAccount } from "~/account/base";
 import { makeProcessLog } from "./events";
 import { StorageLayer } from "~/storage/base";
 import { createIndexerStorage, serializeMerkleTrees, IndexerLoadData } from "./storage";
-import { createRailgunProviderFromRpc, type RailgunRpcConfig } from "../provider/colibri";
 
 export type IndexerConfig = {
     network: RailgunNetworkConfig;
-    provider?: RailgunProvider;
-    rpc?: RailgunRpcConfig;
+    provider?: EthereumProvider;
     checkpoint?: string;
     startBlock?: number;
 } & (
@@ -29,7 +27,7 @@ export type Indexer = {
     network: RailgunNetworkConfig;
     accounts: RailgunAccount[];
     registerAccount: (account: RailgunAccount) => void;
-    processLogs: (logs: RailgunLog[], options?: ProcessLogsOptions) => Promise<void>;
+    processLogs: (logs: TxLog[], options?: ProcessLogsOptions) => Promise<void>;
     getNetwork: () => RailgunNetworkConfig;
     getEndBlock: () => number;
     getSerializedState: () => { merkleTrees: ReturnType<typeof serializeMerkleTrees>; endBlock: number };
@@ -41,7 +39,6 @@ export type CreateRailgunIndexerFn = (config: IndexerConfig) => Promise<Indexer>
 export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
     network,
     provider,
-    rpc,
     startBlock,
     storage,
     loadState,
@@ -54,21 +51,13 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
     // Only create sync if provider is provided
     let sync: RpcSync['sync'] | undefined;
 
-    if (provider && rpc) {
-        throw new Error("Provide either 'provider' or 'rpc', not both.");
-    }
-
-    if (!provider && rpc) {
-        provider = await createRailgunProviderFromRpc(network, rpc);
-    }
-
     if (provider) {
         const rpcSync = await createRpcSync({ network, provider, getCurrentBlock, accounts, processLog, getTrees, saveTrees, setEndBlock });
 
         sync = rpcSync.sync;
     }
 
-    const processLogs = async (logs: RailgunLog[], options: ProcessLogsOptions = {}) => {
+    const processLogs = async (logs: TxLog[], options: ProcessLogsOptions = {}) => {
         const { skipMerkleTree = false } = options;
 
         // Process all logs

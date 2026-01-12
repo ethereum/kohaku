@@ -1,4 +1,4 @@
-import { RailgunLog, RailgunProvider } from "~/provider";
+import { TxLog, EthereumProvider } from "@kohaku-eth/provider";
 import { RailgunNetworkConfig } from "~/config";
 import { RailgunAccount } from "~/account/base";
 import { ProcessLogFn } from "./events";
@@ -7,9 +7,9 @@ import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { batchBuffer } from "./buffer";
 
 export type RpcSyncFn = (params?: { fromBlock?: number, toBlock?: number, logProgress?: boolean }) => Promise<void>;
-export type RpcGetLogsFn = (fromBlock: number, toBlock: number) => AsyncGenerator<{ logs: RailgunLog[], toBlock: number }>;
+export type RpcGetLogsFn = (fromBlock: number, toBlock: number) => AsyncGenerator<{ logs: TxLog[], toBlock: number }>;
 export type RpcSyncContext = {
-    provider: RailgunProvider;
+    provider: EthereumProvider;
     network: RailgunNetworkConfig;
     getCurrentBlock: () => number;
     accounts: RailgunAccount[];

@@ -1,7 +1,7 @@
 import { RailgunNetworkConfig, ZERO_ADDRESS, ZERO_ARRAY } from "~/config";
 import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { Address } from "viem";
-import { createTx, TxData } from "./base";
+import { createTx, TxData } from "@kohaku-eth/provider";
 import { RailgunAddress } from "../actions/address";
 import { PublicInputs, transact } from "~/railgun/logic/logic/transaction";
 import { ABIRailgunSmartWallet } from "~/railgun/lib/abi/abi";

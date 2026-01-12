@@ -1,4 +1,4 @@
-import type { RailgunLog, TransactionReceipt } from '../provider';
+import type { TxLog, TransactionReceipt } from '../tx';
 
 export type ViemPublicClient = {
   getLogs: (params: {
@@ -45,7 +45,7 @@ export const formatReceipt = (receipt: ViemTransactionReceipt): TransactionRecei
   gasUsed: receipt.gasUsed,
 });
 
-export const convertLog = (log: ViemLog): RailgunLog => ({
+export const convertLog = (log: ViemLog): TxLog => ({
   blockNumber: Number(log.blockNumber),
   topics: log.topics,
   data: log.data,
