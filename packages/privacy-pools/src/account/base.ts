@@ -6,8 +6,11 @@ export type Config = {
     // network: NetworkConfig;
 };
 
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type Account = {};
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const createAccount = (config: Config): Account => {
 
     return {};
