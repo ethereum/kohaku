@@ -16,9 +16,6 @@ if (majorVersion < 22) {
 // Configuration
 export * from './config';
 
-// Provider abstraction
-export * from './provider';
-
 // Indexer functionality
 export * from './indexer/base.js';
 export * from './indexer/storage.js';

@@ -1,24 +1,12 @@
-import { TxData } from "~/account/tx/base";
-
-export interface RailgunLog {
-  blockNumber: number;
-  topics: string[];
-  data: string;
-  address: string;
-}
-
-export interface TransactionReceipt {
-  blockNumber: number;
-  status: number;
-  logs: RailgunLog[];
-  gasUsed: bigint;
-}
+import { TxData, TxLog, TransactionReceipt } from "./tx";
 
 /**
  * Abstract provider interface for blockchain interactions
  * Supports both Ethers v6 and Viem implementations
  */
-export interface RailgunProvider {
+export type EthereumProvider<T = unknown> = {
+  _internal: T;
+
   /**
    * Fetch logs from the blockchain
    */
@@ -26,7 +14,7 @@ export interface RailgunProvider {
     address: string;
     fromBlock: number;
     toBlock: number;
-  }): Promise<RailgunLog[]>;
+  }): Promise<TxLog[]>;
 
   /**
    * Get the current block number
@@ -58,7 +46,7 @@ export interface RailgunProvider {
  * Abstract signer interface for transaction signing and submission
  * Supports both Ethers v6 and Viem implementations
  */
-export interface RailgunSigner {
+export interface TxSigner {
   /**
    * Sign a message
    */

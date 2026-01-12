@@ -4,9 +4,6 @@
 // Configuration
 export * from './config';
 
-// Provider abstraction
-export * from './provider';
-
 // Indexer functionality
 export * from './indexer/base.js';
 export * from './indexer/storage.js';
@@ -21,4 +18,3 @@ export * from './railgun/lib/key-derivation';
 
 // Note: file storage layers are NOT exported in browser build
 // Use empty storage layer or custom storage implementation
-

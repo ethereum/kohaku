@@ -1,8 +1,8 @@
-import type { RailgunSigner } from '../provider';
-import type { TxData } from '~/account/tx/base';
+import type { TxSigner } from '../provider';
+import type { TxData } from '../tx';
 import type { ViemWalletClient } from './types';
 
-export class ViemSignerAdapter implements RailgunSigner {
+export class ViemSignerAdapter implements TxSigner {
   constructor(private readonly wallet: ViemWalletClient) {}
 
   async signMessage(message: string | Uint8Array): Promise<string> {

@@ -1,3 +1,17 @@
+export interface TxLog {
+    blockNumber: number;
+    topics: string[];
+    data: string;
+    address: string;
+}
+
+export interface TransactionReceipt {
+    blockNumber: number;
+    status: number;
+    logs: TxLog[];
+    gasUsed: bigint;
+}
+
 export type TxData = {
     to: string;
     data: string;
