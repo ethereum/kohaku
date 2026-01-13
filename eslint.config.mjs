@@ -67,19 +67,5 @@ export default [
     rules: {
       'max-lines': ['error', 200],
     }
-  },
-  // Override rules for global.ts to allow browser shim patterns
-  {
-    files: ['**/global.ts'],
-    rules: {
-      '@stylistic/padding-line-between-statements': 'off',
-      'max-lines': 'off',
-      'import/no-default-export': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { 
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_'
-      }],
-      '@typescript-eslint/no-explicit-any': 'off',
-    }
   }
 ];
