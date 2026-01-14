@@ -43,26 +43,18 @@ export async function createUserOperation(
         nonce = 0n;
     }
 
-    // No inner call, just empty bytes
-    const innerCallData = "0x";
-
     // Then encode the execute() call with the recipient (can be an EOA)
     const executeCallData = account.interface.encodeFunctionData(
         "execute",
-        [targetAddress, 0, innerCallData]
+        [targetAddress, value, callData]
     );
 
     console.log("- Execute call data:", executeCallData.slice(0, 20) + "...");
 
-    // Use FIXED gas prices for reproducible hashes
     // These values are reasonable for Sepolia
     const maxPriority = ethers.parseUnits("1", "gwei");  // 1 gwei
     const maxFee = ethers.parseUnits("2", "gwei");       // 2 gwei
     
-    console.log("- Using FIXED gas prices:");
-    console.log("  maxPriorityFeePerGas:", ethers.formatUnits(maxPriority, "gwei"), "gwei");
-    console.log("  maxFeePerGas:", ethers.formatUnits(maxFee, "gwei"), "gwei");
-
     const userOp = {
         sender: accountAddress,
         nonce: nonce,
@@ -73,11 +65,11 @@ export async function createUserOperation(
         // verificationGasLimit: HIGH (20M) - for expensive ML-DSA signature verification
         // callGasLimit: Lower (500k) - for simple contract call
         accountGasLimits: packUint128(
-            20_000_000n,   // verificationGasLimit (first 128 bits)
+            22_000_000n,   // verificationGasLimit (first 128 bits)
             500_000n       // callGasLimit (second 128 bits)
         ),
 
-        preVerificationGas: 100000n,
+        preVerificationGas: 200000n,
 
         // Solidity: bytes32(abi.encodePacked(uint128(maxPriorityFeePerGas), uint128(maxFeePerGas)))
         gasFees: packUint128(
@@ -98,26 +90,10 @@ export async function createUserOperation(
  * Get the hash that needs to be signed
  */
 export function getUserOpHash(userOp, entryPointAddress, chainId) {
-    console.log("🔢 Calculating UserOperation hash...");
-
-    console.log("sender:", userOp.sender);
-    console.log("nonce:", userOp.nonce.toString());
-
     const initCodeHash = ethers.keccak256(userOp.initCode);
-    console.log("initCode hash:", initCodeHash);
-
     const callDataHash = ethers.keccak256(userOp.callData);
-    console.log("callData hash:", callDataHash);
-
-    console.log("accountGasLimits:", userOp.accountGasLimits);
-    console.log("preVerificationGas:", userOp.preVerificationGas.toString());
-    console.log("gasFees:", userOp.gasFees);
-
     const paymasterHash = ethers.keccak256(userOp.paymasterAndData);
-    console.log("paymasterAndData hash:", paymasterHash);
-
     const abi = ethers.AbiCoder.defaultAbiCoder();
-
     const packedEncoded = abi.encode(
         [
             "address",
@@ -141,21 +117,12 @@ export function getUserOpHash(userOp, entryPointAddress, chainId) {
         ]
     );
 
-    console.log("ABI encoded packedUserOp:", packedEncoded);
-
     const packedUserOp = ethers.keccak256(packedEncoded);
-    console.log("packedUserOp hash:", packedUserOp);
-
     const finalEncoded = abi.encode(
         ["bytes32", "address", "uint256"],
         [packedUserOp, entryPointAddress, chainId]
     );
-
-    console.log("Final ABI encoded:", finalEncoded);
-
     const userOpHash = ethers.keccak256(finalEncoded);
-
-    console.log("✅ UserOp Hash:", userOpHash);
     return userOpHash;
 }
 
@@ -166,15 +133,9 @@ export function getUserOpHash(userOp, entryPointAddress, chainId) {
  */
 export async function signUserOpPreQuantum(userOp, entryPointAddress, chainId, privateKey) {
     console.log("🔏 Signing with pre-quantum key (ECDSA)...");
-    
     const wallet = new ethers.Wallet(privateKey);
     const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
-    
     const signature = wallet.signingKey.sign(userOpHash).serialized;
-    
-    console.log("- Pre-quantum signature: " + signature.slice(0, 20) + "...");
-    console.log("- Signature length: " + signature.length + " chars");
-    
     return signature;
 }
 
@@ -183,17 +144,10 @@ export async function signUserOpPreQuantum(userOp, entryPointAddress, chainId, p
  */
 export async function signUserOpPostQuantum(userOp, entryPointAddress, chainId, mldsaSecretKey) {
     console.log("🔐 Signing with post-quantum key (ML-DSA-44)...");
-    
     const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
     const userOpHashBytes = ethers.getBytes(userOpHash);
-    
-    // Sign with ML-DSA
-    const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey);
+    const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey, { extraEntropy: false });
     const signatureHex = ethers.hexlify(signature);
-    
-    console.log("- Post-quantum signature: " + signatureHex);
-    console.log("- Signature length: " + signatureHex.length + " chars");
-    
     return signatureHex;
 }
 
@@ -295,9 +249,6 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
     if (result.error) {
         throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
     }
-
-    console.log("✅ UserOperation submitted!");
-    console.log("- UserOp Hash / Response:", result.result);
 
     return result.result; // UserOperation hash
 }

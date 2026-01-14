@@ -93,4 +93,7 @@ contract ZKNOX_ERC4337_account is BaseAccount {
         }
         return SIG_VALIDATION_SUCCESS;
     }
+
+    receive() external payable {}
+    fallback() external payable {}
 }

@@ -146,13 +146,17 @@
         
         <div class="input-group">
             <label for="factory">Factory Contract Address:</label>
-            <input type="text" id="factory" value="0x82af6d1f821b1032fDfdEAa2247008d97999309f" readonly>
+            <input type="text" id="factory" readonly>
             <small>The factory contract that will create your ERC4337 account</small>
         </div>
+        <script type="module">
+            import deployments from '../deployments/deployments.json' assert { type: 'json' };
+            document.getElementById('factory').value = deployments.arbitrumSepolia.accounts.mldsa_k1.address;
+        </script>
         
         <div class="input-group">
             <label for="prequantum">Pre-Quantum Seed:</label>
-            <input type="text" id="prequantum" value="0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafc">
+            <input type="text" id="prequantum" value="0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe">
             <small>32 bytes (64 hex characters) for ECDSA key generation</small>
         </div>
         

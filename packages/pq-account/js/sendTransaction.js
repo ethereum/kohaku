@@ -57,11 +57,6 @@ export async function sendERC4337Transaction(
         // Generate FULL ML-DSA keypair from seed (this gives us the 2560-byte secret key)
         const { secretKey, publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
         
-        console.log("- Pre-quantum address: " + preQuantumWallet.address);
-        console.log("- Post-quantum secret key length: " + secretKey.length + " bytes");
-        console.log("- Post-quantum public key length: " + publicKey.length + " bytes");
-        console.log("");
-        
         // Create UserOperation
         const userOp = await createUserOperation(
             accountAddress,
@@ -84,8 +79,6 @@ export async function sendERC4337Transaction(
         );
         
         userOp.signature = signature;
-        console.log("SINGATUEE");
-        console.log(userOp.signature);
         
         console.log("");
         console.log("=".repeat(60));

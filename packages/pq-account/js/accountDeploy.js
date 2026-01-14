@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 const ACCOUNT_FACTORY_ABI = [
     "function createAccount(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external returns (address)",
-    "function getAddress(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external view returns (address)",
+    "function getAddress(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external view returns (address payable)",
     "function entryPoint() external view returns (address)",
     "function preQuantumLogic() external view returns (address)",
     "function postQuantumLogic() external view returns (address)",
@@ -26,24 +26,41 @@ export async function deployERC4337Account(
         // Get provider and signer
         let provider, signer;
         
-        if (signerOrProvider.signTransaction) {
-            // Already a signer (has signTransaction method)
+      if (typeof signerOrProvider === "string") {
+            // signerOrProvider is a JSON-RPC URL
+            provider = new ethers.JsonRpcProvider(signerOrProvider);
+            if (privateKey) {
+                signer = new ethers.Wallet(privateKey, provider);
+            } else if (provider.getSigner) {
+                signer = provider.getSigner();
+            }
+            console.log("🔌 Connected via RPC URL:", signerOrProvider);
+
+        } else if (signerOrProvider.signTransaction) {
+            // Already a Signer
             signer = signerOrProvider;
             provider = signer.provider;
+            console.log("🔌 Using provided Signer");
+
         } else if (signerOrProvider.request) {
-            // Browser wallet provider (MetaMask, Rabby, Ledger via browser)
+            // Browser wallet (MetaMask, Rabby, Ledger)
             console.log("🔌 Connecting to browser wallet...");
             provider = new ethers.BrowserProvider(signerOrProvider);
             signer = await provider.getSigner();
             console.log("✅ Wallet connected");
+
         } else if (signerOrProvider.getNetwork) {
-            // It's a provider, ask for signer
+            // Already a Provider
             provider = signerOrProvider;
             signer = await provider.getSigner();
+            console.log("🔌 Using provided Provider");
+
         } else {
-            throw new Error("Invalid signer or provider. Please provide window.ethereum, an ethers Signer, or an ethers Provider.");
+            throw new Error(
+                "Invalid signer or provider. Please provide window.ethereum, a Signer, a Provider, or an RPC URL string."
+            );
         }
-        
+
         const address = await signer.getAddress();
         const balance = await provider.getBalance(address);
         
@@ -156,6 +173,9 @@ export async function deployERC4337Account(
             explorerUrl = "https://etherscan.io/tx/" + txHash;
         } else if (network.chainId === 11155111n) {
             explorerUrl = "https://sepolia.etherscan.io/tx/" + txHash;
+        }
+        else if (network.chainId === 421614n) {
+            explorerUrl = "https://sepolia.arbiscan.io/tx/" + txHash;
         }
         
         if (explorerUrl) {

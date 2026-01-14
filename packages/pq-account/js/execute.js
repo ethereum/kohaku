@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 import { to_expanded_encoded_bytes } from './utils_mldsa.js';
 import { deployERC4337Account } from './accountDeploy.js';
+import deployments from '../deployments/deployments.json' assert { type: 'json' };
 
 function hexToU8(hex) {
   if (hex.startsWith("0x")) hex = hex.slice(2);
@@ -15,8 +16,9 @@ function hexToU8(hex) {
 
 async function main() {
     const privateKey = process.argv[2];
-    const providerUrl = "https://eth-sepolia-testnet.api.pocket.network";
-    const factoryAddress = "0x82af6d1f821b1032fDfdEAa2247008d97999309f";
+    const providerUrl = "https://api.zan.top/arb-sepolia";
+    // const providerUrl = "https://eth-sepolia-testnet.api.pocket.network";
+    const factoryAddress = deployments.arbitrumSepolia.accounts.mldsa_k1.address;//"0x7D37d292a9CD6586d923F8eecDFC98143Bf0B268";
     
     // seeds
     const prequantum_seed = "0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe";

@@ -25,6 +25,7 @@ abstract contract VerifierDeployer is BaseScript {
         string memory network;
         if (block.chainid == 11155111) network = "sepolia";
         else if (block.chainid == 1) network = "mainnet";
+        else if (block.chainid == 421614) network = "arbitrumSepolia";
         else revert("Unsupported chain");
 
         string memory basePath =

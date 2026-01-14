@@ -24,6 +24,8 @@ abstract contract FactoryDeployer is BaseScript {
             network = "sepolia";
         } else if (block.chainid == 1) {
             network = "mainnet";
+        } else if (block.chainid == 421614) {
+            network = "arbitrumSepolia";
         } else {
             revert("Unsupported chain");
         }
@@ -53,7 +55,8 @@ abstract contract FactoryDeployer is BaseScript {
         ZKNOX_AccountFactory factory = new ZKNOX_AccountFactory{salt: salt}(
             IEntryPoint(ENTRYPOINT_V07),
             preQuantumVerifier,
-            postQuantumVerifier
+            postQuantumVerifier,
+            saltLabel
         );
         vm.stopBroadcast();
         
@@ -82,7 +85,7 @@ abstract contract FactoryDeployer is BaseScript {
 // Default factory: ECDSA K1 + MLDSA
 contract MLDSA_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSA_K1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_MLDSA_K1_FACTORY_V0_0_4";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "mldsa";
         factoryName = "mldsa_k1";
