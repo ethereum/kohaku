@@ -24,12 +24,17 @@ function packUint128(a, b) {
 /**
  * Create a UserOperation for ERC4337 account
  */
+/**
+ * Create a UserOperation for ERC4337 account
+ */
 export async function createUserOperation(
     accountAddress,
     targetAddress,
     value,
     callData,
-    provider
+    provider,
+    bundlerUrl,      // new parameter for estimating
+    chainId          // needed for creating temporary userOp hash
 ) {
     console.log("📝 Creating UserOperation (Packed v0.7)...");
 
@@ -43,47 +48,106 @@ export async function createUserOperation(
         nonce = 0n;
     }
 
-    // Then encode the execute() call with the recipient (can be an EOA)
     const executeCallData = account.interface.encodeFunctionData(
         "execute",
         [targetAddress, value, callData]
     );
-
     console.log("- Execute call data:", executeCallData.slice(0, 20) + "...");
 
-    // These values are reasonable for Sepolia
-    const maxPriority = ethers.parseUnits("1", "gwei");  // 1 gwei
-    const maxFee = ethers.parseUnits("2", "gwei");       // 2 gwei
-    
-    const userOp = {
+    // Fetch suggested gas fees from bundler
+    let maxPriority, maxFee;
+    try {
+        const gasResponse = await fetch(bundlerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'pimlico_getUserOperationGasPrice',
+                params: []  // no params needed
+            })
+        });
+        const gasResult = await gasResponse.json();
+        if (!gasResult.result) throw new Error("No gas price returned");
+
+        // result: { maxFeePerGas: "0x...", maxPriorityFeePerGas: "0x..." }
+        maxFee = BigInt(gasResult.result.maxFeePerGas);
+        maxPriority = BigInt(gasResult.result.maxPriorityFeePerGas);
+
+        console.log("- Bundler suggested maxPriorityFeePerGas:", maxPriority.toString());
+        console.log("- Bundler suggested maxFeePerGas:", maxFee.toString());
+    } catch (e) {
+        console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
+        maxPriority = ethers.parseUnits("0.1", "gwei");
+        maxFee = ethers.parseUnits("0.2", "gwei");
+    }
+
+    // temporary UserOperation for gas estimation
+    let tempUserOp = {
         sender: accountAddress,
         nonce: nonce,
         initCode: "0x",
         callData: executeCallData,
-
-        // accountGasLimits = packUint128(verificationGasLimit, callGasLimit)
-        // verificationGasLimit: HIGH (20M) - for expensive ML-DSA signature verification
-        // callGasLimit: Lower (500k) - for simple contract call
-        accountGasLimits: packUint128(
-            22_000_000n,   // verificationGasLimit (first 128 bits)
-            500_000n       // callGasLimit (second 128 bits)
-        ),
-
-        preVerificationGas: 200000n,
-
-        // Solidity: bytes32(abi.encodePacked(uint128(maxPriorityFeePerGas), uint128(maxFeePerGas)))
-        gasFees: packUint128(
-            maxPriority,   // maxPriorityFeePerGas (first 128 bits)
-            maxFee         // maxFeePerGas (second 128 bits)
-        ),
-
+        accountGasLimits: packUint128(0n, 0n), // placeholder
+        preVerificationGas: 310_000n,
+        gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
         signature: "0x"
     };
 
+    // Prepare for bundler
+    function unpackUint128(packed) {
+        const bytes = ethers.getBytes(packed);
+        const first = BigInt('0x' + ethers.hexlify(bytes.slice(0, 16)).slice(2));
+        const second = BigInt('0x' + ethers.hexlify(bytes.slice(16, 32)).slice(2));
+        return [first, second];
+    }
+
+    const [dummyVerification, dummyCall] = unpackUint128(tempUserOp.accountGasLimits);
+    const userOpForBundler = {
+        sender: tempUserOp.sender,
+        nonce: '0x' + BigInt(tempUserOp.nonce).toString(16),
+        callData: tempUserOp.callData,
+        verificationGasLimit: '0x' + dummyVerification.toString(16),
+        callGasLimit: '0x' + dummyCall.toString(16),
+        preVerificationGas: '0x' + BigInt(tempUserOp.preVerificationGas).toString(16),
+        maxFeePerGas: '0x' + maxFee.toString(16),
+        maxPriorityFeePerGas: '0x' + maxPriority.toString(16),
+        signature: tempUserOp.signature
+    };
+
+    // Estimate gas via bundler
+    try {
+        const response = await fetch(bundlerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'eth_estimateUserOperationGas',
+                params: [userOpForBundler, ENTRY_POINT_ADDRESS]
+            })
+        });
+        const result = await response.json();
+        if (!result.result) throw new Error("No estimate returned");
+        
+        console.log("- Gas estimate from bundler:", result.result);
+
+        // Update accountGasLimits based on result
+        const verificationGasLimit = BigInt(result.result.verificationGasLimit);
+        const callGasLimit = BigInt(result.result.callGasLimit);
+        tempUserOp.accountGasLimits = packUint128(verificationGasLimit, callGasLimit);
+
+    } catch (e) {
+        console.warn("⚠️ Bundler gas estimation failed, using defaults:", e);
+        tempUserOp.accountGasLimits = packUint128(15_400_000n, 15_000n);
+    }
+
+    tempUserOp.gasFees = packUint128(maxPriority, maxFee);
+
     console.log("✅ Packed UserOperation created");
 
-    return userOp;
+    return tempUserOp;
 }
 
 /**
@@ -146,7 +210,7 @@ export async function signUserOpPostQuantum(userOp, entryPointAddress, chainId, 
     console.log("🔐 Signing with post-quantum key (ML-DSA-44)...");
     const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
     const userOpHashBytes = ethers.getBytes(userOpHash);
-    const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey, { extraEntropy: false });
+    const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey); // , { extraEntropy: false });
     const signatureHex = ethers.hexlify(signature);
     return signatureHex;
 }

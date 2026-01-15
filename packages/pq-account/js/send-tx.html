@@ -136,7 +136,7 @@
     <div class="warning">
         <strong>⚠️ Important:</strong>
         This will create and sign a UserOperation with hybrid quantum-resistant signatures.
-        To actually submit it, you need a bundler service (optional - the tool will show you the signed UserOperation).
+        To actually submit it, you need a bundler service.
     </div>
     
     <div class="config-section">
@@ -144,7 +144,7 @@
         
         <div class="input-group">
             <label>Your ERC4337 Account Address:</label>
-            <input type="text" id="accountAddress" value="0xe63546EF0AfC039A690891a83089541dc07225Fc">
+            <input type="text" id="accountAddress" value="0xCE4ef6a1a0A0d4619EBf4953EE94355Df3aBf95D">
             <small>The account you created earlier</small>
         </div>
         
@@ -156,7 +156,7 @@
         
         <div class="input-group">
             <label>Value (ETH):</label>
-            <input type="text" id="value" value="0.001">
+            <input type="text" id="value" value="0.0001">
             <small>Amount of ETH to send</small>
         </div>
         
@@ -172,13 +172,13 @@
         
         <div class="input-group">
             <label>Pre-Quantum Seed:</label>
-            <input type="text" id="preQuantumSeed" value="0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe">
+            <input type="text" id="preQuantumSeed" value="0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafd">
             <small>Same seed used to create the account</small>
         </div>
         
         <div class="input-group">
             <label>Post-Quantum Seed:</label>
-            <input type="text" id="postQuantumSeed" value="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef">
+            <input type="text" id="postQuantumSeed" value="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeed">
             <small>Same seed used to create the account</small>
         </div>
     </div>
@@ -188,7 +188,7 @@
         
         <div class="input-group">
             <label>Bundler URL:</label>
-            <input type="text" id="bundlerUrl" value="">
+            <input type="text" id="bundlerUrl" value="https://api.pimlico.io/v2/421614/rpc?apikey=pim_i3rJWDhHAhvqmPgaA3DsUo">
             <small>Leave empty to just create and sign (get from Alchemy, Pimlico, Stackup)</small>
         </div>
     </div>
