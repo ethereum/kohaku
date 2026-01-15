@@ -40,6 +40,9 @@ export async function sendERC4337Transaction(
         console.log("- Network: " + network.name + " (Chain ID: " + network.chainId + ")");
         console.log("");
         
+        const blockNumber = await provider.getBlockNumber();
+        console.log("Block number:", blockNumber);
+        
         // Check account balance
         const accountBalance = await provider.getBalance(accountAddress);
         console.log("💰 Account Balance: " + ethers.formatEther(accountBalance) + " ETH");
