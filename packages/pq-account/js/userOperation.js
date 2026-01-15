@@ -88,20 +88,12 @@ export async function createUserOperation(
         nonce: nonce,
         initCode: "0x",
         callData: executeCallData,
-        accountGasLimits: packUint128(15_000_000n, 20_000n),
-        preVerificationGas: 400_000n,
+        accountGasLimits: packUint128(0n, 0n), // placeholder
+        preVerificationGas: 6_000_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
         signature: "0x" + "0".repeat(5312)
     };
-
-    console.log("tempUserOp structure:", {
-    paymasterAndData: tempUserOp.paymasterAndData,
-    paymaster: tempUserOp.paymaster,
-    paymasterVerificationGasLimit: tempUserOp.paymasterVerificationGasLimit,
-    paymasterPostOpGasLimit: tempUserOp.paymasterPostOpGasLimit,
-    paymasterData: tempUserOp.paymasterData
-});
 
     // Prepare for bundler
     function unpackUint128(packed) {
