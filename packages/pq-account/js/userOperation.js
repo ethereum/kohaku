@@ -24,9 +24,6 @@ function packUint128(a, b) {
 /**
  * Create a UserOperation for ERC4337 account
  */
-/**
- * Create a UserOperation for ERC4337 account
- */
 export async function createUserOperation(
     accountAddress,
     targetAddress,
@@ -68,16 +65,16 @@ export async function createUserOperation(
         });
         const gasResult = await gasResponse.json();
         if (!gasResult.result){
-            console.log("pimlico not working!");
             throw new Error("No gas price returned");
         }
-        maxFee = BigInt(gasResult.result.maxFeePerGas);
-        maxPriority = BigInt(gasResult.result.maxPriorityFeePerGas);
+        maxFee = BigInt(gasResult.result.slow.maxFeePerGas);
+        maxPriority = BigInt(gasResult.result.slow.maxPriorityFeePerGas);
 
         console.log("- Bundler suggested maxPriorityFeePerGas:", maxPriority.toString());
         console.log("- Bundler suggested maxFeePerGas:", maxFee.toString());
     } catch (e) {
         console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
+        console.log("Error during pimlico!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         maxPriority = ethers.parseUnits("0.1", "gwei");
         maxFee = ethers.parseUnits("0.2", "gwei");
     }
@@ -89,7 +86,7 @@ export async function createUserOperation(
         initCode: "0x",
         callData: executeCallData,
         accountGasLimits: packUint128(0n, 0n), // placeholder
-        preVerificationGas: 6_000_000n,
+        preVerificationGas: 8_000_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
         signature: "0x" + "0".repeat(5312)
@@ -142,6 +139,7 @@ export async function createUserOperation(
 
     } catch (e) {
         console.warn("⚠️ Bundler gas estimation failed, using defaults:", e);
+        console.log("Error during eth_estimate !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         tempUserOp.accountGasLimits = packUint128(15_400_000n, 15_000n);
     }
 
@@ -227,8 +225,6 @@ export async function signUserOpHybrid(
     preQuantumPrivateKey,
     postQuantumSecretKey
 ) {
-    console.log("");
-    console.log("✍️  Creating hybrid signature...");
     
     const preQuantumSig = await signUserOpPreQuantum(
         userOp,
@@ -236,17 +232,13 @@ export async function signUserOpHybrid(
         chainId,
         preQuantumPrivateKey
     );
-    
-    console.log("");
+
     const postQuantumSig = await signUserOpPostQuantum(
         userOp,
         entryPointAddress,
         chainId,
         postQuantumSecretKey
     );
-    
-    console.log("");
-    console.log("🔗 Combining signatures...");
     
     // Combine signatures - encode as (preQuantumSig, postQuantumSig)
     // This matches the Solidity: abi.encode(preQuantumSig, postQuantumSig)
@@ -266,12 +258,6 @@ export async function signUserOpHybrid(
  * Submit UserOperation to bundler (v0.7 format)
  */
 export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
-    console.log("🔍 FULL UserOp received:", JSON.stringify(userOp, (key, value) =>
-            typeof value === 'bigint' ? value.toString() : value
-        , 2));
-    console.log("");
-    console.log("📤 Submitting UserOperation to bundler...");
-    console.log("- Bundler URL:", bundlerUrl);
 
     // Unpack 128-bit pairs
     function unpackUint128(packed) {
@@ -314,7 +300,6 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
     });
 
     const result = await response.json();
-    console.log(result);
 
     if (result.error) {
         throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
