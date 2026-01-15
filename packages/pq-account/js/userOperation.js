@@ -89,7 +89,7 @@ export async function createUserOperation(
         initCode: "0x",
         callData: executeCallData,
         accountGasLimits: packUint128(0n, 0n), // placeholder
-        preVerificationGas: 310_000n,
+        preVerificationGas: 6_000_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
         signature: "0x"
