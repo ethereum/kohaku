@@ -33,8 +33,7 @@ export async function createUserOperation(
     value,
     callData,
     provider,
-    bundlerUrl,      // new parameter for estimating
-    chainId          // needed for creating temporary userOp hash
+    bundlerUrl      // new parameter for estimating
 ) {
     console.log("📝 Creating UserOperation (Packed v0.7)...");
 
@@ -68,9 +67,10 @@ export async function createUserOperation(
             })
         });
         const gasResult = await gasResponse.json();
-        if (!gasResult.result) throw new Error("No gas price returned");
-
-        // result: { maxFeePerGas: "0x...", maxPriorityFeePerGas: "0x..." }
+        if (!gasResult.result){
+            console.log("pimlico not working!");
+            throw new Error("No gas price returned");
+        }
         maxFee = BigInt(gasResult.result.maxFeePerGas);
         maxPriority = BigInt(gasResult.result.maxPriorityFeePerGas);
 
@@ -88,12 +88,20 @@ export async function createUserOperation(
         nonce: nonce,
         initCode: "0x",
         callData: executeCallData,
-        accountGasLimits: packUint128(0n, 0n), // placeholder
-        preVerificationGas: 310_000n,
+        accountGasLimits: packUint128(15_000_000n, 20_000n),
+        preVerificationGas: 400_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
-        signature: "0x"
+        signature: "0x" + "0".repeat(5312)
     };
+
+    console.log("tempUserOp structure:", {
+    paymasterAndData: tempUserOp.paymasterAndData,
+    paymaster: tempUserOp.paymaster,
+    paymasterVerificationGasLimit: tempUserOp.paymasterVerificationGasLimit,
+    paymasterPostOpGasLimit: tempUserOp.paymasterPostOpGasLimit,
+    paymasterData: tempUserOp.paymasterData
+});
 
     // Prepare for bundler
     function unpackUint128(packed) {
@@ -104,6 +112,7 @@ export async function createUserOperation(
     }
 
     const [dummyVerification, dummyCall] = unpackUint128(tempUserOp.accountGasLimits);
+
     const userOpForBundler = {
         sender: tempUserOp.sender,
         nonce: '0x' + BigInt(tempUserOp.nonce).toString(16),
@@ -129,10 +138,11 @@ export async function createUserOperation(
             })
         });
         const result = await response.json();
-        if (!result.result) throw new Error("No estimate returned");
+        if (!result.result){
+            console.log("eth_estimateUserOperationGas not working!");
+            throw new Error("No estimate returned");
+        }
         
-        console.log("- Gas estimate from bundler:", result.result);
-
         // Update accountGasLimits based on result
         const verificationGasLimit = BigInt(result.result.verificationGasLimit);
         const callGasLimit = BigInt(result.result.callGasLimit);
@@ -264,6 +274,9 @@ export async function signUserOpHybrid(
  * Submit UserOperation to bundler (v0.7 format)
  */
 export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
+    console.log("🔍 FULL UserOp received:", JSON.stringify(userOp, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        , 2));
     console.log("");
     console.log("📤 Submitting UserOperation to bundler...");
     console.log("- Bundler URL:", bundlerUrl);
@@ -309,6 +322,7 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
     });
 
     const result = await response.json();
+    console.log(result);
 
     if (result.error) {
         throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));

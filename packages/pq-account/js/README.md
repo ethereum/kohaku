@@ -1,5 +1,7 @@
 # Deploy an ERC 4337 account
 
+We provide in this directory a web interface to deploy a post-quantum account and sign transactions.
+
 ## Prerequisites
 Deploying an ERC 4337 account requires the installation of `noble` library
 ```
