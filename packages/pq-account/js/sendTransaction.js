@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
+import { ml_dsa44 } from '@noble/post-quantum';
 import {
         createBaseUserOperation,
     signUserOpHybrid,

@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
+import { ml_dsa44 } from '@noble/post-quantum';
 
 export const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 
