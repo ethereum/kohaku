@@ -140,8 +140,6 @@ export async function sendERC4337Transaction(
             console.log("=".repeat(60));
             console.log("🎉 TRANSACTION SUBMITTED!");
             console.log("=".repeat(60));
-            console.log("UserOp Hash: " + userOpHash);
-            console.log("=".repeat(60));
             
             return {
                 success: true,
