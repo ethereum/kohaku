@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ml_dsa44 } from '@noble/post-quantum';
+import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 import { to_expanded_encoded_bytes } from './utils_mldsa.js';
 
 function hexToU8(hex) {
