@@ -1,8 +1,10 @@
 import { ethers } from 'ethers';
 import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 import {
-    createUserOperation,
+        createBaseUserOperation,
     signUserOpHybrid,
+    estimateUserOperationGas,
+    updateUserOpWithGasEstimates,
     submitUserOperation,
     ENTRY_POINT_ADDRESS
 } from './userOperation.js';
@@ -54,14 +56,13 @@ export async function sendERC4337Transaction(
         }
         
         // Generate private keys from seeds
-        console.log("🔑 Generating keys from seeds...");
         const preQuantumWallet = new ethers.Wallet(preQuantumSeed);
         
         // Generate FULL ML-DSA keypair from seed (this gives us the 2560-byte secret key)
         const { secretKey, publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
         
-        // Create UserOperation
-        const userOp = await createUserOperation(
+        // 1. Create base UserOp (no signature)
+        let userOp = await createBaseUserOperation(
             accountAddress,
             targetAddress,
             value,
@@ -69,30 +70,34 @@ export async function sendERC4337Transaction(
             provider,
             bundlerUrl
         );
-        
-        // Sign UserOperation with hybrid signature
-        const ENTRY_POINT = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
-        
-        // Pass the FULL secret key (2560 bytes), not the seed!
+
+        // 2. Sign it (creates valid signature for estimation)
         const signature = await signUserOpHybrid(
             userOp,
-            ENTRY_POINT,
+            ENTRY_POINT_ADDRESS,
             network.chainId,
-            preQuantumSeed,      // Pre-quantum: 32-byte seed is fine
-            secretKey            // Post-quantum: must be 2560-byte secret key!
+            preQuantumSeed,
+            secretKey
         );
-        
+
         userOp.signature = signature;
-        
-        console.log("");
-        console.log("=".repeat(60));
-        console.log("📦 Complete UserOperation Created");
-        console.log("=".repeat(60));
-        console.log("Sender: " + userOp.sender);
-        console.log("Nonce: " + userOp.nonce.toString());
-        console.log("Signature length: " + userOp.signature.length + " chars");
-        console.log("=".repeat(60));
-        console.log("");
+
+        // 3. Estimate gas with the REAL signature
+        const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+
+        // 4. Update UserOp with better gas estimates
+        userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+        // 5. Re-sign with updated gas limits (hash changes!)
+        const finalSignature = await signUserOpHybrid(
+            userOp,
+            ENTRY_POINT_ADDRESS,
+            network.chainId,
+            preQuantumSeed,
+            secretKey
+        );
+
+        userOp.signature = finalSignature;
         
         // Check if bundler URL is provided
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {
@@ -130,7 +135,7 @@ export async function sendERC4337Transaction(
 
         // Submit to bundler
         try {
-            const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT);
+            const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
             
             console.log("");
             console.log("=".repeat(60));
