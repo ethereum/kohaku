@@ -39,7 +39,6 @@ export async function createBaseUserOperation(
     let nonce;
     try {
         nonce = await account.getNonce();
-        console.log("- Nonce:", nonce.toString());
     } catch {
         nonce = 0n;
     }
@@ -48,7 +47,6 @@ export async function createBaseUserOperation(
         "execute",
         [targetAddress, value, callData]
     );
-    console.log("- Execute call data:", executeCallData.slice(0, 20) + "...");
 
     // Fetch suggested gas fees from bundler
     let maxPriority, maxFee;
@@ -70,8 +68,6 @@ export async function createBaseUserOperation(
         maxFee = BigInt(gasResult.result.slow.maxFeePerGas);
         maxPriority = BigInt(gasResult.result.slow.maxPriorityFeePerGas);
 
-        console.log("- Bundler suggested maxPriorityFeePerGas:", maxPriority.toString());
-        console.log("- Bundler suggested maxFeePerGas:", maxFee.toString());
     } catch (e) {
         console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
         console.log("⚠️ PimLico does not work, back to default values!")
@@ -91,8 +87,6 @@ export async function createBaseUserOperation(
         paymasterAndData: "0x",
         signature: "0x"  // Empty initially
     };
-
-    console.log("✅ Base UserOperation created (no signature yet)");
     return baseUserOp;
 }
 
@@ -152,14 +146,12 @@ export async function estimateUserOperationGas(
         let verificationGasLimit = BigInt(result.result.verificationGasLimit);
         let callGasLimit = BigInt(result.result.callGasLimit);
         
-        console.log("- Pimlico suggested verificationGasLimit:", verificationGasLimit.toString());
-        console.log("- Pimlico suggested callGasLimit:", callGasLimit.toString());
-        
         // CRITICAL: Enforce minimums for Arbitrum multisig
         const MIN_VERIFICATION = 15_400_000n;
         
         if (verificationGasLimit < MIN_VERIFICATION) {
             console.warn("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
+            console.log("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
             verificationGasLimit = MIN_VERIFICATION;
         }
         // const MIN_CALL = 500_000n;        
@@ -167,7 +159,6 @@ export async function estimateUserOperationGas(
         //     console.warn("⚠️ Call gas estimate too low, using minimum:", MIN_CALL.toString());
         //     callGasLimit = MIN_CALL;
         // }
-        console.log("- Final verificationGasLimit:", verificationGasLimit.toString());
         // console.log("- Final callGasLimit:", callGasLimit.toString());
         
         return {
@@ -291,10 +282,6 @@ export async function signUserOpHybrid(
         ["bytes", "bytes"],
         [preQuantumSig, postQuantumSig]
     );
-    
-    console.log("- Hybrid signature length: " + hybridSignature.length + " chars");
-    console.log("✅ Hybrid signature created");
-    
     return hybridSignature;
 }
 
