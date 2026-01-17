@@ -4,7 +4,9 @@
     "verbatimModuleSyntax": false,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./src/*"]
+      "~/*": ["./src/*"],
+      "@kohaku-eth/provider": ["../provider/src/index.ts"],
+      "@kohaku-eth/provider/*": ["../provider/src/*"]
     }
   },
   "include": ["src", "demo", "../provider/src/colibri-stateless.d.ts"],
