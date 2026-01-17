@@ -23,6 +23,7 @@ export default defineConfig([
     treeshake: true,
     tsconfig: 'tsconfig.json',
     external: [
+      '@kohaku-eth/provider',
       'ethers',
       '@noble/ed25519',
       'ethereum-cryptography',
@@ -53,6 +54,7 @@ export default defineConfig([
     treeshake: true,
     tsconfig: 'tsconfig.json',
     external: [
+      '@kohaku-eth/provider',
       'ethers',
       '@noble/ed25519',
       'ethereum-cryptography',

@@ -1,4 +1,4 @@
-import { raw } from '~/raw';
+import { raw } from '../raw';
 import type { EthereumProvider } from '../provider';
 import type { C4Config, default as Colibri, EIP1193Client } from '@corpus-core/colibri-stateless';
 
