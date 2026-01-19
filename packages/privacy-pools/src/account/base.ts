@@ -6,7 +6,6 @@ export type Config = {
     // network: NetworkConfig;
 };
 
-
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type Account = {};
 
