@@ -10,6 +10,7 @@ npm init -y
 npm install ethers
 npm install @noble/hashes
 npm install @noble/post-quantum
+npm install vite
 ```
 In order to run the web interface, simply use:
 ```
