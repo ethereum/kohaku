@@ -63,6 +63,9 @@ importers:
 
   packages/privacy-pools:
     dependencies:
+      '@kohaku-eth/provider':
+        specifier: workspace:*
+        version: link:../provider
       ethers:
         specifier: ^6.13.1
         version: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
