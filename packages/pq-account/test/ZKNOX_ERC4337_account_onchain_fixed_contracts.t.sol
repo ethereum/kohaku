@@ -44,6 +44,9 @@ contract TestERC4337_Account is Test {
     }
 
     function testValidateUserOpSuccess() public {
+        if (block.chainid != 421614) {
+            vm.skip(true);
+        }
         // Create a UserOperation
         PackedUserOperation memory userOp = _createUserOp();
 
@@ -78,6 +81,9 @@ contract TestERC4337_Account is Test {
     }
 
     function testValidateUserOpInvalidSignature() public {
+        if (block.chainid != 421614) {
+            vm.skip(true);
+        }
         PackedUserOperation memory userOp = _createUserOp();
         bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
 
@@ -98,6 +104,9 @@ contract TestERC4337_Account is Test {
     }
 
     function testExecute() public {
+        if (block.chainid != 421614) {
+            vm.skip(true);
+        }
         // Create a UserOperation
         PackedUserOperation memory userOp = _createUserOp();
         console.log("sender", userOp.sender);
