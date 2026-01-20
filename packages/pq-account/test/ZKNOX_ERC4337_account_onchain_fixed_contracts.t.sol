@@ -34,7 +34,7 @@ contract TestERC4337_Account is Test {
         // This is an example of ERC4337 account deployed on Sepolia, with MLDSA and ECDSA-k1
         // The seeds are provided below (cafe and deadbeef ;-))
         entryPoint = IEntryPoint(0x0000000071727De22E5E9d8BAf0edAc6f37da032);
-        account = ZKNOX_ERC4337_account(payable(0xe8D1C97379A823c0B434Cb5d976aD5098463bc22));
+        account = ZKNOX_ERC4337_account(payable(0xe63546EF0AfC039A690891a83089541dc07225Fc));
         
         // Fund the account
         vm.deal(address(account), 10 ether);
@@ -70,8 +70,6 @@ contract TestERC4337_Account is Test {
         bytes memory preQuantumSig = abi.encodePacked(r, s, v);
         bytes memory postQuantumSig = abi.encodePacked(cTilde, z, h);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
-        console.log("SINGE");
-        console.logBytes(userOp.signature);
 
         vm.prank(address(entryPoint));
         uint256 validationData = account.validateUserOp(userOp, userOpHash, 0);
@@ -177,7 +175,7 @@ contract TestERC4337_Account is Test {
 
         return PackedUserOperation({
             sender: address(account),
-            nonce: 0,
+            nonce: entryPoint.getNonce(address(account), 0),
             initCode: "",
             callData: callData,
             accountGasLimits: bytes32(abi.encodePacked(uint128(16_000_000), uint128(500_000))),
