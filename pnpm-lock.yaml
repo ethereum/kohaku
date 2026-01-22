@@ -270,6 +270,9 @@ importers:
       dotenv:
         specifier: ^17.2.1
         version: 17.2.2
+      ethers:
+        specifier: ^6.15.0
+        version: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       mocha:
         specifier: ^11.7.1
         version: 11.7.2
