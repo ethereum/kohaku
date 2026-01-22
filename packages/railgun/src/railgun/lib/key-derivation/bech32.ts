@@ -1,5 +1,5 @@
  
-/// <reference path="../../../global.d.ts" />
+/// <reference path="../../global.d.ts" />
 import { bech32m } from '@scure/base';
 import xor from 'buffer-xor';
 import { getChainFullNetworkID } from '../chain/chain';

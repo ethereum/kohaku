@@ -10,28 +10,28 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": {
-        "types": "./dist/index.browser.d.ts",
-        "import": "./dist/index.browser.js"
-      },
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
     "./ethers": {
       "types": "./dist/ethers.d.ts",
-      "import": "./dist/ethers.js"
+      "import": "./dist/ethers.js",
+      "require": "./dist/ethers.cjs"
     },
     "./viem": {
       "types": "./dist/viem.d.ts",
-      "import": "./dist/viem.js"
+      "import": "./dist/viem.js",
+      "require": "./dist/viem.cjs"
     },
     "./colibri": {
       "types": "./dist/colibri.d.ts",
-      "import": "./dist/colibri.js"
+      "import": "./dist/colibri.js",
+      "require": "./dist/colibri.cjs"
     },
     "./raw": {
       "types": "./dist/raw.d.ts",
-      "import": "./dist/raw.js"
+      "import": "./dist/raw.js",
+      "require": "./dist/raw.cjs"
     },
     "./package.json": "./package.json"
   },
@@ -47,10 +47,6 @@
   "scripts": {
     "build": "echo Building @kohaku-eth/provider && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:e2e": "vitest run tests/e2e",
     "prepublishOnly": "pnpm -w -r build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
