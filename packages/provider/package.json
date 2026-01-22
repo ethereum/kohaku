@@ -71,6 +71,12 @@
     },
     "snarkjs": {
       "optional": true
+    },
+    "ethers": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
     }
   },
   "dependencies": {
@@ -99,6 +105,7 @@
     "chai": "^4.5.0",
     "chai-as-promised": "^7.1.2",
     "dotenv": "^17.2.1",
+    "ethers": "^6.16.0",
     "mocha": "^11.7.1",
     "prool": "^0.0.24",
     "ts-node": "^10.9.2",
