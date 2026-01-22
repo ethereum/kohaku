@@ -11,8 +11,8 @@ PRIVATE_KEY=$1
 PUB_KEY="0x9140286CDA95d59fa5f29ecb11dDe1F817999F9E"
 
 API_KEY=$2
-RPC="https://api.zan.top/arb-sepolia"
-# RPC="wss://ethereum-sepolia-rpc.publicnode.com"
+# RPC="https://api.zan.top/arb-sepolia"
+RPC="wss://ethereum-sepolia-rpc.publicnode.com"
 
 # Deploy to network
 echo "Deploying $CONTRACT_NAME with Forge..."
@@ -29,10 +29,6 @@ forge script $CONTRACT_NAME \
 --priority-gas-price 1 \
 -vvvv
 
-# # Wait for network propagation
-# echo "Waiting 30 seconds for network propagation..."
-# sleep 30
-
 # Verify
 forge script $CONTRACT_NAME \
 --rpc-url $RPC \
@@ -40,7 +36,8 @@ forge script $CONTRACT_NAME \
 --broadcast \
 --tc $3 \
 --etherscan-api-key $API_KEY \
---verify
+--verify \
+--resume
 
 # # with ledger
 # forge script $CONTRACT_NAME --rpc-url $RPC --ledger --broadcast --tc Script_Deploy_ETHDilithium --etherscan-api-key $API_KEY_OPTIMISM --verify --priority-gas-price 1

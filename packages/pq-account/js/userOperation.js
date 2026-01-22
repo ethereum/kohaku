@@ -65,9 +65,9 @@ export async function createBaseUserOperation(
         if (!gasResult.result){
             throw new Error("No gas price returned");
         }
-        maxFee = BigInt(gasResult.result.slow.maxFeePerGas);
-        maxPriority = BigInt(gasResult.result.slow.maxPriorityFeePerGas);
-
+        maxFee = BigInt(gasResult.result.standard.maxFeePerGas);
+        maxPriority = BigInt(gasResult.result.standard.maxPriorityFeePerGas);
+        console.log(maxFee);
     } catch (e) {
         console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
         console.log("⚠️ PimLico does not work, back to default values!")
@@ -81,8 +81,8 @@ export async function createBaseUserOperation(
         nonce: nonce,
         initCode: "0x",
         callData: executeCallData,
-        accountGasLimits: packUint128(15_400_000n, 500_000n),  // Initial values for estimation
-        preVerificationGas: 8_000_000n,
+        accountGasLimits: packUint128(13_500_000n, 500_000n),  // Initial values for estimation
+        preVerificationGas: 1_000_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
         signature: "0x"  // Empty initially
@@ -147,7 +147,7 @@ export async function estimateUserOperationGas(
         let callGasLimit = BigInt(result.result.callGasLimit);
         
         // CRITICAL: Enforce minimums for Arbitrum multisig
-        const MIN_VERIFICATION = 15_400_000n;
+        const MIN_VERIFICATION = 13_500_000n;
         
         if (verificationGasLimit < MIN_VERIFICATION) {
             console.warn("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
@@ -171,7 +171,7 @@ export async function estimateUserOperationGas(
         console.warn("⚠️ Bundler gas estimation failed, using defaults:", e.message);
         console.log("⚠️ eth_estimate does not work, back to default values");
         return {
-            verificationGasLimit: 15_400_000n,
+            verificationGasLimit: 13_500_000n,
             callGasLimit: 500_000n,
             preVerificationGas: userOp.preVerificationGas
         };
@@ -290,6 +290,7 @@ export async function signUserOpHybrid(
  */
 export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
     const userOpForBundler = userOpToBundlerFormat(userOp);
+    console.log(userOpForBundler);
 
     console.log("📤 Submitting UserOperation to bundler...");
 
@@ -308,7 +309,6 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
     });
 
     const result = await response.json();
-
     if (result.error) {
         throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
     }

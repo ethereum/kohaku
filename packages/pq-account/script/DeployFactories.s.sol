@@ -85,7 +85,7 @@ abstract contract FactoryDeployer is BaseScript {
 // Default factory: ECDSA K1 + MLDSA
 contract MLDSA_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSA_K1_FACTORY_V0_0_4";
+        saltLabel = "ZKNOX_MLDSA_K1_FACTORY_V0_0_7";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "mldsa";
         factoryName = "mldsa_k1";

@@ -8,9 +8,9 @@
         "saltLabel": "ZKNOX_ETHFALCON_VERIFIER_V0_0_1"
       },
       "mldsa": {
-        "address": "0x75Fb598f55CCF5707c63259474D14aEdD621Cee0",
-        "salt": "0xddb98c53894637b852aed0eb51a2fd10d651ac6ae639311b96a540d349ccaa21",
-        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_1"
+        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
+        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
       },
       "mldsaeth": {
         "address": "0xbfF02B9D0EB96f1Fe1BeB57817F0d6085813f1c0",
@@ -35,11 +35,11 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0x0956908b4Dcf038af3BE30596f7953CA78b7ca7D",
+        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x9b9d7381299d392f1dc0a86896126c7c5d0046ac59b5e6a60d352e27b1e7c9aa",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_3"
+        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
       },
       "mldsa_r1": {
         "address": "0x01Ff8790a7615Db192ca1005fe60d0732f432eF5",
@@ -95,9 +95,9 @@
   "arbitrumSepolia": {
     "verifiers": {
       "mldsa": {
-        "address": "0x75Fb598f55CCF5707c63259474D14aEdD621Cee0",
-        "salt": "0xddb98c53894637b852aed0eb51a2fd10d651ac6ae639311b96a540d349ccaa21",
-        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_1"
+        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
+        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
       },
       "ecdsa_k1": {
         "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
@@ -107,11 +107,11 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0x1AFbeDda2d0D6340D0a543F44cb3a329daFD638f",
+        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x2387893af3964e6157aff737df600701331c19066e9a5494c498a21ec51138a9",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_4"
+        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
       }
     }
   }
