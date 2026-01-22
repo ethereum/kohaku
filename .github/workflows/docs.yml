@@ -32,7 +32,9 @@ jobs:
           node-version: 24
           cache: 'pnpm'
       - name: Install
-        run: pnpm install --frozen-lockfile=false
+        run: |
+          pnpm config set auto-install-peers false
+          pnpm install --frozen-lockfile=false
       # - name: Lint
         # run: pnpm lint
       - name: Build Docs
