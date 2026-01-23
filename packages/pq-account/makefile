@@ -1,8 +1,9 @@
 CORES := $(shell nproc)
 install: 
 	foundryup
-	cd lib/ETHDILITHIUM/pythonref;make install
-	cd lib/ETHFALCON/pythonref;make install
+	git submodule update --init --recursive
+	if [ -d lib/ETHDILITHIUM/pythonref ]; then cd lib/ETHDILITHIUM/pythonref && make install; fi
+	if [ -d lib/ETHFALCON/pythonref ]; then cd lib/ETHFALCON/pythonref && make install; fi
 test_opt:
 	forge test -j$(CORES) -vv
 test_not_opt:
