@@ -8,3 +8,6 @@
 	path = packages/pq-account/lib/InterfaceVerifier
 	url = https://github.com/ZKNOXHQ/InterfaceVerifier
 
+[submodule "packages/pq-account/lib/ETHDILITHIUM"]
+	path = packages/pq-account/lib/ETHDILITHIUM
+	url = https://github.com/ZKNOXHQ/ETHDILITHIUM
