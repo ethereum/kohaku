@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     // Initial message
-    output.textContent = '✅ Ready to create and sign UserOperation.\nConnect your wallet and fill in the details above.\n';
+    output.textContent = '✅ Ready to send a transaction.\nConnect your wallet and fill in the details above.\n';
     
     // Button click handler
     button.addEventListener('click', async () => {

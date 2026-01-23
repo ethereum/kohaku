@@ -67,7 +67,6 @@ export async function createBaseUserOperation(
         }
         maxFee = BigInt(gasResult.result.standard.maxFeePerGas);
         maxPriority = BigInt(gasResult.result.standard.maxPriorityFeePerGas);
-        console.log(maxFee);
     } catch (e) {
         console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
         console.log("⚠️ PimLico does not work, back to default values!")
@@ -290,7 +289,6 @@ export async function signUserOpHybrid(
  */
 export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
     const userOpForBundler = userOpToBundlerFormat(userOp);
-    console.log(userOpForBundler);
 
     console.log("📤 Submitting UserOperation to bundler...");
 

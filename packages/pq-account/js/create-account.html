@@ -38,7 +38,7 @@
         }
         
         .input-group label {
-            display: block;
+            display: inline-block;
             margin-bottom: 8px;
             font-weight: bold;
             color: #555;
@@ -130,10 +130,24 @@
             display: block;
             margin-bottom: 5px;
         }
+
+
+        .twocols {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .twocols .input-group {
+            flex: 1;
+        }
+
+        #walletNetwork {
+            font-weight:bold;
+        }
     </style>
 </head>
 <body>
-    <h1>🚀 Deploy ERC4337 Quantum-Resistant Account</h1>
+    <h1>Create ERC4337 Quantum-Resistant Account</h1>
     
     <div class="warning">
         <strong>⚠️ Security Note:</strong>
@@ -149,7 +163,7 @@
     <span id="walletNetwork">Not connected</span>
 </div>
 
-<div class="input-group">
+<div class="input-group" style="display:none;">
     <label for="factory">Factory Contract Address:</label>
     <span id="factory">—</span>
 </div>
@@ -231,25 +245,25 @@ updateWalletNetwork();
             </select>
             <small>Choose the account type / key scheme</small>
         </div>
+    </div>
 
-        <div class="input-group">
-            <label for="factory">Factory Contract Address:</label>
-            <span id="factory">—</span>
-        </div>
+    <div class="config-section">
+        <h2>🔑 Signing Keys</h2>
 
-                
-        <div class="input-group">
-            <label for="prequantum">Pre-Quantum Seed:</label>
-            <input type="text" id="prequantum" value="0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe">
-            <small>32 bytes (64 hex characters) for ECDSA key generation</small>
-        </div>
-        
-        <div class="input-group">
-            <label for="postquantum">Post-Quantum Seed:</label>
-            <input type="text" id="postquantum" value="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef">
-            <small>32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
-        </div>
-    </div>    
+        <div class="twocols">
+            <div class="input-group">
+                <label for="prequantum">Pre-Quantum Seed:</label>
+                <input type="text" id="prequantum" value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                <small>32 bytes (64 hex characters) for ECDSA key generation</small>
+            </div>
+            
+            <div class="input-group">
+                <label for="postquantum">Post-Quantum Seed:</label>
+                <input type="text" id="postquantum" value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                <small>32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
+            </div>
+        </div>    
+    </div>
     <div class="button-container">
         <button id="deploy">Connect Wallet & Deploy Account</button>
     </div>

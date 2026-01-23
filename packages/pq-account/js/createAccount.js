@@ -39,17 +39,7 @@ async function detectAndConnectWallet() {
             "  - Rabby: https://rabby.io/"
         );
     }
-    
-    // Check for Rabby (Rabby injects first and sets a flag)
-    if (window.ethereum.isRabby) {
-        console.log("Rabby wallet detected");
-    } else if (window.ethereum.isMetaMask) {
-        console.log("MetaMask detected");
-    } else {
-        console.log("Ethereum wallet detected");
-    }
-    
-    console.log("Connecting to wallet...");
+        
     await window.ethereum.request({ method: 'eth_requestAccounts' });
     
     return window.ethereum;
@@ -60,10 +50,6 @@ async function main() {
     const factoryAddress = document.getElementById('factory').textContent.trim();
     const prequantum_seed = document.getElementById('prequantum').value.trim();
     const postquantum_seed = document.getElementById('postquantum').value.trim();
-    
-    console.log("🔧 Configuration:");
-    console.log("- Factory Address: " + factoryAddress);
-    console.log("");
     
     // Validate seeds
     try {
@@ -98,15 +84,10 @@ async function main() {
     }
     
     // Generate pre-quantum public key
-    console.log("🔑 Generating keys...");
     const preQuantumPubKey = new ethers.Wallet(prequantum_seed).address;
-    console.log("- Pre-quantum public key: " + preQuantumPubKey);
-    
     // Generate post-quantum public key
     const { publicKey } = ml_dsa44.keygen(hexToU8(postquantum_seed));
     const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
-    console.log("- Post-quantum public key: " + ethers.hexlify(postQuantumPubKey).slice(0, 20) + "...");
-    console.log("");
     
     // Deploy ERC4337 Account
     console.log("📦 Deploying ERC4337 Account...");
@@ -214,9 +195,6 @@ export async function deployERC4337Account(
     signerOrProvider
 ) {
     try {
-        console.log("");
-        console.log("🏭 Deploying ERC4337 Account...");
-        
         // Get provider and signer
         let provider, signer;
         
@@ -234,7 +212,6 @@ export async function deployERC4337Account(
             // Already a Signer
             signer = signerOrProvider;
             provider = signer.provider;
-            console.log("🔌 Using provided Signer");
 
         } else if (signerOrProvider.request) {
             // Browser wallet (MetaMask, Rabby, Ledger)
@@ -256,31 +233,18 @@ export async function deployERC4337Account(
         }
 
         const address = await signer.getAddress();
-        const balance = await provider.getBalance(address);
-        
-        console.log("");
-        console.log("💰 Deployer Info:");
-        console.log("- Address: " + address);
-        console.log("- Balance: " + ethers.formatEther(balance) + " ETH");
-        
         const network = await provider.getNetwork();
-        console.log("- Network: " + network.name + " (Chain ID: " + network.chainId + ")");
         
         // Check factory exists
-        console.log("");
-        console.log("🔍 Verifying factory contract...");
         const factoryCode = await provider.getCode(factoryAddress);
         if (factoryCode === '0x') {
             throw new Error("No contract deployed at factory address!");
         }
-        console.log("- Factory contract exists ✓");
         
         // Connect to the existing factory contract (already deployed on-chain)
         const factory = new ethers.Contract(factoryAddress, ACCOUNT_FACTORY_ABI, signer);
                 
         // Calculate the expected account address
-        console.log("");
-        console.log("📍 Calculating expected address...");
         let expectedAddress;
         
         try {
@@ -290,15 +254,12 @@ export async function deployERC4337Account(
                 postQuantumPubKey
             ]);
             
-            console.log("- Calling getAddress...");
-            
             const result = await provider.call({
                 to: factoryAddress,
                 data: callData
             });
             
             expectedAddress = iface.decodeFunctionResult("getAddress", result)[0];
-            console.log("- Calculated address: " + expectedAddress);
             
         } catch (error) {
             console.error("❌ Failed to calculate address: " + error.message);
@@ -309,13 +270,9 @@ export async function deployERC4337Account(
             throw new Error("Invalid address returned from getAddress()");
         }
         
-        console.log("");
-        console.log("📍 Expected account address: " + expectedAddress);
-        
         // Check if account already exists
         const code = await provider.getCode(expectedAddress);
         if (code !== '0x') {
-            console.log("✅ Account already exists at this address!");
             return {
                 success: true,
                 address: expectedAddress,
