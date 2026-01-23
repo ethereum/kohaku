@@ -57,7 +57,7 @@ async function detectAndConnectWallet() {
 
 async function main() {
     // Read configuration from input fields
-    const factoryAddress = document.getElementById('factory').value.trim();
+    const factoryAddress = document.getElementById('factory').textContent.trim();
     const prequantum_seed = document.getElementById('prequantum').value.trim();
     const postquantum_seed = document.getElementById('postquantum').value.trim();
     

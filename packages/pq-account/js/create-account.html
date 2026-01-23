@@ -144,14 +144,84 @@
     <div class="config-section">
         <h2>🔧 Configuration</h2>
         
-        <div class="input-group">
-            <label for="network">Network:</label>
-            <select id="network">
-                <option value="arbitrumSepolia">Arbitrum Sepolia</option>
-                <option value="sepolia">Sepolia</option>
-            </select>
-            <small>Select the network for deployment</small>
-        </div>
+<div class="input-group">
+    <label>Wallet Network:</label>
+    <span id="walletNetwork">Not connected</span>
+</div>
+
+<div class="input-group">
+    <label for="factory">Factory Contract Address:</label>
+    <span id="factory">—</span>
+</div>
+
+<script type="module">
+import deployments from '../deployments/deployments.json' assert { type: 'json' };
+
+const walletNetworkSpan = document.getElementById('walletNetwork');
+const factorySpan = document.getElementById('factory');
+
+const networksMap = {
+    '0x1': 'ethereum',
+    '0x5': 'goerli',
+    '0xaa36a7': 'sepolia',
+    '0x66eee': 'arbitrumSepolia' // make sure this matches Rabby's chainId
+};
+const networksName = {
+    '0x1': 'Ethereum',
+    '0x5': 'Goerli',
+    '0xaa36a7': 'Sepolia',
+    '0x66eee': 'Arbitrum Sepolia'
+};
+
+function getDeploymentKey(chainId) {
+    return networksMap[chainId.toLowerCase()] || null;
+}
+function getDeploymentName(chainId) {
+    return networksName[chainId.toLowerCase()] || null;
+}
+
+async function updateWalletNetwork() {
+    if (window.ethereum) {
+        try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+
+            const networkKey = getDeploymentKey(chainId);
+            const networkName = getDeploymentName(chainId);
+
+            walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${chainId})`;
+            updateFactory(networkKey);
+
+        } catch (err) {
+            console.error('Wallet connection failed:', err);
+            walletNetworkSpan.textContent = 'Connection failed';
+            factorySpan.textContent = '—';
+        }
+
+        window.ethereum.on('chainChanged', (newChainId) => {
+            const networkKey = getDeploymentKey(newChainId);
+            const networkName = getDeploymentName(newChainId);
+
+            walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${newChainId})`;
+            updateFactory(networkKey);
+        });
+    } else {
+        walletNetworkSpan.textContent = 'No wallet detected';
+        factorySpan.textContent = '—';
+    }
+}
+
+function updateFactory(networkKey) {
+    const accountMode = 'mldsa_k1';
+    if (networkKey && deployments[networkKey] && deployments[networkKey].accounts[accountMode]) {
+        factorySpan.textContent = deployments[networkKey].accounts[accountMode].address;
+    } else {
+        factorySpan.textContent = '—';
+    }
+}
+
+updateWalletNetwork();
+</script>
 
         <div class="input-group">
             <label for="accountMode">Account Mode:</label>
@@ -161,40 +231,13 @@
             </select>
             <small>Choose the account type / key scheme</small>
         </div>
-        
+
         <div class="input-group">
             <label for="factory">Factory Contract Address:</label>
-            <input type="text" id="factory" readonly>
-            <small>The factory contract that will create your ERC4337 account</small>
+            <span id="factory">—</span>
         </div>
 
-        <script type="module">
-            import deployments from '../deployments/deployments.json' assert { type: 'json' };
-            
-            const networkSelect = document.getElementById('network');
-            const accountModeSelect = document.getElementById('accountMode');
-            const factoryInput = document.getElementById('factory');
-
-            // Function to update factory address based on network AND account mode
-            function updateFactoryAddress() {
-                const network = networkSelect.value;
-                const accountMode = accountModeSelect.value;
-
-                if (deployments[network] && deployments[network].accounts[accountMode]) {
-                    factoryInput.value = deployments[network].accounts[accountMode].address;
-                } else {
-                    factoryInput.value = '';
-                }
-            }
-
-            // Set initial value
-            updateFactoryAddress();
-
-            // Update when network or account mode changes
-            networkSelect.addEventListener('change', updateFactoryAddress);
-            accountModeSelect.addEventListener('change', updateFactoryAddress);
-        </script>
-        
+                
         <div class="input-group">
             <label for="prequantum">Pre-Quantum Seed:</label>
             <input type="text" id="prequantum" value="0xcafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe">

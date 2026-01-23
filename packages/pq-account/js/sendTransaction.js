@@ -244,8 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const callData = document.getElementById('callData').value.trim();
             const preQuantumSeed = document.getElementById('preQuantumSeed').value.trim();
             const postQuantumSeed = document.getElementById('postQuantumSeed').value.trim();
-            const bundlerUrl = document.getElementById('bundlerUrl')?.value.trim() || "";
             
+            // Get bundler URL from the hidden bundlerUrlValue object
+            const bundlerUrl = (typeof bundlerUrlValue !== 'undefined' && bundlerUrlValue.url) 
+                ? bundlerUrlValue.url 
+                : 'https://api.pimlico.io/v2/421614/rpc?apikey=pim_i3rJWDhHAhvqmPgaA3DsUo';
             // Parse value
             const value = ethers.parseEther(valueEth);
             
