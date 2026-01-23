@@ -1,11 +1,6 @@
 CORES := $(shell nproc)
 install: 
 	foundryup
-	forge install ZKNOXHQ/ETHDILITHIUM@JeanClaudeOptimization
-	forge install ZKNOXHQ/ETHFALCON
-	forge install ZKNOXHQ/InterfaceVerifier
-	forge install eth-infinitism/account-abstraction@v0.8.0
-	forge install OpenZeppelin/openzeppelin-contracts
 	cd lib/ETHDILITHIUM/pythonref;make install
 	cd lib/ETHFALCON/pythonref;make install
 test_opt:
