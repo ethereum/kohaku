@@ -9,4 +9,5 @@ packages/*/dist
 packages/*/node_modules
 packages/railgun/demo/cache/
 packages/railgun/tests/cache/*
+packages/pq-account/foundry.lock
 .claude
