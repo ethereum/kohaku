@@ -43,6 +43,9 @@
       "optional": true
     }
   },
+  "dependencies": {
+    "@kohaku-eth/provider": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^24.1.0",
     "dotenv": "^17.2.1",

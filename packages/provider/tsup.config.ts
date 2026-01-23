@@ -5,8 +5,10 @@ export default defineConfig([
   {
     entry: { 
       index: 'src/index.ts', 
-      'storage/layers/file': 'src/storage/layers/file.ts', 
-      'storage/layers/empty': 'src/storage/layers/empty.ts',
+      ethers: 'src/ethers/index.ts',
+      viem: 'src/viem/index.ts',
+      colibri: 'src/colibri/index.ts',
+      raw: 'src/raw/index.ts',
     },
     format: ['esm', 'cjs'],
     dts: {

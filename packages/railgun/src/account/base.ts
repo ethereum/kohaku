@@ -10,7 +10,7 @@ import { CreateShield, makeCreateShield } from "./tx/shield";
 import { CreateUnshield, makeCreateUnshield } from "./tx/unshield";
 import { CreateTransfer, makeCreateTransfer } from "./tx/transfer";
 import { createRailgunIndexer, Indexer } from "~/indexer/base";
-import { RailgunProvider } from "~/provider";
+import { EthereumProvider } from "@kohaku-eth/provider";
 import { StorageLayer } from "~/storage/base";
 import { createAccountStorage, serializeAccountStorage, CachedAccountStorage } from "./storage";
 
@@ -18,9 +18,9 @@ export type RailgunAccountBaseParameters = {
     // Key configuration for the account, either a private key or a mnemonic.
     credential: KeyConfig,
 } & (
-    | { storage: StorageLayer; loadState?: never }
-    | { storage?: never; loadState?: CachedAccountStorage }
-);
+        | { storage: StorageLayer; loadState?: never }
+        | { storage?: never; loadState?: CachedAccountStorage }
+    );
 
 export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
     // Indexer configuration
@@ -29,7 +29,7 @@ export type RailgunAccountParamsIndexer = RailgunAccountBaseParameters & {
 
 export type RailgunAccountParamsIndexerConfig = RailgunAccountBaseParameters & {
     // Indexer configuration
-    provider?: RailgunProvider;
+    provider?: EthereumProvider;
     // Network configuration
     network: RailgunNetworkConfig;
 };

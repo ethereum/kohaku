@@ -3,14 +3,14 @@ import { Wallet } from 'ethers';
 import {
   createRailgunAccount,
   createRailgunIndexer,
-  type RailgunLog,
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH } from '../utils/test-helpers';
-import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
+import { ethers, EthersSignerAdapter } from '@kohaku-eth/provider/ethers';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
 import { KeyConfig } from '../../src/account/keys';
+import { EthereumProvider, TxLog } from '@kohaku-eth/provider';
 
 // Use globalThis to store the flag - this is available before module initialization
 declare global {
@@ -35,12 +35,12 @@ vi.mock('../../src/railgun/lib/utils/runtime', async () => {
 
 /**
  * This test verifies that note decryption works correctly during processLogs.
- * 
+ *
  * In Node.js environments, the Node.js crypto module is used.
  * In browser environments, the Web Crypto API is used (via browserDecryptGCM/browserDecryptCTR).
- * 
+ *
  * Both paths should produce identical results when decrypting the same ciphertext.
- * 
+ *
  * Note: Since isNodejs is evaluated at module load time, we can't easily switch
  * between paths in the same test run. However, this test verifies:
  * 1. Decryption works correctly with real logs (Node.js path in test environment)
@@ -49,7 +49,7 @@ vi.mock('../../src/railgun/lib/utils/runtime', async () => {
  */
 describe('Note Decryption - Browser vs Node.js Paths', () => {
   let anvil: AnvilInstance;
-  let provider: EthersProviderAdapter;
+  let provider: EthereumProvider;
   let alice: Wallet;
   let forkBlock: number;
 
@@ -71,7 +71,7 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
 
     const jsonRpcProvider = await anvil.getProvider();
 
-    provider = new EthersProviderAdapter(jsonRpcProvider);
+    provider = ethers(jsonRpcProvider);
 
     alice = new Wallet(TEST_ACCOUNTS.alice.privateKey, await anvil.getProvider());
 
@@ -139,28 +139,28 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
       indexer: indexerNode,
     });
 
-    await indexerNode.processLogs(logs as RailgunLog[], { skipMerkleTree: false });
+    await indexerNode.processLogs(logs as TxLog[], { skipMerkleTree: false });
     const balanceNode = await accountNode.getBalance();
 
     expect(balanceNode).toBeGreaterThan(0n);
     expect(balanceNode).toBeLessThanOrEqual(VALUE_TO_SHIELD);
-    
+
     // Get serialized state for Node.js path
     const stateNode = accountNode.getSerializedState();
     const notebooksNode = stateNode.notebooks || [];
-    const nonNullNotesNode = notebooksNode.flatMap((nb, treeIdx) => 
+    const nonNullNotesNode = notebooksNode.flatMap((nb, treeIdx) =>
       (nb || []).map((note, noteIdx) => ({ treeIdx, noteIdx, note })).filter(n => n.note !== null && n.note !== undefined)
     );
 
     // Test 2: Browser path (force isNodejs to false)
-    
+
     // Enable browser mode
     globalThis.__FORCE_BROWSER_MODE__ = true;
-    
+
     // Clear module cache for modules that depend on isNodejs
     // This forces them to re-evaluate isNodejs
     const moduleCache = require.cache;
-    const modulesToClear = Object.keys(moduleCache).filter(key => 
+    const modulesToClear = Object.keys(moduleCache).filter(key =>
       key.includes('railgun/lib/utils/encryption/aes') ||
       key.includes('railgun/logic/global/crypto') ||
       key.includes('railgun/lib/utils/runtime') ||
@@ -171,23 +171,23 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
     );
 
     modulesToClear.forEach(key => delete moduleCache[key]);
-    
+
     try {
       // Re-import modules after clearing cache - they will now see isNodejs as false
       const runtimeModule = await import('../../src/railgun/lib/utils/runtime');
-      
+
       if (runtimeModule.isNodejs) {
         throw new Error('Failed to force browser mode - isNodejs is still true. The mock may not be working correctly.');
       }
-      
+
       // Re-import AES and crypto modules which will use browser path
       await import('../../src/railgun/lib/utils/encryption/aes');
       await import('../../src/railgun/logic/global/crypto');
-      
+
       // Re-import the main functions so they use the re-imported modules
       const { createRailgunIndexer: createIndexerBrowser } = await import('../../src/indexer/base');
       const { createRailgunAccount: createAccountBrowser } = await import('../../src/account/base');
-      
+
       // Create new indexer and account - they will use browser decryption path
       const indexerBrowser = await createIndexerBrowser({
         network: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!,
@@ -200,29 +200,29 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
       });
 
       // Process the same logs with browser path
-      await indexerBrowser.processLogs(logs as RailgunLog[], { skipMerkleTree: false });
+      await indexerBrowser.processLogs(logs as TxLog[], { skipMerkleTree: false });
       const balanceBrowser = await accountBrowser.getBalance();
 
       expect(balanceBrowser).toBeGreaterThan(0n);
       expect(balanceBrowser).toBeLessThanOrEqual(VALUE_TO_SHIELD);
-      
+
       // Get serialized state for browser path
       const stateBrowser = accountBrowser.getSerializedState();
       const notebooksBrowser = stateBrowser.notebooks || [];
-      const nonNullNotesBrowser = notebooksBrowser.flatMap((nb, treeIdx) => 
+      const nonNullNotesBrowser = notebooksBrowser.flatMap((nb, treeIdx) =>
         (nb || []).map((note, noteIdx) => ({ treeIdx, noteIdx, note })).filter(n => n.note !== null && n.note !== undefined)
       );
-      
+
       // Verify both paths produce the same result
       expect(nonNullNotesNode.length).toEqual(nonNullNotesBrowser.length);
       expect(balanceNode).toEqual(balanceBrowser);
     } finally {
       // Disable browser mode to restore Node.js path
       globalThis.__FORCE_BROWSER_MODE__ = false;
-      
+
       // Clear cache again to restore Node.js path for subsequent tests
       const moduleCache2 = require.cache;
-      const modulesToClear2 = Object.keys(moduleCache2).filter(key => 
+      const modulesToClear2 = Object.keys(moduleCache2).filter(key =>
         key.includes('railgun/lib/utils/encryption/aes') ||
         key.includes('railgun/logic/global/crypto') ||
         key.includes('railgun/lib/utils/runtime') ||
@@ -236,4 +236,3 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
     }
   }, 180000);
 });
-

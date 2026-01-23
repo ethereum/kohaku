@@ -1,5 +1,5 @@
 import { RailgunNetworkConfig } from "~/config";
-import { RailgunProvider, RailgunLog } from "~/provider";
+import { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { createRpcSync, RpcSync } from "./sync";
 import { RailgunAccount } from "~/account/base";
@@ -9,13 +9,13 @@ import { createIndexerStorage, serializeMerkleTrees, IndexerLoadData } from "./s
 
 export type IndexerConfig = {
     network: RailgunNetworkConfig;
-    provider?: RailgunProvider;
+    provider?: EthereumProvider;
     checkpoint?: string;
     startBlock?: number;
 } & (
-    | { storage: StorageLayer; loadState?: never }
-    | { storage?: never; loadState?: IndexerLoadData }
-);
+        | { storage: StorageLayer; loadState?: never }
+        | { storage?: never; loadState?: IndexerLoadData }
+    );
 
 export type ProcessLogsOptions = {
     skipMerkleTree?: boolean;
@@ -27,7 +27,7 @@ export type Indexer = {
     network: RailgunNetworkConfig;
     accounts: RailgunAccount[];
     registerAccount: (account: RailgunAccount) => void;
-    processLogs: (logs: RailgunLog[], options?: ProcessLogsOptions) => Promise<void>;
+    processLogs: (logs: TxLog[], options?: ProcessLogsOptions) => Promise<void>;
     getNetwork: () => RailgunNetworkConfig;
     getEndBlock: () => number;
     getSerializedState: () => { merkleTrees: ReturnType<typeof serializeMerkleTrees>; endBlock: number };
@@ -36,7 +36,13 @@ export type Indexer = {
 
 export type CreateRailgunIndexerFn = (config: IndexerConfig) => Promise<Indexer>;
 
-export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, provider, startBlock, storage, loadState }) => {
+export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
+    network,
+    provider,
+    startBlock,
+    storage,
+    loadState,
+}) => {
     const accounts: RailgunAccount[] = [];
     const { trees, saveTrees, getCurrentBlock, setEndBlock } = await createIndexerStorage({ startBlock, storage, loadState });
     const getTrees = () => trees;
@@ -51,7 +57,7 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({ network, pr
         sync = rpcSync.sync;
     }
 
-    const processLogs = async (logs: RailgunLog[], options: ProcessLogsOptions = {}) => {
+    const processLogs = async (logs: TxLog[], options: ProcessLogsOptions = {}) => {
         const { skipMerkleTree = false } = options;
 
         // Process all logs

@@ -31,7 +31,7 @@ export const createFileStorageLayer = (path: string, params?: FileStorageParams)
         },
         async write(data) {
             if (skipWrite) return;
-            
+
             console.log('writing to file', fullPath);
 
             await writeFile(fullPath, JSON.stringify(data));

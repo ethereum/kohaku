@@ -1,5 +1,5 @@
 <p align="center">
-<a href="https://viem.sh">
+<a href="https://ethereum.github.io/kohaku/">
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ethereum/kohaku/refs/heads/master/docs/public/kohaku_logo.svg">
 <img alt="Kohaku logo" src="https://raw.githubusercontent.com/ethereum/kohaku/refs/heads/master/docs/public/kohaku_logo.svg" width="auto" height="60">
@@ -15,11 +15,13 @@
 Privacy-first tooling for the Ethereum ecosystem
 
 > [!IMPORTANT]
-> This project is a work in progress and is not ready for production use.
+> Some parts of this project are work in progress and not ready for production use.
 
 ## Repository Structure
 
-| Package                                             | Status | Description                        |
-| --------------------------------------------------| -- | ---------------------------------- |
-| [@kohaku-eth/railgun](packages/railgun)             | ✅ | railgun privacy protocol lib       |
-| [@kohaku-eth/privacy-pools](packages/privacy-pools) | 🚧 | privacy pools privacy protocol lib |
+| Package                                             | Status | Description                                  |
+| ----------------------------------------------------| ------ | -------------------------------------------- |
+| [@kohaku-eth/railgun](packages/railgun)             | ✅     | railgun privacy protocol lib                 |
+| [@kohaku-eth/pq-account](packages/pq-account)       | ✅     | post-quantum 4337 account implementation     |
+| [@kohaku-eth/privacy-pools](packages/privacy-pools) | 🚧     | privacy pools privacy protocol lib           |
+| [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, colibri) |

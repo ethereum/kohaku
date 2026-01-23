@@ -7,7 +7,7 @@ import {
 } from '../../src';
 import { TEST_ACCOUNTS } from '../utils/test-accounts';
 import { fundAccountWithETH, getETHBalance } from '../utils/test-helpers';
-import { EthersProviderAdapter, EthersSignerAdapter } from '../../src/provider';
+import { ethers, EthersSignerAdapter } from '@kohaku-eth/provider/ethers';
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 // import { loadOrCreateCache } from '../utils/cache';
 import { RAILGUN_CONFIG_BY_CHAIN_ID } from '../../src/config';
@@ -26,11 +26,11 @@ function getEnv(key: string, fallback: string): string {
 
 describe('Railgun E2E Flow', () => {
   let anvil: AnvilInstance;
-  let provider: EthersProviderAdapter;
+  let provider: EthereumProvider;
   let alice: Wallet;
   let bob: Wallet;
   let charlie: Wallet;
-  // let cachedLogs: RailgunLog[];
+  // let cachedLogs: TxLog[];
   // let cachedMerkleTrees: { tree: string[][]; nullifiers: string[] }[];
   let forkBlock: number;
 
@@ -58,7 +58,7 @@ describe('Railgun E2E Flow', () => {
 
     const jsonRpcProvider = await anvil.getProvider();
 
-    provider = new EthersProviderAdapter(jsonRpcProvider);
+    provider = ethers(jsonRpcProvider);
 
     // Load or create cache for this fork block (this is the slow part on first run)
     console.log(`\nLoading cache for fork block ${forkBlock}...`);
@@ -122,7 +122,7 @@ describe('Railgun E2E Flow', () => {
     // Initialize indexer with cached Merkle trees and sync to latest
     console.log('\nLoading cached state into indexer...');
     // await indexer.loadState({ merkleTrees: cachedMerkleTrees, latestSyncedBlock: forkBlock });
-    await indexer.sync({ logProgress: true });
+    await indexer.sync!({ logProgress: true });
     console.log('Cached state loaded');
 
     await anvil.mine(3);
@@ -233,7 +233,7 @@ describe('Railgun E2E Flow', () => {
     console.log(`Querying logs from block ${startBlock} to ${currentBlock}`);
 
     // Query from forkBlock (not forkBlock + 1) to capture any logs at the fork block
-    await indexer.sync({ fromBlock: startBlock, toBlock: currentBlock, logProgress: true });
+    await indexer.sync!({ fromBlock: startBlock, toBlock: currentBlock, logProgress: true });
     console.log('Accounts synced');
     const currentRootA2 = aliceRailgunAccount.getLatestMerkleRoot();
 
@@ -275,7 +275,7 @@ describe('Railgun E2E Flow', () => {
     console.log('\nStep 6: Syncing accounts after transfer...');
     const newBlock = await provider.getBlockNumber();
 
-    await indexer.sync({ toBlock: newBlock, logProgress: true });
+    await indexer.sync!({ toBlock: newBlock, logProgress: true });
 
     const aliceRoot = aliceRailgunAccount.getLatestMerkleRoot();
 

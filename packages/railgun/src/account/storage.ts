@@ -36,7 +36,7 @@ export const parseAccountStorage = async (
         });
     }
 
-    return { 
+    return {
         notebooks: parsed,
         endBlock: cached.endBlock !== undefined ? cached.endBlock : 0,
     };
@@ -49,7 +49,7 @@ export const serializeAccountStorage = (storage: AccountStorage): CachedAccountS
         serialized.push(noteBook ? noteBook.serialize() : []);
     }
 
-    return { 
+    return {
         notebooks: serialized,
         endBlock: storage.endBlock !== undefined ? storage.endBlock : 0,
     };

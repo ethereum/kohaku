@@ -1,7 +1,7 @@
 CORES := $(shell nproc)
 install: 
 	foundryup
-	forge install ZKNOXHQ/ETHDILITHIUM
+	forge install ZKNOXHQ/ETHDILITHIUM@JeanClaudeOptimization
 	forge install ZKNOXHQ/ETHFALCON
 	forge install ZKNOXHQ/InterfaceVerifier
 	forge install eth-infinitism/account-abstraction@v0.8.0
