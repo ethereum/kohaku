@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-<img src="https://img.shields.io/badge/Tests-passing-green" align="center" />
+<a href="https://github.com/ethereum/kohaku/actions"><img src="https://img.shields.io/badge/Tests-passing-green" align="center" /></a>
 <img src="https://img.shields.io/badge/Packages-2-blue" align="center" />
 </p>
 
