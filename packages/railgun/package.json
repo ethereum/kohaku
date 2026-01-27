@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.1-alpha.2",
   "description": "Simplified Railgun TS utils",
   "type": "module",
   "private": false,
@@ -25,10 +25,10 @@
       "types": "./dist/storage/layers/empty.d.ts",
       "import": "./dist/storage/layers/empty.js"
     },
-    "./global": {
-      "types": "./dist/global.d.ts",
-      "import": "./dist/global.js",
-      "require": "./dist/global.cjs"
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "import": "./dist/webpack.js",
+      "require": "./dist/webpack.cjs"
     },
     "./package.json": "./package.json"
   },
