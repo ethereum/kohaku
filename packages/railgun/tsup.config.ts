@@ -38,7 +38,7 @@ export default defineConfig([
       entry: { 
         'webpack': 'src/webpack.ts'
       },
-      format: ['esm'],
+      format: ['esm', 'cjs'],
       dts: {
         resolve: true,
         compilerOptions: {
