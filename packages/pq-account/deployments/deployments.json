@@ -1,0 +1,118 @@
+{
+  "sepolia": {
+    "chainId": 11155111,
+    "verifiers": {
+      "ethfalcon": {
+        "address": "0x01880eb770be007aE75febabA21532Fb5c33318B",
+        "salt": "0x9948a2586b7449a06ce0dcdf9eac5e1ecb18e0c1b38cab20df5e0296eb2215c7",
+        "saltLabel": "ZKNOX_ETHFALCON_VERIFIER_V0_0_1"
+      },
+      "mldsa": {
+        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
+        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
+      },
+      "mldsaeth": {
+        "address": "0xbfF02B9D0EB96f1Fe1BeB57817F0d6085813f1c0",
+        "salt": "0xbcfe7195d98b9dca9b668c1b4dae00d8f8f6852a2cf4c78f0defeef9000b12b0",
+        "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_1"
+      },
+      "falcon": {
+        "address": "0x82DDb9783D5577853CbAf2a02b359beeA1E4c4B9",
+        "salt": "0x548877132dd2276b01a52710283519d0db38f8b55e542121d1cdd7945541bab8",
+        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_1"
+      },
+      "ecdsa_k1": {
+        "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
+        "salt": "0x89249991e6619ea9d2a750423497a83ec82f475538ff555d1ad42473e0db9fe6",
+        "saltLabel": "ZKNOX_ECDSA_K1_VERIFIER_V0_0_1"
+      },
+      "ecdsa_r1": {
+        "address": "0xDB5F45915EbD4647874d5ffFd31a331eE4554c27",
+        "salt": "0x04fa1129a356f5ab25425d18392543dff0a54ccebcddeaeb981d723185b012ba",
+        "saltLabel": "ZKNOX_ECDSA_R1_VERIFIER_V0_0_1"
+      }
+    },
+    "accounts": {
+      "mldsa_k1": {
+        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
+        "postQuantum": "mldsa",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
+      },
+      "mldsa_r1": {
+        "address": "0x01Ff8790a7615Db192ca1005fe60d0732f432eF5",
+        "postQuantum": "mldsa",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0x24055e46ba3a9113a66b9cc742e4aa85994e5c56605767d573af6643ecad49f4",
+        "saltLabel": "ZKNOX_MLDSA_R1_FACTORY_V0_0_1"
+      },
+      "mldsaeth_k1": {
+        "address": "0x053116Dae2F3F966B2957D11f87A8Ff298ae31C2",
+        "postQuantum": "mldsaeth",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0x00b55da5f55caf9b799a0ba33d2705ea92d674ad073350ebdabd0e77d0c299e4",
+        "saltLabel": "ZKNOX_MLDSAETH_K1_FACTORY_V0_0_1"
+      },
+      "mldsaeth_r1": {
+        "address": "0x3b68f42a9eAfDF85D64492Cc68d5C88d1a525c05",
+        "postQuantum": "mldsaeth",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0x74f938811c2c42942d87be014a165a1ceafa28a1f48642720bde823e7a463acd",
+        "saltLabel": "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_1"
+      },
+      "falcon_k1": {
+        "address": "0x43D1B09AC488ea1CF2De674Adb3cB97fa0A51c00",
+        "postQuantum": "falcon",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0x366df8cf5488c6cc93d5cfa5ff2dfb1c95988eef7ef61ed99f9d57a5367ebb1d",
+        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_1"
+      },
+      "falcon_r1": {
+        "address": "0x9984bc6D728991Df5C5662B865b7024a11909999",
+        "postQuantum": "falcon",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0x55f46b1713c2adeeacd4c266883dc7795fd7711e5ba95555f67518e04776251b",
+        "saltLabel": "ZKNOX_FALCON_R1_FACTORY_V0_0_1"
+      },
+      "ethfalcon_k1": {
+        "address": "0x75de9AF9902978826bc99E48f468b682bE17F416",
+        "postQuantum": "ethfalcon",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0xeebc80cb56b738e3ee59ce60a0a8e08a065765057bc2fb3f991f27c56be89434",
+        "saltLabel": "ZKNOX_ETHFALCON_K1_FACTORY_V0_0_1"
+      },
+      "ethfalcon_r1": {
+        "address": "0x93115df4f05728Effe3845B552Be5Ff8f183a908",
+        "postQuantum": "ethfalcon",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0xac07f873bf04c96c59214a68fd7f053d276a8385973f921694e491cf90bc62db",
+        "saltLabel": "ZKNOX_ETHFALCON_R1_FACTORY_V0_0_1"
+      }
+    }
+  },
+  "arbitrumSepolia": {
+    "verifiers": {
+      "mldsa": {
+        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
+        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
+      },
+      "ecdsa_k1": {
+        "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
+        "salt": "0x89249991e6619ea9d2a750423497a83ec82f475538ff555d1ad42473e0db9fe6",
+        "saltLabel": "ZKNOX_ECDSA_K1_VERIFIER_V0_0_1"
+      }
+    },
+    "accounts": {
+      "mldsa_k1": {
+        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
+        "postQuantum": "mldsa",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
+      }
+    }
+  }
+}

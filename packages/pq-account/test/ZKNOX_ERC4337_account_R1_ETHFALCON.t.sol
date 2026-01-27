@@ -9,20 +9,15 @@ import {IStakeManager} from "account-abstraction/contracts/interfaces/IStakeMana
 import {PackedUserOperation} from "account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
-import {
-    ERC7913P256Verifier
-} from "openzeppelin-contracts/contracts/utils/cryptography/verifiers/ERC7913P256Verifier.sol";
-import {IERC7913SignatureVerifier} from "openzeppelin-contracts/contracts/interfaces/IERC7913.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
-import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {Script_Deploy_Hybrid_Verifier} from "../script/DeployHybridVerifier.s.sol";
 
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
-import {Script_Deploy_Falcon} from "ETHFALCON/script/DeployETHFalcon.s.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
 // TODO: This is not part of Dilithium so it should be moved in the future
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
+import {ZKNOX_ethfalcon} from "ETHFALCON/src/ZKNOX_ethfalcon.sol";
+import {ECDSAr1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAr1.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
@@ -31,7 +26,6 @@ function bytes32ToHex(bytes32 value) pure returns (string memory) {
 contract TestERC4337_Account is Test {
     ZKNOX_ERC4337_account public account;
     IEntryPoint public entryPoint;
-    ZKNOX_HybridVerifier public hybridVerifier;
     TestTarget target;
 
     address public owner;
@@ -43,14 +37,8 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        Script_Deploy_Hybrid_Verifier scriptDeployHybridVerifier = new Script_Deploy_Hybrid_Verifier();
-        address hybridVerifierLogicAddress = scriptDeployHybridVerifier.run();
-
-        Script_Deploy_Falcon scriptDeployEthFalcon = new Script_Deploy_Falcon();
-        address postQuantumLogicAddress = scriptDeployEthFalcon.run();
-
-        IERC7913SignatureVerifier scriptDeployEcdsa = new ERC7913P256Verifier();
-        address preQuantumLogicAddress = address(scriptDeployEcdsa);
+        address postQuantumLogicAddress = address(new ZKNOX_ethfalcon());
+        address preQuantumLogicAddress = address(new ECDSAr1Verifier());
 
         entryPoint = new EntryPoint();
 
@@ -59,8 +47,8 @@ contract TestERC4337_Account is Test {
 
         // Signing a nonce to get access to pubkey
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-        (uint256[32] memory pk_compact,,) = pythonSigner.sign("lib/ETHFALCON/pythonref", "0xabcd", "ETH", seedStr);
-        bytes memory postQuantumPubKey = _packUint256Array(pk_compact);
+        (uint256[32] memory pkCompact,,) = pythonSigner.sign("lib/ETHFALCON/pythonref", "0xabcd", "ETH", seedStr);
+        bytes memory postQuantumPubKey = _packUint256Array(pkCompact);
 
         // Deploy the Smart Account
         account = new ZKNOX_ERC4337_account(
@@ -68,8 +56,7 @@ contract TestERC4337_Account is Test {
             preQuantumPubKey,
             postQuantumPubKey,
             preQuantumLogicAddress,
-            postQuantumLogicAddress,
-            hybridVerifierLogicAddress
+            postQuantumLogicAddress
         );
         // Deploy TestTarget
         target = new TestTarget();
@@ -90,11 +77,11 @@ contract TestERC4337_Account is Test {
         // Sign the userOpHash with both FNDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-        (, bytes memory salt, uint256[32] memory s2_compact) =
+        (, bytes memory salt, uint256[32] memory s2Compact) =
             pythonSigner.sign("lib/ETHFALCON/pythonref", data, "ETH", seedStr);
         (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s);
-        bytes memory postQuantumSig = _packSignature(salt, s2_compact);
+        bytes memory postQuantumSig = _packSignature(salt, s2Compact);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
 
         vm.prank(address(entryPoint));
@@ -132,11 +119,11 @@ contract TestERC4337_Account is Test {
         // Sign the userOpHash with both FNDSA and ECDSA
         string memory data = bytes32ToHex(userOpHash);
         string memory seedStr = Constants.SEED_POSTQUANTUM_STR;
-        (, bytes memory salt, uint256[32] memory s2_compact) =
+        (, bytes memory salt, uint256[32] memory s2Compact) =
             pythonSigner.sign("lib/ETHFALCON/pythonref", data, "ETH", seedStr);
         (bytes32 r, bytes32 s) = vm.signP256(Constants.SEED_PREQUANTUM, userOpHash);
         bytes memory preQuantumSig = abi.encodePacked(r, s);
-        bytes memory postQuantumSig = _packSignature(salt, s2_compact);
+        bytes memory postQuantumSig = _packSignature(salt, s2Compact);
         userOp.signature = abi.encode(preQuantumSig, postQuantumSig);
 
         // Create an array with a single UserOperation

@@ -1,12 +1,9 @@
 CORES := $(shell nproc)
 install: 
 	foundryup
-	forge install ZKNOXHQ/ETHDILITHIUM
-	forge install ZKNOXHQ/ETHFALCON
-	forge install eth-infinitism/account-abstraction@v0.8.0
-	forge install OpenZeppelin/openzeppelin-contracts
-	cd lib/ETHDILITHIUM/pythonref;make install
-	cd lib/ETHFALCON/pythonref;make install
+	git submodule update --init --recursive
+	if [ -d lib/ETHDILITHIUM/pythonref ]; then cd lib/ETHDILITHIUM/pythonref && make install; fi
+	if [ -d lib/ETHFALCON/pythonref ]; then cd lib/ETHFALCON/pythonref && make install; fi
 test_opt:
 	forge test -j$(CORES) -vv
 test_not_opt:
