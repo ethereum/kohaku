@@ -26,7 +26,9 @@ jobs:
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
       - name: Install
-        run: pnpm install --frozen-lockfile=false
+        run: |
+          pnpm config set auto-install-peers false
+          pnpm install --frozen-lockfile=false
       - name: Build all packages
         run: pnpm -r build
       # - name: Create Release PR or Publish
