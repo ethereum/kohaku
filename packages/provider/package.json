@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/provider",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha.1",
   "description": "Omni provider helpers that wrap Ethers, Viem, and Colibri.",
   "type": "module",
   "private": false,

@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha.1",
   "description": "Simplified Railgun TS utils",
   "type": "module",
   "private": false,
