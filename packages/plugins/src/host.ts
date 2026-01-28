@@ -75,14 +75,14 @@ export interface SecretStorage {
  */
 export interface Keystore {
     /**
-     * Derives a key at the given BIP-32 path. Implementations MAY restrict which paths are allowed,
-     * or otherwise limit access. Implementations MUST ensure that once a plugin has derived a key at a given path,
-     * subsequent calls to deriveAtPath with the same path return the same result.
+     * Signs a raw message with a private key derived at the given BIP-32 path. Implementations
+     * MAY restrict which paths are allowed, or otherwise limit access.
      * 
      * @param path BIP-32 path to derive the key at.
+     * @param message Message to sign with the derived key.
      * @returns The derived private key as a hex string.
      */
-    deriveAt(path: string): Hex;
+    signAt(path: string, message: Hex): Hex;
 }
 
 /**
