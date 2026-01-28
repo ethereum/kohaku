@@ -33,7 +33,7 @@ export interface SecretStorage {
 }
 
 export interface Keystore {
-    signAt(path: string, message: Hex): Hex;
+    deriveAt(path: string): Hex;
 }
 
 export interface EthProvider {
