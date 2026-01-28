@@ -51,40 +51,35 @@ export class CustomChainId extends Eq {
  * the chain ID, the reference field is omitted for slip44 asset types.  Slip44
  * asset types always refer to the native asset of the chain.
  */
-export class AssetId extends Eq {
-    constructor(readonly chainId: ChainId, readonly assetType: Slip44AssetType | Erc20AssetType | Erc721AssetType) { super(); }
-
-    toString(): string {
-        return `${this.chainId.toString()}/${this.assetType.toString()}`;
-    }
-}
+export type AssetId = Slip44AssetType | Erc20AssetType | Erc721AssetType;
 
 /**
  * Chain-specific native asset type.
  */
-export class Slip44AssetType {
+export class Slip44AssetType extends Eq {
     readonly namespace = "slip44" as const;
+    constructor(readonly chainId: ChainId) { super(); }
 
     toString(): string {
-        return this.namespace;
+        return `${this.chainId.toString()}/${this.namespace}`;
     }
 }
 
 export class Erc20AssetType extends Eq {
     readonly namespace = "erc20" as const;
-    constructor(readonly reference: Address) { super(); }
+    constructor(readonly chainId: ChainId, readonly reference: Address) { super(); }
 
     toString(): string {
-        return `${this.namespace}:${this.reference}`;
+        return `${this.chainId.toString()}/${this.namespace}:${this.reference}`;
     }
 }
 
 export class Erc721AssetType extends Eq {
     readonly namespace = "erc721" as const;
-    constructor(readonly reference: Address) { super(); }
+    constructor(readonly chainId: ChainId, readonly reference: Address) { super(); }
 
     toString(): string {
-        return `${this.namespace}:${this.reference}`;
+        return `${this.chainId.toString()}/${this.namespace}:${this.reference}`;
     }
 }
 
@@ -112,13 +107,13 @@ export function chainId(namespace: string, reference: number): Eip155ChainId | C
 }
 
 export function slip44(chainId: ChainId): Slip44AssetType {
-    return new Slip44AssetType();
+    return new Slip44AssetType(chainId);
 }
 
 export function erc20(chainId: ChainId, address: Address): Erc20AssetType {
-    return new Erc20AssetType(address);
+    return new Erc20AssetType(chainId, address);
 }
 
 export function erc721(chainId: ChainId, address: Address): Erc721AssetType {
-    return new Erc721AssetType(address);
+    return new Erc721AssetType(chainId, address);
 }
