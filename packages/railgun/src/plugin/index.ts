@@ -212,55 +212,53 @@ export class RailgunPlugin implements Plugin {
 }
 
 async function createAccount(storage: SecretStorage, keystore: Keystore, indexer: Indexer): Promise<RailgunAccount> {
-    // TODO: Switch railgun SDK to use a signer interface instead of directly accessing keys
-    throw new Error("Method not implemented.");
-    // const { viewingKey, spendingKey } = getKeys(storage, keystore);
-    // const accountConfig: RailgunAccountParameters = {
-    //     indexer,
-    //     credential: {
-    //         type: 'key',
-    //         viewingKey: viewingKey,
-    //         spendingKey: spendingKey,
-    //     },
-    //     storage: new HostStorageAdapter(storage, ACCOUNT_CACHE_STORAGE_KEY),
-    // }
-    // const account = await createRailgunAccount(accountConfig);
-    // return account;
+    const { viewingKey, spendingKey } = getKeys(storage, keystore);
+    const accountConfig: RailgunAccountParameters = {
+        indexer,
+        credential: {
+            type: 'key',
+            viewingKey: viewingKey,
+            spendingKey: spendingKey,
+        },
+        storage: new HostStorageAdapter(storage, ACCOUNT_CACHE_STORAGE_KEY),
+    }
+    const account = await createRailgunAccount(accountConfig);
+    return account;
 }
 
-// function getKeys(storage: SecretStorage, keystore: Keystore): {
-//     viewingKey: string;
-//     spendingKey: string;
-// } {
-//     const index = storage.get(ACCOUNT_INDEX_STORAGE_KEY);
+function getKeys(storage: SecretStorage, keystore: Keystore): {
+    viewingKey: string;
+    spendingKey: string;
+} {
+    const index = storage.get(ACCOUNT_INDEX_STORAGE_KEY);
 
-//     if (index !== null) {
-//         const indexNumber = parseInt(index, 10);
-//         const paths = derivePathsForIndex(indexNumber);
-//         // const spendingKey = keystore.deriveAt(paths.spending);
-//         // const viewingKey = keystore.deriveAt(paths.viewing);
-//         return {
-//             spendingKey,
-//             viewingKey,
-//         };
-//     }
+    if (index !== null) {
+        const indexNumber = parseInt(index, 10);
+        const paths = derivePathsForIndex(indexNumber);
+        const spendingKey = keystore.deriveAt(paths.spending);
+        const viewingKey = keystore.deriveAt(paths.viewing);
+        return {
+            spendingKey,
+            viewingKey,
+        };
+    }
 
-//     for (let i = 0; i < MAX_ACCOUNT_SEARCH_DEPTH; i++) {
-//         const paths = derivePathsForIndex(i);
-//         try {
-//             const spendingKey = keystore.deriveAt(paths.spending);
-//             const viewingKey = keystore.deriveAt(paths.viewing);
+    for (let i = 0; i < MAX_ACCOUNT_SEARCH_DEPTH; i++) {
+        const paths = derivePathsForIndex(i);
+        try {
+            const spendingKey = keystore.deriveAt(paths.spending);
+            const viewingKey = keystore.deriveAt(paths.viewing);
 
-//             storage.set(ACCOUNT_INDEX_STORAGE_KEY, i.toString());
+            storage.set(ACCOUNT_INDEX_STORAGE_KEY, i.toString());
 
-//             return {
-//                 spendingKey,
-//                 viewingKey,
-//             };
-//         } catch (e) {
-//             // Continue searching
-//         }
-//     }
+            return {
+                spendingKey,
+                viewingKey,
+            };
+        } catch (e) {
+            // Continue searching
+        }
+    }
 
-//     throw new Error("No keys found in keystore");
-// }
+    throw new Error("No keys found in keystore");
+}
