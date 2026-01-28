@@ -95,25 +95,3 @@ export class AccountId extends Eq {
         return `${this.chainId.toString()}/${this.accountId}`;
     }
 }
-
-export function chainId(namespace: 'eip155', reference: number): Eip155ChainId;
-export function chainId(namespace: string & {}, reference: number): CustomChainId;
-export function chainId(namespace: string, reference: number): Eip155ChainId | CustomChainId {
-    if (namespace === "eip155") {
-        return new Eip155ChainId(reference);
-    } else {
-        return new CustomChainId(namespace, reference);
-    }
-}
-
-export function slip44(chainId: ChainId): Slip44AssetType {
-    return new Slip44AssetType(chainId);
-}
-
-export function erc20(chainId: ChainId, address: Address): Erc20AssetType {
-    return new Erc20AssetType(chainId, address);
-}
-
-export function erc721(chainId: ChainId, address: Address): Erc721AssetType {
-    return new Erc721AssetType(chainId, address);
-}
