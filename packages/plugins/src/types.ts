@@ -42,21 +42,20 @@ export class CustomChainId extends Eq {
  * 
  * https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-19.md
  * 
- * - Slip44 assets represent native assets of blockchains (IE ETH on Ethereum,
+ * - Native assets (slip44) represent native assets of blockchains (IE ETH on Ethereum,
  *   MATIC on Polygon).
  * - Erc20 assets represent fungible tokens.
  * - Erc721 assets represent non-fungible tokens.
  * 
- * @remarks Since on EVM chains the slip44 asset type is uniquely identified by 
- * the chain ID, the reference field is omitted for slip44 asset types.  Slip44
- * asset types always refer to the native asset of the chain.
+ * @private Since on EVM chains the slip44 asset type is uniquely identified by 
+ * the chain ID, I simplified the representation into a blackbox NativeAssetType.
  */
-export type AssetId = Slip44AssetType | Erc20AssetType | Erc721AssetType;
+export type AssetId = NativeAssetType | Erc20AssetType | Erc721AssetType;
 
 /**
- * Chain-specific native asset type.
+ * Slip44 chain-specific native asset type.
  */
-export class Slip44AssetType extends Eq {
+export class NativeAssetType extends Eq {
     readonly namespace = "slip44" as const;
     constructor(readonly chainId: ChainId) { super(); }
 
