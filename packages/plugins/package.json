@@ -15,7 +15,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "viem": "^2.44.4",
-    "@kohaku-eth/provider": "workspace:*"
+    "@kohaku-eth/provider": "workspace:*",
+    "viem": "^2.44.4"
   }
 }
