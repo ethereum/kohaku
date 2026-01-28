@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha.3",
   "description": "Simplified Railgun TS utils",
   "type": "module",
   "private": false,
@@ -10,10 +10,6 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": {
-        "types": "./dist/index.browser.d.ts",
-        "import": "./dist/index.browser.js"
-      },
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -25,10 +21,11 @@
       "types": "./dist/storage/layers/empty.d.ts",
       "import": "./dist/storage/layers/empty.js"
     },
-    "./global": {
-      "types": "./dist/global.d.ts",
-      "import": "./dist/global.js",
-      "require": "./dist/global.cjs"
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "import": "./dist/webpack.js",
+      "require": "./dist/webpack.cjs",
+      "default": "./dist/webpack.js"
     },
     "./package.json": "./package.json"
   },
@@ -92,6 +89,7 @@
     "ts-pattern": "^5.4.0"
   },
   "devDependencies": {
+    "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",
     "@types/chai": "^4.3.20",
@@ -102,8 +100,10 @@
     "chai": "^4.5.0",
     "chai-as-promised": "^7.1.2",
     "dotenv": "^17.2.1",
+    "ethers": "^6.15.0",
     "mocha": "^11.7.1",
     "prool": "^0.0.24",
+    "snarkjs": "^0.7.5",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",
@@ -111,8 +111,6 @@
     "viem": "^2.0.0",
     "vite": "^6.0.0",
     "vite-tsconfig-paths": "^5.1.0",
-    "vitest": "^2.0.0",
-    "snarkjs": "^0.7.5",
-    "@railgun-community/circuit-artifacts": "https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz"
+    "vitest": "^2.0.0"
   }
 }
