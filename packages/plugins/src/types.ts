@@ -1,5 +1,12 @@
-import { Address, isAddress } from "viem";
-import { InvalidAddressError, UnsupportedChainError } from "./errors";
+import { Address } from "viem";
+
+abstract class Eq {
+    abstract toString(): string;
+
+    equals(other: Eq): boolean {
+        return this.toString() === other.toString();
+    }
+}
 
 /**
  * CAIP-2 Chain ID.
@@ -13,9 +20,22 @@ import { InvalidAddressError, UnsupportedChainError } from "./errors";
  * @remarks Uses `string & {}` for typescript trickery to prevent extension of known 
  * namespaces for intelisense.
  */
-export type ChainId =
-    | { namespace: "eip155"; reference: number; }
-    | { namespace: string & {}; reference: number; };
+export type ChainId = Eip155ChainId | CustomChainId;
+export class Eip155ChainId extends Eq {
+    readonly namespace = "eip155" as const;
+    constructor(readonly reference: number) { super(); }
+
+    toString(): string {
+        return `${this.namespace}:${this.reference}`;
+    }
+};
+export class CustomChainId extends Eq {
+    constructor(readonly namespace: string & {}, readonly reference: number) { super(); }
+
+    toString(): string {
+        return `${this.namespace}:${this.reference}`;
+    }
+};
 
 /**
  * CAIP-19 Asset ID.
@@ -27,15 +47,45 @@ export type ChainId =
  * - Erc20 assets represent fungible tokens.
  * - Erc721 assets represent non-fungible tokens.
  * 
- * @remarks Consider breaking from caip-19 spec for slip44 to remove reference.
- * Since slip44 assets are uniquely identified by chain ID anyway, it's added
- * complexity without benefit.
+ * @remarks Since on EVM chains the slip44 asset type is uniquely identified by 
+ * the chain ID, the reference field is omitted for slip44 asset types.  Slip44
+ * asset types always refer to the native asset of the chain.
  */
-export interface AssetId {
-    chainId: ChainId;
-    assetType: { namespace: "slip44"; reference: number }
-    | { namespace: "erc20"; reference: Address }
-    | { namespace: "erc721"; reference: Address };
+export class AssetId extends Eq {
+    constructor(readonly chainId: ChainId, readonly assetType: Slip44AssetType | Erc20AssetType | Erc721AssetType) { super(); }
+
+    toString(): string {
+        return `${this.chainId.toString()}/${this.assetType.toString()}`;
+    }
+}
+
+/**
+ * Chain-specific native asset type.
+ */
+export class Slip44AssetType {
+    readonly namespace = "slip44" as const;
+
+    toString(): string {
+        return this.namespace;
+    }
+}
+
+export class Erc20AssetType extends Eq {
+    readonly namespace = "erc20" as const;
+    constructor(readonly reference: Address) { super(); }
+
+    toString(): string {
+        return `${this.namespace}:${this.reference}`;
+    }
+}
+
+export class Erc721AssetType extends Eq {
+    readonly namespace = "erc721" as const;
+    constructor(readonly reference: Address) { super(); }
+
+    toString(): string {
+        return `${this.namespace}:${this.reference}`;
+    }
 }
 
 /**
@@ -43,42 +93,32 @@ export interface AssetId {
  * 
  * https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-10.md
  */
-export interface AccountId {
-    chainId: ChainId;
-    accountId: string;
-}
+export class AccountId extends Eq {
+    constructor(readonly chainId: ChainId, readonly accountId: string) { super(); }
 
-export function newEvmChainId(chainId: number): ChainId {
-    return { namespace: "eip155", reference: chainId };
-}
-
-export function newEvmErc20(chainId: number, address: Address): AssetId {
-    return {
-        chainId: { namespace: "eip155", reference: chainId },
-        assetType: { namespace: "erc20", reference: address },
-    };
-}
-
-export function newEvmNative(chainId: number): AssetId {
-    return {
-        chainId: { namespace: "eip155", reference: chainId },
-        assetType: { namespace: "slip44", reference: 60 },
-    };
-}
-
-/**
- * Converts an AccountId to an EVM address.
- * 
- * @throws Error if the chain ID is not EVM or the account ID is not a valid EVM address.
- */
-export function accountIdToAddress(accountId: AccountId): Address {
-    if (accountId.chainId.namespace !== "eip155") {
-        throw new UnsupportedChainError(accountId.chainId);
+    toString(): string {
+        return `${this.chainId.toString()}/${this.accountId}`;
     }
+}
 
-    const address = accountId.accountId as Address;
-    if (!isAddress(address)) {
-        throw new InvalidAddressError(address);
+export function chainId(namespace: 'eip155', reference: number): Eip155ChainId;
+export function chainId(namespace: string & {}, reference: number): CustomChainId;
+export function chainId(namespace: string, reference: number): Eip155ChainId | CustomChainId {
+    if (namespace === "eip155") {
+        return new Eip155ChainId(reference);
+    } else {
+        return new CustomChainId(namespace, reference);
     }
-    return address;
+}
+
+export function slip44(chainId: ChainId): Slip44AssetType {
+    return new Slip44AssetType();
+}
+
+export function erc20(chainId: ChainId, address: Address): Erc20AssetType {
+    return new Erc20AssetType(address);
+}
+
+export function erc721(chainId: ChainId, address: Address): Erc721AssetType {
+    return new Erc721AssetType(address);
 }

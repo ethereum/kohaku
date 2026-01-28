@@ -37,7 +37,7 @@ export interface Plugin {
      * 
      * @throws {Error} If unable to retrieve the balance.
      */
-    balance(assets: Set<AssetId> | undefined): Promise<Map<AssetId, bigint>>;
+    balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
 
     /**
      * Prepares a shield operation for the specified asset(s).
@@ -49,7 +49,7 @@ export interface Plugin {
      * @throws {MultiAssetsNotSupportedError} If the plugin does not support shielding multiple assets at once.
      * @throws {Error} If the shield operation could not be prepared.
      */
-    prepareShield(assets: Map<AssetId, bigint> | AssetAmount, from?: Address): Promise<ShieldPreparation>;
+    prepareShield(assets: Array<AssetAmount> | AssetAmount, from?: Address): Promise<ShieldPreparation>;
 
     /**
      * Prepares an unshield operation for the specified asset(s).
@@ -61,7 +61,7 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the unshield operation could not be prepared.
      */
-    prepareUnshield(assets: Map<AssetId, bigint> | AssetAmount, to: Address): Promise<Operation>;
+    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<Operation>;
 
     /**
      * Prepares a transfer operation for the specified asset(s).
@@ -73,7 +73,7 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the transfer operation could not be prepared.
      */
-    prepareTransfer(assets: Map<AssetId, bigint> | AssetAmount, to: AccountId): Promise<Operation>;
+    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<Operation>;
 
     /**
      * Broadcasts the specified operation to the network.
