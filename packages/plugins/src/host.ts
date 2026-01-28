@@ -75,14 +75,14 @@ export interface SecretStorage {
  */
 export interface Keystore {
     /**
-     * Signs a raw message with a private key derived at the given BIP-32 path. Implementations
-     * MAY restrict which paths are allowed, or otherwise limit access.
+     * Derives a private key at the given BIP-32 path. Implementations MAY
+     * restrict which paths are allowed. Once an implementation has decided on
+     * a path, it MUST return the same key for subsequent calls with the same path.
      * 
      * @param path BIP-32 path to derive the key at.
-     * @param message Message to sign with the derived key.
      * @returns The derived private key as a hex string.
      */
-    signAt(path: string, message: Hex): Hex;
+    deriveAt(path: string): Hex;
 }
 
 /**
