@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Send ERC4337 Transaction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .config-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .config-section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: inline-block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+            font-size: 14px;
+        }
+
+        #walletNetwork {
+            font-weight: bold;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .input-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .twocols {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .twocols .input-group {
+            flex: 1;
+        }
+
+        #output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: calc(100vh - 500px);
+            max-height: none;
+            overflow-y: visible;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        #output:empty {
+            min-height: 50px;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        
+        .warning strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Send ERC4337 Quantum-Resistant Transaction</h1>
+    
+    <div class="config-section">
+        <h2>📋 Transaction Details</h2>
+
+        <div class="input-group">
+            <label>Wallet Network:</label>
+            <span id="walletNetwork">Not connected</span>
+        </div>
+
+        <div class="twocols">
+            <div class="input-group">
+                <label>Your ERC4337 Account Address:</label>
+                <input type="text" id="accountAddress" value="0xebf2880fc108d61b0279fec6132ac01fa8d58703">
+            </div>
+            
+            <div class="input-group">
+                <label>To Address:</label>
+                <input type="text" id="targetAddress" value="0xdA4e72C962C201D77d515B02dEd76B1a41E1DBab">
+            </div>
+        </div>
+        
+        <div class="twocols">
+            <div class="input-group">
+                <label>Value (ETH):</label>
+                <input type="text" id="value" value="0.0001">
+                <small>Amount of ETH to send</small>
+            </div>
+            
+            <div class="input-group">
+                <label>Call Data:</label>
+                <input type="text" id="callData" value="0x">
+                <small>Leave as 0x for simple ETH transfer</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="config-section">
+        <h2>🔑 Signing Keys</h2>
+        
+        <div class="twocols">
+            <div class="input-group">
+                <label>Pre-Quantum Seed:</label>
+                <input type="text" id="preQuantumSeed" value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                <small>Same seed used to create the account</small>
+            </div>
+            
+            <div class="input-group">
+                <label>Post-Quantum Seed:</label>
+                <input type="text" id="postQuantumSeed" value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                <small>Same seed used to create the account</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="button-container">
+        <button id="sendTx">Create & Sign UserOperation</button>
+    </div>
+    
+    <div id="output"></div>
+    
+    <script>
+        // Initialize global bundler URL - runs before modules load
+        window.bundlerUrlValue = { url: 'https://api.pimlico.io/v2/421614/rpc?apikey=EnterYourAPIKey' };
+    </script>
+    
+    <script type="module">
+        const walletNetworkSpan = document.getElementById('walletNetwork');
+        
+        const networksMap = {
+            '0x1': { name: 'Ethereum', chainId: '1' },
+            '0x5': { name: 'Goerli', chainId: '5' },
+            '0xaa36a7': { name: 'Sepolia', chainId: '11155111' },
+            '0x66eee': { name: 'Arbitrum Sepolia', chainId: '421614' }
+        };
+        
+        function updateBundlerUrl(chainId) {
+            const currentUrl = window.bundlerUrlValue.url;
+            // Extract the API key from current URL
+            const apiKeyMatch = currentUrl.match(/apikey=([^&]*)/);
+            const apiKey = apiKeyMatch ? apiKeyMatch[1] : 'YOUR_API_KEY';
+            
+            // Update the bundler URL with new chain ID
+            window.bundlerUrlValue.url = `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
+        }
+        
+        async function updateWalletNetwork() {
+            if (window.ethereum) {
+                try {
+                    // Don't request accounts on page load - just check if already connected
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    
+                    const network = networksMap[chainId.toLowerCase()];
+                    
+                    if (network) {
+                        walletNetworkSpan.textContent = network.name;
+                        updateBundlerUrl(network.chainId);
+                    } else {
+                        walletNetworkSpan.textContent = `Unknown (${chainId})`;
+                    }
+                    
+                } catch (err) {
+                    console.error('Network detection failed:', err);
+                    walletNetworkSpan.textContent = 'Click button to connect';
+                }
+                
+                // Listen for network changes
+                window.ethereum.on('chainChanged', (newChainId) => {
+                    const network = networksMap[newChainId.toLowerCase()];
+                    
+                    if (network) {
+                        walletNetworkSpan.textContent = network.name;
+                        updateBundlerUrl(network.chainId);
+                    } else {
+                        walletNetworkSpan.textContent = `Unknown (${newChainId})`;
+                    }
+                });
+                
+                // Listen for account changes to update network display
+                window.ethereum.on('accountsChanged', async (accounts) => {
+                    if (accounts.length > 0) {
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        const network = networksMap[chainId.toLowerCase()];
+                        if (network) {
+                            walletNetworkSpan.textContent = network.name;
+                            updateBundlerUrl(network.chainId);
+                        }
+                    }
+                });
+            } else {
+                walletNetworkSpan.textContent = 'No wallet detected';
+            }
+        }
+        
+        updateWalletNetwork();
+    </script>
+    
+    <script type="module" src="./sendTransaction.js"></script>
+</body>
+</html>

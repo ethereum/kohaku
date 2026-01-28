@@ -7,6 +7,9 @@ optimizer_runs = 10000
 solc_version = "0.8.30"
 evm_version = "osaka"
 ffi = true
+# Enable file reading permissions
+fs_permissions = [{ access = "read-write", path = "./" }]
+
 
 [profile.lite]
 optimizer = false

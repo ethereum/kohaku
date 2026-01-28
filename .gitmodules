@@ -1,12 +1,16 @@
 [submodule "packages/pq-account/lib/ETHDILITHIUM"]
 	path = packages/pq-account/lib/ETHDILITHIUM
 	url = https://github.com/ZKNOXHQ/ETHDILITHIUM
+	branch = JeanClaudeOptimization
+[submodule "packages/pq-account/lib/ETHFALCON"]
+	path = packages/pq-account/lib/ETHFALCON
+	url = https://github.com/ZKNOXHQ/ETHFALCON
+[submodule "packages/pq-account/lib/InterfaceVerifier"]
+	path = packages/pq-account/lib/InterfaceVerifier
+	url = https://github.com/ZKNOXHQ/InterfaceVerifier
 [submodule "packages/pq-account/lib/account-abstraction"]
 	path = packages/pq-account/lib/account-abstraction
 	url = https://github.com/eth-infinitism/account-abstraction
 [submodule "packages/pq-account/lib/openzeppelin-contracts"]
 	path = packages/pq-account/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
-[submodule "packages/pq-account/lib/ETHFALCON"]
-	path = packages/pq-account/lib/ETHFALCON
-	url = https://github.com/ZKNOXHQ/ETHFALCON

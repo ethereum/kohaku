@@ -11,16 +11,13 @@ import {PackedUserOperation} from "account-abstraction/contracts/interfaces/Pack
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
-import {PKContract} from "ETHDILITHIUM/src/ZKNOX_PKContract.sol";
+
 import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
-import {DeployPKContract} from "ETHDILITHIUM/script/Deploy_MLDSA_PK.s.sol";
-import {Script_Deploy_Dilithium} from "ETHDILITHIUM/script/DeployDilithium.s.sol";
-import {Script_Deploy_ECDSA} from "ETHDILITHIUM/script/DeployECDSA.s.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
-import {ZKNOX_HybridVerifier} from "../src/ZKNOX_hybrid.sol";
-import {Script_Deploy_Hybrid_Verifier} from "../script/DeployHybridVerifier.s.sol";
+import {ZKNOX_dilithium} from "ETHDILITHIUM/src/ZKNOX_dilithium.sol";
+import {ECDSAk1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAk1.sol";
 
 function bytes32ToHex(bytes32 value) pure returns (string memory) {
     return Strings.toHexString(uint256(value), 32);
@@ -29,8 +26,6 @@ function bytes32ToHex(bytes32 value) pure returns (string memory) {
 contract TestERC4337_Account is Test {
     ZKNOX_ERC4337_account public account;
     IEntryPoint public entryPoint;
-    ZKNOX_HybridVerifier public hybridVerifier;
-    PKContract public pkContract;
     TestTarget target;
 
     address public owner;
@@ -44,22 +39,14 @@ contract TestERC4337_Account is Test {
          *
          */
 
-        DeployPKContract deployPkContract = new DeployPKContract();
-        address postQuantumAddress = deployPkContract.run();
 
-        Script_Deploy_Hybrid_Verifier scriptDeployHybridVerifier = new Script_Deploy_Hybrid_Verifier();
-        address hybridVerifierLogicAddress = scriptDeployHybridVerifier.run();
-
-        Script_Deploy_Dilithium scriptDeployDilithium = new Script_Deploy_Dilithium();
-        address postQuantumLogicAddress = scriptDeployDilithium.run();
-
-        Script_Deploy_ECDSA scriptDeployEcdsa = new Script_Deploy_ECDSA();
-        address preQuantumLogicAddress = scriptDeployEcdsa.run();
+        address postQuantumLogicAddress = address(new ZKNOX_dilithium());
+        address preQuantumLogicAddress = address(new ECDSAk1Verifier());
 
         entryPoint = new EntryPoint();
 
         bytes memory preQuantumPubKey = abi.encodePacked(Constants.ADDR_PREQUANTUM);
-        bytes memory postQuantumPubKey = abi.encodePacked(postQuantumAddress);
+        bytes memory postQuantumPubKey = pythonSigner.getPubKey("lib/ETHDILITHIUM/pythonref", "NIST", Constants.SEED_POSTQUANTUM_STR);
 
         // Deploy the Smart Account
         account = new ZKNOX_ERC4337_account(
@@ -67,8 +54,7 @@ contract TestERC4337_Account is Test {
             preQuantumPubKey,
             postQuantumPubKey,
             preQuantumLogicAddress,
-            postQuantumLogicAddress,
-            hybridVerifierLogicAddress
+            postQuantumLogicAddress
         );
         // Deploy TestTarget
         target = new TestTarget();
