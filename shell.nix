@@ -8,7 +8,5 @@ pkgs.mkShell {
     pnpm
     python314
     libudev-zero
-
-    foundry
   ];
 }
