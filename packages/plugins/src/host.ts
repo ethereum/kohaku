@@ -6,7 +6,6 @@ export interface Host {
     secretStorage: SecretStorage;
     keystore: Keystore;
     ethProvider: EthProvider;
-    log: Log;
 }
 
 /**
@@ -28,12 +27,14 @@ export interface Network {
  * reduce the amount of sensitive data implementers are required to handle.
  */
 export interface Storage {
+    readonly _brand: 'Storage';
+
     /**
      * Sets a value in storage.
      * @throws {Error}
      */
-
     set(key: string, value: string): void;
+
     /**
      * Gets a value from storage.
      * 
@@ -49,12 +50,14 @@ export interface Storage {
  * Implementations MUST ensure that data written here is encrypted at rest. 
  */
 export interface SecretStorage {
+    readonly _brand: 'SecureStorage';
+
     /**
      * Sets a value in storage.
      * @throws {Error}
      */
-
     set(key: string, value: string): void;
+
     /**
      * Gets a value from storage.
      * 
@@ -94,5 +97,3 @@ export interface EthProvider {
         params?: unknown[] | Record<string, unknown>
     }): Promise<unknown>;
 }
-
-export type Log = Console;
