@@ -1,5 +1,5 @@
 import { AccountId, AssetAmount, AssetId, Eip155ChainId, Host, InvalidAddressError, Keystore, Network, Operation, Plugin, SecretStorage, ShieldPreparation, Storage, UnsupportedAssetError, UnsupportedChainError } from "@kohaku-eth/plugins";
-import { Address, checksumAddress, createPublicClient, custom, isAddress, PublicClient } from "viem";
+import { Address, checksumAddress, createPublicClient, custom, isAddress, PublicClient, zeroAddress } from "viem";
 import { EIP1193ProviderAdapter } from "./provider-adapter";
 import { derivePathsForIndex } from "./wallet-node";
 import { TxData } from "@kohaku-eth/provider";
@@ -116,21 +116,30 @@ export class RailgunPlugin implements Plugin {
             ? assets
             : [assets];
 
-        // TODO: Use ShieldMulti for multiple ERC20s in one txn
-        const txns: TxData[] = [];
-        for (const assetAmount of assetAmounts) {
-            const asset = assetAmount.asset;
-            const amount = assetAmount.amount;
-            if (asset.namespace === 'erc20') {
-                const txn = await this.railgunAccount.shield(asset.reference, amount);
-                txns.push(txn);
-            } else if (asset.namespace === 'slip44') {
-                const txn = await this.railgunAccount.shieldNative(amount);
-                txns.push(txn);
-            } else {
-                throw new UnsupportedAssetError(asset);
+        const filteredAssets: Array<{ address: Address; amount: bigint }> = assetAmounts.map(aa => {
+            if (aa.asset.namespace === 'erc20') {
+                return {
+                    address: aa.asset.reference,
+                    amount: aa.amount
+                }
+            } else if (aa.asset.namespace === 'slip44') {
+                //? The railgun SDK uses the zero address to represent native assets
+                return {
+                    address: zeroAddress,
+                    amount: aa.amount
+                }
             }
+            throw new UnsupportedAssetError(aa.asset);
+        }).filter(a => a !== undefined);
+
+        if (filteredAssets.length === 0) {
+            return { txns: [] };
         }
+
+        const addresses = filteredAssets.map(a => a.address);
+        const values = filteredAssets.map(a => a.amount);
+        const tx = await this.railgunAccount.shieldMulti(addresses, values);
+        const txns = [tx];
 
         return { txns };
     }
