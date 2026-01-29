@@ -22,10 +22,10 @@ abstract class Eq {
  */
 export type ChainId = Eip155ChainId | CustomChainId;
 
-export class Eip155ChainId extends Eq {
+export class Eip155ChainId<TReference extends number | undefined = number | undefined> extends Eq {
     readonly namespace = "eip155" as const;
-    readonly reference: number | undefined;
-    constructor(reference?: number) {
+    readonly reference: TReference;
+    constructor(reference: TReference) {
         super();
         this.reference = reference;
     }
@@ -36,8 +36,8 @@ export class Eip155ChainId extends Eq {
     }
 };
 
-export class CustomChainId extends Eq {
-    constructor(readonly namespace: string & {}, readonly reference: number) { super(); }
+export class CustomChainId<TNamespace extends string = string, TReference extends number = number> extends Eq {
+    constructor(readonly namespace: TNamespace & {}, readonly reference: TReference) { super(); }
 
     toString(): string {
         return `${this.namespace}:${this.reference}`;
@@ -70,12 +70,12 @@ export type AssetId = NativeId | Erc20Id;
  * @example Polygon native asset
  * const polygon = new NativeId(new Eip155ChainId(137));
  */
-export class NativeId extends Eq {
+export class NativeId<TChainId extends ChainId = ChainId> extends Eq {
     readonly namespace = "slip44" as const;
-    readonly chainId: ChainId;
-    constructor(chainId?: ChainId) {
+    readonly chainId: TChainId;
+    constructor(chainId?: TChainId) {
         super();
-        this.chainId = chainId ?? new Eip155ChainId(1);
+        this.chainId = (chainId ?? new Eip155ChainId(undefined)) as TChainId;
     }
 
     toString(): string {
@@ -95,12 +95,12 @@ export class NativeId extends Eq {
  * @example USDC on polygon
  * const usdcPolygon = new Erc20Id("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", new Eip155ChainId(137));
  */
-export class Erc20Id extends Eq {
+export class Erc20Id<TChainId extends ChainId = ChainId, TReference extends Address = Address> extends Eq {
     readonly namespace = "erc20" as const;
-    readonly chainId: ChainId;
-    constructor(readonly reference: Address, chainId?: ChainId) {
+    readonly chainId: TChainId;
+    constructor(readonly reference: TReference, chainId?: TChainId) {
         super();
-        this.chainId = chainId ?? new Eip155ChainId();
+        this.chainId = (chainId ?? new Eip155ChainId(undefined)) as TChainId;
     }
 
     toString(): string {
@@ -124,11 +124,11 @@ export type AccountId = Eip155AccountId;
  * @example Ethereum account
  * const ethAccount = new Eip155AccountId("0xYourAddressHere", new Eip155ChainId(1));
  */
-export class Eip155AccountId extends Eq {
-    readonly chainId: Eip155ChainId;
-    constructor(readonly address: Address, chainId?: Eip155ChainId) {
+export class Eip155AccountId<TChainId extends Eip155ChainId = Eip155ChainId, TAddress extends Address = Address> extends Eq {
+    readonly chainId: TChainId;
+    constructor(readonly address: TAddress, chainId?: TChainId) {
         super();
-        this.chainId = chainId ?? new Eip155ChainId();
+        this.chainId = (chainId ?? new Eip155ChainId(undefined)) as TChainId;
     }
 
     toString(): string {
