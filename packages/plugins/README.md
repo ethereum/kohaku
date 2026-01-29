@@ -63,13 +63,27 @@ export type AssetAmount = {
     amount: bigint;
 };
 
-export interface Plugin {
-    account(): Promise<AccountId>;
-    balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
-    prepareShield(assets: Array<AssetAmount> | AssetAmount, from?: Address): Promise<ShieldPreparation>;
-    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<Operation>;
-    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<Operation>;
-    broadcast(operation: Operation): Promise<void>;
+abstract class Plugin {
+    abstract account(): Promise<AccountId>;
+    abstract balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
+    abstract prepareShield(asset: AssetAmount, from?: AccountId): Promise<ShieldPreparation>;
+    prepareShieldMulti(assets: Array<AssetAmount>, from?: AccountId): Promise<ShieldPreparation> {
+        throw new MultiAssetsNotSupportedError();
+    }
+    
+    abstract prepareUnshield(asset: AssetAmount, to: AccountId): Promise<Operation>;
+    prepareUnshieldMulti(assets: Array<AssetAmount>, to: AccountId): Promise<Operation> {
+        throw new MultiAssetsNotSupportedError();
+    }
+    
+    prepareTransfer(asset: AssetAmount, to: AccountId): Promise<Operation> {
+        throw new TransferNotSupportedError();
+    }
+    prepareTransferMulti(assets: Array<AssetAmount>, to: AccountId): Promise<Operation> {
+        throw new TransferNotSupportedError();
+    }
+    
+    abstract broadcast(operation: Operation): Promise<void>;
 }
 ```
 
@@ -129,7 +143,7 @@ Plugins can also import key material through their `options` . This imported mat
 import { RailgunInstance } from '@kohaku-eth/railgun';
 const railgunController = await RailgunInstance.create(hostInterfaces);
 
-let balances = await railgunController.balances()
-let operation = await railgunController.prepareUnshield(balances[0], signer.address())
-await railgunController.broadcast(operation)
+const balances = await railgunController.balances();
+const operation = await railgunController.prepareUnshield(balances[0], new AccountId(signer.address()));
+await railgunController.broadcast(operation);
 ```
