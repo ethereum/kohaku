@@ -125,22 +125,11 @@ Plugins can also import key material through their `options` . This imported mat
 
 ## Example Usage
 
-### Loading a plugin
-
 ```ts
-// From bundled library
-import { RailgunPool } from '@kohaku/railgun-pool';
-const pool = new RailgunPool(hostInterfaces);
-```
+import { RailgunInstance } from '@kohaku-eth/railgun';
+const railgunController = await RailgunInstance.create(hostInterfaces);
 
-### Using a plugin
-
-```ts
-// Get balances
-let balances = pool.balances(pool_account);
-
-// Withdraw to the user's EOA
-let account = new AccountId(new Eip155ChainId(1), signer.address());
-let operation = pool.unshield(v, balances)
-pool.broadcast(operation)
+let balances = await railgunController.balances()
+let operation = await railgunController.prepareUnshield(balances[0], signer.address())
+await railgunController.broadcast(operation)
 ```
