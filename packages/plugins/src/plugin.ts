@@ -55,7 +55,7 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
     /**
      * Same as `prepareShieldMulti` but for a single asset.
      */
-    abstract prepareShield(asset: TAssetAmount, from?: Address): Promise<ShieldPreparation>;
+    abstract prepareShield(asset: TAssetAmount, from?: AccountId): Promise<ShieldPreparation>;
 
     /**
      * Prepares a shield operation for the specified assets.
@@ -66,14 +66,14 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * @throws {MultiAssetsNotSupportedError} If the plugin does not support shielding multiple assets at once.
      * @throws {Error} If the shield operation could not be prepared.
      */
-    prepareShieldMulti(assets: Array<TAssetAmount>, from?: Address): Promise<ShieldPreparation> {
+    prepareShieldMulti(assets: Array<TAssetAmount>, from?: AccountId): Promise<ShieldPreparation> {
         throw new MultiAssetsNotSupportedError();
     }
 
     /**
      * Same as `prepareUnshieldMulti` but for a single asset.
      */
-    abstract prepareUnshield(asset: TAssetAmount, to: Address): Promise<PrivateOperation>;
+    abstract prepareUnshield(asset: TAssetAmount, to: AccountId): Promise<PrivateOperation>;
 
     /**
      * Prepares an unshield operation for the specified assets.
@@ -85,7 +85,7 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the unshield operation could not be prepared.
      */
-    prepareUnshieldMulti(assets: Array<TAssetAmount>, to: Address): Promise<PrivateOperation> {
+    prepareUnshieldMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<PrivateOperation> {
         throw new MultiAssetsNotSupportedError();
     }
 

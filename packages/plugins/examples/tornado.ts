@@ -56,11 +56,11 @@ class TornadoPlugin extends Plugin<TornadoAssetAmount> {
     async balance(assets: Array<AssetId> | undefined): Promise<Array<TornadoAssetAmount>> {
         throw new Error("Method not implemented.");
     }
-    async prepareShield(_asset: TornadoAssetAmount, from?: Address | undefined): Promise<ShieldPreparation> {
+    async prepareShield(_asset: TornadoAssetAmount, from?: AccountId): Promise<ShieldPreparation> {
         const asset = asTornadoAssetAmount(_asset);
         throw new Error("Method not implemented.");
     }
-    async prepareUnshield(_asset: TornadoAssetAmount, to: Address): Promise<PrivateOperation> {
+    async prepareUnshield(_asset: TornadoAssetAmount, to: AccountId): Promise<PrivateOperation> {
         const asset = asTornadoAssetAmount(_asset);
         throw new Error("Method not implemented.");
     }
