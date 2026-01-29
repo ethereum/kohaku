@@ -13,7 +13,7 @@ export type CreateTransfer = { transfer: CreateTransferTxFn };
 
 export type CreateTransferContext = {
     network: RailgunNetworkConfig;
-    getTrees: () => MerkleTree[];
+    getTrees: () => (MerkleTree | undefined)[];
 } & Pick<GetNotes, 'getTransactNotes'>;
 
 const RAILGUN_INTERFACE = new Interface(ABIRailgunSmartWallet);

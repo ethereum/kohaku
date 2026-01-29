@@ -4,21 +4,63 @@ import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { createBaseStorage, StorageLayer } from "~/storage/base";
 import { createEmptyStorageLayer } from "~/storage/layers/empty";
 
-export type CachedMerkleTrees = { tree: string[][], nullifiers: string[] }[];
-export type IndexerCache = { trees: MerkleTree[], endBlock: number };
+export type CachedMerkleTrees = ({ tree: (string | null)[][], nullifiers: string[] } | null)[];
+export type IndexerCache = { trees: (MerkleTree | undefined)[], endBlock: number };
 export type IndexerCacheD = { merkleTrees: CachedMerkleTrees, endBlock: number };
 
 export const loadCachedMerkleTrees = async (cachedTrees: CachedMerkleTrees) => {
     if (!cachedTrees) return [];
 
-    const trees: MerkleTree[] = [];
+    const trees: (MerkleTree | undefined)[] = [];
 
     for (let i = 0; i < cachedTrees.length; i++) {
+        const cached = cachedTrees[i];
+
+        // Handle null entries to preserve sparse array indices
+        if (!cached) {
+            trees[i] = undefined;
+            continue;
+        }
+
         const merkleTree = await MerkleTree.createTree(i);
 
         console.log('merkleTree', merkleTree);
-        merkleTree.tree = cachedTrees[i]!.tree.map(level => level.map(hexStringToArray));
-        merkleTree.nullifiers = cachedTrees[i]!.nullifiers.map(hexStringToArray);
+        // Handle null entries within tree levels (sparse merkle tree)
+        // Preserve sparse array structure - only assign non-null leaves at their indices
+        merkleTree.tree = cached.tree.map(level => {
+            const result: Uint8Array[] = [];
+
+            for (let j = 0; j < level.length; j++) {
+                if (level[j]) {
+                    result[j] = hexStringToArray(level[j]!);
+                }
+            }
+
+            return result;
+        });
+        merkleTree.nullifiers = cached.nullifiers.map(hexStringToArray);
+
+        // Rebuild intermediate levels if only leaves were cached
+        // Find max leaf index and rebuild the sparse tree
+        const leaves = merkleTree.tree[0];
+
+        if (leaves && leaves.length > 0) {
+            // Find highest populated leaf index
+            let maxIndex = -1;
+
+            for (let j = leaves.length - 1; j >= 0; j--) {
+                if (leaves[j]) {
+                    maxIndex = j;
+                    break;
+                }
+            }
+
+            if (maxIndex >= 0) {
+                // @ts-expect-error setting private property for cache rebuild
+                merkleTree.maxLeafIndex = maxIndex;
+                await merkleTree.rebuildSparseTree();
+            }
+        }
 
         trees[i] = merkleTree;
     }
@@ -26,14 +68,34 @@ export const loadCachedMerkleTrees = async (cachedTrees: CachedMerkleTrees) => {
     return trees;
 }
 
-export const serializeMerkleTrees = (trees: MerkleTree[]): CachedMerkleTrees => {
-    const merkleTrees = [];
+export const serializeMerkleTrees = (trees: (MerkleTree | null | undefined)[]): CachedMerkleTrees => {
+    const merkleTrees: CachedMerkleTrees = [];
 
-    for (const tree of trees) {
-        merkleTrees.push({
-            tree: tree.tree.map(level => level.map(leaf => ByteUtils.hexlify(leaf, true))),
+    // Use index-based loop to preserve sparse array indices
+    for (let i = 0; i < trees.length; i++) {
+        const tree = trees[i];
+
+        if (!tree) {
+            // Preserve null/undefined entries to maintain tree index mapping
+            merkleTrees[i] = null;
+            continue;
+        }
+
+        merkleTrees[i] = {
+            // Handle sparse tree levels - preserve indices, only serialize non-empty leaves
+            tree: tree.tree.map(level => {
+                const result: (string | null)[] = [];
+
+                for (let j = 0; j < level.length; j++) {
+                    const leaf = level[j];
+
+                    result[j] = leaf ? ByteUtils.hexlify(leaf, true) : null;
+                }
+
+                return result;
+            }),
             nullifiers: tree.nullifiers.map(nullifier => ByteUtils.hexlify(nullifier, true)),
-        });
+        };
     }
 
     return merkleTrees;
