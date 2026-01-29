@@ -13,12 +13,13 @@ export interface ShieldPreparation {
 }
 
 /**
- * Represents a generic plugin operation. 
+ * Represents a generic private operation.  Operations are prepared and executed
+ * by plugins to perform state-changing actions such as shielding or unshielding. 
  * 
  * @remarks The inner field contains plugin-specific operation data, which is 
  * intentionally left opaque.
  */
-export interface PluginOperation {
+export interface PrivateOperation {
     inner: unknown;
 }
 
@@ -67,7 +68,7 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the unshield operation could not be prepared.
      */
-    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<PluginOperation>;
+    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<PrivateOperation>;
 
     /**
      * Prepares a transfer operation for the specified asset(s).
@@ -79,15 +80,15 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the transfer operation could not be prepared.
      */
-    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<PluginOperation>;
+    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<PrivateOperation>;
 
     /**
-     * Broadcasts the specified plugin operation. Broadcasting an operation may
+     * Broadcasts the specified private operation. Broadcasting an operation may
      * involve signing messages, submitting transactions to the blockchain, or
      * interacting with external services.
      * @param operation The operation to be broadcasted.
      * 
      * @throws {Error} If the operation could not be broadcasted.
      */
-    broadcastPluginOperation(operation: PluginOperation): Promise<void>;
+    broadcastPrivateOperation(operation: PrivateOperation): Promise<void>;
 }
