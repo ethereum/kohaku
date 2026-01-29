@@ -43,7 +43,7 @@ export class MultiAssetsNotSupportedError extends PluginError {
     }
 }
 
-export class TransferNotSuppertedError extends PluginError {
+export class TransferNotSupportedError extends PluginError {
     constructor() {
         super(`Transfer operations are not supported by this plugin.`);
     }

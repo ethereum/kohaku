@@ -1,7 +1,7 @@
 import { Address } from "viem";
 import { AccountId, AssetId } from "./types";
 import { TxData } from "@kohaku-eth/provider";
-import { MultiAssetsNotSupportedError, TransferNotSuppertedError } from "./errors";
+import { MultiAssetsNotSupportedError, TransferNotSupportedError } from "./errors";
 
 /**
  * Shield preparation result containing the necessary transaction data.
@@ -93,7 +93,7 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * Same as `prepareTransferMulti` but for a single asset.
      */
     prepareTransfer(asset: TAssetAmount, to: AccountId): Promise<PrivateOperation> {
-        throw new TransferNotSuppertedError();
+        throw new TransferNotSupportedError();
     }
 
     /**
@@ -101,14 +101,14 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * @param assets The assets to be transferred.
      * @param to The account to which the assets will be transferred.
      *
-     * @throws {TransferNotSuppertedError} If the plugin does not support transferring assets.
+     * @throws {TransferNotSupportedError} If the plugin does not support transferring assets.
      * @throws {UnsupportedAssetError} If any of the specified assets are not supported by the plugin.
      * @throws {MultiAssetsNotSupportedError} If the plugin does not support transferring multiple assets at once.
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the transfer operation could not be prepared.
      */
     prepareTransferMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<PrivateOperation> {
-        throw new TransferNotSuppertedError();
+        throw new TransferNotSupportedError();
     }
 
     /**
