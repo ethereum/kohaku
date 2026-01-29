@@ -7,7 +7,7 @@
 
 import { AssetAmount, Plugin, PrivateOperation, ShieldPreparation } from "~/plugin";
 import { AccountId, AssetId, Eip155ChainId, Erc20Id, NativeId } from "../src/types";
-import { UnsupportedAssetError } from "~/errors";
+import { MultiAssetsNotSupportedError, UnsupportedAssetError } from "~/errors";
 import { Address } from "viem";
 
 // TODO: Load me from a config file
@@ -59,6 +59,9 @@ class TornadoPlugin extends Plugin<TornadoAssetAmount> {
     async prepareShield(_asset: TornadoAssetAmount, from?: AccountId): Promise<ShieldPreparation> {
         const asset = asTornadoAssetAmount(_asset);
         throw new Error("Method not implemented.");
+    }
+    override async prepareShieldMulti(assets: TornadoAssetAmount[], from?: AccountId): Promise<ShieldPreparation> {
+        throw new MultiAssetsNotSupportedError();
     }
     async prepareUnshield(_asset: TornadoAssetAmount, to: AccountId): Promise<PrivateOperation> {
         const asset = asTornadoAssetAmount(_asset);
