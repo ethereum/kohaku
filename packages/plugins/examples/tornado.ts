@@ -97,6 +97,9 @@ async function shieldTornado(plugin: TornadoPlugin, erc20: Address, chain: numbe
 
 // Generic version that doesn't force validation at compile-time. The plugin will
 // throw a runtime error if the asset is unsupported.
+// 
+// Despite being generic, we still need a specific chain ID since tornado will depends
+// on the chainID to identify supported assets and addresses.
 async function shieldGeneric(plugin: Plugin, erc20: Address, chain: number, amount: bigint) {
     const assetId = new Erc20Id(erc20, new Eip155ChainId(chain));
     const assetAmount = { asset: assetId, amount };
