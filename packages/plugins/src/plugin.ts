@@ -12,7 +12,13 @@ export interface ShieldPreparation {
     txns: Array<TxData>;
 }
 
-export interface Operation {
+/**
+ * Represents a generic plugin operation. 
+ * 
+ * @remarks The inner field contains plugin-specific operation data, which is 
+ * intentionally left opaque.
+ */
+export interface PluginOperation {
     inner: unknown;
 }
 
@@ -61,7 +67,7 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the unshield operation could not be prepared.
      */
-    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<Operation>;
+    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<PluginOperation>;
 
     /**
      * Prepares a transfer operation for the specified asset(s).
@@ -73,13 +79,15 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the transfer operation could not be prepared.
      */
-    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<Operation>;
+    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<PluginOperation>;
 
     /**
-     * Broadcasts the specified operation to the network.
+     * Broadcasts the specified plugin operation. Broadcasting an operation may
+     * involve signing messages, submitting transactions to the blockchain, or
+     * interacting with external services.
      * @param operation The operation to be broadcasted.
      * 
      * @throws {Error} If the operation could not be broadcasted.
      */
-    broadcast(operation: Operation): Promise<void>;
+    broadcastPluginOperation(operation: PluginOperation): Promise<void>;
 }
