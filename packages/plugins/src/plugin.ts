@@ -1,6 +1,7 @@
 import { Address } from "viem";
 import { AccountId, AssetId } from "./types";
 import { TxData } from "@kohaku-eth/provider";
+import { MultiAssetsNotSupportedError, TransferNotSuppertedError } from "./errors";
 
 /**
  * Shield preparation result containing the necessary transaction data.
@@ -31,11 +32,11 @@ export type AssetAmount = {
 /**
  * Plugin interface implemented by all privacy pool plugins.
  */
-export interface Plugin {
+export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
     /**
      * Retrieve the account ID associated with this plugin.
      */
-    account(): Promise<AccountId>;
+    abstract account(): Promise<AccountId>;
 
     /**
      * Retrieve the current balance of the specified assets.
@@ -43,24 +44,40 @@ export interface Plugin {
      * retrieves the balance for all supported assets.
      * 
      * @throws {Error} If unable to retrieve the balance.
+     * 
+     * @remarks Should AssetId also be generic over TAssetId?  This would
+     * enforce that only supported assets are queried. But querying the balance
+     * for an unsupported asset could naturally return zero, so neither case is
+     * semantically incorrect.
      */
-    balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
+    abstract balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
 
     /**
-     * Prepares a shield operation for the specified asset(s).
-     * @param assets The asset(s) to be shielded.
-     * @param from The address from which the assets will be shielded. If provided, 
-     * the plugin may use this information to optimize the shielding process.
-     * 
+     * Same as `prepareShieldMulti` but for a single asset.
+     */
+    abstract prepareShield(asset: TAssetAmount, from?: Address): Promise<ShieldPreparation>;
+
+    /**
+     * Prepares a shield operation for the specified assets.
+     * @param assets The assets to be shielded.
+     * @param from The address from which the assets will be shielded.
+     *
      * @throws {UnsupportedAssetError} If any of the specified assets are not supported by the plugin.
      * @throws {MultiAssetsNotSupportedError} If the plugin does not support shielding multiple assets at once.
      * @throws {Error} If the shield operation could not be prepared.
      */
-    prepareShield(assets: Array<AssetAmount> | AssetAmount, from?: Address): Promise<ShieldPreparation>;
+    prepareShieldMulti(assets: Array<TAssetAmount>, from?: Address): Promise<ShieldPreparation> {
+        throw new MultiAssetsNotSupportedError();
+    }
 
     /**
-     * Prepares an unshield operation for the specified asset(s).
-     * @param assets The asset(s) to be unshielded.
+     * Same as `prepareUnshieldMulti` but for a single asset.
+     */
+    abstract prepareUnshield(asset: TAssetAmount, to: Address): Promise<PrivateOperation>;
+
+    /**
+     * Prepares an unshield operation for the specified assets.
+     * @param assets The assets to be unshielded.
      * @param to The address to which the assets will be unshielded.
      * 
      * @throws {UnsupportedAssetError} If any of the specified assets are not supported by the plugin.
@@ -68,19 +85,31 @@ export interface Plugin {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the unshield operation could not be prepared.
      */
-    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<PrivateOperation>;
+    prepareUnshieldMulti(assets: Array<TAssetAmount>, to: Address): Promise<PrivateOperation> {
+        throw new MultiAssetsNotSupportedError();
+    }
 
     /**
-     * Prepares a transfer operation for the specified asset(s).
-     * @param assets The asset(s) to be transferred.
-     * @param to The account to which the assets will be transferred.
+     * Same as `prepareTransferMulti` but for a single asset.
+     */
+    prepareTransfer(asset: TAssetAmount, to: AccountId): Promise<PrivateOperation> {
+        throw new TransferNotSuppertedError();
+    }
 
+    /**
+     * Prepares a transfer operation for the specified assets.
+     * @param assets The assets to be transferred.
+     * @param to The account to which the assets will be transferred.
+     *
+     * @throws {TransferNotSuppertedError} If the plugin does not support transferring assets.
      * @throws {UnsupportedAssetError} If any of the specified assets are not supported by the plugin.
      * @throws {MultiAssetsNotSupportedError} If the plugin does not support transferring multiple assets at once.
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the transfer operation could not be prepared.
      */
-    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<PrivateOperation>;
+    prepareTransferMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<PrivateOperation> {
+        throw new TransferNotSuppertedError();
+    }
 
     /**
      * Broadcasts the specified private operation. Broadcasting an operation may
@@ -90,5 +119,5 @@ export interface Plugin {
      * 
      * @throws {Error} If the operation could not be broadcasted.
      */
-    broadcastPrivateOperation(operation: PrivateOperation): Promise<void>;
+    abstract broadcastPrivateOperation(operation: PrivateOperation): Promise<void>;
 }
