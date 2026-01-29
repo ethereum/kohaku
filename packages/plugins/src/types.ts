@@ -21,6 +21,7 @@ abstract class Eq {
  * namespaces for intelisense.
  */
 export type ChainId = Eip155ChainId | CustomChainId;
+
 export class Eip155ChainId extends Eq {
     readonly namespace = "eip155" as const;
     readonly reference: number | undefined;
@@ -34,6 +35,7 @@ export class Eip155ChainId extends Eq {
         return `${this.namespace}:${reference}`;
     }
 };
+
 export class CustomChainId extends Eq {
     constructor(readonly namespace: string & {}, readonly reference: number) { super(); }
 
@@ -58,6 +60,15 @@ export type AssetId = NativeId | Erc20Id;
 
 /**
  * Slip44 chain-specific native asset type.
+ * 
+ * @example Wildcard native asset
+ * const native = new NativeId();
+ * 
+ * @example Ethereum native asset
+ * const ethereum = new NativeId(new Eip155ChainId(1));
+ * 
+ * @example Polygon native asset
+ * const polygon = new NativeId(new Eip155ChainId(137));
  */
 export class NativeId extends Eq {
     readonly namespace = "slip44" as const;
@@ -72,6 +83,18 @@ export class NativeId extends Eq {
     }
 }
 
+/**
+ * ERC20 asset type.
+ * 
+ * @example Wildcard USDC
+ * const usdc = new Erc20Id("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+ * 
+ * @example USDC on ethereum
+ * const usdcEthereum = new Erc20Id("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", new Eip155ChainId(1));
+ * 
+ * @example USDC on polygon
+ * const usdcPolygon = new Erc20Id("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", new Eip155ChainId(137));
+ */
 export class Erc20Id extends Eq {
     readonly namespace = "erc20" as const;
     readonly chainId: ChainId;
@@ -92,6 +115,15 @@ export class Erc20Id extends Eq {
  */
 export type AccountId = Eip155AccountId;
 
+/**
+ * EIP-155 Account ID.
+ * 
+ * @example Wildcard account
+ * const wildcardAccount = new Eip155AccountId("0xYourAddressHere");
+ * 
+ * @example Ethereum account
+ * const ethAccount = new Eip155AccountId("0xYourAddressHere", new Eip155ChainId(1));
+ */
 export class Eip155AccountId extends Eq {
     readonly chainId: Eip155ChainId;
     constructor(readonly address: Address, chainId?: Eip155ChainId) {
