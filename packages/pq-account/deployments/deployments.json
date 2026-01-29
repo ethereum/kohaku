@@ -114,5 +114,28 @@
         "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
       }
     }
+  },
+  "baseSepolia": {
+    "verifiers": {
+      "mldsa": {
+        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
+        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
+      },
+      "ecdsa_k1": {
+        "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
+        "salt": "0x89249991e6619ea9d2a750423497a83ec82f475538ff555d1ad42473e0db9fe6",
+        "saltLabel": "ZKNOX_ECDSA_K1_VERIFIER_V0_0_1"
+      }
+    },
+    "accounts": {
+      "mldsa_k1": {
+        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
+        "postQuantum": "mldsa",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
+      }
+    }
   }
 }

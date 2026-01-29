@@ -26,6 +26,8 @@ abstract contract FactoryDeployer is BaseScript {
             network = "mainnet";
         } else if (block.chainid == 421614) {
             network = "arbitrumSepolia";
+        } else if (block.chainid == 84532) {
+            network = "baseSepolia";
         } else {
             revert("Unsupported chain");
         }

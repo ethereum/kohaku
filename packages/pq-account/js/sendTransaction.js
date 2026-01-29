@@ -244,11 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const callData = document.getElementById('callData').value.trim();
             const preQuantumSeed = document.getElementById('preQuantumSeed').value.trim();
             const postQuantumSeed = document.getElementById('postQuantumSeed').value.trim();
-            
-            // Get bundler URL from the hidden bundlerUrlValue object
-            const bundlerUrl = (typeof bundlerUrlValue !== 'undefined' && bundlerUrlValue.url) 
-                ? bundlerUrlValue.url 
-                : 'https://api.pimlico.io/v2/421614/rpc?apikey=pim_i3rJWDhHAhvqmPgaA3DsUo';
+            const pimlicoApiKey = document.getElementById('pimlicoApiKey').value.trim();
+            const network = await provider.getNetwork();
+
+            const bundlerUrl = 'https://api.pimlico.io/v2/' + network.chainId + '/rpc?apikey=' + pimlicoApiKey;
+            console.log(bundlerUrl);
             // Parse value
             const value = ethers.parseEther(valueEth);
             

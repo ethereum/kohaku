@@ -181,6 +181,12 @@
         </div>
     </div>
     
+    <div class="input-group">
+        <label>Pimlico API Key:</label>
+        <input type="text" id="pimlicoApiKey" value="">
+        <small>Your Pimlico bundler API key</small>
+    </div>
+
     <div class="config-section">
         <h2>🔑 Signing Keys</h2>
         
@@ -217,14 +223,13 @@
             '0x1': { name: 'Ethereum', chainId: '1' },
             '0x5': { name: 'Goerli', chainId: '5' },
             '0xaa36a7': { name: 'Sepolia', chainId: '11155111' },
-            '0x66eee': { name: 'Arbitrum Sepolia', chainId: '421614' }
+            '0x66eee': { name: 'Arbitrum Sepolia', chainId: '421614' },
+            '0x14a34': {name: 'baseSepolia', chainId: '84532'},
         };
         
         function updateBundlerUrl(chainId) {
-            const currentUrl = window.bundlerUrlValue.url;
-            // Extract the API key from current URL
-            const apiKeyMatch = currentUrl.match(/apikey=([^&]*)/);
-            const apiKey = apiKeyMatch ? apiKeyMatch[1] : 'YOUR_API_KEY';
+            const apiKey = document.getElementById('pimlicoApiKey')?.value || 'YOUR_API_KEY';
+            console.log(apiKey);
             
             // Update the bundler URL with new chain ID
             window.bundlerUrlValue.url = `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
