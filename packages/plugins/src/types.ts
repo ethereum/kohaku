@@ -23,10 +23,15 @@ abstract class Eq {
 export type ChainId = Eip155ChainId | CustomChainId;
 export class Eip155ChainId extends Eq {
     readonly namespace = "eip155" as const;
-    constructor(readonly reference: number) { super(); }
+    readonly reference: number | undefined;
+    constructor(reference?: number) {
+        super();
+        this.reference = reference;
+    }
 
     toString(): string {
-        return `${this.namespace}:${this.reference}`;
+        const reference = this.reference ?? "*";
+        return `${this.namespace}:${reference}`;
     }
 };
 export class CustomChainId extends Eq {
@@ -45,37 +50,35 @@ export class CustomChainId extends Eq {
  * - Native assets (slip44) represent native assets of blockchains (IE ETH on Ethereum,
  *   MATIC on Polygon).
  * - Erc20 assets represent fungible tokens.
- * - Erc721 assets represent non-fungible tokens.
  * 
  * @private Since on EVM chains the slip44 asset type is uniquely identified by 
  * the chain ID, I simplified the representation into a blackbox NativeAssetType.
  */
-export type AssetId = NativeAssetType | Erc20AssetType | Erc721AssetType;
+export type AssetId = NativeId | Erc20Id;
 
 /**
  * Slip44 chain-specific native asset type.
  */
-export class NativeAssetType extends Eq {
+export class NativeId extends Eq {
     readonly namespace = "slip44" as const;
-    constructor(readonly chainId: ChainId) { super(); }
+    readonly chainId: ChainId;
+    constructor(chainId?: ChainId) {
+        super();
+        this.chainId = chainId ?? new Eip155ChainId(1);
+    }
 
     toString(): string {
         return `${this.chainId.toString()}/${this.namespace}`;
     }
 }
 
-export class Erc20AssetType extends Eq {
+export class Erc20Id extends Eq {
     readonly namespace = "erc20" as const;
-    constructor(readonly chainId: ChainId, readonly reference: Address) { super(); }
-
-    toString(): string {
-        return `${this.chainId.toString()}/${this.namespace}:${this.reference}`;
+    readonly chainId: ChainId;
+    constructor(readonly reference: Address, chainId?: ChainId) {
+        super();
+        this.chainId = chainId ?? new Eip155ChainId();
     }
-}
-
-export class Erc721AssetType extends Eq {
-    readonly namespace = "erc721" as const;
-    constructor(readonly chainId: ChainId, readonly reference: Address) { super(); }
 
     toString(): string {
         return `${this.chainId.toString()}/${this.namespace}:${this.reference}`;
@@ -87,10 +90,16 @@ export class Erc721AssetType extends Eq {
  * 
  * https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-10.md
  */
-export class AccountId extends Eq {
-    constructor(readonly chainId: ChainId, readonly accountId: string) { super(); }
+export type AccountId = Eip155AccountId;
+
+export class Eip155AccountId extends Eq {
+    readonly chainId: Eip155ChainId;
+    constructor(readonly address: Address, chainId?: Eip155ChainId) {
+        super();
+        this.chainId = chainId ?? new Eip155ChainId();
+    }
 
     toString(): string {
-        return `${this.chainId.toString()}/${this.accountId}`;
+        return `${this.chainId.toString()}/${this.address}`;
     }
 }
