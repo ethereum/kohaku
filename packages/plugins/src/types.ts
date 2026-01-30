@@ -113,7 +113,7 @@ export class Erc20Id<TChainId extends ChainId = ChainId, TReference extends Addr
  * 
  * https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-10.md
  */
-export type AccountId = Eip155AccountId;
+export type AccountId = Eip155AccountId | CustomAccountId;
 
 /**
  * EIP-155 Account ID.
@@ -125,10 +125,24 @@ export type AccountId = Eip155AccountId;
  * const ethAccount = new Eip155AccountId("0xYourAddressHere", new Eip155ChainId(1));
  */
 export class Eip155AccountId<TChainId extends Eip155ChainId = Eip155ChainId, TAddress extends Address = Address> extends Eq {
+    readonly kind = "eip155" as const;
     readonly chainId: TChainId;
     constructor(readonly address: TAddress, chainId?: TChainId) {
         super();
         this.chainId = (chainId ?? new Eip155ChainId(undefined)) as TChainId;
+    }
+
+    toString(): string {
+        return `${this.chainId.toString()}/${this.address}`;
+    }
+}
+
+export class CustomAccountId<TChainId extends CustomChainId = CustomChainId, TAddress extends string = string> extends Eq {
+    readonly kind = "custom" as const;
+    readonly chainId: TChainId;
+    constructor(readonly address: TAddress, chainId: TChainId) {
+        super();
+        this.chainId = chainId;
     }
 
     toString(): string {
