@@ -37,7 +37,15 @@ export const makeGetNotes = async ({ notebooks, getTrees, spending, viewing }: G
         const allNotes: Note[][] = [];
 
         for (let i = 0; i < getTrees().length; i++) {
-            const notes = await notebooks[i]!.getUnspentNotes(getTrees()[i]!, tokenData);
+            const tree = getTrees()[i];
+
+            if (!tree) {
+                // Push empty array for null trees to preserve index-to-tree-number mapping
+                allNotes.push([]);
+                continue;
+            }
+
+            const notes = await notebooks[i]!.getUnspentNotes(tree, tokenData);
 
             allNotes.push(notes);
         }

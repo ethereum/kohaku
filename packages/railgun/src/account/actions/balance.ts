@@ -18,11 +18,15 @@ export const makeGetBalance = ({ notebooks, getTrees, network }: GetBalanceFnPar
     let totalBalance = 0n;
 
     for (let i = 0; i < getTrees().length; i++) {
+        const tree = getTrees()[i];
+
+        if (!tree) continue; // Skip null trees (sparse array handling)
+
         if (!notebooks[i]) {
             notebooks[i] = new Notebook();
         }
 
-        const balance = await notebooks[i]!.getBalance(getTrees()[i]!, tokenData);
+        const balance = await notebooks[i]!.getBalance(tree, tokenData);
 
         totalBalance += balance;
     }

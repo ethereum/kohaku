@@ -43,10 +43,13 @@ export const parseAccountStorage = async (
 };
 
 export const serializeAccountStorage = (storage: AccountStorage): CachedAccountStorage => {
-    const serialized = [];
+    const serialized: SerializedNoteData[][] = [];
 
-    for (const noteBook of storage.notebooks) {
-        serialized.push(noteBook ? noteBook.serialize() : []);
+    // Use index-based loop to preserve sparse array indices
+    for (let i = 0; i < storage.notebooks.length; i++) {
+        const noteBook = storage.notebooks[i];
+
+        serialized[i] = noteBook ? noteBook.serialize() : [];
     }
 
     return {

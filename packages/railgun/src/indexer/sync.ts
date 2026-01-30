@@ -13,7 +13,7 @@ export type RpcSyncContext = {
     network: RailgunNetworkConfig;
     getCurrentBlock: () => number;
     accounts: RailgunAccount[];
-    getTrees: () => MerkleTree[];
+    getTrees: () => (MerkleTree | undefined)[];
     processLog: ProcessLogFn;
     saveTrees: () => Promise<void>;
     setEndBlock: (endBlock: number) => void;
@@ -138,6 +138,8 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
                     console.log('rebuilding sparse trees');
 
                     for (const tree of getTrees()) {
+                        if (!tree) continue; // Skip null trees (sparse array handling)
+
                         console.log('rebuilding tree');
                         await tree.rebuildSparseTree();
                     }
@@ -151,6 +153,8 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
         }
 
         for (const tree of getTrees()) {
+            if (!tree) continue; // Skip null trees (sparse array handling)
+
             console.log('rebuilding tree');
             await tree.rebuildSparseTree();
         }

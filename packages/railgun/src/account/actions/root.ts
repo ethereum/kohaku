@@ -8,7 +8,7 @@ export type GetMerkleRoot = {
 };
 
 export type GetMerkleRootFnParams = {
-    getTrees: () => MerkleTree[];
+    getTrees: () => (MerkleTree | undefined)[];
 };
 
 export const makeGetMerkleRoot = ({ getTrees }: GetMerkleRootFnParams) => ({

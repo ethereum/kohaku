@@ -23,7 +23,7 @@ export type ProcessLogsOptions = {
 
 export type Indexer = {
     __type: 'railgun-indexer';
-    getTrees: () => MerkleTree[];
+    getTrees: () => (MerkleTree | undefined)[];
     network: RailgunNetworkConfig;
     accounts: RailgunAccount[];
     registerAccount: (account: RailgunAccount) => void;
