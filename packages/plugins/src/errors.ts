@@ -1,4 +1,4 @@
-import { AssetId, ChainId } from "./types";
+import { AccountId, AssetId, ChainId } from "./types";
 
 export class PluginError extends Error {
     constructor(message: string) {
@@ -19,6 +19,12 @@ export class UnsupportedChainError extends PluginError {
     }
 }
 
+export class UnsupportedAccountError extends PluginError {
+    constructor(public readonly accountId: AccountId) {
+        super(`Unsupported account: ${accountId}`);
+    }
+}
+
 export class InvalidAddressError extends PluginError {
     constructor(public readonly address: string) {
         super(`Invalid address: ${address}`);
@@ -34,5 +40,11 @@ export class InsufficientBalanceError extends PluginError {
 export class MultiAssetsNotSupportedError extends PluginError {
     constructor() {
         super(`Multiple assets are not supported by this plugin.`);
+    }
+}
+
+export class TransferNotSupportedError extends PluginError {
+    constructor() {
+        super(`Transfer operations are not supported by this plugin.`);
     }
 }

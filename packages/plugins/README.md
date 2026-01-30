@@ -63,13 +63,27 @@ export type AssetAmount = {
     amount: bigint;
 };
 
-export interface Plugin {
-    account(): Promise<AccountId>;
-    balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
-    prepareShield(assets: Array<AssetAmount> | AssetAmount, from?: Address): Promise<ShieldPreparation>;
-    prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<Operation>;
-    prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<Operation>;
-    broadcast(operation: Operation): Promise<void>;
+abstract class Plugin {
+    abstract account(): Promise<AccountId>;
+    abstract balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
+    abstract prepareShield(asset: AssetAmount, from?: AccountId): Promise<ShieldPreparation>;
+    prepareShieldMulti(assets: Array<AssetAmount>, from?: AccountId): Promise<ShieldPreparation> {
+        throw new MultiAssetsNotSupportedError();
+    }
+    
+    abstract prepareUnshield(asset: AssetAmount, to: AccountId): Promise<Operation>;
+    prepareUnshieldMulti(assets: Array<AssetAmount>, to: AccountId): Promise<Operation> {
+        throw new MultiAssetsNotSupportedError();
+    }
+    
+    prepareTransfer(asset: AssetAmount, to: AccountId): Promise<Operation> {
+        throw new TransferNotSupportedError();
+    }
+    prepareTransferMulti(assets: Array<AssetAmount>, to: AccountId): Promise<Operation> {
+        throw new TransferNotSupportedError();
+    }
+    
+    abstract broadcast(operation: Operation): Promise<void>;
 }
 ```
 
@@ -112,7 +126,13 @@ export class MultiAssetsNotSupportedError extends PluginError {
 
 ### Plugin Initialization
 
-Hosts initialize plugins by constructing them with the host interface. Plugin initialization may vary from plugin to plugin, and is not defined by this spec.
+All plugins MUST implement a static `create` method used for initialization. This method MUST accept the `Host` interface as its first parameter, followed by any plugin-specific options. It MUST return a `Promise` that resolves to an instance of the plugin.
+
+```ts
+class ExamplePlugin extends Plugin {
+    static async create(host: Host, ...): Promise<ExamplePlugin>;
+}
+```
 
 ### Key Material
 
@@ -121,26 +141,15 @@ Plugins will derive all new key material from the `Keystore` interface and there
 - The Railgun plugin may attempt to claim the lowest key in the `m/420'/1984'/0'/0'/x` + `m/44'/1984'/0'/0'/x` paths.
 - The TC Classic plugin might claim all keys in the `m/44’/tc’/0/0/x` path until it reaches its gap limit.
 
-Plugins can also import key material through their `options` . This imported material is not derived from `Keystore.deriveAtPath` and, therefore, it is not portable. When a wallet is backed up or transferred it will either need to copy the plugin’s state (IE for cross-device syncs) or backup the key material from the plugin’s exposed `options` (IE for manual end-user backups).
+Plugins can also import key material through their `options` . This imported material is not derived from `Keystore.deriveAt` and, therefore, it is not portable. When a wallet is backed up or transferred it will either need to copy the plugin’s state (IE for cross-device syncs) or backup the key material from the plugin’s exposed `options` (IE for manual end-user backups).
 
 ## Example Usage
 
-### Loading a plugin
-
 ```ts
-// From bundled library
-import { RailgunPool } from '@kohaku/railgun-pool';
-const pool = new RailgunPool(hostInterfaces);
-```
+import { RailgunInstance } from '@kohaku-eth/railgun';
+const railgunController = await RailgunInstance.create(hostInterfaces);
 
-### Using a plugin
-
-```ts
-// Get balances
-let balances = pool.balances(pool_account);
-
-// Withdraw to the user's EOA
-let account = new AccountId(new Eip155ChainId(1), signer.address());
-let operation = pool.unshield(v, balances)
-pool.broadcast(operation)
+const balances = await railgunController.balances();
+const operation = await railgunController.prepareUnshield(balances[0], new AccountId(signer.address()));
+await railgunController.broadcast(operation);
 ```
