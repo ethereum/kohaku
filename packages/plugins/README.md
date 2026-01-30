@@ -126,7 +126,13 @@ export class MultiAssetsNotSupportedError extends PluginError {
 
 ### Plugin Initialization
 
-Hosts initialize plugins by constructing them with the host interface. Plugin initialization may vary from plugin to plugin, and is not defined by this spec.
+All plugins MUST implement a static `create` method used for initialization. This method MUST accept the `Host` interface as its first parameter, followed by any plugin-specific options. It MUST return a `Promise` that resolves to an instance of the plugin.
+
+```ts
+class ExamplePlugin extends Plugin {
+    static async create(host: Host, ...): Promise<ExamplePlugin>;
+}
+```
 
 ### Key Material
 
