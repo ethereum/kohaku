@@ -1,9 +1,5 @@
 import { Storage, SecretStorage } from "@kohaku-eth/plugins";
-
-export interface StorageLayer {
-    read(): Promise<object | undefined>;
-    write(data: object): Promise<void>;
-}
+import { StorageLayer } from "~/storage/base";
 
 export class HostStorageAdapter implements StorageLayer {
     constructor(

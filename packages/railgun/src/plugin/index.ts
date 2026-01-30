@@ -1,4 +1,4 @@
-import { AccountId, AssetAmount, AssetId, Eip155ChainId, Host, InvalidAddressError, Keystore, Network, Operation, Plugin, SecretStorage, ShieldPreparation, Storage, UnsupportedAssetError, UnsupportedChainError } from "@kohaku-eth/plugins";
+import { AccountId, AssetAmount, AssetId, CustomAccountId, CustomChainId, Eip155ChainId, Erc20Id, Host, InvalidAddressError, Keystore, NativeId, Network, Plugin, PrivateOperation, SecretStorage, ShieldPreparation, Storage, UnsupportedAssetError, UnsupportedChainError } from "@kohaku-eth/plugins";
 import { Address, checksumAddress, createPublicClient, custom, isAddress, PublicClient, zeroAddress } from "viem";
 import { EIP1193ProviderAdapter } from "./provider-adapter";
 import { derivePathsForIndex } from "./wallet-node";
@@ -26,7 +26,36 @@ interface UnshieldOperation {
     txns: TxData[];
 }
 
-export class RailgunPlugin implements Plugin {
+const RAILGUN_CHAIN_NAMESPACE = 'railgun' as const;
+
+const RAILGUN_CHAINS = [
+    new Eip155ChainId(1),
+    new Eip155ChainId(111555111),
+    new CustomChainId(RAILGUN_CHAIN_NAMESPACE, 1),
+    new CustomChainId(RAILGUN_CHAIN_NAMESPACE, 111555111),
+] as const;
+
+type RailgunAssetAmount = {
+    asset: NativeId<(typeof RAILGUN_CHAINS)[number]> | Erc20Id<(typeof RAILGUN_CHAINS)[number], Address>;
+    amount: bigint;
+};
+
+function isRailgunAssetAmount(input: AssetAmount): input is RailgunAssetAmount {
+    const asset = input.asset;
+    if (!(asset instanceof NativeId) && !(asset instanceof Erc20Id)) {
+        return false;
+    }
+    return RAILGUN_CHAINS.some(c => c.equals(asset.chainId));
+}
+
+function asRailgunAssetAmount(input: AssetAmount): RailgunAssetAmount {
+    if (!isRailgunAssetAmount(input)) {
+        throw new UnsupportedAssetError(input.asset);
+    }
+    return input;
+}
+
+export class RailgunPlugin implements Plugin<RailgunAssetAmount> {
     private constructor(
         private network: Network,
         private storage: Storage,
@@ -85,9 +114,9 @@ export class RailgunPlugin implements Plugin {
     }
 
     async account(): Promise<AccountId> {
-        const chainId = new Eip155ChainId(this.chainId);
+        const chainId = new CustomChainId(RAILGUN_CHAIN_NAMESPACE, this.chainId);
         const railgunAddress = await this.railgunAccount.getRailgunAddress();
-        const accountId = new AccountId(chainId, railgunAddress.toString());
+        const accountId = new CustomAccountId(railgunAddress, chainId);
 
         return accountId;
     }
@@ -109,24 +138,25 @@ export class RailgunPlugin implements Plugin {
         return balances;
     }
 
-    async prepareShield(assets: Array<AssetAmount> | AssetAmount, from?: Address): Promise<ShieldPreparation> {
+    async prepareShield(asset: AssetAmount, from?: AccountId): Promise<ShieldPreparation> {
+        return this.prepareShieldMulti([asset], from);
+    }
+
+    async prepareShieldMulti(assets: AssetAmount[], from?: AccountId): Promise<ShieldPreparation> {
         await this.sync();
 
-        const assetAmounts = assets instanceof Array
-            ? assets
-            : [assets];
-
-        const filteredAssets: Array<{ address: Address; amount: bigint }> = assetAmounts.map(aa => {
-            if (aa.asset.namespace === 'erc20') {
+        const filteredAssets: Array<{ address: Address; amount: bigint }> = assets.map(aa => {
+            const { asset, amount } = asRailgunAssetAmount(aa);
+            if (asset.namespace === 'erc20') {
                 return {
-                    address: aa.asset.reference,
-                    amount: aa.amount
+                    address: asset.reference,
+                    amount,
                 }
-            } else if (aa.asset.namespace === 'slip44') {
+            } else if (asset.namespace === 'slip44') {
                 //? The railgun SDK uses the zero address to represent native assets
                 return {
                     address: zeroAddress,
-                    amount: aa.amount
+                    amount
                 }
             }
             throw new UnsupportedAssetError(aa.asset);
@@ -144,22 +174,25 @@ export class RailgunPlugin implements Plugin {
         return { txns };
     }
 
-    async prepareUnshield(assets: Array<AssetAmount> | AssetAmount, to: Address): Promise<Operation> {
+    async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<PrivateOperation> {
+        return this.prepareUnshieldMulti([assets], to);
+    }
+
+    async prepareUnshieldMulti(assets: AssetAmount[], to: AccountId): Promise<PrivateOperation> {
         await this.sync();
 
-        const assetAmounts = assets instanceof Array
-            ? assets
-            : [assets];
+        if (to.kind !== 'eip155') {
+            throw new InvalidAddressError(to.address);
+        }
 
         const txns: TxData[] = [];
-        for (const assetAmount of assetAmounts) {
-            const asset = assetAmount.asset;
-            const amount = assetAmount.amount;
+        for (const assetAmount of assets) {
+            const { asset, amount } = asRailgunAssetAmount(assetAmount);
             if (asset.namespace === 'erc20') {
-                const txn = await this.railgunAccount.unshield(asset.reference, amount, to);
+                const txn = await this.railgunAccount.unshield(asset.reference, amount, to.address);
                 txns.push(txn);
             } else if (asset.namespace === 'slip44') {
-                const txn = await this.railgunAccount.unshieldNative(amount, to);
+                const txn = await this.railgunAccount.unshieldNative(amount, to.address);
                 txns.push(txn);
             } else {
                 throw new UnsupportedAssetError(asset);
@@ -173,23 +206,22 @@ export class RailgunPlugin implements Plugin {
         return { inner: operation };
     }
 
-    async prepareTransfer(assets: Array<AssetAmount> | AssetAmount, to: AccountId): Promise<Operation> {
+    async prepareTransfer(assets: AssetAmount, to: AccountId): Promise<PrivateOperation> {
+        return this.prepareTransferMulti([assets], to);
+    }
+
+    async prepareTransferMulti(assets: AssetAmount[], to: AccountId): Promise<PrivateOperation> {
         await this.sync();
 
-        if (!isAddress(to.accountId)) {
-            throw new InvalidAddressError(to.accountId);
+        if (to.chainId.namespace !== RAILGUN_CHAIN_NAMESPACE || to.chainId.reference !== this.chainId) {
+            throw new UnsupportedChainError(to.chainId);
         }
-        const toAddress = checksumAddress(to.accountId as Address);
 
-        const assetAmounts = assets instanceof Array
-            ? assets
-            : [assets];
         const txns: TxData[] = [];
-        for (const assetAmount of assetAmounts) {
-            const asset = assetAmount.asset;
-            const amount = assetAmount.amount;
+        for (const assetAmount of assets) {
+            const { asset, amount } = asRailgunAssetAmount(assetAmount);
             if (asset.namespace === 'erc20') {
-                const txn = await this.railgunAccount.transfer(asset.reference, amount, toAddress);
+                const txn = await this.railgunAccount.transfer(asset.reference, amount, to.address);
                 txns.push(txn);
             } else {
                 throw new UnsupportedAssetError(asset);
@@ -203,7 +235,7 @@ export class RailgunPlugin implements Plugin {
         return { inner: operation };
     }
 
-    async broadcast(operation: Operation): Promise<void> {
+    async broadcastPrivateOperation(operation: PrivateOperation): Promise<void> {
         const railgunOperation = operation.inner as RailgunOperation;
         throw new Error("Method not implemented.");
     }
