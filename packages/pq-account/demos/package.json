@@ -1,0 +1,18 @@
+{
+  "name": "zknox-package",
+  "version": "1.0.0",
+  "description": "A web interface for deploying and managing post-quantum secure Ethereum accounts using the ERC4337 standard.",
+  "main": "createAccount.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@noble/hashes": "^2.0.1",
+    "@noble/post-quantum": "^0.5.4",
+    "ethers": "^6.16.0",
+    "vite": "^7.3.1"
+  }
+}

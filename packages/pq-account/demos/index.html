@@ -1,0 +1,4240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZKNOX - Quantum-Resistant ERC4337</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #030712;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --bg-card: #16161f;
+            --border-color: #2a2a3a;
+            --border-hover: #3a3a4a;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent-primary: #8b5cf6;
+            --accent-secondary: #a78bfa;
+            --accent-glow: rgba(139, 92, 246, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --aave-primary: #b6509e;
+            --aave-secondary: #2ebac6;
+            --gradient-1: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+            --gradient-2: linear-gradient(135deg, #1a1a24 0%, #12121a 100%);
+            --gradient-aave: linear-gradient(135deg, #b6509e 0%, #2ebac6 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        /* Kohaku-style ambient background effects */
+        body::before {
+            content: "";
+            pointer-events: none;
+            z-index: -1;
+            background: 
+                radial-gradient(80% 50% at 50% -20%, rgba(0, 245, 255, 0.08), transparent),
+                radial-gradient(60% 40% at 100% 0%, rgba(100, 150, 255, 0.04), transparent),
+                radial-gradient(50% 30% at 0% 100%, rgba(0, 245, 255, 0.05), transparent);
+            position: fixed;
+            inset: 0;
+        }
+
+        body::after {
+            content: "";
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.5;
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            position: fixed;
+            inset: 0;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(3, 7, 18, 0.95);
+            border-bottom: 1px solid rgba(0, 245, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        .logo a {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+        }
+
+        .logo img {
+            height: 45px;
+            width: auto;
+        }
+
+        .header-center {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 2;
+            justify-content: center;
+        }
+
+        .header-mascot {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .header-mascot img {
+            height: 50px;
+            width: auto;
+        }
+
+        .wallet-status {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .wallet-status:hover {
+            border-color: var(--accent-primary);
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .network-warning {
+            font-size: 0.75rem;
+            color: var(--warning);
+            padding: 0.25rem 0.5rem;
+            background: rgba(245, 158, 11, 0.15);
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .disconnect-btn {
+            padding: 0.4rem 0.75rem;
+            background: transparent;
+            border: 1px solid var(--error);
+            border-radius: 6px;
+            color: var(--error);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .disconnect-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ff6b6b;
+        }
+
+        .balance-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .balance-display .balance-label {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .balance-display .balance-value {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--error);
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            background: var(--bg-secondary);
+            padding: 0.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .tab.active {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .tab.active.aave-tab {
+            background: var(--gradient-aave);
+            box-shadow: 0 4px 15px rgba(182, 80, 158, 0.3);
+        }
+
+        .tab-icon {
+            font-size: 1.1rem;
+        }
+
+        /* Panel Layout with Sidebar */
+        .panel-with-sidebar {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        .panel-main {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel-sidebar {
+            position: sticky;
+            top: 1rem;
+        }
+
+        .sidebar-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+        }
+
+        .sidebar-card .card-title {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-section {
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .sidebar-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .sidebar-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            padding: 0.5rem;
+            border-radius: 6px;
+            word-break: break-all;
+            border: 1px solid var(--border-color);
+        }
+
+        .sidebar-value.empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .sidebar-input {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .sidebar-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Balance Grid in Sidebar */
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.4rem;
+        }
+
+        .balance-cell {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0.5rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.7rem;
+        }
+
+        .balance-cell .token-symbol {
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        .balance-cell .token-bal {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+        }
+
+        .balance-cell .token-bal.has-balance {
+            color: var(--success);
+        }
+
+        .balance-cell.eth-cell {
+            grid-column: span 2;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            border-color: var(--accent-primary);
+        }
+
+        .balance-cell.eth-cell .token-symbol {
+            color: var(--accent-primary);
+        }
+
+        @media (max-width: 1024px) {
+            .panel-with-sidebar {
+                grid-template-columns: 1fr;
+            }
+            .panel-sidebar {
+                position: static;
+                order: -1;
+            }
+        }
+
+        /* Panels */
+        .panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .card-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Info Box */
+        .info-box {
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .info-box.aave {
+            background: rgba(182, 80, 158, 0.1);
+            border: 1px solid rgba(182, 80, 158, 0.3);
+        }
+
+        .info-box-icon {
+            color: var(--accent-primary);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .info-box a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .info-box a:hover {
+            text-decoration: underline;
+        }
+
+        /* Warning Box */
+        .warning-box {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .warning-box-icon {
+            color: var(--warning);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        /* Form Elements */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-row.single {
+            grid-template-columns: 1fr;
+        }
+
+        .form-row.triple {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        @media (max-width: 768px) {
+            .form-row, .form-row.triple {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.4rem;
+        }
+
+        .form-hint a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        .form-hint a:hover {
+            text-decoration: underline;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        /* Static Info */
+        .static-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .static-info .label {
+            color: var(--text-muted);
+        }
+
+        .static-info .value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-aave {
+            background: var(--gradient-aave);
+            box-shadow: 0 4px 15px rgba(182, 80, 158, 0.3);
+        }
+
+        .btn-aave:hover {
+            box-shadow: 0 6px 20px rgba(182, 80, 158, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--accent-secondary);
+            border: 1px solid var(--accent-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(139, 92, 246, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .btn-group {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Output Console */
+        .console {
+            background: #0d0d12;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-top: 1.5rem;
+            overflow: hidden;
+        }
+
+        .console-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .console-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .console-dot.red { background: #ff5f56; }
+        .console-dot.yellow { background: #ffbd2e; }
+        .console-dot.green { background: #27ca40; }
+
+        .console-title {
+            margin-left: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .console-output {
+            padding: 1rem 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: #a0f0a0;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .console-output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .console-output::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .console-output::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        /* Aave Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-value.positive {
+            color: var(--success);
+        }
+
+        .stat-value.negative {
+            color: var(--error);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Position List for Aave */
+        .position-list {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .position-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .position-item:not(:last-child) {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .position-item.empty {
+            color: var(--text-muted);
+            font-style: italic;
+            justify-content: center;
+        }
+
+        .position-item .token-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .position-item .token-amount {
+            color: var(--success);
+        }
+
+        .position-item.debt .token-amount {
+            color: var(--error);
+        }
+
+        /* Position Grid for Aave */
+        .position-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+
+        .position-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .position-cell:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .position-cell .token-name {
+            font-weight: 700;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .position-cell .token-amount {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .position-cell .token-amount.zero {
+            color: var(--text-muted);
+        }
+
+        .position-cell .token-amount.has-value {
+            color: var(--success);
+        }
+
+        .position-cell.debt .token-amount.has-value {
+            color: var(--error);
+        }
+
+        /* Allowance Grid */
+        .allowance-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+
+        .allowance-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .allowance-row .token-label {
+            font-weight: 700;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .allowance-row .allowance-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .allowance-row .allowance-value.approved {
+            color: var(--success);
+        }
+
+        .allowance-row .allowance-value.none {
+            color: var(--error);
+        }
+
+        /* Panel Layout with Sidebar */
+        .panel-layout {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        .panel-main {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel-sidebar {
+            position: sticky;
+            top: 1rem;
+        }
+
+        .sidebar-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-icon {
+            font-size: 1.5rem;
+        }
+
+        .sidebar-title {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-primary);
+        }
+
+        .sidebar-section {
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .sidebar-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.35rem;
+        }
+
+        .sidebar-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            word-break: break-all;
+            border: 1px solid var(--border-color);
+        }
+
+        .sidebar-value.empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .sidebar-input {
+            width: 100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: border-color 0.2s ease;
+        }
+
+        .sidebar-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .sidebar-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Balance Grid in Sidebar */
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+
+        .balance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0.6rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .balance-item .token {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        .balance-item .amount {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-primary);
+        }
+
+        .balance-item .amount.zero {
+            color: var(--text-muted);
+        }
+
+        .balance-item .amount.has-value {
+            color: var(--success);
+        }
+
+        @media (max-width: 1024px) {
+            .panel-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .panel-sidebar {
+                position: relative;
+                top: 0;
+                order: -1;
+            }
+        }
+
+        /* Animations */
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Early wallet detection (non-module, runs immediately) -->
+    <script>
+        // Debug: Check for wallet immediately
+        console.log('🔍 Page loaded, checking for wallet...');
+        console.log('🔍 window.ethereum:', window.ethereum ? 'FOUND' : 'NOT FOUND');
+        
+        // Placeholder for connectWallet (will be overwritten by module)
+        window.connectWallet = async function() {
+            console.log('⏳ Module not loaded yet, waiting...');
+            // Wait a bit for module to load
+            await new Promise(r => setTimeout(r, 500));
+            if (window._connectWalletReal) {
+                return window._connectWalletReal();
+            }
+            alert('Please wait for the page to fully load, then try again.');
+        };
+
+        // Check for EIP-6963 (newer wallet injection standard)
+        window.addEventListener('eip6963:announceProvider', (event) => {
+            console.log('🔔 EIP-6963 provider announced:', event.detail);
+        });
+        window.dispatchEvent(new Event('eip6963:requestProvider'));
+    </script>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <a href="https://zknox.com" target="_blank">
+                    <img src="./zknox-logo.png" alt="ZKNOX">
+                </a>
+            </div>
+            <div class="header-center">
+                <button class="disconnect-btn" id="disconnectBtn" style="display: none;" onclick="disconnectWallet()">
+                    Disconnect
+                </button>
+                <div class="wallet-status" id="walletStatusBtn" onclick="window.connectWallet()" style="cursor: pointer;" title="Click to connect wallet">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="walletNetwork">Connect Extension</span>
+                </div>
+                <div class="network-warning" id="networkWarning" style="display: none;">
+                    ⚠️ Not supported yet
+                </div>
+            </div>
+            <div class="header-mascot">
+                <img src="./koi-logo.png" alt="Koi Mascot">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="create">
+                <span class="tab-icon">🔐</span>
+                Create Account
+            </button>
+            <button class="tab" data-tab="send">
+                <span class="tab-icon">📤</span>
+                Send Transaction
+            </button>
+            <button class="tab aave-tab" data-tab="aave">
+                <span class="tab-icon">🏦</span>
+                Aave DeFi
+            </button>
+        </div>
+
+        <!-- Create Account Panel -->
+        <div class="panel active" id="panel-create">
+            <div class="warning-box">
+                <span class="warning-box-icon">⚠️</span>
+                <div>
+                    <strong>Security Note:</strong> These seeds will generate your account's public keys. 
+                    Do not use real seeds in production on a public website. This is for testing purposes only.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">⚙️</div>
+                    <div>
+                        <div class="card-title">Configuration</div>
+                        <div class="card-subtitle">Network and account settings</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Account Mode</label>
+                        <select class="form-select" id="accountMode">
+                            <option value="mldsa_k1">ML-DSA + ECDSA-K1 (Hybrid)</option>
+                        </select>
+                        <div class="form-hint">Post-quantum + classical signature scheme</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Factory Address</label>
+                        <div class="static-info">
+                            <span class="value" id="factoryAddress" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row single">
+                    <div class="form-group">
+                        <label class="form-label">Connected Wallet Balance</label>
+                        <div class="balance-display">
+                            <span class="balance-label">ETH:</span>
+                            <span class="balance-value" id="walletBalance">—</span>
+                        </div>
+                        <div class="form-hint">Balance of your connected wallet (used for gas)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🔑</div>
+                    <div>
+                        <div class="card-title">Signing Keys</div>
+                        <div class="card-subtitle">Generate deterministic keypairs from seeds</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Pre-Quantum Seed (ECDSA)</label>
+                        <input type="text" class="form-input" id="createPreQuantumSeed" 
+                               value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                        <div class="form-hint">32 bytes for ECDSA key generation</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Post-Quantum Seed (ML-DSA-44)</label>
+                        <input type="text" class="form-input" id="createPostQuantumSeed" 
+                               value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                        <div class="form-hint">32 bytes for ML-DSA key generation</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="deployBtn">
+                <span>🚀</span>
+                Connect Wallet & Deploy Account
+            </button>
+
+            <div class="card" id="fundAccountCard" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div class="card-icon">💰</div>
+                    <div>
+                        <div class="card-title">Send ETH to New Account</div>
+                        <div class="card-subtitle">Fund your ERC4337 account</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">New Account Address</label>
+                        <div class="balance-display" style="flex: 1;">
+                            <span class="balance-value" id="newAccountAddress" style="color: var(--text-secondary); font-size: 0.8rem;">Deploy first to see address</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">New Account Balance</label>
+                        <div class="balance-display">
+                            <span class="balance-label">ETH:</span>
+                            <span class="balance-value" id="newAccountBalance">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Amount to Send (ETH)</label>
+                        <input type="text" class="form-input" id="fundAmount" value="0.01">
+                        <div class="form-hint">ETH to transfer from connected wallet</div>
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button class="btn btn-secondary" id="fundAccountBtn" style="width: 100%;">
+                            <span>📤</span>
+                            Send ETH to Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="console">
+                <div class="console-header">
+                    <span class="console-dot red"></span>
+                    <span class="console-dot yellow"></span>
+                    <span class="console-dot green"></span>
+                    <span class="console-title">Output</span>
+                </div>
+                <div class="console-output" id="createOutput">Ready to deploy quantum-resistant account...</div>
+            </div>
+        </div>
+
+        <!-- Send Transaction Panel -->
+        <div class="panel" id="panel-send">
+            <div class="panel-with-sidebar">
+                <div class="panel-main">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">📋</div>
+                            <div>
+                                <div class="card-title">Transaction Details</div>
+                                <div class="card-subtitle">Configure your transfer</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Recipient Address</label>
+                                <input type="text" class="form-input" id="targetAddress" 
+                                       placeholder="0x...">
+                                <div class="form-hint">Where to send tokens</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Token to Send</label>
+                                <select class="form-select" id="sendToken">
+                                    <option value="ETH">ETH (native)</option>
+                                    <option value="WETH">WETH</option>
+                                    <option value="USDC">USDC</option>
+                                    <option value="DAI">DAI</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="WBTC">WBTC</option>
+                                    <option value="AAVE">AAVE</option>
+                                    <option value="LINK">LINK</option>
+                                    <option value="EURS">EURS</option>
+                                    <option value="GHO">GHO</option>
+                                </select>
+                                <div class="form-hint">Select the token to transfer</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount</label>
+                                <input type="text" class="form-input" id="sendValue" value="0.0001">
+                                <div class="form-hint">Amount of tokens to send</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row single">
+                            <div class="form-group">
+                                <label class="form-label">Call Data (advanced)</label>
+                                <input type="text" class="form-input" id="callData" value="0x">
+                                <div class="form-hint">Leave as 0x for simple transfer</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔑</div>
+                            <div>
+                                <div class="card-title">Signing Keys</div>
+                                <div class="card-subtitle">Same seeds used to create the account</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Pre-Quantum Seed (ECDSA)</label>
+                                <input type="text" class="form-input" id="sendPreQuantumSeed" 
+                                       value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Post-Quantum Seed (ML-DSA-44)</label>
+                                <input type="text" class="form-input" id="sendPostQuantumSeed" 
+                                       value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" id="sendTxBtn">
+                        <span>📤</span>
+                        Sign & Submit UserOperation
+                    </button>
+
+                    <div class="console">
+                        <div class="console-header">
+                            <span class="console-dot red"></span>
+                            <span class="console-dot yellow"></span>
+                            <span class="console-dot green"></span>
+                            <span class="console-title">Output</span>
+                        </div>
+                        <div class="console-output" id="sendOutput">Ready to send transaction...</div>
+                    </div>
+                </div>
+
+                <!-- Shared Sidebar -->
+                <div class="panel-sidebar">
+                    <div class="sidebar-card">
+                        <div class="card-title">💼 Account Info</div>
+
+                        <div class="sidebar-section">
+                            <div class="sidebar-label">ERC4337 Account Address</div>
+                            <input type="text" class="sidebar-input shared-account" id="sharedAccountAddress" 
+                                   placeholder="0x...">
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="sidebar-label">Pimlico API Key</div>
+                            <input type="text" class="sidebar-input shared-apikey" id="sharedApiKey" 
+                                   placeholder="pim_xxx...">
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="sidebar-label">Token Balances</div>
+                            <div class="balance-grid">
+                                <div class="balance-cell eth-cell">
+                                    <span class="token-symbol">ETH</span>
+                                    <span class="token-bal" id="shared-bal-ETH">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">WETH</span>
+                                    <span class="token-bal" id="shared-bal-WETH">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">USDC</span>
+                                    <span class="token-bal" id="shared-bal-USDC">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">DAI</span>
+                                    <span class="token-bal" id="shared-bal-DAI">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">USDT</span>
+                                    <span class="token-bal" id="shared-bal-USDT">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">WBTC</span>
+                                    <span class="token-bal" id="shared-bal-WBTC">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">AAVE</span>
+                                    <span class="token-bal" id="shared-bal-AAVE">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">LINK</span>
+                                    <span class="token-bal" id="shared-bal-LINK">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">EURS</span>
+                                    <span class="token-bal" id="shared-bal-EURS">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">GHO</span>
+                                    <span class="token-bal" id="shared-bal-GHO">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-secondary" id="refreshSharedBalancesBtn" style="width: 100%; margin-top: 0.75rem; padding: 0.6rem; font-size: 0.85rem;">
+                            <span>🔄</span>
+                            Refresh Balances
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aave DeFi Panel -->
+        <div class="panel" id="panel-aave">
+            <div class="panel-with-sidebar">
+                <div class="panel-main">
+                    <div class="info-box aave">
+                        <span class="info-box-icon">🏦</span>
+                        <div>
+                            <strong>Aave V3 on Sepolia Testnet</strong> — Supply assets as collateral and borrow against them. 
+                            <a href="https://app.aave.com/?marketName=proto_sepolia_v3" target="_blank">Open Aave UI →</a>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">📊</div>
+                            <div>
+                                <div class="card-title">Your Aave Position</div>
+                                <div class="card-subtitle">Current DeFi status on Sepolia</div>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-label">Total Supplied (USD)</div>
+                                <div class="stat-value positive" id="aaveSupplied">$0.00</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Total Borrowed (USD)</div>
+                                <div class="stat-value negative" id="aaveBorrowed">$0.00</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Health Factor</div>
+                                <div class="stat-value" id="aaveHealth">—</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Supplied Assets</label>
+                                <div class="position-grid" id="supplyList">
+                                    <div class="position-cell"><span class="token-name">WETH</span><span class="token-amount" id="supply-WETH">0</span></div>
+                                    <div class="position-cell"><span class="token-name">USDC</span><span class="token-amount" id="supply-USDC">0</span></div>
+                                    <div class="position-cell"><span class="token-name">DAI</span><span class="token-amount" id="supply-DAI">0</span></div>
+                                    <div class="position-cell"><span class="token-name">USDT</span><span class="token-amount" id="supply-USDT">0</span></div>
+                                    <div class="position-cell"><span class="token-name">WBTC</span><span class="token-amount" id="supply-WBTC">0</span></div>
+                                    <div class="position-cell"><span class="token-name">AAVE</span><span class="token-amount" id="supply-AAVE">0</span></div>
+                                    <div class="position-cell"><span class="token-name">LINK</span><span class="token-amount" id="supply-LINK">0</span></div>
+                                    <div class="position-cell"><span class="token-name">EURS</span><span class="token-amount" id="supply-EURS">0</span></div>
+                                    <div class="position-cell"><span class="token-name">GHO</span><span class="token-amount" id="supply-GHO">0</span></div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Borrowed Assets</label>
+                                <div class="position-grid" id="borrowList">
+                                    <div class="position-cell debt"><span class="token-name">WETH</span><span class="token-amount" id="borrow-WETH">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">USDC</span><span class="token-amount" id="borrow-USDC">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">DAI</span><span class="token-amount" id="borrow-DAI">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">USDT</span><span class="token-amount" id="borrow-USDT">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">WBTC</span><span class="token-amount" id="borrow-WBTC">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">AAVE</span><span class="token-amount" id="borrow-AAVE">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">LINK</span><span class="token-amount" id="borrow-LINK">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">EURS</span><span class="token-amount" id="borrow-EURS">0</span></div>
+                                    <div class="position-cell debt"><span class="token-name">GHO</span><span class="token-amount" id="borrow-GHO">0</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-secondary" id="refreshAaveBtn" style="width: 100%;">
+                            <span>🔄</span>
+                            Refresh Aave Position
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">💧</div>
+                            <div>
+                                <div class="card-title">Aave Faucet</div>
+                                <div class="card-subtitle">Get test tokens for Sepolia</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Token to Mint</label>
+                                <select class="form-select" id="faucetToken">
+                                    <option value="USDC">USDC (6 decimals)</option>
+                                    <option value="DAI">DAI (18 decimals)</option>
+                                    <option value="USDT">USDT (6 decimals)</option>
+                                    <option value="WETH">WETH (18 decimals)</option>
+                                    <option value="WBTC">WBTC (8 decimals)</option>
+                                    <option value="AAVE">AAVE (18 decimals)</option>
+                                    <option value="LINK">LINK (18 decimals)</option>
+                                    <option value="EURS">EURS (2 decimals)</option>
+                                    <option value="GHO">GHO (18 decimals)</option>
+                                </select>
+                                <div class="form-hint">Max 10,000 tokens per mint</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount</label>
+                                <input type="text" class="form-input" id="faucetAmount" value="1000">
+                                <div class="form-hint">Amount of test tokens</div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-secondary" id="mintFaucetBtn" style="width: 100%;">
+                            <span>🚰</span>
+                            Mint Test Tokens (Direct Wallet)
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔓</div>
+                            <div>
+                                <div class="card-title">Token Approvals</div>
+                                <div class="card-subtitle">Approve tokens for Aave Pool</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Current Allowances</label>
+                            <div class="allowance-grid" id="allowanceGrid">
+                                <div class="allowance-row">
+                                    <span class="token-label">WETH</span>
+                                    <span class="allowance-value" id="allowance-WETH">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">USDC</span>
+                                    <span class="allowance-value" id="allowance-USDC">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">DAI</span>
+                                    <span class="allowance-value" id="allowance-DAI">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">USDT</span>
+                                    <span class="allowance-value" id="allowance-USDT">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">WBTC</span>
+                                    <span class="allowance-value" id="allowance-WBTC">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">AAVE</span>
+                                    <span class="allowance-value" id="allowance-AAVE">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">LINK</span>
+                                    <span class="allowance-value" id="allowance-LINK">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">EURS</span>
+                                    <span class="allowance-value" id="allowance-EURS">—</span>
+                                </div>
+                                <div class="allowance-row">
+                                    <span class="token-label">GHO</span>
+                                    <span class="allowance-value" id="allowance-GHO">—</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline" id="refreshAllowancesBtn" style="width: 100%; margin-top: 0.5rem;">
+                                🔄 Refresh Allowances
+                            </button>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Token to Approve</label>
+                                <select class="form-select" id="approveToken">
+                                    <option value="WETH">WETH</option>
+                                    <option value="USDC">USDC</option>
+                                    <option value="DAI">DAI</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="WBTC">WBTC</option>
+                                    <option value="AAVE">AAVE</option>
+                                    <option value="LINK">LINK</option>
+                                    <option value="EURS">EURS</option>
+                                    <option value="GHO">GHO</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount</label>
+                                <select class="form-select" id="approveAmount">
+                                    <option value="unlimited">Unlimited (max uint256)</option>
+                                    <option value="1000000">1,000,000</option>
+                                    <option value="100000">100,000</option>
+                                    <option value="10000">10,000</option>
+                                    <option value="1000">1,000</option>
+                                    <option value="0">Revoke (0)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" id="approveTokenBtn" style="width: 100%;">
+                            <span>✅</span>
+                            Approve Token for Aave Pool
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">📥</div>
+                            <div>
+                                <div class="card-title">Supply Assets to Aave</div>
+                                <div class="card-subtitle">Use assets as collateral</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Asset to Supply</label>
+                                <select class="form-select" id="supplyAsset">
+                                    <option value="ETH">ETH (native, via WETH Gateway)</option>
+                                    <option value="WETH">WETH</option>
+                                    <option value="USDC">USDC</option>
+                                    <option value="DAI">DAI</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="WBTC">WBTC</option>
+                                    <option value="AAVE">AAVE</option>
+                                    <option value="LINK">LINK</option>
+                                    <option value="EURS">EURS</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount to Supply</label>
+                                <input type="text" class="form-input" id="supplyAmount" value="0.01">
+                                <div class="form-hint">For ETH, will be wrapped to WETH automatically</div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-aave" id="supplyEthBtn">
+                            <span>📥</span>
+                            Supply to Aave
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">💸</div>
+                            <div>
+                                <div class="card-title">Borrow Assets</div>
+                                <div class="card-subtitle">Borrow against your collateral</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Asset to Borrow</label>
+                                <select class="form-select" id="borrowAsset">
+                                    <option value="USDC">USDC</option>
+                                    <option value="DAI">DAI</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="WETH">WETH</option>
+                                    <option value="WBTC">WBTC</option>
+                                    <option value="AAVE">AAVE</option>
+                                    <option value="LINK">LINK</option>
+                                    <option value="EURS">EURS</option>
+                                    <option value="GHO">GHO (Aave stablecoin)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Amount to Borrow</label>
+                                <input type="text" class="form-input" id="borrowAmount" value="10">
+                                <div class="form-hint">Keep health factor above 1.0</div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-aave" id="borrowBtn">
+                            <span>💸</span>
+                            Borrow from Aave
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">💳</div>
+                            <div>
+                                <div class="card-title">Repay & Withdraw</div>
+                                <div class="card-subtitle">Close your positions</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Repay Asset</label>
+                                <select class="form-select" id="repayAsset">
+                                    <option value="USDC">USDC</option>
+                                    <option value="DAI">DAI</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="WETH">WETH</option>
+                                    <option value="WBTC">WBTC</option>
+                                    <option value="AAVE">AAVE</option>
+                                    <option value="LINK">LINK</option>
+                                    <option value="EURS">EURS</option>
+                                    <option value="GHO">GHO</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Repay Amount</label>
+                                <input type="text" class="form-input" id="repayAmount" value="10">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Withdraw Asset</label>
+                                <select class="form-select" id="withdrawAsset">
+                                    <option value="ETH">ETH (via WETH Gateway)</option>
+                                    <option value="WETH">WETH</option>
+                                    <option value="USDC">USDC</option>
+                                    <option value="DAI">DAI</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="WBTC">WBTC</option>
+                                    <option value="AAVE">AAVE</option>
+                                    <option value="LINK">LINK</option>
+                                    <option value="EURS">EURS</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Withdraw Amount</label>
+                                <input type="text" class="form-input" id="withdrawAmount" value="0.01">
+                            </div>
+                        </div>
+
+                        <div class="btn-group">
+                            <button class="btn btn-secondary" id="repayBtn">
+                                <span>💳</span>
+                                Repay Loan
+                            </button>
+                            <button class="btn btn-secondary" id="withdrawBtn">
+                                <span>📤</span>
+                                Withdraw
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔑</div>
+                            <div>
+                                <div class="card-title">Signing Keys</div>
+                                <div class="card-subtitle">Same seeds used to create the account</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Pre-Quantum Seed (ECDSA)</label>
+                                <input type="text" class="form-input" id="aavePreQuantumSeed" 
+                                       value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Post-Quantum Seed (ML-DSA-44)</label>
+                                <input type="text" class="form-input" id="aavePostQuantumSeed" 
+                                       value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="console">
+                        <div class="console-header">
+                            <span class="console-dot red"></span>
+                            <span class="console-dot yellow"></span>
+                            <span class="console-dot green"></span>
+                            <span class="console-title">Aave Output</span>
+                        </div>
+                        <div class="console-output" id="aaveOutput">Ready to interact with Aave V3 on Sepolia...
+
+⚠️ Make sure you're on Sepolia network!</div>
+                    </div>
+                </div>
+
+                <!-- Shared Sidebar (same as Send tab) -->
+                <div class="panel-sidebar">
+                    <div class="sidebar-card">
+                        <div class="card-title">💼 Account Info</div>
+
+                        <div class="sidebar-section">
+                            <div class="sidebar-label">ERC4337 Account Address</div>
+                            <input type="text" class="sidebar-input shared-account" id="aaveSharedAccountAddress" 
+                                   placeholder="0x...">
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="sidebar-label">Pimlico API Key</div>
+                            <input type="text" class="sidebar-input shared-apikey" id="aaveSharedApiKey" 
+                                   placeholder="pim_xxx...">
+                        </div>
+
+                        <div class="sidebar-section">
+                            <div class="sidebar-label">Token Balances</div>
+                            <div class="balance-grid">
+                                <div class="balance-cell eth-cell">
+                                    <span class="token-symbol">ETH</span>
+                                    <span class="token-bal" id="aave-shared-bal-ETH">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">WETH</span>
+                                    <span class="token-bal" id="aave-shared-bal-WETH">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">USDC</span>
+                                    <span class="token-bal" id="aave-shared-bal-USDC">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">DAI</span>
+                                    <span class="token-bal" id="aave-shared-bal-DAI">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">USDT</span>
+                                    <span class="token-bal" id="aave-shared-bal-USDT">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">WBTC</span>
+                                    <span class="token-bal" id="aave-shared-bal-WBTC">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">AAVE</span>
+                                    <span class="token-bal" id="aave-shared-bal-AAVE">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">LINK</span>
+                                    <span class="token-bal" id="aave-shared-bal-LINK">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">EURS</span>
+                                    <span class="token-bal" id="aave-shared-bal-EURS">0</span>
+                                </div>
+                                <div class="balance-cell">
+                                    <span class="token-symbol">GHO</span>
+                                    <span class="token-bal" id="aave-shared-bal-GHO">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-secondary" id="refreshAaveSharedBalancesBtn" style="width: 100%; margin-top: 0.75rem; padding: 0.6rem; font-size: 0.85rem;">
+                            <span>🔄</span>
+                            Refresh Balances
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p><a href="https://zknox.com" target="_blank">ZKNOX</a> — Post-Quantum Security for Ethereum</p>
+    </footer>
+
+    <!-- Global state for bundler -->
+    <script>
+        window.bundlerUrlValue = { url: '', chainId: '421614' };
+        
+        window.getBundlerUrl = function() {
+            // Use shared API key from either sidebar
+            const apiKey = document.getElementById('sharedApiKey')?.value.trim() || 
+                           document.getElementById('aaveSharedApiKey')?.value.trim() || '';
+            const chainId = window.bundlerUrlValue.chainId || '421614';
+            if (!apiKey) return '';
+            return `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
+        };
+
+        // Helper to get shared account address
+        window.getSharedAccountAddress = function() {
+            return document.getElementById('sharedAccountAddress')?.value.trim() || 
+                   document.getElementById('aaveSharedAccountAddress')?.value.trim() || '';
+        };
+
+        // Aave V3 Sepolia Addresses
+        window.AAVE_ADDRESSES = {
+            POOL: '0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951',
+            WETH_GATEWAY: '0x387d311e47e80b498169e6fb51d3193167d89F7D',
+            FAUCET: '0xC959483DBa39aa9E78757139af0e9a2EDEb3f42D',
+            POOL_DATA_PROVIDER: '0x69529987FA4A075D0C00B0128fa848dc9ebbE9CE',
+            // Testnet token addresses on Sepolia
+            TOKENS: {
+                WETH: { address: '0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c', decimals: 18 },
+                USDC: { address: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8', decimals: 6 },
+                DAI: { address: '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357', decimals: 18 },
+                USDT: { address: '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0', decimals: 6 },
+                AAVE: { address: '0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a', decimals: 18 },
+                LINK: { address: '0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5', decimals: 18 },
+                WBTC: { address: '0x29f2D40B0605204364af54EC677bD022dA425d03', decimals: 8 },
+                EURS: { address: '0x6d906e526a4e2Ca02097BA9d0caA3c382F52278E', decimals: 2 },
+                GHO: { address: '0xc4bF5CbDaBE595361438F8c6a187bDc330539c60', decimals: 18 }
+            },
+            // aToken addresses (receipt tokens for supplied assets)
+            A_TOKENS: {
+                WETH: '0x5b071b590a59395fE4025A0Ccc1FcC931AAc1830',
+                USDC: '0x16dA4541aD1807f4443d92D26044C1147406EB80',
+                DAI: '0x29598b72eb5CeBd806C5dCD549490FdA35B13cD8',
+                USDT: '0xAF0F6e8b0Dc5c913bbF4d14c22B4E78Dd14310B6',
+                AAVE: '0x6b8558764d3b7572136F17174Cb9aB1DDc7E1259',
+                LINK: '0x3FfAf50D4F4E96eB78f2407c090b72e86eCaed24',
+                WBTC: '0x1804Bf30507dc2EB3bDEbbbdd859991EAeF6EefF',
+                EURS: '0xB20691021F9AcED8631eDaa3c0Cd2949EB45662D',
+                GHO: '0xd190eF37dB51Bb955A680fF1A85763CC72d083D4'
+            },
+            // Variable debt token addresses (for borrowed assets)
+            DEBT_TOKENS: {
+                // Ethereum Sepolia Variable Debt Tokens
+                WETH: '0x22a35DB253f4F6D0029025D6312A3BdAb20C2c6A',
+                USDC: '0x36B5dE936eF1710E1d22EabE5231b28581a92ECc',
+                DAI: '0x22675C506A8FC26447aFFfa33640f6af5d4D4cF0',
+                USDT: '0xf6d6ECbe8841636d8B4a4aE1fC55a33020C27bE5',
+                AAVE: '0xf12fdFc4c631F6D361b48723c2F2800b84B519e6',
+                LINK: '0x34a4d932E722b9dFb492B9D8131127690CE2430B',
+                WBTC: '0xEB016dFd303F19fbDdFb6300eB4AeB2DA7Ceac37',
+                EURS: '0x86e7216d76B4b4697B5cDCD8EA8B1C0c7D6b0DE1',
+                GHO: '0x67ae46EF043F7A4508BD1d6B94DB6c33F0915844'
+            }
+        };
+    </script>
+
+    <!-- Tab Navigation -->
+    <script>
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+    </script>
+
+    <!-- Network Detection -->
+    <script type="module">
+        import { ethers } from 'https://esm.sh/ethers@6.16.0';
+
+        // Load deployments from external JSON file
+        let deployments = {};
+        try {
+            console.log('📂 Loading deployments.json...');
+            const response = await fetch('./deployments.json');
+            console.log('📂 Fetch response status:', response.status);
+            if (response.ok) {
+                deployments = await response.json();
+                console.log('✅ Deployments loaded:', Object.keys(deployments));
+                console.log('✅ Sepolia factory:', deployments.sepolia?.accounts?.mldsa_k1?.address);
+            } else {
+                console.warn('⚠️ Could not load deployments.json, status:', response.status);
+            }
+        } catch (e) {
+            console.warn('⚠️ Error loading deployments.json:', e.message);
+        }
+
+        const networksMap = {
+            '0x1': { key: 'ethereum', name: 'Ethereum', chainId: '1', supported: false },
+            '0x5': { key: 'goerli', name: 'Goerli', chainId: '5', supported: false },
+            '0xaa36a7': { key: 'sepolia', name: 'Sepolia', chainId: '11155111', supported: true },
+            '0x66eee': { key: 'arbitrumSepolia', name: 'Arbitrum Sepolia', chainId: '421614', supported: true }
+        };
+
+        let isConnected = false;
+
+        async function updateWalletBalance() {
+            const balanceSpan = document.getElementById('walletBalance');
+            if (!window.ethereum || !isConnected) {
+                balanceSpan.textContent = '—';
+                return;
+            }
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const accounts = await provider.listAccounts();
+                if (accounts.length > 0) {
+                    const balance = await provider.getBalance(accounts[0].address);
+                    balanceSpan.textContent = ethers.formatEther(balance).slice(0, 10) + ' ETH';
+                } else {
+                    balanceSpan.textContent = '—';
+                }
+            } catch (err) {
+                balanceSpan.textContent = '—';
+            }
+        }
+
+        // ==================== SHARED SIDEBAR SYNC ====================
+        function updateUI(chainId) {
+            const network = networksMap[chainId?.toLowerCase()];
+            const walletSpan = document.getElementById('walletNetwork');
+            const statusDot = document.getElementById('statusDot');
+            const factorySpan = document.getElementById('factoryAddress');
+            const networkWarning = document.getElementById('networkWarning');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            if (network) {
+                walletSpan.textContent = network.name;
+                statusDot.classList.add('connected');
+                disconnectBtn.style.display = 'block';
+                isConnected = true;
+                window.bundlerUrlValue.chainId = network.chainId;
+
+                // Show warning for unsupported networks
+                if (network.supported) {
+                    networkWarning.style.display = 'none';
+                } else {
+                    networkWarning.style.display = 'block';
+                }
+
+                // Update factory address
+                const accountMode = 'mldsa_k1';
+                console.log('🔍 Looking for factory:', network.key, accountMode);
+                console.log('🔍 Deployments available:', Object.keys(deployments));
+                if (deployments[network.key]?.accounts?.[accountMode]) {
+                    const addr = deployments[network.key].accounts[accountMode].address;
+                    console.log('✅ Factory found:', addr);
+                    factorySpan.textContent = addr;
+                } else {
+                    console.log('❌ Factory not found for', network.key);
+                    factorySpan.textContent = 'Not deployed on this network';
+                }
+
+                // Update wallet balance
+                updateWalletBalance();
+            } else if (chainId) {
+                // Unknown network
+                walletSpan.textContent = `Unknown (${chainId})`;
+                statusDot.classList.add('connected');
+                disconnectBtn.style.display = 'block';
+                isConnected = true;
+                networkWarning.style.display = 'block';
+                factorySpan.textContent = '—';
+                updateWalletBalance();
+            } else {
+                walletSpan.textContent = 'Connect Extension';
+                statusDot.classList.remove('connected');
+                disconnectBtn.style.display = 'none';
+                isConnected = false;
+                networkWarning.style.display = 'none';
+                factorySpan.textContent = '—';
+                document.getElementById('walletBalance').textContent = '—';
+            }
+        }
+
+        window.disconnectWallet = function() {
+            isConnected = false;
+            updateUI(null);
+        };
+
+        // Connect wallet function - exposed globally
+        async function connectWalletImpl() {
+            console.log('🔌 connectWallet called...');
+            if (!window.ethereum) {
+                console.log('❌ No window.ethereum found');
+                alert('No wallet detected! Please install MetaMask or Rabby.');
+                return;
+            }
+            console.log('✅ window.ethereum found, requesting accounts...');
+            try {
+                // This will prompt the user to connect
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                console.log('✅ Accounts received:', accounts);
+                if (accounts.length > 0) {
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    console.log('✅ Chain ID:', chainId);
+                    updateUI(chainId);
+                }
+            } catch (err) {
+                console.error('❌ Wallet connection failed:', err);
+            }
+        }
+        
+        window.connectWallet = connectWalletImpl;
+        window._connectWalletReal = connectWalletImpl;
+        console.log('✅ Network Detection module loaded, connectWallet exposed');
+
+        // Make updateWalletBalance globally accessible
+        window.updateWalletBalanceGlobal = updateWalletBalance;
+
+        async function initWallet() {
+            // Wait for ethereum to be injected (some wallets inject asynchronously)
+            let attempts = 0;
+            while (!window.ethereum && attempts < 50) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+
+            if (window.ethereum) {
+                console.log('✅ Wallet detected:', window.ethereum.isMetaMask ? 'MetaMask' : (window.ethereum.isRabby ? 'Rabby' : 'Unknown'));
+                try {
+                    // Check if already connected
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        updateUI(chainId);
+                        console.log('✅ Already connected to wallet');
+                    } else {
+                        console.log('ℹ️ Wallet detected but not connected. Click "Connect Extension" to connect.');
+                    }
+
+                    window.ethereum.on('chainChanged', (chainId) => {
+                        updateUI(chainId);
+                        if (window.refreshSharedBalances) window.refreshSharedBalances();
+                    });
+                    window.ethereum.on('accountsChanged', async (accounts) => {
+                        if (accounts.length > 0) {
+                            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                            updateUI(chainId);
+                        } else {
+                            updateUI(null);
+                        }
+                    });
+                } catch (err) {
+                    console.error('Wallet init failed:', err);
+                }
+            } else {
+                console.log('⚠️ No wallet detected after waiting. Please install MetaMask or Rabby.');
+            }
+        }
+
+        // Listen for ERC4337 account address changes - use shared fields
+        const sharedAccountEl = document.getElementById('sharedAccountAddress');
+        const aaveSharedAccountEl = document.getElementById('aaveSharedAccountAddress');
+        if (sharedAccountEl) {
+            sharedAccountEl.addEventListener('input', () => window.refreshSharedBalances && window.refreshSharedBalances());
+        }
+        if (aaveSharedAccountEl) {
+            aaveSharedAccountEl.addEventListener('input', () => window.refreshSharedBalances && window.refreshSharedBalances());
+        }
+
+        initWallet();
+    </script>
+
+    <!-- Main Application Logic -->
+    <script type="module">
+        // ==================== CDN IMPORTS FOR SERVE COMPATIBILITY ====================
+        import { ethers } from 'https://esm.sh/ethers@6.16.0';
+        import { ml_dsa44 } from 'https://esm.sh/@noble/post-quantum@0.5.4/ml-dsa';
+        import { shake128, shake256 } from 'https://esm.sh/@noble/hashes@2.0.1/sha3';
+
+        // ==================== UTILS_MLDSA.JS (EMBEDDED) ====================
+        function RejectionSamplePoly(rho, i, j, N = 256, q = 8380417) {
+            const seed = new Uint8Array(rho.length + 2);
+            seed.set(rho, 0);
+            seed[rho.length] = j;
+            seed[rho.length + 1] = i;
+
+            const xof = shake128.create();
+            xof.update(seed);
+
+            const r = new Int32Array(N);
+            let j_idx = 0;
+
+            while (j_idx < N) {
+                const buf = new Uint8Array(3 * 64);
+                xof.xofInto(buf);
+
+                for (let k = 0; j_idx < N && k <= buf.length - 3; k += 3) {
+                    let t = buf[k] | (buf[k + 1] << 8) | (buf[k + 2] << 16);
+                    t &= 0x7fffff;
+                    if (t < q) r[j_idx++] = t;
+                }
+            }
+            return r;
+        }
+
+        function recoverAhat(rho, K, L) {
+            const A_hat = [];
+            for (let i = 0; i < K; i++) {
+                const row = [];
+                for (let j = 0; j < L; j++) {
+                    row.push(RejectionSamplePoly(rho, i, j));
+                }
+                A_hat.push(row);
+            }
+            return A_hat;
+        }
+
+        const N_POLY = 256;
+        const newPoly = () => new Int32Array(N_POLY);
+
+        function polyDecode10Bits(bytes) {
+            const n = 256;
+            const poly = newPoly();
+            let r = 0n;
+            for (let i = 0; i < bytes.length; i++) r |= BigInt(bytes[i]) << BigInt(8 * i);
+            const mask = (1 << 10) - 1;
+            for (let i = 0; i < n; i++) {
+                poly[i] = Number((r >> BigInt(i * 10)) & BigInt(mask));
+            }
+            return poly;
+        }
+
+        function decodePublicKey(publicKey) {
+            const RHO_BYTES = 32;
+            const K = 4;
+            const T1_POLY_BYTES = 320;
+
+            if (publicKey.length !== RHO_BYTES + K * T1_POLY_BYTES)
+                throw new Error('Invalid publicKey length');
+
+            const rho = publicKey.slice(0, RHO_BYTES);
+            const t1 = [];
+            for (let i = 0; i < K; i++) {
+                const offset = RHO_BYTES + i * T1_POLY_BYTES;
+                const polyBytes = publicKey.slice(offset, offset + T1_POLY_BYTES);
+                t1.push(polyDecode10Bits(polyBytes));
+            }
+            const tr = shake256(new Uint8Array(publicKey), { dkLen: 64 });
+            return { rho, t1, tr };
+        }
+
+        function compact_module_256(data, m) {
+            const res = [];
+            for (const row of data) {
+                const res0 = [];
+                for (const p of row) {
+                    res0.push(compact_poly_256(p, m));
+                }
+                res.push(res0);
+            }
+            return res;
+        }
+
+        function compact_poly_256(coeffs, m) {
+            if (m >= 256) throw new Error('m must be less than 256');
+            if ((coeffs.length * m) % 256 !== 0)
+                throw new Error('Total bits must be divisible by 256');
+
+            const a = Array.from(coeffs, (x) => {
+                if (typeof x === 'bigint') return x;
+                if (typeof x === 'number') return BigInt(Math.floor(x));
+                throw new Error(`Element ${x} cannot be converted to BigInt`);
+            });
+
+            for (const elt of a) {
+                if (elt >= (1n << BigInt(m))) throw new Error(`Element ${elt} too large for ${m} bits`);
+            }
+
+            const n = (a.length * m) / 256;
+            const b = new Array(n).fill(0n);
+
+            for (let i = 0; i < a.length; i++) {
+                const idx = Math.floor((i * m) / 256);
+                const shift = BigInt((i % (256 / m)) * m);
+                b[idx] |= a[i] << shift;
+            }
+            return b;
+        }
+
+        function to_expanded_encoded_bytes(publicKey) {
+            const { rho, t1, tr } = decodePublicKey(publicKey);
+            
+            const A_hat = recoverAhat(rho, 4, 4);
+            const A_hat_compact = compact_module_256(A_hat, 32);
+            const A_hat_stringified = A_hat_compact.map(row => 
+                row.map(col => col.map(val => val.toString()))
+            );
+
+            const t1_compact_raw = compact_module_256([t1], 32);
+            const t1_compact = t1_compact_raw[0];
+            const t1_stringified = t1_compact.map(row => row.map(val => val.toString()));
+            
+            const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+            const aHatEncoded = abiCoder.encode(["uint256[][][]"], [A_hat_stringified]);
+            const t1Encoded = abiCoder.encode(["uint256[][]"], [t1_stringified]);
+            return abiCoder.encode(["bytes", "bytes", "bytes"], [aHatEncoded, tr, t1Encoded]);
+        }
+
+        // ==================== USEROPERATION.JS (EMBEDDED) ====================
+        const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
+
+        const ACCOUNT_ABI = [
+            "function execute(address dest, uint256 value, bytes calldata func) external",
+            "function executeBatch(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) external",
+            "function getNonce() external view returns (uint256)",
+        ];
+
+        function packUint128(a, b) {
+            return ethers.solidityPacked(["uint128","uint128"], [a, b]);
+        }
+
+        function unpackUint128(packed) {
+            const bytes = ethers.getBytes(packed);
+            const first = BigInt('0x' + ethers.hexlify(bytes.slice(0, 16)).slice(2));
+            const second = BigInt('0x' + ethers.hexlify(bytes.slice(16, 32)).slice(2));
+            return [first, second];
+        }
+
+        async function createBaseUserOperation(accountAddress, targetAddress, value, callData, provider, bundlerUrl) {
+            const account = new ethers.Contract(accountAddress, ACCOUNT_ABI, provider);
+
+            let nonce;
+            try {
+                nonce = await account.getNonce();
+            } catch {
+                nonce = 0n;
+            }
+
+            const executeCallData = account.interface.encodeFunctionData("execute", [targetAddress, value, callData]);
+
+            let maxPriority, maxFee;
+            try {
+                const gasResponse = await fetch(bundlerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0', id: 1,
+                        method: 'pimlico_getUserOperationGasPrice',
+                        params: []
+                    })
+                });
+                const gasResult = await gasResponse.json();
+                if (!gasResult.result) throw new Error("No gas price returned");
+                maxFee = BigInt(gasResult.result.standard.maxFeePerGas);
+                maxPriority = BigInt(gasResult.result.standard.maxPriorityFeePerGas);
+            } catch (e) {
+                console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
+                maxPriority = ethers.parseUnits("0.1", "gwei");
+                maxFee = ethers.parseUnits("0.2", "gwei");
+            }
+
+            return {
+                sender: accountAddress,
+                nonce: nonce,
+                initCode: "0x",
+                callData: executeCallData,
+                accountGasLimits: packUint128(13_500_000n, 500_000n),
+                preVerificationGas: 1_000_000n,
+                gasFees: packUint128(maxPriority, maxFee),
+                paymasterAndData: "0x",
+                signature: "0x"
+            };
+        }
+
+        function userOpToBundlerFormat(userOp) {
+            const [verificationGasLimit, callGasLimit] = unpackUint128(userOp.accountGasLimits);
+            const [maxPriorityFeePerGas, maxFeePerGas] = unpackUint128(userOp.gasFees);
+
+            return {
+                sender: userOp.sender,
+                nonce: '0x' + BigInt(userOp.nonce).toString(16),
+                callData: userOp.callData,
+                verificationGasLimit: '0x' + verificationGasLimit.toString(16),
+                callGasLimit: '0x' + callGasLimit.toString(16),
+                preVerificationGas: '0x' + BigInt(userOp.preVerificationGas).toString(16),
+                maxFeePerGas: '0x' + maxFeePerGas.toString(16),
+                maxPriorityFeePerGas: '0x' + maxPriorityFeePerGas.toString(16),
+                signature: userOp.signature
+            };
+        }
+
+        async function estimateUserOperationGas(userOp, bundlerUrl) {
+            const userOpForBundler = userOpToBundlerFormat(userOp);
+            try {
+                const response = await fetch(bundlerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0', id: 1,
+                        method: 'eth_estimateUserOperationGas',
+                        params: [userOpForBundler, ENTRY_POINT_ADDRESS]
+                    })
+                });
+                const result = await response.json();
+                
+                if (result.error) {
+                    console.error("Estimation error:", result.error);
+                    throw new Error(result.error.message || "Estimation failed");
+                }
+                
+                if (!result.result) throw new Error("No estimate returned");
+                
+                let verificationGasLimit = BigInt(result.result.verificationGasLimit);
+                let callGasLimit = BigInt(result.result.callGasLimit);
+                
+                const MIN_VERIFICATION = 13_500_000n;
+                if (verificationGasLimit < MIN_VERIFICATION) {
+                    console.warn("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
+                    verificationGasLimit = MIN_VERIFICATION;
+                }
+                
+                return {
+                    verificationGasLimit,
+                    callGasLimit,
+                    preVerificationGas: BigInt(result.result.preVerificationGas || userOp.preVerificationGas)
+                };
+                
+            } catch (e) {
+                console.warn("⚠️ Bundler gas estimation failed, using defaults:", e.message);
+                return {
+                    verificationGasLimit: 13_500_000n,
+                    callGasLimit: 500_000n,
+                    preVerificationGas: userOp.preVerificationGas
+                };
+            }
+        }
+
+        function updateUserOpWithGasEstimates(userOp, gasEstimates) {
+            return {
+                ...userOp,
+                accountGasLimits: packUint128(gasEstimates.verificationGasLimit, gasEstimates.callGasLimit),
+                preVerificationGas: gasEstimates.preVerificationGas
+            };
+        }
+
+        function getUserOpHash(userOp, entryPointAddress, chainId) {
+            const initCodeHash = ethers.keccak256(userOp.initCode);
+            const callDataHash = ethers.keccak256(userOp.callData);
+            const paymasterHash = ethers.keccak256(userOp.paymasterAndData);
+            const abi = ethers.AbiCoder.defaultAbiCoder();
+            const packedEncoded = abi.encode(
+                ["address", "uint256", "bytes32", "bytes32", "bytes32", "uint256", "bytes32", "bytes32"],
+                [userOp.sender, userOp.nonce, initCodeHash, callDataHash, userOp.accountGasLimits, userOp.preVerificationGas, userOp.gasFees, paymasterHash]
+            );
+
+            const packedUserOp = ethers.keccak256(packedEncoded);
+            const finalEncoded = abi.encode(["bytes32", "address", "uint256"], [packedUserOp, entryPointAddress, chainId]);
+            return ethers.keccak256(finalEncoded);
+        }
+
+        async function signUserOpPreQuantum(userOp, entryPointAddress, chainId, privateKey) {
+            const wallet = new ethers.Wallet(privateKey);
+            const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
+            return wallet.signingKey.sign(userOpHash).serialized;
+        }
+
+        async function signUserOpPostQuantum(userOp, entryPointAddress, chainId, mldsaSecretKey) {
+            const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
+            const userOpHashBytes = ethers.getBytes(userOpHash);
+            const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey);
+            return ethers.hexlify(signature);
+        }
+
+        async function signUserOpHybrid(userOp, entryPointAddress, chainId, preQuantumPrivateKey, postQuantumSecretKey) {
+            const preQuantumSig = await signUserOpPreQuantum(userOp, entryPointAddress, chainId, preQuantumPrivateKey);
+            const postQuantumSig = await signUserOpPostQuantum(userOp, entryPointAddress, chainId, postQuantumSecretKey);
+            
+            const abi = ethers.AbiCoder.defaultAbiCoder();
+            return abi.encode(["bytes", "bytes"], [preQuantumSig, postQuantumSig]);
+        }
+
+        async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
+            const userOpForBundler = userOpToBundlerFormat(userOp);
+            console.log("📤 Submitting UserOperation to bundler...");
+
+            const response = await fetch(bundlerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0', id: 1,
+                    method: 'eth_sendUserOperation',
+                    params: [userOpForBundler, entryPointAddress]
+                })
+            });
+
+            const result = await response.json();
+            if (result.error) {
+                throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
+            }
+
+            console.log("✅ UserOperation submitted successfully");
+            return result.result;
+        }
+
+        // ==================== SHARED SIDEBAR SYNC ====================
+        // Sync account address and API key between both tabs
+        function setupSharedFieldSync() {
+            const accountFields = ['sharedAccountAddress', 'aaveSharedAccountAddress'];
+            const apiKeyFields = ['sharedApiKey', 'aaveSharedApiKey'];
+
+            // Sync account addresses
+            accountFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', (e) => {
+                        const value = e.target.value;
+                        accountFields.forEach(otherFieldId => {
+                            if (otherFieldId !== fieldId) {
+                                const otherField = document.getElementById(otherFieldId);
+                                if (otherField) otherField.value = value;
+                            }
+                        });
+                    });
+                }
+            });
+
+            // Sync API keys
+            apiKeyFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', (e) => {
+                        const value = e.target.value;
+                        apiKeyFields.forEach(otherFieldId => {
+                            if (otherFieldId !== fieldId) {
+                                const otherField = document.getElementById(otherFieldId);
+                                if (otherField) otherField.value = value;
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        // Refresh all token balances for sidebar
+        async function refreshSharedBalances() {
+            const accountAddress = document.getElementById('sharedAccountAddress')?.value.trim() || 
+                                   document.getElementById('aaveSharedAccountAddress')?.value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress) || !window.ethereum) {
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+
+                // ETH balance
+                const ethBalance = await provider.getBalance(accountAddress);
+                const ethFormatted = parseFloat(ethers.formatEther(ethBalance));
+                
+                // Update both sidebars
+                ['shared-bal-ETH', 'aave-shared-bal-ETH'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.textContent = ethFormatted.toFixed(5);
+                        el.classList.toggle('has-balance', ethFormatted > 0);
+                    }
+                });
+
+                // Token balances
+                const tokens = Object.keys(window.AAVE_ADDRESSES.TOKENS);
+                const ERC20_BALANCE_ABI = ["function balanceOf(address) view returns (uint256)"];
+
+                for (const token of tokens) {
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[token];
+                    try {
+                        const contract = new ethers.Contract(tokenInfo.address, ERC20_BALANCE_ABI, provider);
+                        const balance = await contract.balanceOf(accountAddress);
+                        const formatted = parseFloat(ethers.formatUnits(balance, tokenInfo.decimals));
+
+                        // Update both sidebars
+                        [`shared-bal-${token}`, `aave-shared-bal-${token}`].forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.textContent = formatted.toFixed(5);
+                                el.classList.toggle('has-balance', formatted > 0);
+                            }
+                        });
+                    } catch (e) {
+                        // Token contract might not exist on this network
+                    }
+                }
+            } catch (e) {
+                console.error('Error refreshing balances:', e);
+            }
+        }
+
+        // Setup refresh buttons
+        document.getElementById('refreshSharedBalancesBtn')?.addEventListener('click', refreshSharedBalances);
+        document.getElementById('refreshAaveSharedBalancesBtn')?.addEventListener('click', refreshSharedBalances);
+
+        // Initialize sync on page load
+        setupSharedFieldSync();
+
+        // Expose for external use
+        window.refreshSharedBalances = refreshSharedBalances;
+
+        // Utility functions
+        function hexToU8(hex) {
+            if (hex.startsWith("0x")) hex = hex.slice(2);
+            if (hex.length !== 64) throw new Error("Seed must be 32 bytes (64 hex chars)");
+            return Uint8Array.from(hex.match(/.{2}/g).map(b => parseInt(b, 16)));
+        }
+
+        function validateSeed(seed, name) {
+            if (!seed.startsWith("0x")) throw new Error(`${name} must start with "0x"`);
+            if (seed.length !== 66) throw new Error(`${name} must be 32 bytes`);
+            if (!/^0x[0-9a-fA-F]{64}$/.test(seed)) throw new Error(`${name} contains invalid hex`);
+        }
+
+        // Console logger factory
+        function createLogger(outputId) {
+            const output = document.getElementById(outputId);
+            return {
+                log: (...args) => {
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+                    output.textContent += msg + '\n';
+                    output.scrollTop = output.scrollHeight;
+                },
+                error: (...args) => {
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+                    output.textContent += '❌ ' + msg + '\n';
+                    output.scrollTop = output.scrollHeight;
+                },
+                clear: () => { output.textContent = ''; }
+            };
+        }
+
+        // ==================== CREATE ACCOUNT ====================
+        const ACCOUNT_FACTORY_ABI = [
+            "function createAccount(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external returns (address)",
+            "function getAddress(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external view returns (address payable)"
+        ];
+
+        async function deployAccount() {
+            const log = createLogger('createOutput');
+            log.clear();
+
+            if (!window.ethereum) {
+                log.error('No wallet detected! Please install MetaMask or Rabby.');
+                return;
+            }
+
+            const factoryAddress = document.getElementById('factoryAddress').textContent.trim();
+            const prequantumSeed = document.getElementById('createPreQuantumSeed').value.trim();
+            const postquantumSeed = document.getElementById('createPostQuantumSeed').value.trim();
+
+            try {
+                validateSeed(prequantumSeed, "Pre-quantum seed");
+                validateSeed(postquantumSeed, "Post-quantum seed");
+            } catch (e) {
+                log.error("Invalid seed: " + e.message);
+                return;
+            }
+
+            if (!factoryAddress || factoryAddress === '—' || factoryAddress.includes('Not deployed')) {
+                log.error('Factory not available on this network');
+                return;
+            }
+
+            try {
+                log.log('🔌 Connecting to wallet...');
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+
+                const address = await signer.getAddress();
+                const balance = await provider.getBalance(address);
+                const network = await provider.getNetwork();
+
+                log.log('✅ Wallet connected');
+                log.log('   Address: ' + address);
+                log.log('   Balance: ' + ethers.formatEther(balance) + ' ETH');
+                log.log('   Network: ' + network.name + ' (Chain ID: ' + network.chainId + ')');
+                log.log('');
+
+                // Generate keys
+                const preQuantumPubKey = new ethers.Wallet(prequantumSeed).address;
+                const { publicKey } = ml_dsa44.keygen(hexToU8(postquantumSeed));
+                const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
+
+                log.log('📦 Deploying ERC4337 Account...');
+
+                const factory = new ethers.Contract(factoryAddress, ACCOUNT_FACTORY_ABI, signer);
+
+                // Get expected address
+                const iface = new ethers.Interface(ACCOUNT_FACTORY_ABI);
+                const callData = iface.encodeFunctionData("getAddress", [preQuantumPubKey, postQuantumPubKey]);
+                const result = await provider.call({ to: factoryAddress, data: callData });
+                const expectedAddress = iface.decodeFunctionResult("getAddress", result)[0];
+
+                log.log('📍 Expected account address: ' + expectedAddress);
+
+                // Update UI with the new account address
+                document.getElementById('newAccountAddress').textContent = expectedAddress;
+                window.deployedAccountAddress = expectedAddress;
+                updateNewAccountBalance();
+
+                // Also update the shared sidebar fields with the same address
+                const sharedAccountEl = document.getElementById('sharedAccountAddress');
+                const aaveSharedAccountEl = document.getElementById('aaveSharedAccountAddress');
+                if (sharedAccountEl) sharedAccountEl.value = expectedAddress;
+                if (aaveSharedAccountEl) aaveSharedAccountEl.value = expectedAddress;
+                
+                // Refresh balances
+                if (window.refreshSharedBalances) {
+                    window.refreshSharedBalances();
+                }
+
+                // Check if exists
+                const code = await provider.getCode(expectedAddress);
+                if (code !== '0x') {
+                    log.log('');
+                    log.log('============================================================');
+                    log.log('✅ ACCOUNT ALREADY EXISTS');
+                    log.log('============================================================');
+                    log.log('🔐 ERC4337 Account: ' + expectedAddress);
+                    log.log('============================================================');
+                    return;
+                }
+
+                // Estimate and deploy
+                log.log('');
+                log.log('⛽ Estimating gas...');
+                const estimatedGas = await factory.createAccount.estimateGas(preQuantumPubKey, postQuantumPubKey);
+                log.log('   Estimated: ' + estimatedGas.toString());
+
+                log.log('');
+                log.log('🚀 Creating account...');
+                log.log('⏳ Please confirm in your wallet...');
+
+                const tx = await factory.createAccount(preQuantumPubKey, postQuantumPubKey, {
+                    gasLimit: estimatedGas * 120n / 100n
+                });
+
+                log.log('✅ Transaction signed: ' + tx.hash);
+                log.log('⏳ Waiting for confirmation...');
+
+                const receipt = await tx.wait();
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 DEPLOYMENT COMPLETE!');
+                log.log('============================================================');
+                log.log('🔐 ERC4337 Account: ' + expectedAddress);
+                log.log('📝 Transaction: ' + tx.hash);
+                log.log('⛽ Gas used: ' + receipt.gasUsed.toString());
+                log.log('============================================================');
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.code === 'ACTION_REJECTED' || e.code === 4001) {
+                    log.log('(User rejected the transaction)');
+                }
+            }
+        }
+
+        // ==================== SEND TRANSACTION ====================
+        // ERC20 Transfer ABI
+        const ERC20_TRANSFER_ABI = [
+            "function transfer(address to, uint256 amount) external returns (bool)",
+            "function balanceOf(address account) external view returns (uint256)"
+        ];
+
+        // Update token balance when selection changes
+        async function updateSendTokenBalance() {
+            const accountAddress = window.getSharedAccountAddress();
+            const tokenSymbol = document.getElementById('sendToken').value;
+            const balanceEl = document.getElementById('sendTokenBalance');
+            const labelEl = document.getElementById('sendTokenLabel');
+
+            if (labelEl) labelEl.textContent = tokenSymbol + ':';
+
+            if (!accountAddress || !ethers.isAddress(accountAddress) || !window.ethereum) {
+                if (balanceEl) balanceEl.textContent = '—';
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+
+                if (tokenSymbol === 'ETH') {
+                    const balance = await provider.getBalance(accountAddress);
+                    if (balanceEl) balanceEl.textContent = parseFloat(ethers.formatEther(balance)).toFixed(5);
+                } else {
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[tokenSymbol];
+                    if (!tokenInfo) {
+                        if (balanceEl) balanceEl.textContent = '—';
+                        return;
+                    }
+                    const token = new ethers.Contract(tokenInfo.address, ERC20_TRANSFER_ABI, provider);
+                    const balance = await token.balanceOf(accountAddress);
+                    if (balanceEl) balanceEl.textContent = parseFloat(ethers.formatUnits(balance, tokenInfo.decimals)).toFixed(5);
+                }
+            } catch (e) {
+                if (balanceEl) balanceEl.textContent = '—';
+            }
+        }
+
+        // Listen for token selection change
+        document.getElementById('sendToken').addEventListener('change', updateSendTokenBalance);
+        document.getElementById('sharedAccountAddress')?.addEventListener('change', updateSendTokenBalance);
+        document.getElementById('sharedAccountAddress')?.addEventListener('blur', updateSendTokenBalance);
+
+        async function sendTransaction() {
+            const log = createLogger('sendOutput');
+            log.clear();
+
+            if (!window.ethereum) {
+                log.error('No wallet detected!');
+                return;
+            }
+
+            const apiKey = window.getSharedAccountAddress() ? 
+                (document.getElementById('sharedApiKey')?.value.trim() || document.getElementById('aaveSharedApiKey')?.value.trim()) : '';
+            if (!apiKey) {
+                log.error('Pimlico API key is required!');
+                log.log('');
+                log.log('Enter your API key in the sidebar on the right.');
+                log.log('Get a free API key at: https://dashboard.pimlico.io');
+                return;
+            }
+
+            const bundlerUrl = window.getBundlerUrl();
+            const accountAddress = window.getSharedAccountAddress();
+            const targetAddress = document.getElementById('targetAddress').value.trim();
+            const sendAmount = document.getElementById('sendValue').value.trim();
+            const tokenSymbol = document.getElementById('sendToken').value;
+            const preQuantumSeed = document.getElementById('sendPreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('sendPostQuantumSeed').value.trim();
+
+            if (!accountAddress || !targetAddress) {
+                log.error('Please fill in account address (in sidebar) and recipient address');
+                return;
+            }
+
+            try {
+                log.log('🔌 Connecting to wallet...');
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+
+                log.log('✅ Connected to ' + network.name);
+                log.log('');
+
+                let value = 0n;
+                let callData = '0x';
+                let txTarget = targetAddress;
+
+                if (tokenSymbol === 'ETH') {
+                    // Native ETH transfer
+                    value = ethers.parseEther(sendAmount);
+                    callData = document.getElementById('callData').value.trim() || '0x';
+
+                    const accountBalance = await provider.getBalance(accountAddress);
+                    log.log('📋 Transaction Details:');
+                    log.log('   Token: ETH (native)');
+                    log.log('   From: ' + accountAddress);
+                    log.log('   To: ' + targetAddress);
+                    log.log('   Amount: ' + sendAmount + ' ETH');
+                    log.log('   Balance: ' + ethers.formatEther(accountBalance) + ' ETH');
+                } else {
+                    // ERC20 token transfer
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[tokenSymbol];
+                    const amountWei = ethers.parseUnits(sendAmount, tokenInfo.decimals);
+
+                    // Encode ERC20 transfer call
+                    const erc20Iface = new ethers.Interface(ERC20_TRANSFER_ABI);
+                    callData = erc20Iface.encodeFunctionData("transfer", [targetAddress, amountWei]);
+                    txTarget = tokenInfo.address; // Target is the token contract
+
+                    // Get token balance
+                    const token = new ethers.Contract(tokenInfo.address, ERC20_TRANSFER_ABI, provider);
+                    const tokenBalance = await token.balanceOf(accountAddress);
+
+                    log.log('📋 Transaction Details:');
+                    log.log('   Token: ' + tokenSymbol);
+                    log.log('   Contract: ' + tokenInfo.address);
+                    log.log('   From: ' + accountAddress);
+                    log.log('   To: ' + targetAddress);
+                    log.log('   Amount: ' + sendAmount + ' ' + tokenSymbol);
+                    log.log('   Balance: ' + ethers.formatUnits(tokenBalance, tokenInfo.decimals) + ' ' + tokenSymbol);
+                }
+                log.log('');
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress, txTarget, value, callData, provider, bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 TRANSACTION SUBMITTED!');
+                log.log('============================================================');
+                log.log('Sent: ' + sendAmount + ' ' + tokenSymbol);
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+
+            } catch (e) {
+                log.error(e.message);
+            }
+        }
+
+        // ==================== FUND NEW ACCOUNT ====================
+        async function updateNewAccountBalance() {
+            const balanceSpan = document.getElementById('newAccountBalance');
+            const accountAddress = window.deployedAccountAddress;
+            
+            if (!window.ethereum || !accountAddress) {
+                balanceSpan.textContent = '—';
+                return;
+            }
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const balance = await provider.getBalance(accountAddress);
+                balanceSpan.textContent = ethers.formatEther(balance).slice(0, 10) + ' ETH';
+            } catch (err) {
+                balanceSpan.textContent = '—';
+            }
+        }
+
+        async function fundNewAccount() {
+            const log = createLogger('createOutput');
+            
+            const accountAddress = window.deployedAccountAddress;
+            const amount = document.getElementById('fundAmount').value.trim();
+
+            if (!accountAddress) {
+                log.log('');
+                log.error('No account address! Deploy an account first.');
+                return;
+            }
+
+            if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+                log.log('');
+                log.error('Invalid amount. Please enter a valid ETH amount.');
+                return;
+            }
+
+            if (!window.ethereum) {
+                log.log('');
+                log.error('No wallet detected!');
+                return;
+            }
+
+            try {
+                log.log('');
+                log.log('💰 Sending ETH to new account...');
+                
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+
+                const tx = await signer.sendTransaction({
+                    to: accountAddress,
+                    value: ethers.parseEther(amount)
+                });
+
+                log.log('✅ Transaction signed: ' + tx.hash);
+                log.log('⏳ Waiting for confirmation...');
+
+                const receipt = await tx.wait();
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 FUNDING COMPLETE!');
+                log.log('============================================================');
+                log.log('📤 Sent: ' + amount + ' ETH');
+                log.log('📍 To: ' + accountAddress);
+                log.log('📝 Tx: ' + tx.hash);
+                log.log('⛽ Gas used: ' + receipt.gasUsed.toString());
+                log.log('============================================================');
+
+                // Update balances
+                updateNewAccountBalance();
+                // Also update wallet balance in Network Detection script
+                if (window.updateWalletBalanceGlobal) {
+                    window.updateWalletBalanceGlobal();
+                }
+                // Update Aave balance too
+                if (window.updateAaveAccountBalance) {
+                    window.updateAaveAccountBalance();
+                }
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.code === 'ACTION_REJECTED' || e.code === 4001) {
+                    log.log('(User rejected the transaction)');
+                }
+            }
+        }
+
+        // Make updateNewAccountBalance available globally
+        window.updateNewAccountBalance = updateNewAccountBalance;
+
+        // Button handlers
+        document.getElementById('deployBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await deployAccount(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('fundAccountBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await fundNewAccount(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('sendTxBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await sendTransaction(); }
+            finally { this.disabled = false; }
+        });
+    </script>
+
+    <!-- Aave DeFi Logic -->
+    <script type="module">
+        import { ethers } from 'https://esm.sh/ethers@6.16.0';
+        import { ml_dsa44 } from 'https://esm.sh/@noble/post-quantum@0.5.4/ml-dsa';
+
+        // ==================== USEROPERATION FUNCTIONS (EMBEDDED) ====================
+        const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
+
+        const ACCOUNT_ABI_AAVE = [
+            "function execute(address dest, uint256 value, bytes calldata func) external",
+            "function executeBatch(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) external",
+            "function getNonce() external view returns (uint256)",
+        ];
+
+        function packUint128(a, b) {
+            return ethers.solidityPacked(["uint128","uint128"], [a, b]);
+        }
+
+        function unpackUint128(packed) {
+            const bytes = ethers.getBytes(packed);
+            const first = BigInt('0x' + ethers.hexlify(bytes.slice(0, 16)).slice(2));
+            const second = BigInt('0x' + ethers.hexlify(bytes.slice(16, 32)).slice(2));
+            return [first, second];
+        }
+
+        async function createBaseUserOperation(accountAddress, targetAddress, value, callData, provider, bundlerUrl) {
+            const account = new ethers.Contract(accountAddress, ACCOUNT_ABI_AAVE, provider);
+            let nonce;
+            try { nonce = await account.getNonce(); } catch { nonce = 0n; }
+
+            const executeCallData = account.interface.encodeFunctionData("execute", [targetAddress, value, callData]);
+
+            let maxPriority, maxFee;
+            try {
+                const gasResponse = await fetch(bundlerUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'pimlico_getUserOperationGasPrice', params: [] })
+                });
+                const gasResult = await gasResponse.json();
+                if (!gasResult.result) throw new Error("No gas price returned");
+                maxFee = BigInt(gasResult.result.standard.maxFeePerGas);
+                maxPriority = BigInt(gasResult.result.standard.maxPriorityFeePerGas);
+            } catch (e) {
+                maxPriority = ethers.parseUnits("0.1", "gwei");
+                maxFee = ethers.parseUnits("0.2", "gwei");
+            }
+
+            return {
+                sender: accountAddress, nonce: nonce, initCode: "0x", callData: executeCallData,
+                accountGasLimits: packUint128(13_500_000n, 500_000n), preVerificationGas: 1_000_000n,
+                gasFees: packUint128(maxPriority, maxFee), paymasterAndData: "0x", signature: "0x"
+            };
+        }
+
+        function userOpToBundlerFormat(userOp) {
+            const [verificationGasLimit, callGasLimit] = unpackUint128(userOp.accountGasLimits);
+            const [maxPriorityFeePerGas, maxFeePerGas] = unpackUint128(userOp.gasFees);
+            return {
+                sender: userOp.sender, nonce: '0x' + BigInt(userOp.nonce).toString(16), callData: userOp.callData,
+                verificationGasLimit: '0x' + verificationGasLimit.toString(16), callGasLimit: '0x' + callGasLimit.toString(16),
+                preVerificationGas: '0x' + BigInt(userOp.preVerificationGas).toString(16),
+                maxFeePerGas: '0x' + maxFeePerGas.toString(16), maxPriorityFeePerGas: '0x' + maxPriorityFeePerGas.toString(16),
+                signature: userOp.signature
+            };
+        }
+
+        async function estimateUserOperationGas(userOp, bundlerUrl) {
+            const userOpForBundler = userOpToBundlerFormat(userOp);
+            try {
+                const response = await fetch(bundlerUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_estimateUserOperationGas', params: [userOpForBundler, ENTRY_POINT_ADDRESS] })
+                });
+                const result = await response.json();
+                if (result.error) throw new Error(result.error.message || "Estimation failed");
+                if (!result.result) throw new Error("No estimate returned");
+                
+                let verificationGasLimit = BigInt(result.result.verificationGasLimit);
+                let callGasLimit = BigInt(result.result.callGasLimit);
+                const MIN_VERIFICATION = 13_500_000n;
+                if (verificationGasLimit < MIN_VERIFICATION) verificationGasLimit = MIN_VERIFICATION;
+                
+                return { verificationGasLimit, callGasLimit, preVerificationGas: BigInt(result.result.preVerificationGas || userOp.preVerificationGas) };
+            } catch (e) {
+                return { verificationGasLimit: 13_500_000n, callGasLimit: 500_000n, preVerificationGas: userOp.preVerificationGas };
+            }
+        }
+
+        function updateUserOpWithGasEstimates(userOp, gasEstimates) {
+            return { ...userOp, accountGasLimits: packUint128(gasEstimates.verificationGasLimit, gasEstimates.callGasLimit), preVerificationGas: gasEstimates.preVerificationGas };
+        }
+
+        function getUserOpHash(userOp, entryPointAddress, chainId) {
+            const initCodeHash = ethers.keccak256(userOp.initCode);
+            const callDataHash = ethers.keccak256(userOp.callData);
+            const paymasterHash = ethers.keccak256(userOp.paymasterAndData);
+            const abi = ethers.AbiCoder.defaultAbiCoder();
+            const packedEncoded = abi.encode(
+                ["address", "uint256", "bytes32", "bytes32", "bytes32", "uint256", "bytes32", "bytes32"],
+                [userOp.sender, userOp.nonce, initCodeHash, callDataHash, userOp.accountGasLimits, userOp.preVerificationGas, userOp.gasFees, paymasterHash]
+            );
+            const packedUserOp = ethers.keccak256(packedEncoded);
+            const finalEncoded = abi.encode(["bytes32", "address", "uint256"], [packedUserOp, entryPointAddress, chainId]);
+            return ethers.keccak256(finalEncoded);
+        }
+
+        async function signUserOpHybrid(userOp, entryPointAddress, chainId, preQuantumPrivateKey, postQuantumSecretKey) {
+            const wallet = new ethers.Wallet(preQuantumPrivateKey);
+            const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
+            const preQuantumSig = wallet.signingKey.sign(userOpHash).serialized;
+            const userOpHashBytes = ethers.getBytes(userOpHash);
+            const signature = ml_dsa44.sign(userOpHashBytes, postQuantumSecretKey);
+            const postQuantumSig = ethers.hexlify(signature);
+            const abi = ethers.AbiCoder.defaultAbiCoder();
+            return abi.encode(["bytes", "bytes"], [preQuantumSig, postQuantumSig]);
+        }
+
+        async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
+            const userOpForBundler = userOpToBundlerFormat(userOp);
+            const response = await fetch(bundlerUrl, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_sendUserOperation', params: [userOpForBundler, entryPointAddress] })
+            });
+            const result = await response.json();
+            if (result.error) throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
+            return result.result;
+        }
+
+        // Utility functions
+        function hexToU8(hex) {
+            if (hex.startsWith("0x")) hex = hex.slice(2);
+            if (hex.length !== 64) throw new Error("Seed must be 32 bytes (64 hex chars)");
+            return Uint8Array.from(hex.match(/.{2}/g).map(b => parseInt(b, 16)));
+        }
+
+        // Aave ABIs
+        const WETH_GATEWAY_ABI = [
+            "function depositETH(address pool, address onBehalfOf, uint16 referralCode) external payable",
+            "function withdrawETH(address pool, uint256 amount, address to) external"
+        ];
+
+        const POOL_ABI = [
+            "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
+            "function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external",
+            "function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) external returns (uint256)",
+            "function withdraw(address asset, uint256 amount, address to) external returns (uint256)",
+            "function getUserAccountData(address user) external view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)"
+        ];
+
+        const FAUCET_ABI = [
+            "function mint(address token, address to, uint256 amount) external"
+        ];
+
+        const ERC20_ABI = [
+            "function approve(address spender, uint256 amount) external returns (bool)",
+            "function balanceOf(address account) external view returns (uint256)",
+            "function allowance(address owner, address spender) external view returns (uint256)",
+            "function decimals() external view returns (uint8)",
+            "function symbol() external view returns (string)"
+        ];
+
+        // Console logger
+        function createLogger(outputId) {
+            const output = document.getElementById(outputId);
+            return {
+                log: (...args) => {
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+                    output.textContent += msg + '\n';
+                    output.scrollTop = output.scrollHeight;
+                },
+                error: (...args) => {
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+                    output.textContent += '❌ ' + msg + '\n';
+                    output.scrollTop = output.scrollHeight;
+                },
+                clear: () => { output.textContent = ''; }
+            };
+        }
+
+        // ==================== REFRESH AAVE POSITION ====================
+        async function refreshAavePosition() {
+            const log = createLogger('aaveOutput');
+            const accountAddress = window.getSharedAccountAddress();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.log('');
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            try {
+                log.log('');
+                log.log('🔄 Fetching Aave position...');
+                
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const pool = new ethers.Contract(window.AAVE_ADDRESSES.POOL, POOL_ABI, provider);
+
+                // Get overall account data
+                const userData = await pool.getUserAccountData(accountAddress);
+                
+                // Values are in USD with 8 decimals in Aave V3
+                const totalCollateral = Number(userData.totalCollateralBase) / 1e8;
+                const totalDebt = Number(userData.totalDebtBase) / 1e8;
+                const healthFactor = userData.healthFactor === ethers.MaxUint256 
+                    ? '∞' 
+                    : (Number(userData.healthFactor) / 1e18).toFixed(2);
+
+                document.getElementById('aaveSupplied').textContent = '$' + totalCollateral.toFixed(2);
+                document.getElementById('aaveBorrowed').textContent = '$' + totalDebt.toFixed(2);
+                document.getElementById('aaveHealth').textContent = healthFactor;
+
+                // Update health factor color
+                const healthEl = document.getElementById('aaveHealth');
+                if (healthFactor === '∞' || parseFloat(healthFactor) > 2) {
+                    healthEl.classList.remove('negative');
+                    healthEl.classList.add('positive');
+                } else if (parseFloat(healthFactor) < 1.1) {
+                    healthEl.classList.remove('positive');
+                    healthEl.classList.add('negative');
+                } else {
+                    healthEl.classList.remove('positive', 'negative');
+                }
+
+                // Reset all position cells
+                const tokens = Object.keys(window.AAVE_ADDRESSES.TOKENS);
+                for (const token of tokens) {
+                    const supplyEl = document.getElementById('supply-' + token);
+                    const borrowEl = document.getElementById('borrow-' + token);
+                    if (supplyEl) {
+                        supplyEl.textContent = '0';
+                        supplyEl.classList.remove('has-value');
+                        supplyEl.classList.add('zero');
+                    }
+                    if (borrowEl) {
+                        borrowEl.textContent = '0';
+                        borrowEl.classList.remove('has-value');
+                        borrowEl.classList.add('zero');
+                    }
+                }
+
+                // Fetch individual token balances
+                let supplyItems = [];
+                let borrowItems = [];
+                
+                for (const token of tokens) {
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[token];
+                    const aTokenAddress = window.AAVE_ADDRESSES.A_TOKENS[token];
+                    const debtTokenAddress = window.AAVE_ADDRESSES.DEBT_TOKENS[token];
+
+                    // Check supplied balance (aToken)
+                    if (aTokenAddress) {
+                        try {
+                            const aToken = new ethers.Contract(aTokenAddress, ERC20_ABI, provider);
+                            const balance = await aToken.balanceOf(accountAddress);
+                            if (balance > 0n) {
+                                const formatted = parseFloat(ethers.formatUnits(balance, tokenInfo.decimals));
+                                const supplyEl = document.getElementById('supply-' + token);
+                                if (supplyEl) {
+                                    supplyEl.textContent = formatted.toFixed(5);
+                                    supplyEl.classList.remove('zero');
+                                    supplyEl.classList.add('has-value');
+                                }
+                                supplyItems.push({ token, amount: formatted });
+                            }
+                        } catch (e) {
+                            console.error('Error fetching supply for ' + token + ':', e);
+                        }
+                    }
+
+                    // Check borrowed balance (debt token)
+                    if (debtTokenAddress) {
+                        try {
+                            const debtToken = new ethers.Contract(debtTokenAddress, ERC20_ABI, provider);
+                            const balance = await debtToken.balanceOf(accountAddress);
+                            if (balance > 0n) {
+                                const formatted = parseFloat(ethers.formatUnits(balance, tokenInfo.decimals));
+                                const borrowEl = document.getElementById('borrow-' + token);
+                                if (borrowEl) {
+                                    borrowEl.textContent = formatted.toFixed(5);
+                                    borrowEl.classList.remove('zero');
+                                    borrowEl.classList.add('has-value');
+                                }
+                                borrowItems.push({ token, amount: formatted });
+                            }
+                        } catch (e) {
+                            console.error('Error fetching borrow for ' + token + ':', e);
+                        }
+                    }
+                }
+
+                log.log('✅ Position updated');
+                log.log('   Collateral: $' + totalCollateral.toFixed(2));
+                log.log('   Debt: $' + totalDebt.toFixed(2));
+                log.log('   Health Factor: ' + healthFactor);
+                
+                if (supplyItems.length > 0) {
+                    log.log('');
+                    log.log('📥 Supplied:');
+                    supplyItems.forEach(item => log.log('   ' + item.token + ': ' + item.amount.toFixed(5)));
+                }
+                
+                if (borrowItems.length > 0) {
+                    log.log('');
+                    log.log('💸 Borrowed:');
+                    borrowItems.forEach(item => log.log('   ' + item.token + ': ' + item.amount.toFixed(5)));
+                }
+
+                // Also refresh allowances
+                refreshAllowances();
+
+            } catch (e) {
+                log.error('Failed to fetch position: ' + e.message);
+            }
+        }
+
+        // ==================== TOKEN APPROVALS ====================
+        async function refreshAllowances() {
+            const accountAddress = window.getSharedAccountAddress();
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                console.log('No valid account address for allowances');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const ERC20_ALLOWANCE_ABI = ["function allowance(address owner, address spender) view returns (uint256)"];
+                const poolAddress = window.AAVE_ADDRESSES.POOL;
+
+                const tokens = Object.keys(window.AAVE_ADDRESSES.TOKENS);
+                
+                for (const token of tokens) {
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[token];
+                    const allowanceEl = document.getElementById('allowance-' + token);
+                    if (!allowanceEl) continue;
+
+                    try {
+                        const contract = new ethers.Contract(tokenInfo.address, ERC20_ALLOWANCE_ABI, provider);
+                        const allowance = await contract.allowance(accountAddress, poolAddress);
+                        
+                        // Check if unlimited (more than 10^50)
+                        const maxUint = ethers.MaxUint256;
+                        const tenPow50 = ethers.parseUnits('1', 50);
+                        
+                        if (allowance >= tenPow50) {
+                            allowanceEl.textContent = '∞';
+                            allowanceEl.className = 'allowance-value approved';
+                        } else if (allowance > 0n) {
+                            const formatted = parseFloat(ethers.formatUnits(allowance, tokenInfo.decimals));
+                            allowanceEl.textContent = formatted.toFixed(2);
+                            allowanceEl.className = 'allowance-value approved';
+                        } else {
+                            allowanceEl.textContent = '0';
+                            allowanceEl.className = 'allowance-value none';
+                        }
+                    } catch (e) {
+                        allowanceEl.textContent = '—';
+                        allowanceEl.className = 'allowance-value';
+                    }
+                }
+            } catch (e) {
+                console.error('Error refreshing allowances:', e);
+            }
+        }
+
+        async function approveToken() {
+            const log = createLogger('aaveOutput');
+            log.clear();
+            log.log('🔓 Approving token for Aave Pool...');
+            log.log('');
+
+            const accountAddress = window.getSharedAccountAddress();
+            const tokenSymbol = document.getElementById('approveToken').value;
+            const amountOption = document.getElementById('approveAmount').value;
+            const preQuantumSeed = document.getElementById('aavePreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('aavePostQuantumSeed').value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            const apiKey = document.getElementById('sharedApiKey')?.value.trim() || 
+                           document.getElementById('aaveSharedApiKey')?.value.trim();
+            if (!apiKey) {
+                log.error('Pimlico API key is required! Enter it in the sidebar.');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+                const bundlerUrl = window.getBundlerUrl();
+
+                const tokenInfo = window.AAVE_ADDRESSES.TOKENS[tokenSymbol];
+                const poolAddress = window.AAVE_ADDRESSES.POOL;
+
+                // Calculate approval amount
+                let approvalAmount;
+                if (amountOption === 'unlimited') {
+                    approvalAmount = ethers.MaxUint256;
+                } else if (amountOption === '0') {
+                    approvalAmount = 0n;
+                } else {
+                    approvalAmount = ethers.parseUnits(amountOption, tokenInfo.decimals);
+                }
+
+                log.log('📝 Token: ' + tokenSymbol);
+                log.log('   Address: ' + tokenInfo.address);
+                log.log('   Spender (Pool): ' + poolAddress);
+                log.log('   Amount: ' + (amountOption === 'unlimited' ? 'Unlimited' : amountOption));
+                log.log('');
+
+                // Create approval calldata
+                const ERC20_APPROVE_ABI = ["function approve(address spender, uint256 amount) returns (bool)"];
+                const tokenIface = new ethers.Interface(ERC20_APPROVE_ABI);
+                const approveCalldata = tokenIface.encodeFunctionData('approve', [poolAddress, approvalAmount]);
+
+                log.log('🔐 Preparing ERC4337 UserOperation...');
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress,
+                    tokenInfo.address,  // target is the token contract
+                    0,                  // no value
+                    approveCalldata,    // approve calldata
+                    provider,
+                    bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 APPROVAL SUBMITTED!');
+                log.log('============================================================');
+                log.log('✅ ' + tokenSymbol + ' approval for Aave Pool');
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+                log.log('');
+                log.log('⏳ Wait a few seconds then click "Refresh Allowances"');
+
+                // Refresh allowances after a short delay
+                setTimeout(() => refreshAllowances(), 5000);
+
+            } catch (e) {
+                log.error(e.message);
+            }
+        }
+
+        // ==================== MINT FAUCET TOKENS ====================
+        async function mintFaucetTokens() {
+            const log = createLogger('aaveOutput');
+            log.log('');
+            log.log('🚰 Minting test tokens from Aave Faucet...');
+
+            const accountAddress = window.getSharedAccountAddress();
+            const tokenSymbol = document.getElementById('faucetToken').value;
+            const amount = document.getElementById('faucetAmount').value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+
+                const tokenInfo = window.AAVE_ADDRESSES.TOKENS[tokenSymbol];
+                const amountWei = ethers.parseUnits(amount, tokenInfo.decimals);
+
+                const faucet = new ethers.Contract(window.AAVE_ADDRESSES.FAUCET, FAUCET_ABI, signer);
+
+                log.log('📝 Minting ' + amount + ' ' + tokenSymbol + '...');
+                log.log('   Token: ' + tokenInfo.address);
+                log.log('   To: ' + accountAddress);
+                log.log('');
+                log.log('⏳ Please confirm in your wallet...');
+
+                const tx = await faucet.mint(tokenInfo.address, accountAddress, amountWei);
+                log.log('✅ Transaction signed: ' + tx.hash);
+                log.log('⏳ Waiting for confirmation...');
+
+                await tx.wait();
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 FAUCET MINT COMPLETE!');
+                log.log('============================================================');
+                log.log('💰 Minted: ' + amount + ' ' + tokenSymbol);
+                log.log('📍 To: ' + accountAddress);
+                log.log('============================================================');
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.code === 'ACTION_REJECTED' || e.code === 4001) {
+                    log.log('(User rejected the transaction)');
+                }
+            }
+        }
+
+        // ==================== SUPPLY TO AAVE ====================
+        async function supplyToAave() {
+            const log = createLogger('aaveOutput');
+            log.clear();
+            
+            const supplyAsset = document.getElementById('supplyAsset').value;
+            log.log('📥 Supplying ' + supplyAsset + ' to Aave V3...');
+            log.log('');
+
+            const apiKey = document.getElementById('sharedApiKey')?.value.trim() || 
+                           document.getElementById('aaveSharedApiKey')?.value.trim();
+            if (!apiKey) {
+                log.error('Pimlico API key is required! Enter it in the sidebar.');
+                return;
+            }
+
+            const accountAddress = window.getSharedAccountAddress();
+            const supplyAmount = document.getElementById('supplyAmount').value.trim();
+            const preQuantumSeed = document.getElementById('aavePreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('aavePostQuantumSeed').value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+                const bundlerUrl = window.getBundlerUrl();
+
+                let targetAddress;
+                let callData;
+                let value = 0n;
+
+                if (supplyAsset === 'ETH') {
+                    // Use WETH Gateway for native ETH
+                    value = ethers.parseEther(supplyAmount);
+                    const wethGatewayIface = new ethers.Interface(WETH_GATEWAY_ABI);
+                    callData = wethGatewayIface.encodeFunctionData("depositETH", [
+                        window.AAVE_ADDRESSES.POOL,
+                        accountAddress,
+                        0
+                    ]);
+                    targetAddress = window.AAVE_ADDRESSES.WETH_GATEWAY;
+                    
+                    log.log('📋 Supply Details:');
+                    log.log('   Asset: ETH (via WETH Gateway)');
+                    log.log('   Amount: ' + supplyAmount + ' ETH');
+                } else {
+                    // Use Pool.supply for ERC20 tokens
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[supplyAsset];
+                    const amountWei = ethers.parseUnits(supplyAmount, tokenInfo.decimals);
+                    
+                    const poolIface = new ethers.Interface(POOL_ABI);
+                    callData = poolIface.encodeFunctionData("supply", [
+                        tokenInfo.address,
+                        amountWei,
+                        accountAddress,
+                        0
+                    ]);
+                    targetAddress = window.AAVE_ADDRESSES.POOL;
+                    
+                    log.log('📋 Supply Details:');
+                    log.log('   Asset: ' + supplyAsset);
+                    log.log('   Amount: ' + supplyAmount);
+                    log.log('   Token Address: ' + tokenInfo.address);
+                    log.log('   Pool Address: ' + targetAddress);
+                    log.log('   Amount (wei): ' + amountWei.toString());
+                    log.log('');
+                    
+                    // Simulate the call first
+                    log.log('🔍 Simulating supply call...');
+                    try {
+                        const simulateResult = await provider.call({
+                            to: targetAddress,
+                            from: accountAddress,
+                            data: callData
+                        });
+                        log.log('   ✅ Simulation OK: ' + simulateResult);
+                    } catch (simError) {
+                        log.log('   ❌ Simulation FAILED: ' + simError.message);
+                        if (simError.data) {
+                            log.log('   Error data: ' + simError.data);
+                        }
+                        // Try to decode the error
+                        if (simError.message.includes('revert')) {
+                            log.log('');
+                            log.log('💡 Common Aave errors:');
+                            log.log('   - Error 26: Amount must be greater than 0');
+                            log.log('   - Error 27: Asset not listed in pool');
+                            log.log('   - Error 28: Reserve is frozen/paused');
+                            log.log('   - Error 51: Insufficient allowance');
+                        }
+                    }
+                    log.log('');
+                    log.log('⚠️  Note: ERC20 supply requires prior approval.');
+                    log.log('   Make sure you have approved the Pool to spend your ' + supplyAsset);
+                }
+                log.log('');
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress, 
+                    targetAddress, 
+                    value, 
+                    callData, 
+                    provider, 
+                    bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 SUPPLY SUBMITTED!');
+                log.log('============================================================');
+                log.log('📥 Supplied: ' + supplyAmount + ' ' + supplyAsset + ' to Aave');
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+                log.log('');
+                log.log('⏳ Waiting for UserOp receipt (up to 60s)...');
+
+                // Poll for UserOp receipt
+                let receipt = null;
+                for (let i = 0; i < 30; i++) {
+                    await new Promise(r => setTimeout(r, 2000)); // Wait 2s between polls
+                    try {
+                        const receiptResponse = await fetch(bundlerUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                jsonrpc: '2.0',
+                                id: 1,
+                                method: 'eth_getUserOperationReceipt',
+                                params: [userOpHash]
+                            })
+                        });
+                        const receiptData = await receiptResponse.json();
+                        if (receiptData.result) {
+                            receipt = receiptData.result;
+                            break;
+                        }
+                    } catch (err) {
+                        // Continue polling
+                    }
+                    if (i % 5 === 4) {
+                        log.log('   Still waiting... (' + ((i + 1) * 2) + 's)');
+                    }
+                }
+
+                if (receipt) {
+                    log.log('');
+                    if (receipt.success) {
+                        log.log('✅ UserOp SUCCEEDED on-chain!');
+                        log.log('   Transaction: ' + receipt.receipt?.transactionHash);
+                    } else {
+                        log.log('❌ UserOp FAILED on-chain!');
+                        log.log('   Transaction: ' + receipt.receipt?.transactionHash);
+                        log.log('   Reason: ' + (receipt.reason || 'Unknown'));
+                        log.log('');
+                        log.log('🔍 Check the transaction on Etherscan for details.');
+                    }
+                    log.log('   Gas used: ' + receipt.actualGasUsed);
+                } else {
+                    log.log('');
+                    log.log('⚠️  Could not get receipt after 60s.');
+                    log.log('   The UserOp may still be pending or may have failed.');
+                    log.log('   Check JiffyScan: https://jiffyscan.xyz/userOpHash/' + userOpHash + '?network=sepolia');
+                }
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.message && e.message.includes('AA')) {
+                    log.log('');
+                    log.log('💡 AA error codes:');
+                    log.log('   AA21 = Insufficient ETH for prefund OR execution reverted during simulation');
+                    log.log('   AA24 = Signature validation failed');
+                    log.log('   AA25 = Invalid nonce');
+                }
+            }
+        }
+
+        // ==================== BORROW FROM AAVE ====================
+        async function borrowFromAave() {
+            const log = createLogger('aaveOutput');
+            log.clear();
+            
+            const borrowAsset = document.getElementById('borrowAsset').value;
+            log.log('💸 Borrowing ' + borrowAsset + ' from Aave V3...');
+            log.log('');
+
+            const apiKey = document.getElementById('sharedApiKey')?.value.trim() || 
+                           document.getElementById('aaveSharedApiKey')?.value.trim();
+            if (!apiKey) {
+                log.error('Pimlico API key is required! Enter it in the sidebar.');
+                return;
+            }
+
+            const accountAddress = window.getSharedAccountAddress();
+            const borrowAmount = document.getElementById('borrowAmount').value.trim();
+            const preQuantumSeed = document.getElementById('aavePreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('aavePostQuantumSeed').value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+                const bundlerUrl = window.getBundlerUrl();
+
+                const tokenInfo = window.AAVE_ADDRESSES.TOKENS[borrowAsset];
+                const amountWei = ethers.parseUnits(borrowAmount, tokenInfo.decimals);
+
+                // Encode Pool borrow call
+                const poolIface = new ethers.Interface(POOL_ABI);
+                const callData = poolIface.encodeFunctionData("borrow", [
+                    tokenInfo.address,
+                    amountWei,
+                    2,  // Variable interest rate mode
+                    0,  // referralCode
+                    accountAddress  // onBehalfOf
+                ]);
+
+                log.log('📋 Borrow Details:');
+                log.log('   Asset: ' + borrowAsset);
+                log.log('   Amount: ' + borrowAmount);
+                log.log('   Interest Mode: Variable (2)');
+                log.log('');
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress, 
+                    window.AAVE_ADDRESSES.POOL, 
+                    0n, 
+                    callData, 
+                    provider, 
+                    bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 BORROW SUBMITTED!');
+                log.log('============================================================');
+                log.log('💸 Borrowed: ' + borrowAmount + ' ' + borrowAsset);
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+                log.log('');
+                log.log('⏳ Wait a few seconds then click "Refresh Position"');
+
+            } catch (e) {
+                log.error(e.message);
+            }
+        }
+
+        // ==================== REPAY LOAN ====================
+        async function repayLoan() {
+            const log = createLogger('aaveOutput');
+            log.clear();
+            
+            const repayAsset = document.getElementById('repayAsset').value;
+            log.log('💳 Repaying ' + repayAsset + ' loan to Aave V3...');
+            log.log('');
+
+            const apiKey = document.getElementById('sharedApiKey')?.value.trim() || 
+                           document.getElementById('aaveSharedApiKey')?.value.trim();
+            if (!apiKey) {
+                log.error('Pimlico API key is required! Enter it in the sidebar.');
+                return;
+            }
+
+            const accountAddress = window.getSharedAccountAddress();
+            const repayAmount = document.getElementById('repayAmount').value.trim();
+            const preQuantumSeed = document.getElementById('aavePreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('aavePostQuantumSeed').value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+                const bundlerUrl = window.getBundlerUrl();
+
+                const tokenInfo = window.AAVE_ADDRESSES.TOKENS[repayAsset];
+                if (!tokenInfo) {
+                    log.error('Token not supported: ' + repayAsset);
+                    return;
+                }
+
+                const amountWei = ethers.parseUnits(repayAmount, tokenInfo.decimals);
+                
+                // Use interestRateMode = 2 for variable rate debt
+                const poolIface = new ethers.Interface(POOL_ABI);
+                const callData = poolIface.encodeFunctionData("repay", [
+                    tokenInfo.address,
+                    amountWei,
+                    2,  // Variable rate mode
+                    accountAddress
+                ]);
+                const targetAddress = window.AAVE_ADDRESSES.POOL;
+                
+                log.log('📋 Repay Details:');
+                log.log('   Asset: ' + repayAsset);
+                log.log('   Amount: ' + repayAmount);
+                log.log('   Rate Mode: Variable (2)');
+                log.log('   Token Address: ' + tokenInfo.address);
+                log.log('');
+                log.log('⚠️  Note: Repay requires prior approval of the Pool.');
+                log.log('   Make sure you have approved the Pool to spend your ' + repayAsset);
+                log.log('');
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress, 
+                    targetAddress, 
+                    0n, 
+                    callData, 
+                    provider, 
+                    bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 REPAY SUBMITTED!');
+                log.log('============================================================');
+                log.log('💳 Repaid: ' + repayAmount + ' ' + repayAsset + ' to Aave');
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+                log.log('');
+                log.log('⏳ Waiting for UserOp receipt (up to 60s)...');
+
+                // Poll for UserOp receipt
+                let receipt = null;
+                for (let i = 0; i < 30; i++) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    try {
+                        const receiptResponse = await fetch(bundlerUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                jsonrpc: '2.0',
+                                id: 1,
+                                method: 'eth_getUserOperationReceipt',
+                                params: [userOpHash]
+                            })
+                        });
+                        const receiptData = await receiptResponse.json();
+                        if (receiptData.result) {
+                            receipt = receiptData.result;
+                            break;
+                        }
+                    } catch (err) {}
+                    if (i % 5 === 4) {
+                        log.log('   Still waiting... (' + ((i + 1) * 2) + 's)');
+                    }
+                }
+
+                if (receipt) {
+                    log.log('');
+                    if (receipt.success) {
+                        log.log('✅ UserOp SUCCEEDED on-chain!');
+                        log.log('   Transaction: ' + receipt.receipt?.transactionHash);
+                    } else {
+                        log.log('❌ UserOp FAILED on-chain!');
+                        log.log('   Transaction: ' + receipt.receipt?.transactionHash);
+                        log.log('   Reason: ' + (receipt.reason || 'Unknown'));
+                    }
+                    log.log('   Gas used: ' + receipt.actualGasUsed);
+                } else {
+                    log.log('');
+                    log.log('⚠️  Could not get receipt after 60s.');
+                }
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.message && e.message.includes('AA')) {
+                    log.log('');
+                    log.log('💡 AA error codes:');
+                    log.log('   AA21 = Insufficient ETH for prefund OR execution reverted during simulation');
+                    log.log('   AA24 = Signature validation failed');
+                    log.log('   AA25 = Invalid nonce');
+                }
+            }
+        }
+
+        // ==================== WITHDRAW ====================
+        async function withdraw() {
+            const log = createLogger('aaveOutput');
+            log.clear();
+            
+            const withdrawAsset = document.getElementById('withdrawAsset').value;
+            log.log('📤 Withdrawing ' + withdrawAsset + ' from Aave V3...');
+            log.log('');
+
+            const apiKey = document.getElementById('sharedApiKey')?.value.trim() || 
+                           document.getElementById('aaveSharedApiKey')?.value.trim();
+            if (!apiKey) {
+                log.error('Pimlico API key is required! Enter it in the sidebar.');
+                return;
+            }
+
+            const accountAddress = window.getSharedAccountAddress();
+            const withdrawAmount = document.getElementById('withdrawAmount').value.trim();
+            const preQuantumSeed = document.getElementById('aavePreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('aavePostQuantumSeed').value.trim();
+
+            if (!accountAddress || !ethers.isAddress(accountAddress)) {
+                log.error('Please enter a valid account address in the sidebar');
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+                const bundlerUrl = window.getBundlerUrl();
+
+                let targetAddress;
+                let callData;
+
+                if (withdrawAsset === 'ETH') {
+                    // Use WETH Gateway
+                    const amountWei = ethers.parseEther(withdrawAmount);
+                    const wethGatewayIface = new ethers.Interface(WETH_GATEWAY_ABI);
+                    callData = wethGatewayIface.encodeFunctionData("withdrawETH", [
+                        window.AAVE_ADDRESSES.POOL,
+                        amountWei,
+                        accountAddress
+                    ]);
+                    targetAddress = window.AAVE_ADDRESSES.WETH_GATEWAY;
+                    
+                    log.log('📋 Withdraw Details:');
+                    log.log('   Asset: ETH (via WETH Gateway)');
+                    log.log('   Amount: ' + withdrawAmount + ' ETH');
+                    log.log('');
+                    log.log('⚠️  Note: Requires aWETH approval to WETH Gateway');
+                } else {
+                    // Use Pool.withdraw
+                    const tokenInfo = window.AAVE_ADDRESSES.TOKENS[withdrawAsset];
+                    const amountWei = ethers.parseUnits(withdrawAmount, tokenInfo.decimals);
+                    
+                    const poolIface = new ethers.Interface(POOL_ABI);
+                    callData = poolIface.encodeFunctionData("withdraw", [
+                        tokenInfo.address,
+                        amountWei,
+                        accountAddress
+                    ]);
+                    targetAddress = window.AAVE_ADDRESSES.POOL;
+                    
+                    log.log('📋 Withdraw Details:');
+                    log.log('   Asset: ' + withdrawAsset);
+                    log.log('   Amount: ' + withdrawAmount);
+                }
+                log.log('');
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress, 
+                    targetAddress, 
+                    0n, 
+                    callData, 
+                    provider, 
+                    bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 WITHDRAW SUBMITTED!');
+                log.log('============================================================');
+                log.log('📤 Withdrew: ' + withdrawAmount + ' ' + withdrawAsset);
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.message.includes('approval')) {
+                    log.log('');
+                    log.log('💡 Tip: You may need to approve aTokens first.');
+                }
+            }
+        }
+
+        // Button handlers
+        document.getElementById('refreshAaveBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await refreshAavePosition(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('refreshAllowancesBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await refreshAllowances(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('approveTokenBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await approveToken(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('mintFaucetBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await mintFaucetTokens(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('supplyEthBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await supplyToAave(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('borrowBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await borrowFromAave(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('repayBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await repayLoan(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('withdrawBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await withdraw(); }
+            finally { this.disabled = false; }
+        });
+    </script>
+</body>
+</html>
