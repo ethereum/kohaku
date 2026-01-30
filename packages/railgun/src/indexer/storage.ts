@@ -24,43 +24,21 @@ export const loadCachedMerkleTrees = async (cachedTrees: CachedMerkleTrees) => {
 
         const merkleTree = await MerkleTree.createTree(i);
 
-        console.log('merkleTree', merkleTree);
-        // Handle null entries within tree levels (sparse merkle tree)
-        // Preserve sparse array structure - only assign non-null leaves at their indices
+        // Load tree data - handle both old format (all strings) and new format (with nulls)
         merkleTree.tree = cached.tree.map(level => {
             const result: Uint8Array[] = [];
 
             for (let j = 0; j < level.length; j++) {
-                if (level[j]) {
-                    result[j] = hexStringToArray(level[j]!);
+                const item = level[j];
+
+                if (item) {
+                    result[j] = hexStringToArray(item);
                 }
             }
 
             return result;
         });
         merkleTree.nullifiers = cached.nullifiers.map(hexStringToArray);
-
-        // Rebuild intermediate levels if only leaves were cached
-        // Find max leaf index and rebuild the sparse tree
-        const leaves = merkleTree.tree[0];
-
-        if (leaves && leaves.length > 0) {
-            // Find highest populated leaf index
-            let maxIndex = -1;
-
-            for (let j = leaves.length - 1; j >= 0; j--) {
-                if (leaves[j]) {
-                    maxIndex = j;
-                    break;
-                }
-            }
-
-            if (maxIndex >= 0) {
-                // @ts-expect-error setting private property for cache rebuild
-                merkleTree.maxLeafIndex = maxIndex;
-                await merkleTree.rebuildSparseTree();
-            }
-        }
 
         trees[i] = merkleTree;
     }
