@@ -3,4 +3,5 @@ packages:
   - "packages/provider"
   - "packages/railgun"
   - "packages/privacy-pools"
+  - "packages/pq-account/js"
   - "docs"
