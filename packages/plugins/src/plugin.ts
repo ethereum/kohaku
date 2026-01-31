@@ -21,7 +21,7 @@ export interface ShieldPreparation {
  * intentionally left opaque.
  */
 export interface PrivateOperation {
-    inner: unknown;
+
 }
 
 export type AssetAmount = {
@@ -32,7 +32,11 @@ export type AssetAmount = {
 /**
  * Plugin interface implemented by all privacy pool plugins.
  */
-export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
+export abstract class Plugin<
+    TAssetAmount extends AssetAmount = AssetAmount,
+    IShieldPreparation extends ShieldPreparation = ShieldPreparation,
+    TPrivateOperation extends PrivateOperation = PrivateOperation,
+> {
     /**
      * Retrieve the account ID associated with this plugin.
      */
@@ -55,7 +59,7 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
     /**
      * Same as `prepareShieldMulti` but for a single asset.
      */
-    abstract prepareShield(asset: TAssetAmount, from?: AccountId): Promise<ShieldPreparation>;
+    abstract prepareShield(asset: TAssetAmount, from?: AccountId): Promise<IShieldPreparation>;
 
     /**
      * Prepares a shield operation for the specified assets.
@@ -66,14 +70,14 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * @throws {MultiAssetsNotSupportedError} If the plugin does not support shielding multiple assets at once.
      * @throws {Error} If the shield operation could not be prepared.
      */
-    prepareShieldMulti(assets: Array<TAssetAmount>, from?: AccountId): Promise<ShieldPreparation> {
+    prepareShieldMulti(assets: Array<TAssetAmount>, from?: AccountId): Promise<IShieldPreparation> {
         throw new MultiAssetsNotSupportedError();
     }
 
     /**
      * Same as `prepareUnshieldMulti` but for a single asset.
      */
-    abstract prepareUnshield(asset: TAssetAmount, to: AccountId): Promise<PrivateOperation>;
+    abstract prepareUnshield(asset: TAssetAmount, to: AccountId): Promise<TPrivateOperation>;
 
     /**
      * Prepares an unshield operation for the specified assets.
@@ -85,14 +89,14 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the unshield operation could not be prepared.
      */
-    prepareUnshieldMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<PrivateOperation> {
+    prepareUnshieldMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<TPrivateOperation> {
         throw new MultiAssetsNotSupportedError();
     }
 
     /**
      * Same as `prepareTransferMulti` but for a single asset.
      */
-    prepareTransfer(asset: TAssetAmount, to: AccountId): Promise<PrivateOperation> {
+    prepareTransfer(asset: TAssetAmount, to: AccountId): Promise<TPrivateOperation> {
         throw new TransferNotSupportedError();
     }
 
@@ -107,7 +111,7 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * @throws {InsufficientBalanceError} If there is insufficient balance for any of the specified assets.
      * @throws {Error} If the transfer operation could not be prepared.
      */
-    prepareTransferMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<PrivateOperation> {
+    prepareTransferMulti(assets: Array<TAssetAmount>, to: AccountId): Promise<TPrivateOperation> {
         throw new TransferNotSupportedError();
     }
 
@@ -119,5 +123,5 @@ export abstract class Plugin<TAssetAmount extends AssetAmount = AssetAmount> {
      * 
      * @throws {Error} If the operation could not be broadcasted.
      */
-    abstract broadcastPrivateOperation(operation: PrivateOperation): Promise<void>;
+    abstract broadcastPrivateOperation(operation: TPrivateOperation): Promise<void>;
 }

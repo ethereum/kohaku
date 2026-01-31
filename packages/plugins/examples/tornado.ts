@@ -9,6 +9,7 @@ import { AssetAmount, Plugin, PrivateOperation, ShieldPreparation } from "~/plug
 import { AccountId, AssetId, Eip155ChainId, Erc20Id, NativeId } from "../src/types";
 import { MultiAssetsNotSupportedError, UnsupportedAssetError } from "~/errors";
 import { Address } from "viem";
+import { TxData } from "@kohaku-eth/provider";
 
 // TODO: Load me from a config file
 const TORNADO_ASSETS = {
@@ -49,25 +50,34 @@ function asTornadoAssetAmount(input: AssetAmount): TornadoAssetAmount {
     return input;
 }
 
-class TornadoPlugin extends Plugin<TornadoAssetAmount> {
+interface TornadoShieldPreparation {
+    txns: TxData[];
+    tornadoSpecificField: string;
+}
+
+interface TornadoPrivateOperation {
+    txns: TxData[];
+}
+
+class TornadoPlugin extends Plugin<TornadoAssetAmount, TornadoShieldPreparation, TornadoPrivateOperation> {
     async account(): Promise<AccountId> {
         throw new Error("Method not implemented.");
     }
     async balance(assets: Array<AssetId> | undefined): Promise<Array<TornadoAssetAmount>> {
         throw new Error("Method not implemented.");
     }
-    async prepareShield(_asset: TornadoAssetAmount, from?: AccountId): Promise<ShieldPreparation> {
+    async prepareShield(_asset: TornadoAssetAmount, from?: AccountId): Promise<TornadoShieldPreparation> {
         const asset = asTornadoAssetAmount(_asset);
         throw new Error("Method not implemented.");
     }
-    override async prepareShieldMulti(assets: TornadoAssetAmount[], from?: AccountId): Promise<ShieldPreparation> {
+    override async prepareShieldMulti(assets: TornadoAssetAmount[], from?: AccountId): Promise<TornadoShieldPreparation> {
         throw new MultiAssetsNotSupportedError();
     }
-    async prepareUnshield(_asset: TornadoAssetAmount, to: AccountId): Promise<PrivateOperation> {
+    async prepareUnshield(_asset: TornadoAssetAmount, to: AccountId): Promise<TornadoPrivateOperation> {
         const asset = asTornadoAssetAmount(_asset);
         throw new Error("Method not implemented.");
     }
-    async broadcastPrivateOperation(operation: PrivateOperation): Promise<void> {
+    async broadcastPrivateOperation(operation: TornadoPrivateOperation): Promise<void> {
         throw new Error("Method not implemented.");
     }
 }
