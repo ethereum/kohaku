@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 import { Field, useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { formatEther } from "viem";

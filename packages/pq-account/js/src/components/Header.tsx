@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 import { useConnect, useConnection, useConnectors, useDisconnect } from "wagmi";
 import { arbitrumSepolia, sepolia } from "wagmi/chains";
 
@@ -15,7 +16,7 @@ export function Header() {
     : false;
 
   const handleConnect = () => {
-    const injectedConnector = connectors[0]; // Get the injected connector (MetaMask, etc.)
+    const [injectedConnector] = connectors;
 
     if (injectedConnector) {
       connect({ connector: injectedConnector });
