@@ -55,7 +55,7 @@ function asRailgunAssetAmount(input: AssetAmount): RailgunAssetAmount {
     return input;
 }
 
-export class RailgunPlugin implements Plugin<RailgunAssetAmount> {
+export class RailgunPlugin implements Plugin<RailgunAssetAmount, ShieldPreparation, RailgunOperation> {
     private constructor(
         private network: Network,
         private storage: Storage,
@@ -174,11 +174,11 @@ export class RailgunPlugin implements Plugin<RailgunAssetAmount> {
         return { txns };
     }
 
-    async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<PrivateOperation> {
+    async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<RailgunOperation> {
         return this.prepareUnshieldMulti([assets], to);
     }
 
-    async prepareUnshieldMulti(assets: AssetAmount[], to: AccountId): Promise<PrivateOperation> {
+    async prepareUnshieldMulti(assets: AssetAmount[], to: AccountId): Promise<RailgunOperation> {
         await this.sync();
 
         if (to.kind !== 'eip155') {
@@ -199,18 +199,14 @@ export class RailgunPlugin implements Plugin<RailgunAssetAmount> {
             }
         }
 
-        const operation: UnshieldOperation = {
-            kind: 'unshield',
-            txns,
-        };
-        return { inner: operation };
+        return { kind: 'unshield', txns };
     }
 
-    async prepareTransfer(assets: AssetAmount, to: AccountId): Promise<PrivateOperation> {
+    async prepareTransfer(assets: AssetAmount, to: AccountId): Promise<RailgunOperation> {
         return this.prepareTransferMulti([assets], to);
     }
 
-    async prepareTransferMulti(assets: AssetAmount[], to: AccountId): Promise<PrivateOperation> {
+    async prepareTransferMulti(assets: AssetAmount[], to: AccountId): Promise<RailgunOperation> {
         await this.sync();
 
         if (to.chainId.namespace !== RAILGUN_CHAIN_NAMESPACE || to.chainId.reference !== this.chainId) {
@@ -228,15 +224,13 @@ export class RailgunPlugin implements Plugin<RailgunAssetAmount> {
             }
         }
 
-        const operation: TransferOperation = {
+        return {
             kind: 'transfer',
             txns,
         };
-        return { inner: operation };
     }
 
-    async broadcastPrivateOperation(operation: PrivateOperation): Promise<void> {
-        const railgunOperation = operation.inner as RailgunOperation;
+    async broadcastPrivateOperation(operation: RailgunOperation): Promise<void> {
         throw new Error("Method not implemented.");
     }
 
