@@ -50,12 +50,11 @@ function asTornadoAssetAmount(input: AssetAmount): TornadoAssetAmount {
     return input;
 }
 
-interface TornadoShieldPreparation {
-    txns: TxData[];
+interface TornadoShieldPreparation extends ShieldPreparation {
     tornadoSpecificField: string;
 }
 
-interface TornadoPrivateOperation {
+interface TornadoPrivateOperation extends PrivateOperation {
     txns: TxData[];
 }
 
