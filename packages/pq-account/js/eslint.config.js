@@ -39,7 +39,8 @@ export default [
       'no-restricted-syntax': [
         'error',
         {
-          selector: "Identifier[name='id']",
+          selector:
+            ":matches(VariableDeclarator, FunctionDeclaration, ArrowFunctionExpression, FunctionExpression) > Identifier[name='id']",
           message:
             'Use a descriptive identifier like user_id, blogpost_id, etc.',
         },
@@ -116,7 +117,7 @@ export default [
     },
   },
   {
-    files: ['**/vitest.config.ts'],
+    files: ['**/vitest.config.ts', '**/vite.config.ts', '**/App.tsx'],
     plugins: {
       import: pluginImport,
     },

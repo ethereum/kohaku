@@ -1,6 +1,9 @@
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
-import { ConsoleContext } from "../context/console";
+import {
+  ConsoleDispatchContext,
+  ConsoleStateContext,
+} from "../context/console";
 
 const INITIAL_OUTPUTS: Record<string, string> = {
   create: "Ready to deploy quantum-resistant account...",
@@ -22,9 +25,13 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     setOutputs((prev) => ({ ...prev, [panel]: "" }));
   }, []);
 
+  const dispatch = useMemo(() => ({ log, clear }), [log, clear]);
+
   return (
-    <ConsoleContext.Provider value={{ outputs, log, clear }}>
-      {children}
-    </ConsoleContext.Provider>
+    <ConsoleStateContext.Provider value={outputs}>
+      <ConsoleDispatchContext.Provider value={dispatch}>
+        {children}
+      </ConsoleDispatchContext.Provider>
+    </ConsoleStateContext.Provider>
   );
 }

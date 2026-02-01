@@ -1,25 +1,41 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Address } from "viem";
-import { parseEther } from "viem";
-import { useSendTransaction as useWagmiSendTransaction } from "wagmi";
+import { type Address, isAddress, parseEther } from "viem";
+import {
+  usePublicClient,
+  useSendTransaction as useWagmiSendTransaction,
+} from "wagmi";
+
+import { useConsoleLog } from "./useConsole";
+
+const SEPARATOR =
+  "============================================================";
 
 interface FundParams {
   address: string;
   amount: string;
-  log: (msg: string) => void;
 }
 
 export function useFundAccount() {
   const queryClient = useQueryClient();
   const { mutateAsync: sendTransactionAsync } = useWagmiSendTransaction();
+  const publicClient = usePublicClient();
+  const { log } = useConsoleLog("create");
 
   return useMutation({
-    mutationFn: async ({ address, amount, log }: FundParams) => {
+    mutationFn: async ({ address, amount }: FundParams) => {
       if (!address)
         throw new Error("No account address! Deploy an account first.");
 
+      if (!isAddress(address)) {
+        throw new Error("Invalid Ethereum address: " + address);
+      }
+
       if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
         throw new Error("Invalid amount. Please enter a valid ETH amount.");
+      }
+
+      if (!publicClient) {
+        throw new Error("Public client not initialized");
       }
 
       log("");
@@ -33,33 +49,34 @@ export function useFundAccount() {
       log("✅ Transaction signed: " + hash);
       log("⏳ Waiting for confirmation...");
 
-      return { txHash: hash, address, amount };
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      return { txHash: hash, address, amount, gasUsed: receipt.gasUsed };
     },
-    onSuccess: (data, variables) => {
-      variables.log("");
-      variables.log(
-        "============================================================"
-      );
-      variables.log("🎉 FUNDING COMPLETE!");
-      variables.log(
-        "============================================================"
-      );
-      variables.log("📤 Sent: " + data.amount + " ETH");
-      variables.log("📍 To: " + data.address);
-      variables.log("📝 Tx: " + data.txHash);
-      variables.log(
-        "============================================================"
-      );
+    onSuccess: (data) => {
+      log("");
+      log(SEPARATOR);
+      log("🎉 FUNDING COMPLETE!");
+      log(SEPARATOR);
+      log("📤 Sent: " + data.amount + " ETH");
+      log("📍 To: " + data.address);
+      log("📝 Tx: " + data.txHash);
+
+      if (data.gasUsed) {
+        log("⛽ Gas used: " + data.gasUsed.toString());
+      }
+
+      log(SEPARATOR);
 
       queryClient.invalidateQueries({ queryKey: ["balance"] });
     },
-    onError: (error: unknown, variables) => {
+    onError: (error: unknown) => {
       const err = error as { message: string; code?: string | number };
 
-      variables.log("❌ " + err.message);
+      log("❌ " + err.message);
 
       if (err.code === "ACTION_REJECTED" || err.code === 4001) {
-        variables.log("(User rejected the transaction)");
+        log("(User rejected the transaction)");
       }
     },
   });

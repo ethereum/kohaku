@@ -1,5 +1,4 @@
 import { Field, useForm } from "@tanstack/react-form";
-import React from "react";
 import { useConnection } from "wagmi";
 
 import { useAccountBalance } from "../hooks/useAccountBalance";
@@ -8,6 +7,8 @@ import { useSendTransaction } from "../hooks/useSendTransaction";
 import { Console } from "./Console";
 
 export function SendTransactionPanel() {
+  const { output } = useConsole("send");
+
   const form = useForm({
     defaultValues: {
       pimlicoApiKey: "",
@@ -29,8 +30,6 @@ export function SendTransactionPanel() {
         preQuantumSeed: value.preQuantumSeed,
         postQuantumSeed: value.postQuantumSeed,
         bundlerUrl: getBundlerUrl(),
-        log,
-        clear,
       });
     },
   });
@@ -38,7 +37,6 @@ export function SendTransactionPanel() {
   const { chainId } = useConnection();
   const accountAddress = form.getFieldValue("accountAddress");
   const { data: erc4337Balance } = useAccountBalance(accountAddress || null);
-  const { output, log, clear } = useConsole("send");
   const sendMutation = useSendTransaction();
 
   const getBundlerUrl = () => {
@@ -49,8 +47,7 @@ export function SendTransactionPanel() {
       : "";
   };
 
-  const handleSendTransaction = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendTransaction = () => {
     form.handleSubmit();
   };
 
@@ -88,7 +85,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="pimlicoApiKey"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -127,7 +124,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="accountAddress"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -155,7 +152,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="targetAddress"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -175,7 +172,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="sendValue"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -191,7 +188,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="callData"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -222,7 +219,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="preQuantumSeed"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -237,7 +234,7 @@ export function SendTransactionPanel() {
             <Field
               form={form}
               name="postQuantumSeed"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"

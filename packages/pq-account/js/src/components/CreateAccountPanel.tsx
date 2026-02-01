@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import { Field, useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { formatEther } from "viem";
@@ -12,6 +11,8 @@ import { useFundAccount } from "../hooks/useFundAccount";
 import { Console } from "./Console";
 
 export function CreateAccountPanel() {
+  const { output, log } = useConsole("create");
+
   const form = useForm({
     defaultValues: {
       preQuantumSeed:
@@ -26,8 +27,6 @@ export function CreateAccountPanel() {
           factoryAddress,
           preQuantumSeed: value.preQuantumSeed,
           postQuantumSeed: value.postQuantumSeed,
-          log,
-          clear,
         },
         {
           onSuccess: (result) => {
@@ -48,7 +47,6 @@ export function CreateAccountPanel() {
   const { address, chain } = useConnection();
   const { data: walletBalanceData } = useBalance({ address });
   const { data: newAccountBalance } = useAccountBalance(deployedAddress);
-  const { output, log, clear } = useConsole("create");
 
   const factoryAddress = getFactoryAddress(chain?.id);
   const walletBalance = walletBalanceData
@@ -58,8 +56,7 @@ export function CreateAccountPanel() {
   const deployMutation = useDeployAccount();
   const fundMutation = useFundAccount();
 
-  const handleDeploy = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDeploy = () => {
     form.handleSubmit();
   };
 
@@ -72,7 +69,7 @@ export function CreateAccountPanel() {
 
     const fundAmount = form.getFieldValue("fundAmount");
 
-    fundMutation.mutate({ address: deployedAddress, amount: fundAmount, log });
+    fundMutation.mutate({ address: deployedAddress, amount: fundAmount });
   };
 
   return (
@@ -95,16 +92,7 @@ export function CreateAccountPanel() {
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Account Mode</label>
-            <select className="form-select">
-              <option value="mldsa_k1">ML-DSA + ECDSA-K1 (Hybrid)</option>
-            </select>
-            <div className="form-hint">
-              Post-quantum + classical signature scheme
-            </div>
-          </div>
+        <div className="form-row single">
           <div className="form-group">
             <label className="form-label">Factory Address</label>
             <div className="static-info">
@@ -152,7 +140,7 @@ export function CreateAccountPanel() {
             <Field
               form={form}
               name="preQuantumSeed"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"
@@ -229,7 +217,7 @@ export function CreateAccountPanel() {
             <Field
               form={form}
               name="fundAmount"
-              children={(field: any) => (
+              children={(field) => (
                 <input
                   type="text"
                   className="form-input"

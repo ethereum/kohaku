@@ -15,7 +15,6 @@
     --warning: #f59e0b;
     --error: #ef4444;
     --gradient-1: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
-    --gradient-2: linear-gradient(135deg, #1a1a24 0%, #12121a 100%);
 }
 
 * {
@@ -465,10 +464,6 @@ body::after {
     font-size: 0.9rem;
 }
 
-.static-info .label {
-    color: var(--text-muted);
-}
-
 .static-info .value {
     font-weight: 600;
     color: var(--text-primary);
@@ -602,12 +597,3 @@ body::after {
     text-decoration: underline;
 }
 
-/* Animations */
-.pulse {
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}

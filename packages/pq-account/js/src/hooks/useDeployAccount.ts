@@ -3,26 +3,24 @@ import { useWalletClient } from "wagmi";
 
 import { deployERC4337Account, validateSeed } from "../utils/createAccount";
 import { walletClientToEthersProvider } from "../utils/ethersAdapter";
+import { useConsoleLog } from "./useConsole";
 
 interface DeployParams {
   factoryAddress: string;
   preQuantumSeed: string;
   postQuantumSeed: string;
-  log: (msg: string) => void;
-  clear: () => void;
 }
 
 export function useDeployAccount() {
   const queryClient = useQueryClient();
   const { data: walletClient } = useWalletClient();
+  const { log, clear } = useConsoleLog("create");
 
   return useMutation({
     mutationFn: async ({
       factoryAddress,
       preQuantumSeed,
       postQuantumSeed,
-      log,
-      clear,
     }: DeployParams) => {
       clear();
 

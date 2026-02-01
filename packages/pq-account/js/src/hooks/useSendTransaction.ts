@@ -3,6 +3,7 @@ import { useWalletClient } from "wagmi";
 
 import { walletClientToEthersProvider } from "../utils/ethersAdapter";
 import { sendERC4337Transaction } from "../utils/sendTransaction";
+import { useConsoleLog } from "./useConsole";
 
 interface SendParams {
   accountAddress: string;
@@ -12,24 +13,19 @@ interface SendParams {
   preQuantumSeed: string;
   postQuantumSeed: string;
   bundlerUrl: string;
-  log: (msg: string) => void;
-  clear: () => void;
 }
 
 export function useSendTransaction() {
   const queryClient = useQueryClient();
   const { data: walletClient } = useWalletClient();
+  const { log, clear } = useConsoleLog("send");
 
   return useMutation({
     mutationFn: async (params: SendParams) => {
-      const { log, clear } = params;
-
       clear();
 
       if (!params.bundlerUrl) {
-        throw new Error(
-          "Pimlico API key is required!\n\nGet a free API key at: https://dashboard.pimlico.io"
-        );
+        log("⚠️ No Bundler URL provided. Running in DRY-RUN mode.");
       }
 
       if (!params.accountAddress || !params.targetAddress) {
@@ -62,8 +58,8 @@ export function useSendTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["balance"] });
     },
-    onError: (error, variables) => {
-      variables.log("❌ Error: " + (error as Error).message);
+    onError: (error) => {
+      log("❌ Error: " + (error as Error).message);
     },
   });
 }

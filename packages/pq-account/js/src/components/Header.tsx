@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import { useConnect, useConnection, useConnectors, useDisconnect } from "wagmi";
 import { arbitrumSepolia, sepolia } from "wagmi/chains";
 

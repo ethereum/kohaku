@@ -1,19 +1,36 @@
 import { useCallback, useContext } from "react";
 
-import { ConsoleContext } from "../context/console";
+import {
+  ConsoleDispatchContext,
+  ConsoleStateContext,
+} from "../context/console";
+
+export function useConsoleLog(panel: string) {
+  const dispatch = useContext(ConsoleDispatchContext);
+
+  if (!dispatch)
+    throw new Error("useConsoleLog must be used within ConsoleProvider");
+
+  const { log: ctxLog, clear: ctxClear } = dispatch;
+
+  const log = useCallback((msg: string) => ctxLog(panel, msg), [ctxLog, panel]);
+  const clear = useCallback(() => ctxClear(panel), [ctxClear, panel]);
+
+  return { log, clear };
+}
+
+export function useConsoleOutput(panel: string) {
+  const outputs = useContext(ConsoleStateContext);
+
+  if (!outputs)
+    throw new Error("useConsoleOutput must be used within ConsoleProvider");
+
+  return outputs[panel] ?? "";
+}
 
 export function useConsole(panel: string) {
-  const context = useContext(ConsoleContext);
-
-  if (!context)
-    throw new Error("useConsole must be used within ConsoleProvider");
-
-  const log = useCallback(
-    (msg: string) => context.log(panel, msg),
-    [context, panel]
-  );
-  const clear = useCallback(() => context.clear(panel), [context, panel]);
-  const output = context.outputs[panel] ?? "";
+  const { log, clear } = useConsoleLog(panel);
+  const output = useConsoleOutput(panel);
 
   return { output, log, clear };
 }

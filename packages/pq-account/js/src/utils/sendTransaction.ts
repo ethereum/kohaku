@@ -8,7 +8,11 @@ import {
   signUserOpHybrid,
   submitUserOperation,
   updateUserOpWithGasEstimates,
+  UserOperation,
 } from "./userOperation";
+
+const SEPARATOR =
+  "============================================================";
 
 function hexToU8(hex: string): Uint8Array {
   if (hex.startsWith("0x")) hex = hex.slice(2);
@@ -19,6 +23,8 @@ function hexToU8(hex: string): Uint8Array {
 export interface SendTransactionResult {
   success: boolean;
   userOpHash?: string;
+  userOp?: UserOperation;
+  message?: string;
   error?: string;
 }
 
@@ -74,6 +80,23 @@ export async function sendERC4337Transaction(
       secretKey
     );
 
+    if (!bundlerUrl) {
+      log("");
+      log(SEPARATOR);
+      log("⚠️  DRY RUN (No Bundler URL)");
+      log(SEPARATOR);
+      log("✅ UserOperation signed successfully!");
+      log("📝 InitCode: " + userOp.initCode);
+      log("📝 CallData: " + userOp.callData);
+      log(SEPARATOR);
+
+      return {
+        success: true,
+        userOp,
+        message: "Signed (Dry Run)",
+      };
+    }
+
     log("⛽ Estimating gas...");
 
     const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
@@ -98,15 +121,16 @@ export async function sendERC4337Transaction(
     );
 
     log("");
-    log("============================================================");
+    log(SEPARATOR);
     log("🎉 TRANSACTION SUBMITTED!");
-    log("============================================================");
+    log(SEPARATOR);
     log("UserOp Hash: " + userOpHash);
-    log("============================================================");
+    log(SEPARATOR);
 
     return {
       success: true,
       userOpHash,
+      userOp,
     };
   } catch (e) {
     const error = e as { message: string };

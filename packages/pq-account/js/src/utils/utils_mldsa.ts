@@ -163,8 +163,7 @@ export function to_expanded_encoded_bytes(publicKey: Uint8Array): string {
     row.map((col) => col.map((val) => val.toString()))
   );
 
-  const t1_compact_raw = compact_module_256([t1], 32);
-  const t1_compact = t1_compact_raw[0];
+  const [t1_compact] = compact_module_256([t1], 32);
   const t1_stringified = t1_compact.map((row) =>
     row.map((val) => val.toString())
   );
