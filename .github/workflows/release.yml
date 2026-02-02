@@ -4,37 +4,63 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  release:
+  verify:
+    name: Verify
+    uses: ./.github/workflows/verify.yml
+    secrets: inherit
+    permissions:
+      contents: read
+  changesets:
+    name: Changesets
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
-    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup PNPM
-        uses: pnpm/action-setup@v4
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          version: 10
-      - name: Setup Node
-        uses: actions/setup-node@v4
+          build-packages: false
+      - name: Create release PR or publish
+        uses: changesets/action@v1
         with:
-          node-version: 24
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
-      - name: Install
-        run: |
-          pnpm config set auto-install-peers false
-          pnpm install --frozen-lockfile=false
-      - name: Build all packages
-        run: pnpm -r build
-      # - name: Create Release PR or Publish
-      #   uses: changesets/action@v1
-      #   with:
-      #     publish: pnpm release
-      #   env:
-      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      # TODO: setup npm token
+          commit: 'chore: version package'
+          title: 'chore: version package'
+          version: pnpm changeset:version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    name: Release
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          build-packages: true
+
+      - name: Publish to NPM
+        uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc
+        with:
+          createGithubReleases: ${{ github.ref == 'refs/heads/master' }}
+          publish: pnpm changeset:publish
+          version: pnpm changeset:version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

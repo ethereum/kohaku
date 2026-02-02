@@ -1,3 +1,4 @@
+autoInstallPeers: false
 packages:
   - "packages/provider"
   - "packages/railgun"
