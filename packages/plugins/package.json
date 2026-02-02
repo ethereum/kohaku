@@ -1,0 +1,21 @@
+{
+  "name": "@kohaku-eth/plugins",
+  "version": "0.0.1",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.24.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kohaku-eth/provider": "workspace:*",
+    "viem": "^2.44.4"
+  }
+}
