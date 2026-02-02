@@ -54,8 +54,8 @@ export interface ShieldPreparation {
     txns: Array<TxData>;
 }
 
-export interface Operation {
-    inner: unknown;
+export interface PrivateOperation {
+
 }
 
 export type AssetAmount = {
@@ -71,19 +71,19 @@ abstract class Plugin {
         throw new MultiAssetsNotSupportedError();
     }
     
-    abstract prepareUnshield(asset: AssetAmount, to: AccountId): Promise<Operation>;
-    prepareUnshieldMulti(assets: Array<AssetAmount>, to: AccountId): Promise<Operation> {
+    abstract prepareUnshield(asset: AssetAmount, to: AccountId): Promise<PrivateOperation>;
+    prepareUnshieldMulti(assets: Array<AssetAmount>, to: AccountId): Promise<PrivateOperation> {
         throw new MultiAssetsNotSupportedError();
     }
     
-    prepareTransfer(asset: AssetAmount, to: AccountId): Promise<Operation> {
+    prepareTransfer(asset: AssetAmount, to: AccountId): Promise<PrivateOperation> {
         throw new TransferNotSupportedError();
     }
-    prepareTransferMulti(assets: Array<AssetAmount>, to: AccountId): Promise<Operation> {
+    prepareTransferMulti(assets: Array<AssetAmount>, to: AccountId): Promise<PrivateOperation> {
         throw new TransferNotSupportedError();
     }
     
-    abstract broadcast(operation: Operation): Promise<void>;
+    abstract broadcastPrivateOperation(operation: PrivateOperation): Promise<void>;
 }
 ```
 
