@@ -30,7 +30,7 @@ export type AssetAmount = {
 };
 
 /**
- * Plugin interface implemented by all privacy pool plugins.
+ * Plugin interface implemented by all privacy protocol plugins.
  */
 export abstract class Plugin<
     TAssetAmount extends AssetAmount = AssetAmount,

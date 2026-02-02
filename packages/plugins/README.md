@@ -1,6 +1,6 @@
 # Plugins
 
-Kohaku SDK provides a set of privacy pool plugins out-of-the-box. These plugins are used to interface with various privacy pools in a standard way. Plugins can either be bundled with the SDK, or loaded dynamically at runtime by wallets.
+Kohaku SDK provides a set of privacy protocol plugins out-of-the-box. These plugins are used to interface with various privacy pools in a standard way. Plugins can either be bundled with the SDK, or loaded dynamically at runtime by wallets.
 
 ## Interface Outline
 
@@ -46,7 +46,7 @@ export interface EthProvider {
 
 ### Plugin Interface
 
-The plugin interface is implemented by the privacy pool objects. The host should not need to treat any one plugin impl differently from any other.
+The plugin interface is implemented by the privacy protocol objects. The host should not need to treat any one plugin impl differently from any other.
 
 [File: src/plugin.ts](./src/plugin.ts)
 ```ts
