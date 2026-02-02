@@ -8,6 +8,7 @@ export default defineConfig([
       ethers: 'src/ethers/index.ts',
       viem: 'src/viem/index.ts',
       colibri: 'src/colibri/index.ts',
+      helios: 'src/helios/index.ts',
       raw: 'src/raw/index.ts',
     },
     format: ['esm', 'cjs'],
@@ -24,6 +25,7 @@ export default defineConfig([
     tsconfig: 'tsconfig.json',
     external: [
       'ethers',
+      '@a16z/helios',
       '@noble/ed25519',
       'ethereum-cryptography',
       'snarkjs',
