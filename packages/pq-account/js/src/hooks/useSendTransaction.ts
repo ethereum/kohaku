@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWalletClient } from "wagmi";
 
+import { validateSeed } from "../utils/createAccount";
 import { walletClientToEthersProvider } from "../utils/ethersAdapter";
 import { sendERC4337Transaction } from "../utils/sendTransaction";
 import { useConsoleLog } from "./useConsole";
@@ -23,6 +24,9 @@ export function useSendTransaction() {
   return useMutation({
     mutationFn: async (params: SendParams) => {
       clear();
+
+      validateSeed(params.preQuantumSeed, "Pre-quantum seed");
+      validateSeed(params.postQuantumSeed, "Post-quantum seed");
 
       if (!params.bundlerUrl) {
         log("⚠️ No Bundler URL provided. Running in DRY-RUN mode.");

@@ -1,5 +1,5 @@
 import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
-import { BrowserProvider, ethers } from "ethers";
+import { BrowserProvider, ethers, isAddress } from "ethers";
 
 import {
   createBaseUserOperation,
@@ -40,6 +40,14 @@ export async function sendERC4337Transaction(
   log: (msg: string) => void
 ): Promise<SendTransactionResult> {
   try {
+    if (!isAddress(accountAddress)) {
+      throw new Error("Invalid account address: " + accountAddress);
+    }
+
+    if (!isAddress(targetAddress)) {
+      throw new Error("Invalid recipient address: " + targetAddress);
+    }
+
     const network = await provider.getNetwork();
     const value = ethers.parseEther(valueEth);
     const accountBalance = await provider.getBalance(accountAddress);
