@@ -1,14 +1,16 @@
-import { Address } from "viem";
 import { AccountId, AssetId } from "./types";
 import { TxData } from "@kohaku-eth/provider";
 import { MultiAssetsNotSupportedError, TransferNotSupportedError } from "./errors";
 
 /**
  * Shield preparation result containing the necessary transaction data.
+ * 
+ * May be extended by specific plugins to include additional information.
  */
 export interface ShieldPreparation {
     /**
-     * Array of transaction data required to perform the shield operation.
+     * Array of transaction data required to perform the shield operation. Should
+     * be submitted in order by the caller.
      */
     txns: Array<TxData>;
 }
@@ -17,12 +19,9 @@ export interface ShieldPreparation {
  * Represents a generic private operation.  Operations are prepared and executed
  * by plugins to perform state-changing actions such as shielding or unshielding. 
  * 
- * @remarks The inner field contains plugin-specific operation data, which is 
- * intentionally left opaque.
+ * May be extended by specific plugins to include additional information.
  */
-export interface PrivateOperation {
-
-}
+export interface PrivateOperation { }
 
 export type AssetAmount = {
     asset: AssetId;
