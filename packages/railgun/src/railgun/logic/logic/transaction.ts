@@ -13,13 +13,14 @@ import { hash, randomBytes } from '../global/crypto';
 import { hexStringToArray, arrayToBigInt, bigIntToArray, arrayToHexString } from '../global/bytes';
 import { SNARK_SCALAR_FIELD } from '../global/constants';
 import { MerkleTree } from './merkletree';
-import { getKeys, loadArtifacts } from './artifacts';
+import { getKeys } from './artifacts';
 import {
   CommitmentCiphertextStructOutput,
   CommitmentPreimageStructOutput,
   ShieldCiphertextStructOutput,
   TokenDataStructOutput,
 } from '../typechain-types/contracts/logic/RailgunLogic';
+import { RGCircuitGetterFn } from '~/circuits';
 
 export enum UnshieldType {
   NONE = 0,
@@ -562,12 +563,10 @@ async function transact(
   adaptParams: Uint8Array,
   notesIn: Note[],
   notesOut: (Note | UnshieldNote | SendNote)[],
+  get: RGCircuitGetterFn,
 ): Promise<PublicInputs> {
-  // Ensure artifacts are loaded (will throw helpful error if missing)
-  await loadArtifacts();
-
   // Get artifact
-  const artifact = await getKeys(notesIn.length, notesOut.length);
+  const artifact = await getKeys(notesIn.length, notesOut.length, get);
 
   // Get required ciphertext length
   const ciphertextLength = unshield === 0 ? notesOut.length : notesOut.length - 1;

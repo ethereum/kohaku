@@ -1,55 +1,5 @@
-import { rgHttpFetcher } from '~/circuits/fetchers/http';
-import type { Artifact, VKey } from '~/circuits';
+import { getArtifact, listArtifacts, type Artifact, type RGCircuitGetterFn, type VKey } from '~/circuits';
 import { Verifier } from '../typechain-types';
-
-// Lazy-loaded artifacts module
-let artifactsModule: typeof import('../../../circuits') | null = null;
-let artifactsLoadError: Error | null = null;
-
-/**
- * Loads the circuit artifacts module dynamically with helpful error message if missing
- */
-async function loadArtifacts(): Promise<typeof import('../../../circuits')> {
-  if (artifactsModule) {
-    return artifactsModule;
-  }
-
-  if (artifactsLoadError) {
-    throw artifactsLoadError;
-  }
-
-  try {
-    artifactsModule = await import('../../../circuits');
-
-    return artifactsModule;
-  } catch {
-    const installCommand = 'pnpm add @railgun-community/circuit-artifacts@https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz';
-    const errorMessage = 
-      `\n❌ Missing required dependency: @railgun-community/circuit-artifacts\n\n` +
-      `   Transfer and unshield operations require proof generation, which needs circuit artifacts.\n` +
-      `   Please install the package:\n\n` +
-      `   ${installCommand}\n\n` +
-      `   See README for more details.\n`;
-
-    artifactsLoadError = new Error(errorMessage);
-    throw artifactsLoadError;
-  }
-}
-
-/**
- * Gets the artifacts module, loading it if necessary
- * This is synchronous for backward compatibility but will throw if not loaded
- */
-function getArtifacts(): typeof import('../../../circuits') {
-  if (!artifactsModule) {
-    throw new Error(
-      'Circuit artifacts not loaded. Call ensureArtifactsLoaded() first, or use async functions.\n' +
-      'Install with: pnpm add @railgun-community/circuit-artifacts@https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz'
-    );
-  }
-
-  return artifactsModule;
-}
 
 export interface SolidityG1Point {
   x: bigint;
@@ -256,10 +206,9 @@ function formatVKeyMatcher(vkey: VKey): EventVKeyMatcher {
  * @param commitments - commitment count
  * @returns keys
  */
-async function getKeys(nullifiers: number, commitments: number): Promise<FormattedArtifact> {
+async function getKeys(nullifiers: number, commitments: number, get: RGCircuitGetterFn): Promise<FormattedArtifact> {
   // Get artifact or undefined
-  const artifacts = getArtifacts();
-  const artifact = await artifacts.getArtifact(nullifiers, commitments, rgHttpFetcher);
+  const artifact = await getArtifact(nullifiers, commitments, get);
 
   // Get format solidity vkey
   const artifactFormatted: FormattedArtifact = {
@@ -276,15 +225,14 @@ async function getKeys(nullifiers: number, commitments: number): Promise<Formatt
  *
  * @returns nullifier -\> commitments -\> keys
  */
-async function allArtifacts(): Promise<(undefined | (undefined | FormattedArtifact)[])[]> {
+async function allArtifacts(get: RGCircuitGetterFn): Promise<(undefined | (undefined | FormattedArtifact)[])[]> {
   // Map each existing artifact to formatted artifact
   const circuitArtifacts: (undefined | (undefined | FormattedArtifact)[])[] = [];
-  const artifacts = getArtifacts();
 
   for (const circuit of circuitList) {
     if (!circuitArtifacts[circuit.nullifiers]) circuitArtifacts[circuit.nullifiers] = [];
 
-    const artifact = await artifacts.getArtifact(circuit.nullifiers, circuit.commitments, rgHttpFetcher);
+    const artifact = await getArtifact(circuit.nullifiers, circuit.commitments, get);
 
     // @ts-expect-error will always be set above
     circuitArtifacts[circuit.nullifiers][circuit.commitments] = {
@@ -312,11 +260,9 @@ function availableArtifacts() {
  * @param verifierContract - verifier Contract
  * @returns complete
  */
-async function loadAllArtifacts(verifierContract: Verifier) {
-  const artifacts = await loadArtifacts();
-
-  for (const artifactConfig of artifacts.listArtifacts()) {
-    const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
+async function loadAllArtifacts(verifierContract: Verifier, get: RGCircuitGetterFn) {
+  for (const artifactConfig of listArtifacts()) {
+    const artifact = await getKeys(artifactConfig.nullifiers, artifactConfig.commitments, get);
 
     await (
       await verifierContract.setVerificationKey(
@@ -334,11 +280,9 @@ async function loadAllArtifacts(verifierContract: Verifier) {
  * @param verifierContract - verifier Contract
  * @returns complete
  */
-async function loadAvailableArtifacts(verifierContract: Verifier) {
-  await loadArtifacts();
-
+async function loadAvailableArtifacts(verifierContract: Verifier, get: RGCircuitGetterFn) {
   for (const artifactConfig of availableArtifacts()) {
-    const artifact = getKeys(artifactConfig.nullifiers, artifactConfig.commitments);
+    const artifact = await getKeys(artifactConfig.nullifiers, artifactConfig.commitments, get);
 
     await (
       await verifierContract.setVerificationKey(
@@ -358,5 +302,4 @@ export {
   availableArtifacts,
   loadAllArtifacts,
   loadAvailableArtifacts,
-  loadArtifacts,
 };

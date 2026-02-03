@@ -1,7 +1,7 @@
 import { RGCircuitGetterFn } from "..";
 
-export const rgHttpFetcher: RGCircuitGetterFn = async (path: string) => {
-  const response = await fetch(`https://raw.githubusercontent.com/lucemans/railguntemp/refs/heads/master/package/${path}`);
+export const rgHttpFetcher = (baseUrl: string): RGCircuitGetterFn => async (path: string) => {
+  const response = await fetch(baseUrl + path);
 
   return Buffer.from(await response.arrayBuffer());
 }
