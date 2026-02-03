@@ -97,15 +97,6 @@ importers:
       '@types/buffer-xor':
         specifier: ^2.0.0
         version: 2.0.2
-      '@types/chai':
-        specifier: ^4.3.20
-        version: 4.3.20
-      '@types/chai-as-promised':
-        specifier: ^7.1.8
-        version: 7.1.8
-      '@types/mocha':
-        specifier: ^10.0.10
-        version: 10.0.10
       '@types/node':
         specifier: ^24.1.0
         version: 24.5.0
@@ -198,8 +189,8 @@ importers:
         version: 5.9.0
     devDependencies:
       '@railgun-community/circuit-artifacts':
-        specifier: https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz
-        version: https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz
+        specifier: https://ipfs-lb.com/ipfs/QmPvs6Lws1MS4CTMAQ6P3WfyFpWFKGu7o6cSbWCu3vgXLW/railgun-circuit-test-artifacts-0.0.1.tgz
+        version: railgun-circuit-test-artifacts@https://ipfs-lb.com/ipfs/QmPvs6Lws1MS4CTMAQ6P3WfyFpWFKGu7o6cSbWCu3vgXLW/railgun-circuit-test-artifacts-0.0.1.tgz
       '@typechain/ethers-v6':
         specifier: ^0.5.1
         version: 0.5.1(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.9.3)
@@ -1765,10 +1756,6 @@ packages:
 
   '@railgun-community/circomlibjs@0.0.8':
     resolution: {integrity: sha512-ZqDUxS1DkxoZ7Nz6n1awTBjFaunDR64WQSwj2XtGOjx3ZQVpaVoSaIxbp0egsZPzyr70uRm7PQ76ZDeUwLyNkg==}
-
-  '@railgun-community/circuit-artifacts@https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz':
-    resolution: {tarball: https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz}
-    version: 0.0.1
 
   '@railgun-community/curve25519-scalarmult-wasm@0.1.5':
     resolution: {integrity: sha512-Cur8uM/IdNW3WzUwdPloDG1CF0rpSBDWq2yGXJMZ7IMeBGdc4Jj0h9tnNMFRZ35ZuCVVbZ3yClmqSa4PsbpdGQ==}
@@ -5417,6 +5404,10 @@ packages:
       '@types/react-dom':
         optional: true
 
+  railgun-circuit-test-artifacts@https://ipfs-lb.com/ipfs/QmPvs6Lws1MS4CTMAQ6P3WfyFpWFKGu7o6cSbWCu3vgXLW/railgun-circuit-test-artifacts-0.0.1.tgz:
+    resolution: {tarball: https://ipfs-lb.com/ipfs/QmPvs6Lws1MS4CTMAQ6P3WfyFpWFKGu7o6cSbWCu3vgXLW/railgun-circuit-test-artifacts-0.0.1.tgz}
+    version: 0.0.1
+
   randombytes@2.1.0:
     resolution: {integrity: sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==}
 
@@ -8507,10 +8498,6 @@ snapshots:
       - encoding
       - supports-color
       - utf-8-validate
-
-  '@railgun-community/circuit-artifacts@https://npm.railgun.org/railgun-community-circuit-artifacts-0.0.1.tgz':
-    dependencies:
-      brotli: 1.3.3
 
   '@railgun-community/curve25519-scalarmult-wasm@0.1.5': {}
 
@@ -13001,6 +12988,10 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
     optionalDependencies:
       '@types/react': 19.2.10
+
+  railgun-circuit-test-artifacts@https://ipfs-lb.com/ipfs/QmPvs6Lws1MS4CTMAQ6P3WfyFpWFKGu7o6cSbWCu3vgXLW/railgun-circuit-test-artifacts-0.0.1.tgz:
+    dependencies:
+      brotli: 1.3.3
 
   randombytes@2.1.0:
     dependencies:
