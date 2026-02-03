@@ -90,46 +90,6 @@ importers:
         version: 2.37.9(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)
 
   packages/provider:
-    dependencies:
-      '@noble/ciphers':
-        specifier: ^1.0.0
-        version: 1.3.0
-      '@noble/ed25519':
-        specifier: ^1.7.1
-        version: 1.7.5
-      '@noble/hashes':
-        specifier: 1.8.0
-        version: 1.8.0
-      '@railgun-community/circomlibjs':
-        specifier: 0.0.8
-        version: 0.0.8(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@railgun-community/curve25519-scalarmult-wasm':
-        specifier: 0.1.5
-        version: 0.1.5
-      '@railgun-community/poseidon-hash-wasm':
-        specifier: 1.0.1
-        version: 1.0.1
-      '@scure/base':
-        specifier: ^2.0.0
-        version: 2.0.0
-      browserify-aes:
-        specifier: ^1.2.0
-        version: 1.2.0
-      buffer-xor:
-        specifier: ^2.0.2
-        version: 2.0.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      ethereum-cryptography:
-        specifier: ^3.2.0
-        version: 3.2.0
-      fast-text-encoding:
-        specifier: ^1.0.6
-        version: 1.0.6
-      ts-pattern:
-        specifier: ^5.4.0
-        version: 5.9.0
     devDependencies:
       '@typechain/ethers-v6':
         specifier: ^0.5.1
@@ -143,9 +103,6 @@ importers:
       '@types/chai-as-promised':
         specifier: ^7.1.8
         version: 7.1.8
-      '@types/circomlibjs':
-        specifier: ^0.1.6
-        version: 0.1.6
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
