@@ -27,38 +27,40 @@ export type ArtifactConfig = {
   commitments: number;
 }
 
-const cache: Record<number, Record<number, Artifact>> = {};
-
 export type RGCircuitGetterFn = (path: string) => Promise<Buffer>;
 
-export async function getArtifact(nullifiers: number, commitments: number, get: RGCircuitGetterFn): Promise<Artifact> {
+const cache: Record<number, Record<number, Artifact>> = {};
+
+export const getArtifact = async (nullifiers: number, commitments: number, get: RGCircuitGetterFn): Promise<Artifact> => {
   if (!cache[nullifiers]) {
     cache[nullifiers] = [];
   }
 
   if (!cache[nullifiers][commitments]) {
+    const [zkey, wasm, vkey] = await Promise.all([
+      get(`${nullifiers}x${commitments}/zkey.br`).then(decompress),
+      get(`${nullifiers}x${commitments}/wasm.br`).then(decompress),
+      get(`${nullifiers}x${commitments}/vkey.json`).then(x => x.toString('utf-8')).then(JSON.parse),
+    ]);
+
     cache[nullifiers][commitments] = {
-      zkey: decompress(
-        await get(`${nullifiers}x${commitments}/zkey.br`)
-      ),
-      wasm: decompress(
-        await get(`${nullifiers}x${commitments}/wasm.br`)
-      ),
-      vkey: JSON.parse((await get(`${nullifiers}x${commitments}/vkey.json`)).toString('utf-8')),
+      zkey,
+      wasm,
+      vkey,
     };
   }
 
   return cache[nullifiers][commitments];
 }
 
-export async function getVKey(nullifiers: number, commitments: number, get: RGCircuitGetterFn): Promise<VKey> {
+export const getVKey = async (nullifiers: number, commitments: number, get: RGCircuitGetterFn): Promise<VKey> => {
   if (!cache[nullifiers] || !cache[nullifiers][commitments]) {
-    return JSON.parse((await get(`${nullifiers}x${commitments}/vkey.json`)).toString('utf-8'));
+    return get(`${nullifiers}x${commitments}/vkey.json`).then(x => x.toString('utf-8')).then(JSON.parse);
   }
 
   return cache[nullifiers][commitments].vkey;
 }
 
-export function listArtifacts(): ArtifactConfig[] {
+export const listArtifacts = (): ArtifactConfig[] => {
   return artifacts;
 }
