@@ -81,6 +81,7 @@
     "@railgun-community/curve25519-scalarmult-wasm": "0.1.5",
     "@railgun-community/poseidon-hash-wasm": "1.0.1",
     "@scure/base": "^2.0.0",
+    "brotli": "^1.3.3",
     "browserify-aes": "^1.2.0",
     "buffer-xor": "^2.0.2",
     "circomlibjs": "^0.1.7",
@@ -89,8 +90,8 @@
     "ts-pattern": "^5.4.0"
   },
   "devDependencies": {
-    "@railgun-community/circuit-artifacts": "https://ipfs-lb.com/ipfs/QmPvs6Lws1MS4CTMAQ6P3WfyFpWFKGu7o6cSbWCu3vgXLW/railgun-circuit-test-artifacts-0.0.1.tgz",
     "@typechain/ethers-v6": "^0.5.1",
+    "@types/brotli": "^1.3.4",
     "@types/buffer-xor": "^2.0.0",
     "@types/chai": "^4.3.20",
     "@types/chai-as-promised": "^7.1.8",

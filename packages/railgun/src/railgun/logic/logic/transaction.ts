@@ -567,7 +567,7 @@ async function transact(
   await loadArtifacts();
 
   // Get artifact
-  const artifact = getKeys(notesIn.length, notesOut.length);
+  const artifact = await getKeys(notesIn.length, notesOut.length);
 
   // Get required ciphertext length
   const ciphertextLength = unshield === 0 ? notesOut.length : notesOut.length - 1;
