@@ -1,0 +1,218 @@
+[
+  {
+    "nullifiers": 10,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 10,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 10,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 10,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 11,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 12,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 13,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 10
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 13
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 1,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 2,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 2,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 2,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 2,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 2,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 3,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 3,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 3,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 3,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 3,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 4,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 4,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 4,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 4,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 4,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 5,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 5,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 5,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 5,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 5,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 6,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 6,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 6,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 6,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 6,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 7,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 7,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 7,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 7,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 7,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 8,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 8,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 8,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 8,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 8,
+    "commitments": 5
+  },
+  {
+    "nullifiers": 9,
+    "commitments": 1
+  },
+  {
+    "nullifiers": 9,
+    "commitments": 2
+  },
+  {
+    "nullifiers": 9,
+    "commitments": 3
+  },
+  {
+    "nullifiers": 9,
+    "commitments": 4
+  },
+  {
+    "nullifiers": 9,
+    "commitments": 5
+  }
+]

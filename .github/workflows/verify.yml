@@ -1,0 +1,54 @@
+name: Verify
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+    check:
+        name: Check
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+        steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Setup workspace
+          uses: ./.github/actions/setup-workspace
+        - name: Audit dependencies
+          run: pnpm audit
+          continue-on-error: true
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+        steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Setup workspace
+          uses: ./.github/actions/setup-workspace
+          with:
+            build-packages: true
+    tests:
+        name: Tests
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+        steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Setup workspace
+          uses: ./.github/actions/setup-workspace
+          with:
+            build-packages: true
+        - name: Run tests
+          uses: nick-fields/retry@v3
+          with:
+            timeout_minutes: 10
+            max_attempts: 3
+            command: pnpm test
+          env:
+            SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
