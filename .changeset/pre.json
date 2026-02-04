@@ -3,9 +3,13 @@
   "tag": "alpha",
   "initialVersions": {
     "@kohaku-eth/provider": "0.0.1-alpha.1",
-    "@kohaku-eth/railgun": "0.0.1-alpha.3"
+    "@kohaku-eth/railgun": "0.0.1-alpha.3",
+    "docs": "0.0.0",
+    "@kohaku-eth/privacy-pools": "0.0.1-alpha.1"
   },
-  "changesets": [],
+  "changesets": [
+    "clear-views-sing"
+  ],
   "ignore": [
     "docs",
     "@kohaku-eth/privacy-pools"
