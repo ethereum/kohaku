@@ -1,0 +1,13 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@kohaku-eth/provider": "0.0.1-alpha.1",
+    "@kohaku-eth/railgun": "0.0.1-alpha.3"
+  },
+  "changesets": [],
+  "ignore": [
+    "docs",
+    "@kohaku-eth/privacy-pools"
+  ]
+}
