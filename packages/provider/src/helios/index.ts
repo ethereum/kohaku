@@ -14,6 +14,8 @@ export type { NetworkKind, Config, HeliosProvider, Network  } from "@a16z/helios
  */
 export async function helios(config: Config, kind: NetworkKind): Promise<EthereumProvider<HeliosProvider>> {
     const client = await createHeliosProvider(config, kind);
+ 
+    await client.waitSynced();
 
     return {
         ...raw(client as unknown as Eip1193Like),
