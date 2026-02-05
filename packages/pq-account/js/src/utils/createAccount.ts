@@ -1,6 +1,7 @@
 import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
 import { ethers, Signer } from "ethers";
 
+import { hexToU8 } from "./hex.js";
 import { to_expanded_encoded_bytes } from "./utils_mldsa.js";
 
 const SEPARATOR =
@@ -19,15 +20,6 @@ export type DeploymentResult = {
   error?: string;
   gasUsed?: string;
   actualCost?: string;
-};
-
-const hexToU8 = (hex: string): Uint8Array => {
-  if (hex.startsWith("0x")) hex = hex.slice(2);
-
-  if (hex.length !== 64)
-    throw new Error("Seed must be 32 bytes (64 hex chars)");
-
-  return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
 };
 
 export const validateSeed = (seed: string, name: string): void => {
@@ -49,7 +41,7 @@ export const getPublicKeys = (
   postQuantumSeed: string
 ) => {
   const preQuantumPubKey = new ethers.Wallet(preQuantumSeed).address;
-  const { publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+  const { publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed, 32));
   const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
 
   return { preQuantumPubKey, postQuantumPubKey };

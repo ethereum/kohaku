@@ -1,10 +1,9 @@
 import { Field, useForm } from "@tanstack/react-form";
 import { useState } from "react";
-import { formatEther } from "viem";
+import { type Address, formatEther, isAddress } from "viem";
 import { useBalance, useConnection } from "wagmi";
 
 import { getFactoryAddress } from "../config/wagmi";
-import { useAccountBalance } from "../hooks/useAccountBalance";
 import { useConsole } from "../hooks/useConsole";
 import { useDeployAccount } from "../hooks/useDeployAccount";
 import { useFundAccount } from "../hooks/useFundAccount";
@@ -46,11 +45,22 @@ export const CreateAccountPanel = () => {
 
   const { address, chain } = useConnection();
   const { data: walletBalanceData } = useBalance({ address });
-  const { data: newAccountBalance } = useAccountBalance(deployedAddress);
+  const { data: newAccountBalanceData } = useBalance({
+    address:
+      deployedAddress && isAddress(deployedAddress)
+        ? (deployedAddress as Address)
+        : undefined,
+    query: {
+      enabled: !!deployedAddress && isAddress(deployedAddress),
+    },
+  });
 
   const factoryAddress = getFactoryAddress(chain?.id);
   const walletBalance = walletBalanceData
     ? `${formatEther(walletBalanceData.value).slice(0, 10)} ETH`
+    : "—";
+  const newAccountBalance = newAccountBalanceData
+    ? `${formatEther(newAccountBalanceData.value).slice(0, 10)} ETH`
     : "—";
 
   const deployMutation = useDeployAccount();
@@ -193,7 +203,7 @@ export const CreateAccountPanel = () => {
             </label>
             <div className="bg-bg-primary border border-border rounded-lg px-4 py-2.5">
               <span className="font-mono text-sm text-text-primary font-medium">
-                {newAccountBalance ?? "—"} ETH
+                {newAccountBalance}
               </span>
             </div>
           </div>

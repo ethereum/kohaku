@@ -1,6 +1,7 @@
 import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
 import { BrowserProvider, ethers, isAddress } from "ethers";
 
+import { hexToU8 } from "./hex.js";
 import {
   createBaseUserOperation,
   ENTRY_POINT_ADDRESS,
@@ -13,12 +14,6 @@ import {
 
 const SEPARATOR =
   "============================================================";
-
-const hexToU8 = (hex: string): Uint8Array => {
-  if (hex.startsWith("0x")) hex = hex.slice(2);
-
-  return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
-};
 
 export type SendTransactionResult = {
   success: boolean;
@@ -64,7 +59,7 @@ export const sendERC4337Transaction = async (
       log("");
     }
 
-    const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+    const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed, 32));
 
     log("📝 Creating UserOperation...");
 

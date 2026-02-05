@@ -77,4 +77,4 @@ export const useTokenBalances = (
   };
 
   return { balances, refetch };
-}
+};

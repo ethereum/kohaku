@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 
 import App from "./App";
+import { AavePanel } from "./components/AavePanel";
 import { CreateAccountPanel } from "./components/CreateAccountPanel";
 import { SendTransactionPanel } from "./components/SendTransactionPanel";
 
@@ -31,10 +32,17 @@ const sendTransactionRoute = createRoute({
   component: SendTransactionPanel,
 });
 
+const aaveRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/aave",
+  component: AavePanel,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   createAccountRoute,
   sendTransactionRoute,
+  aaveRoute,
 ]);
 
 export const router = createRouter({ routeTree });
