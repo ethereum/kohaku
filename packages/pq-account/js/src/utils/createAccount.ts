@@ -28,7 +28,9 @@ export const validateSeed = (seed: string, name: string): void => {
   }
 
   if (seed.length !== 66) {
-    throw new Error(`${name} must be 32 bytes`);
+    throw new Error(
+      `${name} must be 32 bytes (66 characters including 0x, got ${seed.length})`
+    );
   }
 
   if (!/^0x[0-9a-fA-F]{64}$/.test(seed)) {
@@ -156,28 +158,73 @@ export const deployERC4337Account = async (
       }
     );
 
-    log("✅ Transaction signed: " + tx.hash);
-    log("⏳ Waiting for confirmation...");
+    const txHash = tx.hash;
 
-    const receipt = await tx.wait();
+    log("✅ Transaction signed!");
+    log("   Transaction hash: " + txHash);
+    log("   Waiting for confirmation...");
 
-    const actualCost = receipt!.gasUsed * (receipt!.gasPrice ?? 0n);
+    let receipt = null;
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    while (!receipt && attempts < maxAttempts) {
+      try {
+        receipt = await provider.getTransactionReceipt(txHash);
+
+        if (!receipt) {
+          attempts++;
+          const elapsed = attempts * 5;
+
+          log("  ⏳ Waiting... " + elapsed + "s elapsed");
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (error) {
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
+
+    if (!receipt) {
+      log("");
+      log("⚠️  Transaction is taking longer than expected");
+
+      return {
+        success: false,
+        error: "Transaction timeout",
+        transactionHash: txHash,
+      };
+    }
+
+    if (receipt.status === 0) {
+      log("");
+      log("❌ Transaction failed (reverted)");
+
+      return {
+        success: false,
+        error: "Transaction reverted",
+        transactionHash: txHash,
+      };
+    }
+
+    const actualCost = receipt.gasUsed * (receipt.gasPrice ?? 0n);
 
     log("");
     log(SEPARATOR);
     log("🎉 DEPLOYMENT COMPLETE!");
     log(SEPARATOR);
     log("🔐 ERC4337 Account: " + expectedAddress);
-    log("📝 Transaction: " + tx.hash);
-    log("⛽ Gas used: " + receipt!.gasUsed.toString());
+    log("📝 Transaction: " + txHash);
+    log("⛽ Gas used: " + receipt.gasUsed.toString());
     log("💸 Actual cost: " + ethers.formatEther(actualCost) + " ETH");
     log(SEPARATOR);
 
     return {
       success: true,
       address: expectedAddress,
-      transactionHash: tx.hash,
-      gasUsed: receipt!.gasUsed.toString(),
+      transactionHash: txHash,
+      gasUsed: receipt.gasUsed.toString(),
       actualCost: ethers.formatEther(actualCost),
     };
   } catch (e) {

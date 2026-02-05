@@ -12,9 +12,6 @@ import {
   UserOperation,
 } from "./userOperation";
 
-const SEPARATOR =
-  "============================================================";
-
 export type SendTransactionResult = {
   success: boolean;
   userOpHash?: string;
@@ -82,20 +79,17 @@ export const sendERC4337Transaction = async (
       secretKey
     );
 
-    if (!bundlerUrl) {
-      log("");
-      log(SEPARATOR);
-      log("⚠️  DRY RUN (No Bundler URL)");
-      log(SEPARATOR);
-      log("✅ UserOperation signed successfully!");
-      log("📝 InitCode: " + userOp.initCode);
-      log("📝 CallData: " + userOp.callData);
-      log(SEPARATOR);
+    if (
+      !bundlerUrl ||
+      bundlerUrl.trim() === "" ||
+      bundlerUrl.includes("example.com")
+    ) {
+      log("ℹ️  No valid bundler URL provided");
 
       return {
         success: true,
         userOp,
-        message: "Signed (Dry Run)",
+        message: "UserOperation created and signed (bundler needed to submit)",
       };
     }
 
@@ -114,26 +108,37 @@ export const sendERC4337Transaction = async (
       secretKey
     );
 
-    log("📤 Submitting to bundler...");
+    try {
+      log("📤 Submitting to bundler...");
 
-    const userOpHash = await submitUserOperation(
-      userOp,
-      bundlerUrl,
-      ENTRY_POINT_ADDRESS
-    );
+      const userOpHash = await submitUserOperation(
+        userOp,
+        bundlerUrl,
+        ENTRY_POINT_ADDRESS
+      );
 
-    log("");
-    log(SEPARATOR);
-    log("🎉 TRANSACTION SUBMITTED!");
-    log(SEPARATOR);
-    log("UserOp Hash: " + userOpHash);
-    log(SEPARATOR);
+      log("");
+      log("=".repeat(60));
+      log("🎉 TRANSACTION SUBMITTED!");
+      log("=".repeat(60));
 
-    return {
-      success: true,
-      userOpHash,
-      userOp,
-    };
+      return {
+        success: true,
+        userOpHash: userOpHash,
+      };
+    } catch (error) {
+      log("❌ Failed to submit to bundler: " + (error as Error).message);
+      log("");
+      log("The UserOperation was created and signed correctly,");
+      log("but submission to the bundler failed.");
+      log("Please check your bundler URL and try again.");
+
+      return {
+        success: false,
+        error: (error as Error).message,
+        userOp: userOp,
+      };
+    }
   } catch (e) {
     const error = e as { message: string };
 
