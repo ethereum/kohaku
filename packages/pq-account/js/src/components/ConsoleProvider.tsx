@@ -10,7 +10,7 @@ const INITIAL_OUTPUTS: Record<string, string> = {
   send: "Ready to send transaction...\n\n⚠️ Don't forget to enter your Pimlico API key!",
 };
 
-export function ConsoleProvider({ children }: { children: ReactNode }) {
+export const ConsoleProvider = ({ children }: { children: ReactNode }) => {
   const [outputs, setOutputs] =
     useState<Record<string, string>>(INITIAL_OUTPUTS);
 
@@ -34,4 +34,4 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
       </ConsoleDispatchContext.Provider>
     </ConsoleStateContext.Provider>
   );
-}
+};

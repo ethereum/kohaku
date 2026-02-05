@@ -1,37 +1,37 @@
 import "./styles/globals.css";
 
-import { useState } from "react";
+import { Outlet } from "@tanstack/react-router";
 
-import { CreateAccountPanel } from "./components/CreateAccountPanel";
 import { Header } from "./components/Header";
-import { SendTransactionPanel } from "./components/SendTransactionPanel";
 import { Tabs } from "./components/Tabs";
 
-function App() {
-  const [activeTab, setActiveTab] = useState<"create" | "send">("create");
-
+const App = () => {
   return (
     <>
       <Header />
 
-      <main className="main-container">
-        <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <main className="max-w-4xl mx-auto px-6 py-8">
+        <Tabs />
 
-        {activeTab === "create" && <CreateAccountPanel />}
-
-        {activeTab === "send" && <SendTransactionPanel />}
+        <Outlet />
       </main>
 
-      <footer className="footer">
-        <p>
-          <a href="https://zknox.com" target="_blank" rel="noopener noreferrer">
+      <footer className="text-center py-12 border-t border-border mt-12">
+        <p className="text-sm text-text-muted">
+          <a
+            href="https://zknox.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:text-accent-hover transition-colors font-medium"
+          >
             ZKNOX
-          </a>{" "}
-          — Post-Quantum Security for Ethereum
+          </a>
+          {" — "}
+          Post-Quantum Security for Ethereum
         </p>
       </footer>
     </>
   );
-}
+};
 
 export default App;

@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { WagmiProvider } from "wagmi";
 
-import App from "./App.tsx";
 import { ConsoleProvider } from "./components/ConsoleProvider";
 import { wagmiConfig } from "./config/wagmi";
+import { router } from "./router";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,7 @@ createRoot(document.getElementById("root")!).render(
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <ConsoleProvider>
-          <App />
+          <RouterProvider router={router} />
         </ConsoleProvider>
       </QueryClientProvider>
     </WagmiProvider>

@@ -1,25 +1,32 @@
-interface TabsProps {
-  activeTab: "create" | "send";
-  onTabChange: (tab: "create" | "send") => void;
-}
+import { Link } from "@tanstack/react-router";
 
-export function Tabs({ activeTab, onTabChange }: TabsProps) {
+export const Tabs = () => {
   return (
-    <div className="tabs">
-      <button
-        className={`tab ${activeTab === "create" ? "active" : ""}`}
-        onClick={() => onTabChange("create")}
+    <div className="inline-flex gap-2 mb-6 bg-bg-tertiary p-1 rounded-lg border border-border">
+      <Link
+        to="/create"
+        className="px-4 py-2 text-sm font-medium transition-colors rounded-md"
+        activeProps={{
+          className: "bg-bg-secondary text-text-primary shadow-sm",
+        }}
+        inactiveProps={{
+          className: "text-text-secondary hover:text-text-primary",
+        }}
       >
-        <span className="tab-icon">🔐</span>
         Create Account
-      </button>
-      <button
-        className={`tab ${activeTab === "send" ? "active" : ""}`}
-        onClick={() => onTabChange("send")}
+      </Link>
+      <Link
+        to="/send"
+        className="px-4 py-2 text-sm font-medium transition-colors rounded-md"
+        activeProps={{
+          className: "bg-bg-secondary text-text-primary shadow-sm",
+        }}
+        inactiveProps={{
+          className: "text-text-secondary hover:text-text-primary",
+        }}
       >
-        <span className="tab-icon">📤</span>
         Send Transaction
-      </button>
+      </Link>
     </div>
   );
-}
+};

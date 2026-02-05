@@ -6,7 +6,7 @@ import { walletClientToEthersProvider } from "../utils/ethersAdapter";
 import { sendERC4337Transaction } from "../utils/sendTransaction";
 import { useConsoleLog } from "./useConsole";
 
-interface SendParams {
+type SendParams = {
   accountAddress: string;
   targetAddress: string;
   sendValue: string;
@@ -14,9 +14,9 @@ interface SendParams {
   preQuantumSeed: string;
   postQuantumSeed: string;
   bundlerUrl: string;
-}
+};
 
-export function useSendTransaction() {
+export const useSendTransaction = () => {
   const queryClient = useQueryClient();
   const { data: walletClient } = useWalletClient();
   const { log, clear } = useConsoleLog("send");
@@ -66,4 +66,4 @@ export function useSendTransaction() {
       log("❌ Error: " + (error as Error).message);
     },
   });
-}
+};

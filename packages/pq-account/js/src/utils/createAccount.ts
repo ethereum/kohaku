@@ -1,7 +1,7 @@
 import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
-import { BrowserProvider, ethers } from "ethers";
+import { ethers, Signer } from "ethers";
 
-import { to_expanded_encoded_bytes } from "./utils_mldsa";
+import { to_expanded_encoded_bytes } from "./utils_mldsa.js";
 
 const SEPARATOR =
   "============================================================";
@@ -11,7 +11,7 @@ const ACCOUNT_FACTORY_ABI = [
   "function getAddress(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external view returns (address payable)",
 ];
 
-export interface DeploymentResult {
+export type DeploymentResult = {
   success: boolean;
   address?: string;
   transactionHash?: string;
@@ -19,18 +19,18 @@ export interface DeploymentResult {
   error?: string;
   gasUsed?: string;
   actualCost?: string;
-}
+};
 
-function hexToU8(hex: string): Uint8Array {
+const hexToU8 = (hex: string): Uint8Array => {
   if (hex.startsWith("0x")) hex = hex.slice(2);
 
   if (hex.length !== 64)
     throw new Error("Seed must be 32 bytes (64 hex chars)");
 
   return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
-}
+};
 
-export function validateSeed(seed: string, name: string): void {
+export const validateSeed = (seed: string, name: string): void => {
   if (!seed.startsWith("0x")) {
     throw new Error(`${name} must start with "0x"`);
   }
@@ -42,18 +42,32 @@ export function validateSeed(seed: string, name: string): void {
   if (!/^0x[0-9a-fA-F]{64}$/.test(seed)) {
     throw new Error(`${name} contains invalid hex`);
   }
-}
+};
 
-export async function deployERC4337Account(
-  factoryAddress: string,
+export const getPublicKeys = (
   preQuantumSeed: string,
-  postQuantumSeed: string,
-  provider: BrowserProvider,
+  postQuantumSeed: string
+) => {
+  const preQuantumPubKey = new ethers.Wallet(preQuantumSeed).address;
+  const { publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+  const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
+
+  return { preQuantumPubKey, postQuantumPubKey };
+};
+
+export const deployERC4337Account = async (
+  factoryAddress: string,
+  preQuantumPubKey: string,
+  postQuantumPubKey: string,
+  signer: Signer,
   log: (msg: string) => void
-): Promise<DeploymentResult> {
+): Promise<DeploymentResult> => {
   try {
+    const { provider } = signer;
+
+    if (!provider) throw new Error("Signer must have a provider");
+
     log("🔌 Connecting to wallet...");
-    const signer = await provider.getSigner();
 
     const address = await signer.getAddress();
     const balance = await provider.getBalance(address);
@@ -64,11 +78,6 @@ export async function deployERC4337Account(
     log("   Balance: " + ethers.formatEther(balance) + " ETH");
     log("   Network: " + network.name + " (Chain ID: " + network.chainId + ")");
     log("");
-
-    // Generate keys
-    const preQuantumPubKey = new ethers.Wallet(preQuantumSeed).address;
-    const { publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
-    const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
 
     log("📦 Deploying ERC4337 Account...");
 
@@ -121,12 +130,21 @@ export async function deployERC4337Account(
     // Estimate and deploy
     log("");
     log("⛽ Estimating gas...");
-    const estimatedGas = await factory.createAccount.estimateGas(
-      preQuantumPubKey,
-      postQuantumPubKey
-    );
 
-    log("   Estimated: " + estimatedGas.toString());
+    let estimatedGas;
+
+    try {
+      estimatedGas = await factory.createAccount.estimateGas(
+        preQuantumPubKey,
+        postQuantumPubKey
+      );
+      log("   Estimated: " + estimatedGas.toString());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      log("⚠️  Gas estimation failed: " + error.message);
+      estimatedGas = 5000000n;
+      log("   Using default gas limit: " + estimatedGas.toString());
+    }
 
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n;
@@ -184,4 +202,4 @@ export async function deployERC4337Account(
       error: error.message,
     };
   }
-}
+};

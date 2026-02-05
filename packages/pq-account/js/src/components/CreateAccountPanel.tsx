@@ -10,7 +10,7 @@ import { useDeployAccount } from "../hooks/useDeployAccount";
 import { useFundAccount } from "../hooks/useFundAccount";
 import { Console } from "./Console";
 
-export function CreateAccountPanel() {
+export const CreateAccountPanel = () => {
   const { output, log } = useConsole("create");
 
   const form = useForm({
@@ -35,7 +35,7 @@ export function CreateAccountPanel() {
             }
           },
           onError: (error) => {
-            log("❌ " + error.message);
+            log("Error: " + error.message);
           },
         }
       );
@@ -62,7 +62,7 @@ export function CreateAccountPanel() {
 
   const handleFundAccount = () => {
     if (!deployedAddress) {
-      log("❌ No account address! Deploy an account first.");
+      log("Error: No account address! Deploy an account first.");
 
       return;
     }
@@ -73,175 +73,160 @@ export function CreateAccountPanel() {
   };
 
   return (
-    <div className={`panel active`}>
-      <div className="warning-box">
-        <span className="warning-box-icon">⚠️</span>
-        <div>
-          <strong>Security Note:</strong> These seeds will generate your
-          account's public keys. Do not use real seeds in production on a public
-          website. This is for testing purposes only.
+    <div className="animate-fadeIn">
+      <div className="bg-bg-secondary border border-border rounded-lg p-6 mb-4">
+        <div className="mb-5">
+          <h3 className="text-base font-semibold text-text-primary mb-1">
+            Configuration
+          </h3>
+          <p className="text-sm text-text-muted">
+            Network and account settings
+          </p>
         </div>
-      </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div className="card-icon">⚙️</div>
+        <div className="space-y-4">
           <div>
-            <div className="card-title">Configuration</div>
-            <div className="card-subtitle">Network and account settings</div>
-          </div>
-        </div>
-
-        <div className="form-row single">
-          <div className="form-group">
-            <label className="form-label">Factory Address</label>
-            <div className="static-info">
-              <span
-                className="value"
-                style={{
-                  fontFamily: "JetBrains Mono, monospace",
-                  fontSize: "0.8rem",
-                }}
-              >
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Factory Address
+            </label>
+            <div className="bg-bg-primary border border-border rounded-lg px-4 py-3">
+              <span className="font-mono text-sm text-text-secondary">
                 {factoryAddress}
               </span>
             </div>
           </div>
-        </div>
 
-        <div className="form-row single">
-          <div className="form-group">
-            <label className="form-label">Connected Wallet Balance</label>
-            <div className="balance-display">
-              <span className="balance-label">ETH:</span>
-              <span className="balance-value">{walletBalance}</span>
-            </div>
-            <div className="form-hint">
-              Balance of your connected wallet (used for gas)
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Connected Wallet Balance
+            </label>
+            <div className="bg-bg-primary border border-border rounded-lg px-4 py-2.5">
+              <span className="font-mono text-sm text-text-primary font-medium">
+                {walletBalance}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div className="card-icon">🔑</div>
-          <div>
-            <div className="card-title">Signing Keys</div>
-            <div className="card-subtitle">
-              Generate deterministic keypairs from seeds
-            </div>
-          </div>
+      <div className="bg-bg-secondary border border-border rounded-lg p-6 mb-4">
+        <div className="mb-5">
+          <h3 className="text-base font-semibold text-text-primary mb-1">
+            Signing Keys
+          </h3>
+          <p className="text-sm text-text-muted">
+            Generate deterministic keypairs from seeds
+          </p>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Pre-Quantum Seed (ECDSA)</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Pre-Quantum Seed (ECDSA)
+            </label>
             <Field
               form={form}
               name="preQuantumSeed"
               children={(field) => (
                 <input
                   type="text"
-                  className="form-input"
+                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
               )}
             />
-            <div className="form-hint">32 bytes for ECDSA key generation</div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Post-Quantum Seed (ML-DSA-44)</label>
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Post-Quantum Seed (ML-DSA-44)
+            </label>
             <Field
               form={form}
               name="postQuantumSeed"
               children={(field) => (
                 <input
                   type="text"
-                  className="form-input"
+                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
               )}
             />
-            <div className="form-hint">32 bytes for ML-DSA key generation</div>
           </div>
         </div>
       </div>
 
       <button
-        className="btn btn-primary"
+        className="w-full bg-accent hover:bg-accent-hover text-white py-3 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4 hover:shadow-md active:scale-[0.99]"
         onClick={handleDeploy}
         disabled={deployMutation.isPending}
       >
-        <span>🚀</span>
-        {deployMutation.isPending
-          ? "Deploying..."
-          : "Connect Wallet & Deploy Account"}
+        {deployMutation.isPending ? "Deploying..." : "Deploy Account"}
       </button>
 
-      <div className="card" style={{ marginTop: "1.5rem" }}>
-        <div className="card-header">
-          <div className="card-icon">💰</div>
-          <div>
-            <div className="card-title">Send ETH to New Account</div>
-            <div className="card-subtitle">Fund your ERC4337 account</div>
-          </div>
+      <div className="bg-bg-secondary border border-border rounded-lg p-6">
+        <div className="mb-5">
+          <h3 className="text-base font-semibold text-text-primary mb-1">
+            Fund Account
+          </h3>
+          <p className="text-sm text-text-muted">
+            Send ETH to your deployed account
+          </p>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">New Account Address</label>
-            <div className="balance-display" style={{ flex: 1 }}>
-              <span
-                className="balance-value"
-                style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}
-              >
-                {deployedAddress || "Deploy first to see address"}
+        <div className="space-y-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Account Address
+            </label>
+            <div className="bg-bg-primary border border-border rounded-lg px-4 py-2.5">
+              <span className="font-mono text-sm text-text-secondary">
+                {deployedAddress || "Deploy account first"}
               </span>
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">New Account Balance</label>
-            <div className="balance-display">
-              <span className="balance-label">ETH:</span>
-              <span className="balance-value">{newAccountBalance ?? "—"}</span>
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Balance
+            </label>
+            <div className="bg-bg-primary border border-border rounded-lg px-4 py-2.5">
+              <span className="font-mono text-sm text-text-primary font-medium">
+                {newAccountBalance ?? "—"} ETH
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Amount to Send (ETH)</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Amount (ETH)
+            </label>
             <Field
               form={form}
               name="fundAmount"
               children={(field) => (
                 <input
                   type="text"
-                  className="form-input"
+                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
               )}
             />
-            <div className="form-hint">
-              ETH to transfer from connected wallet
-            </div>
           </div>
-          <div
-            className="form-group"
-            style={{ display: "flex", alignItems: "flex-end" }}
-          >
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              &nbsp;
+            </label>
             <button
-              className="btn btn-secondary"
+              className="w-full bg-bg-tertiary hover:bg-accent hover:text-white border border-border text-text-primary py-2.5 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-sm active:scale-[0.99]"
               onClick={handleFundAccount}
               disabled={fundMutation.isPending}
-              style={{ width: "100%" }}
             >
-              <span>📤</span>
-              {fundMutation.isPending ? "Sending..." : "Send ETH to Account"}
+              {fundMutation.isPending ? "Sending..." : "Send ETH"}
             </button>
           </div>
         </div>
@@ -250,4 +235,4 @@ export function CreateAccountPanel() {
       <Console output={output} />
     </div>
   );
-}
+};

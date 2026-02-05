@@ -3,7 +3,16 @@ import { arbitrumSepolia, sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
 import deploymentsData from "../../../deployments/deployments.json";
-import type { Deployments } from "../types";
+
+export type Deployments = {
+  [network: string]: {
+    accounts?: {
+      [mode: string]: {
+        address: string;
+      };
+    };
+  };
+};
 
 export const deployments = deploymentsData as Deployments;
 
@@ -21,7 +30,7 @@ export const wagmiConfig = createConfig({
   },
 });
 
-export function getFactoryAddress(chainId: number | undefined): string {
+export const getFactoryAddress = (chainId: number | undefined): string => {
   if (!chainId) return "—";
 
   const networkKey = chainToDeploymentKey[chainId];
@@ -34,4 +43,4 @@ export function getFactoryAddress(chainId: number | undefined): string {
     deployments[networkKey]?.accounts?.[accountMode]?.address ??
     "Not deployed on this network"
   );
-}
+};

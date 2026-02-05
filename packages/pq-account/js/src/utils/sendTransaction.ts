@@ -14,21 +14,21 @@ import {
 const SEPARATOR =
   "============================================================";
 
-function hexToU8(hex: string): Uint8Array {
+const hexToU8 = (hex: string): Uint8Array => {
   if (hex.startsWith("0x")) hex = hex.slice(2);
 
   return Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
-}
+};
 
-export interface SendTransactionResult {
+export type SendTransactionResult = {
   success: boolean;
   userOpHash?: string;
   userOp?: UserOperation;
   message?: string;
   error?: string;
-}
+};
 
-export async function sendERC4337Transaction(
+export const sendERC4337Transaction = async (
   accountAddress: string,
   targetAddress: string,
   valueEth: string,
@@ -38,7 +38,7 @@ export async function sendERC4337Transaction(
   provider: BrowserProvider,
   bundlerUrl: string,
   log: (msg: string) => void
-): Promise<SendTransactionResult> {
+): Promise<SendTransactionResult> => {
   try {
     if (!isAddress(accountAddress)) {
       throw new Error("Invalid account address: " + accountAddress);
@@ -64,7 +64,6 @@ export async function sendERC4337Transaction(
       log("");
     }
 
-    // Generate keys
     const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
 
     log("📝 Creating UserOperation...");
@@ -150,4 +149,4 @@ export async function sendERC4337Transaction(
       error: error.message,
     };
   }
-}
+};

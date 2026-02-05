@@ -9,7 +9,7 @@ const ACCOUNT_ABI = [
   "function getNonce() external view returns (uint256)",
 ];
 
-export interface UserOperation {
+export type UserOperation = {
   sender: string;
   nonce: bigint;
   initCode: string;
@@ -19,34 +19,34 @@ export interface UserOperation {
   gasFees: string;
   paymasterAndData: string;
   signature: string;
-}
+};
 
-export interface GasEstimates {
+export type GasEstimates = {
   verificationGasLimit: bigint;
   callGasLimit: bigint;
   preVerificationGas: bigint;
-}
+};
 
-function packUint128(a: bigint, b: bigint): string {
+const packUint128 = (a: bigint, b: bigint): string => {
   return ethers.solidityPacked(["uint128", "uint128"], [a, b]);
-}
+};
 
-function unpackUint128(packed: string): [bigint, bigint] {
+const unpackUint128 = (packed: string): [bigint, bigint] => {
   const bytes = ethers.getBytes(packed);
   const first = BigInt("0x" + ethers.hexlify(bytes.slice(0, 16)).slice(2));
   const second = BigInt("0x" + ethers.hexlify(bytes.slice(16, 32)).slice(2));
 
   return [first, second];
-}
+};
 
-export async function createBaseUserOperation(
+export const createBaseUserOperation = async (
   accountAddress: string,
   targetAddress: string,
   value: bigint,
   callData: string,
   provider: BrowserProvider,
   bundlerUrl: string
-): Promise<UserOperation> {
+): Promise<UserOperation> => {
   const account = new ethers.Contract(accountAddress, ACCOUNT_ABI, provider);
 
   let nonce: bigint;
@@ -108,9 +108,9 @@ export async function createBaseUserOperation(
   };
 
   return baseUserOp;
-}
+};
 
-export function userOpToBundlerFormat(userOp: UserOperation) {
+export const userOpToBundlerFormat = (userOp: UserOperation) => {
   const [verificationGasLimit, callGasLimit] = unpackUint128(
     userOp.accountGasLimits
   );
@@ -127,12 +127,12 @@ export function userOpToBundlerFormat(userOp: UserOperation) {
     maxPriorityFeePerGas: "0x" + maxPriorityFeePerGas.toString(16),
     signature: userOp.signature,
   };
-}
+};
 
-export async function estimateUserOperationGas(
+export const estimateUserOperationGas = async (
   userOp: UserOperation,
   bundlerUrl: string
-): Promise<GasEstimates> {
+): Promise<GasEstimates> => {
   const userOpForBundler = userOpToBundlerFormat(userOp);
 
   try {
@@ -194,12 +194,12 @@ export async function estimateUserOperationGas(
       preVerificationGas: userOp.preVerificationGas,
     };
   }
-}
+};
 
-export function updateUserOpWithGasEstimates(
+export const updateUserOpWithGasEstimates = (
   userOp: UserOperation,
   gasEstimates: GasEstimates
-): UserOperation {
+): UserOperation => {
   return {
     ...userOp,
     accountGasLimits: packUint128(
@@ -208,13 +208,13 @@ export function updateUserOpWithGasEstimates(
     ),
     preVerificationGas: gasEstimates.preVerificationGas,
   };
-}
+};
 
-export function getUserOpHash(
+export const getUserOpHash = (
   userOp: UserOperation,
   entryPointAddress: string,
   chainId: bigint
-): string {
+): string => {
   const initCodeHash = ethers.keccak256(userOp.initCode);
   const callDataHash = ethers.keccak256(userOp.callData);
   const paymasterHash = ethers.keccak256(userOp.paymasterAndData);
@@ -250,42 +250,42 @@ export function getUserOpHash(
   const userOpHash = ethers.keccak256(finalEncoded);
 
   return userOpHash;
-}
+};
 
-export async function signUserOpPreQuantum(
+export const signUserOpPreQuantum = async (
   userOp: UserOperation,
   entryPointAddress: string,
   chainId: bigint,
   privateKey: string
-): Promise<string> {
+): Promise<string> => {
   const wallet = new ethers.Wallet(privateKey);
   const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
   const signature = wallet.signingKey.sign(userOpHash).serialized;
 
   return signature;
-}
+};
 
-export async function signUserOpPostQuantum(
+export const signUserOpPostQuantum = async (
   userOp: UserOperation,
   entryPointAddress: string,
   chainId: bigint,
   mldsaSecretKey: Uint8Array
-): Promise<string> {
+): Promise<string> => {
   const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
   const userOpHashBytes = ethers.getBytes(userOpHash);
   const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey);
   const signatureHex = ethers.hexlify(signature);
 
   return signatureHex;
-}
+};
 
-export async function signUserOpHybrid(
+export const signUserOpHybrid = async (
   userOp: UserOperation,
   entryPointAddress: string,
   chainId: bigint,
   preQuantumPrivateKey: string,
   postQuantumSecretKey: Uint8Array
-): Promise<string> {
+): Promise<string> => {
   const preQuantumSig = await signUserOpPreQuantum(
     userOp,
     entryPointAddress,
@@ -307,13 +307,13 @@ export async function signUserOpHybrid(
   );
 
   return hybridSignature;
-}
+};
 
-export async function submitUserOperation(
+export const submitUserOperation = async (
   userOp: UserOperation,
   bundlerUrl: string,
   entryPointAddress: string
-): Promise<string> {
+): Promise<string> => {
   const userOpForBundler = userOpToBundlerFormat(userOp);
 
   console.log("📤 Submitting UserOperation to bundler...");
@@ -341,4 +341,4 @@ export async function submitUserOperation(
   console.log("✅ UserOperation submitted successfully");
 
   return result.result;
-}
+};

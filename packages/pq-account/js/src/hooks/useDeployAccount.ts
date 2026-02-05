@@ -1,17 +1,21 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWalletClient } from "wagmi";
 
-import { deployERC4337Account, validateSeed } from "../utils/createAccount";
+import {
+  deployERC4337Account,
+  getPublicKeys,
+  validateSeed,
+} from "../utils/createAccount";
 import { walletClientToEthersProvider } from "../utils/ethersAdapter";
 import { useConsoleLog } from "./useConsole";
 
-interface DeployParams {
+type DeployParams = {
   factoryAddress: string;
   preQuantumSeed: string;
   postQuantumSeed: string;
-}
+};
 
-export function useDeployAccount() {
+export const useDeployAccount = () => {
   const queryClient = useQueryClient();
   const { data: walletClient } = useWalletClient();
   const { log, clear } = useConsoleLog("create");
@@ -40,12 +44,18 @@ export function useDeployAccount() {
       }
 
       const provider = walletClientToEthersProvider(walletClient);
+      const signer = await provider.getSigner();
+
+      const { preQuantumPubKey, postQuantumPubKey } = getPublicKeys(
+        preQuantumSeed,
+        postQuantumSeed
+      );
 
       return deployERC4337Account(
         factoryAddress,
-        preQuantumSeed,
-        postQuantumSeed,
-        provider,
+        preQuantumPubKey,
+        postQuantumPubKey,
+        signer,
         log
       );
     },
@@ -53,4 +63,4 @@ export function useDeployAccount() {
       queryClient.invalidateQueries({ queryKey: ["balance"] });
     },
   });
-}
+};

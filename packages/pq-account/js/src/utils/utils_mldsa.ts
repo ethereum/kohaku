@@ -1,13 +1,13 @@
 import { shake128, shake256 } from "@noble/hashes/sha3.js";
 import { ethers } from "ethers";
 
-function RejectionSamplePoly(
+const RejectionSamplePoly = (
   rho: Uint8Array,
   i: number,
   j: number,
   N = 256,
   q = 8380417
-): Int32Array {
+): Int32Array => {
   const seed = new Uint8Array(rho.length + 2);
 
   seed.set(rho, 0);
@@ -36,13 +36,13 @@ function RejectionSamplePoly(
   }
 
   return r;
-}
+};
 
-export function recoverAhat(
+export const recoverAhat = (
   rho: Uint8Array,
   K: number,
   L: number
-): Int32Array[][] {
+): Int32Array[][] => {
   const A_hat: Int32Array[][] = [];
 
   for (let i = 0; i < K; i++) {
@@ -55,12 +55,12 @@ export function recoverAhat(
   }
 
   return A_hat;
-}
+};
 
 const N = 256;
 const newPoly = (): Int32Array => new Int32Array(N);
 
-function polyDecode10Bits(bytes: Uint8Array): Int32Array {
+const polyDecode10Bits = (bytes: Uint8Array): Int32Array => {
   const n = 256;
   const poly = newPoly();
   let r = 0n;
@@ -74,13 +74,15 @@ function polyDecode10Bits(bytes: Uint8Array): Int32Array {
   }
 
   return poly;
-}
+};
 
-export function decodePublicKey(publicKey: Uint8Array): {
+export const decodePublicKey = (
+  publicKey: Uint8Array
+): {
   rho: Uint8Array;
   t1: Int32Array[];
   tr: Uint8Array;
-} {
+} => {
   const RHO_BYTES = 32;
   const K = 4;
   const T1_POLY_BYTES = 320;
@@ -102,12 +104,12 @@ export function decodePublicKey(publicKey: Uint8Array): {
   const tr = shake256(new Uint8Array(publicKey), { dkLen: 64 });
 
   return { rho, t1, tr };
-}
+};
 
-export function compact_module_256(
+export const compact_module_256 = (
   data: Int32Array[][],
   m: number
-): bigint[][][] {
+): bigint[][][] => {
   const res: bigint[][][] = [];
 
   for (const row of data) {
@@ -120,9 +122,9 @@ export function compact_module_256(
   }
 
   return res;
-}
+};
 
-export function compact_poly_256(coeffs: Int32Array, m: number): bigint[] {
+export const compact_poly_256 = (coeffs: Int32Array, m: number): bigint[] => {
   if (m >= 256) throw new Error("m must be less than 256");
 
   if ((coeffs.length * m) % 256 !== 0)
@@ -152,9 +154,9 @@ export function compact_poly_256(coeffs: Int32Array, m: number): bigint[] {
   }
 
   return b;
-}
+};
 
-export function to_expanded_encoded_bytes(publicKey: Uint8Array): string {
+export const to_expanded_encoded_bytes = (publicKey: Uint8Array): string => {
   const { rho, t1, tr } = decodePublicKey(publicKey);
 
   const A_hat = recoverAhat(rho, 4, 4);
@@ -176,4 +178,4 @@ export function to_expanded_encoded_bytes(publicKey: Uint8Array): string {
     ["bytes", "bytes", "bytes"],
     [aHatEncoded, tr, t1Encoded]
   );
-}
+};

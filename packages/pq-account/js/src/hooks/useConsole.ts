@@ -5,7 +5,7 @@ import {
   ConsoleStateContext,
 } from "../context/console";
 
-export function useConsoleLog(panel: string) {
+export const useConsoleLog = (panel: string) => {
   const dispatch = useContext(ConsoleDispatchContext);
 
   if (!dispatch)
@@ -17,20 +17,20 @@ export function useConsoleLog(panel: string) {
   const clear = useCallback(() => ctxClear(panel), [ctxClear, panel]);
 
   return { log, clear };
-}
+};
 
-export function useConsoleOutput(panel: string) {
+export const useConsoleOutput = (panel: string) => {
   const outputs = useContext(ConsoleStateContext);
 
   if (!outputs)
     throw new Error("useConsoleOutput must be used within ConsoleProvider");
 
   return outputs[panel] ?? "";
-}
+};
 
-export function useConsole(panel: string) {
+export const useConsole = (panel: string) => {
   const { log, clear } = useConsoleLog(panel);
   const output = useConsoleOutput(panel);
 
   return { output, log, clear };
-}
+};

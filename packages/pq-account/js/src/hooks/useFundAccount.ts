@@ -10,12 +10,12 @@ import { useConsoleLog } from "./useConsole";
 const SEPARATOR =
   "============================================================";
 
-interface FundParams {
+type FundParams = {
   address: string;
   amount: string;
-}
+};
 
-export function useFundAccount() {
+export const useFundAccount = () => {
   const queryClient = useQueryClient();
   const { mutateAsync: sendTransactionAsync } = useWagmiSendTransaction();
   const publicClient = usePublicClient();
@@ -80,4 +80,4 @@ export function useFundAccount() {
       }
     },
   });
-}
+};
