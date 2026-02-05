@@ -1,12 +1,17 @@
 {
   "name": "@kohaku-eth/provider",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.1-alpha.2",
   "description": "Omni provider helpers that wrap Ethers, Viem, and Colibri.",
   "type": "module",
   "private": false,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/provider"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -79,28 +84,9 @@
       "optional": true
     }
   },
-  "dependencies": {
-    "@noble/ciphers": "^1.0.0",
-    "@noble/ed25519": "^1.7.1",
-    "@noble/hashes": "1.8.0",
-    "@railgun-community/circomlibjs": "0.0.8",
-    "@railgun-community/curve25519-scalarmult-wasm": "0.1.5",
-    "@railgun-community/poseidon-hash-wasm": "1.0.1",
-    "@scure/base": "^2.0.0",
-    "browserify-aes": "^1.2.0",
-    "buffer-xor": "^2.0.2",
-    "circomlibjs": "^0.1.7",
-    "ethereum-cryptography": "^3.2.0",
-    "fast-text-encoding": "^1.0.6",
-    "ts-pattern": "^5.4.0"
-  },
   "devDependencies": {
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",
-    "@types/chai": "^4.3.20",
-    "@types/chai-as-promised": "^7.1.8",
-    "@types/circomlibjs": "^0.1.6",
-    "@types/mocha": "^10.0.10",
     "@types/node": "^24.1.0",
     "chai": "^4.5.0",
     "chai-as-promised": "^7.1.2",

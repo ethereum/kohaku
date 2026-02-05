@@ -3,7 +3,7 @@
   "version": "0.0.1-alpha.1",
   "description": "Simplified Privacy Pools TS utils",
   "type": "module",
-  "private": false,
+  "private": true,
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

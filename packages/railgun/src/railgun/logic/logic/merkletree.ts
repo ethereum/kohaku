@@ -128,8 +128,23 @@ class MerkleTree {
 
   generateProof(element: Uint8Array): MerkleProof {
     const elements: Uint8Array[] = [];
-    // @ts-expect-error tree is defined
-    const initialIndex = this.tree[0].map(arrayToBigInt).indexOf(arrayToBigInt(element));
+    const elementBigInt = arrayToBigInt(element);
+
+    // Find element index - must use explicit loop to preserve sparse array indices
+    // Using .map().indexOf() on sparse arrays returns dense indices, not sparse ones
+    let initialIndex = -1;
+
+    // @ts-expect-error tree[0] is defined
+    for (let i = 0; i < this.tree[0].length; i++) {
+      // @ts-expect-error tree[0] is defined
+      const leaf = this.tree[0][i];
+
+      if (leaf && arrayToBigInt(leaf) === elementBigInt) {
+        initialIndex = i;
+        break;
+      }
+    }
+
     let index = initialIndex;
 
     if (index === -1) {

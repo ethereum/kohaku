@@ -9,10 +9,12 @@
     "lint:fix": "pnpm -r lint:fix",
     "test": "pnpm -r test",
     "dev:docs": "pnpm --filter docs dev",
-    "release": "changeset publish"
+    "changeset": "changeset",
+    "changeset:publish": "changeset publish",
+    "changeset:version": "changeset version && pnpm install --ignore-scripts"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.8",
+    "@changesets/cli": "^2.29.5",
     "@eslint/js": "^9.9.0",
     "@stylistic/eslint-plugin": "^5.5.0",
     "eslint": "^9.9.0",

@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZKNOX - Quantum-Resistant ERC4337</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #030712;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --bg-card: #16161f;
+            --border-color: #2a2a3a;
+            --border-hover: #3a3a4a;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --accent-primary: #8b5cf6;
+            --accent-secondary: #a78bfa;
+            --accent-glow: rgba(139, 92, 246, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --gradient-1: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+            --gradient-2: linear-gradient(135deg, #1a1a24 0%, #12121a 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        /* Kohaku-style ambient background effects */
+        body::before {
+            content: "";
+            pointer-events: none;
+            z-index: -1;
+            background: 
+                radial-gradient(80% 50% at 50% -20%, rgba(0, 245, 255, 0.08), transparent),
+                radial-gradient(60% 40% at 100% 0%, rgba(100, 150, 255, 0.04), transparent),
+                radial-gradient(50% 30% at 0% 100%, rgba(0, 245, 255, 0.05), transparent);
+            position: fixed;
+            inset: 0;
+        }
+
+        body::after {
+            content: "";
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.5;
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            position: fixed;
+            inset: 0;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(3, 7, 18, 0.95);
+            border-bottom: 1px solid rgba(0, 245, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        .logo a {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+        }
+
+        .logo img {
+            height: 45px;
+            width: auto;
+        }
+
+        .header-center {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 2;
+            justify-content: center;
+        }
+
+        .header-mascot {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .header-mascot img {
+            height: 50px;
+            width: auto;
+        }
+
+        .wallet-status {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .network-warning {
+            font-size: 0.75rem;
+            color: var(--warning);
+            padding: 0.25rem 0.5rem;
+            background: rgba(245, 158, 11, 0.15);
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .disconnect-btn {
+            padding: 0.4rem 0.75rem;
+            background: transparent;
+            border: 1px solid var(--error);
+            border-radius: 6px;
+            color: var(--error);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .disconnect-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ff6b6b;
+        }
+
+        .balance-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .balance-display .balance-label {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .balance-display .balance-value {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--error);
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            background: var(--bg-secondary);
+            padding: 0.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .tab.active {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .tab-icon {
+            font-size: 1.1rem;
+        }
+
+        /* Panels */
+        .panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .card-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Info Box */
+        .info-box {
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .info-box-icon {
+            color: var(--accent-primary);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .info-box a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .info-box a:hover {
+            text-decoration: underline;
+        }
+
+        /* Warning Box */
+        .warning-box {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .warning-box-icon {
+            color: var(--warning);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        /* Form Elements */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-row.single {
+            grid-template-columns: 1fr;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.4rem;
+        }
+
+        .form-hint a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        .form-hint a:hover {
+            text-decoration: underline;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        /* Static Info */
+        .static-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .static-info .label {
+            color: var(--text-muted);
+        }
+
+        .static-info .value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--accent-secondary);
+            border: 1px solid var(--accent-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(139, 92, 246, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Output Console */
+        .console {
+            background: #0d0d12;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-top: 1.5rem;
+            overflow: hidden;
+        }
+
+        .console-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .console-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .console-dot.red { background: #ff5f56; }
+        .console-dot.yellow { background: #ffbd2e; }
+        .console-dot.green { background: #27ca40; }
+
+        .console-title {
+            margin-left: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .console-output {
+            padding: 1rem 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: #a0f0a0;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .console-output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .console-output::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .console-output::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--accent-secondary);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Animations */
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <a href="https://zknox.com" target="_blank">
+                    <img src="./zknox-logo.png" alt="ZKNOX">
+                </a>
+            </div>
+            <div class="header-center">
+                <button class="disconnect-btn" id="disconnectBtn" style="display: none;" onclick="disconnectWallet()">
+                    Disconnect
+                </button>
+                <div class="wallet-status">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="walletNetwork">Connect Extension</span>
+                </div>
+                <div class="network-warning" id="networkWarning" style="display: none;">
+                    ⚠️ Not supported yet
+                </div>
+            </div>
+            <div class="header-mascot">
+                <img src="./koi-logo.png" alt="Koi Mascot">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="create">
+                <span class="tab-icon">🔐</span>
+                Create Account
+            </button>
+            <button class="tab" data-tab="send">
+                <span class="tab-icon">📤</span>
+                Send Transaction
+            </button>
+        </div>
+
+        <!-- Create Account Panel -->
+        <div class="panel active" id="panel-create">
+            <div class="warning-box">
+                <span class="warning-box-icon">⚠️</span>
+                <div>
+                    <strong>Security Note:</strong> These seeds will generate your account's public keys. 
+                    Do not use real seeds in production on a public website. This is for testing purposes only.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">⚙️</div>
+                    <div>
+                        <div class="card-title">Configuration</div>
+                        <div class="card-subtitle">Network and account settings</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Account Mode</label>
+                        <select class="form-select" id="accountMode">
+                            <option value="mldsa_k1">ML-DSA + ECDSA-K1 (Hybrid)</option>
+                        </select>
+                        <div class="form-hint">Post-quantum + classical signature scheme</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Factory Address</label>
+                        <div class="static-info">
+                            <span class="value" id="factoryAddress" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row single">
+                    <div class="form-group">
+                        <label class="form-label">Connected Wallet Balance</label>
+                        <div class="balance-display">
+                            <span class="balance-label">ETH:</span>
+                            <span class="balance-value" id="walletBalance">—</span>
+                        </div>
+                        <div class="form-hint">Balance of your connected wallet (used for gas)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🔑</div>
+                    <div>
+                        <div class="card-title">Signing Keys</div>
+                        <div class="card-subtitle">Generate deterministic keypairs from seeds</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Pre-Quantum Seed (ECDSA)</label>
+                        <input type="text" class="form-input" id="createPreQuantumSeed" 
+                               value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                        <div class="form-hint">32 bytes for ECDSA key generation</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Post-Quantum Seed (ML-DSA-44)</label>
+                        <input type="text" class="form-input" id="createPostQuantumSeed" 
+                               value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                        <div class="form-hint">32 bytes for ML-DSA key generation</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="deployBtn">
+                <span>🚀</span>
+                Connect Wallet & Deploy Account
+            </button>
+
+            <div class="card" id="fundAccountCard" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div class="card-icon">💰</div>
+                    <div>
+                        <div class="card-title">Send ETH to New Account</div>
+                        <div class="card-subtitle">Fund your ERC4337 account</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">New Account Address</label>
+                        <div class="balance-display" style="flex: 1;">
+                            <span class="balance-value" id="newAccountAddress" style="color: var(--text-secondary); font-size: 0.8rem;">Deploy first to see address</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">New Account Balance</label>
+                        <div class="balance-display">
+                            <span class="balance-label">ETH:</span>
+                            <span class="balance-value" id="newAccountBalance">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Amount to Send (ETH)</label>
+                        <input type="text" class="form-input" id="fundAmount" value="0.01">
+                        <div class="form-hint">ETH to transfer from connected wallet</div>
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <button class="btn btn-secondary" id="fundAccountBtn" style="width: 100%;">
+                            <span>📤</span>
+                            Send ETH to Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="console">
+                <div class="console-header">
+                    <span class="console-dot red"></span>
+                    <span class="console-dot yellow"></span>
+                    <span class="console-dot green"></span>
+                    <span class="console-title">Output</span>
+                </div>
+                <div class="console-output" id="createOutput">Ready to deploy quantum-resistant account...</div>
+            </div>
+        </div>
+
+        <!-- Send Transaction Panel -->
+        <div class="panel" id="panel-send">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">📡</div>
+                    <div>
+                        <div class="card-title">Bundler Configuration</div>
+                        <div class="card-subtitle">ERC4337 transaction relay service</div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <span class="info-box-icon">ℹ️</span>
+                    <div>
+                        A bundler is required to submit ERC4337 transactions. 
+                        Get a free API key from <a href="https://dashboard.pimlico.io" target="_blank">Pimlico Dashboard →</a>
+                    </div>
+                </div>
+
+                <div class="form-row single">
+                    <div class="form-group">
+                        <label class="form-label">Pimlico API Key</label>
+                        <input type="text" class="form-input" id="pimlicoApiKey" 
+                               placeholder="pim_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                        <div class="form-hint">
+                            Don't have an API key? <a href="https://dashboard.pimlico.io" target="_blank">Create one for free →</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">📋</div>
+                    <div>
+                        <div class="card-title">Transaction Details</div>
+                        <div class="card-subtitle">Configure your transfer</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Your ERC4337 Account</label>
+                        <input type="text" class="form-input" id="accountAddress" 
+                               placeholder="0x...">
+                        <div class="form-hint">The account you deployed</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Account Balance</label>
+                        <div class="balance-display">
+                            <span class="balance-label">ETH:</span>
+                            <span class="balance-value" id="erc4337Balance">—</span>
+                        </div>
+                        <div class="form-hint">Balance of your ERC4337 account</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Recipient Address</label>
+                        <input type="text" class="form-input" id="targetAddress" 
+                               placeholder="0x...">
+                        <div class="form-hint">Where to send ETH</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Amount (ETH)</label>
+                        <input type="text" class="form-input" id="sendValue" value="0.0001">
+                        <div class="form-hint">Amount of ETH to send</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Call Data</label>
+                        <input type="text" class="form-input" id="callData" value="0x">
+                        <div class="form-hint">Leave as 0x for simple transfer</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🔑</div>
+                    <div>
+                        <div class="card-title">Signing Keys</div>
+                        <div class="card-subtitle">Same seeds used to create the account</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Pre-Quantum Seed (ECDSA)</label>
+                        <input type="text" class="form-input" id="sendPreQuantumSeed" 
+                               value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Post-Quantum Seed (ML-DSA-44)</label>
+                        <input type="text" class="form-input" id="sendPostQuantumSeed" 
+                               value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="sendTxBtn">
+                <span>📤</span>
+                Sign & Submit UserOperation
+            </button>
+
+            <div class="console">
+                <div class="console-header">
+                    <span class="console-dot red"></span>
+                    <span class="console-dot yellow"></span>
+                    <span class="console-dot green"></span>
+                    <span class="console-title">Output</span>
+                </div>
+                <div class="console-output" id="sendOutput">Ready to send transaction...
+
+⚠️ Don't forget to enter your Pimlico API key!</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p><a href="https://zknox.com" target="_blank">ZKNOX</a> — Post-Quantum Security for Ethereum</p>
+    </footer>
+
+    <!-- Global state for bundler -->
+    <script>
+        window.bundlerUrlValue = { url: '', chainId: '421614' };
+        
+        window.getBundlerUrl = function() {
+            const apiKey = document.getElementById('pimlicoApiKey').value.trim();
+            const chainId = window.bundlerUrlValue.chainId || '421614';
+            if (!apiKey) return '';
+            return `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
+        };
+    </script>
+
+    <!-- Tab Navigation -->
+    <script>
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+    </script>
+
+    <!-- Network Detection -->
+    <script type="module">
+        import deployments from '../deployments/deployments.json' assert { type: 'json' };
+        import { ethers } from 'ethers';
+
+        const networksMap = {
+            '0x1': { key: 'ethereum', name: 'Ethereum', chainId: '1', supported: false },
+            '0x5': { key: 'goerli', name: 'Goerli', chainId: '5', supported: false },
+            '0xaa36a7': { key: 'sepolia', name: 'Sepolia', chainId: '11155111', supported: true },
+            '0x66eee': { key: 'arbitrumSepolia', name: 'Arbitrum Sepolia', chainId: '421614', supported: true }
+        };
+
+        let isConnected = false;
+
+        async function updateWalletBalance() {
+            const balanceSpan = document.getElementById('walletBalance');
+            if (!window.ethereum || !isConnected) {
+                balanceSpan.textContent = '—';
+                return;
+            }
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const accounts = await provider.listAccounts();
+                if (accounts.length > 0) {
+                    const balance = await provider.getBalance(accounts[0].address);
+                    balanceSpan.textContent = ethers.formatEther(balance).slice(0, 10) + ' ETH';
+                } else {
+                    balanceSpan.textContent = '—';
+                }
+            } catch (err) {
+                balanceSpan.textContent = '—';
+            }
+        }
+
+        async function updateERC4337Balance() {
+            const balanceSpan = document.getElementById('erc4337Balance');
+            const accountAddress = document.getElementById('accountAddress').value.trim();
+            
+            if (!window.ethereum || !accountAddress || !ethers.isAddress(accountAddress)) {
+                balanceSpan.textContent = '—';
+                return;
+            }
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const balance = await provider.getBalance(accountAddress);
+                balanceSpan.textContent = ethers.formatEther(balance).slice(0, 10) + ' ETH';
+            } catch (err) {
+                balanceSpan.textContent = '—';
+            }
+        }
+
+        function updateUI(chainId) {
+            const network = networksMap[chainId?.toLowerCase()];
+            const walletSpan = document.getElementById('walletNetwork');
+            const statusDot = document.getElementById('statusDot');
+            const factorySpan = document.getElementById('factoryAddress');
+            const networkWarning = document.getElementById('networkWarning');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            if (network) {
+                walletSpan.textContent = network.name;
+                statusDot.classList.add('connected');
+                disconnectBtn.style.display = 'block';
+                isConnected = true;
+                window.bundlerUrlValue.chainId = network.chainId;
+
+                // Show warning for unsupported networks
+                if (network.supported) {
+                    networkWarning.style.display = 'none';
+                } else {
+                    networkWarning.style.display = 'block';
+                }
+
+                // Update factory address
+                const accountMode = 'mldsa_k1';
+                if (deployments[network.key]?.accounts?.[accountMode]) {
+                    factorySpan.textContent = deployments[network.key].accounts[accountMode].address;
+                } else {
+                    factorySpan.textContent = 'Not deployed on this network';
+                }
+
+                // Update wallet balance
+                updateWalletBalance();
+            } else if (chainId) {
+                // Unknown network
+                walletSpan.textContent = `Unknown (${chainId})`;
+                statusDot.classList.add('connected');
+                disconnectBtn.style.display = 'block';
+                isConnected = true;
+                networkWarning.style.display = 'block';
+                factorySpan.textContent = '—';
+                updateWalletBalance();
+            } else {
+                walletSpan.textContent = 'Connect Extension';
+                statusDot.classList.remove('connected');
+                disconnectBtn.style.display = 'none';
+                isConnected = false;
+                networkWarning.style.display = 'none';
+                factorySpan.textContent = '—';
+                document.getElementById('walletBalance').textContent = '—';
+            }
+        }
+
+        window.disconnectWallet = function() {
+            isConnected = false;
+            updateUI(null);
+            document.getElementById('erc4337Balance').textContent = '—';
+        };
+
+        // Make updateWalletBalance globally accessible
+        window.updateWalletBalanceGlobal = updateWalletBalance;
+
+        async function initWallet() {
+            if (window.ethereum) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        updateUI(chainId);
+                    }
+
+                    window.ethereum.on('chainChanged', (chainId) => {
+                        updateUI(chainId);
+                        updateERC4337Balance();
+                    });
+                    window.ethereum.on('accountsChanged', async (accounts) => {
+                        if (accounts.length > 0) {
+                            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                            updateUI(chainId);
+                        } else {
+                            updateUI(null);
+                        }
+                    });
+                } catch (err) {
+                    console.error('Wallet init failed:', err);
+                }
+            }
+        }
+
+        // Listen for ERC4337 account address changes
+        document.getElementById('accountAddress').addEventListener('input', updateERC4337Balance);
+        document.getElementById('accountAddress').addEventListener('change', updateERC4337Balance);
+
+        initWallet();
+    </script>
+
+    <!-- Main Application Logic -->
+    <script type="module">
+        import { ethers } from 'ethers';
+        import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
+        import { to_expanded_encoded_bytes } from './utils_mldsa.js';
+        import {
+            createBaseUserOperation,
+            signUserOpHybrid,
+            estimateUserOperationGas,
+            updateUserOpWithGasEstimates,
+            submitUserOperation,
+            ENTRY_POINT_ADDRESS
+        } from './userOperation.js';
+
+        // Utility functions
+        function hexToU8(hex) {
+            if (hex.startsWith("0x")) hex = hex.slice(2);
+            if (hex.length !== 64) throw new Error("Seed must be 32 bytes (64 hex chars)");
+            return Uint8Array.from(hex.match(/.{2}/g).map(b => parseInt(b, 16)));
+        }
+
+        function validateSeed(seed, name) {
+            if (!seed.startsWith("0x")) throw new Error(`${name} must start with "0x"`);
+            if (seed.length !== 66) throw new Error(`${name} must be 32 bytes`);
+            if (!/^0x[0-9a-fA-F]{64}$/.test(seed)) throw new Error(`${name} contains invalid hex`);
+        }
+
+        // Console logger factory
+        function createLogger(outputId) {
+            const output = document.getElementById(outputId);
+            return {
+                log: (...args) => {
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+                    output.textContent += msg + '\n';
+                    output.scrollTop = output.scrollHeight;
+                },
+                error: (...args) => {
+                    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+                    output.textContent += '❌ ' + msg + '\n';
+                    output.scrollTop = output.scrollHeight;
+                },
+                clear: () => { output.textContent = ''; }
+            };
+        }
+
+        // ==================== CREATE ACCOUNT ====================
+        const ACCOUNT_FACTORY_ABI = [
+            "function createAccount(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external returns (address)",
+            "function getAddress(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external view returns (address payable)"
+        ];
+
+        async function deployAccount() {
+            const log = createLogger('createOutput');
+            log.clear();
+
+            if (!window.ethereum) {
+                log.error('No wallet detected! Please install MetaMask or Rabby.');
+                return;
+            }
+
+            const factoryAddress = document.getElementById('factoryAddress').textContent.trim();
+            const prequantumSeed = document.getElementById('createPreQuantumSeed').value.trim();
+            const postquantumSeed = document.getElementById('createPostQuantumSeed').value.trim();
+
+            try {
+                validateSeed(prequantumSeed, "Pre-quantum seed");
+                validateSeed(postquantumSeed, "Post-quantum seed");
+            } catch (e) {
+                log.error("Invalid seed: " + e.message);
+                return;
+            }
+
+            if (!factoryAddress || factoryAddress === '—' || factoryAddress.includes('Not deployed')) {
+                log.error('Factory not available on this network');
+                return;
+            }
+
+            try {
+                log.log('🔌 Connecting to wallet...');
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+
+                const address = await signer.getAddress();
+                const balance = await provider.getBalance(address);
+                const network = await provider.getNetwork();
+
+                log.log('✅ Wallet connected');
+                log.log('   Address: ' + address);
+                log.log('   Balance: ' + ethers.formatEther(balance) + ' ETH');
+                log.log('   Network: ' + network.name + ' (Chain ID: ' + network.chainId + ')');
+                log.log('');
+
+                // Generate keys
+                const preQuantumPubKey = new ethers.Wallet(prequantumSeed).address;
+                const { publicKey } = ml_dsa44.keygen(hexToU8(postquantumSeed));
+                const postQuantumPubKey = to_expanded_encoded_bytes(publicKey);
+
+                log.log('📦 Deploying ERC4337 Account...');
+
+                const factory = new ethers.Contract(factoryAddress, ACCOUNT_FACTORY_ABI, signer);
+
+                // Get expected address
+                const iface = new ethers.Interface(ACCOUNT_FACTORY_ABI);
+                const callData = iface.encodeFunctionData("getAddress", [preQuantumPubKey, postQuantumPubKey]);
+                const result = await provider.call({ to: factoryAddress, data: callData });
+                const expectedAddress = iface.decodeFunctionResult("getAddress", result)[0];
+
+                log.log('📍 Expected account address: ' + expectedAddress);
+
+                // Update UI with the new account address
+                document.getElementById('newAccountAddress').textContent = expectedAddress;
+                window.deployedAccountAddress = expectedAddress;
+                updateNewAccountBalance();
+
+                // Check if exists
+                const code = await provider.getCode(expectedAddress);
+                if (code !== '0x') {
+                    log.log('');
+                    log.log('============================================================');
+                    log.log('✅ ACCOUNT ALREADY EXISTS');
+                    log.log('============================================================');
+                    log.log('🔐 ERC4337 Account: ' + expectedAddress);
+                    log.log('============================================================');
+                    return;
+                }
+
+                // Estimate and deploy
+                log.log('');
+                log.log('⛽ Estimating gas...');
+                const estimatedGas = await factory.createAccount.estimateGas(preQuantumPubKey, postQuantumPubKey);
+                log.log('   Estimated: ' + estimatedGas.toString());
+
+                log.log('');
+                log.log('🚀 Creating account...');
+                log.log('⏳ Please confirm in your wallet...');
+
+                const tx = await factory.createAccount(preQuantumPubKey, postQuantumPubKey, {
+                    gasLimit: estimatedGas * 120n / 100n
+                });
+
+                log.log('✅ Transaction signed: ' + tx.hash);
+                log.log('⏳ Waiting for confirmation...');
+
+                const receipt = await tx.wait();
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 DEPLOYMENT COMPLETE!');
+                log.log('============================================================');
+                log.log('🔐 ERC4337 Account: ' + expectedAddress);
+                log.log('📝 Transaction: ' + tx.hash);
+                log.log('⛽ Gas used: ' + receipt.gasUsed.toString());
+                log.log('============================================================');
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.code === 'ACTION_REJECTED' || e.code === 4001) {
+                    log.log('(User rejected the transaction)');
+                }
+            }
+        }
+
+        // ==================== SEND TRANSACTION ====================
+        async function sendTransaction() {
+            const log = createLogger('sendOutput');
+            log.clear();
+
+            if (!window.ethereum) {
+                log.error('No wallet detected!');
+                return;
+            }
+
+            const apiKey = document.getElementById('pimlicoApiKey').value.trim();
+            if (!apiKey) {
+                log.error('Pimlico API key is required!');
+                log.log('');
+                log.log('Get a free API key at: https://dashboard.pimlico.io');
+                return;
+            }
+
+            const bundlerUrl = window.getBundlerUrl();
+            const accountAddress = document.getElementById('accountAddress').value.trim();
+            const targetAddress = document.getElementById('targetAddress').value.trim();
+            const valueEth = document.getElementById('sendValue').value.trim();
+            const callData = document.getElementById('callData').value.trim();
+            const preQuantumSeed = document.getElementById('sendPreQuantumSeed').value.trim();
+            const postQuantumSeed = document.getElementById('sendPostQuantumSeed').value.trim();
+
+            if (!accountAddress || !targetAddress) {
+                log.error('Please fill in account and recipient addresses');
+                return;
+            }
+
+            try {
+                log.log('🔌 Connecting to wallet...');
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const network = await provider.getNetwork();
+
+                log.log('✅ Connected to ' + network.name);
+                log.log('');
+
+                const value = ethers.parseEther(valueEth);
+                const accountBalance = await provider.getBalance(accountAddress);
+
+                log.log('📋 Transaction Details:');
+                log.log('   From: ' + accountAddress);
+                log.log('   To: ' + targetAddress);
+                log.log('   Value: ' + valueEth + ' ETH');
+                log.log('   Account Balance: ' + ethers.formatEther(accountBalance) + ' ETH');
+                log.log('');
+
+                if (accountBalance === 0n) {
+                    log.log('⚠️  WARNING: Account has no balance!');
+                    log.log('');
+                }
+
+                // Generate keys
+                const { secretKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
+
+                log.log('📝 Creating UserOperation...');
+
+                let userOp = await createBaseUserOperation(
+                    accountAddress, targetAddress, value, callData, provider, bundlerUrl
+                );
+
+                log.log('✍️  Signing with hybrid scheme...');
+
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('⛽ Estimating gas...');
+
+                const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
+                userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
+
+                // Re-sign with final gas
+                userOp.signature = await signUserOpHybrid(
+                    userOp, ENTRY_POINT_ADDRESS, network.chainId, preQuantumSeed, secretKey
+                );
+
+                log.log('📤 Submitting to bundler...');
+
+                const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 TRANSACTION SUBMITTED!');
+                log.log('============================================================');
+                log.log('UserOp Hash: ' + userOpHash);
+                log.log('============================================================');
+
+            } catch (e) {
+                log.error(e.message);
+            }
+        }
+
+        // ==================== FUND NEW ACCOUNT ====================
+        async function updateNewAccountBalance() {
+            const balanceSpan = document.getElementById('newAccountBalance');
+            const accountAddress = window.deployedAccountAddress;
+            
+            if (!window.ethereum || !accountAddress) {
+                balanceSpan.textContent = '—';
+                return;
+            }
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const balance = await provider.getBalance(accountAddress);
+                balanceSpan.textContent = ethers.formatEther(balance).slice(0, 10) + ' ETH';
+            } catch (err) {
+                balanceSpan.textContent = '—';
+            }
+        }
+
+        async function fundNewAccount() {
+            const log = createLogger('createOutput');
+            
+            const accountAddress = window.deployedAccountAddress;
+            const amount = document.getElementById('fundAmount').value.trim();
+
+            if (!accountAddress) {
+                log.log('');
+                log.error('No account address! Deploy an account first.');
+                return;
+            }
+
+            if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+                log.log('');
+                log.error('Invalid amount. Please enter a valid ETH amount.');
+                return;
+            }
+
+            if (!window.ethereum) {
+                log.log('');
+                log.error('No wallet detected!');
+                return;
+            }
+
+            try {
+                log.log('');
+                log.log('💰 Sending ETH to new account...');
+                
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+
+                const tx = await signer.sendTransaction({
+                    to: accountAddress,
+                    value: ethers.parseEther(amount)
+                });
+
+                log.log('✅ Transaction signed: ' + tx.hash);
+                log.log('⏳ Waiting for confirmation...');
+
+                const receipt = await tx.wait();
+
+                log.log('');
+                log.log('============================================================');
+                log.log('🎉 FUNDING COMPLETE!');
+                log.log('============================================================');
+                log.log('📤 Sent: ' + amount + ' ETH');
+                log.log('📍 To: ' + accountAddress);
+                log.log('📝 Tx: ' + tx.hash);
+                log.log('⛽ Gas used: ' + receipt.gasUsed.toString());
+                log.log('============================================================');
+
+                // Update balances
+                updateNewAccountBalance();
+                // Also update wallet balance in Network Detection script
+                if (window.updateWalletBalanceGlobal) {
+                    window.updateWalletBalanceGlobal();
+                }
+
+            } catch (e) {
+                log.error(e.message);
+                if (e.code === 'ACTION_REJECTED' || e.code === 4001) {
+                    log.log('(User rejected the transaction)');
+                }
+            }
+        }
+
+        // Make updateNewAccountBalance available globally
+        window.updateNewAccountBalance = updateNewAccountBalance;
+
+        // Button handlers
+        document.getElementById('deployBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await deployAccount(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('fundAccountBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await fundNewAccount(); }
+            finally { this.disabled = false; }
+        });
+
+        document.getElementById('sendTxBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            try { await sendTransaction(); }
+            finally { this.disabled = false; }
+        });
+    </script>
+</body>
+</html>

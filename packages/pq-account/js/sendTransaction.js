@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     // Initial message
-    output.textContent = '✅ Ready to send a transaction.\nConnect your wallet and fill in the details above.\n';
+    output.textContent = '✅ Ready to send a transaction.\nConnect your wallet and fill in the details above.\n\n⚠️  Don\'t forget to enter your Pimlico API key!\n';
     
     // Button click handler
     button.addEventListener('click', async () => {
@@ -222,6 +222,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!window.ethereum) {
                 console.log('❌ No wallet detected!');
                 console.log('Please install MetaMask or Rabby wallet.');
+                return;
+            }
+            
+            // Check for API key
+            const apiKeyInput = document.getElementById('pimlicoApiKey');
+            const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+            
+            if (!apiKey) {
+                console.log('❌ Pimlico API key is required!');
+                console.log('');
+                console.log('Please enter your Pimlico API key in the "Bundler Configuration" section.');
+                console.log('');
+                console.log('Don\'t have an API key?');
+                console.log('→ Get one for free at: https://dashboard.pimlico.io');
                 return;
             }
             
@@ -245,10 +259,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const preQuantumSeed = document.getElementById('preQuantumSeed').value.trim();
             const postQuantumSeed = document.getElementById('postQuantumSeed').value.trim();
             
-            // Get bundler URL from the hidden bundlerUrlValue object
-            const bundlerUrl = (typeof bundlerUrlValue !== 'undefined' && bundlerUrlValue.url) 
-                ? bundlerUrlValue.url 
-                : 'https://api.pimlico.io/v2/421614/rpc?apikey=pim_i3rJWDhHAhvqmPgaA3DsUo';
+            // Build bundler URL from API key
+            const bundlerUrl = window.getBundlerUrl ? window.getBundlerUrl() : '';
+            
+            if (!bundlerUrl) {
+                console.log('❌ Could not build bundler URL. Please check your API key.');
+                return;
+            }
+            
+            console.log('📡 Using Pimlico bundler for chain: ' + (window.bundlerUrlValue?.chainId || 'unknown'));
+            console.log('');
+            
             // Parse value
             const value = ethers.parseEther(valueEth);
             

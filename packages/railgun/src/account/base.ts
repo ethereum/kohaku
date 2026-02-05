@@ -13,10 +13,14 @@ import { createRailgunIndexer, Indexer } from "~/indexer/base";
 import { EthereumProvider } from "@kohaku-eth/provider";
 import { StorageLayer } from "~/storage/base";
 import { createAccountStorage, serializeAccountStorage, CachedAccountStorage } from "./storage";
+import { RGCircuitGetterFn } from "~/circuits";
+import { rgHttpFetcher } from "~/circuits/fetchers/http";
 
 export type RailgunAccountBaseParameters = {
     // Key configuration for the account, either a private key or a mnemonic.
     credential: KeyConfig,
+    // Function to get circuits
+    getCircuits?: RGCircuitGetterFn;
 } & (
         | { storage: StorageLayer; loadState?: never }
         | { storage?: never; loadState?: CachedAccountStorage }
@@ -60,6 +64,8 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
     const { notebooks, getEndBlock: getAccountEndBlock, saveNotebooks, setEndBlock: setAccountEndBlock } = await createAccountStorage({ storage, loadState, spending, viewing });
     const indexer = 'indexer' in params ? params.indexer : await createRailgunIndexer({ network: params.network, provider: params.provider });
     const { getTrees, network } = indexer;
+    // TODO: remove this github url override once we have a stable release url of the circuits
+    const getCircuits = params.getCircuits ?? rgHttpFetcher('https://raw.githubusercontent.com/lucemans/railguntemp/refs/heads/master/package/');
 
     // Validate that account endBlock doesn't exceed indexer endBlock
     // Account notebooks can't reference merkle tree state that doesn't exist yet
@@ -83,8 +89,8 @@ export const createRailgunAccount: (params: RailgunAccountParameters) => Promise
     const processLog = await makeProcessLog({ notebooks, getTrees, viewing, spending, saveNotebooks, getAccountEndBlock, setAccountEndBlock });
 
     const shield = await makeCreateShield({ network, master, viewing, signer });
-    const transfer = await makeCreateTransfer({ network, getTrees, getTransactNotes });
-    const unshield = await makeCreateUnshield({ network, getTrees, getTransactNotes });
+    const transfer = await makeCreateTransfer({ network, getTrees, getTransactNotes, getCircuits });
+    const unshield = await makeCreateUnshield({ network, getTrees, getTransactNotes, getCircuits });
 
     const getMerkleRoot = makeGetMerkleRoot({ getTrees });
 
