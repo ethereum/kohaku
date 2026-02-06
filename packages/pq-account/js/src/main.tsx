@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { WagmiProvider } from "wagmi";
 
 import { ConsoleProvider } from "./components/ConsoleProvider";
+import { SessionProvider } from "./components/SessionProvider";
 import { wagmiConfig } from "./config/wagmi";
 import { router } from "./router";
 
@@ -22,9 +23,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <ConsoleProvider>
-          <RouterProvider router={router} />
-        </ConsoleProvider>
+        <SessionProvider>
+          <ConsoleProvider>
+            <RouterProvider router={router} />
+          </ConsoleProvider>
+        </SessionProvider>
       </QueryClientProvider>
     </WagmiProvider>
   </StrictMode>

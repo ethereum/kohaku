@@ -1,5 +1,5 @@
 import { Field, useForm, useStore } from "@tanstack/react-form";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tv } from "tailwind-variants";
 import { match } from "ts-pattern";
 import { useConnection } from "wagmi";
@@ -14,6 +14,7 @@ import {
 } from "../hooks/useAaveOperations";
 import { useAavePosition } from "../hooks/useAavePosition";
 import { useConsole } from "../hooks/useConsole";
+import { useSession } from "../hooks/useSession";
 import { useTokenBalances } from "../hooks/useTokenBalances";
 import { AavePositionDisplay } from "./AavePositionDisplay";
 import { Button } from "./Button";
@@ -47,6 +48,7 @@ const OPERATION_TABS = [
 
 export const AavePanel = () => {
   const { output } = useConsole("aave");
+  const { session, updateSession } = useSession();
   const [operation, setOperation] = useState<AaveOperation>("supply");
   const [selectedAsset, setSelectedAsset] = useState("ETH");
   const [approvalType, setApprovalType] = useState<
@@ -56,14 +58,12 @@ export const AavePanel = () => {
 
   const form = useForm({
     defaultValues: {
-      pimlicoApiKey: "",
-      accountAddress: "",
+      pimlicoApiKey: session.pimlicoApiKey,
+      accountAddress: session.accountAddress,
       amount: "0.001",
       customApprovalAmount: "1000",
-      preQuantumSeed:
-        "0x0000000000000000000000000000000000000000000000000000000000000001",
-      postQuantumSeed:
-        "0x0000000000000000000000000000000000000000000000000000000000000001",
+      preQuantumSeed: session.preQuantumSeed,
+      postQuantumSeed: session.postQuantumSeed,
     },
     onSubmit: ({ value }) => {
       const params = {
@@ -98,6 +98,12 @@ export const AavePanel = () => {
   const config = getAaveConfig(chainId);
   const tokens = ["ETH", ...getAaveTokens(chainId)];
   const accountAddress = useStore(form.store, (s) => s.values.accountAddress);
+  const pimlicoApiKey = useStore(form.store, (s) => s.values.pimlicoApiKey);
+  const preQuantumSeed = useStore(form.store, (s) => s.values.preQuantumSeed);
+  const postQuantumSeed = useStore(
+    form.store,
+    (s) => s.values.postQuantumSeed
+  );
 
   const { data: position, refetch: refetchPosition } = useAavePosition(
     accountAddress || null,
@@ -113,6 +119,21 @@ export const AavePanel = () => {
   const repayMutation = useAaveRepay();
   const withdrawMutation = useAaveWithdraw();
   const approveMutation = useTokenApproval();
+
+  useEffect(() => {
+    updateSession({
+      pimlicoApiKey,
+      accountAddress,
+      preQuantumSeed,
+      postQuantumSeed,
+    });
+  }, [
+    pimlicoApiKey,
+    accountAddress,
+    preQuantumSeed,
+    postQuantumSeed,
+    updateSession,
+  ]);
 
   const isPending =
     supplyMutation.isPending ||

@@ -7,22 +7,27 @@ import { getFactoryAddress } from "../config/wagmi";
 import { useConsole } from "../hooks/useConsole";
 import { useDeployAccount } from "../hooks/useDeployAccount";
 import { useFundAccount } from "../hooks/useFundAccount";
+import { useSession } from "../hooks/useSession";
 import { Button } from "./Button";
 import { Console } from "./Console";
 import { Input } from "./Input";
 
 export const CreateAccountPanel = () => {
   const { output, log } = useConsole("create");
+  const { session, updateSession } = useSession();
 
   const form = useForm({
     defaultValues: {
-      preQuantumSeed:
-        "0x0000000000000000000000000000000000000000000000000000000000000001",
-      postQuantumSeed:
-        "0x0000000000000000000000000000000000000000000000000000000000000001",
+      preQuantumSeed: session.preQuantumSeed,
+      postQuantumSeed: session.postQuantumSeed,
       fundAmount: "0.01",
     },
     onSubmit: ({ value }) => {
+      updateSession({
+        preQuantumSeed: value.preQuantumSeed,
+        postQuantumSeed: value.postQuantumSeed,
+      });
+
       deployMutation.mutate(
         {
           factoryAddress,
@@ -33,6 +38,7 @@ export const CreateAccountPanel = () => {
           onSuccess: (result) => {
             if (result.success && result.address) {
               setDeployedAddress(result.address);
+              updateSession({ accountAddress: result.address });
             }
           },
           onError: (error) => {
@@ -43,7 +49,9 @@ export const CreateAccountPanel = () => {
     },
   });
 
-  const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
+  const [deployedAddress, setDeployedAddress] = useState<string | null>(
+    session.accountAddress || null
+  );
 
   const { address, chain } = useConnection();
   const { data: walletBalanceData } = useBalance({ address });

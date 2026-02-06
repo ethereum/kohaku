@@ -1,11 +1,12 @@
 import { Field, useForm, useStore } from "@tanstack/react-form";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { encodeFunctionData, parseUnits } from "viem";
 import { useConnection } from "wagmi";
 
 import { ERC20_ABI } from "../config/aave";
 import { useConsole } from "../hooks/useConsole";
 import { useSendTransaction } from "../hooks/useSendTransaction";
+import { useSession } from "../hooks/useSession";
 import { useTokenBalances } from "../hooks/useTokenBalances";
 import { Button } from "./Button";
 import { Console } from "./Console";
@@ -13,19 +14,18 @@ import { Input } from "./Input";
 
 export const SendTransactionPanel = () => {
   const { output } = useConsole("send");
+  const { session, updateSession } = useSession();
   const [selectedToken, setSelectedToken] = useState("ETH");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const form = useForm({
     defaultValues: {
-      pimlicoApiKey: "",
-      accountAddress: "",
+      pimlicoApiKey: session.pimlicoApiKey,
+      accountAddress: session.accountAddress,
       targetAddress: "",
       sendValue: "0.0001",
-      preQuantumSeed:
-        "0x0000000000000000000000000000000000000000000000000000000000000001",
-      postQuantumSeed:
-        "0x0000000000000000000000000000000000000000000000000000000000000001",
+      preQuantumSeed: session.preQuantumSeed,
+      postQuantumSeed: session.postQuantumSeed,
     },
     onSubmit: ({ value }) => {
       const selectedTokenData = balances.find(
@@ -72,11 +72,30 @@ export const SendTransactionPanel = () => {
 
   const { chainId } = useConnection();
   const accountAddress = useStore(form.store, (s) => s.values.accountAddress);
+  const pimlicoApiKey = useStore(form.store, (s) => s.values.pimlicoApiKey);
+  const preQuantumSeed = useStore(form.store, (s) => s.values.preQuantumSeed);
+  const postQuantumSeed = useStore(form.store, (s) => s.values.postQuantumSeed);
+
   const { balances, refetch } = useTokenBalances(
     accountAddress || null,
     chainId
   );
   const sendMutation = useSendTransaction();
+
+  useEffect(() => {
+    updateSession({
+      pimlicoApiKey,
+      accountAddress,
+      preQuantumSeed,
+      postQuantumSeed,
+    });
+  }, [
+    pimlicoApiKey,
+    accountAddress,
+    preQuantumSeed,
+    postQuantumSeed,
+    updateSession,
+  ]);
 
   const getBundlerUrl = () => {
     const key = form.getFieldValue("pimlicoApiKey").trim();
