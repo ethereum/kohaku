@@ -1,8 +1,15 @@
-import type { EIP1193Client } from "@corpus-core/colibri-stateless";
 import { EthereumProvider, TransactionReceipt, TxLog } from "..";
 import { HexString, hexToBigInt, hexToNumber, maybeQuantityToNumber, toQuantityHex } from "./hex";
 
-export const raw = (client: EIP1193Client): EthereumProvider<EIP1193Client> => {
+// Signature of `on` and `removeListener` are more loose than the actual EIP-1193 spec so that Helios can still satisfy them
+// When https://github.com/a16z/helios/issues/775 is fixed, return types can be switched to `this`
+export interface Eip1193Like {
+    request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
+    on(event: string, callback: (data: unknown) => void): unknown;
+    removeListener(event: string, callback: (data: unknown) => void): unknown;
+}
+
+export const raw = (client: Eip1193Like): EthereumProvider<Eip1193Like> => {
     const getTransactionReceipt = async (txHash: string): Promise<TransactionReceipt | null> => {
         const receipt = await client.request({
             method: 'eth_getTransactionReceipt',

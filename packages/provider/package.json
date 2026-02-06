@@ -1,12 +1,38 @@
 {
   "name": "@kohaku-eth/provider",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.1-alpha.2",
   "description": "Omni provider helpers that wrap Ethers, Viem, and Colibri.",
   "type": "module",
   "private": false,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+<<<<<<< feat-add-helios
+  "typesVersions": {
+    "*": {
+      "ethers": [
+        "dist/ethers.d.ts"
+      ],
+      "viem": [
+        "dist/viem.d.ts"
+      ],
+      "colibri": [
+        "dist/colibri.d.ts"
+      ],
+      "helios": [
+        "dist/helios.d.ts"
+      ],
+      "raw": [
+        "dist/raw.d.ts"
+      ]
+    }
+=======
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/provider"
+>>>>>>> master
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -27,6 +53,11 @@
       "types": "./dist/colibri.d.ts",
       "import": "./dist/colibri.js",
       "require": "./dist/colibri.cjs"
+    },
+    "./helios": {
+      "types": "./dist/helios.d.ts",
+      "import": "./dist/helios.js",
+      "require": "./dist/helios.cjs"
     },
     "./raw": {
       "types": "./dist/raw.d.ts",
@@ -62,10 +93,14 @@
   "author": "",
   "license": "MIT",
   "peerDependencies": {
+    "@a16z/helios": ">=0.11",
     "@corpus-core/colibri-stateless": ">=1.1.0 <2",
     "ethers": "^6.13.1"
   },
   "peerDependenciesMeta": {
+    "@a16z/helios": {
+      "optional": true
+    },
     "@corpus-core/colibri-stateless": {
       "optional": true
     },
@@ -80,6 +115,7 @@
     }
   },
   "devDependencies": {
+    "@a16z/helios": ">=0.11",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",
     "@types/node": "^24.1.0",
