@@ -12,23 +12,6 @@ import { validateSeed } from "../utils/createAccount";
 import { walletClientToEthersProvider } from "../utils/ethersAdapter";
 import { useConsoleLog } from "./useConsole";
 
-const SEED_LABELS = {
-  PRE_QUANTUM: "Pre-quantum seed",
-  POST_QUANTUM: "Post-quantum seed",
-} as const;
-
-const ERROR_MESSAGES = {
-  NO_BUNDLER: "No Bundler URL provided. Running in DRY-RUN mode.",
-  NO_ACCOUNT: "Please enter an account address",
-  INVALID_AMOUNT: "Please enter a valid amount",
-  NO_WALLET: "Wallet not connected",
-} as const;
-
-const LOG_MESSAGES = {
-  CONNECTING: "Connecting to wallet...",
-  CONNECTED_PREFIX: "Connected to ",
-} as const;
-
 type AaveOperationParams = {
   accountAddress: string;
   asset: string;
@@ -42,262 +25,140 @@ type ApprovalParams = AaveOperationParams & {
   approvalType: "unlimited" | "0" | string;
 };
 
-export const useAaveSupply = () => {
+type AaveOperationFn = (
+  accountAddress: string,
+  asset: string,
+  amount: string,
+  preQuantumSeed: string,
+  postQuantumSeed: string,
+  provider: ReturnType<typeof walletClientToEthersProvider>,
+  bundlerUrl: string,
+  log: (msg: string) => void
+) => Promise<unknown>;
+
+const useAaveMutation = <TParams extends AaveOperationParams>(
+  operationFn: (
+    params: TParams,
+    provider: ReturnType<typeof walletClientToEthersProvider>,
+    log: (msg: string) => void
+  ) => Promise<unknown>,
+  invalidateKeys: string[][]
+) => {
   const queryClient = useQueryClient();
   const { data: walletClient } = useWalletClient();
   const { log, clear } = useConsoleLog("aave");
 
   return useMutation({
-    mutationFn: async (params: AaveOperationParams) => {
+    mutationFn: async (params: TParams) => {
       clear();
 
-      validateSeed(params.preQuantumSeed, SEED_LABELS.PRE_QUANTUM);
-      validateSeed(params.postQuantumSeed, SEED_LABELS.POST_QUANTUM);
+      validateSeed(params.preQuantumSeed, "Pre-quantum seed");
+      validateSeed(params.postQuantumSeed, "Post-quantum seed");
 
       if (!params.bundlerUrl) {
-        log(`\u26a0\ufe0f ${ERROR_MESSAGES.NO_BUNDLER}`);
+        log("⚠️ No Bundler URL provided. Running in DRY-RUN mode.");
       }
 
       if (!params.accountAddress) {
-        throw new Error(ERROR_MESSAGES.NO_ACCOUNT);
-      }
-
-      if (!params.amount || Number(params.amount) <= 0) {
-        throw new Error(ERROR_MESSAGES.INVALID_AMOUNT);
+        throw new Error("Please enter an account address");
       }
 
       if (!walletClient) {
-        throw new Error(ERROR_MESSAGES.NO_WALLET);
+        throw new Error("Wallet not connected");
       }
 
-      log(`\ud83d\udd0c ${LOG_MESSAGES.CONNECTING}`);
+      log("🔌 Connecting to wallet...");
       const provider = walletClientToEthersProvider(walletClient);
       const network = await provider.getNetwork();
 
-      log(`\u2705 ${LOG_MESSAGES.CONNECTED_PREFIX}${network.name}`);
+      log(`✅ Connected to ${network.name}`);
       log("");
 
-      return supplyToAave(
-        params.accountAddress,
-        params.asset,
-        params.amount,
-        params.preQuantumSeed,
-        params.postQuantumSeed,
-        provider,
-        params.bundlerUrl,
-        log
-      );
+      return operationFn(params, provider, log);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["aavePosition"] });
-      queryClient.invalidateQueries({ queryKey: ["balance"] });
+      for (const key of invalidateKeys) {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
     },
     onError: (error) => {
-      log("\u274c Error: " + (error as Error).message);
+      log("❌ Error: " + (error as Error).message);
     },
   });
 };
 
-export const useAaveBorrow = () => {
-  const queryClient = useQueryClient();
-  const { data: walletClient } = useWalletClient();
-  const { log, clear } = useConsoleLog("aave");
+const INVALID_AMOUNT_MSG = "Please enter a valid amount";
 
-  return useMutation({
-    mutationFn: async (params: AaveOperationParams) => {
-      clear();
+const makeStandardOperation =
+  (fn: AaveOperationFn) =>
+  (
+    params: AaveOperationParams,
+    provider: ReturnType<typeof walletClientToEthersProvider>,
+    log: (msg: string) => void
+  ) =>
+    fn(
+      params.accountAddress,
+      params.asset,
+      params.amount,
+      params.preQuantumSeed,
+      params.postQuantumSeed,
+      provider,
+      params.bundlerUrl,
+      log
+    );
 
-      validateSeed(params.preQuantumSeed, SEED_LABELS.PRE_QUANTUM);
-      validateSeed(params.postQuantumSeed, SEED_LABELS.POST_QUANTUM);
-
-      if (!params.bundlerUrl) {
-        log(`\u26a0\ufe0f ${ERROR_MESSAGES.NO_BUNDLER}`);
-      }
-
-      if (!params.accountAddress) {
-        throw new Error(ERROR_MESSAGES.NO_ACCOUNT);
-      }
-
+export const useAaveSupply = () =>
+  useAaveMutation<AaveOperationParams>(
+    (params, provider, log) => {
       if (!params.amount || Number(params.amount) <= 0) {
-        throw new Error(ERROR_MESSAGES.INVALID_AMOUNT);
+        throw new Error(INVALID_AMOUNT_MSG);
       }
 
-      if (!walletClient) {
-        throw new Error(ERROR_MESSAGES.NO_WALLET);
-      }
-
-      log(`\ud83d\udd0c ${LOG_MESSAGES.CONNECTING}`);
-      const provider = walletClientToEthersProvider(walletClient);
-      const network = await provider.getNetwork();
-
-      log(`\u2705 ${LOG_MESSAGES.CONNECTED_PREFIX}${network.name}`);
-      log("");
-
-      return borrowFromAave(
-        params.accountAddress,
-        params.asset,
-        params.amount,
-        params.preQuantumSeed,
-        params.postQuantumSeed,
-        provider,
-        params.bundlerUrl,
-        log
-      );
+      return makeStandardOperation(supplyToAave)(params, provider, log);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["aavePosition"] });
-      queryClient.invalidateQueries({ queryKey: ["balance"] });
-    },
-    onError: (error) => {
-      log("\u274c Error: " + (error as Error).message);
-    },
-  });
-};
+    [["aavePosition"], ["balance"]]
+  );
 
-export const useAaveRepay = () => {
-  const queryClient = useQueryClient();
-  const { data: walletClient } = useWalletClient();
-  const { log, clear } = useConsoleLog("aave");
-
-  return useMutation({
-    mutationFn: async (params: AaveOperationParams) => {
-      clear();
-
-      validateSeed(params.preQuantumSeed, SEED_LABELS.PRE_QUANTUM);
-      validateSeed(params.postQuantumSeed, SEED_LABELS.POST_QUANTUM);
-
-      if (!params.bundlerUrl) {
-        log(`\u26a0\ufe0f ${ERROR_MESSAGES.NO_BUNDLER}`);
-      }
-
-      if (!params.accountAddress) {
-        throw new Error(ERROR_MESSAGES.NO_ACCOUNT);
-      }
-
+export const useAaveBorrow = () =>
+  useAaveMutation<AaveOperationParams>(
+    (params, provider, log) => {
       if (!params.amount || Number(params.amount) <= 0) {
-        throw new Error(ERROR_MESSAGES.INVALID_AMOUNT);
+        throw new Error(INVALID_AMOUNT_MSG);
       }
 
-      if (!walletClient) {
-        throw new Error(ERROR_MESSAGES.NO_WALLET);
-      }
-
-      log(`\ud83d\udd0c ${LOG_MESSAGES.CONNECTING}`);
-      const provider = walletClientToEthersProvider(walletClient);
-      const network = await provider.getNetwork();
-
-      log(`\u2705 ${LOG_MESSAGES.CONNECTED_PREFIX}${network.name}`);
-      log("");
-
-      return repayToAave(
-        params.accountAddress,
-        params.asset,
-        params.amount,
-        params.preQuantumSeed,
-        params.postQuantumSeed,
-        provider,
-        params.bundlerUrl,
-        log
-      );
+      return makeStandardOperation(borrowFromAave)(params, provider, log);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["aavePosition"] });
-      queryClient.invalidateQueries({ queryKey: ["balance"] });
-    },
-    onError: (error) => {
-      log("\u274c Error: " + (error as Error).message);
-    },
-  });
-};
+    [["aavePosition"], ["balance"]]
+  );
 
-export const useAaveWithdraw = () => {
-  const queryClient = useQueryClient();
-  const { data: walletClient } = useWalletClient();
-  const { log, clear } = useConsoleLog("aave");
-
-  return useMutation({
-    mutationFn: async (params: AaveOperationParams) => {
-      clear();
-
-      validateSeed(params.preQuantumSeed, SEED_LABELS.PRE_QUANTUM);
-      validateSeed(params.postQuantumSeed, SEED_LABELS.POST_QUANTUM);
-
-      if (!params.bundlerUrl) {
-        log(`\u26a0\ufe0f ${ERROR_MESSAGES.NO_BUNDLER}`);
-      }
-
-      if (!params.accountAddress) {
-        throw new Error(ERROR_MESSAGES.NO_ACCOUNT);
-      }
-
+export const useAaveRepay = () =>
+  useAaveMutation<AaveOperationParams>(
+    (params, provider, log) => {
       if (!params.amount || Number(params.amount) <= 0) {
-        throw new Error(ERROR_MESSAGES.INVALID_AMOUNT);
+        throw new Error(INVALID_AMOUNT_MSG);
       }
 
-      if (!walletClient) {
-        throw new Error(ERROR_MESSAGES.NO_WALLET);
-      }
-
-      log(`\ud83d\udd0c ${LOG_MESSAGES.CONNECTING}`);
-      const provider = walletClientToEthersProvider(walletClient);
-      const network = await provider.getNetwork();
-
-      log(`\u2705 ${LOG_MESSAGES.CONNECTED_PREFIX}${network.name}`);
-      log("");
-
-      return withdrawFromAave(
-        params.accountAddress,
-        params.asset,
-        params.amount,
-        params.preQuantumSeed,
-        params.postQuantumSeed,
-        provider,
-        params.bundlerUrl,
-        log
-      );
+      return makeStandardOperation(repayToAave)(params, provider, log);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["aavePosition"] });
-      queryClient.invalidateQueries({ queryKey: ["balance"] });
+    [["aavePosition"], ["balance"]]
+  );
+
+export const useAaveWithdraw = () =>
+  useAaveMutation<AaveOperationParams>(
+    (params, provider, log) => {
+      if (!params.amount || Number(params.amount) <= 0) {
+        throw new Error(INVALID_AMOUNT_MSG);
+      }
+
+      return makeStandardOperation(withdrawFromAave)(params, provider, log);
     },
-    onError: (error) => {
-      log("\u274c Error: " + (error as Error).message);
-    },
-  });
-};
+    [["aavePosition"], ["balance"]]
+  );
 
-export const useTokenApproval = () => {
-  const queryClient = useQueryClient();
-  const { data: walletClient } = useWalletClient();
-  const { log, clear } = useConsoleLog("aave");
-
-  return useMutation({
-    mutationFn: async (params: ApprovalParams) => {
-      clear();
-
-      validateSeed(params.preQuantumSeed, SEED_LABELS.PRE_QUANTUM);
-      validateSeed(params.postQuantumSeed, SEED_LABELS.POST_QUANTUM);
-
-      if (!params.bundlerUrl) {
-        log(`\u26a0\ufe0f ${ERROR_MESSAGES.NO_BUNDLER}`);
-      }
-
-      if (!params.accountAddress) {
-        throw new Error(ERROR_MESSAGES.NO_ACCOUNT);
-      }
-
-      if (!walletClient) {
-        throw new Error(ERROR_MESSAGES.NO_WALLET);
-      }
-
-      log(`\ud83d\udd0c ${LOG_MESSAGES.CONNECTING}`);
-      const provider = walletClientToEthersProvider(walletClient);
-      const network = await provider.getNetwork();
-
-      log(`\u2705 ${LOG_MESSAGES.CONNECTED_PREFIX}${network.name}`);
-      log("");
-
-      return approveTokenForAave(
+export const useTokenApproval = () =>
+  useAaveMutation<ApprovalParams>(
+    (params, provider, log) =>
+      approveTokenForAave(
         params.accountAddress,
         params.asset,
         params.approvalType,
@@ -306,13 +167,6 @@ export const useTokenApproval = () => {
         provider,
         params.bundlerUrl,
         log
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allowance"] });
-    },
-    onError: (error) => {
-      log("\u274c Error: " + (error as Error).message);
-    },
-  });
-};
+      ),
+    [["allowance"]]
+  );

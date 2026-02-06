@@ -1,17 +1,8 @@
 import { type Address, formatUnits, isAddress } from "viem";
 import { useBalance, useReadContracts } from "wagmi";
 
+import { ERC20_ABI } from "../config/aave";
 import { getTokensForChain } from "../config/tokens";
-
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-] as const;
 
 export const useTokenBalances = (
   accountAddress: string | null,
@@ -62,7 +53,10 @@ export const useTokenBalances = (
         (t) => t.symbol === token.symbol
       );
       const result = erc20Balances?.[erc20Index];
-      const balance = result?.status === "success" ? result.result : 0n;
+      const balance =
+        result?.status === "success"
+          ? BigInt(result.result as string | bigint)
+          : 0n;
 
       return {
         token,

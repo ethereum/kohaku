@@ -5,7 +5,7 @@ import {
   Navigate,
 } from "@tanstack/react-router";
 
-import App from "./App";
+import { App } from "./App";
 import { AavePanel } from "./components/AavePanel";
 import { CreateAccountPanel } from "./components/CreateAccountPanel";
 import { SendTransactionPanel } from "./components/SendTransactionPanel";

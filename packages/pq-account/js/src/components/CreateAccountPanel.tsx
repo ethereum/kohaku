@@ -7,7 +7,9 @@ import { getFactoryAddress } from "../config/wagmi";
 import { useConsole } from "../hooks/useConsole";
 import { useDeployAccount } from "../hooks/useDeployAccount";
 import { useFundAccount } from "../hooks/useFundAccount";
+import { Button } from "./Button";
 import { Console } from "./Console";
+import { Input } from "./Input";
 
 export const CreateAccountPanel = () => {
   const { output, log } = useConsole("create");
@@ -138,9 +140,8 @@ export const CreateAccountPanel = () => {
               form={form}
               name="preQuantumSeed"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -155,9 +156,8 @@ export const CreateAccountPanel = () => {
               form={form}
               name="postQuantumSeed"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -167,13 +167,15 @@ export const CreateAccountPanel = () => {
         </div>
       </div>
 
-      <button
-        className="w-full bg-accent hover:bg-accent-hover text-white py-3 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4 hover:shadow-md active:scale-[0.99]"
+      <Button
+        className="mb-4"
+        variant="primary"
+        fullWidth
         onClick={handleDeploy}
         disabled={deployMutation.isPending}
       >
         {deployMutation.isPending ? "Deploying..." : "Deploy Account"}
-      </button>
+      </Button>
 
       <div className="bg-bg-secondary border border-border rounded-lg p-6">
         <div className="mb-5">
@@ -218,9 +220,8 @@ export const CreateAccountPanel = () => {
               form={form}
               name="fundAmount"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -231,13 +232,15 @@ export const CreateAccountPanel = () => {
             <label className="block text-sm font-medium text-text-primary mb-2">
               &nbsp;
             </label>
-            <button
-              className="w-full bg-bg-tertiary hover:bg-accent hover:text-white border border-border text-text-primary py-2.5 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-sm active:scale-[0.99]"
+            <Button
+              variant="secondary"
+              size="sm"
+              fullWidth
               onClick={handleFundAccount}
               disabled={fundMutation.isPending}
             >
               {fundMutation.isPending ? "Sending..." : "Send ETH"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

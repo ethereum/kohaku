@@ -5,7 +5,7 @@ import { Outlet } from "@tanstack/react-router";
 import { Header } from "./components/Header";
 import { Tabs } from "./components/Tabs";
 
-const App = () => {
+export const App = () => {
   return (
     <>
       <Header />
@@ -33,5 +33,3 @@ const App = () => {
     </>
   );
 };
-
-export default App;

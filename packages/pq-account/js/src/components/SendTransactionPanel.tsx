@@ -3,23 +3,13 @@ import { useState } from "react";
 import { encodeFunctionData, parseUnits } from "viem";
 import { useConnection } from "wagmi";
 
+import { ERC20_ABI } from "../config/aave";
 import { useConsole } from "../hooks/useConsole";
 import { useSendTransaction } from "../hooks/useSendTransaction";
 import { useTokenBalances } from "../hooks/useTokenBalances";
+import { Button } from "./Button";
 import { Console } from "./Console";
-
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "transfer",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ type: "bool" }],
-  },
-] as const;
+import { Input } from "./Input";
 
 export const SendTransactionPanel = () => {
   const { output } = useConsole("send");
@@ -118,9 +108,8 @@ export const SendTransactionPanel = () => {
               form={form}
               name="accountAddress"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   placeholder="0x..."
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -137,9 +126,8 @@ export const SendTransactionPanel = () => {
               form={form}
               name="pimlicoApiKey"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   placeholder="pim_xxx..."
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -222,9 +210,8 @@ export const SendTransactionPanel = () => {
               form={form}
               name="targetAddress"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   placeholder="0x..."
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -242,9 +229,8 @@ export const SendTransactionPanel = () => {
               name="sendValue"
               children={(field) => (
                 <div className="relative">
-                  <input
+                  <Input
                     type="text"
-                    className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 pr-16 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
                   />
@@ -277,9 +263,8 @@ export const SendTransactionPanel = () => {
               form={form}
               name="preQuantumSeed"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -294,9 +279,8 @@ export const SendTransactionPanel = () => {
               form={form}
               name="postQuantumSeed"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -306,13 +290,14 @@ export const SendTransactionPanel = () => {
         </div>
       </div>
 
-      <button
-        className="w-full bg-accent hover:bg-accent-hover text-white py-3 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md active:scale-[0.99]"
+      <Button
+        variant="primary"
+        fullWidth
         onClick={handleSendTransaction}
         disabled={sendMutation.isPending}
       >
         {sendMutation.isPending ? "Sending..." : "Sign & Submit Transaction"}
-      </button>
+      </Button>
 
       <Console output={output} />
     </div>

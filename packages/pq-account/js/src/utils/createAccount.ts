@@ -1,11 +1,9 @@
 import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
 import { ethers, Signer } from "ethers";
 
+import { SEPARATOR } from "./aaveHelpers";
 import { hexToU8 } from "./hex.js";
 import { to_expanded_encoded_bytes } from "./utils_mldsa.js";
-
-const SEPARATOR =
-  "============================================================";
 
 const ACCOUNT_FACTORY_ABI = [
   "function createAccount(bytes calldata preQuantumPubKey, bytes calldata postQuantumPubKey) external returns (address)",
@@ -179,8 +177,7 @@ export const deployERC4337Account = async (
           log("  ⏳ Waiting... " + elapsed + "s elapsed");
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (error) {
+      } catch {
         attempts++;
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }

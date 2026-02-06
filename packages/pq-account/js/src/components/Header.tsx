@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { match, P } from "ts-pattern";
 import {
   useConnect,
   useConnection,
@@ -34,15 +35,11 @@ export const Header = () => {
     }
   };
 
-  const formatAddress = (addr: string) => {
-    if (ensName) return ensName;
-
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
+  const formatAddress = (addr: string) =>
+    ensName ?? `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   const generateGradient = (addr: string) => {
-    const hash = addr.slice(2, 8);
-    const color = `#${hash}`;
+    const color = `#${addr.slice(2, 8)}`;
 
     return `linear-gradient(135deg, ${color}, ${color}80)`;
   };
@@ -62,28 +59,34 @@ export const Header = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {mounted && !isConnected ? (
-            <button
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-all hover:shadow-md active:scale-[0.99]"
-              onClick={handleConnect}
-            >
-              Connect Wallet
-            </button>
-          ) : mounted && isConnected && address ? (
-            <button
-              className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary border border-border hover:border-border-hover rounded-lg transition-all hover:shadow-sm"
-              onClick={() => disconnect()}
-              title="Disconnect"
-            >
-              <div
-                className="w-6 h-6 rounded-full"
-                style={{ background: generateGradient(address) }}
-              />
-              <span className="text-sm font-medium text-text-primary">
-                {formatAddress(address)}
-              </span>
-            </button>
-          ) : null}
+          {match({ mounted, isConnected, address })
+            .with({ mounted: true, isConnected: false }, () => (
+              <button
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-sm font-medium rounded-lg transition-all hover:shadow-md active:scale-[0.99]"
+                onClick={handleConnect}
+              >
+                Connect Wallet
+              </button>
+            ))
+            .with(
+              { mounted: true, isConnected: true, address: P.string },
+              ({ address: addr }) => (
+                <button
+                  className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary border border-border hover:border-border-hover rounded-lg transition-all hover:shadow-sm"
+                  onClick={() => disconnect()}
+                  title="Disconnect"
+                >
+                  <div
+                    className="w-6 h-6 rounded-full"
+                    style={{ background: generateGradient(addr) }}
+                  />
+                  <span className="text-sm font-medium text-text-primary">
+                    {formatAddress(addr)}
+                  </span>
+                </button>
+              )
+            )
+            .otherwise(() => null)}
 
           <div className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-sm">
             <span

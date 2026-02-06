@@ -16,15 +16,12 @@ import { useAavePosition } from "../hooks/useAavePosition";
 import { useConsole } from "../hooks/useConsole";
 import { useTokenBalances } from "../hooks/useTokenBalances";
 import { AavePositionDisplay } from "./AavePositionDisplay";
+import { Button } from "./Button";
 import { Console } from "./Console";
+import { Input } from "./Input";
+import { Select } from "./Select";
 
 type AaveOperation = "supply" | "borrow" | "repay" | "withdraw" | "approve";
-
-const INPUT_CLASS =
-  "w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors";
-
-const SELECT_CLASS =
-  "w-full bg-bg-primary border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-colors";
 
 const operationTab = tv({
   base: "px-4 py-2 text-sm font-medium rounded-lg transition-all",
@@ -205,9 +202,8 @@ export const AavePanel = () => {
               form={form}
               name="accountAddress"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className={INPUT_CLASS}
                   placeholder="0x..."
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -224,9 +220,8 @@ export const AavePanel = () => {
               form={form}
               name="pimlicoApiKey"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className={INPUT_CLASS}
                   placeholder="pim_xxx..."
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -285,17 +280,16 @@ export const AavePanel = () => {
             <label className="block text-sm font-medium text-text-primary mb-2">
               Asset
             </label>
-            <select
+            <Select
               value={selectedAsset}
               onChange={(e) => setSelectedAsset(e.target.value)}
-              className={SELECT_CLASS}
             >
               {tokens.map((token) => (
                 <option key={token} value={token}>
                   {token}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {operation !== "approve" && (
@@ -308,9 +302,8 @@ export const AavePanel = () => {
                 name="amount"
                 children={(field) => (
                   <div className="relative">
-                    <input
+                    <Input
                       type="text"
-                      className={INPUT_CLASS}
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                     />
@@ -328,19 +321,18 @@ export const AavePanel = () => {
               <label className="block text-sm font-medium text-text-primary mb-2">
                 Approval Amount
               </label>
-              <select
+              <Select
                 value={approvalType}
                 onChange={(e) =>
                   setApprovalType(
                     e.target.value as "unlimited" | "0" | "custom"
                   )
                 }
-                className={SELECT_CLASS}
               >
                 <option value="unlimited">Unlimited</option>
                 <option value="0">Revoke (0)</option>
                 <option value="custom">Custom Amount</option>
-              </select>
+              </Select>
             </div>
           )}
         </div>
@@ -354,9 +346,8 @@ export const AavePanel = () => {
               form={form}
               name="customApprovalAmount"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className={INPUT_CLASS}
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -385,9 +376,8 @@ export const AavePanel = () => {
               form={form}
               name="preQuantumSeed"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className={INPUT_CLASS}
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -402,9 +392,8 @@ export const AavePanel = () => {
               form={form}
               name="postQuantumSeed"
               children={(field) => (
-                <input
+                <Input
                   type="text"
-                  className={INPUT_CLASS}
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
@@ -414,15 +403,16 @@ export const AavePanel = () => {
         </div>
       </div>
 
-      <button
-        className="w-full bg-accent hover:bg-accent-hover text-white py-3 px-6 rounded-lg font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md active:scale-[0.99]"
+      <Button
+        variant="primary"
+        fullWidth
         onClick={() => form.handleSubmit()}
         disabled={isPending}
       >
         {isPending
           ? "Processing..."
           : `${buttonInfo.emoji} ${buttonInfo.label}`}
-      </button>
+      </Button>
 
       <Console output={output} />
     </div>

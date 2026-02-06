@@ -7,9 +7,6 @@ import {
 
 import { useConsoleLog } from "./useConsole";
 
-const SEPARATOR =
-  "============================================================";
-
 type FundParams = {
   address: string;
   amount: string;
@@ -54,10 +51,12 @@ export const useFundAccount = () => {
       return { txHash: hash, address, amount, gasUsed: receipt.gasUsed };
     },
     onSuccess: (data) => {
+      const sep = "=".repeat(60);
+
       log("");
-      log(SEPARATOR);
+      log(sep);
       log("🎉 FUNDING COMPLETE!");
-      log(SEPARATOR);
+      log(sep);
       log("📤 Sent: " + data.amount + " ETH");
       log("📍 To: " + data.address);
       log("📝 Tx: " + data.txHash);
@@ -66,7 +65,7 @@ export const useFundAccount = () => {
         log("⛽ Gas used: " + data.gasUsed.toString());
       }
 
-      log(SEPARATOR);
+      log(sep);
 
       queryClient.invalidateQueries({ queryKey: ["balance"] });
     },
