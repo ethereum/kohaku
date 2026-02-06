@@ -1,12 +1,13 @@
 {
   "name": "@kohaku-eth/provider",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.1-alpha.2",
   "description": "Omni provider helpers that wrap Ethers, Viem, and Colibri.",
   "type": "module",
   "private": false,
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+<<<<<<< feat-add-helios
   "typesVersions": {
     "*": {
       "ethers": [
@@ -25,6 +26,12 @@
         "dist/raw.d.ts"
       ]
     }
+=======
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/provider"
+>>>>>>> master
   },
   "exports": {
     ".": {
