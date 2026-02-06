@@ -1,4 +1,4 @@
-import { Field, useForm } from "@tanstack/react-form";
+import { Field, useForm, useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { encodeFunctionData, parseUnits } from "viem";
 import { useConnection } from "wagmi";
@@ -71,7 +71,7 @@ export const SendTransactionPanel = () => {
   });
 
   const { chainId } = useConnection();
-  const accountAddress = form.getFieldValue("accountAddress");
+  const accountAddress = useStore(form.store, (s) => s.values.accountAddress);
   const { balances, refetch } = useTokenBalances(
     accountAddress || null,
     chainId

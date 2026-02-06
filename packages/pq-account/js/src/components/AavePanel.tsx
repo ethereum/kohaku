@@ -1,4 +1,4 @@
-import { Field, useForm } from "@tanstack/react-form";
+import { Field, useForm, useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { tv } from "tailwind-variants";
 import { match } from "ts-pattern";
@@ -97,7 +97,7 @@ export const AavePanel = () => {
   const chainId = chain?.id;
   const config = getAaveConfig(chainId);
   const tokens = ["ETH", ...getAaveTokens(chainId)];
-  const accountAddress = form.getFieldValue("accountAddress");
+  const accountAddress = useStore(form.store, (s) => s.values.accountAddress);
 
   const { data: position, refetch: refetchPosition } = useAavePosition(
     accountAddress || null,
