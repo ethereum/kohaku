@@ -1,5 +1,5 @@
 import { EthereumProvider, TransactionReceipt, TxLog } from "..";
-import { HexString, hexToBigInt, hexToNumber } from "./hex";
+import { HexString, hexToBigInt, hexToNumber, maybeQuantityToNumber, toQuantityHex } from "./hex";
 
 // Signature of `on` and `removeListener` are more loose than the actual EIP-1193 spec so that Helios can still satisfy them
 // When https://github.com/a16z/helios/issues/775 is fixed, return types can be switched to `this`
@@ -26,22 +26,22 @@ export const raw = (client: Eip1193Like): EthereumProvider<Eip1193Like> => {
         async getLogs(params: { address: string; fromBlock: number; toBlock: number }): Promise<TxLog[]> {
             const logs = await client.request({
                 method: 'eth_getLogs',
-                params: [params],
+                params: [{
+                    ...params,
+                    fromBlock: toQuantityHex(params.fromBlock),
+                    toBlock: toQuantityHex(params.toBlock),
+                }],
             }) as RpcLog[];
 
             return logs.map(convertLog);
         },
         async getBlockNumber(): Promise<number> {
-            const hex = await client.request({
+            const value = await client.request({
                 method: 'eth_blockNumber',
                 params: [],
             });
 
-            if (typeof hex !== 'string') {
-                throw new Error('Expected hex string, got: ' + typeof hex);
-            }
-
-            return hexToNumber(hex);
+            return maybeQuantityToNumber(value);
         },
         async waitForTransaction(txHash: string): Promise<void> {
             const start = Date.now();
