@@ -12,6 +12,7 @@
   ],
   "ignore": [
     "docs",
+    "@kohaku-eth/examples-*",
     "@kohaku-eth/privacy-pools"
   ]
 }
