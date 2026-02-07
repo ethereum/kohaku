@@ -191,7 +191,7 @@ export const AavePanel = () => {
         <div className="bg-bg-secondary border border-border rounded-lg p-6 text-center">
           <p className="text-text-secondary">
             Aave V3 is not available on this network. Please switch to Sepolia
-            or Arbitrum Sepolia testnet.
+            testnet.
           </p>
         </div>
       </div>

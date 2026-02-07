@@ -41,46 +41,6 @@ export const TOKENS_BY_CHAIN: Record<number, Token[]> = {
       decimals: 8,
       address: "0x29f2D40B0605204364af54EC677bD022dA425d03",
     },
-    {
-      symbol: "AAVE",
-      name: "Aave Token",
-      decimals: 18,
-      address: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a",
-    },
-    {
-      symbol: "LINK",
-      name: "ChainLink Token",
-      decimals: 18,
-      address: "0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5",
-    },
-    {
-      symbol: "EURS",
-      name: "STASIS EURS",
-      decimals: 2,
-      address: "0x6d906e526a4e2Ca02097BA9d0caA3c382F52278E",
-    },
-    {
-      symbol: "GHO",
-      name: "GHO Token",
-      decimals: 18,
-      address: "0xc4bF5CbDaBE595361438F8c6a187bDc330539c60",
-    },
-  ],
-  // Arbitrum Sepolia
-  421614: [
-    { symbol: "ETH", name: "Ethereum", decimals: 18, address: null },
-    {
-      symbol: "WETH",
-      name: "Wrapped Ether",
-      decimals: 18,
-      address: "0x1dF462e2712496373A347f8ad10802a5E95f053D",
-    },
-    {
-      symbol: "USDC",
-      name: "USD Coin",
-      decimals: 6,
-      address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-    },
   ],
 };
 

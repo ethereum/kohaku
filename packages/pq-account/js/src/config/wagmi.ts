@@ -1,5 +1,5 @@
 import { createConfig, http } from "wagmi";
-import { arbitrumSepolia, sepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
 import deploymentsData from "../../../deployments/deployments.json";
@@ -18,15 +18,13 @@ export const deployments = deploymentsData as Deployments;
 
 export const chainToDeploymentKey: Record<number, string> = {
   [sepolia.id]: "sepolia",
-  [arbitrumSepolia.id]: "arbitrumSepolia",
 };
 
 export const wagmiConfig = createConfig({
-  chains: [sepolia, arbitrumSepolia],
+  chains: [sepolia],
   connectors: [injected()],
   transports: {
     [sepolia.id]: http(),
-    [arbitrumSepolia.id]: http(),
   },
 });
 

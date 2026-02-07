@@ -7,9 +7,6 @@ import {
   useDisconnect,
   useEnsName,
 } from "wagmi";
-import { arbitrumSepolia, sepolia } from "wagmi/chains";
-
-const SUPPORTED_CHAIN_IDS: number[] = [sepolia.id, arbitrumSepolia.id];
 
 export const Header = () => {
   const { address, isConnected, chain } = useConnection();
@@ -23,9 +20,6 @@ export const Header = () => {
   useEffect(() => setMounted(true), []);
 
   const networkName = chain?.name ?? "Not Connected";
-  const isSupported = chain?.id
-    ? SUPPORTED_CHAIN_IDS.includes(chain.id)
-    : false;
 
   const handleConnect = () => {
     const [injectedConnector] = connectors;
@@ -96,12 +90,6 @@ export const Header = () => {
             />
             <span className="text-text-secondary text-sm">{networkName}</span>
           </div>
-
-          {isConnected && !isSupported && (
-            <div className="text-xs text-warning px-2 py-1 bg-warning/10 border border-warning/30 rounded">
-              Unsupported
-            </div>
-          )}
         </div>
 
         <div>
