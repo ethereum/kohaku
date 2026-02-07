@@ -4,7 +4,7 @@ import { tv } from "tailwind-variants";
 import { match } from "ts-pattern";
 import { useConnection } from "wagmi";
 
-import { getAaveConfig, getAaveTokens } from "../config/aave";
+import { AAVE_CONFIG } from "../config/aave";
 import {
   useAaveBorrow,
   useAaveFaucet,
@@ -110,9 +110,10 @@ export const AavePanel = () => {
 
   const { chain } = useConnection();
   const chainId = chain?.id;
-  const config = getAaveConfig(chainId);
-  const allTokens = ["ETH", ...getAaveTokens(chainId)];
-  const faucetTokens = getAaveTokens(chainId);
+  const config = chainId ? AAVE_CONFIG[chainId] ?? null : null;
+  const configTokens = config ? Object.keys(config.tokens) : [];
+  const allTokens = ["ETH", ...configTokens];
+  const faucetTokens = configTokens;
   const tokens = operation === "faucet" ? faucetTokens : allTokens;
   const accountAddress = useStore(form.store, (s) => s.values.accountAddress);
   const pimlicoApiKey = useStore(form.store, (s) => s.values.pimlicoApiKey);

@@ -43,9 +43,3 @@ export const TOKENS_BY_CHAIN: Record<number, Token[]> = {
     },
   ],
 };
-
-export const getTokensForChain = (chainId: number | undefined): Token[] => {
-  if (!chainId) return [];
-
-  return TOKENS_BY_CHAIN[chainId] || [];
-};

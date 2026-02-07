@@ -1,7 +1,7 @@
 import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
 import { BrowserProvider, isAddress } from "ethers";
 
-import { type AaveNetworkConfig, getAaveConfig } from "../config/aave";
+import { AAVE_CONFIG, type AaveNetworkConfig } from "../config/aave";
 import { hexToU8 } from "./hex.js";
 import {
   createBaseUserOperation,
@@ -40,7 +40,7 @@ export const getValidatedConfig = (
     throw new Error(ERRORS.INVALID_ADDRESS);
   }
 
-  const config = getAaveConfig(chainId);
+  const config = AAVE_CONFIG[chainId] ?? null;
 
   if (!config) {
     throw new Error(ERRORS.UNSUPPORTED_CHAIN(chainId));

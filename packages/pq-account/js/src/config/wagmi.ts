@@ -27,18 +27,3 @@ export const wagmiConfig = createConfig({
     [sepolia.id]: http(),
   },
 });
-
-export const getFactoryAddress = (chainId: number | undefined): string => {
-  if (!chainId) return "—";
-
-  const networkKey = chainToDeploymentKey[chainId];
-
-  if (!networkKey) return "Not deployed on this network";
-
-  const accountMode = "mldsa_k1";
-
-  return (
-    deployments[networkKey]?.accounts?.[accountMode]?.address ??
-    "Not deployed on this network"
-  );
-};

@@ -229,22 +229,6 @@ export const AAVE_CONFIG: Record<number, AaveNetworkConfig> = {
   },
 };
 
-export const getAaveConfig = (
-  chainId: number | undefined
-): AaveNetworkConfig | null => {
-  if (!chainId) return null;
-
-  return AAVE_CONFIG[chainId] || null;
-};
-
-export const getAaveTokens = (chainId: number | undefined): string[] => {
-  const config = getAaveConfig(chainId);
-
-  if (!config) return [];
-
-  return Object.keys(config.tokens);
-};
-
 export const VARIABLE_RATE_MODE = 2n;
 
 export const REFERRAL_CODE = 0;

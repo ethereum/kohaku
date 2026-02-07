@@ -3,10 +3,10 @@ import { formatUnits } from "viem";
 import { usePublicClient } from "wagmi";
 
 import {
+  AAVE_CONFIG,
   AAVE_POOL_ABI,
   type AavePosition,
   ERC20_ABI,
-  getAaveConfig,
 } from "../config/aave";
 
 export const useAavePosition = (
@@ -14,7 +14,7 @@ export const useAavePosition = (
   chainId: number | undefined
 ) => {
   const publicClient = usePublicClient();
-  const config = getAaveConfig(chainId);
+  const config = chainId ? AAVE_CONFIG[chainId] ?? null : null;
 
   return useQuery({
     queryKey: ["aavePosition", accountAddress, chainId],

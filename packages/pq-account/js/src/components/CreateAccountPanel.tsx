@@ -3,7 +3,11 @@ import { useState } from "react";
 import { type Address, formatEther, isAddress } from "viem";
 import { useBalance, useConnection } from "wagmi";
 
-import { getFactoryAddress } from "../config/wagmi";
+import {
+  chainToDeploymentKey,
+  type Deployments,
+  deployments,
+} from "../config/wagmi";
 import { useConsole } from "../hooks/useConsole";
 import { useDeployAccount } from "../hooks/useDeployAccount";
 import { useFundAccount } from "../hooks/useFundAccount";
@@ -65,7 +69,14 @@ export const CreateAccountPanel = () => {
     },
   });
 
-  const factoryAddress = getFactoryAddress(chain?.id);
+  const chainId = chain?.id;
+  const networkKey = chainId ? chainToDeploymentKey[chainId] : undefined;
+  const accountMode = "mldsa_k1";
+  const factoryAddress = networkKey
+    ? (deployments as Deployments)[networkKey]?.accounts?.[accountMode]
+        ?.address ?? "Not deployed on this network"
+    : "—";
+
   const walletBalance = walletBalanceData
     ? `${formatEther(walletBalanceData.value).slice(0, 10)} ETH`
     : "—";

@@ -2,7 +2,7 @@ import { type Address, formatUnits, isAddress } from "viem";
 import { useBalance, useReadContracts } from "wagmi";
 
 import { ERC20_ABI } from "../config/aave";
-import { getTokensForChain } from "../config/tokens";
+import { TOKENS_BY_CHAIN } from "../config/tokens";
 
 export const useTokenBalances = (
   accountAddress: string | null,
@@ -13,7 +13,7 @@ export const useTokenBalances = (
       ? (accountAddress as Address)
       : undefined;
 
-  const tokens = getTokensForChain(chainId);
+  const tokens = chainId ? TOKENS_BY_CHAIN[chainId] ?? [] : [];
 
   // Get native ETH balance
   const { data: ethBalance, refetch: refetchEth } = useBalance({
