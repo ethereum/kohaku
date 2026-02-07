@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/example-pq-account",
-  "version": "1.0.0",
+  "version": "0.0.1-alpha.1",
   "description": "Post-quantum ERC4337 account creation and transaction interface",
   "type": "module",
   "private": true,
