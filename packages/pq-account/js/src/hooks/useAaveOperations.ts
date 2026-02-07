@@ -4,6 +4,7 @@ import { useWalletClient } from "wagmi";
 import {
   approveTokenForAave,
   borrowFromAave,
+  mintFromFaucet,
   repayToAave,
   supplyToAave,
   withdrawFromAave,
@@ -170,3 +171,54 @@ export const useTokenApproval = () =>
       ),
     [["allowance"]]
   );
+
+type FaucetParams = {
+  accountAddress: string;
+  asset: string;
+  amount: string;
+};
+
+export const useAaveFaucet = () => {
+  const queryClient = useQueryClient();
+  const { data: walletClient } = useWalletClient();
+  const { log, clear } = useConsoleLog("aave");
+
+  return useMutation({
+    mutationFn: async (params: FaucetParams) => {
+      clear();
+
+      if (!params.accountAddress) {
+        throw new Error("Please enter an account address");
+      }
+
+      if (!params.amount || Number(params.amount) <= 0) {
+        throw new Error("Please enter a valid amount");
+      }
+
+      if (!walletClient) {
+        throw new Error("Wallet not connected");
+      }
+
+      log("🔌 Connecting to wallet...");
+      const provider = walletClientToEthersProvider(walletClient);
+      const network = await provider.getNetwork();
+
+      log(`✅ Connected to ${network.name}`);
+      log("");
+
+      return mintFromFaucet(
+        params.accountAddress,
+        params.asset,
+        params.amount,
+        provider,
+        log
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["balance"] });
+    },
+    onError: (error) => {
+      log("❌ Error: " + (error as Error).message);
+    },
+  });
+};

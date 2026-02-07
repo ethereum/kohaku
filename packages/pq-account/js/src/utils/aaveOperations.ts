@@ -2,6 +2,7 @@ import { BrowserProvider, ethers, Interface } from "ethers";
 import { match } from "ts-pattern";
 
 import {
+  AAVE_FAUCET_ABI,
   AAVE_POOL_ABI,
   ERC20_ABI,
   REFERRAL_CODE,
@@ -109,7 +110,6 @@ export const supplyToAave = async (
   }
 };
 
-// Borrow assets from Aave
 export const borrowFromAave = async (
   accountAddress: string,
   asset: string,
@@ -171,7 +171,6 @@ export const borrowFromAave = async (
   }
 };
 
-// Repay loan to Aave
 export const repayToAave = async (
   accountAddress: string,
   asset: string,
@@ -230,7 +229,6 @@ export const repayToAave = async (
   }
 };
 
-// Withdraw assets from Aave
 export const withdrawFromAave = async (
   accountAddress: string,
   asset: "ETH" | string,
@@ -317,7 +315,6 @@ export const withdrawFromAave = async (
   }
 };
 
-// Approve token for Aave Pool
 export const approveTokenForAave = async (
   accountAddress: string,
   asset: string,
@@ -377,6 +374,66 @@ export const approveTokenForAave = async (
     );
 
     return result;
+  } catch (e) {
+    return handleError(e, log);
+  }
+};
+
+export const mintFromFaucet = async (
+  accountAddress: string,
+  asset: string,
+  amount: string,
+  provider: BrowserProvider,
+  log: (msg: string) => void
+): Promise<AaveOperationResult> => {
+  try {
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+    const config = getValidatedConfig(accountAddress, chainId);
+    const tokenInfo = config.tokens[asset];
+
+    if (!tokenInfo) throw new Error(ERRORS.UNSUPPORTED_TOKEN(asset));
+
+    log("💧 Minting from Aave Faucet...");
+    log("");
+
+    const amountWei = ethers.parseUnits(amount, tokenInfo.decimals);
+    const signer = await provider.getSigner();
+    const faucet = new ethers.Contract(config.faucet, AAVE_FAUCET_ABI, signer);
+
+    log("📋 Faucet Details:");
+    log("   Token: " + asset);
+    log("   Amount: " + amount);
+    log("   Recipient: " + accountAddress);
+    log("   Faucet: " + config.faucet);
+    log("");
+
+    log("📝 Estimating gas...");
+    const feeData = await provider.getFeeData();
+
+    log("📝 Sending faucet transaction...");
+    const tx = await faucet.mint(tokenInfo.address, accountAddress, amountWei, {
+      maxFeePerGas: feeData.maxFeePerGas,
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    });
+
+    log("⏳ Waiting for confirmation...");
+    log("   Tx Hash: " + tx.hash);
+    log("");
+
+    const receipt = await tx.wait();
+
+    log("✅ FAUCET MINT SUCCESSFUL! 💧");
+    log("   " + amount + " " + asset + " minted to " + accountAddress);
+    log("");
+    log("Transaction Hash: " + receipt.hash);
+    log("Block Number: " + receipt.blockNumber);
+    log("");
+
+    return {
+      success: true,
+      userOpHash: receipt.hash,
+    };
   } catch (e) {
     return handleError(e, log);
   }

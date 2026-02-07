@@ -7,6 +7,7 @@ import { useConnection } from "wagmi";
 import { getAaveConfig, getAaveTokens } from "../config/aave";
 import {
   useAaveBorrow,
+  useAaveFaucet,
   useAaveRepay,
   useAaveSupply,
   useAaveWithdraw,
@@ -22,7 +23,13 @@ import { Console } from "./Console";
 import { Input } from "./Input";
 import { Select } from "./Select";
 
-type AaveOperation = "supply" | "borrow" | "repay" | "withdraw" | "approve";
+type AaveOperation =
+  | "supply"
+  | "borrow"
+  | "repay"
+  | "withdraw"
+  | "approve"
+  | "faucet";
 
 const operationTab = tv({
   base: "px-4 py-2 text-sm font-medium rounded-lg transition-all",
@@ -39,6 +46,7 @@ const operationTab = tv({
 });
 
 const OPERATION_TABS = [
+  { id: "faucet", label: "Faucet", emoji: "💧" },
   { id: "supply", label: "Supply", emoji: "📥" },
   { id: "borrow", label: "Borrow", emoji: "💸" },
   { id: "repay", label: "Repay", emoji: "💳" },
@@ -49,8 +57,8 @@ const OPERATION_TABS = [
 export const AavePanel = () => {
   const { output } = useConsole("aave");
   const { session, updateSession } = useSession();
-  const [operation, setOperation] = useState<AaveOperation>("supply");
-  const [selectedAsset, setSelectedAsset] = useState("ETH");
+  const [operation, setOperation] = useState<AaveOperation>("faucet");
+  const [selectedAsset, setSelectedAsset] = useState("USDC");
   const [approvalType, setApprovalType] = useState<
     "unlimited" | "0" | "custom"
   >("unlimited");
@@ -76,6 +84,13 @@ export const AavePanel = () => {
       };
 
       match(operation)
+        .with("faucet", () =>
+          faucetMutation.mutate({
+            accountAddress: value.accountAddress,
+            asset: selectedAsset,
+            amount: value.amount,
+          })
+        )
         .with("supply", () => supplyMutation.mutate(params))
         .with("borrow", () => borrowMutation.mutate(params))
         .with("repay", () => repayMutation.mutate(params))
@@ -96,14 +111,13 @@ export const AavePanel = () => {
   const { chain } = useConnection();
   const chainId = chain?.id;
   const config = getAaveConfig(chainId);
-  const tokens = ["ETH", ...getAaveTokens(chainId)];
+  const allTokens = ["ETH", ...getAaveTokens(chainId)];
+  const faucetTokens = getAaveTokens(chainId);
+  const tokens = operation === "faucet" ? faucetTokens : allTokens;
   const accountAddress = useStore(form.store, (s) => s.values.accountAddress);
   const pimlicoApiKey = useStore(form.store, (s) => s.values.pimlicoApiKey);
   const preQuantumSeed = useStore(form.store, (s) => s.values.preQuantumSeed);
-  const postQuantumSeed = useStore(
-    form.store,
-    (s) => s.values.postQuantumSeed
-  );
+  const postQuantumSeed = useStore(form.store, (s) => s.values.postQuantumSeed);
 
   const { data: position, refetch: refetchPosition } = useAavePosition(
     accountAddress || null,
@@ -114,6 +128,7 @@ export const AavePanel = () => {
     chainId
   );
 
+  const faucetMutation = useAaveFaucet();
   const supplyMutation = useAaveSupply();
   const borrowMutation = useAaveBorrow();
   const repayMutation = useAaveRepay();
@@ -136,6 +151,7 @@ export const AavePanel = () => {
   ]);
 
   const isPending =
+    faucetMutation.isPending ||
     supplyMutation.isPending ||
     borrowMutation.isPending ||
     repayMutation.isPending ||
@@ -158,6 +174,7 @@ export const AavePanel = () => {
 
   const getOperationButton = () => {
     return match(operation)
+      .with("faucet", () => ({ label: "Mint from Faucet", emoji: "💧" }))
       .with("supply", () => ({ label: "Supply to Aave", emoji: "📥" }))
       .with("borrow", () => ({ label: "Borrow from Aave", emoji: "💸" }))
       .with("repay", () => ({ label: "Repay Loan", emoji: "💳" }))
@@ -233,23 +250,25 @@ export const AavePanel = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Pimlico API Key
-            </label>
-            <Field
-              form={form}
-              name="pimlicoApiKey"
-              children={(field) => (
-                <Input
-                  type="text"
-                  placeholder="pim_xxx..."
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              )}
-            />
-          </div>
+          {operation !== "faucet" && (
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Pimlico API Key
+              </label>
+              <Field
+                form={form}
+                name="pimlicoApiKey"
+                children={(field) => (
+                  <Input
+                    type="text"
+                    placeholder="pim_xxx..."
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                )}
+              />
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -281,6 +300,11 @@ export const AavePanel = () => {
           <h3 className="text-base font-semibold text-text-primary mb-1">
             🏦 Aave Operations
           </h3>
+          {operation === "faucet" && (
+            <p className="text-sm text-text-muted mt-2">
+              Mint testnet tokens to your account address from the Aave faucet
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
@@ -378,51 +402,53 @@ export const AavePanel = () => {
         )}
       </div>
 
-      <div className="bg-bg-secondary border border-border rounded-lg p-6 mb-4">
-        <div className="mb-5">
-          <h3 className="text-base font-semibold text-text-primary mb-1">
-            🔑 Signing Keys
-          </h3>
-          <p className="text-sm text-text-muted">
-            Same seeds used to create the account
-          </p>
-        </div>
+      {operation !== "faucet" && (
+        <div className="bg-bg-secondary border border-border rounded-lg p-6 mb-4">
+          <div className="mb-5">
+            <h3 className="text-base font-semibold text-text-primary mb-1">
+              🔑 Signing Keys
+            </h3>
+            <p className="text-sm text-text-muted">
+              Same seeds used to create the account
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Pre-Quantum Seed (ECDSA)
-            </label>
-            <Field
-              form={form}
-              name="preQuantumSeed"
-              children={(field) => (
-                <Input
-                  type="text"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              )}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Post-Quantum Seed (ML-DSA-44)
-            </label>
-            <Field
-              form={form}
-              name="postQuantumSeed"
-              children={(field) => (
-                <Input
-                  type="text"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                />
-              )}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Pre-Quantum Seed (ECDSA)
+              </label>
+              <Field
+                form={form}
+                name="preQuantumSeed"
+                children={(field) => (
+                  <Input
+                    type="text"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                )}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Post-Quantum Seed (ML-DSA-44)
+              </label>
+              <Field
+                form={form}
+                name="postQuantumSeed"
+                children={(field) => (
+                  <Input
+                    type="text"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                )}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <Button
         variant="primary"
