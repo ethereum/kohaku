@@ -35,7 +35,7 @@ const operationTab = tv({
   base: "px-4 py-2 text-sm font-medium rounded-lg transition-all",
   variants: {
     active: {
-      true: "bg-accent text-white shadow-sm",
+      true: "bg-accent text-white",
       false:
         "bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border",
     },
@@ -200,7 +200,7 @@ export const AavePanel = () => {
 
   return (
     <div className="animate-fadeIn">
-      <div className="bg-bg-secondary border border-border rounded-lg p-4 mb-4 flex items-start gap-3">
+      <div className="bg-bg-secondary border border-border rounded-lg p-4 mb-4 flex items-center gap-3">
         <span className="text-text-muted text-lg">ℹ️</span>
         <div className="text-sm text-text-secondary">
           <strong className="text-text-primary">

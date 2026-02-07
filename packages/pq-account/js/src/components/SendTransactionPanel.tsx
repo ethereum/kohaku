@@ -1,5 +1,6 @@
 import { Field, useForm, useStore } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
+import { twMerge } from "tailwind-merge";
 import { encodeFunctionData, parseUnits } from "viem";
 import { useConnection } from "wagmi";
 
@@ -195,11 +196,12 @@ export const SendTransactionPanel = () => {
                   key={token.symbol}
                   type="button"
                   onClick={() => setSelectedToken(token.symbol)}
-                  className={`bg-bg-tertiary border rounded-lg p-3 text-left transition-all hover:shadow-sm ${
+                  className={twMerge(
+                    "bg-bg-tertiary border rounded-lg p-3 text-left transition-all",
                     selectedToken === token.symbol
                       ? "border-accent bg-accent/5"
                       : "border-border hover:border-border-hover"
-                  }`}
+                  )}
                 >
                   <div className="text-xs font-medium text-text-secondary mb-1">
                     {token.symbol}
