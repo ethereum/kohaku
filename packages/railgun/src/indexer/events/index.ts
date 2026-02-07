@@ -34,7 +34,7 @@ export const makeProcessLog = async ({ getTrees, accounts }: ProcessLogContext):
         if (!parsedLog) return;
 
         const event = parsedLog as unknown as RailgunLogEvent;
-        const blockNumber = log.blockNumber;
+        const blockNumber = Number(log.blockNumber);
 
         await match(event)
             .with({ name: 'Shield' }, (event) => handleShieldEvent(event.args, skipMerkleTree, blockNumber))

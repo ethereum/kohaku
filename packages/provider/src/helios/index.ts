@@ -1,9 +1,8 @@
 import { createHeliosProvider, HeliosProvider } from "@a16z/helios";
 import type { Config, NetworkKind } from "@a16z/helios";
-import { Eip1193Like, raw } from "~/raw";
+import { raw } from "../raw";
 import type { EthereumProvider } from "../provider";
-export { createHeliosProvider as createHeliosProviderRaw } from "@a16z/helios";
-export type { NetworkKind, Config, HeliosProvider, Network  } from "@a16z/helios";
+import { Provider } from "ox/Provider";
 
 /**
  * Creates a Helios light client provider.
@@ -18,7 +17,7 @@ export async function helios(config: Config, kind: NetworkKind): Promise<Ethereu
     await client.waitSynced();
 
     return {
-        ...raw(client as unknown as Eip1193Like),
+        ...raw(client as unknown as Provider),
         _internal: client,
     };
 }

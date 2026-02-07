@@ -1,19 +1,14 @@
+import { Hex } from "ox/Hex";
 import { EthereumProvider, TransactionReceipt, TxLog } from "..";
-import { HexString, hexToBigInt, hexToNumber, maybeQuantityToNumber, toQuantityHex } from "./hex";
+import { HexString, hexToBigInt } from "./hex";
+import { Provider } from 'ox/Provider';
+import { Block, Filter } from "ox";
 
-// Signature of `on` and `removeListener` are more loose than the actual EIP-1193 spec so that Helios can still satisfy them
-// When https://github.com/a16z/helios/issues/775 is fixed, return types can be switched to `this`
-export interface Eip1193Like {
-    request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
-    on(event: string, callback: (data: unknown) => void): unknown;
-    removeListener(event: string, callback: (data: unknown) => void): unknown;
-}
-
-export const raw = (client: Eip1193Like): EthereumProvider<Eip1193Like> => {
+export const raw = (client: Provider): EthereumProvider<Provider> => {
     const getTransactionReceipt = async (txHash: string): Promise<TransactionReceipt | null> => {
         const receipt = await client.request({
             method: 'eth_getTransactionReceipt',
-            params: [txHash],
+            params: [txHash as Hex],
         }) as RpcReceipt;
 
         if (!receipt) return null;
@@ -23,25 +18,21 @@ export const raw = (client: Eip1193Like): EthereumProvider<Eip1193Like> => {
 
     return {
         _internal: client,
-        async getLogs(params: { address: string; fromBlock: number; toBlock: number }): Promise<TxLog[]> {
+        async getLogs(params: Filter.Filter): Promise<TxLog[]> {
             const logs = await client.request({
                 method: 'eth_getLogs',
-                params: [{
-                    ...params,
-                    fromBlock: toQuantityHex(params.fromBlock),
-                    toBlock: toQuantityHex(params.toBlock),
-                }],
-            }) as RpcLog[];
+                params: [Filter.toRpc(params)],
+            });
 
             return logs.map(convertLog);
         },
-        async getBlockNumber(): Promise<number> {
-            const value = await client.request({
+        async getBlockNumber(): Promise<bigint> {
+            const hex = await client.request({
                 method: 'eth_blockNumber',
-                params: [],
+                params: undefined,
             });
 
-            return maybeQuantityToNumber(value);
+            return hexToBigInt(hex);
         },
         async waitForTransaction(txHash: string): Promise<void> {
             const start = Date.now();
@@ -61,18 +52,18 @@ export const raw = (client: Eip1193Like): EthereumProvider<Eip1193Like> => {
                 await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
             }
         },
-        async getBalance(address: string): Promise<bigint> {
+        async getBalance(address: Hex, block?: Block.Identifier | Block.Tag): Promise<bigint> {
             const hex = await client.request({
                 method: 'eth_getBalance',
-                params: [address],
+                params: [address, block ?? 'latest'],
             }) as HexString;
 
             return hexToBigInt(hex);
         },
-        async getCode(address: string): Promise<string> {
+        async getCode(address: Hex, block?: Block.Identifier | Block.Tag): Promise<string> {
             const hex = await client.request({
                 method: 'eth_getCode',
-                params: [address],
+                params: [address, block ?? 'latest'],
             }) as HexString;
 
             return hex ?? '0x';
@@ -96,15 +87,15 @@ type RpcReceipt = {
 };
 
 const convertLog = (log: RpcLog): TxLog => ({
-    blockNumber: hexToNumber(log.blockNumber),
+    blockNumber: hexToBigInt(log.blockNumber),
     topics: [...log.topics],
     data: log.data,
     address: log.address,
 });
 
 const convertReceipt = (receipt: RpcReceipt): TransactionReceipt => ({
-    blockNumber: hexToNumber(receipt.blockNumber),
-    status: receipt.status ? hexToNumber(receipt.status) : 0,
+    blockNumber: hexToBigInt(receipt.blockNumber),
+    status: receipt.status ? hexToBigInt(receipt.status) : BigInt(0),
     logs: receipt.logs.map(convertLog),
     gasUsed: hexToBigInt(receipt.gasUsed),
 });

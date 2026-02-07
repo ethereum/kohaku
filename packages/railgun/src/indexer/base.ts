@@ -76,7 +76,7 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
 
         // Update endBlock to the highest block number in the logs
         if (logs.length > 0) {
-            const maxBlock = Math.max(...logs.map(log => log.blockNumber));
+            const maxBlock = Math.max(...logs.map(log => Number(log.blockNumber)));
 
             setEndBlock(maxBlock);
 

@@ -1,6 +1,9 @@
 import type { JsonRpcProvider, Log } from 'ethers';
+import { Filter } from 'ox';
 import type { TxLog, TransactionReceipt } from '../tx';
 import type { EthereumProvider } from '../provider';
+import { AddressLike } from 'ethers';
+import { HexString } from '~/raw/hex';
 export * from './signer';
 
 /**
@@ -9,17 +12,19 @@ export * from './signer';
 export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvider> => {
   return {
     _internal: provider,
-    async getLogs(params: {
-      address: string;
-      fromBlock: number;
-      toBlock: number;
-    }): Promise<TxLog[]> {
-      const logs = await provider.getLogs(params);
+    async getLogs({ address, fromBlock, toBlock, topics }: Filter.Filter): Promise<TxLog[]> {
+      const logs = await provider.getLogs({
+        address: address as AddressLike,
+        // blockHash,
+        fromBlock,
+        toBlock,
+        topics: topics as HexString[],
+      });
 
       return logs.map(convertLog);
     },
-    async getBlockNumber(): Promise<number> {
-      return await provider.getBlockNumber();
+    async getBlockNumber(): Promise<bigint> {
+      return BigInt(await provider.getBlockNumber());
     },
     async waitForTransaction(txHash: string): Promise<void> {
       await provider.waitForTransaction(txHash);
@@ -36,8 +41,8 @@ export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvi
       if (!receipt) return null;
 
       return {
-        blockNumber: receipt.blockNumber,
-        status: receipt.status ?? 0,
+        blockNumber: BigInt(receipt.blockNumber),
+        status: BigInt(receipt.status ?? 0),
         logs: receipt.logs.map(convertLog),
         gasUsed: receipt.gasUsed,
       };
@@ -47,7 +52,7 @@ export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvi
 
 const convertLog = (log: Log): TxLog => {
   return {
-    blockNumber: log.blockNumber,
+    blockNumber: BigInt(log.blockNumber),
     topics: [...log.topics],
     data: log.data,
     address: log.address,

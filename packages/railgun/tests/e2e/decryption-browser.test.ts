@@ -114,12 +114,12 @@ describe('Note Decryption - Browser vs Node.js Paths', () => {
 
     const receipt = await provider.getTransactionReceipt(shieldTxHash);
 
-    expect(receipt?.status).toBe(1);
+    expect(receipt?.status).toBe(1n);
 
     await anvil.mine(3);
 
     // Fetch logs
-    const currentBlock = (receipt?.blockNumber ?? forkBlock) + 3;
+    const currentBlock = Number(receipt?.blockNumber ?? forkBlock) + 3;
     const logs = await provider.getLogs({
       address: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RAILGUN_ADDRESS!,
       fromBlock: forkBlock,
