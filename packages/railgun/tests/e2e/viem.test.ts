@@ -147,7 +147,7 @@ describe('Railgun E2E Flow (Viem)', () => {
     console.log(`Alice initial ETH balance: ${aliceInitialEthBalance.toString()}`);
     console.log(`Alice initial root: ${currentRootA}`);
 
-    const startBlock = await provider.getBlockNumber();
+    const startBlock = Number(await provider.getBlockNumber());
 
     // Step 3: Shield ETH to Alice's Railgun account
     console.log('\nStep 3: Shielding ETH...');
@@ -175,7 +175,7 @@ describe('Railgun E2E Flow (Viem)', () => {
     console.log(`Receipt has ${receipt?.logs?.length ?? 0} logs`);
     console.log(`Receipt gas used: ${receipt?.gasUsed}`);
 
-    if (receipt?.status === 0) {
+    if (receipt?.status === 0n) {
       throw new Error('Shield transaction reverted');
     }
 
@@ -184,7 +184,7 @@ describe('Railgun E2E Flow (Viem)', () => {
 
     // Step 4: Sync Alice's account with new logs (from start of fork to include all new txs)
     console.log('\nStep 4: Syncing Alice account with new logs...');
-    const currentBlock = await provider.getBlockNumber();
+    const currentBlock = Number(await provider.getBlockNumber());
 
     console.log(`Querying logs from block ${startBlock} to ${currentBlock}`);
 
@@ -232,7 +232,7 @@ describe('Railgun E2E Flow (Viem)', () => {
 
     // Step 6: Sync both accounts with transfer logs
     console.log('\nStep 6: Syncing accounts after transfer...');
-    const newBlock = await provider.getBlockNumber();
+    const newBlock = Number(await provider.getBlockNumber());
     // const transferLogs = await indexer.fetchLogs(currentBlock, newBlock);
 
     // await indexer.processLogs(transferLogs);

@@ -7,31 +7,10 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-<<<<<<< feat-add-helios
-  "typesVersions": {
-    "*": {
-      "ethers": [
-        "dist/ethers.d.ts"
-      ],
-      "viem": [
-        "dist/viem.d.ts"
-      ],
-      "colibri": [
-        "dist/colibri.d.ts"
-      ],
-      "helios": [
-        "dist/helios.d.ts"
-      ],
-      "raw": [
-        "dist/raw.d.ts"
-      ]
-    }
-=======
   "repository": {
     "type": "git",
     "url": "https://github.com/ethereum/kohaku.git",
     "directory": "packages/provider"
->>>>>>> master
   },
   "exports": {
     ".": {
@@ -129,9 +108,12 @@
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",
     "typescript": "^5.9.2",
-    "viem": "^2.0.0",
+    "viem": "^2.45.0",
     "vite": "^6.0.0",
     "vite-tsconfig-paths": "^5.1.0",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "ox": "^0.12.0"
   }
 }

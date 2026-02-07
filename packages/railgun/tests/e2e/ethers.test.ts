@@ -193,8 +193,8 @@ describe('Railgun E2E Flow', () => {
     // Try getting logs without address filter
     const allLogsInBlock = await provider.getLogs({
       address: '',
-      fromBlock: receipt?.blockNumber ?? 0,
-      toBlock: receipt?.blockNumber ?? 0
+      fromBlock: receipt?.blockNumber ?? 0n,
+      toBlock: receipt?.blockNumber ?? 0n
     });
 
     console.log(`\nAll logs in block ${receipt?.blockNumber}: ${allLogsInBlock.length}`);
@@ -202,8 +202,8 @@ describe('Railgun E2E Flow', () => {
     // Try getting logs from RAILGUN_ADDRESS
     const railgunLogs = await provider.getLogs({
       address: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RAILGUN_ADDRESS!,
-      fromBlock: receipt?.blockNumber ?? 0,
-      toBlock: receipt?.blockNumber ?? 0
+      fromBlock: receipt?.blockNumber ?? 0n,
+      toBlock: receipt?.blockNumber ?? 0n
     });
 
     console.log(`Logs from RAILGUN_ADDRESS: ${railgunLogs.length}`);
@@ -211,13 +211,13 @@ describe('Railgun E2E Flow', () => {
     // Try getting logs from RELAY_ADAPT_ADDRESS
     const relayAdaptLogs = await provider.getLogs({
       address: RAILGUN_CONFIG_BY_CHAIN_ID[chainId]!.RELAY_ADAPT_ADDRESS!,
-      fromBlock: receipt?.blockNumber ?? 0,
-      toBlock: receipt?.blockNumber ?? 0
+      fromBlock: receipt?.blockNumber ?? 0n,
+      toBlock: receipt?.blockNumber ?? 0n
     });
 
     console.log(`Logs from RELAY_ADAPT_ADDRESS: ${relayAdaptLogs.length}`);
 
-    if (receipt?.status === 0) {
+    if (receipt?.status === 0n) {
       throw new Error('Shield transaction reverted');
     }
 
@@ -228,7 +228,7 @@ describe('Railgun E2E Flow', () => {
     console.log('\nStep 4: Syncing Alice account with new logs...');
 
     // Use receipt block + mined blocks as the end range (ethers provider caches block numbers)
-    const currentBlock = (receipt?.blockNumber ?? forkBlock) + 3;
+    const currentBlock = Number(receipt?.blockNumber ?? forkBlock) + 3;
 
     console.log(`Querying logs from block ${startBlock} to ${currentBlock}`);
 
@@ -273,7 +273,7 @@ describe('Railgun E2E Flow', () => {
 
     // Step 6: Sync both accounts with transfer logs
     console.log('\nStep 6: Syncing accounts after transfer...');
-    const newBlock = await provider.getBlockNumber();
+    const newBlock = Number(await provider.getBlockNumber());
 
     await indexer.sync!({ toBlock: newBlock, logProgress: true });
 

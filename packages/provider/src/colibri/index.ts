@@ -1,6 +1,7 @@
-import { Eip1193Like, raw } from '~/raw';
+import { raw } from '../raw';
 import type { EthereumProvider } from '../provider';
 import type { C4Config, default as Colibri } from '@corpus-core/colibri-stateless';
+import { Provider } from 'ox/Provider';
 
 export type ColibriConfig = Partial<C4Config>;
 
@@ -32,7 +33,7 @@ export const colibri = async (config: ColibriConfig): Promise<EthereumProvider<C
     const client = new createColibri(config);
 
     return {
-        ...raw(client as unknown as Eip1193Like),
+        ...raw(client as unknown as Provider),
         _internal: client,
     }
 }
