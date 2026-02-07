@@ -7,7 +7,7 @@ const button = tv({
     variant: {
       primary: "bg-accent hover:bg-accent-hover text-white active:scale-[0.99]",
       secondary:
-        "bg-bg-tertiary hover:bg-accent hover:text-white border border-border text-text-primary active:scale-[0.99]",
+        "bg-bg-tertiary hover:bg-bg-primary border border-border hover:border-border-hover text-text-primary active:scale-[0.99]",
     },
     size: {
       default: "py-3 px-6",

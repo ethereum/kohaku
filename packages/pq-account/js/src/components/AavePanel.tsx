@@ -264,6 +264,7 @@ export const AavePanel = () => {
                     placeholder="pim_xxx..."
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    className="blur-sm hover:blur-none focus:blur-none"
                   />
                 )}
               />
