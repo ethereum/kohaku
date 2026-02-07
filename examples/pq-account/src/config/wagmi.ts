@@ -2,7 +2,7 @@ import { createConfig, http } from "wagmi";
 import { sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
-import deploymentsData from "../../../deployments/deployments.json";
+import deploymentsData from "../../../../packages/pq-account/deployments/deployments.json";
 
 export type Deployments = {
   [network: string]: {
