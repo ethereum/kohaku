@@ -58,9 +58,9 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
 
                 await new Promise(r => setTimeout(r, 400)); // light pacing
                 const logs = await provider.getLogs({
-                    address: railgunAddress,
-                    fromBlock,
-                    toBlock,
+                    address: railgunAddress as `0x${string}`,
+                    fromBlock: BigInt(fromBlock),
+                    toBlock: BigInt(toBlock),
                 });
 
                 const duration = Date.now() - startTime;
@@ -97,7 +97,7 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
     const sync: RpcSyncFn = async ({ fromBlock, toBlock, logProgress } = {}) => {
         const startTime = Date.now();
         const startBlock = fromBlock ?? getCurrentBlock();
-        const endBlock = toBlock ?? await provider.getBlockNumber();
+        const endBlock = toBlock ?? Number(await provider.getBlockNumber());
         const allLogs = getLogs(startBlock, endBlock);
 
         console.log('Starting sync from block ', startBlock, ' to block ', endBlock);

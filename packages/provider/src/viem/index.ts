@@ -39,7 +39,7 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
 
             return {
                 blockNumber: BigInt(receipt.blockNumber),
-                status: BigInt(receipt.status),
+                status: receipt.status === 'success' ? 1n : 0n,
                 logs: receipt.logs,
                 gasUsed: BigInt(receipt.gasUsed),
             };
