@@ -58,7 +58,7 @@ abstract contract VerifierDeployer is BaseScript {
 
 contract MLDSAFixedContract is VerifierDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSA_VERIFIER_V0_0_8";
+        saltLabel = "ZKNOX_MLDSA_VERIFIER_V0_0_10";
         verifierKey = "mldsa";
     }
     function deployContract(bytes32 salt) internal override returns (address) {

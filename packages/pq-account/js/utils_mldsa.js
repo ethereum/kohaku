@@ -1,5 +1,21 @@
 import { ethers } from 'ethers';
 import { shake128, shake256 } from '@noble/hashes/sha3.js';
+import { genCrystals } from '@noble/post-quantum/_crystals.js';
+
+const N = 256;
+const Q = 8380417;
+const D = 13;
+
+const { NTT } = genCrystals({
+    N, Q, F: 8347681, ROOT_OF_UNITY: 1753,
+    newPoly: (n) => new Int32Array(n),
+    isKyber: false, brvBits: 8,
+});
+
+function polyShiftl(p) {
+    for (let i = 0; i < N; i++) p[i] <<= D;
+    return p;
+}
 
 function RejectionSamplePoly(rho, i, j, N = 256, q = 8380417) {
   const seed = new Uint8Array(rho.length + 2);
@@ -43,7 +59,6 @@ export function recoverAhat(rho, K, L) {
  * Minimal NTT and polynomial helpers
  * (we only need identity for decoding t1)
  */
-const N = 256;
 const newPoly = () => new Int32Array(N);
 
 /**
@@ -135,6 +150,7 @@ export function compact_poly_256(coeffs, m) {
 
 export function to_expanded_encoded_bytes(publicKey) {
       const { rho, t1, tr } = decodePublicKey(publicKey);
+      t1.forEach(poly => NTT.encode(polyShiftl(poly)));  // t1 = t1.scale(1 << D).to_ntt()
       
       const A_hat = recoverAhat(rho, 4, 4);
       const A_hat_compact = compact_module_256(A_hat, 32);

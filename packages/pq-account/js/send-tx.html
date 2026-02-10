@@ -157,7 +157,7 @@
         <div class="twocols">
             <div class="input-group">
                 <label>Your ERC4337 Account Address:</label>
-                <input type="text" id="accountAddress" value="0xebf2880fc108d61b0279fec6132ac01fa8d58703">
+                <input type="text" id="accountAddress" value="0x78f1AE658206196855Dd85615d26c9bAcD157e60">
             </div>
             
             <div class="input-group">
@@ -229,7 +229,6 @@
         
         function updateBundlerUrl(chainId) {
             const apiKey = document.getElementById('pimlicoApiKey')?.value || 'YOUR_API_KEY';
-            console.log(apiKey);
             
             // Update the bundler URL with new chain ID
             window.bundlerUrlValue.url = `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
