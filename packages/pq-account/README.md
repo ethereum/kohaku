@@ -77,5 +77,5 @@ Note that these contracts do not correspond to the latest update of the contract
 Using the current contracts, the gas cost is the following:
 |Contracts|MLDSA|MLDSA-ETH|FALCON|ETHFALCON|
 |-|-|-|-|-|
-|ECDSA-k1|8387125|5118164|4056050|1693569|
-|ECDSA-r1|8396487|5127526|4065414|1702933|
+|ECDSA-k1|8.39M|5.12M|4.06M|1.69M|
+|ECDSA-r1|8.40M|5.13M|4.07M|1.70M|
