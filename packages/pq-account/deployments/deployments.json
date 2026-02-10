@@ -3,24 +3,24 @@
     "chainId": 11155111,
     "verifiers": {
       "ethfalcon": {
-        "address": "0x01880eb770be007aE75febabA21532Fb5c33318B",
-        "salt": "0x9948a2586b7449a06ce0dcdf9eac5e1ecb18e0c1b38cab20df5e0296eb2215c7",
-        "saltLabel": "ZKNOX_ETHFALCON_VERIFIER_V0_0_1"
+        "address": "0x328C56D41FeEA925c718D1ebBEDd5481E363de9C",
+        "salt": "0xd3caa9d5a653e823eba7d447db9b35c6abc2b03dd25729b41d63040498d76b37",
+        "saltLabel": "ZKNOX_ETHFALCON_VERIFIER_V0_0_2"
       },
       "mldsa": {
-        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
-        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
-        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
+        "address": "0x4A5533724E16bd869347af45C7eEFf7f3dE5c8fc",
+        "salt": "0xf5fa7d3c742d414c417575fee97c2989e31fb40bec5ef082e9be9fbed8815db8",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_8"
       },
       "mldsaeth": {
-        "address": "0xbfF02B9D0EB96f1Fe1BeB57817F0d6085813f1c0",
-        "salt": "0xbcfe7195d98b9dca9b668c1b4dae00d8f8f6852a2cf4c78f0defeef9000b12b0",
-        "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_1"
+        "address": "0xA7D6d8A62521F316a77372ebfCAdbb5B44be1C34",
+        "salt": "0xef5ad2b0c75bd3771cf2fe3ddf20939b42e12eaa64b1edea5bcf3eebc798bb48",
+        "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_3"
       },
       "falcon": {
-        "address": "0x82DDb9783D5577853CbAf2a02b359beeA1E4c4B9",
-        "salt": "0x548877132dd2276b01a52710283519d0db38f8b55e542121d1cdd7945541bab8",
-        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_1"
+        "address": "0x0826a72D0216623Bb8b716e3C8FD34e176a21388",
+        "salt": "0xeaba51f983d4b9c09c836b08ab8607ece9b57eb2636b9518d52f98605c61ecd4",
+        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_2"
       },
       "ecdsa_k1": {
         "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
@@ -35,60 +35,60 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
+        "address": "0x1a331F8FBd311a00929f53a6acaD772CF8092387",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
+        "salt": "0xda8196e8172db4600777ef703691136167a3bb6d7b38c55c052ff2239d40dd3b",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_8"
       },
       "mldsa_r1": {
-        "address": "0x01Ff8790a7615Db192ca1005fe60d0732f432eF5",
+        "address": "0xaAab1D5d432F471eCDEe05b9A370207B06B2AC0c",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_r1",
-        "salt": "0x24055e46ba3a9113a66b9cc742e4aa85994e5c56605767d573af6643ecad49f4",
-        "saltLabel": "ZKNOX_MLDSA_R1_FACTORY_V0_0_1"
+        "salt": "0xb8cb4ebaeefc06b00d9e39f9887b6216df432bd91c07a14db3b393804cd006fa",
+        "saltLabel": "ZKNOX_MLDSA_R1_FACTORY_V0_0_2"
       },
       "mldsaeth_k1": {
-        "address": "0x053116Dae2F3F966B2957D11f87A8Ff298ae31C2",
+        "address": "0xBDb9856FB6A96ABB589Be8AD9aDFD604A169e77E",
         "postQuantum": "mldsaeth",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x00b55da5f55caf9b799a0ba33d2705ea92d674ad073350ebdabd0e77d0c299e4",
-        "saltLabel": "ZKNOX_MLDSAETH_K1_FACTORY_V0_0_1"
+        "salt": "0xb387e8366ac8514020d7c23741c48c15d8534552c24277a7add6ef4606ee14b2",
+        "saltLabel": "ZKNOX_MLDSAETH_K1_FACTORY_V0_0_2"
       },
       "mldsaeth_r1": {
-        "address": "0x3b68f42a9eAfDF85D64492Cc68d5C88d1a525c05",
+        "address": "0x7b0Cd48994ea0D885b533df90ec090e400c9c21C",
         "postQuantum": "mldsaeth",
         "preQuantum": "ecdsa_r1",
-        "salt": "0x74f938811c2c42942d87be014a165a1ceafa28a1f48642720bde823e7a463acd",
-        "saltLabel": "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_1"
+        "salt": "0xfdc7f7a4e95070f0f796d7488e04ec1c400559dcb22a7e7c55865476ce135212",
+        "saltLabel": "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_2"
       },
       "falcon_k1": {
-        "address": "0x43D1B09AC488ea1CF2De674Adb3cB97fa0A51c00",
+        "address": "0x4430b7a90CCdc0c6d33cF368892B264e3417EA5e",
         "postQuantum": "falcon",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x366df8cf5488c6cc93d5cfa5ff2dfb1c95988eef7ef61ed99f9d57a5367ebb1d",
-        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_1"
+        "salt": "0xac8620c24079bef6e6e97c3469a3e9f79108256abaa9d9234419dada631aa6d2",
+        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_2"
       },
       "falcon_r1": {
-        "address": "0x9984bc6D728991Df5C5662B865b7024a11909999",
+        "address": "0xC064B8a7FDe4AC69a761a811eA103ed341a4e994",
         "postQuantum": "falcon",
         "preQuantum": "ecdsa_r1",
-        "salt": "0x55f46b1713c2adeeacd4c266883dc7795fd7711e5ba95555f67518e04776251b",
-        "saltLabel": "ZKNOX_FALCON_R1_FACTORY_V0_0_1"
+        "salt": "0xf9a706966085b76f42ddd3ab06f4941620c9c23c52867d7cd770d9fdf3771239",
+        "saltLabel": "ZKNOX_FALCON_R1_FACTORY_V0_0_2"
       },
       "ethfalcon_k1": {
-        "address": "0x75de9AF9902978826bc99E48f468b682bE17F416",
+        "address": "0x88E72b8DF88Fc42be6974e1909A2d71DAb5ad194",
         "postQuantum": "ethfalcon",
         "preQuantum": "ecdsa_k1",
-        "salt": "0xeebc80cb56b738e3ee59ce60a0a8e08a065765057bc2fb3f991f27c56be89434",
-        "saltLabel": "ZKNOX_ETHFALCON_K1_FACTORY_V0_0_1"
+        "salt": "0x67603aea4398c584545360bed039ed4c075c88b3407214e66a9e6c0fd6145835",
+        "saltLabel": "ZKNOX_ETHFALCON_K1_FACTORY_V0_0_2"
       },
       "ethfalcon_r1": {
-        "address": "0x93115df4f05728Effe3845B552Be5Ff8f183a908",
+        "address": "0xDC8A92f199837A01035134D4dF1bdc37Bcf95eA5",
         "postQuantum": "ethfalcon",
         "preQuantum": "ecdsa_r1",
-        "salt": "0xac07f873bf04c96c59214a68fd7f053d276a8385973f921694e491cf90bc62db",
-        "saltLabel": "ZKNOX_ETHFALCON_R1_FACTORY_V0_0_1"
+        "salt": "0x60e4728010c60bc5ada9b1637daac5fbc1f169ce14cd2d417a9b9acb0f4d38cc",
+        "saltLabel": "ZKNOX_ETHFALCON_R1_FACTORY_V0_0_2"
       }
     }
   },

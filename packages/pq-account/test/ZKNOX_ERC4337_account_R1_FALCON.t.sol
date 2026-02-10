@@ -15,7 +15,7 @@ import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
 // TODO: This is not part of Dilithium so it should be moved in the future
-import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
+import {Constants} from "ETHDILITHIUM/test/seed.sol";
 import {ZKNOX_falcon} from "ETHFALCON/src/ZKNOX_falcon.sol";
 import {ECDSAr1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAr1.sol";
 

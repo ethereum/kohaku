@@ -12,7 +12,7 @@ import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {Signature} from "ETHDILITHIUM/src/ZKNOX_dilithium_utils.sol";
 
-import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
+import {Constants} from "ETHDILITHIUM/test/seed.sol";
 import {PythonSigner} from "ETHDILITHIUM/src/ZKNOX_PythonSigner.sol";
 
 import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
