@@ -95,32 +95,101 @@
   "arbitrumSepolia": {
     "verifiers": {
       "mldsa": {
-        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
-        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
-        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
+        "address": "0xa4417093371158a5C2F068E7e15fA8671dfF4A73",
+        "salt": "0xf5fa7d3c742d414c417575fee97c2989e31fb40bec5ef082e9be9fbed8815db8",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_8"
       },
       "ecdsa_k1": {
         "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
         "salt": "0x89249991e6619ea9d2a750423497a83ec82f475538ff555d1ad42473e0db9fe6",
         "saltLabel": "ZKNOX_ECDSA_K1_VERIFIER_V0_0_1"
+      },
+      "mldsaeth": {
+        "address": "0x9e8A974207016eDfFB657c5687581690ecbdb393",
+        "salt": "0xef5ad2b0c75bd3771cf2fe3ddf20939b42e12eaa64b1edea5bcf3eebc798bb48",
+        "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_3"
+      },
+      "falcon": {
+        "address": "0x0826a72D0216623Bb8b716e3C8FD34e176a21388",
+        "salt": "0xeaba51f983d4b9c09c836b08ab8607ece9b57eb2636b9518d52f98605c61ecd4",
+        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_2"
+      },
+      "ethfalcon": {
+        "address": "0x328C56D41FeEA925c718D1ebBEDd5481E363de9C",
+        "salt": "0xd3caa9d5a653e823eba7d447db9b35c6abc2b03dd25729b41d63040498d76b37",
+        "saltLabel": "ZKNOX_ETHFALCON_VERIFIER_V0_0_2"
+      },
+      "ecdsa_r1": {
+        "address": "0xDB5F45915EbD4647874d5ffFd31a331eE4554c27",
+        "salt": "0x04fa1129a356f5ab25425d18392543dff0a54ccebcddeaeb981d723185b012ba",
+        "saltLabel": "ZKNOX_ECDSA_R1_VERIFIER_V0_0_1"
       }
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
+        "address": "0x0012f30fa786429Fa02776Cde292aE0e13dBBbD7",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
+        "salt": "0xda8196e8172db4600777ef703691136167a3bb6d7b38c55c052ff2239d40dd3b",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_8"
+      },
+      "mldsaeth_k1": {
+        "address": "0x6eA83FEaE9e7B4a9B6A68839E8612c593E42D0E0",
+        "postQuantum": "mldsaeth",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0xb387e8366ac8514020d7c23741c48c15d8534552c24277a7add6ef4606ee14b2",
+        "saltLabel": "ZKNOX_MLDSAETH_K1_FACTORY_V0_0_2"
+      },
+      "mldsa_r1": {
+        "address": "0x38cC4f2dEfE691abA51AF4D958c4C992E16E94f9",
+        "postQuantum": "mldsa",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0xb8cb4ebaeefc06b00d9e39f9887b6216df432bd91c07a14db3b393804cd006fa",
+        "saltLabel": "ZKNOX_MLDSA_R1_FACTORY_V0_0_2"
+      },
+      "mldsaeth_r1": {
+        "address": "0x0f835FB59eB9291A90BFeFCE0FaCF5339ba9d93f",
+        "postQuantum": "mldsaeth",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0xfdc7f7a4e95070f0f796d7488e04ec1c400559dcb22a7e7c55865476ce135212",
+        "saltLabel": "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_2"
+      },
+      "falcon_k1": {
+        "address": "0x8fe7aEE7Cbb721C68445898a26E155a249aD0bE2",
+        "postQuantum": "falcon",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0xac8620c24079bef6e6e97c3469a3e9f79108256abaa9d9234419dada631aa6d2",
+        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_2"
+      },
+      "falcon_r1": {
+        "address": "0x5344939A293B7f2866aCa7E1f50606628139B984",
+        "postQuantum": "falcon",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0xf9a706966085b76f42ddd3ab06f4941620c9c23c52867d7cd770d9fdf3771239",
+        "saltLabel": "ZKNOX_FALCON_R1_FACTORY_V0_0_2"
+      },
+      "ethfalcon_k1": {
+        "address": "0x9A97ffb1E8F7a37d705fDDCB82da51351b2f45aD",
+        "postQuantum": "ethfalcon",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0x67603aea4398c584545360bed039ed4c075c88b3407214e66a9e6c0fd6145835",
+        "saltLabel": "ZKNOX_ETHFALCON_K1_FACTORY_V0_0_2"
+      },
+      "ethfalcon_r1": {
+        "address": "0xb9E448fc549cFe2D706da89a131D3DeB5C300264",
+        "postQuantum": "ethfalcon",
+        "preQuantum": "ecdsa_r1",
+        "salt": "0x60e4728010c60bc5ada9b1637daac5fbc1f169ce14cd2d417a9b9acb0f4d38cc",
+        "saltLabel": "ZKNOX_ETHFALCON_R1_FACTORY_V0_0_2"
       }
     }
   },
   "baseSepolia": {
     "verifiers": {
       "mldsa": {
-        "address": "0x1C789898a6141Fd5F840334Bb2E289fB188a3cb6",
-        "salt": "0x64e0d9b66feeb62169873363ccec417a3543a42a4e1e8f8e343f8903e856e206",
-        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_7"
+        "address": "0xa4417093371158a5C2F068E7e15fA8671dfF4A73",
+        "salt": "0xf5fa7d3c742d414c417575fee97c2989e31fb40bec5ef082e9be9fbed8815db8",
+        "saltLabel": "ZKNOX_MLDSA_VERIFIER_V0_0_8"
       },
       "ecdsa_k1": {
         "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
@@ -130,11 +199,11 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0xe28F039653772C32b0eDB1db7c7A5FA250DDA0e5",
+        "address": "0x0012f30fa786429Fa02776Cde292aE0e13dBBbD7",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x21d87bc6474f9da54659cd778d18780178b6a7b65972acccb833c3e5bf9ee16e",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_7"
+        "salt": "0xda8196e8172db4600777ef703691136167a3bb6d7b38c55c052ff2239d40dd3b",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_8"
       }
     }
   }

@@ -59,18 +59,7 @@ Note: for MLDSA, this requires an extra contract `PKContract` storing the MLDSA 
 Because of the high gas amount, we decided to deploy the contracts on both L1 Sepolia and Arbitrum Sepolia.
 
 ### Fixed contracts
-The signature verifier contract addresses are fixed and deployed once for all:
-
-|Signature scheme| Address on Sepolia |
-|-|-|
-|MLDSA    | [0x10c978aacef41c74e35fc30a4e203bf8d9a9e548](https://sepolia.etherscan.io/address/0x10c978aacef41c74e35fc30a4e203bf8d9a9e548#code) | 
-|MLDSAETH | [0x710f295f1715c2b08bccdb1d9841b4f833f6dde4](https://sepolia.etherscan.io/address/0x710f295f1715c2b08bccdb1d9841b4f833f6dde4#code) | 
-|FALCON   | [0x0724bb7c9e52f3be199964a2d70ff83a103ed99c](https://sepolia.etherscan.io/address/0x0724bb7c9e52f3be199964a2d70ff83a103ed99c#code) |
-|ETHFALCON| [0x146f0d9087001995ca63b648e865f6dbbb2d2915](https://sepolia.etherscan.io/address/0x146f0d9087001995ca63b648e865f6dbbb2d2915#code) | 
-|ECDSAK1  | [0xe2c354d06cce8f18fd0fd6e763a858b6963456d1](https://sepolia.etherscan.io/address/0xe2c354d06cce8f18fd0fd6e763a858b6963456d1#code) | 
-|ECDSAR1 |  [0x4023f2e318A3c7cbCf2fFAB11A75f99aC9625214](https://sepolia.etherscan.io/address/0x4023f2e318A3c7cbCf2fFAB11A75f99aC9625214#code) |
- 
-The hybrid verifier contract is provided at this address: [0xD22492F0b9dd284a9EC0fFef3C1675deA9f01d85](https://sepolia.etherscan.io/address/0xD22492F0b9dd284a9EC0fFef3C1675deA9f01d85#code).
+The signature verifier contract addresses are fixed and deployed once for all. The address of the contracts are provided in the `deployments/deployments.json` file.
 
 ### Example of user MLDSA PK contracts
 MLDSA public keys are large and we decided to write them inside contracts. Thus, each user needs to submit his (20kB) expanded MLDSA public key as an initialization step.
@@ -81,3 +70,12 @@ We provide an example of public key contract for both MLDSA and MLDSAETH, on the
 |-|-|-|
 |MLDSA   | [0xCc28B19d743F3E139D6D8078B6600bad95CD7B2c](https://sepolia.etherscan.io/address/0x898Fec6390D8297BC0C92F834E4210a821ccD8B8#code) | [0x8e130f25f30c9375971c9469f2adc30b6e91846f](https://sepolia.arbiscan.io/address/0x8e130f25f30c9375971c9469f2adc30b6e91846f#code) |
 |MLDSAETH| [0x898Fec6390D8297BC0C92F834E4210a821ccD8B8](https://sepolia.etherscan.io/address/0xCc28B19d743F3E139D6D8078B6600bad95CD7B2c#code) | [0xa854bf182dd854c7b85e35566aa5a46678e2be37](https://sepolia.arbiscan.io/address/0xa854bf182dd854c7b85e35566aa5a46678e2be37#code) |
+
+Note that these contracts do not correspond to the latest update of the contracts, but illustrate the structure of the contracts containing the public key.
+
+### Gas cost
+Using the current contracts, the gas cost is the following:
+|Contracts|MLDSA|MLDSA-ETH|FALCON|ETHFALCON|
+|-|-|-|-|-|
+|ECDSA-k1|8387125|5118164|4056050|1693569|
+|ECDSA-r1|8396487|5127526|4065414|1702933|
