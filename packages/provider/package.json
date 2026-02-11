@@ -60,7 +60,8 @@
     "prepublishOnly": "pnpm -w -r build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "benchmark": "tsx tests/benchmarks/run.ts"
+    "benchmark": "tsx tests/benchmarks/run.ts",
+    "benchmark:report": "tsx tests/benchmarks/report.ts"
   },
   "files": [
     "dist"
@@ -95,7 +96,7 @@
     }
   },
   "devDependencies": {
-    "@a16z/helios": ">=0.11",
+    "@a16z/helios": "0.10.2",
     "@corpus-core/colibri-stateless": "^1.1.4",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",

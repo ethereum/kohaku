@@ -16,21 +16,30 @@ interface NdjsonEntry {
   };
 }
 
+type ResultCategory = 'success_result' | 'success_no_result' | 'failure';
+
 interface RequestResult {
   method: string;
   durationMs: number;
-  ok: boolean;
+  category: ResultCategory;
   error?: string;
+  traffic_bytes?: number;
 }
 
 interface MethodStats {
-  count: number;
-  totalMs: number;
-  failures: number;
+  successResult: { count: number; totalMs: number; trafficBytes: number };
+  successNoResult: { count: number; totalMs: number; trafficBytes: number };
+  failure: { count: number; totalMs: number; trafficBytes: number };
 }
 
 /** Unified low-level RPC sender used by the benchmark loop. */
 type SendFn = (method: string, params: unknown[]) => Promise<unknown>;
+
+function classifyResult(value: unknown): 'success_result' | 'success_no_result' {
+  if (value === null || value === undefined) return 'success_no_result';
+  if (Array.isArray(value) && value.length === 0) return 'success_no_result';
+  return 'success_result';
+}
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing
@@ -43,6 +52,7 @@ interface CliArgs {
   provider: 'rpc' | 'helios' | 'colibri';
   checkpointInterval: number;
   suite: string;
+  measureTraffic: boolean;
 }
 
 function printHelp(): void {
@@ -73,6 +83,8 @@ Options:
   --suite <name>               NDJSON suite file name (in tests/benchmarks/<name>.ndjson)
                                default: ethers
 
+  --measure-traffic            Run requests through an in-process proxy and record bytes (total, per-request, background)
+
   -h, --help                   Show this help and exit
 
 Examples:
@@ -86,11 +98,12 @@ function parseArgs(): CliArgs {
   const argv = process.argv.slice(2);
   const defaults: CliArgs = {
     execution: 'https://sepolia.colibri-proof.tech/execution',
-    consensus: 'https://sepolia.colibri-proof.tech/consensus',
+    consensus: 'http://unstable.sepolia.beacon-api.nimbus.team',
     prover: 'https://sepolia.colibri-proof.tech/',
     provider: 'rpc',
     checkpointInterval: 1,
     suite: 'decrypt',
+    measureTraffic: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -129,6 +142,9 @@ function parseArgs(): CliArgs {
       case '--suite':
         defaults.suite = next ?? defaults.suite;
         i++;
+        break;
+      case '--measure-traffic':
+        defaults.measureTraffic = true;
         break;
       case '--':
         // Skip separator (passed through by pnpm/npm)
@@ -259,6 +275,32 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 // ---------------------------------------------------------------------------
+// Colibri cache cleanup (so Colibri does not skip syncing)
+// ---------------------------------------------------------------------------
+
+const COLIBRI_SEPOLIA_PREFIXES = ['sync_11155111_', 'states_11155111'];
+
+function clearColibriCache(dir: string = process.cwd()): void {
+  let deleted = 0;
+  try {
+    const names = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of names) {
+      if (!e.isFile()) continue;
+      const name = e.name;
+      if (COLIBRI_SEPOLIA_PREFIXES.some((p) => name.startsWith(p))) {
+        fs.unlinkSync(path.join(dir, name));
+        deleted++;
+      }
+    }
+  } catch (err) {
+    // Ignore missing dir or permission errors
+  }
+  if (deleted > 0) {
+    console.log(`  cleared ${deleted} Colibri cache file(s) in ${dir}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Provider factory — returns a unified SendFn
 // ---------------------------------------------------------------------------
 
@@ -274,7 +316,7 @@ async function createSendFn(args: CliArgs): Promise<SendFn> {
       const { createHeliosProvider } = await import('@a16z/helios');
       const checkpoint = await resolveHeliosCheckpoint(args.consensus, args.checkpointInterval);
 
-      const SYNC_TIMEOUT_MS = 120_000; // 2 minutes
+      const SYNC_TIMEOUT_MS = 600_000; // 10 minutes
 
       console.log(`  creating helios provider...`);
       const client = await createHeliosProvider(
@@ -336,7 +378,11 @@ function formatDuration(ms: number): string {
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-async function runBenchmark(sendFn: SendFn, entries: NdjsonEntry[]): Promise<RequestResult[]> {
+async function runBenchmark(
+  sendFn: SendFn,
+  entries: NdjsonEntry[],
+  getTotalBytes?: () => number,
+): Promise<RequestResult[]> {
   const results: RequestResult[] = [];
   const total = entries.length;
   const sessionStart = performance.now();
@@ -358,21 +404,28 @@ async function runBenchmark(sendFn: SendFn, entries: NdjsonEntry[]): Promise<Req
       await sleep(entry.t - sessionElapsed);
     }
 
+    const bytesBefore = getTotalBytes?.() ?? 0;
+
     // Execute and measure
     const reqStart = performance.now();
     try {
-      await sendFn(entry.request.method, entry.request.params ?? []);
+      const value = await sendFn(entry.request.method, entry.request.params ?? []);
+      const category = classifyResult(value);
+      const bytesAfter = getTotalBytes?.() ?? 0;
       results.push({
         method: entry.request.method,
         durationMs: performance.now() - reqStart,
-        ok: true,
+        category,
+        traffic_bytes: getTotalBytes ? bytesAfter - bytesBefore : undefined,
       });
     } catch (err: unknown) {
+      const bytesAfter = getTotalBytes?.() ?? 0;
       results.push({
         method: entry.request.method,
         durationMs: performance.now() - reqStart,
-        ok: false,
+        category: 'failure',
         error: err instanceof Error ? err.message : String(err),
+        traffic_bytes: getTotalBytes ? bytesAfter - bytesBefore : undefined,
       });
     }
   }
@@ -392,67 +445,199 @@ function formatMs(ms: number): string {
   return `${ms.toFixed(1)}ms`;
 }
 
-function printReport(syncTimeMs: number, results: RequestResult[]): void {
-  const totalRequestMs = results.reduce((sum, r) => sum + r.durationMs, 0);
-  const totalFailures = results.filter((r) => !r.ok).length;
+// ---------------------------------------------------------------------------
+// JSON result file (for report.ts)
+// ---------------------------------------------------------------------------
 
-  // Aggregate per method
+export interface BenchmarkResultJson {
+  metadata: {
+    timestamp: string;
+    suite: string;
+    provider: string;
+    execution: string;
+    consensus: string;
+    prover: string;
+    checkpoint_interval: number;
+  };
+  sync_time_ms: number;
+  methods: Record<
+    string,
+    {
+      success_result: { avg_ms: number | null; n: number; traffic_bytes?: number };
+      success_no_result: { avg_ms: number | null; n: number; traffic_bytes?: number };
+      failure: { avg_ms: number | null; n: number; traffic_bytes?: number };
+    }
+  >;
+  failed_requests: Array<{ method: string; error: string }>;
+  traffic?: {
+    sync_bytes: number;
+    request_bytes: number;
+    background_bytes: number;
+  };
+  /** Process resource usage for the measured interval (sync + replay). */
+  process_usage?: {
+    user_cpu_us: number;
+    system_cpu_us: number;
+    wall_ms: number;
+    cpu_percent: number;
+  };
+}
+
+function buildReportData(
+  syncTimeMs: number,
+  results: RequestResult[],
+  metadata: CliArgs,
+  traffic?: { sync_bytes: number; request_bytes: number; background_bytes: number },
+  process_usage?: { user_cpu_us: number; system_cpu_us: number; wall_ms: number; cpu_percent: number },
+): { byMethod: Map<string, MethodStats>; json: BenchmarkResultJson } {
+  const emptyStats = (): MethodStats => ({
+    successResult: { count: 0, totalMs: 0, trafficBytes: 0 },
+    successNoResult: { count: 0, totalMs: 0, trafficBytes: 0 },
+    failure: { count: 0, totalMs: 0, trafficBytes: 0 },
+  });
   const byMethod = new Map<string, MethodStats>();
   for (const r of results) {
-    const stats = byMethod.get(r.method) ?? { count: 0, totalMs: 0, failures: 0 };
-    stats.count++;
-    stats.totalMs += r.durationMs;
-    if (!r.ok) stats.failures++;
+    const stats = byMethod.get(r.method) ?? emptyStats();
+    const tb = r.traffic_bytes ?? 0;
+    if (r.category === 'success_result') {
+      stats.successResult.count++;
+      stats.successResult.totalMs += r.durationMs;
+      stats.successResult.trafficBytes += tb;
+    } else if (r.category === 'success_no_result') {
+      stats.successNoResult.count++;
+      stats.successNoResult.totalMs += r.durationMs;
+      stats.successNoResult.trafficBytes += tb;
+    } else {
+      stats.failure.count++;
+      stats.failure.totalMs += r.durationMs;
+      stats.failure.trafficBytes += tb;
+    }
     byMethod.set(r.method, stats);
   }
 
-  console.log('\n' + '='.repeat(70));
+  const methods: BenchmarkResultJson['methods'] = {};
+  for (const [method, stats] of byMethod) {
+    const avg = (count: number, totalMs: number): number | null =>
+      count === 0 ? null : totalMs / count;
+    methods[method] = {
+      success_result: {
+        avg_ms: avg(stats.successResult.count, stats.successResult.totalMs),
+        n: stats.successResult.count,
+        ...(stats.successResult.trafficBytes > 0 && { traffic_bytes: stats.successResult.trafficBytes }),
+      },
+      success_no_result: {
+        avg_ms: avg(stats.successNoResult.count, stats.successNoResult.totalMs),
+        n: stats.successNoResult.count,
+        ...(stats.successNoResult.trafficBytes > 0 && { traffic_bytes: stats.successNoResult.trafficBytes }),
+      },
+      failure: {
+        avg_ms: avg(stats.failure.count, stats.failure.totalMs),
+        n: stats.failure.count,
+        ...(stats.failure.trafficBytes > 0 && { traffic_bytes: stats.failure.trafficBytes }),
+      },
+    };
+  }
+  const failed_requests = results
+    .filter((r) => r.category === 'failure')
+    .map((r) => ({ method: r.method, error: r.error ?? 'Unknown error' }));
+
+  const json: BenchmarkResultJson = {
+    metadata: {
+      timestamp: new Date().toISOString(),
+      suite: metadata.suite,
+      provider: metadata.provider,
+      execution: metadata.execution,
+      consensus: metadata.consensus,
+      prover: metadata.prover,
+      checkpoint_interval: metadata.checkpointInterval,
+    },
+    sync_time_ms: syncTimeMs,
+    methods,
+    failed_requests,
+    ...(traffic && { traffic }),
+    ...(process_usage && { process_usage }),
+  };
+  return { byMethod, json };
+}
+
+function printReport(
+  syncTimeMs: number,
+  results: RequestResult[],
+  byMethod: Map<string, MethodStats>,
+  traffic?: { sync_bytes: number; request_bytes: number; background_bytes: number },
+  process_usage?: { user_cpu_us: number; system_cpu_us: number; wall_ms: number; cpu_percent: number },
+): void {
+  const totalRequestMs = results.reduce((sum, r) => sum + r.durationMs, 0);
+  const totalFailures = results.filter((r) => r.category === 'failure').length;
+
+  console.log('\n' + '='.repeat(100));
   console.log('  BENCHMARK RESULTS');
-  console.log('='.repeat(70));
+  console.log('='.repeat(100));
   console.log(`  Sync time:          ${formatMs(syncTimeMs)}`);
   console.log(`  Total request time: ${formatMs(totalRequestMs)}`);
   console.log(`  Requests:           ${results.length}`);
   console.log(`  Failures:           ${totalFailures}`);
-  console.log('-'.repeat(70));
+  if (traffic) {
+    const fmt = (b: number) => (b >= 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`);
+    console.log(`  Traffic:            sync ${fmt(traffic.sync_bytes)}, request ${fmt(traffic.request_bytes)}, background ${fmt(traffic.background_bytes)}`);
+  }
+  if (process_usage) {
+    const u = process_usage.user_cpu_us / 1e6;
+    const s = process_usage.system_cpu_us / 1e6;
+    const wallSec = process_usage.wall_ms / 1000;
+    const wallStr = wallSec >= 60 ? `${Math.floor(wallSec / 60)}:${String(Math.round(wallSec % 60)).padStart(2, '0')}` : `${wallSec.toFixed(1)}s`;
+    console.log(`  Process usage:      user ${u.toFixed(2)}s, system ${s.toFixed(2)}s, wall ${wallStr}, ${process_usage.cpu_percent.toFixed(1)}% cpu`);
+  }
+  console.log('-'.repeat(100));
 
-  // Table header
+  // Table header: Method | success_result (avg, n) | success_no_result (avg, n) | failure (avg, n)
+  const col = (label: string, w: number) => label.padEnd(w);
   const header = [
-    'Method'.padEnd(30),
-    'Count'.padStart(6),
-    'Total'.padStart(10),
-    'Avg'.padStart(10),
-    'Fail'.padStart(6),
+    col('Method', 28),
+    col('success_result (avg, n)', 26),
+    col('success_no_result (avg, n)', 28),
+    col('failure (avg, n)', 22),
   ].join(' | ');
   console.log(`  ${header}`);
   console.log('  ' + '-'.repeat(header.length));
 
-  // Sort by total time descending
-  const sorted = [...byMethod.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs);
+  const cell = (count: number, totalMs: number): string =>
+    count === 0 ? '-' : `${formatMs(totalMs / count)}, ${count}`;
+
+  // Sort alphabetically by method name
+  const sorted = [...byMethod.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   for (const [method, stats] of sorted) {
-    const avg = stats.totalMs / stats.count;
     const row = [
-      method.padEnd(30),
-      String(stats.count).padStart(6),
-      formatMs(stats.totalMs).padStart(10),
-      formatMs(avg).padStart(10),
-      String(stats.failures).padStart(6),
+      method.padEnd(28),
+      cell(stats.successResult.count, stats.successResult.totalMs).padEnd(26),
+      cell(stats.successNoResult.count, stats.successNoResult.totalMs).padEnd(28),
+      cell(stats.failure.count, stats.failure.totalMs).padEnd(22),
     ].join(' | ');
     console.log(`  ${row}`);
   }
 
-  console.log('='.repeat(70));
+  console.log('='.repeat(100));
 
   // Print failed requests
   if (totalFailures > 0) {
     console.log('\n  FAILED REQUESTS:');
     console.log('  ' + '-'.repeat(66));
     for (const r of results) {
-      if (!r.ok) {
+      if (r.category === 'failure') {
         console.log(`  [${r.method}] ${r.error}`);
       }
     }
     console.log();
   }
+}
+
+function writeResultJson(json: BenchmarkResultJson, outDir: string): string {
+  const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  const name = `${json.metadata.provider}_${json.metadata.suite}_${ts}.json`;
+  const filePath = path.join(outDir, name);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(json, null, 2), 'utf-8');
+  return filePath;
 }
 
 // ---------------------------------------------------------------------------
@@ -475,20 +660,82 @@ async function main(): Promise<void> {
   const entries = loadNdjson(args.suite);
   console.log(`Loaded ${entries.length} requests from ${args.suite}.ndjson`);
 
+  // Clear Colibri cache before measuring (so sync_time is not inflated when provider is colibri)
+  clearColibriCache();
+
+  let argsForProvider = args;
+  let proxy: Awaited<ReturnType<typeof import('./traffic-proxy.js').createTrafficProxy>> | undefined;
+  if (args.measureTraffic) {
+    const { createTrafficProxy } = await import('./traffic-proxy.js');
+    proxy = await createTrafficProxy({
+      executionUrl: args.execution,
+      consensusUrl: args.consensus,
+      proverUrl: args.prover,
+    });
+    argsForProvider = {
+      ...args,
+      execution: proxy.proxyUrls.execution,
+      consensus: proxy.proxyUrls.consensus,
+      prover: proxy.proxyUrls.prover,
+    };
+    console.log(`  Traffic proxy listening (execution/consensus/prover).`);
+  }
+
+  // Measured interval: sync + replay (for process_usage)
+  const wallStart = Date.now();
+  const usageStart = process.resourceUsage();
+
   // Sync phase: create provider + call eth_blockNumber
   console.log(`\nSync phase (${args.provider})...`);
   const syncStart = performance.now();
-  const sendFn = await createSendFn(args);
+  const sendFn = await createSendFn(argsForProvider);
   const blockNumber = await sendFn('eth_blockNumber', []);
   const syncTimeMs = performance.now() - syncStart;
   console.log(`  synced in ${formatMs(syncTimeMs)}, block: ${blockNumber}`);
 
+  const syncTrafficBytes = proxy ? proxy.getTotalBytes() : 0;
+
   // Request replay phase
   console.log(`\nReplaying ${entries.length} requests...`);
-  const results = await runBenchmark(sendFn, entries);
+  const results = await runBenchmark(sendFn, entries, proxy?.getTotalBytes);
 
-  // Report
-  printReport(syncTimeMs, results);
+  let traffic: { sync_bytes: number; request_bytes: number; background_bytes: number } | undefined;
+  if (proxy) {
+    const total_bytes = proxy.getTotalBytes();
+    const request_bytes = results.reduce((s, r) => s + (r.traffic_bytes ?? 0), 0);
+    traffic = {
+      sync_bytes: syncTrafficBytes,
+      request_bytes,
+      background_bytes: total_bytes - syncTrafficBytes - request_bytes,
+    };
+    await proxy.close();
+  }
+
+  const usageEnd = process.resourceUsage();
+  const wallMs = Date.now() - wallStart;
+  const user_cpu_us = usageEnd.userCPUTime - usageStart.userCPUTime;
+  const system_cpu_us = usageEnd.systemCPUTime - usageStart.systemCPUTime;
+  const process_usage =
+    wallMs > 0
+      ? {
+          user_cpu_us,
+          system_cpu_us,
+          wall_ms: wallMs,
+          cpu_percent: (100 * (user_cpu_us + system_cpu_us)) / 1e6 / (wallMs / 1000),
+        }
+      : undefined;
+
+  // Build data, print report, write JSON
+  const { byMethod, json } = buildReportData(syncTimeMs, results, args, traffic, process_usage);
+  printReport(syncTimeMs, results, byMethod, traffic, process_usage);
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const resultsDir = path.join(__dirname, 'results');
+  const written = writeResultJson(json, resultsDir);
+  console.log(`\n  Results written to ${written}`);
+
+  // Exit explicitly so background work (e.g. Helios) does not keep the process alive
+  process.exit(0);
 }
 
 main().catch((err) => {
