@@ -59,7 +59,9 @@
     "dev": "tsup --config tsup.config.ts --watch",
     "prepublishOnly": "pnpm -w -r build",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "benchmark": "tsx tests/benchmarks/run.ts",
+    "benchmark:report": "tsx tests/benchmarks/report.ts"
   },
   "files": [
     "dist"
@@ -95,6 +97,7 @@
   },
   "devDependencies": {
     "@a16z/helios": ">=0.11",
+    "@corpus-core/colibri-stateless": "^1.1.4",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",
     "@types/node": "^24.1.0",
