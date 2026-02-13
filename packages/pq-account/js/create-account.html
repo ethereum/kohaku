@@ -95,6 +95,14 @@
             cursor: not-allowed;
             box-shadow: none;
         }
+
+        #deploy-ledger {
+            background: #1a1a2e;
+        }
+
+        #deploy-ledger:hover {
+            background: #16213e;
+        }
         
         #output {
             background: #1e1e1e;
@@ -131,7 +139,6 @@
             margin-bottom: 5px;
         }
 
-
         .twocols {
             display: flex;
             gap: 15px;
@@ -142,7 +149,51 @@
         }
 
         #walletNetwork {
-            font-weight:bold;
+            font-weight: bold;
+        }
+
+        /* ── Mode toggle ── */
+        .mode-toggle {
+            display: flex;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #ddd;
+            width: fit-content;
+            margin-bottom: 20px;
+        }
+
+        .mode-toggle button {
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            background: white;
+            color: #555;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-toggle button:hover {
+            background: #f0f0f0;
+        }
+
+        .mode-toggle button.active {
+            background: #333;
+            color: white;
+        }
+
+        .mode-toggle button.active:hover {
+            background: #333;
+        }
+
+        .mode-panel {
+            display: none;
+        }
+
+        .mode-panel.active {
+            display: block;
         }
     </style>
 </head>
@@ -158,92 +209,91 @@
     <div class="config-section">
         <h2>🔧 Configuration</h2>
         
-<div class="input-group">
-    <label>Wallet Network:</label>
-    <span id="walletNetwork">Not connected</span>
-</div>
+        <div class="input-group">
+            <label>Wallet Network:</label>
+            <span id="walletNetwork">Not connected</span>
+        </div>
 
-<div class="input-group" style="display:none;">
-    <label for="factory">Factory Contract Address:</label>
-    <span id="factory">—</span>
-</div>
+        <div class="input-group" style="display:none;">
+            <label for="factory">Factory Contract Address:</label>
+            <span id="factory">—</span>
+        </div>
 
-<script type="module">
-import deployments from '../deployments/deployments.json' assert { type: 'json' };
+        <script type="module">
+        import deployments from '../deployments/deployments.json' assert { type: 'json' };
 
-const walletNetworkSpan = document.getElementById('walletNetwork');
-const factorySpan = document.getElementById('factory');
+        const walletNetworkSpan = document.getElementById('walletNetwork');
+        const factorySpan = document.getElementById('factory');
 
-const networksMap = {
-    '0x1': 'ethereum',
-    '0x5': 'goerli',
-    '0xaa36a7': 'sepolia',
-    '0x66eee': 'arbitrumSepolia',
-    '0x14a34': 'baseSepolia'
-};
-const networksName = {
-    '0x1': 'Ethereum',
-    '0x5': 'Goerli',
-    '0xaa36a7': 'Sepolia',
-    '0x66eee': 'Arbitrum Sepolia',
-    '0x14a34': 'baseSepolia'
-};
+        const networksMap = {
+            '0x1': 'ethereum',
+            '0x5': 'goerli',
+            '0xaa36a7': 'sepolia',
+            '0x66eee': 'arbitrumSepolia',
+            '0x14a34': 'baseSepolia'
+        };
+        const networksName = {
+            '0x1': 'Ethereum',
+            '0x5': 'Goerli',
+            '0xaa36a7': 'Sepolia',
+            '0x66eee': 'Arbitrum Sepolia',
+            '0x14a34': 'baseSepolia'
+        };
 
-function getDeploymentKey(chainId) {
-    return networksMap[chainId.toLowerCase()] || null;
-}
-function getDeploymentName(chainId) {
-    return networksName[chainId.toLowerCase()] || null;
-}
-
-async function updateWalletNetwork() {
-    if (window.ethereum) {
-        try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
-            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-
-            const networkKey = getDeploymentKey(chainId);
-            const networkName = getDeploymentName(chainId);
-
-            walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${chainId})`;
-            updateFactory(networkKey);
-
-        } catch (err) {
-            console.error('Wallet connection failed:', err);
-            walletNetworkSpan.textContent = 'Connection failed';
-            factorySpan.textContent = '—';
+        function getDeploymentKey(chainId) {
+            return networksMap[chainId.toLowerCase()] || null;
+        }
+        function getDeploymentName(chainId) {
+            return networksName[chainId.toLowerCase()] || null;
         }
 
-        window.ethereum.on('chainChanged', (newChainId) => {
-            const networkKey = getDeploymentKey(newChainId);
-            const networkName = getDeploymentName(newChainId);
+        async function updateWalletNetwork() {
+            if (window.ethereum) {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
 
-            walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${newChainId})`;
-            updateFactory(networkKey);
-        });
-    } else {
-        walletNetworkSpan.textContent = 'No wallet detected';
-        factorySpan.textContent = '—';
-    }
-}
+                    const networkKey = getDeploymentKey(chainId);
+                    const networkName = getDeploymentName(chainId);
 
-function updateFactory(networkKey) {
-    const accountMode = 'mldsa_k1';
-    if (networkKey && deployments[networkKey] && deployments[networkKey].accounts[accountMode]) {
-        factorySpan.textContent = deployments[networkKey].accounts[accountMode].address;
-    } else {
-        factorySpan.textContent = '—';
-    }
-}
+                    walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${chainId})`;
+                    updateFactory(networkKey);
 
-updateWalletNetwork();
-</script>
+                } catch (err) {
+                    console.error('Wallet connection failed:', err);
+                    walletNetworkSpan.textContent = 'Connection failed';
+                    factorySpan.textContent = '—';
+                }
+
+                window.ethereum.on('chainChanged', (newChainId) => {
+                    const networkKey = getDeploymentKey(newChainId);
+                    const networkName = getDeploymentName(newChainId);
+
+                    walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${newChainId})`;
+                    updateFactory(networkKey);
+                });
+            } else {
+                walletNetworkSpan.textContent = 'No wallet detected';
+                factorySpan.textContent = '—';
+            }
+        }
+
+        function updateFactory(networkKey) {
+            const accountMode = 'mldsa_k1';
+            if (networkKey && deployments[networkKey] && deployments[networkKey].accounts[accountMode]) {
+                factorySpan.textContent = deployments[networkKey].accounts[accountMode].address;
+            } else {
+                factorySpan.textContent = '—';
+            }
+        }
+
+        updateWalletNetwork();
+        </script>
 
         <div class="input-group">
             <label for="accountMode">Account Mode:</label>
             <select id="accountMode">
                 <option value="mldsa_k1">ML-DSA-K1</option>
-                <!-- Later you can add more modes here -->
             </select>
             <small>Choose the account type / key scheme</small>
         </div>
@@ -252,26 +302,62 @@ updateWalletNetwork();
     <div class="config-section">
         <h2>🔑 Signing Keys</h2>
 
-        <div class="twocols">
-            <div class="input-group">
-                <label for="prequantum">Pre-Quantum Seed:</label>
-                <input type="text" id="prequantum" value="0x0000000000000000000000000000000000000000000000000000000000000001">
-                <small>32 bytes (64 hex characters) for ECDSA key generation</small>
+        <div class="mode-toggle">
+            <button id="mode-hot" class="active">🔥 Hot Wallet</button>
+            <button id="mode-ledger">🔒 Ledger</button>
+        </div>
+
+        <!-- Hot Wallet panel -->
+        <div id="panel-hot" class="mode-panel active">
+            <div class="twocols">
+                <div class="input-group">
+                    <label for="prequantum">Pre-Quantum Seed:</label>
+                    <input type="text" id="prequantum" value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                    <small>32 bytes (64 hex characters) for ECDSA key generation</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="postquantum">Post-Quantum Seed:</label>
+                    <input type="text" id="postquantum" value="0x0000000000000000000000000000000000000000000000000000000000000001">
+                    <small>32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
+                </div>
+            </div>    
+            <div class="button-container">
+                <button id="deploy">Connect Wallet & Deploy Account</button>
             </div>
-            
-            <div class="input-group">
-                <label for="postquantum">Post-Quantum Seed:</label>
-                <input type="text" id="postquantum" value="0x0000000000000000000000000000000000000000000000000000000000000001">
-                <small>32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
+        </div>
+
+        <!-- Ledger panel -->
+        <div id="panel-ledger" class="mode-panel">
+            <p style="color:#555; margin-bottom:15px;">
+                Connect your Ledger device via USB, unlock it, and open the signing app.
+                Keys will be retrieved directly from the hardware wallet.
+            </p>
+            <div class="button-container">
+                <button id="deploy-ledger">🔒 Connect Ledger & Deploy Account</button>
             </div>
-        </div>    
+        </div>
     </div>
-    <div class="button-container">
-        <button id="deploy">Connect Wallet & Deploy Account</button>
-    </div>
-    
+
     <div id="output"></div>
+
+    <!-- Mode toggle logic -->
+    <script>
+    document.getElementById('mode-hot').addEventListener('click', () => {
+        document.getElementById('mode-hot').classList.add('active');
+        document.getElementById('mode-ledger').classList.remove('active');
+        document.getElementById('panel-hot').classList.add('active');
+        document.getElementById('panel-ledger').classList.remove('active');
+    });
+    document.getElementById('mode-ledger').addEventListener('click', () => {
+        document.getElementById('mode-ledger').classList.add('active');
+        document.getElementById('mode-hot').classList.remove('active');
+        document.getElementById('panel-ledger').classList.add('active');
+        document.getElementById('panel-hot').classList.remove('active');
+    });
+    </script>
     
     <script type="module" src="./createAccount.js"></script>
+    <script type="module" src="./createAccountHW.js"></script>
 </body>
 </html>
