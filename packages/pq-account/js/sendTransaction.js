@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
-import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 import {
-        createBaseUserOperation,
+    createBaseUserOperation,
     signUserOpHybrid,
     estimateUserOperationGas,
     updateUserOpWithGasEstimates,
@@ -9,29 +8,29 @@ import {
     ENTRY_POINT_ADDRESS
 } from './userOperation.js';
 
-function hexToU8(hex) {
-    if (hex.startsWith("0x")) hex = hex.slice(2);
-    return Uint8Array.from(hex.match(/.{2}/g).map(b => parseInt(b, 16)));
+import * as softMldsa  from './software-signer/mldsaSigner.js';
+import * as softEcdsa  from './software-signer/ecdsaSigner.js';
+import * as hwMldsa    from './hardware-signer/mldsaSigner.js';
+import * as hwEcdsa    from './hardware-signer/ecdsaSigner.js';
+
+function getSigners(mode) {
+    return mode === 'ledger'
+        ? { mldsa: hwMldsa, ecdsa: hwEcdsa }
+        : { mldsa: softMldsa, ecdsa: softEcdsa };
 }
 
-/**
- * Send a transaction from your ERC4337 account
- */
 export async function sendERC4337Transaction(
-    accountAddress,
-    targetAddress,
-    value,
-    callData,
-    preQuantumSeed,
-    postQuantumSeed,
-    provider,
-    bundlerUrl
+    accountAddress, targetAddress, value, callData,
+    preQuantumSeed, signingMode, postQuantumSeed,
+    provider, bundlerUrl
 ) {
+    const { mldsa, ecdsa } = getSigners(signingMode);
+
     try {
         console.log("🚀 Sending ERC4337 Transaction...");
+        console.log("📝 Signing mode: " + signingMode.toUpperCase());
         console.log("");
-        
-        // Get network info
+
         const network = await provider.getNetwork();
         const blockNumber = await provider.getBlockNumber();
 
@@ -43,227 +42,167 @@ export async function sendERC4337Transaction(
         console.log("- Network: " + network.name + " (Chain ID: " + network.chainId + ")");
         console.log("- Block number:", blockNumber);
         console.log("");
-        
-        // Check account balance
+
         const accountBalance = await provider.getBalance(accountAddress);
         console.log("💰 Account Balance: " + ethers.formatEther(accountBalance) + " ETH");
-        
+
         if (accountBalance === 0n) {
             console.log("⚠️  WARNING: Account has no balance!");
             console.log("You need to send ETH to: " + accountAddress);
             console.log("");
         }
-        
-        // Generate private keys from seeds
-        const preQuantumWallet = new ethers.Wallet(preQuantumSeed);
-        
-        // Generate FULL ML-DSA keypair from seed (this gives us the 2560-byte secret key)
-        const { secretKey, publicKey } = ml_dsa44.keygen(hexToU8(postQuantumSeed));
-        
-        // 1. Create base UserOp (no signature)
+
+        // Initialize signers
+        if (signingMode === 'ledger') {
+            await ecdsa.init();
+            // Share the transport so we don't open two HID connections
+            hwMldsa.setTransport(ecdsa.getTransport());
+            await mldsa.init();
+        } else {
+            await ecdsa.init({ privateKey: preQuantumSeed });
+            await mldsa.init({ postQuantumSeed });
+        }
+        console.log("");
+
+        // 1. Create base UserOp
         let userOp = await createBaseUserOperation(
-            accountAddress,
-            targetAddress,
-            value,
-            callData,
-            provider,
-            bundlerUrl
+            accountAddress, targetAddress, value, callData, provider, bundlerUrl
         );
 
-        // 2. Sign it (creates valid signature for estimation)
-        const signature = await signUserOpHybrid(
-            userOp,
-            ENTRY_POINT_ADDRESS,
-            network.chainId,
-            preQuantumSeed,
-            secretKey
-        );
+        // 2. Use dummy signature for gas estimation
+        userOp.signature = getDummySignature();
 
-        userOp.signature = signature;
-
-        // 3. Estimate gas with the REAL signature
+        // 3. Estimate gas
         const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
 
-        // 4. Update UserOp with better gas estimates
+        // 4. Update gas limits
         userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
 
-        // 5. Re-sign with updated gas limits (hash changes!)
-        const finalSignature = await signUserOpHybrid(
-            userOp,
-            ENTRY_POINT_ADDRESS,
-            network.chainId,
-            preQuantumSeed,
-            secretKey
+        // 5. Re-sign
+        console.log("✍️  Re-signing with updated gas limits...");
+        userOp.signature = await signUserOpHybrid(
+            userOp, ENTRY_POINT_ADDRESS, network.chainId,
+            ecdsa, mldsa
         );
+        console.log("✅ Final signature complete");
 
-        userOp.signature = finalSignature;
-        
-        // Check if bundler URL is provided
+        // Submit or preview
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {
-            console.log("ℹ️  No valid bundler URL provided");
             console.log("");
+            console.log("ℹ️  No valid bundler URL provided");
             console.log("✅ UserOperation created and signed successfully!");
             console.log("");
-            console.log("To submit this UserOperation:");
-            console.log("1. Get a bundler service:");
-            console.log("   - Alchemy: https://www.alchemy.com/");
-            console.log("   - Pimlico: https://www.pimlico.io/");
-            console.log("   - Stackup: https://www.stackup.sh/");
-            console.log("2. Update the bundler URL in the form");
-            console.log("3. Click the button again to submit");
-            console.log("");
-             console.log("📄 UserOperation Preview:");
+            console.log("🔄 UserOperation Preview:");
             console.log(JSON.stringify({
                 sender: userOp.sender ?? "<undefined>",
                 nonce: '0x' + ((userOp.nonce ?? 0).toString(16)),
-                callGasLimit: '0x' + ((userOp.callGasLimit ?? 0).toString(16)),
-                verificationGasLimit: '0x' + ((userOp.verificationGasLimit ?? 0).toString(16)),
-                preVerificationGas: '0x' + ((userOp.preVerificationGas ?? 0).toString(16)),
-                maxFeePerGas: '0x' + ((userOp.maxFeePerGas ?? 0).toString(16)),
-                maxPriorityFeePerGas: '0x' + ((userOp.maxPriorityFeePerGas ?? 0).toString(16)),
-                callData: userOp.callData ? userOp.callData.slice(0, 50) + '... (length: ' + userOp.callData.length + ')' : "<undefined>",
-                signature: userOp.signature ? userOp.signature.slice(0, 50) + '... (length: ' + userOp.signature.length + ')' : "<undefined>"
-                }, null, 2));
-
-            return {
-                success: true,
-                userOp: userOp,
-                message: "UserOperation created and signed (bundler needed to submit)"
-            };
+                callData: userOp.callData ? userOp.callData.slice(0, 50) + '...' : "<undefined>",
+                signature: userOp.signature ? userOp.signature.slice(0, 50) + '...' : "<undefined>"
+            }, null, 2));
+            return { success: true, userOp, message: "UserOperation created and signed (bundler needed)" };
         }
 
-        // Submit to bundler
         try {
             const userOpHash = await submitUserOperation(userOp, bundlerUrl, ENTRY_POINT_ADDRESS);
-            
             console.log("");
             console.log("=".repeat(60));
             console.log("🎉 TRANSACTION SUBMITTED!");
             console.log("=".repeat(60));
-            
-            return {
-                success: true,
-                userOpHash: userOpHash
-            };
-            
+            return { success: true, userOpHash };
         } catch (error) {
             console.error("❌ Failed to submit to bundler: " + error.message);
-            console.log("");
-            console.log("The UserOperation was created and signed correctly,");
-            console.log("but submission to the bundler failed.");
-            console.log("Please check your bundler URL and try again.");
-            
-            return {
-                success: false,
-                error: error.message,
-                userOp: userOp
-            };
+            return { success: false, error: error.message, userOp };
         }
-        
+
     } catch (error) {
         console.error("");
         console.error("❌ Transaction failed: " + error.message);
-        if (error.stack) {
-            console.log("");
-            console.log("Stack trace:");
-            console.log(error.stack);
-        }
-        return {
-            success: false,
-            error: error.message
-        };
+        if (error.stack) console.log("Stack trace:\n" + error.stack);
+        return { success: false, error: error.message };
+    } finally {
+        await mldsa.cleanup();
+        await ecdsa.cleanup();
     }
 }
 
-// Setup UI when page loads
+// ─── UI Setup (unchanged except preQuantumSeed handling) ────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
     const button = document.getElementById('sendTx');
     const output = document.getElementById('output');
-    
-    if (!button || !output) {
-        console.error('Missing UI elements');
-        return;
+    const signingModeRadios = document.getElementsByName('signingMode');
+    const softSeedGroup = document.getElementById('softSeedGroup');
+    const ledgerInfoGroup = document.getElementById('ledgerInfoGroup');
+
+    if (!button || !output) { console.error('Missing UI elements'); return; }
+
+    function updateSeedVisibility() {
+        const mode = document.querySelector('input[name="signingMode"]:checked').value;
+        if (softSeedGroup)   softSeedGroup.style.display   = (mode === 'soft')   ? '' : 'none';
+        if (ledgerInfoGroup) ledgerInfoGroup.style.display  = (mode === 'ledger') ? '' : 'none';
     }
-    
-    // Redirect console.log to the output div
+    signingModeRadios.forEach(r => r.addEventListener('change', updateSeedVisibility));
+    updateSeedVisibility();
+
     const originalLog = console.log;
     const originalError = console.error;
-    
+
     console.log = function(...args) {
-        const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' ');
-        
-        output.textContent += message + '\n';
+        const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+        output.textContent += msg + '\n';
         output.scrollTop = output.scrollHeight;
         originalLog.apply(console, args);
     };
-    
     console.error = function(...args) {
-        const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' ');
-        
-        output.textContent += '❌ ' + message + '\n';
+        const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+        output.textContent += '❌ ' + msg + '\n';
         output.scrollTop = output.scrollHeight;
         originalError.apply(console, args);
     };
-    
-    // Initial message
-    output.textContent = '✅ Ready to send a transaction.\nConnect your wallet and fill in the details above.\n';
-    
-    // Button click handler
+
+    output.textContent = '✅ Ready to send a transaction.\nChoose your signing mode and fill in the details above.\n';
+
     button.addEventListener('click', async () => {
         button.disabled = true;
         output.textContent = '';
-        
+
         try {
-            // Check for wallet
             if (!window.ethereum) {
-                console.log('❌ No wallet detected!');
-                console.log('Please install MetaMask or Rabby wallet.');
+                console.log('❌ No wallet detected! Please install MetaMask or Rabby.');
                 return;
             }
-            
-            // Connect to wallet
+
             console.log('🔌 Connecting to wallet...');
             await window.ethereum.request({ method: 'eth_requestAccounts' });
-            
-            // Create provider from wallet
+
             const provider = new ethers.BrowserProvider(window.ethereum);
             const signer = await provider.getSigner();
-            const signerAddress = await signer.getAddress();
-            
-            console.log('✅ Wallet connected: ' + signerAddress);
+            console.log('✅ Wallet connected: ' + await signer.getAddress());
             console.log("");
-            
-            // Get input values
+
+            const signingMode = document.querySelector('input[name="signingMode"]:checked').value;
+
+            const preQuantumSeed = signingMode === 'ledger'
+                ? '' // not needed — Ledger signs ECDSA on device
+                : document.getElementById('preQuantumSeed').value.trim();
+
+            const postQuantumSeed = document.getElementById('postQuantumSeed')?.value.trim() || '';
+            const pimlicoApiKey = document.getElementById('pimlicoApiKey').value.trim();
             const accountAddress = document.getElementById('accountAddress').value.trim();
             const targetAddress = document.getElementById('targetAddress').value.trim();
             const valueEth = document.getElementById('value').value.trim();
             const callData = document.getElementById('callData').value.trim();
-            const preQuantumSeed = document.getElementById('preQuantumSeed').value.trim();
-            const postQuantumSeed = document.getElementById('postQuantumSeed').value.trim();
-            const pimlicoApiKey = document.getElementById('pimlicoApiKey').value.trim();
-            const network = await provider.getNetwork();
 
+            const network = await provider.getNetwork();
             const bundlerUrl = 'https://api.pimlico.io/v2/' + network.chainId + '/rpc?apikey=' + pimlicoApiKey;
             console.log(bundlerUrl);
-            // Parse value
-            const value = ethers.parseEther(valueEth);
-            
-            // Send transaction
+
             await sendERC4337Transaction(
-                accountAddress,
-                targetAddress,
-                value,
-                callData,
-                preQuantumSeed,
-                postQuantumSeed,
-                provider,
-                bundlerUrl
+                accountAddress, targetAddress, ethers.parseEther(valueEth), callData,
+                preQuantumSeed, signingMode, postQuantumSeed,
+                provider, bundlerUrl
             );
-            
+
         } catch (error) {
             console.error('Error: ' + error.message);
         } finally {
@@ -271,3 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+export function getDummySignature() {
+    const abi = ethers.AbiCoder.defaultAbiCoder();
+    // 65 bytes of 0xff for ECDSA + 2420 bytes of 0xff for ML-DSA
+    const dummyEcdsa = ethers.hexlify(new Uint8Array(65).fill(0xff));
+    const dummyMldsa = ethers.hexlify(new Uint8Array(2420).fill(0xff));
+    return abi.encode(["bytes", "bytes"], [dummyEcdsa, dummyMldsa]);
+}

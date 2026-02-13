@@ -49,7 +49,7 @@
             font-weight: bold;
         }
         
-        .input-group input {
+        .input-group input[type="text"] {
             width: 100%;
             padding: 10px;
             font-family: 'Courier New', monospace;
@@ -59,7 +59,7 @@
             box-sizing: border-box;
         }
 
-        .input-group input:focus {
+        .input-group input[type="text"]:focus {
             outline: none;
             border-color: #4CAF50;
         }
@@ -88,24 +88,15 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         
-        button:hover {
-            background: #45a049;
-        }
-        
-        button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
+        button:hover { background: #45a049; }
+        button:disabled { background: #cccccc; cursor: not-allowed; box-shadow: none; }
         
         .twocols {
             display: flex;
             gap: 15px;
         }
         
-        .twocols .input-group {
-            flex: 1;
-        }
+        .twocols .input-group { flex: 1; }
 
         #output {
             background: #1e1e1e;
@@ -124,22 +115,55 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
-        #output:empty {
-            min-height: 50px;
+        #output:empty { min-height: 50px; }
+
+        /* ─── Signing mode toggle ─── */
+        .signing-mode-toggle {
+            display: flex;
+            gap: 0;
+            margin-bottom: 18px;
         }
-        
-        .warning {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            padding: 15px;
+
+        .signing-mode-toggle label {
+            flex: 1;
+            text-align: center;
+            padding: 12px 20px;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            background: #fafafa;
+            font-weight: bold;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .signing-mode-toggle label:first-of-type {
+            border-radius: 6px 0 0 6px;
+            border-right: 1px solid #ddd;
+        }
+
+        .signing-mode-toggle label:last-of-type {
+            border-radius: 0 6px 6px 0;
+            border-left: 1px solid #ddd;
+        }
+
+        .signing-mode-toggle input[type="radio"] { display: none; }
+
+        .signing-mode-toggle input[type="radio"]:checked + label {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+
+        .ledger-info {
+            background: #e8f5e9;
+            border: 1px solid #4CAF50;
+            padding: 12px 16px;
             border-radius: 4px;
-            margin-bottom: 20px;
-            color: #856404;
-        }
-        
-        .warning strong {
-            display: block;
-            margin-bottom: 5px;
+            color: #2e7d32;
+            font-size: 14px;
+            margin-top: 8px;
         }
     </style>
 </head>
@@ -157,9 +181,8 @@
         <div class="twocols">
             <div class="input-group">
                 <label>Your ERC4337 Account Address:</label>
-                <input type="text" id="accountAddress" value="0x78f1AE658206196855Dd85615d26c9bAcD157e60">
+                <input type="text" id="accountAddress" value="0x8fDa81a102b3a59c479D5fEFFaA4aA556152fecb">
             </div>
-            
             <div class="input-group">
                 <label>To Address:</label>
                 <input type="text" id="targetAddress" value="0xdA4e72C962C201D77d515B02dEd76B1a41E1DBab">
@@ -172,7 +195,6 @@
                 <input type="text" id="value" value="0.0001">
                 <small>Amount of ETH to send</small>
             </div>
-            
             <div class="input-group">
                 <label>Call Data:</label>
                 <input type="text" id="callData" value="0x">
@@ -181,7 +203,7 @@
         </div>
     </div>
     
-    <div class="input-group">
+    <div class="input-group" style="padding: 0 25px;">
         <label>Pimlico API Key:</label>
         <input type="text" id="pimlicoApiKey" value="">
         <small>Your Pimlico bundler API key</small>
@@ -189,18 +211,38 @@
 
     <div class="config-section">
         <h2>🔑 Signing Keys</h2>
-        
-        <div class="twocols">
-            <div class="input-group">
-                <label>Pre-Quantum Seed:</label>
-                <input type="text" id="preQuantumSeed" value="0x0000000000000000000000000000000000000000000000000000000000000001">
-                <small>Same seed used to create the account</small>
+
+        <label style="font-weight: bold; color: #555; font-size: 14px; margin-bottom: 10px; display: block;">
+            ML-DSA Signing Mode:
+        </label>
+        <div class="signing-mode-toggle">
+            <input type="radio" name="signingMode" id="modeSoft" value="soft" checked>
+            <label for="modeSoft">💻 Software</label>
+            <input type="radio" name="signingMode" id="modeLedger" value="ledger">
+            <label for="modeLedger">🔐 Ledger Hardware</label>
+        </div>
+
+        <!-- ─── Software mode: both seeds ─── -->
+        <div id="softSeedGroup">
+            <div class="twocols">
+                <div class="input-group">
+                    <label>Pre-Quantum Seed (ECDSA):</label>
+                    <input type="text" id="preQuantumSeed" value="0x1b48e04041e23c72cacdaa9b0775d31515fc74d6a6d3c8804172f7e7d1248529">
+                    <small>Same seed used to create the account</small>
+                </div>
+                <div class="input-group">
+                    <label>Post-Quantum Seed (ML-DSA):</label>
+                    <input type="text" id="postQuantumSeed" value="0xac38da90e1a47bd048580b74e07ce649649642f1a9696b714977bf9f2942c1a4">
+                    <small>Same seed used to create the account</small>
+                </div>
             </div>
-            
-            <div class="input-group">
-                <label>Post-Quantum Seed:</label>
-                <input type="text" id="postQuantumSeed" value="0x0000000000000000000000000000000000000000000000000000000000000001">
-                <small>Same seed used to create the account</small>
+        </div>
+
+        <!-- ─── Ledger mode: only ECDSA seed + info banner ─── -->
+         <div id="ledgerInfoGroup" style="display: none;">
+            <div class="ledger-info">
+                🔐 Both ECDSA and ML-DSA keys are derived on the Ledger secure element
+                via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.
             </div>
         </div>
     </div>
@@ -212,7 +254,6 @@
     <div id="output"></div>
     
     <script>
-        // Initialize global bundler URL - runs before modules load
         window.bundlerUrlValue = { url: 'https://api.pimlico.io/v2/421614/rpc?apikey=EnterYourAPIKey' };
     </script>
     
@@ -224,62 +265,44 @@
             '0x5': { name: 'Goerli', chainId: '5' },
             '0xaa36a7': { name: 'Sepolia', chainId: '11155111' },
             '0x66eee': { name: 'Arbitrum Sepolia', chainId: '421614' },
-            '0x14a34': {name: 'baseSepolia', chainId: '84532'},
+            '0x14a34': { name: 'baseSepolia', chainId: '84532' },
         };
         
         function updateBundlerUrl(chainId) {
             const apiKey = document.getElementById('pimlicoApiKey')?.value || 'YOUR_API_KEY';
-            
-            // Update the bundler URL with new chain ID
             window.bundlerUrlValue.url = `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
         }
         
         async function updateWalletNetwork() {
-            if (window.ethereum) {
-                try {
-                    // Don't request accounts on page load - just check if already connected
-                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                    
-                    const network = networksMap[chainId.toLowerCase()];
-                    
-                    if (network) {
-                        walletNetworkSpan.textContent = network.name;
-                        updateBundlerUrl(network.chainId);
-                    } else {
-                        walletNetworkSpan.textContent = `Unknown (${chainId})`;
-                    }
-                    
-                } catch (err) {
-                    console.error('Network detection failed:', err);
-                    walletNetworkSpan.textContent = 'Click button to connect';
-                }
-                
-                // Listen for network changes
-                window.ethereum.on('chainChanged', (newChainId) => {
-                    const network = networksMap[newChainId.toLowerCase()];
-                    
-                    if (network) {
-                        walletNetworkSpan.textContent = network.name;
-                        updateBundlerUrl(network.chainId);
-                    } else {
-                        walletNetworkSpan.textContent = `Unknown (${newChainId})`;
-                    }
-                });
-                
-                // Listen for account changes to update network display
-                window.ethereum.on('accountsChanged', async (accounts) => {
-                    if (accounts.length > 0) {
-                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                        const network = networksMap[chainId.toLowerCase()];
-                        if (network) {
-                            walletNetworkSpan.textContent = network.name;
-                            updateBundlerUrl(network.chainId);
-                        }
-                    }
-                });
-            } else {
+            if (!window.ethereum) {
                 walletNetworkSpan.textContent = 'No wallet detected';
+                return;
             }
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const network = networksMap[chainId.toLowerCase()];
+                walletNetworkSpan.textContent = network ? network.name : `Unknown (${chainId})`;
+                if (network) updateBundlerUrl(network.chainId);
+            } catch (err) {
+                walletNetworkSpan.textContent = 'Click button to connect';
+            }
+
+            window.ethereum.on('chainChanged', (newChainId) => {
+                const network = networksMap[newChainId.toLowerCase()];
+                walletNetworkSpan.textContent = network ? network.name : `Unknown (${newChainId})`;
+                if (network) updateBundlerUrl(network.chainId);
+            });
+
+            window.ethereum.on('accountsChanged', async (accounts) => {
+                if (accounts.length > 0) {
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    const network = networksMap[chainId.toLowerCase()];
+                    if (network) {
+                        walletNetworkSpan.textContent = network.name;
+                        updateBundlerUrl(network.chainId);
+                    }
+                }
+            });
         }
         
         updateWalletNetwork();
