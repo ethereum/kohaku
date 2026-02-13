@@ -22,6 +22,7 @@ const INS = {
     GET_PK_CHUNK:     0x13,
     GET_PUBLIC_KEY:     0x05,
     ECDSA_SIGN_HASH:   0x15,
+    HYBRID_SIGN_HASH: 0x16,
 };
 
 export const MLDSA44_SIG_BYTES = 2420;
@@ -171,4 +172,48 @@ export async function signEcdsaHash(transport, bip32Path, hash) {
     s.set(sRaw.subarray(sRaw.length - 32));
 
     return { v, r, s };
+}
+
+/**
+ * Hybrid blind-sign: single user confirmation → ECDSA + ML-DSA signatures.
+ * Returns { ecdsaSerialized: Uint8Array(65), mldsaSignature: Uint8Array(2420) }
+ */
+export async function signHybridHash(transport, bip32Path, hash) {
+    if (hash.length !== 32) throw new Error("Hash must be 32 bytes");
+
+    const pathData = encodeBip32Path(bip32Path);
+    const payload = Buffer.concat([pathData, Buffer.from(hash)]);
+
+    // Single APDU → user confirms → ECDSA sig returned immediately
+    const resp = await sendApdu(transport, INS.HYBRID_SIGN_HASH, 0x00, 0x00, payload);
+
+    // Parse ECDSA: sig_len(1) | DER(r,s) | v(1)
+    const derLen = resp[0];
+    const der = resp.subarray(1, 1 + derLen);
+    const v = resp[1 + derLen];
+
+    // Parse DER → r, s (32 bytes each)
+    let offset = 2;
+    offset++;
+    const rLen = der[offset++];
+    const rRaw = der.subarray(offset, offset + rLen);
+    offset += rLen;
+    offset++;
+    const sLen = der[offset++];
+    const sRaw = der.subarray(offset, offset + sLen);
+
+    const r = new Uint8Array(32);
+    const s = new Uint8Array(32);
+    r.set(rRaw.subarray(rRaw.length - 32));
+    s.set(sRaw.subarray(sRaw.length - 32));
+
+    // ML-DSA sig is already in device RAM from the hybrid handler
+    const mldsaSignature = await readChunked(transport, INS.GET_SIG_CHUNK, MLDSA44_SIG_BYTES);
+
+    return {
+        ecdsaV: v,
+        ecdsaR: r,
+        ecdsaS: s,
+        mldsaSignature,
+    };
 }

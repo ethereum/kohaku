@@ -1,7 +1,12 @@
 import { ethers } from 'ethers';
 import {
+    signHybridHash,
+} from './hardware-signer/ledgerTransport.js';
+
+import {
     createBaseUserOperation,
     signUserOpHybrid,
+    getUserOpHash,
     estimateUserOperationGas,
     updateUserOpWithGasEstimates,
     submitUserOperation,
@@ -51,10 +56,10 @@ export async function sendERC4337Transaction(
             console.log("");
         }
 
+
         // Initialize signers
         if (signingMode === 'ledger') {
             await ecdsa.init();
-            // Share the transport so we don't open two HID connections
             hwMldsa.setTransport(ecdsa.getTransport());
             await mldsa.init();
         } else {
@@ -78,12 +83,39 @@ export async function sendERC4337Transaction(
         userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
 
         // 5. Real sign
-        userOp.signature = await signUserOpHybrid(
-            userOp, ENTRY_POINT_ADDRESS, network.chainId,
-            ecdsa, mldsa
-        );
-        console.log("✅ ECDSA and MLDSA signature generated.");
+        if (signingMode === 'ledger') {
+            // Hybrid: one confirmation on device → both signatures
+            const hash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, network.chainId);
+            const hashBytes = ethers.getBytes(hash);
 
+            const result = await signHybridHash(
+                ecdsa.getTransport(),
+                "m/44'/60'/0'/0/0",
+                hashBytes
+            );
+
+            // Encode ECDSA as 65 bytes: r(32) || s(32) || v(1)
+            const ecdsaSig = ethers.concat([
+                result.ecdsaR,
+                result.ecdsaS,
+                ethers.toBeHex(result.ecdsaV + 27, 1),
+            ]);
+
+            // ABI-encode the hybrid signature
+            const abi = ethers.AbiCoder.defaultAbiCoder();
+            userOp.signature = abi.encode(
+                ["bytes", "bytes"],
+                [ecdsaSig, result.mldsaSignature]
+            );
+        } else {
+            // Software: signs separately
+            userOp.signature = await signUserOpHybrid(
+                userOp, ENTRY_POINT_ADDRESS, network.chainId,
+                ecdsa, mldsa
+            );
+        }
+        console.log("✅ ECDSA and MLDSA signature generated.");
+        
         // Submit or preview
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {
             console.log("");
