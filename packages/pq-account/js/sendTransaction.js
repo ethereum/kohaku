@@ -28,7 +28,6 @@ export async function sendERC4337Transaction(
 
     try {
         console.log("🚀 Sending ERC4337 Transaction...");
-        console.log("📝 Signing mode: " + signingMode.toUpperCase());
         console.log("");
 
         const network = await provider.getNetwork();
@@ -78,13 +77,12 @@ export async function sendERC4337Transaction(
         // 4. Update gas limits
         userOp = updateUserOpWithGasEstimates(userOp, gasEstimates);
 
-        // 5. Re-sign
-        console.log("✍️  Re-signing with updated gas limits...");
+        // 5. Real sign
         userOp.signature = await signUserOpHybrid(
             userOp, ENTRY_POINT_ADDRESS, network.chainId,
             ecdsa, mldsa
         );
-        console.log("✅ Final signature complete");
+        console.log("✅ ECDSA and MLDSA signature generated.");
 
         // Submit or preview
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {
@@ -195,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const network = await provider.getNetwork();
             const bundlerUrl = 'https://api.pimlico.io/v2/' + network.chainId + '/rpc?apikey=' + pimlicoApiKey;
-            console.log(bundlerUrl);
 
             await sendERC4337Transaction(
                 accountAddress, targetAddress, ethers.parseEther(valueEth), callData,

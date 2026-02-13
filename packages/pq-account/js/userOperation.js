@@ -200,8 +200,6 @@ export async function signUserOpHybrid(
 export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
     const userOpForBundler = userOpToBundlerFormat(userOp);
 
-    console.log("📤 Submitting UserOperation to bundler...");
-
     const response = await fetch(bundlerUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -217,6 +215,5 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
         throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
     }
 
-    console.log("✅ UserOperation submitted successfully");
     return result.result;
 }
