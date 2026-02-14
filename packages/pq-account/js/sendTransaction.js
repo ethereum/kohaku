@@ -1,12 +1,11 @@
 import { ethers } from 'ethers';
 import {
-    signHybridHash,
+    signHybridUserOp,
 } from './hardware-signer/ledgerTransport.js';
 
 import {
     createBaseUserOperation,
     signUserOpHybrid,
-    getUserOpHash,
     estimateUserOperationGas,
     updateUserOpWithGasEstimates,
     submitUserOperation,
@@ -84,14 +83,13 @@ export async function sendERC4337Transaction(
 
         // 5. Real sign
         if (signingMode === 'ledger') {
-            // Hybrid: one confirmation on device → both signatures
-            const hash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, network.chainId);
-            const hashBytes = ethers.getBytes(hash);
-
-            const result = await signHybridHash(
+            // Clear-sign: send UserOp fields to device for on-chip hash + display
+            const result = await signHybridUserOp(
                 ecdsa.getTransport(),
                 "m/44'/60'/0'/0/0",
-                hashBytes
+                userOp,
+                ENTRY_POINT_ADDRESS,
+                network.chainId
             );
 
             // Encode ECDSA as 65 bytes: r(32) || s(32) || v(1)

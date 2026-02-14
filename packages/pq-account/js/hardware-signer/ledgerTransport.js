@@ -10,6 +10,7 @@
  */
 
 import TransportWebHID from "@ledgerhq/hw-transport-webhid";
+import { ethers } from 'ethers';
 
 // Must match firmware constants.h / types.h
 const CLA = 0xe0;
@@ -23,6 +24,7 @@ const INS = {
     GET_PUBLIC_KEY:     0x05,
     ECDSA_SIGN_HASH:   0x15,
     HYBRID_SIGN_HASH: 0x16,
+    HYBRID_SIGN_USEROP: 0x17,
 };
 
 export const MLDSA44_SIG_BYTES = 2420;
@@ -208,6 +210,121 @@ export async function signHybridHash(transport, bip32Path, hash) {
     s.set(sRaw.subarray(sRaw.length - 32));
 
     // ML-DSA sig is already in device RAM from the hybrid handler
+    const mldsaSignature = await readChunked(transport, INS.GET_SIG_CHUNK, MLDSA44_SIG_BYTES);
+
+    return {
+        ecdsaV: v,
+        ecdsaR: r,
+        ecdsaS: s,
+        mldsaSignature,
+    };
+}
+
+// ─── Clear-signing helpers ──────────────────────────────────────────────
+
+/** Encode a BigInt as a 32-byte big-endian Buffer. */
+function bigintTo32BE(val) {
+    const hex = BigInt(val).toString(16).padStart(64, '0');
+    return Buffer.from(hex, 'hex');
+}
+
+/** Convert a 0x-prefixed hex address to a 20-byte Buffer. */
+function addressToBytes(addr) {
+    return Buffer.from(addr.replace(/^0x/, ''), 'hex');
+}
+
+/** Parse the ECDSA DER response from the device into { v, r, s }. */
+function parseEcdsaResponse(resp) {
+    const derLen = resp[0];
+    const der = resp.subarray(1, 1 + derLen);
+    const v = resp[1 + derLen];
+
+    let offset = 2; // skip 30 <len>
+    offset++;        // skip 02
+    const rLen = der[offset++];
+    const rRaw = der.subarray(offset, offset + rLen);
+    offset += rLen;
+    offset++;        // skip 02
+    const sLen = der[offset++];
+    const sRaw = der.subarray(offset, offset + sLen);
+
+    const r = new Uint8Array(32);
+    const s = new Uint8Array(32);
+    r.set(rRaw.subarray(rRaw.length - 32));
+    s.set(sRaw.subarray(sRaw.length - 32));
+
+    return { v, r, s };
+}
+
+// ─── Clear-signing: HYBRID_SIGN_USEROP (INS 0x17) ──────────────────────
+
+/**
+ * Hybrid clear-sign an ERC-4337 v0.7 UserOperation.
+ *
+ * Sends four APDUs so the device can recompute the UserOpHash on-chip
+ * and display human-readable fields (chain, sender, destination, value)
+ * before signing with both ECDSA and ML-DSA.
+ *
+ * @param {Transport}  transport
+ * @param {string}     bip32Path   - e.g. "m/44'/60'/0'/0/0"
+ * @param {object}     userOp      - UserOperation with sender, nonce, initCode,
+ *                                   callData, accountGasLimits, preVerificationGas,
+ *                                   gasFees, paymasterAndData
+ * @param {string}     entryPoint  - EntryPoint address (0x-prefixed)
+ * @param {bigint|number} chainId
+ * @returns {Promise<{ecdsaV, ecdsaR, ecdsaS, mldsaSignature}>}
+ */
+export async function signHybridUserOp(transport, bip32Path, userOp, entryPoint, chainId) {
+    const I = INS.HYBRID_SIGN_USEROP;
+
+    // ── APDU 1: BIP32 path (P1=0x00) ───────────────────────────────────
+    const pathData = encodeBip32Path(bip32Path);
+    await sendApdu(transport, I, 0x00, 0x00, pathData);
+
+    // ── APDU 2: chain_id(32) | entry_point(20) | sender(20) | nonce(32)  (P1=0x01)
+    const apdu2 = Buffer.concat([
+        bigintTo32BE(chainId),
+        addressToBytes(entryPoint),
+        addressToBytes(userOp.sender),
+        bigintTo32BE(userOp.nonce),
+    ]);
+    await sendApdu(transport, I, 0x01, 0x00, apdu2);
+
+    // ── APDU 3: six 32-byte packed fields (P1=0x02) ────────────────────
+    const hashInitCode       = ethers.getBytes(ethers.keccak256(userOp.initCode));
+    const hashCallData       = ethers.getBytes(ethers.keccak256(userOp.callData));
+    const accountGasLimits   = ethers.getBytes(userOp.accountGasLimits);
+    const preVerificationGas = bigintTo32BE(userOp.preVerificationGas);
+    const gasFees            = ethers.getBytes(userOp.gasFees);
+    const hashPaymaster      = ethers.getBytes(ethers.keccak256(userOp.paymasterAndData));
+
+    const apdu3 = Buffer.concat([
+        hashInitCode,
+        hashCallData,
+        accountGasLimits,
+        preVerificationGas,
+        gasFees,
+        hashPaymaster,
+    ]);
+    await sendApdu(transport, I, 0x02, 0x00, apdu3);
+
+    // ── APDU 4: raw callData (P1=0x03) ─────────────────────────────────
+    // Send raw callData so the device can verify the hash and parse
+    // execute(address,uint256,bytes). If it exceeds 255 bytes, send empty
+    // and the device falls back to displaying the UserOpHash.
+    const rawCallData = ethers.getBytes(userOp.callData);
+    const callDataPayload = rawCallData.length <= CHUNK_SIZE
+        ? Buffer.from(rawCallData)
+        : Buffer.alloc(0);
+
+    // This APDU triggers the NBGL review on the device; it blocks
+    // until the user approves or rejects.
+    const resp = await sendApdu(transport, I, 0x03, 0x00, callDataPayload);
+
+    // ── Parse ECDSA signature (same format as HYBRID_SIGN_HASH) ────────
+    const { v, r, s } = parseEcdsaResponse(resp);
+
+    // ── Read ML-DSA signature from device RAM ──────────────────────────
     const mldsaSignature = await readChunked(transport, INS.GET_SIG_CHUNK, MLDSA44_SIG_BYTES);
 
     return {
