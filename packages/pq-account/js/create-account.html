@@ -45,7 +45,7 @@
             font-size: 14px;
         }
         
-        .input-group input {
+        .input-group input, .input-group select {
             width: 100%;
             padding: 12px;
             font-family: 'Courier New', monospace;
@@ -148,10 +148,6 @@
             flex: 1;
         }
 
-        #walletNetwork {
-            font-weight: bold;
-        }
-
         /* ── Mode toggle ── */
         .mode-toggle {
             display: flex;
@@ -195,6 +191,16 @@
         .mode-panel.active {
             display: block;
         }
+
+        .ledger-info {
+            background: #e8f5e9;
+            border: 1px solid #4CAF50;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: #2e7d32;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -208,10 +214,17 @@
     
     <div class="config-section">
         <h2>🔧 Configuration</h2>
-        
+
+        <!-- Unified network selector for both modes -->
         <div class="input-group">
-            <label>Wallet Network:</label>
-            <span id="walletNetwork">Not connected</span>
+            <label for="targetNetwork">Target Network:</label>
+            <select id="targetNetwork">
+                <option value="sepolia">Sepolia</option>
+                <option value="arbitrumSepolia" selected>Arbitrum Sepolia</option>
+                <option value="baseSepolia">Base Sepolia</option>
+                <option value="ethereum">Ethereum Mainnet</option>
+            </select>
+            <input type="hidden" id="rpcUrl" value="https://sepolia-rollup.arbitrum.io/rpc">
         </div>
 
         <div class="input-group" style="display:none;">
@@ -219,66 +232,14 @@
             <span id="factory">—</span>
         </div>
 
+        <!-- Load deployments and wire up factory address -->
         <script type="module">
         import deployments from '../deployments/deployments.json' assert { type: 'json' };
 
-        const walletNetworkSpan = document.getElementById('walletNetwork');
-        const factorySpan = document.getElementById('factory');
-
-        const networksMap = {
-            '0x1': 'ethereum',
-            '0x5': 'goerli',
-            '0xaa36a7': 'sepolia',
-            '0x66eee': 'arbitrumSepolia',
-            '0x14a34': 'baseSepolia'
-        };
-        const networksName = {
-            '0x1': 'Ethereum',
-            '0x5': 'Goerli',
-            '0xaa36a7': 'Sepolia',
-            '0x66eee': 'Arbitrum Sepolia',
-            '0x14a34': 'baseSepolia'
-        };
-
-        function getDeploymentKey(chainId) {
-            return networksMap[chainId.toLowerCase()] || null;
-        }
-        function getDeploymentName(chainId) {
-            return networksName[chainId.toLowerCase()] || null;
-        }
-
-        async function updateWalletNetwork() {
-            if (window.ethereum) {
-                try {
-                    await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-
-                    const networkKey = getDeploymentKey(chainId);
-                    const networkName = getDeploymentName(chainId);
-
-                    walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${chainId})`;
-                    updateFactory(networkKey);
-
-                } catch (err) {
-                    console.error('Wallet connection failed:', err);
-                    walletNetworkSpan.textContent = 'Connection failed';
-                    factorySpan.textContent = '—';
-                }
-
-                window.ethereum.on('chainChanged', (newChainId) => {
-                    const networkKey = getDeploymentKey(newChainId);
-                    const networkName = getDeploymentName(newChainId);
-
-                    walletNetworkSpan.textContent = networkKey ? networkName : `Unknown (${newChainId})`;
-                    updateFactory(networkKey);
-                });
-            } else {
-                walletNetworkSpan.textContent = 'No wallet detected';
-                factorySpan.textContent = '—';
-            }
-        }
+        window.__deployments = deployments;
 
         function updateFactory(networkKey) {
+            const factorySpan = document.getElementById('factory');
             const accountMode = 'mldsa_k1';
             if (networkKey && deployments[networkKey] && deployments[networkKey].accounts[accountMode]) {
                 factorySpan.textContent = deployments[networkKey].accounts[accountMode].address;
@@ -287,7 +248,10 @@
             }
         }
 
-        updateWalletNetwork();
+        window.__updateFactory = updateFactory;
+
+        // Set factory for default selection
+        updateFactory(document.getElementById('targetNetwork').value);
         </script>
 
         <div class="input-group">
@@ -297,6 +261,7 @@
             </select>
             <small>Choose the account type / key scheme</small>
         </div>
+
     </div>
 
     <div class="config-section">
@@ -329,10 +294,12 @@
 
         <!-- Ledger panel -->
         <div id="panel-ledger" class="mode-panel">
-            <p style="color:#555; margin-bottom:15px;">
-                Connect your Ledger device via USB, unlock it, and open the signing app.
-                Keys will be retrieved directly from the hardware wallet.
-            </p>
+            <div class="ledger-info">
+                🔐 Both ECDSA and ML-DSA keys are derived on the Ledger secure element
+                via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.<br>
+                The deployment transaction will also be signed by the Ledger — no browser wallet needed.
+            </div>
+
             <div class="button-container">
                 <button id="deploy-ledger">🔒 Connect Ledger & Deploy Account</button>
             </div>
@@ -341,20 +308,81 @@
 
     <div id="output"></div>
 
-    <!-- Mode toggle logic -->
+    <!-- Mode toggle + network selector + wallet auto-sync -->
     <script>
-    document.getElementById('mode-hot').addEventListener('click', () => {
-        document.getElementById('mode-hot').classList.add('active');
-        document.getElementById('mode-ledger').classList.remove('active');
-        document.getElementById('panel-hot').classList.add('active');
-        document.getElementById('panel-ledger').classList.remove('active');
-    });
-    document.getElementById('mode-ledger').addEventListener('click', () => {
-        document.getElementById('mode-ledger').classList.add('active');
-        document.getElementById('mode-hot').classList.remove('active');
-        document.getElementById('panel-ledger').classList.add('active');
-        document.getElementById('panel-hot').classList.remove('active');
-    });
+    (function() {
+        const rpcDefaults = {
+            ethereum:        'https://eth.llamarpc.com',
+            sepolia:         'https://eth-sepolia-testnet.api.pocket.network',
+            arbitrumSepolia: 'https://sepolia-rollup.arbitrum.io/rpc',
+            baseSepolia:     'https://sepolia.base.org',
+        };
+
+        const chainToNetwork = {
+            '0x1':      'ethereum',
+            '0xaa36a7': 'sepolia',
+            '0x66eee':  'arbitrumSepolia',
+            '0x14a34':  'baseSepolia',
+        };
+
+        const sel = document.getElementById('targetNetwork');
+        const rpcInput = document.getElementById('rpcUrl');
+
+        // Dropdown change → update RPC URL + factory
+        sel.addEventListener('change', () => {
+            const key = sel.value;
+            if (rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
+            if (window.__updateFactory) window.__updateFactory(key);
+        });
+
+        // ── Mode toggle ──
+        const modeHot = document.getElementById('mode-hot');
+        const modeLedger = document.getElementById('mode-ledger');
+
+        modeHot.addEventListener('click', () => {
+            modeHot.classList.add('active');
+            modeLedger.classList.remove('active');
+            document.getElementById('panel-hot').classList.add('active');
+            document.getElementById('panel-ledger').classList.remove('active');
+            // Re-sync from wallet when switching back
+            walletSync();
+        });
+
+        modeLedger.addEventListener('click', () => {
+            modeLedger.classList.add('active');
+            modeHot.classList.remove('active');
+            document.getElementById('panel-ledger').classList.add('active');
+            document.getElementById('panel-hot').classList.remove('active');
+        });
+
+        // ── Wallet auto-sync (Hot Wallet mode only) ──
+        function isHotMode() {
+            return modeHot.classList.contains('active');
+        }
+
+        function syncFromWallet(chainIdHex) {
+            if (!isHotMode()) return;
+            const key = chainToNetwork[chainIdHex.toLowerCase()];
+            if (!key) return;
+            sel.value = key;
+            if (rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
+            if (window.__updateFactory) window.__updateFactory(key);
+        }
+
+        async function walletSync() {
+            if (!window.ethereum || !isHotMode()) return;
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                syncFromWallet(chainId);
+            } catch (e) {}
+        }
+
+        // Init
+        if (window.ethereum) {
+            walletSync();
+            window.ethereum.on('chainChanged', syncFromWallet);
+        }
+    })();
     </script>
     
     <script type="module" src="./createAccount.js"></script>

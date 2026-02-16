@@ -135,8 +135,31 @@ export async function sendERC4337Transaction(
             console.log("");
             console.log("=".repeat(60));
             console.log("🎉 TRANSACTION SUBMITTED!");
+            console.log("- UserOp Hash: " + userOpHash);
             console.log("=".repeat(60));
-            return { success: true, userOpHash };
+            console.log("");
+            console.log("⏳ Waiting for transaction to be mined...");
+
+            const receipt = await waitForUserOperationReceipt(userOpHash, bundlerUrl);
+            if (receipt) {
+                console.log("✅ Transaction mined!");
+                if (receipt.receipt?.transactionHash) {
+                    console.log("- Tx Hash: " + receipt.receipt.transactionHash);
+                }
+                if (receipt.receipt?.blockNumber) {
+                    console.log("- Block: " + (typeof receipt.receipt.blockNumber === 'string'
+                        ? parseInt(receipt.receipt.blockNumber, 16)
+                        : receipt.receipt.blockNumber));
+                }
+                if (receipt.success === false) {
+                    console.log("⚠️  UserOp execution reverted on-chain");
+                }
+            } else {
+                console.log("⚠️  Timed out waiting for receipt. The tx may still be pending.");
+                console.log("   You can submit another transaction once it confirms.");
+            }
+
+            return { success: true, userOpHash, receipt };
         } catch (error) {
             console.error("❌ Failed to submit to bundler: " + error.message);
             return { success: false, error: error.message, userOp };
@@ -195,23 +218,23 @@ document.addEventListener('DOMContentLoaded', () => {
         output.textContent = '';
 
         try {
-            if (!window.ethereum) {
-                console.log('❌ No wallet detected! Please install MetaMask or Rabby.');
+            const rpcUrl = document.getElementById('rpcUrl')?.value.trim();
+            if (!rpcUrl) {
+                console.log('\u274C Please enter an RPC URL for the target network.');
                 return;
             }
 
-            console.log('🔌 Connecting to wallet...');
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            console.log('\uD83D\uDD0C Connecting to RPC: ' + rpcUrl);
+            const provider = new ethers.JsonRpcProvider(rpcUrl);
 
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await provider.getSigner();
-            console.log('✅ Wallet connected: ' + await signer.getAddress());
+            const network = await provider.getNetwork();
+            console.log('\u2705 Connected to ' + network.name + ' (Chain ID: ' + network.chainId + ')');
             console.log("");
 
             const signingMode = document.querySelector('input[name="signingMode"]:checked').value;
 
             const preQuantumSeed = signingMode === 'ledger'
-                ? '' // not needed — Ledger signs ECDSA on device
+                ? '' // not needed \u2014 Ledger signs ECDSA on device
                 : document.getElementById('preQuantumSeed').value.trim();
 
             const postQuantumSeed = document.getElementById('postQuantumSeed')?.value.trim() || '';
@@ -221,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const valueEth = document.getElementById('value').value.trim();
             const callData = document.getElementById('callData').value.trim();
 
-            const network = await provider.getNetwork();
             const bundlerUrl = 'https://api.pimlico.io/v2/' + network.chainId + '/rpc?apikey=' + pimlicoApiKey;
 
             await sendERC4337Transaction(
@@ -244,4 +266,48 @@ export function getDummySignature() {
     const dummyEcdsa = ethers.hexlify(new Uint8Array(65).fill(0xff));
     const dummyMldsa = ethers.hexlify(new Uint8Array(2420).fill(0xff));
     return abi.encode(["bytes", "bytes"], [dummyEcdsa, dummyMldsa]);
+}
+
+/**
+ * Poll the bundler for a UserOperation receipt until it is mined.
+ * @param {string} userOpHash
+ * @param {string} bundlerUrl
+ * @param {number} [timeoutMs=120000]  – give up after this many ms
+ * @param {number} [intervalMs=3000]   – poll every N ms
+ * @returns {object|null} receipt, or null on timeout
+ */
+async function waitForUserOperationReceipt(
+    userOpHash, bundlerUrl, timeoutMs = 120_000, intervalMs = 3_000
+) {
+    const deadline = Date.now() + timeoutMs;
+    let elapsed = 0;
+
+    while (Date.now() < deadline) {
+        try {
+            const response = await fetch(bundlerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0', id: 1,
+                    method: 'eth_getUserOperationReceipt',
+                    params: [userOpHash]
+                })
+            });
+            const result = await response.json();
+
+            if (result.result) {
+                return result.result;
+            }
+        } catch (e) {
+            // Network hiccup — keep polling
+        }
+
+        elapsed += intervalMs;
+        if (elapsed % 15_000 === 0) {
+            console.log("  ⏳ Still waiting... " + (elapsed / 1000) + "s elapsed");
+        }
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    return null;
 }

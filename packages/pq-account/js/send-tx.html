@@ -44,12 +44,9 @@
             color: #555;
             font-size: 14px;
         }
-
-        #walletNetwork {
-            font-weight: bold;
-        }
         
-        .input-group input[type="text"] {
+        .input-group input[type="text"],
+        .input-group select {
             width: 100%;
             padding: 10px;
             font-family: 'Courier New', monospace;
@@ -173,9 +170,23 @@
     <div class="config-section">
         <h2>📋 Transaction Details</h2>
 
-        <div class="input-group">
-            <label>Wallet Network:</label>
-            <span id="walletNetwork">Not connected</span>
+        <div class="twocols">
+            <!-- Network + RPC: always visible for both modes -->
+            <div class="input-group">
+                <label for="targetNetwork">Target Network:</label>
+                <select id="targetNetwork">
+                    <option value="sepolia" data-chain="11155111">Sepolia</option>
+                    <option value="arbitrumSepolia" data-chain="421614" selected>Arbitrum Sepolia</option>
+                    <option value="baseSepolia" data-chain="84532">Base Sepolia</option>
+                    <option value="ethereum" data-chain="1">Ethereum Mainnet</option>
+                </select>
+                <input type="hidden" id="rpcUrl" value="https://sepolia-rollup.arbitrum.io/rpc">
+            </div>
+
+            <div class="input-group">
+                <label>Pimlico API Key:</label>
+                <input type="text" id="pimlicoApiKey" value="">
+            </div>
         </div>
 
         <div class="twocols">
@@ -201,16 +212,6 @@
                 <small>Leave as 0x for simple ETH transfer</small>
             </div>
         </div>
-    </div>
-    
-    <div class="input-group" style="padding: 0 25px;">
-        <label>Pimlico API Key:</label>
-        <input type="text" id="pimlicoApiKey" value="">
-        <small>Your Pimlico bundler API key</small>
-    </div>
-
-    <div class="config-section">
-        <h2>🔑 Signing Keys</h2>
 
         <label style="font-weight: bold; color: #555; font-size: 14px; margin-bottom: 10px; display: block;">
             ML-DSA Signing Mode:
@@ -238,13 +239,14 @@
             </div>
         </div>
 
-        <!-- ─── Ledger mode: only ECDSA seed + info banner ─── -->
-         <div id="ledgerInfoGroup" style="display: none;">
+        <!-- ─── Ledger mode: info banner ─── -->
+        <div id="ledgerInfoGroup" style="display: none;">
             <div class="ledger-info">
                 🔐 Both ECDSA and ML-DSA keys are derived on the Ledger secure element
                 via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.
             </div>
         </div>
+
     </div>
     
     <div class="button-container">
@@ -253,59 +255,69 @@
     
     <div id="output"></div>
     
+    <!-- Network selector + wallet auto-sync -->
     <script>
-        window.bundlerUrlValue = { url: 'https://api.pimlico.io/v2/421614/rpc?apikey=EnterYourAPIKey' };
-    </script>
-    
-    <script type="module">
-        const walletNetworkSpan = document.getElementById('walletNetwork');
-        
-        const networksMap = {
-            '0x1': { name: 'Ethereum', chainId: '1' },
-            '0x5': { name: 'Goerli', chainId: '5' },
-            '0xaa36a7': { name: 'Sepolia', chainId: '11155111' },
-            '0x66eee': { name: 'Arbitrum Sepolia', chainId: '421614' },
-            '0x14a34': { name: 'baseSepolia', chainId: '84532' },
+    (function() {
+        const rpcDefaults = {
+            ethereum:        'https://eth.llamarpc.com',
+            sepolia:         'https://eth-sepolia-testnet.api.pocket.network',
+            arbitrumSepolia: 'https://sepolia-rollup.arbitrum.io/rpc',
+            baseSepolia:     'https://sepolia.base.org',
         };
-        
-        function updateBundlerUrl(chainId) {
-            const apiKey = document.getElementById('pimlicoApiKey')?.value || 'YOUR_API_KEY';
-            window.bundlerUrlValue.url = `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${apiKey}`;
+
+        const chainToNetwork = {
+            '0x1':      'ethereum',
+            '0xaa36a7': 'sepolia',
+            '0x66eee':  'arbitrumSepolia',
+            '0x14a34':  'baseSepolia',
+        };
+
+        // Dropdown change → update RPC URL
+        const sel = document.getElementById('targetNetwork');
+        if (sel) {
+            sel.addEventListener('change', () => {
+                const rpcInput = document.getElementById('rpcUrl');
+                const key = sel.value;
+                if (rpcDefaults[key] && rpcInput) rpcInput.value = rpcDefaults[key];
+            });
         }
-        
-        async function updateWalletNetwork() {
-            if (!window.ethereum) {
-                walletNetworkSpan.textContent = 'No wallet detected';
-                return;
-            }
+
+        // Wallet auto-sync (Software mode only)
+        function syncFromWallet(chainIdHex) {
+            const mode = document.querySelector('input[name="signingMode"]:checked');
+            if (mode && mode.value !== 'soft') return;
+
+            const key = chainToNetwork[chainIdHex.toLowerCase()];
+            if (!key) return;
+
+            const rpcInput = document.getElementById('rpcUrl');
+            if (sel) sel.value = key;
+            if (rpcInput && rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
+        }
+
+        async function initWalletSync() {
+            if (!window.ethereum) return;
             try {
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                const network = networksMap[chainId.toLowerCase()];
-                walletNetworkSpan.textContent = network ? network.name : `Unknown (${chainId})`;
-                if (network) updateBundlerUrl(network.chainId);
-            } catch (err) {
-                walletNetworkSpan.textContent = 'Click button to connect';
-            }
+                syncFromWallet(chainId);
+            } catch (e) {}
+            window.ethereum.on('chainChanged', syncFromWallet);
+        }
 
-            window.ethereum.on('chainChanged', (newChainId) => {
-                const network = networksMap[newChainId.toLowerCase()];
-                walletNetworkSpan.textContent = network ? network.name : `Unknown (${newChainId})`;
-                if (network) updateBundlerUrl(network.chainId);
-            });
-
-            window.ethereum.on('accountsChanged', async (accounts) => {
-                if (accounts.length > 0) {
-                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                    const network = networksMap[chainId.toLowerCase()];
-                    if (network) {
-                        walletNetworkSpan.textContent = network.name;
-                        updateBundlerUrl(network.chainId);
-                    }
+        // Re-sync when switching back to Software mode
+        document.querySelectorAll('input[name="signingMode"]').forEach(radio => {
+            radio.addEventListener('change', async () => {
+                if (radio.value === 'soft' && radio.checked && window.ethereum) {
+                    try {
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        syncFromWallet(chainId);
+                    } catch (e) {}
                 }
             });
-        }
-        
-        updateWalletNetwork();
+        });
+
+        initWalletSync();
+    })();
     </script>
     
     <script type="module" src="./sendTransaction.js"></script>

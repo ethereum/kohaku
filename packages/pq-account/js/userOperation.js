@@ -58,7 +58,7 @@ export async function createBaseUserOperation(
         nonce,
         initCode: "0x",
         callData: executeCallData,
-        accountGasLimits: packUint128(13_500_000n, 500_000n),
+        accountGasLimits: packUint128(9_000_000n, 500_000n),
         preVerificationGas: 1_000_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
@@ -109,24 +109,36 @@ export async function estimateUserOperationGas(userOp, bundlerUrl) {
 
         let verificationGasLimit = BigInt(result.result.verificationGasLimit);
         let callGasLimit = BigInt(result.result.callGasLimit);
+        let preVerificationGas = BigInt(result.result.preVerificationGas || userOp.preVerificationGas);
 
-        const MIN_VERIFICATION = 13_500_000n;
+        const MIN_VERIFICATION = 9_000_000n;
         if (verificationGasLimit < MIN_VERIFICATION) {
             console.warn("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
             verificationGasLimit = MIN_VERIFICATION;
         }
 
+        // The bundler underestimates preVerificationGas for large signatures.
+        // The hybrid ML-DSA + ECDSA signature is ~2500 bytes of calldata,
+        // far larger than a standard 65-byte ECDSA sig.
+        // Apply a 4x multiplier with a minimum floor.
+        const MIN_PRE_VERIFICATION = 800_000n;
+        preVerificationGas = preVerificationGas * 4n;
+        if (preVerificationGas < MIN_PRE_VERIFICATION) {
+            preVerificationGas = MIN_PRE_VERIFICATION;
+        }
+        console.log("- preVerificationGas (adjusted for large signature): " + preVerificationGas.toString());
+
         return {
             verificationGasLimit,
             callGasLimit,
-            preVerificationGas: BigInt(result.result.preVerificationGas || userOp.preVerificationGas)
+            preVerificationGas
         };
     } catch (e) {
         console.warn("⚠️ Bundler gas estimation failed, using defaults:", e.message);
         return {
-            verificationGasLimit: 13_500_000n,
+            verificationGasLimit: 9_000_000n,
             callGasLimit: 500_000n,
-            preVerificationGas: userOp.preVerificationGas
+            preVerificationGas: 1_000_000n
         };
     }
 }
