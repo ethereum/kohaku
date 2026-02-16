@@ -4,5 +4,6 @@ packages:
   - "packages/railgun"
   - "packages/privacy-pools"
   - "packages/plugins"
+  - "packages/tongo"
   - "examples/pq-account"
   - "docs"

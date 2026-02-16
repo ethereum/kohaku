@@ -1,0 +1,67 @@
+{
+  "name": "@kohaku-eth/tongo",
+  "version": "0.0.1-alpha.1",
+  "description": "TONGO",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "echo Building @kohaku-eth/tongo && tsup --config tsup.config.ts",
+    "dev": "tsup --config tsup.config.ts --watch",
+    "test": "vitest run",
+    "test:e2e": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run e2e",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "ethers": "^6.13.1"
+  },
+  "peerDependenciesMeta": {
+    "ethers": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "tongo-sdk": "../../../tongo-evm/tongo-sdk",
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*",
+    "@reduxjs/toolkit": "^2.11.2",
+    "maci-crypto": "2.5.0",
+    "redux-logger": "^3.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "@types/redux-logger": "^3.0.13",
+    "dotenv": "^17.2.1",
+    "prool": "^0.0.24",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.9.2",
+    "viem": "^2.43.0",
+    "vitest": "^3.0.0"
+  }
+}
