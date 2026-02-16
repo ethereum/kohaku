@@ -138,6 +138,8 @@ contract TestERC4337_Account is Test {
 
         // Call handleOps on the EntryPoint
         uint256 gasStart = gasleft();
+        address eoa = makeAddr("eoa");
+        vm.prank(eoa, eoa);
         entryPoint.handleOps(ops, payable(owner));
         uint256 gasUsed = gasStart - gasleft();
         console.log("Gas used:", gasUsed);
