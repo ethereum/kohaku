@@ -6,41 +6,28 @@ Kohaku SDK provides a set of privacy protocol plugins out-of-the-box. These plug
 
 ### Host interfaces
 
-When constructing a plugin, the host provides a set of standardized interfaces. Plugins uses these interfaces to interact with the host environment, store data, and perform actions on behalf of the user.
+When initializing a plugin, the host (the consuming app) provides a set of standardized interfaces. Plugins uses these interfaces to interact with the host environment, store data, and perform actions on behalf of the user.
 
 [File: src/host.ts](./src/host.ts)
 ```ts
-export interface Host {
+export type Host = {
     network: Network;
     storage: Storage;
-    secretStorage: SecretStorage;
     keystore: Keystore;
-    ethProvider: EthProvider;
+    provider: EthereumProvider;
 }
 
-export interface Network {
+export type Network = {
     fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
-export interface Storage {
+export type Storage = {
     set(key: string, value: string): void;
     get(key: string): string | null;
 }
 
-export interface SecretStorage {
-    set(key: string, value: string): void;
-    get(key: string): string | null;
-}
-
-export interface Keystore {
+export type Keystore = {
     deriveAt(path: string): Hex;
-}
-
-export interface EthProvider {
-    request(args: {
-        method: string;
-        params?: unknown[] | Record<string, unknown>
-    }): Promise<unknown>;
 }
 ```
 
@@ -48,42 +35,17 @@ export interface EthProvider {
 
 The plugin interface is implemented by the privacy protocol objects. The host should not need to treat any one plugin impl differently from any other.
 
-[File: src/plugin.ts](./src/plugin.ts)
+[File: src/base.ts](./src/base.ts)
 ```ts
-export interface ShieldPreparation {
-    txns: Array<TxData>;
-}
-
-export interface PrivateOperation {
-
-}
-
 export type AssetAmount = {
     asset: AssetId;
     amount: bigint;
 };
 
-abstract class Plugin {
-    abstract account(): Promise<AccountId>;
-    abstract balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>>;
-    abstract prepareShield(asset: AssetAmount, from?: AccountId): Promise<ShieldPreparation>;
-    prepareShieldMulti(assets: Array<AssetAmount>, from?: AccountId): Promise<ShieldPreparation> {
-        throw new MultiAssetsNotSupportedError();
-    }
-    
-    abstract prepareUnshield(asset: AssetAmount, to: AccountId): Promise<PrivateOperation>;
-    prepareUnshieldMulti(assets: Array<AssetAmount>, to: AccountId): Promise<PrivateOperation> {
-        throw new MultiAssetsNotSupportedError();
-    }
-    
-    prepareTransfer(asset: AssetAmount, to: AccountId): Promise<PrivateOperation> {
-        throw new TransferNotSupportedError();
-    }
-    prepareTransferMulti(assets: Array<AssetAmount>, to: AccountId): Promise<PrivateOperation> {
-        throw new TransferNotSupportedError();
-    }
-    
-    abstract broadcastPrivateOperation(operation: PrivateOperation): Promise<void>;
+export type Plugin = {
+    plugin_name: string;
+    createInstance: () => Promise<Instance> | Instance;
+    instances: () => Promise<Instance[]> | Instance[];
 }
 ```
 
@@ -136,20 +98,43 @@ class ExamplePlugin extends Plugin {
 
 ### Key Material
 
-Plugins will derive all new key material from the `Keystore` interface and therefore the host’s mnemonic. This makes all such material portable. For example:
+Plugins will derive all new key material from the `Keystore` interface and therefore the host's mnemonic. This makes all such material portable. For example:
 
 - The Railgun plugin may attempt to claim the lowest key in the `m/420'/1984'/0'/0'/x` + `m/44'/1984'/0'/0'/x` paths.
-- The TC Classic plugin might claim all keys in the `m/44’/tc’/0/0/x` path until it reaches its gap limit.
+- The TC Classic plugin might claim all keys in the `m/44'/tc'/0/0/x` path until it reaches its gap limit.
 
-Plugins can also import key material through their `options` . This imported material is not derived from `Keystore.deriveAt` and, therefore, it is not portable. When a wallet is backed up or transferred it will either need to copy the plugin’s state (IE for cross-device syncs) or backup the key material from the plugin’s exposed `options` (IE for manual end-user backups).
+Plugins can also import key material through their `options` . This imported material is not derived from `Keystore.deriveAt` and, therefore, it is not portable. When a wallet is backed up or transferred it will either need to copy the plugin's state (IE for cross-device syncs) or backup the key material from the plugin's exposed `options` (IE for manual end-user backups).
 
 ## Example Usage
 
 ```ts
-import { RailgunInstance } from '@kohaku-eth/railgun';
-const railgunController = await RailgunInstance.create(hostInterfaces);
+import { createRailgunPlugin } from '@kohaku-eth/railgun';
 
-const balances = await railgunController.balances();
-const operation = await railgunController.prepareUnshield(balances[0], new AccountId(signer.address()));
-await railgunController.broadcast(operation);
+// Setup host & plugin
+const host: Host = {
+    storage,
+    network,
+    provider,
+};
+const config: RGPluginParameters = {};
+const railgun = await createRailgunPlugin(host, config);
+
+// Create instance
+const account = await railgun.createInstance();
+
+// Get balance
+const balances = await account.balance();
+
+// Shield
+const tokenToShield = {
+    asset: 'erc20:0x0000000000000000000000000000000000000000',
+    amount: 100n,
+};
+const operation = await account.shield(tokenToShield, recipient);
+
+// Unshield
+const recipient = '0x0000000000000000000000000000000000000000';
+const operation = await account.unshield(balances[0], recipient);
+
+await railgun.broadcaster.broadcast(operation);
 ```

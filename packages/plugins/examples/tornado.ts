@@ -95,6 +95,10 @@ const exampleUsage = async () => {
 
     acc.shield({ asset: 'eip155:1:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', amount: 100000000000000000n }, "0");
 
+    acc.shield({
+        asset: 'eip155:1:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', amount: 100000000000000000n,
+    }, "0")
+
     // acc.shield();
     // acc.unshield();
     // // acc.

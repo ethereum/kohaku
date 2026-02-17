@@ -1,10 +1,20 @@
 import { Address } from "ox/Address";
 
-export type AssetId = `erc20:${Address}`;
-export type ChainId = `eip155:${bigint}`;
+export type ERC20AssetId = {
+    __type: 'erc20'
+    contract: Address;
+};
+export type ERC721AssetId = {
+    __type: 'erc721'
+    contract: Address;
+    tokenId: bigint;
+};
+export type AssetId = ERC20AssetId | ERC721AssetId;
+
+export type ChainId = bigint;
 export type AccountId = Address;
 
-export type AssetAmount<TAssetId extends string = AssetId, TAmount extends bigint = bigint> = {
+export type AssetAmount<TAssetId = AssetId, TAmount extends bigint = bigint> = {
     asset: TAssetId;
     amount: TAmount;
 };
