@@ -60,7 +60,8 @@ function toFalconEncodedBytes(falconPublicKey) {
     const coeffs = [];
     for (let i = 0; i < 512; i++) {
         const offset = 1 + i * 2;
-        coeffs.push(falconPublicKey[offset] | (falconPublicKey[offset + 1] << 8));
+        // coeffs.push(falconPublicKey[offset] | (falconPublicKey[offset + 1] << 8));
+        coeffs.push((falconPublicKey[offset] << 8) | falconPublicKey[offset + 1]);
     }
 
     // Pack 512 coeffs → 32 uint256 words (matches _ZKNOX_NTT_Compact)
