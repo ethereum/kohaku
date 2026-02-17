@@ -35,11 +35,11 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0xaDD16326b7a59CCaA81D0144057C3d553F307243",
+        "address": "0xF45104FCfBB9233cEa6D516d71ba57F6961B8C2e",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x0007c0071a57fbd1d0b7b58c1c097277e18e9a1361d83fb6ce8fc8e97c7092a3",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_9"
+        "salt": "0xf65af82240df850b8e5158f74a0998b96aa52f2693eaa246fb428a7e87c89b40",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_10"
       },
       "mldsa_r1": {
         "address": "0xaAab1D5d432F471eCDEe05b9A370207B06B2AC0c",
@@ -127,11 +127,11 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0xaDD16326b7a59CCaA81D0144057C3d553F307243",
+        "address": "0xF45104FCfBB9233cEa6D516d71ba57F6961B8C2e",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x0007c0071a57fbd1d0b7b58c1c097277e18e9a1361d83fb6ce8fc8e97c7092a3",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_9"
+        "salt": "0xf65af82240df850b8e5158f74a0998b96aa52f2693eaa246fb428a7e87c89b40",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_10"
       },
       "mldsaeth_k1": {
         "address": "0x6eA83FEaE9e7B4a9B6A68839E8612c593E42D0E0",
@@ -199,11 +199,11 @@
     },
     "accounts": {
       "mldsa_k1": {
-        "address": "0xaDD16326b7a59CCaA81D0144057C3d553F307243",
+        "address": "0xF45104FCfBB9233cEa6D516d71ba57F6961B8C2e",
         "postQuantum": "mldsa",
         "preQuantum": "ecdsa_k1",
-        "salt": "0x0007c0071a57fbd1d0b7b58c1c097277e18e9a1361d83fb6ce8fc8e97c7092a3",
-        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_9"
+        "salt": "0xf65af82240df850b8e5158f74a0998b96aa52f2693eaa246fb428a7e87c89b40",
+        "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_10"
       }
     }
   }
