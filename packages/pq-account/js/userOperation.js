@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 
 export const ENTRY_POINT_ADDRESS = "0x0000000071727De22E5E9d8BAf0edAc6f37da032";
 
@@ -10,10 +9,7 @@ const ACCOUNT_ABI = [
 ];
 
 function packUint128(a, b) {
-  return ethers.solidityPacked(
-    ["uint128","uint128"],
-    [a, b]
-  );
+  return ethers.solidityPacked(["uint128","uint128"], [a, b]);
 }
 
 function unpackUint128(packed) {
@@ -23,75 +19,55 @@ function unpackUint128(packed) {
     return [first, second];
 }
 
-/**
- * Create initial UserOperation structure (without signature)
- */
+// ─── UserOp creation ────────────────────────────────────────────────────
+
 export async function createBaseUserOperation(
-    accountAddress,
-    targetAddress,
-    value,
-    callData,
-    provider,
-    bundlerUrl
+    accountAddress, targetAddress, value, callData, provider, bundlerUrl
 ) {
     const account = new ethers.Contract(accountAddress, ACCOUNT_ABI, provider);
 
     let nonce;
-    try {
-        nonce = await account.getNonce();
-    } catch {
-        nonce = 0n;
-    }
+    try { nonce = await account.getNonce(); } catch { nonce = 0n; }
 
     const executeCallData = account.interface.encodeFunctionData(
-        "execute",
-        [targetAddress, value, callData]
+        "execute", [targetAddress, value, callData]
     );
 
-    // Fetch suggested gas fees from bundler
     let maxPriority, maxFee;
     try {
         const gasResponse = await fetch(bundlerUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: 1,
-                method: 'pimlico_getUserOperationGasPrice',
-                params: []
+                jsonrpc: '2.0', id: 1,
+                method: 'pimlico_getUserOperationGasPrice', params: []
             })
         });
         const gasResult = await gasResponse.json();
-        if (!gasResult.result){
-            throw new Error("No gas price returned");
-        }
+        if (!gasResult.result) throw new Error("No gas price returned");
         maxFee = BigInt(gasResult.result.standard.maxFeePerGas);
         maxPriority = BigInt(gasResult.result.standard.maxPriorityFeePerGas);
     } catch (e) {
         console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
-        console.log("⚠️ PimLico does not work, back to default values!")
         maxPriority = ethers.parseUnits("0.1", "gwei");
         maxFee = ethers.parseUnits("0.2", "gwei");
     }
 
-    // Base UserOperation structure
-    const baseUserOp = {
+    return {
         sender: accountAddress,
-        nonce: nonce,
+        nonce,
         initCode: "0x",
         callData: executeCallData,
-        accountGasLimits: packUint128(13_500_000n, 500_000n),  // Initial values for estimation
+        accountGasLimits: packUint128(9_000_000n, 500_000n),
         preVerificationGas: 1_000_000n,
         gasFees: packUint128(maxPriority, maxFee),
         paymasterAndData: "0x",
-        signature: "0x"  // Empty initially
+        signature: "0x"
     };
-    return baseUserOp;
 }
 
-/**
- * Convert UserOp to bundler format
- */
+// ─── Bundler format conversion ──────────────────────────────────────────
+
 export function userOpToBundlerFormat(userOp) {
     const [verificationGasLimit, callGasLimit] = unpackUint128(userOp.accountGasLimits);
     const [maxPriorityFeePerGas, maxFeePerGas] = unpackUint128(userOp.gasFees);
@@ -99,9 +75,7 @@ export function userOpToBundlerFormat(userOp) {
     return {
         sender: userOp.sender,
         nonce: '0x' + BigInt(userOp.nonce).toString(16),
-        // initCode: userOp.initCode || "0x",
         callData: userOp.callData,
-        // paymasterAndData: userOp.paymasterAndData || "0x",
         verificationGasLimit: '0x' + verificationGasLimit.toString(16),
         callGasLimit: '0x' + callGasLimit.toString(16),
         preVerificationGas: '0x' + BigInt(userOp.preVerificationGas).toString(16),
@@ -111,75 +85,64 @@ export function userOpToBundlerFormat(userOp) {
     };
 }
 
-/**
- * Estimate gas for UserOperation (requires valid signature)
- */
-export async function estimateUserOperationGas(
-    userOp,
-    bundlerUrl
-) {
+// ─── Gas estimation ─────────────────────────────────────────────────────
+
+export async function estimateUserOperationGas(userOp, bundlerUrl) {
     const userOpForBundler = userOpToBundlerFormat(userOp);
     try {
         const response = await fetch(bundlerUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: 1,
+                jsonrpc: '2.0', id: 1,
                 method: 'eth_estimateUserOperationGas',
                 params: [userOpForBundler, ENTRY_POINT_ADDRESS]
             })
         });
         const result = await response.json();
-        
+
         if (result.error) {
             console.error("Estimation error:", result.error);
             throw new Error(result.error.message || "Estimation failed");
         }
-        
-        if (!result.result){
-            throw new Error("No estimate returned");
-        }
-        
-        // Get estimates
+        if (!result.result) throw new Error("No estimate returned");
+
         let verificationGasLimit = BigInt(result.result.verificationGasLimit);
         let callGasLimit = BigInt(result.result.callGasLimit);
-        
-        // CRITICAL: Enforce minimums for Arbitrum multisig
-        const MIN_VERIFICATION = 13_500_000n;
-        
+        let preVerificationGas = BigInt(result.result.preVerificationGas || userOp.preVerificationGas);
+
+        const MIN_VERIFICATION = 9_000_000n;
         if (verificationGasLimit < MIN_VERIFICATION) {
             console.warn("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
-            console.log("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
             verificationGasLimit = MIN_VERIFICATION;
         }
-        // const MIN_CALL = 500_000n;        
-        // if (callGasLimit < MIN_CALL) {
-        //     console.warn("⚠️ Call gas estimate too low, using minimum:", MIN_CALL.toString());
-        //     callGasLimit = MIN_CALL;
-        // }
-        // console.log("- Final callGasLimit:", callGasLimit.toString());
-        
+
+        // The bundler underestimates preVerificationGas for large signatures.
+        // The hybrid ML-DSA + ECDSA signature is ~2500 bytes of calldata,
+        // far larger than a standard 65-byte ECDSA sig.
+        // Apply a 4x multiplier with a minimum floor.
+        const MIN_PRE_VERIFICATION = 800_000n;
+        preVerificationGas = preVerificationGas * 4n;
+        if (preVerificationGas < MIN_PRE_VERIFICATION) {
+            preVerificationGas = MIN_PRE_VERIFICATION;
+        }
+        console.log("- preVerificationGas (adjusted for large signature): " + preVerificationGas.toString());
+
         return {
             verificationGasLimit,
             callGasLimit,
-            preVerificationGas: BigInt(result.result.preVerificationGas || userOp.preVerificationGas)
+            preVerificationGas
         };
-        
     } catch (e) {
         console.warn("⚠️ Bundler gas estimation failed, using defaults:", e.message);
-        console.log("⚠️ eth_estimate does not work, back to default values");
         return {
-            verificationGasLimit: 13_500_000n,
+            verificationGasLimit: 9_000_000n,
             callGasLimit: 500_000n,
-            preVerificationGas: userOp.preVerificationGas
+            preVerificationGas: 1_000_000n
         };
     }
 }
 
-/**
- * Update UserOperation with gas estimates
- */
 export function updateUserOpWithGasEstimates(userOp, gasEstimates) {
     return {
         ...userOp,
@@ -191,34 +154,20 @@ export function updateUserOpWithGasEstimates(userOp, gasEstimates) {
     };
 }
 
-/**
- * Get the hash that needs to be signed
- */
+// ─── Hashing ────────────────────────────────────────────────────────────
+
 export function getUserOpHash(userOp, entryPointAddress, chainId) {
     const initCodeHash = ethers.keccak256(userOp.initCode);
     const callDataHash = ethers.keccak256(userOp.callData);
     const paymasterHash = ethers.keccak256(userOp.paymasterAndData);
     const abi = ethers.AbiCoder.defaultAbiCoder();
+
     const packedEncoded = abi.encode(
+        ["address","uint256","bytes32","bytes32","bytes32","uint256","bytes32","bytes32"],
         [
-            "address",
-            "uint256",
-            "bytes32",
-            "bytes32",
-            "bytes32",
-            "uint256",
-            "bytes32",
-            "bytes32",
-        ],
-        [
-            userOp.sender,
-            userOp.nonce,
-            initCodeHash,
-            callDataHash,
-            userOp.accountGasLimits,
-            userOp.preVerificationGas,
-            userOp.gasFees,
-            paymasterHash,
+            userOp.sender, userOp.nonce, initCodeHash, callDataHash,
+            userOp.accountGasLimits, userOp.preVerificationGas,
+            userOp.gasFees, paymasterHash,
         ]
     );
 
@@ -227,82 +176,49 @@ export function getUserOpHash(userOp, entryPointAddress, chainId) {
         ["bytes32", "address", "uint256"],
         [packedUserOp, entryPointAddress, chainId]
     );
-    const userOpHash = ethers.keccak256(finalEncoded);
-    return userOpHash;
+    return ethers.keccak256(finalEncoded);
 }
 
-/**
- * Sign a UserOperation with pre-quantum (ECDSA) key
- */
-export async function signUserOpPreQuantum(userOp, entryPointAddress, chainId, privateKey) {
-    const wallet = new ethers.Wallet(privateKey);
-    const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
-    const signature = wallet.signingKey.sign(userOpHash).serialized;
-    return signature;
-}
+// ─── Signing ────────────────────────────────────────────────────────────
 
 /**
- * Sign a UserOperation with post-quantum (ML-DSA) key
- */
-export async function signUserOpPostQuantum(userOp, entryPointAddress, chainId, mldsaSecretKey) {
-    const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
-    const userOpHashBytes = ethers.getBytes(userOpHash);
-    const signature = ml_dsa44.sign(userOpHashBytes, mldsaSecretKey);
-    const signatureHex = ethers.hexlify(signature);
-    return signatureHex;
-}
-
-/**
- * Create hybrid signature (both pre-quantum and post-quantum)
+ * Hybrid signature (ECDSA + ML-DSA).
+ *
+ * Both signers are injected — works for software or hardware.
+ *
+ * @param {object} ecdsaSigner - { signHash(Uint8Array) → {v, r, s} }
+ * @param {object} mldsaSigner - { sign(Uint8Array) → Uint8Array }
  */
 export async function signUserOpHybrid(
-    userOp,
-    entryPointAddress,
-    chainId,
-    preQuantumPrivateKey,
-    postQuantumSecretKey
+    userOp, entryPointAddress, chainId, ecdsaSigner, mldsaSigner
 ) {
-    const preQuantumSig = await signUserOpPreQuantum(
-        userOp,
-        entryPointAddress,
-        chainId,
-        preQuantumPrivateKey
-    );
+    const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
+    const userOpHashBytes = ethers.getBytes(userOpHash);
 
-    const postQuantumSig = await signUserOpPostQuantum(
-        userOp,
-        entryPointAddress,
-        chainId,
-        postQuantumSecretKey
-    );
-    
+    // ML-DSA
+    const postQuantumSigBytes = await mldsaSigner.sign(userOpHashBytes);
+    const postQuantumSig = ethers.hexlify(postQuantumSigBytes);
+
+    // ECDSA
+    const ecdsaResult = await ecdsaSigner.signHash(userOpHashBytes);
+    const preQuantumSig = ecdsaResult.serialized;
+
     const abi = ethers.AbiCoder.defaultAbiCoder();
-    const hybridSignature = abi.encode(
-        ["bytes", "bytes"],
-        [preQuantumSig, postQuantumSig]
-    );
-    return hybridSignature;
+    return abi.encode(["bytes", "bytes"], [preQuantumSig, postQuantumSig]);
 }
 
-/**
- * Submit UserOperation to bundler (v0.7 format)
- */
+// ─── Submission ─────────────────────────────────────────────────────────
+
 export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress) {
     const userOpForBundler = userOpToBundlerFormat(userOp);
-
-    console.log("📤 Submitting UserOperation to bundler...");
 
     const response = await fetch(bundlerUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
+            jsonrpc: '2.0', id: 1,
             method: 'eth_sendUserOperation',
-            params: [
-                userOpForBundler,
-                entryPointAddress
-            ]
+            params: [userOpForBundler, entryPointAddress]
         })
     });
 
@@ -311,6 +227,5 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
         throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
     }
 
-    console.log("✅ UserOperation submitted successfully");
-    return result.result; // UserOperation hash
+    return result.result;
 }

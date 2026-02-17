@@ -23,7 +23,3 @@ Open `create-account.html` and follow the instructions in order to deploy an ERC
 
 ## Send a transaction
 Open `send-tx.html` and follow the instructions in order to send ETH to another address. Note that the created ERC4337 account needs to be funded before performing a transaction.
-
-This works only on Arbitrum Sepolia for now, due to the gas cost that is above the limit of 15M for the bundler PimLico.
-
-TODO debug this!!!
