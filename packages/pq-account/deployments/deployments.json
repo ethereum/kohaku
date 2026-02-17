@@ -18,9 +18,9 @@
         "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_3"
       },
       "falcon": {
-        "address": "0x0826a72D0216623Bb8b716e3C8FD34e176a21388",
-        "salt": "0xeaba51f983d4b9c09c836b08ab8607ece9b57eb2636b9518d52f98605c61ecd4",
-        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_2"
+        "address": "0xf895d63b9a2c5A09B4FD0c8eDE28250CA1610179",
+        "salt": "0x48b9b23483025eb4681edd2e008329ab98b78d0385d0b12adb76ca0e8438e5fa",
+        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_3"
       },
       "ecdsa_k1": {
         "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
@@ -63,11 +63,11 @@
         "saltLabel": "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_2"
       },
       "falcon_k1": {
-        "address": "0x4430b7a90CCdc0c6d33cF368892B264e3417EA5e",
+        "address": "0xCf424AC5500F69dD929ED79ba6B5B7A2BC9B6dE7",
         "postQuantum": "falcon",
         "preQuantum": "ecdsa_k1",
-        "salt": "0xac8620c24079bef6e6e97c3469a3e9f79108256abaa9d9234419dada631aa6d2",
-        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_2"
+        "salt": "0x7ba6fcf5e3d82783f97e0d0c3cb22684176dcebc67ff1de941fca16119de8b4a",
+        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_3"
       },
       "falcon_r1": {
         "address": "0xC064B8a7FDe4AC69a761a811eA103ed341a4e994",
