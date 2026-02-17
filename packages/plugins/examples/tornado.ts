@@ -5,7 +5,7 @@
  * enforce both compile-time and run-time checks for supported assets.
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Account } from "../src/account/base";
+import { Instance } from "../src/instance/base";
 import { Broadcaster } from "../src/broadcaster/base";
 import { Plugin, CreatePluginFn, Host, PrivateOperation, PublicOperation, AssetAmount } from "../src/index";
 
@@ -13,21 +13,26 @@ export type TCPrivateOperation = PrivateOperation & { bar: 'hi' };
 // private account index (derivation index)
 // 0 by default
 export type TornadoAddress = `${number}`;
-export type TCAccount = Account<
+export type TCInstance = Instance<
     TornadoAddress,
+    {
+        input: AssetAmount,
+        internal: AssetAmount,
+        output: AssetAmount,
+    },
     TCPrivateOperation,
     { shield: true, unshield: true }
 >;
 
 export type TCPluginParameters = { foo: 'bar' };
 export type TBroadcaster = Broadcaster<{ broadcasterUrl: string }>;
-export type TornadoPlugin = Plugin<"tornado", TCAccount, TCPrivateOperation, Host, TBroadcaster, TCPluginParameters>;
+export type TornadoPlugin = Plugin<"tornado", TCInstance, TCPrivateOperation, Host, TBroadcaster, TCPluginParameters>;
 
 export const createTornadoPlugin: CreatePluginFn<TornadoPlugin> = (host, params) => {
     // setup tornado plugin here
-    const accounts: TCAccount[] = [];
-    const createAccount = () => {
-        const account = {
+    const instances: TCInstance[] = [];
+        const createInstance = () => {
+        const instance = {
             account: () => Promise.resolve("0"),
             balance(assets) {
                 return Promise.resolve([] as Array<AssetAmount | undefined>);
@@ -38,18 +43,18 @@ export const createTornadoPlugin: CreatePluginFn<TornadoPlugin> = (host, params)
             unshield(asset, to) {
                 return Promise.resolve({} as TCPrivateOperation);
             },
-        } as TCAccount;
+        } as TCInstance;
 
-        accounts.push(account);
+        instances.push(instance);
 
-        return account;
+        return instance;
     };
 
     const broadcaster = {} as TBroadcaster;
 
     return {
-        accounts: () => accounts,
-        createAccount,
+        instances: () => instances,
+        createInstance,
         broadcaster,
         plugin_name: "tornado",
     };
@@ -60,7 +65,7 @@ const exampleUsage = async () => {
     const host: Host = {} as Host;
 
     const plugin = await createTornadoPlugin(host, {});
-    const acc = await plugin.createAccount();
+    const acc = await plugin.createInstance();
 
     const address = await acc.account();
     const balance = await acc.balance(["erc20:0x0000000000000000000000000000000000000000"]);

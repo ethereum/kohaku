@@ -279,6 +279,9 @@ importers:
 
   packages/railgun:
     dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../plugins
       '@kohaku-eth/provider':
         specifier: workspace:*
         version: link:../provider
