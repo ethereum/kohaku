@@ -1,11 +1,11 @@
-import { AnyAccount } from "./account/base";
+import { AnyInstance } from "./instance/base";
 import { Broadcaster } from "./broadcaster/base";
 import { Host } from "./host";
 import { PrivateOperation } from "./shared";
 
 export type Plugin<
     TName extends string = 'plugin',
-    TAccount extends AnyAccount = AnyAccount,
+    TInstance extends AnyInstance = AnyInstance,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     THost extends Host = Host,
@@ -14,8 +14,8 @@ export type Plugin<
     TExtraParams extends Record<string, unknown> = Record<string, unknown>,
 > = {
     plugin_name: TName,
-    createAccount: () => Promise<TAccount> | TAccount;
-    accounts: () => Promise<TAccount[]> | TAccount[];
+    createInstance: () => Promise<TInstance> | TInstance;
+    instances: () => Promise<TInstance[]> | TInstance[];
 }
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     & (TBroadcaster extends never ? {} : { broadcaster: TBroadcaster })

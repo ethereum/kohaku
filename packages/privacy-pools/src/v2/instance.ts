@@ -1,15 +1,20 @@
 import { Address } from 'ox/Address';
-import { Account } from '@kohaku-eth/plugins/account';
+import { Instance } from '@kohaku-eth/plugins/instance';
 import { PPv2PrivateOperation } from '.';
-import { PublicOperation } from '@kohaku-eth/plugins';
+import { AssetAmount, PublicOperation } from '@kohaku-eth/plugins';
 
 /**
  * PPv1 uses Ethereum Addresses internally
  */
 export type PPv2Address = Address;
 
-export type PPv2Account = Account<
+export type PPv2Instance = Instance<
     PPv2Address,
+    {
+        input: AssetAmount,
+        internal: AssetAmount,
+        output: AssetAmount,
+    },
     PPv2PrivateOperation,
     {
         shield: true,
@@ -21,7 +26,7 @@ export type PPv2Account = Account<
     }
 >;
 
-export const createAccount = (): PPv2Account => {
+export const createInstance = (): PPv2Instance => {
     const pubKey = "" as Address;
 
     return {

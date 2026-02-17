@@ -23,13 +23,9 @@
       "types": "./dist/broadcaster/base.d.ts",
       "import": "./dist/broadcaster/base.js"
     },
-    "./account/actions": {
-      "types": "./dist/account/actions/index.d.ts",
-      "import": "./dist/account/actions/index.js"
-    },
-    "./account": {
-      "types": "./dist/account/base.d.ts",
-      "import": "./dist/account/base.js"
+    "./instance": {
+      "types": "./dist/instance/base.d.ts",
+      "import": "./dist/instance/base.js"
     }
   },
   "dependencies": {
