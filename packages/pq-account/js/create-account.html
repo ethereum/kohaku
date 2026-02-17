@@ -201,19 +201,30 @@
             font-size: 14px;
             margin-bottom: 15px;
         }
+
+        .falcon-info {
+            background: #e3f2fd;
+            border: 1px solid #2196F3;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: #1565c0;
+            font-size: 14px;
+            margin-bottom: 15px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <h1>Create ERC4337 Quantum-Resistant Account</h1>
     
     <div class="warning">
-        <strong>⚠️ Security Note:</strong>
+        <strong>&#9888;&#65039; Security Note:</strong>
         These seeds will generate your account's public keys. Do not use real seeds in production on a public website. 
         This is for testing purposes only.
     </div>
     
     <div class="config-section">
-        <h2>🔧 Configuration</h2>
+        <h2>&#128295; Configuration</h2>
 
         <!-- Unified network selector for both modes -->
         <div class="input-group">
@@ -229,7 +240,7 @@
 
         <div class="input-group" style="display:none;">
             <label for="factory">Factory Contract Address:</label>
-            <span id="factory">—</span>
+            <span id="factory">&mdash;</span>
         </div>
 
         <!-- Load deployments and wire up factory address -->
@@ -238,13 +249,13 @@
 
         window.__deployments = deployments;
 
-        function updateFactory(networkKey) {
+        function updateFactory(networkKey, accountMode) {
             const factorySpan = document.getElementById('factory');
-            const accountMode = 'mldsa_k1';
+            accountMode = accountMode || document.getElementById('accountMode')?.value || 'mldsa_k1';
             if (networkKey && deployments[networkKey] && deployments[networkKey].accounts[accountMode]) {
                 factorySpan.textContent = deployments[networkKey].accounts[accountMode].address;
             } else {
-                factorySpan.textContent = '—';
+                factorySpan.textContent = '\u2014';
             }
         }
 
@@ -257,19 +268,25 @@
         <div class="input-group">
             <label for="accountMode">Account Mode:</label>
             <select id="accountMode">
-                <option value="mldsa_k1">ML-DSA-K1</option>
+                <option value="mldsa_k1">ML-DSA-44 + ECDSA-K1</option>
+                <option value="falcon_k1">Falcon-512 + ECDSA-K1 (software only)</option>
             </select>
             <small>Choose the account type / key scheme</small>
+        </div>
+
+        <div id="falconNotice" class="falcon-info">
+            &#129413; Falcon-512 uses a WASM-compiled signer and is available in software (Hot Wallet) mode only.
+            Ledger support is not available for Falcon.
         </div>
 
     </div>
 
     <div class="config-section">
-        <h2>🔑 Signing Keys</h2>
+        <h2>&#128273; Signing Keys</h2>
 
         <div class="mode-toggle">
-            <button id="mode-hot" class="active">🔥 Hot Wallet</button>
-            <button id="mode-ledger">🔒 Ledger</button>
+            <button id="mode-hot" class="active">&#128293; Hot Wallet</button>
+            <button id="mode-ledger">&#128274; Ledger</button>
         </div>
 
         <!-- Hot Wallet panel -->
@@ -284,7 +301,7 @@
                 <div class="input-group">
                     <label for="postquantum">Post-Quantum Seed:</label>
                     <input type="text" id="postquantum" value="0xac38da90e1a47bd048580b74e07ce649649642f1a9696b714977bf9f2942c1a4">
-                    <small>32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
+                    <small id="pqSeedHint">32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
                 </div>
             </div>    
             <div class="button-container">
@@ -295,20 +312,20 @@
         <!-- Ledger panel -->
         <div id="panel-ledger" class="mode-panel">
             <div class="ledger-info">
-                🔐 Both ECDSA and ML-DSA keys are derived on the Ledger secure element
+                &#128274; Both ECDSA and ML-DSA keys are derived on the Ledger secure element
                 via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.<br>
-                The deployment transaction will also be signed by the Ledger — no browser wallet needed.
+                The deployment transaction will also be signed by the Ledger &mdash; no browser wallet needed.
             </div>
 
             <div class="button-container">
-                <button id="deploy-ledger">🔒 Connect Ledger & Deploy Account</button>
+                <button id="deploy-ledger">&#128274; Connect Ledger & Deploy Account</button>
             </div>
         </div>
     </div>
 
     <div id="output"></div>
 
-    <!-- Mode toggle + network selector + wallet auto-sync -->
+    <!-- Mode toggle + network selector + wallet auto-sync + accountMode wiring -->
     <script>
     (function() {
         const rpcDefaults = {
@@ -327,12 +344,32 @@
 
         const sel = document.getElementById('targetNetwork');
         const rpcInput = document.getElementById('rpcUrl');
+        const accountModeSelect = document.getElementById('accountMode');
+        const falconNotice = document.getElementById('falconNotice');
+        const pqSeedHint = document.getElementById('pqSeedHint');
 
         // Dropdown change → update RPC URL + factory
         sel.addEventListener('change', () => {
             const key = sel.value;
             if (rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
             if (window.__updateFactory) window.__updateFactory(key);
+        });
+
+        // Account mode change → update factory + toggle Falcon notice
+        accountModeSelect.addEventListener('change', () => {
+            const networkKey = sel.value;
+            if (window.__updateFactory) window.__updateFactory(networkKey, accountModeSelect.value);
+
+            const isFalcon = accountModeSelect.value.startsWith('falcon');
+            falconNotice.style.display = isFalcon ? 'block' : 'none';
+            pqSeedHint.textContent = isFalcon
+                ? '32 bytes (64 hex characters) for Falcon-512 key generation'
+                : '32 bytes (64 hex characters) for ML-DSA-44 key generation';
+
+            // If Falcon selected and currently on Ledger panel, switch to Hot
+            if (isFalcon && modeLedger.classList.contains('active')) {
+                modeHot.click();
+            }
         });
 
         // ── Mode toggle ──
@@ -349,6 +386,11 @@
         });
 
         modeLedger.addEventListener('click', () => {
+            // Block if Falcon is selected
+            if (accountModeSelect.value.startsWith('falcon')) {
+                alert('Falcon is only available in software mode. Please select ML-DSA to use Ledger.');
+                return;
+            }
             modeLedger.classList.add('active');
             modeHot.classList.remove('active');
             document.getElementById('panel-ledger').classList.add('active');

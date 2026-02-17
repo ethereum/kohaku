@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { to_expanded_encoded_bytes } from './utils_mldsa.js';
 import * as softEcdsaKeygen from './software-signer/ecdsaKeygen.js';
 import * as softMldsaKeygen from './software-signer/mldsaKeygen.js';
+import * as softFalconKeygen from './software-signer/falconKeygen.js';
 import {
     openTransport,
     deriveMldsaSeed,
@@ -25,6 +26,50 @@ function validateSeed(seed, name) {
     }
 }
 
+/**
+ * Pack 512 NTT coefficients (each ≤ 16 bits) into 32 uint256 words,
+ * matching _ZKNOX_NTT_Compact in Solidity.
+ *
+ * @param {BigInt[]|number[]} coeffs - 512 coefficients
+ * @returns {BigInt[]} 32 packed uint256 words
+ */
+function nttCompact(coeffs) {
+    if (coeffs.length !== 512) throw new Error("Expected 512 coefficients, got " + coeffs.length);
+
+    const b = new Array(32).fill(0n);
+
+    for (let i = 0; i < 512; i++) {
+        const wordIndex = i >> 4;          // i / 16
+        const bitShift = (i & 0xf) * 16; // (i % 16) * 16
+        b[wordIndex] ^= BigInt(coeffs[i]) << BigInt(bitShift);
+    }
+
+    return b;
+}
+
+/**
+ * Encode the Falcon-512 public key for the on-chain verifier.
+ */
+function toFalconEncodedBytes(falconPublicKey) {
+    // Falcon-512 public key: 1 byte header + 512 × 2 bytes (16-bit coefficients)
+    if (falconPublicKey.length !== 1025) {
+        throw new Error("Expected 1025-byte Falcon-512 public key, got " + falconPublicKey.length);
+    }
+
+    // Extract 512 coefficients (16-bit little-endian) skipping the 1-byte header
+    const coeffs = [];
+    for (let i = 0; i < 512; i++) {
+        const offset = 1 + i * 2;
+        coeffs.push(falconPublicKey[offset] | (falconPublicKey[offset + 1] << 8));
+    }
+
+    // Pack 512 coeffs → 32 uint256 words (matches _ZKNOX_NTT_Compact)
+    const packed = nttCompact(coeffs);
+
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    return abiCoder.encode(["uint256[]"], [packed]);
+}
+
 async function main(mode) {
     const factoryAddress = document.getElementById('factory').textContent.trim();
     if (!factoryAddress || factoryAddress === '\u2014') {
@@ -32,10 +77,18 @@ async function main(mode) {
         return;
     }
 
+    const accountMode = document.getElementById('accountMode')?.value || 'mldsa_k1';
+    const pqAlgo = accountMode.startsWith('falcon') ? 'falcon' : 'mldsa';
+
     let provider, signer, transport;
 
     try {
         if (mode === 'ledger') {
+            if (pqAlgo === 'falcon') {
+                console.error("\u274C Falcon is only available in software mode.");
+                return;
+            }
+
             // ── Ledger mode: RPC provider + Ledger-backed signer ──────────
             const rpcUrl = document.getElementById('rpcUrl')?.value.trim();
             if (!rpcUrl) {
@@ -73,10 +126,10 @@ async function main(mode) {
 
             // Check wallet chain matches dropdown selection
             const networkToChainId = {
-                ethereum:        '0x1',
-                sepolia:         '0xaa36a7',
+                ethereum: '0x1',
+                sepolia: '0xaa36a7',
                 arbitrumSepolia: '0x66eee',
-                baseSepolia:     '0x14a34',
+                baseSepolia: '0x14a34',
             };
             const selectedNetwork = document.getElementById('targetNetwork')?.value;
             const expectedChainHex = networkToChainId[selectedNetwork];
@@ -115,13 +168,10 @@ async function main(mode) {
         }
 
         // 2. Get public keys based on mode
-        let preQuantumPubKey, mldsaPublicKey;
+        let preQuantumPubKey, pqPublicKey;
 
         if (mode === 'ledger') {
-            // Use the already-open transport — do NOT call hwEcdsaKeygen / hwMldsaKeygen
-            // which would try to openTransport() again and fail with "device already open".
-
-            // ECDSA address from public key
+            // Ledger path — ML-DSA only (Falcon is software-only)
             const ecdsaPubkey = await getEcdsaPublicKey(transport, "m/44'/60'/0'/0/0");
             const raw = ecdsaPubkey.subarray(2, 66);
             const hash = ethers.keccak256(raw);
@@ -129,10 +179,9 @@ async function main(mode) {
             console.log("\u2705 ECDSA address: " + preQuantumPubKey);
             console.log("");
 
-            // ML-DSA public key (derive seed first, then keygen + read PK)
             await deriveMldsaSeed(transport, "m/44'/60'/0'/0/0");
-            mldsaPublicKey = await getMldsaPublicKey(transport);
-            console.log("\u2705 ML-DSA public key retrieved (" + mldsaPublicKey.length + " bytes)");
+            pqPublicKey = await getMldsaPublicKey(transport);
+            console.log("\u2705 ML-DSA public key retrieved (" + pqPublicKey.length + " bytes)");
         } else {
             const preQuantumSeed = document.getElementById('prequantum').value.trim();
             const postQuantumSeed = document.getElementById('postquantum').value.trim();
@@ -146,15 +195,25 @@ async function main(mode) {
             }
 
             preQuantumPubKey = await softEcdsaKeygen.getAddress({ privateKey: preQuantumSeed });
-            mldsaPublicKey = await softMldsaKeygen.getPublicKey({ postQuantumSeed });
+
+            if (pqAlgo === 'falcon') {
+                pqPublicKey = await softFalconKeygen.getPublicKey({ postQuantumSeed });
+            } else {
+                pqPublicKey = await softMldsaKeygen.getPublicKey({ postQuantumSeed });
+            }
         }
 
         // 3. Encode keys for the contract
-        const postQuantumPubKey = to_expanded_encoded_bytes(mldsaPublicKey);
+        let postQuantumPubKey;
+        if (pqAlgo === 'falcon') {
+            postQuantumPubKey = toFalconEncodedBytes(pqPublicKey);
+        } else {
+            postQuantumPubKey = to_expanded_encoded_bytes(pqPublicKey);
+        }
 
         // 4. Deploy
         console.log("");
-        console.log("\uD83D\uDCE6 Deploying ERC4337 Account...");
+        console.log("\uD83D\uDCE6 Deploying ERC4337 Account (" + accountMode + ")...");
         const accountResult = await deployERC4337Account(
             factoryAddress,
             preQuantumPubKey,
@@ -185,14 +244,14 @@ async function main(mode) {
     } finally {
         // Always close the Ledger transport so the next click can reopen it
         if (transport) {
-            try { await transport.close(); } catch (e) {}
+            try { await transport.close(); } catch (e) { }
         }
     }
 }
 
 // ─── UI Setup ─────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+function setup() {
     const deployBtn = document.getElementById('deploy');
     const deployLedgerBtn = document.getElementById('deploy-ledger');
     const output = document.getElementById('output');
@@ -206,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalLog = console.log;
     const originalError = console.error;
 
-    console.log = function(...args) {
+    console.log = function (...args) {
         const message = args.map(arg =>
             typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' ');
@@ -215,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         originalLog.apply(console, args);
     };
 
-    console.error = function(...args) {
+    console.error = function (...args) {
         const message = args.map(arg =>
             typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' ');
@@ -229,6 +288,18 @@ document.addEventListener('DOMContentLoaded', () => {
         output.textContent = '\u2705 Wallet detected. Configure seeds above and click deploy.\n';
     } else {
         output.textContent = '\u26A0\uFE0F No browser wallet detected. Use Ledger mode or install MetaMask/Rabby.\n';
+    }
+
+    // ── Disable Ledger button when Falcon is selected ──
+    const accountModeSelect = document.getElementById('accountMode');
+    if (accountModeSelect && deployLedgerBtn) {
+        accountModeSelect.addEventListener('change', () => {
+            const isFalcon = accountModeSelect.value.startsWith('falcon');
+            deployLedgerBtn.disabled = isFalcon;
+            deployLedgerBtn.title = isFalcon
+                ? 'Falcon is only available in software mode'
+                : '';
+        });
     }
 
     async function run(mode) {
@@ -250,8 +321,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (deployBtn) deployBtn.addEventListener('click', () => run('soft'));
     if (deployLedgerBtn) deployLedgerBtn.addEventListener('click', () => run('ledger'));
-});
+}
 
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+} else {
+    setup();
+}
 // ─── Factory ABI ──────────────────────────────────────────────────────────────
 
 const ACCOUNT_FACTORY_ABI = [

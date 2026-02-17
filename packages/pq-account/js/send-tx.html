@@ -153,6 +153,11 @@
             border-color: #4CAF50;
         }
 
+        .signing-mode-toggle input[type="radio"]:disabled + label {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .ledger-info {
             background: #e8f5e9;
             border: 1px solid #4CAF50;
@@ -168,7 +173,7 @@
     <h1>Send ERC4337 Quantum-Resistant Transaction</h1>
     
     <div class="config-section">
-        <h2>📋 Transaction Details</h2>
+        <h2>&#128203; Transaction Details</h2>
 
         <div class="twocols">
             <!-- Network + RPC: always visible for both modes -->
@@ -213,14 +218,24 @@
             </div>
         </div>
 
+        <!-- ─── PQ Algorithm selector ─── -->
+        <div class="input-group">
+            <label for="pqAlgo">Post-Quantum Algorithm:</label>
+            <select id="pqAlgo">
+                <option value="mldsa">ML-DSA-44</option>
+                <option value="falcon">Falcon-512 (software only)</option>
+            </select>
+            <small>Must match the algorithm used when the account was created</small>
+        </div>
+
         <label style="font-weight: bold; color: #555; font-size: 14px; margin-bottom: 10px; display: block;">
-            ML-DSA Signing Mode:
+            Signing Mode:
         </label>
         <div class="signing-mode-toggle">
             <input type="radio" name="signingMode" id="modeSoft" value="soft" checked>
-            <label for="modeSoft">💻 Software</label>
+            <label for="modeSoft">&#128187; Software</label>
             <input type="radio" name="signingMode" id="modeLedger" value="ledger">
-            <label for="modeLedger">🔐 Ledger Hardware</label>
+            <label for="modeLedger">&#128274; Ledger Hardware</label>
         </div>
 
         <!-- ─── Software mode: both seeds ─── -->
@@ -232,7 +247,7 @@
                     <small>Same seed used to create the account</small>
                 </div>
                 <div class="input-group">
-                    <label>Post-Quantum Seed (ML-DSA):</label>
+                    <label id="pqSeedLabel">Post-Quantum Seed (ML-DSA):</label>
                     <input type="text" id="postQuantumSeed" value="0xac38da90e1a47bd048580b74e07ce649649642f1a9696b714977bf9f2942c1a4">
                     <small>Same seed used to create the account</small>
                 </div>
@@ -242,7 +257,7 @@
         <!-- ─── Ledger mode: info banner ─── -->
         <div id="ledgerInfoGroup" style="display: none;">
             <div class="ledger-info">
-                🔐 Both ECDSA and ML-DSA keys are derived on the Ledger secure element
+                &#128274; Both ECDSA and ML-DSA keys are derived on the Ledger secure element
                 via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.
             </div>
         </div>
@@ -255,7 +270,7 @@
     
     <div id="output"></div>
     
-    <!-- Network selector + wallet auto-sync -->
+    <!-- Network selector + wallet auto-sync + PQ algo wiring -->
     <script>
     (function() {
         const rpcDefaults = {
@@ -279,6 +294,34 @@
                 const rpcInput = document.getElementById('rpcUrl');
                 const key = sel.value;
                 if (rpcDefaults[key] && rpcInput) rpcInput.value = rpcDefaults[key];
+            });
+        }
+
+        // ── PQ algorithm change → update labels + disable Ledger if Falcon ──
+        const pqAlgoSelect = document.getElementById('pqAlgo');
+        const pqSeedLabel  = document.getElementById('pqSeedLabel');
+        const ledgerRadio  = document.getElementById('modeLedger');
+        const softRadio    = document.getElementById('modeSoft');
+
+        if (pqAlgoSelect) {
+            pqAlgoSelect.addEventListener('change', () => {
+                const isFalcon = pqAlgoSelect.value === 'falcon';
+
+                // Update seed label
+                if (pqSeedLabel) {
+                    pqSeedLabel.textContent = isFalcon
+                        ? 'Post-Quantum Seed (Falcon-512):'
+                        : 'Post-Quantum Seed (ML-DSA):';
+                }
+
+                // Disable/enable Ledger radio
+                if (ledgerRadio) {
+                    ledgerRadio.disabled = isFalcon;
+                    if (isFalcon && ledgerRadio.checked) {
+                        softRadio.checked = true;
+                        softRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
             });
         }
 

@@ -12,26 +12,48 @@ import {
     ENTRY_POINT_ADDRESS
 } from './userOperation.js';
 
-import * as softMldsa  from './software-signer/mldsaSigner.js';
-import * as softEcdsa  from './software-signer/ecdsaSigner.js';
-import * as hwMldsa    from './hardware-signer/mldsaSigner.js';
-import * as hwEcdsa    from './hardware-signer/ecdsaSigner.js';
+import * as softMldsa from './software-signer/mldsaSigner.js';
+import * as softFalcon from './software-signer/falconSigner.js';
+import * as softEcdsa from './software-signer/ecdsaSigner.js';
+import * as hwMldsa from './hardware-signer/mldsaSigner.js';
+import * as hwEcdsa from './hardware-signer/ecdsaSigner.js';
 
-function getSigners(mode) {
-    return mode === 'ledger'
-        ? { mldsa: hwMldsa, ecdsa: hwEcdsa }
-        : { mldsa: softMldsa, ecdsa: softEcdsa };
+/**
+ * Return the correct {pq, ecdsa} signer pair based on signing mode and
+ * selected PQ algorithm.
+ *
+ * @param {'soft'|'ledger'} mode
+ * @param {'mldsa'|'falcon'} pqAlgo
+ */
+function getSigners(mode, pqAlgo) {
+    if (mode === 'ledger') {
+        // Ledger only supports ML-DSA for now
+        return { pq: hwMldsa, ecdsa: hwEcdsa };
+    }
+    return {
+        pq: pqAlgo === 'falcon' ? softFalcon : softMldsa,
+        ecdsa: softEcdsa,
+    };
+}
+
+/**
+ * Max detached-signature size used for the dummy signature during gas
+ * estimation.  ML-DSA-44 = 2420 B, Falcon-512 ≈ 1109 B (2+40+1067).
+ */
+function pqDummySigLen(pqAlgo) {
+    return pqAlgo === 'falcon' ? 1109 : 2420;
 }
 
 export async function sendERC4337Transaction(
     accountAddress, targetAddress, value, callData,
     preQuantumSeed, signingMode, postQuantumSeed,
-    provider, bundlerUrl
+    provider, bundlerUrl, pqAlgo = 'mldsa'
 ) {
-    const { mldsa, ecdsa } = getSigners(signingMode);
+    const { pq, ecdsa } = getSigners(signingMode, pqAlgo);
 
     try {
         console.log("🚀 Sending ERC4337 Transaction...");
+        console.log("- PQ algorithm: " + (pqAlgo === 'falcon' ? 'Falcon-512' : 'ML-DSA-44'));
         console.log("");
 
         const network = await provider.getNetwork();
@@ -60,10 +82,10 @@ export async function sendERC4337Transaction(
         if (signingMode === 'ledger') {
             await ecdsa.init();
             hwMldsa.setTransport(ecdsa.getTransport());
-            await mldsa.init();
+            await pq.init();
         } else {
             await ecdsa.init({ privateKey: preQuantumSeed });
-            await mldsa.init({ postQuantumSeed });
+            await pq.init({ postQuantumSeed });
         }
         console.log("");
 
@@ -73,7 +95,7 @@ export async function sendERC4337Transaction(
         );
 
         // 2. Use dummy signature for gas estimation
-        userOp.signature = getDummySignature();
+        userOp.signature = getDummySignature(pqAlgo);
 
         // 3. Estimate gas
         const gasEstimates = await estimateUserOperationGas(userOp, bundlerUrl);
@@ -106,21 +128,22 @@ export async function sendERC4337Transaction(
                 [ecdsaSig, result.mldsaSignature]
             );
         } else {
-            // Software: signs separately
+            // Software: signs separately (works for both ML-DSA and Falcon)
             userOp.signature = await signUserOpHybrid(
                 userOp, ENTRY_POINT_ADDRESS, network.chainId,
-                ecdsa, mldsa
+                ecdsa, pq
             );
         }
-        console.log("✅ ECDSA and MLDSA signature generated.");
-        
+        const algoLabel = pqAlgo === 'falcon' ? 'Falcon-512' : 'ML-DSA-44';
+        console.log("✅ ECDSA and " + algoLabel + " signature generated.");
+
         // Submit or preview
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {
             console.log("");
             console.log("ℹ️  No valid bundler URL provided");
             console.log("✅ UserOperation created and signed successfully!");
             console.log("");
-            console.log("🔄 UserOperation Preview:");
+            console.log("📄 UserOperation Preview:");
             console.log(JSON.stringify({
                 sender: userOp.sender ?? "<undefined>",
                 nonce: '0x' + ((userOp.nonce ?? 0).toString(16)),
@@ -171,14 +194,14 @@ export async function sendERC4337Transaction(
         if (error.stack) console.log("Stack trace:\n" + error.stack);
         return { success: false, error: error.message };
     } finally {
-        await mldsa.cleanup();
+        await pq.cleanup();
         await ecdsa.cleanup();
     }
 }
 
-// ─── UI Setup (unchanged except preQuantumSeed handling) ────────────────
+// ─── UI Setup ─────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+function setup() {
     const button = document.getElementById('sendTx');
     const output = document.getElementById('output');
     const signingModeRadios = document.getElementsByName('signingMode');
@@ -189,22 +212,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSeedVisibility() {
         const mode = document.querySelector('input[name="signingMode"]:checked').value;
-        if (softSeedGroup)   softSeedGroup.style.display   = (mode === 'soft')   ? '' : 'none';
-        if (ledgerInfoGroup) ledgerInfoGroup.style.display  = (mode === 'ledger') ? '' : 'none';
+        if (softSeedGroup) softSeedGroup.style.display = (mode === 'soft') ? '' : 'none';
+        if (ledgerInfoGroup) ledgerInfoGroup.style.display = (mode === 'ledger') ? '' : 'none';
     }
     signingModeRadios.forEach(r => r.addEventListener('change', updateSeedVisibility));
     updateSeedVisibility();
 
+    // ── Disable Ledger radio when Falcon is selected ──
+    const pqAlgoSelect = document.getElementById('pqAlgo');
+    const ledgerRadio = document.getElementById('modeLedger');
+    if (pqAlgoSelect && ledgerRadio) {
+        pqAlgoSelect.addEventListener('change', () => {
+            const isFalcon = pqAlgoSelect.value === 'falcon';
+            ledgerRadio.disabled = isFalcon;
+            if (isFalcon && ledgerRadio.checked) {
+                // Force switch to software mode
+                document.getElementById('modeSoft').checked = true;
+                updateSeedVisibility();
+            }
+        });
+    }
+
     const originalLog = console.log;
     const originalError = console.error;
 
-    console.log = function(...args) {
+    console.log = function (...args) {
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
         output.textContent += msg + '\n';
         output.scrollTop = output.scrollHeight;
         originalLog.apply(console, args);
     };
-    console.error = function(...args) {
+    console.error = function (...args) {
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
         output.textContent += '❌ ' + msg + '\n';
         output.scrollTop = output.scrollHeight;
@@ -232,9 +270,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("");
 
             const signingMode = document.querySelector('input[name="signingMode"]:checked').value;
+            const pqAlgo = document.getElementById('pqAlgo')?.value || 'mldsa';
 
             const preQuantumSeed = signingMode === 'ledger'
-                ? '' // not needed \u2014 Ledger signs ECDSA on device
+                ? '' // not needed — Ledger signs ECDSA on device
                 : document.getElementById('preQuantumSeed').value.trim();
 
             const postQuantumSeed = document.getElementById('postQuantumSeed')?.value.trim() || '';
@@ -249,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await sendERC4337Transaction(
                 accountAddress, targetAddress, ethers.parseEther(valueEth), callData,
                 preQuantumSeed, signingMode, postQuantumSeed,
-                provider, bundlerUrl
+                provider, bundlerUrl, pqAlgo
             );
 
         } catch (error) {
@@ -258,22 +297,30 @@ document.addEventListener('DOMContentLoaded', () => {
             button.disabled = false;
         }
     });
-});
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+} else {
+    setup();
+}
 
-export function getDummySignature() {
+/**
+ * Build a dummy hybrid signature for gas estimation.
+ * @param {'mldsa'|'falcon'} pqAlgo
+ */
+export function getDummySignature(pqAlgo = 'mldsa') {
     const abi = ethers.AbiCoder.defaultAbiCoder();
-    // 65 bytes of 0xff for ECDSA + 2420 bytes of 0xff for ML-DSA
     const dummyEcdsa = ethers.hexlify(new Uint8Array(65).fill(0xff));
-    const dummyMldsa = ethers.hexlify(new Uint8Array(2420).fill(0xff));
-    return abi.encode(["bytes", "bytes"], [dummyEcdsa, dummyMldsa]);
+    const dummyPq = ethers.hexlify(new Uint8Array(pqDummySigLen(pqAlgo)).fill(0xff));
+    return abi.encode(["bytes", "bytes"], [dummyEcdsa, dummyPq]);
 }
 
 /**
  * Poll the bundler for a UserOperation receipt until it is mined.
  * @param {string} userOpHash
  * @param {string} bundlerUrl
- * @param {number} [timeoutMs=120000]  – give up after this many ms
- * @param {number} [intervalMs=3000]   – poll every N ms
+ * @param {number} [timeoutMs=120000]  — give up after this many ms
+ * @param {number} [intervalMs=3000]   — poll every N ms
  * @returns {object|null} receipt, or null on timeout
  */
 async function waitForUserOperationReceipt(
