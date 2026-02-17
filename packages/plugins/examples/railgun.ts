@@ -57,6 +57,8 @@ const exampleUsage = async () => {
     const amount = balance[0];
     const preparedShield = await acc.shield(amount, "0zk123");
 
+    acc.shield({ asset: 'erc20:0x0000000000000000000000000000000000000000', amount: 100n }, "0zk123");
+
     // acc.shield();
     // acc.transfer();
     // // acc.

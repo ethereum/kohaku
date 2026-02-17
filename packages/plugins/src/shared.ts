@@ -4,9 +4,9 @@ export type AssetId = `erc20:${Address}`;
 export type ChainId = `eip155:${bigint}`;
 export type AccountId = Address;
 
-export type AssetAmount = {
-    asset: AssetId;
-    amount: bigint;
+export type AssetAmount<TAssetId extends string = AssetId, TAmount extends bigint = bigint> = {
+    asset: TAssetId;
+    amount: TAmount;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
