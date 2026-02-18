@@ -3,11 +3,11 @@
 We provide in this directory a web interface to deploy a post-quantum account and sign transactions.
 
 ## Prerequisites
-Deploying an ERC 4337 account requires the installation of several javascript libraries. From the root of the repository:
+Deploying an ERC 4337 account requires the installation of several javascript libraries:
 ```
 npm install
 ```
-In order to run the web interface, simply use (also from the root of the repository):
+In order to run the web interface, simply use:
 ```
 npm run dev
 ```

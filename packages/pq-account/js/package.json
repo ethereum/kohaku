@@ -1,0 +1,21 @@
+{
+  "name": "zknox-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "@noble/post-quantum": "^0.2.0",
+    "@noble/hashes": "^1.4.0",
+    "@ledgerhq/hw-transport-webhid": "^6.31.0",
+    "Buffer": "^0.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-node-polyfills": "^0.25.0"
+  }
+}
