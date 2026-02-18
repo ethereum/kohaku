@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Instance } from "../src/instance/base";
+import { PluginInstance } from "../src/instance/base";
 import { Broadcaster } from "../src/broadcaster/base";
 import { Plugin, CreatePluginFn, Host, PrivateOperation, AssetAmount } from "../src/index";
 
@@ -8,7 +8,7 @@ export type RGBroadcasterParameters = {
 };
 export type RGPrivateOperation = PrivateOperation & { bar: 'hi' };
 export type RailgunAddress = `0zk${string}`;
-export type RGInstance = Instance<
+export type RGInstance = PluginInstance<
     RailgunAddress,
     {
         input: AssetAmount,
@@ -16,7 +16,14 @@ export type RGInstance = Instance<
         output: AssetAmount,
     },
     RGPrivateOperation,
-    { shield: true, shieldMulti: true, transfer: true, transferMulti: true, unshield: true, unshieldMulti: true }
+    {
+        prepareShield: true,
+        prepareShieldMulti: true,
+        prepareTransfer: true,
+        prepareTransferMulti: true,
+        prepareUnshield: true,
+        prepareUnshieldMulti: true,
+    }
 >;
 
 export type RGBroadcaster = Broadcaster<RGBroadcasterParameters>;
@@ -51,16 +58,16 @@ const exampleUsage = async () => {
     const plugin = await createRailgunPlugin(host, {});
     const acc = await plugin.createInstance();
 
-    const address = await acc.account();
+    const address = await acc.instanceId();
     const balance = await acc.balance(["erc20:0x0000000000000000000000000000000000000000"]);
 
     const amount = balance[0];
-    const preparedShield = await acc.shield(amount, "0zk123");
+    const preparedShield = await acc.prepareShield(amount, "0zk123");
 
-    acc.shield({ asset: 'erc20:0x0000000000000000000000000000000000000000', amount: 100n }, "0zk123");
+    acc.prepareShield({ asset: { __type: "erc20", contract: "0x0000000000000000000000000000000000000000" }, amount: 100n }, "0zk123");
 
-    // acc.shield();
-    // acc.transfer();
-    // // acc.
-    // plugin.broadcaster.broadcast(operation);
+    // acc.prepareShield();
+    // acc.prepareTransfer();
+    // acc.prepareUnshield();
+    // plugin.broadcaster.broadcast(preparedShield);
 };

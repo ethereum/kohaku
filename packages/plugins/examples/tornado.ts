@@ -5,7 +5,7 @@
  * enforce both compile-time and run-time checks for supported assets.
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Instance } from "../src/instance/base";
+import { PluginInstance } from "../src/instance/base";
 import { Broadcaster } from "../src/broadcaster/base";
 import { Plugin, CreatePluginFn, Host, PrivateOperation, PublicOperation, AssetAmount } from "../src/index";
 
@@ -33,7 +33,7 @@ export type TCPrivateOperation = PrivateOperation & { bar: 'hi' };
 // private account index (derivation index)
 // 0 by default
 export type TornadoAddress = `${number}`;
-export type TCInstance = Instance<
+export type TCInstance = PluginInstance<
     TornadoAddress,
     {
         input: TCAssetAmount,
@@ -41,7 +41,7 @@ export type TCInstance = Instance<
         output: TCAssetAmount,
     },
     TCPrivateOperation,
-    { shield: true, unshield: true }
+    { prepareShield: true, prepareUnshield: true }
 >;
 
 export type TCPluginParameters = { foo: 'bar' };
@@ -53,14 +53,14 @@ export const createTornadoPlugin: CreatePluginFn<TornadoPlugin> = (host, params)
     const instances: TCInstance[] = [];
     const createInstance = () => {
         const instance = {
-            account: () => Promise.resolve("0"),
+            instanceId: () => Promise.resolve("0"),
             balance(assets) {
                 return Promise.resolve([] as Array<AssetAmount | undefined>);
             },
-            shield(asset, to) {
+            prepareShield(asset, to) {
                 return Promise.resolve({} as PublicOperation);
             },
-            unshield(asset, to) {
+            prepareUnshield(asset, to) {
                 return Promise.resolve({} as TCPrivateOperation);
             },
         } as TCInstance;
@@ -87,15 +87,14 @@ const exampleUsage = async () => {
     const plugin = await createTornadoPlugin(host, {});
     const acc = await plugin.createInstance();
 
-    const address = await acc.account();
     const balance = await acc.balance(["erc20:0x0000000000000000000000000000000000000000"]);
 
     const amount = balance[0];
-    const preparedShield = await acc.shield(amount, "0");
+    const preparedShield = await acc.prepareShield(amount);
 
-    acc.shield({ asset: 'eip155:1:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', amount: 100000000000000000n }, "0");
+    acc.prepareShield({ asset: 'eip155:1:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', amount: 100000000000000000n }, "0");
 
-    acc.shield({
+    acc.prepareShield({
         asset: 'eip155:1:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', amount: 100000000000000000n,
     }, "0")
 
