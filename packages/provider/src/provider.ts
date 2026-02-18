@@ -9,6 +9,11 @@ export type EthereumProvider<T = unknown> = {
   _internal: T;
 
   /**
+   * Get the chain ID
+   */
+  getChainId(): Promise<bigint>;
+
+  /**
    * Fetch logs from the blockchain
    */
   getLogs(params: Filter): Promise<TxLog[]>;

@@ -2,7 +2,7 @@ import { encodeAddress } from '~/railgun/lib/key-derivation/bech32';
 import { DerivedKeys, deriveKeys, KeyConfig } from '../keys';
 import { ACCOUNT_CHAIN_ID, ACCOUNT_VERSION } from '~/config';
 
-export type RailgunAddress = string;
+export type RailgunAddress = `0zk${string}`;
 
 export type GetRailgunAddressFn = () => Promise<RailgunAddress>;
 export type GetRailgunAddress = { getRailgunAddress: GetRailgunAddressFn };

@@ -6,6 +6,7 @@ import { getChainFullNetworkID } from '../chain/chain';
 import { Chain } from '../models/engine-types';
 import { ByteLength, ByteUtils } from '../utils/bytes';
 import { ADDRESS_VERSION } from '../utils/constants';
+import { RailgunAddress } from '~/account/actions/address';
 
 export type AddressData = {
   masterPublicKey: bigint;
@@ -55,7 +56,7 @@ const networkIDToChain = (networkID: string): Optional<Chain> => {
  * Bech32 encodes address
  * @param addressData - AddressData to encode
  */
-function encodeAddress(addressData: AddressData): string {
+function encodeAddress(addressData: AddressData): RailgunAddress {
   const masterPublicKey = ByteUtils.nToHex(addressData.masterPublicKey, ByteLength.UINT_256, false);
   const viewingPublicKey = ByteUtils.formatToByteLength(addressData.viewingPublicKey, ByteLength.UINT_256);
 

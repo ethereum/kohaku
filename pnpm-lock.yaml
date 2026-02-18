@@ -173,11 +173,26 @@ importers:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@24.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1)
 
-  packages/privacy-pools:
+  packages/plugins:
     dependencies:
       '@kohaku-eth/provider':
         specifier: workspace:*
         version: link:../provider
+      ox:
+        specifier: ^0.12.0
+        version: 0.12.0(typescript@5.9.3)(zod@4.3.6)
+
+  packages/privacy-pools:
+    dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../plugins
+      '@kohaku-eth/provider':
+        specifier: workspace:*
+        version: link:../provider
+      ox:
+        specifier: ^0.12.0
+        version: 0.12.0(typescript@5.9.3)(zod@4.3.6)
     devDependencies:
       '@types/node':
         specifier: ^24.1.0
@@ -264,6 +279,9 @@ importers:
 
   packages/railgun:
     dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../plugins
       '@kohaku-eth/provider':
         specifier: workspace:*
         version: link:../provider
@@ -14615,7 +14633,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.1.0(typescript@5.9.3)(zod@4.3.6)
+      abitype: 1.2.3(typescript@5.9.3)(zod@4.3.6)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.9.3

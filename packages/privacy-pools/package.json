@@ -44,7 +44,9 @@
     }
   },
   "dependencies": {
-    "@kohaku-eth/provider": "workspace:*"
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*",
+    "ox": "^0.12.0"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",

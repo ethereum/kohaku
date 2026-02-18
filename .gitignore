@@ -11,3 +11,5 @@ packages/railgun/demo/cache/
 packages/railgun/tests/cache/*
 packages/pq-account/foundry.lock
 .claude
+.envrc
+.direnv

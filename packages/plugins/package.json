@@ -1,0 +1,34 @@
+{
+  "name": "@kohaku-eth/plugins",
+  "version": "0.0.1-alpha.1",
+  "description": "",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "packageManager": "pnpm@10.24.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./broadcaster": {
+      "types": "./dist/broadcaster/base.d.ts",
+      "import": "./dist/broadcaster/base.js"
+    },
+    "./instance": {
+      "types": "./dist/instance/base.d.ts",
+      "import": "./dist/instance/base.js"
+    }
+  },
+  "dependencies": {
+    "@kohaku-eth/provider": "workspace:*",
+    "ox": "^0.12.0"
+  }
+}
