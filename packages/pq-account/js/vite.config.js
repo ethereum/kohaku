@@ -5,6 +5,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 export default defineConfig({
   plugins: [nodePolyfills()],
   build: {
+    target: 'esnext',
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
