@@ -24,11 +24,11 @@ export type PluginInstance = {
     prepareShield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
     prepareShieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
     // Transfer a given asset to a given address
-    prepareTransfer: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
-    prepareTransferMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    prepareTransfer: (asset: AssetAmount, to: string) => Promise<PrivateOperation>;
+    prepareTransferMulti: (assets: Array<AssetAmount>, to: string) => Promise<PrivateOperation>;
     // Unshield a given asset from a given address
-    prepareUnshield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
-    prepareUnshieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    prepareUnshield: (asset: AssetAmount, to: string) => Promise<PrivateOperation>;
+    prepareUnshieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PrivateOperation>;
 
     // Broadcast a private operation
     broadcastPrivateOperation: (operation: PrivateOperation) => Promise<void>;

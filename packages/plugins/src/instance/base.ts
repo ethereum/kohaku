@@ -17,8 +17,8 @@ export type TxFeatureMap<
     TAssetAmounts extends AssetAmounts = AssetAmounts,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
 > = {
-    prepareShield: (asset: TAssetAmounts['input'], to: TAccountId) => Promise<PublicOperation>;
-    prepareShieldMulti: (assets: Array<AssetAmount>, to: TAccountId) => Promise<PublicOperation>;
+    prepareShield: (asset: TAssetAmounts['input'], to?: TAccountId) => Promise<PublicOperation>;
+    prepareShieldMulti: (assets: Array<AssetAmount>, to?: TAccountId) => Promise<PublicOperation>;
     prepareTransfer: (asset: TAssetAmounts['internal'], to: TAccountId) => Promise<TPrivateOperation>;
     prepareTransferMulti: (assets: Array<TAssetAmounts['internal']>, to: TAccountId) => Promise<TPrivateOperation>;
     prepareUnshield: (asset: TAssetAmounts['output'], to: Address) => Promise<TPrivateOperation>;
