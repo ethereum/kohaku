@@ -4,6 +4,35 @@ Kohaku SDK provides a set of privacy protocol plugins out-of-the-box. These plug
 
 ## Interface Outline
 
+### Standard Interface
+
+Every plugin must comply with the standard interface. Plugins may extend interface, or opt-in to additional features.
+
+The basic interface
+```ts
+export type Plugin = {
+    plugin_name: string;
+    createInstance: () => Promise<Instance> | Instance;
+    instances: () => Promise<Instance[]> | Instance[];
+}
+
+export type Instance = {
+    // Returns the internal account address (0zk, 0x, etc)
+    account: () => Promise<string>;
+    // Fetch balances for a given set of assets
+    balance: (assets: Array<AssetId> | undefined) => Promise<Array<AssetAmount>>;
+    // Shield a given asset to a given address
+    shield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
+    shieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    // Transfer a given asset to a given address
+    transfer: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
+    transferMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    // Unshield a given asset from a given address
+    unshield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
+    unshieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+};
+```
+
 ### Host interfaces
 
 When initializing a plugin, the host (the consuming app) provides a set of standardized interfaces. Plugins uses these interfaces to interact with the host environment, store data, and perform actions on behalf of the user.
