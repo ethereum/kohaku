@@ -1,7 +1,7 @@
 /**
  * @fileoverview Example minimal tornadocash plugin.
  * 
- * Demonstrates how to implement a subset of the Pluguin interface, and how to 
+ * Demonstrates how to implement a subset of the Plugin interface, and how to 
  * enforce both compile-time and run-time checks for supported assets.
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -81,7 +81,6 @@ export const createTornadoPlugin: CreatePluginFn<TornadoPlugin> = (host, params)
 };
 
 const exampleUsage = async () => {
-
     const host: Host = {} as Host;
 
     const plugin = await createTornadoPlugin(host, {});
