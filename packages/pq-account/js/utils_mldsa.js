@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-import { shake128, shake256 } from '@noble/hashes/sha3.js';
-import { genCrystals } from '@noble/post-quantum/_crystals.js';
+import { shake128, shake256 } from '@noble/hashes/sha3';
+import { genCrystals } from '@noble/post-quantum/_crystals';
 
 const N = 256;
 const Q = 8380417;

@@ -1,4 +1,4 @@
-import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
+import { ml_dsa44 } from '@noble/post-quantum/ml-dsa';
 import { hexToU8 } from '../utils.js';
 
 export async function getPublicKey(config) {

@@ -3,18 +3,13 @@
 We provide in this directory a web interface to deploy a post-quantum account and sign transactions.
 
 ## Prerequisites
-Deploying an ERC 4337 account requires the installation of `noble` libraries and `ethers`:
-
+Deploying an ERC 4337 account requires the installation of several javascript libraries. From the root of the repository:
 ```
-npm init -y
-npm install ethers
-npm install @noble/hashes
-npm install @noble/post-quantum
-npm install vite
+npm install
 ```
-In order to run the web interface, simply use:
+In order to run the web interface, simply use (also from the root of the repository):
 ```
-npx vite
+npm run dev
 ```
 and open `chromium` at the corresponding `localhost` port.
 
