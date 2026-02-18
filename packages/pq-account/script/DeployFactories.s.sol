@@ -127,7 +127,7 @@ contract MLDSAETH_ECDSAr1_Factory is FactoryDeployer {
 // Factory: ECDSA K1 + FALCON
 contract FALCON_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_FALCON_K1_FACTORY_V0_0_3";
+        saltLabel = "ZKNOX_FALCON_K1_FACTORY_V0_0_4";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "falcon";
         factoryName = "falcon_k1";

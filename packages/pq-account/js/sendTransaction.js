@@ -41,7 +41,7 @@ function getSigners(mode, pqAlgo) {
  * estimation.  ML-DSA-44 = 2420 B, Falcon-512 ≈ 1109 B (2+40+1067).
  */
 function pqDummySigLen(pqAlgo) {
-    return pqAlgo === 'falcon' ? 1109 : 2420;
+    return pqAlgo === 'falcon' ? 1064 : 2420;
 }
 
 export async function sendERC4337Transaction(
@@ -136,6 +136,10 @@ export async function sendERC4337Transaction(
         }
         const algoLabel = pqAlgo === 'falcon' ? 'Falcon-512' : 'ML-DSA-44';
         console.log("✅ ECDSA and " + algoLabel + " signature generated.");
+
+        // Debug: inspect final signature
+        console.log("🔍 Final userOp.signature length: " + ((userOp.signature.length - 2) / 2) + " bytes");
+        console.log("🔍 Final userOp.signature (first 200 chars): " + userOp.signature.slice(0, 200) + "...");
 
         // Submit or preview
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {

@@ -78,7 +78,7 @@ contract MLDSAETHFixedContract is VerifierDeployer {
 
 contract FALCONFixedContract is VerifierDeployer {
     constructor() {
-        saltLabel = "ZKNOX_FALCON_VERIFIER_V0_0_3";
+        saltLabel = "ZKNOX_FALCON_VERIFIER_V0_0_4";
         verifierKey = "falcon";
     }
     function deployContract(bytes32 salt) internal override returns (address) {

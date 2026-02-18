@@ -35,7 +35,7 @@ export async function getPublicKey(config) {
         const publicKey = new Uint8Array(
             falcon.HEAPU8.subarray(pkPtr, pkPtr + PK_LEN)
         );
-        console.log("✅ Falcon-512 public key generated (" + publicKey.length + " bytes)");
+        console.log("✅ Falcon-512 public key generated (" + publicKey.length + " bytes): " + publicKey);
         return publicKey;
 
     } finally {

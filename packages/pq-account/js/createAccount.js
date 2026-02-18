@@ -56,19 +56,22 @@ function toFalconEncodedBytes(falconPublicKey) {
         throw new Error("Expected 1025-byte Falcon-512 public key, got " + falconPublicKey.length);
     }
 
-    // Extract 512 coefficients (16-bit little-endian) skipping the 1-byte header
+    // Extract 512 coefficients (16-bit big-endian, matching WASM modq_encode16) skipping the 1-byte header
     const coeffs = [];
     for (let i = 0; i < 512; i++) {
         const offset = 1 + i * 2;
-        // coeffs.push(falconPublicKey[offset] | (falconPublicKey[offset + 1] << 8));
         coeffs.push((falconPublicKey[offset] << 8) | falconPublicKey[offset + 1]);
     }
 
     // Pack 512 coeffs → 32 uint256 words (matches _ZKNOX_NTT_Compact)
     const packed = nttCompact(coeffs);
 
-    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-    return abiCoder.encode(["uint256[]"], [packed]);
+    // Raw 1024 bytes — no ABI offset/length header
+    let hex = "0x";
+    for (const word of packed) {
+        hex += word.toString(16).padStart(64, "0");
+    }
+    return hex;
 }
 
 async function main(mode) {
