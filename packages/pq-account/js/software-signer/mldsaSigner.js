@@ -12,7 +12,8 @@ export async function init(config) {
 
 export async function sign(messageBytes) {
     if (!_secretKey) throw new Error("Signer not initialized — call init() first");
-    return ml_dsa44.sign(messageBytes, _secretKey, { extraEntropy: false });
+    // return ml_dsa44.sign(messageBytes, _secretKey, { extraEntropy: false });
+    return ml_dsa44.sign(_secretKey, messageBytes);
 }
 
 export function getPublicKey() {
