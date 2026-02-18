@@ -4,6 +4,29 @@
     <meta charset="UTF-8">
     <title>Send ERC4337 Transaction</title>
     <style>
+        nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        nav a {
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: #555;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        nav a:hover { background: #f0f0f0; }
+        nav a.active {
+            background: #4CAF50;
+            color: white;
+        }
+
         body {
             font-family: Arial, sans-serif;
             max-width: 1200px;
@@ -170,7 +193,10 @@
     </style>
 </head>
 <body>
-    <h1>Send ERC4337 Quantum-Resistant Transaction</h1>
+    <nav>
+        <a href="create-account.html">Create Account</a>
+        <a href="send-tx.html" class="active">Send Transaction</a>
+    </nav>
     
     <div class="config-section">
         <h2>&#128203; Transaction Details</h2>
