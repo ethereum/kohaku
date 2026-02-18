@@ -1,36 +1,41 @@
 # Plugins
 
-Kohaku SDK provides a set of privacy protocol plugins out-of-the-box. These plugins are used to interface with various privacy pools in a standard way. Plugins can either be bundled with the SDK, or loaded dynamically at runtime by wallets.
+Kohaku SDK provides a set of private transaction protocol plugins out-of-the-box. These plugins are used to interface with various private transaction protocols in a standard way. Plugins can either be bundled with the SDK, or loaded dynamically at runtime by wallets.
 
 ## Interface Outline
 
-### Standard Interface
+### Plugin Interface
 
 Every plugin must comply with the standard interface. Plugins may extend interface, or opt-in to additional features.
 
-The basic interface
+[File: src/base.ts](./src/base.ts)
 ```ts
-export type Plugin = {
-    plugin_name: string;
-    createInstance: () => Promise<Instance> | Instance;
-    instances: () => Promise<Instance[]> | Instance[];
-}
+export type AssetAmount = {
+    asset: AssetId;
+    amount: bigint;
+};
 
-export type Instance = {
-    // Returns the internal account address (0zk, 0x, etc)
-    account: () => Promise<string>;
+export type PluginInstance = {
+    // Returns the internal instance identifier (0zk, 0x, etc)
+    instanceId: () => Promise<string>;
     // Fetch balances for a given set of assets
     balance: (assets: Array<AssetId> | undefined) => Promise<Array<AssetAmount>>;
     // Shield a given asset to a given address
-    shield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
-    shieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    prepareShield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
+    prepareShieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
     // Transfer a given asset to a given address
-    transfer: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
-    transferMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    prepareTransfer: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
+    prepareTransferMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
     // Unshield a given asset from a given address
-    unshield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
-    unshieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+    prepareUnshield: (asset: AssetAmount, to: string) => Promise<PublicOperation>;
+    prepareUnshieldMulti: (assets: Array<AssetAmount>, to: string) => Promise<PublicOperation>;
+
+    // Broadcast a private operation
+    broadcastPrivateOperation: (operation: PrivateOperation) => Promise<void>;
 };
+
+// Specify any other generics you might want to narrow down here
+export type MyPlugin = Plugin<"my-plugin", MyPluginInstance, MyPrivateOperation, Host, never, MyPluginParameters>;
 ```
 
 ### Host interfaces
@@ -57,24 +62,6 @@ export type Storage = {
 
 export type Keystore = {
     deriveAt(path: string): Hex;
-}
-```
-
-### Plugin Interface
-
-The plugin interface is implemented by the privacy protocol objects. The host should not need to treat any one plugin impl differently from any other.
-
-[File: src/base.ts](./src/base.ts)
-```ts
-export type AssetAmount = {
-    asset: AssetId;
-    amount: bigint;
-};
-
-export type Plugin = {
-    plugin_name: string;
-    createInstance: () => Promise<Instance> | Instance;
-    instances: () => Promise<Instance[]> | Instance[];
 }
 ```
 
@@ -115,16 +102,6 @@ export class MultiAssetsNotSupportedError extends PluginError {
 }
 ```
 
-### Plugin Initialization
-
-All plugins MUST implement a static `create` method used for initialization. This method MUST accept the `Host` interface as its first parameter, followed by any plugin-specific options. It MUST return a `Promise` that resolves to an instance of the plugin.
-
-```ts
-class ExamplePlugin extends Plugin {
-    static async create(host: Host, ...): Promise<ExamplePlugin>;
-}
-```
-
 ### Key Material
 
 Plugins will derive all new key material from the `Keystore` interface and therefore the host's mnemonic. This makes all such material portable. For example:
@@ -159,11 +136,13 @@ const tokenToShield = {
     asset: 'erc20:0x0000000000000000000000000000000000000000',
     amount: 100n,
 };
-const operation = await account.shield(tokenToShield, recipient);
+const publicTx = await account.shield(tokenToShield, recipient);
+
+await myWallet.sendTransaction(publicTx);
 
 // Unshield
 const recipient = '0x0000000000000000000000000000000000000000';
-const operation = await account.unshield(balances[0], recipient);
+const myPrivateTx = await account.unshield(balances[0], recipient);
 
-await railgun.broadcaster.broadcast(operation);
+await railgun.broadcastPrivateOperation(myPrivateTx);
 ```

@@ -7,7 +7,11 @@ import { TxData, TxLog, TransactionReceipt } from "./tx";
  */
 export type EthereumProvider<T = unknown> = {
   _internal: T;
-  chainId: bigint;
+
+  /**
+   * Get the chain ID
+   */
+  getChainId(): Promise<bigint>;
 
   /**
    * Fetch logs from the blockchain

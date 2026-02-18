@@ -23,6 +23,9 @@ export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvi
 
       return logs.map(convertLog);
     },
+    async getChainId(): Promise<bigint> {
+      return provider._network.chainId;
+    },
     async getBlockNumber(): Promise<bigint> {
       return BigInt(await provider.getBlockNumber());
     },

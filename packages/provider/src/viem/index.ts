@@ -18,6 +18,9 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
 
             return logs;
         },
+        async getChainId(): Promise<bigint> {
+            return BigInt(await client.getChainId());
+        },
         async getBlockNumber(): Promise<bigint> {
             return await client.getBlockNumber();
         },

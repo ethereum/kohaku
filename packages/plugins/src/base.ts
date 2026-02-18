@@ -1,11 +1,11 @@
-import { AnyInstance } from "./instance/base";
+import { AnyPluginInstance } from "./instance/base";
 import { Broadcaster } from "./broadcaster/base";
 import { Host } from "./host";
 import { PrivateOperation } from "./shared";
 
 export type Plugin<
     TName extends string = 'plugin',
-    TInstance extends AnyInstance = AnyInstance,
+    TInstance extends AnyPluginInstance = AnyPluginInstance,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     THost extends Host = Host,

@@ -32,8 +32,8 @@ export type RGInstance = Instance<
 
 export const createRailgunPlugin: CreatePluginFn<RailgunPlugin> = async (host, params) => {
     // TODO: get chainId from network config
-    const chainId = host.provider.chainId;
-    const network = getNetworkConfig(chainId);
+    const chainId = await host.provider.getChainId();
+    const network = getNetworkConfig(chainId.toString() as `${bigint}`);
     const indexer = await createRailgunIndexer({
         network,
         // temp storage shim, can be reduced later

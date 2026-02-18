@@ -26,6 +26,14 @@ export const raw = (client: Provider): EthereumProvider<Provider> => {
 
             return logs.map(convertLog);
         },
+        async getChainId(): Promise<bigint> {
+            const hex = await client.request({
+                method: 'eth_chainId',
+                params: undefined,
+            });
+
+            return hexToBigInt(hex);
+        },
         async getBlockNumber(): Promise<bigint> {
             const hex = await client.request({
                 method: 'eth_blockNumber',

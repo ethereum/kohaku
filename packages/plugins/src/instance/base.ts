@@ -17,12 +17,12 @@ export type TxFeatureMap<
     TAssetAmounts extends AssetAmounts = AssetAmounts,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
 > = {
-    shield: (asset: TAssetAmounts['input'], to: TAccountId) => Promise<PublicOperation>;
-    shieldMulti: (assets: Array<AssetAmount>, to: TAccountId) => Promise<PublicOperation>;
-    transfer: (asset: TAssetAmounts['internal'], to: TAccountId) => Promise<TPrivateOperation>;
-    transferMulti: (assets: Array<TAssetAmounts['internal']>, to: TAccountId) => Promise<TPrivateOperation>;
-    unshield: (asset: TAssetAmounts['output'], to: Address) => Promise<TPrivateOperation>;
-    unshieldMulti: (assets: Array<AssetAmount>, to: Address) => Promise<TPrivateOperation>;
+    prepareShield: (asset: TAssetAmounts['input'], to: TAccountId) => Promise<PublicOperation>;
+    prepareShieldMulti: (assets: Array<AssetAmount>, to: TAccountId) => Promise<PublicOperation>;
+    prepareTransfer: (asset: TAssetAmounts['internal'], to: TAccountId) => Promise<TPrivateOperation>;
+    prepareTransferMulti: (assets: Array<TAssetAmounts['internal']>, to: TAccountId) => Promise<TPrivateOperation>;
+    prepareUnshield: (asset: TAssetAmounts['output'], to: Address) => Promise<TPrivateOperation>;
+    prepareUnshieldMulti: (assets: Array<AssetAmount>, to: Address) => Promise<TPrivateOperation>;
 };
 
 type EnabledKeys<
@@ -42,15 +42,15 @@ export type Transact<
     AvailableFeatures extends TxFeatures<TAccountId, TAssetAmounts, TPrivateOperation> = {},
 > = Pick<TxFeatureMap<TAccountId, TAssetAmounts, TPrivateOperation>, EnabledKeys<TxFeatureMap<TAccountId, TAssetAmounts, TPrivateOperation>, AvailableFeatures>>;
 
-export type Instance<
+export type PluginInstance<
     TAccountId extends string = string,
     TAssetAmounts extends AssetAmounts = AssetAmounts,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
     TransactionFeatures extends TxFeatures<TAccountId, TAssetAmounts, TPrivateOperation> = TxFeatures<TAccountId, TAssetAmounts, TPrivateOperation>,
 > = {
-    account: () => Promise<TAccountId>;
+    instanceId: () => Promise<TAccountId>;
     balance: (assets: Array<AssetId> | undefined) => Promise<Array<AssetAmount>>;
 } & Transact<TAccountId, TAssetAmounts, TPrivateOperation, TransactionFeatures>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyInstance = Instance<any, any, any>;
+export type AnyPluginInstance = PluginInstance<any, any, any>;
