@@ -144,5 +144,5 @@ await myWallet.sendTransaction(publicTx);
 const recipient = '0x0000000000000000000000000000000000000000';
 const myPrivateTx = await account.prepareUnshield(balances[0], recipient);
 
-await railgun.broadcastPrivateOperation(myPrivateTx);
+await account.broadcastPrivateOperation(myPrivateTx);
 ```
