@@ -136,13 +136,13 @@ const tokenToShield = {
     asset: 'erc20:0x0000000000000000000000000000000000000000',
     amount: 100n,
 };
-const publicTx = await account.shield(tokenToShield, recipient);
+const publicTx = await account.prepareShield(tokenToShield);
 
 await myWallet.sendTransaction(publicTx);
 
 // Unshield
 const recipient = '0x0000000000000000000000000000000000000000';
-const myPrivateTx = await account.unshield(balances[0], recipient);
+const myPrivateTx = await account.prepareUnshield(balances[0], recipient);
 
 await railgun.broadcastPrivateOperation(myPrivateTx);
 ```
