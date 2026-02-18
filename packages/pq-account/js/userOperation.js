@@ -194,24 +194,17 @@ export async function signUserOpHybrid(
 ) {
     const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
     const userOpHashBytes = ethers.getBytes(userOpHash);
-    console.log("🔍 userOpHash: " + userOpHash);
 
     // ML-DSA / Falcon
     const postQuantumSigBytes = await mldsaSigner.sign(userOpHashBytes);
     const postQuantumSig = ethers.hexlify(postQuantumSigBytes);
-    console.log("🔍 PQ sig length: " + postQuantumSigBytes.length + " bytes");
-    console.log("🔍 PQ sig hex (first 120 chars): " + postQuantumSig.slice(0, 120));
 
     // ECDSA
     const ecdsaResult = await ecdsaSigner.signHash(userOpHashBytes);
     const preQuantumSig = ecdsaResult.serialized;
-    console.log("🔍 ECDSA sig: " + preQuantumSig);
-    console.log("🔍 ECDSA sig length: " + ((preQuantumSig.length - 2) / 2) + " bytes");
 
     const abi = ethers.AbiCoder.defaultAbiCoder();
-    const encoded = abi.encode(["bytes", "bytes"], [preQuantumSig, postQuantumSig]);
-    console.log("🔍 ABI-encoded hybrid sig length: " + ((encoded.length - 2) / 2) + " bytes");
-    return encoded;
+    return abi.encode(["bytes", "bytes"], [preQuantumSig, postQuantumSig]);
 }
 
 // ─── Submission ─────────────────────────────────────────────────────────

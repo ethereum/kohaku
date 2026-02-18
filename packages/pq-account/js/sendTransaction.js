@@ -137,10 +137,6 @@ export async function sendERC4337Transaction(
         const algoLabel = pqAlgo === 'falcon' ? 'Falcon-512' : 'ML-DSA-44';
         console.log("✅ ECDSA and " + algoLabel + " signature generated.");
 
-        // Debug: inspect final signature
-        console.log("🔍 Final userOp.signature length: " + ((userOp.signature.length - 2) / 2) + " bytes");
-        console.log("🔍 Final userOp.signature (first 200 chars): " + userOp.signature.slice(0, 200) + "...");
-
         // Submit or preview
         if (!bundlerUrl || bundlerUrl.trim() === '' || bundlerUrl.includes('example.com')) {
             console.log("");
