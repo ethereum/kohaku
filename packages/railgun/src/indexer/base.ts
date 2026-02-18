@@ -23,7 +23,7 @@ export type ProcessLogsOptions = {
 
 export type Indexer = {
     __type: 'railgun-indexer';
-    getTrees: () => MerkleTree[];
+    getTrees: () => (MerkleTree | undefined)[];
     network: RailgunNetworkConfig;
     accounts: RailgunAccount[];
     registerAccount: (account: RailgunAccount) => void;
@@ -76,7 +76,7 @@ export const createRailgunIndexer: CreateRailgunIndexerFn = async ({
 
         // Update endBlock to the highest block number in the logs
         if (logs.length > 0) {
-            const maxBlock = Math.max(...logs.map(log => log.blockNumber));
+            const maxBlock = Math.max(...logs.map(log => Number(log.blockNumber)));
 
             setEndBlock(maxBlock);
 

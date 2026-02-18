@@ -1,13 +1,13 @@
 export interface TxLog {
-    blockNumber: number;
+    blockNumber: bigint;
     topics: string[];
     data: string;
     address: string;
 }
 
 export interface TransactionReceipt {
-    blockNumber: number;
-    status: number;
+    blockNumber: bigint;
+    status: bigint;
     logs: TxLog[];
     gasUsed: bigint;
 }

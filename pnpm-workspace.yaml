@@ -1,5 +1,7 @@
+autoInstallPeers: false
 packages:
   - "packages/provider"
   - "packages/railgun"
   - "packages/privacy-pools"
+  - "examples/pq-account"
   - "docs"

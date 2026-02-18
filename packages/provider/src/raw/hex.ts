@@ -21,9 +21,3 @@ export const hexToBigInt = (value: string): bigint => {
 
     return BigInt(value);
 }
-
-export const hexToNumber = (value: string): number => {
-    const n = hexToBigInt(value);
-
-    return Number(n);
-}

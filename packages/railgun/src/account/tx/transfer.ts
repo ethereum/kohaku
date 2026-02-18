@@ -7,18 +7,20 @@ import { PublicInputs, transact } from "~/railgun/logic/logic/transaction";
 import { ABIRailgunSmartWallet } from "~/railgun/lib/abi/abi";
 import { Interface } from "ethers";
 import { GetNotes } from "../actions/notes";
+import { RGCircuitGetterFn } from "~/circuits";
 
 export type CreateTransferTxFn = (token: Address, value: bigint, receiver: RailgunAddress, minGasPrice?: bigint) => Promise<TxData>;
 export type CreateTransfer = { transfer: CreateTransferTxFn };
 
 export type CreateTransferContext = {
     network: RailgunNetworkConfig;
-    getTrees: () => MerkleTree[];
+    getTrees: () => (MerkleTree | undefined)[];
+    getCircuits: RGCircuitGetterFn;
 } & Pick<GetNotes, 'getTransactNotes'>;
 
 const RAILGUN_INTERFACE = new Interface(ABIRailgunSmartWallet);
 
-export const makeCreateTransfer = async ({ network, getTrees, getTransactNotes }: CreateTransferContext): Promise<CreateTransfer> => {
+export const makeCreateTransfer = async ({ network, getTrees, getTransactNotes, getCircuits }: CreateTransferContext): Promise<CreateTransfer> => {
     const transfer: CreateTransferTxFn = async (token, value, receiver, minGasPrice = BigInt(0)) => {
         console.log('tree ', getTrees().length);
 
@@ -52,6 +54,7 @@ export const makeCreateTransfer = async ({ network, getTrees, getTransactNotes }
                 ZERO_ARRAY, // adapt params
                 notesIn[i]!,
                 notesOut[i]!,
+                getCircuits,
             );
 
             allInputs.push(inputs);

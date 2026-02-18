@@ -1,7 +1,4 @@
 # Coordination
-* @lucemans @nconsigny
+* @lucemans @nconsigny @kassandraoftroy
 
-# Privacy Send/Receive
-packages/railgun @kassandraoftroy @skeletor-spaceman 0xparti @0xtiti @0xmoebius
-
-.github/CODEOWNERS @lucemans @nconsigny
+.github/CODEOWNERS @lucemans @nconsigny @kassandraoftroy
