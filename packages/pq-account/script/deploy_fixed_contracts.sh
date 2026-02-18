@@ -12,8 +12,8 @@ PUB_KEY="0x9140286CDA95d59fa5f29ecb11dDe1F817999F9E"
 
 API_KEY=$2
 # RPC="https://api.zan.top/arb-sepolia"
-RPC="wss://ethereum-sepolia-rpc.publicnode.com"
-# RPC="wss://base-sepolia-rpc.publicnode.com"
+# RPC="wss://ethereum-sepolia-rpc.publicnode.com"
+RPC="wss://base-sepolia-rpc.publicnode.com"
 
 # Deploy to network
 echo "Deploying $CONTRACT_NAME with Forge..."

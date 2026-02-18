@@ -97,11 +97,11 @@
         }
 
         #deploy-ledger {
-            background: #1a1a2e;
+            background: #4CAF50;
         }
 
         #deploy-ledger:hover {
-            background: #16213e;
+            background: #45a049;
         }
         
         #output {
@@ -151,24 +151,34 @@
         /* ── Mode toggle ── */
         .mode-toggle {
             display: flex;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 2px solid #ddd;
-            width: fit-content;
+            gap: 0;
             margin-bottom: 20px;
         }
 
         .mode-toggle button {
-            padding: 10px 24px;
+            flex: 1;
+            text-align: center;
+            padding: 12px 20px;
             font-size: 14px;
             font-weight: bold;
-            border: none;
+            border: 2px solid #ddd;
             border-radius: 0;
             box-shadow: none;
-            background: white;
-            color: #555;
+            background: #fafafa;
+            color: #666;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .mode-toggle button:first-of-type {
+            border-radius: 6px 0 0 6px;
+            border-right: 1px solid #ddd;
+        }
+
+        .mode-toggle button:last-of-type {
+            border-radius: 0 6px 6px 0;
+            border-left: 1px solid #ddd;
         }
 
         .mode-toggle button:hover {
@@ -176,12 +186,24 @@
         }
 
         .mode-toggle button.active {
-            background: #333;
+            background: #4CAF50;
             color: white;
+            border-color: #4CAF50;
         }
 
         .mode-toggle button.active:hover {
-            background: #333;
+            background: #4CAF50;
+        }
+
+        .mode-toggle button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #fafafa;
+            color: #666;
+        }
+
+        .mode-toggle button:disabled:hover {
+            background: #fafafa;
         }
 
         .mode-panel {
@@ -285,8 +307,8 @@
         <h2>&#128273; Signing Keys</h2>
 
         <div class="mode-toggle">
-            <button id="mode-hot" class="active">&#128293; Hot Wallet</button>
-            <button id="mode-ledger">&#128274; Ledger</button>
+            <button id="mode-hot" class="active">&#128187; Software</button>
+            <button id="mode-ledger">&#128274; Ledger Hardware</button>
         </div>
 
         <!-- Hot Wallet panel -->
@@ -366,6 +388,9 @@
                 ? '32 bytes (64 hex characters) for Falcon-512 key generation'
                 : '32 bytes (64 hex characters) for ML-DSA-44 key generation';
 
+            // Disable/enable Ledger button
+            modeLedger.disabled = isFalcon;
+
             // If Falcon selected and currently on Ledger panel, switch to Hot
             if (isFalcon && modeLedger.classList.contains('active')) {
                 modeHot.click();
@@ -386,11 +411,7 @@
         });
 
         modeLedger.addEventListener('click', () => {
-            // Block if Falcon is selected
-            if (accountModeSelect.value.startsWith('falcon')) {
-                alert('Falcon is only available in software mode. Please select ML-DSA to use Ledger.');
-                return;
-            }
+            if (modeLedger.disabled) return;
             modeLedger.classList.add('active');
             modeHot.classList.remove('active');
             document.getElementById('panel-ledger').classList.add('active');

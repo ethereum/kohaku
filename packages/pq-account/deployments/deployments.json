@@ -110,9 +110,9 @@
         "saltLabel": "ZKNOX_MLDSAETH_VERIFIER_V0_0_3"
       },
       "falcon": {
-        "address": "0x0826a72D0216623Bb8b716e3C8FD34e176a21388",
-        "salt": "0xeaba51f983d4b9c09c836b08ab8607ece9b57eb2636b9518d52f98605c61ecd4",
-        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_2"
+        "address": "0x9A8bD1cA6533E367CEA77f16eb116ed9A55029F2",
+        "salt": "0xdc085b57b8c806ccd375330541298fa60f650217581817d53f019e1a76171c27",
+        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_4"
       },
       "ethfalcon": {
         "address": "0x328C56D41FeEA925c718D1ebBEDd5481E363de9C",
@@ -155,11 +155,11 @@
         "saltLabel": "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_2"
       },
       "falcon_k1": {
-        "address": "0x8fe7aEE7Cbb721C68445898a26E155a249aD0bE2",
+        "address": "0x1ba6cBC26dB58c7E17DEb07E6124D28957aa6268",
         "postQuantum": "falcon",
         "preQuantum": "ecdsa_k1",
-        "salt": "0xac8620c24079bef6e6e97c3469a3e9f79108256abaa9d9234419dada631aa6d2",
-        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_2"
+        "salt": "0xbdae708545ad061f57152bf5f6c368f4f682d16a6080a3c656fd4f05b6d807ac",
+        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_4"
       },
       "falcon_r1": {
         "address": "0x5344939A293B7f2866aCa7E1f50606628139B984",
@@ -195,6 +195,11 @@
         "address": "0xCE4a6283fCf156B61170D438CC89bA0e96693043",
         "salt": "0x89249991e6619ea9d2a750423497a83ec82f475538ff555d1ad42473e0db9fe6",
         "saltLabel": "ZKNOX_ECDSA_K1_VERIFIER_V0_0_1"
+      },
+      "falcon": {
+        "address": "0x9A8bD1cA6533E367CEA77f16eb116ed9A55029F2",
+        "salt": "0xdc085b57b8c806ccd375330541298fa60f650217581817d53f019e1a76171c27",
+        "saltLabel": "ZKNOX_FALCON_VERIFIER_V0_0_4"
       }
     },
     "accounts": {
@@ -204,6 +209,13 @@
         "preQuantum": "ecdsa_k1",
         "salt": "0xf65af82240df850b8e5158f74a0998b96aa52f2693eaa246fb428a7e87c89b40",
         "saltLabel": "ZKNOX_MLDSA_K1_FACTORY_V0_0_10"
+      },
+      "falcon_k1": {
+        "address": "0x1ba6cBC26dB58c7E17DEb07E6124D28957aa6268",
+        "postQuantum": "falcon",
+        "preQuantum": "ecdsa_k1",
+        "salt": "0xbdae708545ad061f57152bf5f6c368f4f682d16a6080a3c656fd4f05b6d807ac",
+        "saltLabel": "ZKNOX_FALCON_K1_FACTORY_V0_0_4"
       }
     }
   }
