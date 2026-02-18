@@ -92,7 +92,7 @@ async function main(mode) {
 
             // Ensure wallet chain matches dropdown
             const networkToChainId = {
-                ethereum: '0x1', sepolia: '0xaa36a7',
+                sepolia: '0xaa36a7',
                 arbitrumSepolia: '0x66eee', baseSepolia: '0x14a34',
             };
             const selectedNetwork  = document.getElementById('targetNetwork')?.value;

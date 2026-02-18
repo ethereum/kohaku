@@ -35,12 +35,6 @@
             background-color: #f5f5f5;
         }
         
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
         .config-section {
             background: white;
             padding: 25px;
@@ -209,7 +203,6 @@
                     <option value="sepolia" data-chain="11155111">Sepolia</option>
                     <option value="arbitrumSepolia" data-chain="421614" selected>Arbitrum Sepolia</option>
                     <option value="baseSepolia" data-chain="84532">Base Sepolia</option>
-                    <option value="ethereum" data-chain="1">Ethereum Mainnet</option>
                 </select>
                 <input type="hidden" id="rpcUrl" value="https://sepolia-rollup.arbitrum.io/rpc">
             </div>
@@ -300,14 +293,12 @@
     <script>
     (function() {
         const rpcDefaults = {
-            ethereum:        'https://eth.llamarpc.com',
             sepolia:         'https://eth-sepolia-testnet.api.pocket.network',
             arbitrumSepolia: 'https://sepolia-rollup.arbitrum.io/rpc',
             baseSepolia:     'https://sepolia.base.org',
         };
 
         const chainToNetwork = {
-            '0x1':      'ethereum',
             '0xaa36a7': 'sepolia',
             '0x66eee':  'arbitrumSepolia',
             '0x14a34':  'baseSepolia',
