@@ -3,7 +3,7 @@ import { Wallet } from 'ethers';
 let _wallet = null;
 
 /**
- * @param {{ privateKey: string }} config - hex private key
+ * @param {{ privateKey: string }} config
  */
 export async function init(config) {
     _wallet = new Wallet(config.privateKey);
@@ -15,13 +15,12 @@ export function getAddress() {
 }
 
 /**
- * Sign a 32-byte hash. Returns { v, r, s }.
- * @param {Uint8Array} hash - 32 bytes
+ * Sign a 32-byte hash.
+ * @param {Uint8Array} hash
  */
 export async function signHash(hash) {
     if (!_wallet) throw new Error("Signer not initialized — call init() first");
-    const sig = _wallet.signingKey.sign(hash);
-    return { serialized: sig.serialized };
+    return { serialized: _wallet.signingKey.sign(hash).serialized };
 }
 
 export async function cleanup() {

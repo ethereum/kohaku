@@ -9,12 +9,12 @@ const ACCOUNT_ABI = [
 ];
 
 function packUint128(a, b) {
-  return ethers.solidityPacked(["uint128","uint128"], [a, b]);
+    return ethers.solidityPacked(["uint128", "uint128"], [a, b]);
 }
 
 function unpackUint128(packed) {
     const bytes = ethers.getBytes(packed);
-    const first = BigInt('0x' + ethers.hexlify(bytes.slice(0, 16)).slice(2));
+    const first  = BigInt('0x' + ethers.hexlify(bytes.slice(0, 16)).slice(2));
     const second = BigInt('0x' + ethers.hexlify(bytes.slice(16, 32)).slice(2));
     return [first, second];
 }
@@ -45,12 +45,12 @@ export async function createBaseUserOperation(
         });
         const gasResult = await gasResponse.json();
         if (!gasResult.result) throw new Error("No gas price returned");
-        maxFee = BigInt(gasResult.result.standard.maxFeePerGas);
+        maxFee      = BigInt(gasResult.result.standard.maxFeePerGas);
         maxPriority = BigInt(gasResult.result.standard.maxPriorityFeePerGas);
     } catch (e) {
-        console.warn("⚠️ Failed to fetch gas price from bundler, using defaults:", e);
+        console.warn("Gas price fetch failed, using defaults:", e.message);
         maxPriority = ethers.parseUnits("0.1", "gwei");
-        maxFee = ethers.parseUnits("0.2", "gwei");
+        maxFee      = ethers.parseUnits("0.2", "gwei");
     }
 
     return {
@@ -69,19 +69,19 @@ export async function createBaseUserOperation(
 // ─── Bundler format conversion ──────────────────────────────────────────
 
 export function userOpToBundlerFormat(userOp) {
-    const [verificationGasLimit, callGasLimit] = unpackUint128(userOp.accountGasLimits);
-    const [maxPriorityFeePerGas, maxFeePerGas] = unpackUint128(userOp.gasFees);
+    const [verificationGasLimit, callGasLimit]   = unpackUint128(userOp.accountGasLimits);
+    const [maxPriorityFeePerGas, maxFeePerGas]   = unpackUint128(userOp.gasFees);
 
     return {
-        sender: userOp.sender,
-        nonce: '0x' + BigInt(userOp.nonce).toString(16),
-        callData: userOp.callData,
-        verificationGasLimit: '0x' + verificationGasLimit.toString(16),
-        callGasLimit: '0x' + callGasLimit.toString(16),
-        preVerificationGas: '0x' + BigInt(userOp.preVerificationGas).toString(16),
-        maxFeePerGas: '0x' + maxFeePerGas.toString(16),
-        maxPriorityFeePerGas: '0x' + maxPriorityFeePerGas.toString(16),
-        signature: userOp.signature
+        sender:                userOp.sender,
+        nonce:                 '0x' + BigInt(userOp.nonce).toString(16),
+        callData:              userOp.callData,
+        verificationGasLimit:  '0x' + verificationGasLimit.toString(16),
+        callGasLimit:          '0x' + callGasLimit.toString(16),
+        preVerificationGas:    '0x' + BigInt(userOp.preVerificationGas).toString(16),
+        maxFeePerGas:          '0x' + maxFeePerGas.toString(16),
+        maxPriorityFeePerGas:  '0x' + maxPriorityFeePerGas.toString(16),
+        signature:             userOp.signature
     };
 }
 
@@ -101,40 +101,29 @@ export async function estimateUserOperationGas(userOp, bundlerUrl) {
         });
         const result = await response.json();
 
-        if (result.error) {
-            console.error("Estimation error:", result.error);
-            throw new Error(result.error.message || "Estimation failed");
-        }
+        if (result.error) throw new Error(result.error.message || "Estimation failed");
         if (!result.result) throw new Error("No estimate returned");
 
         let verificationGasLimit = BigInt(result.result.verificationGasLimit);
-        let callGasLimit = BigInt(result.result.callGasLimit);
-        let preVerificationGas = BigInt(result.result.preVerificationGas || userOp.preVerificationGas);
+        let callGasLimit         = BigInt(result.result.callGasLimit);
+        let preVerificationGas   = BigInt(result.result.preVerificationGas || userOp.preVerificationGas);
 
         const MIN_VERIFICATION = 9_000_000n;
         if (verificationGasLimit < MIN_VERIFICATION) {
-            console.warn("⚠️ Verification estimate too low, using minimum:", MIN_VERIFICATION.toString());
             verificationGasLimit = MIN_VERIFICATION;
         }
 
-        // The bundler underestimates preVerificationGas for large signatures.
-        // The hybrid ML-DSA + ECDSA signature is ~2500 bytes of calldata,
-        // far larger than a standard 65-byte ECDSA sig.
-        // Apply a 4x multiplier with a minimum floor.
+        // The bundler underestimates preVerificationGas for large PQ signatures.
+        // Apply a 4× multiplier with a floor.
         const MIN_PRE_VERIFICATION = 800_000n;
         preVerificationGas = preVerificationGas * 4n;
         if (preVerificationGas < MIN_PRE_VERIFICATION) {
             preVerificationGas = MIN_PRE_VERIFICATION;
         }
-        console.log("- preVerificationGas (adjusted for large signature): " + preVerificationGas.toString());
 
-        return {
-            verificationGasLimit,
-            callGasLimit,
-            preVerificationGas
-        };
+        return { verificationGasLimit, callGasLimit, preVerificationGas };
     } catch (e) {
-        console.warn("⚠️ Bundler gas estimation failed, using defaults:", e.message);
+        console.warn("Bundler gas estimation failed, using defaults:", e.message);
         return {
             verificationGasLimit: 9_000_000n,
             callGasLimit: 500_000n,
@@ -157,24 +146,25 @@ export function updateUserOpWithGasEstimates(userOp, gasEstimates) {
 // ─── Hashing ────────────────────────────────────────────────────────────
 
 export function getUserOpHash(userOp, entryPointAddress, chainId) {
-    const initCodeHash = ethers.keccak256(userOp.initCode);
-    const callDataHash = ethers.keccak256(userOp.callData);
-    const paymasterHash = ethers.keccak256(userOp.paymasterAndData);
     const abi = ethers.AbiCoder.defaultAbiCoder();
 
     const packedEncoded = abi.encode(
         ["address","uint256","bytes32","bytes32","bytes32","uint256","bytes32","bytes32"],
         [
-            userOp.sender, userOp.nonce, initCodeHash, callDataHash,
-            userOp.accountGasLimits, userOp.preVerificationGas,
-            userOp.gasFees, paymasterHash,
+            userOp.sender,
+            userOp.nonce,
+            ethers.keccak256(userOp.initCode),
+            ethers.keccak256(userOp.callData),
+            userOp.accountGasLimits,
+            userOp.preVerificationGas,
+            userOp.gasFees,
+            ethers.keccak256(userOp.paymasterAndData),
         ]
     );
 
-    const packedUserOp = ethers.keccak256(packedEncoded);
     const finalEncoded = abi.encode(
         ["bytes32", "address", "uint256"],
-        [packedUserOp, entryPointAddress, chainId]
+        [ethers.keccak256(packedEncoded), entryPointAddress, chainId]
     );
     return ethers.keccak256(finalEncoded);
 }
@@ -182,29 +172,26 @@ export function getUserOpHash(userOp, entryPointAddress, chainId) {
 // ─── Signing ────────────────────────────────────────────────────────────
 
 /**
- * Hybrid signature (ECDSA + ML-DSA).
- *
+ * Hybrid signature (ECDSA + PQ).
  * Both signers are injected — works for software or hardware.
  *
- * @param {object} ecdsaSigner - { signHash(Uint8Array) → {v, r, s} }
+ * @param {object} ecdsaSigner - { signHash(Uint8Array) → { serialized } }
  * @param {object} mldsaSigner - { sign(Uint8Array) → Uint8Array }
  */
 export async function signUserOpHybrid(
     userOp, entryPointAddress, chainId, ecdsaSigner, mldsaSigner
 ) {
     const userOpHash = getUserOpHash(userOp, entryPointAddress, chainId);
-    const userOpHashBytes = ethers.getBytes(userOpHash);
+    const hashBytes  = ethers.getBytes(userOpHash);
 
-    // ML-DSA / Falcon
-    const postQuantumSigBytes = await mldsaSigner.sign(userOpHashBytes);
-    const postQuantumSig = ethers.hexlify(postQuantumSigBytes);
-
-    // ECDSA
-    const ecdsaResult = await ecdsaSigner.signHash(userOpHashBytes);
-    const preQuantumSig = ecdsaResult.serialized;
+    const postQuantumSig = await mldsaSigner.sign(hashBytes);
+    const ecdsaResult    = await ecdsaSigner.signHash(hashBytes);
 
     const abi = ethers.AbiCoder.defaultAbiCoder();
-    return abi.encode(["bytes", "bytes"], [preQuantumSig, postQuantumSig]);
+    return abi.encode(
+        ["bytes", "bytes"],
+        [ecdsaResult.serialized, ethers.hexlify(postQuantumSig)]
+    );
 }
 
 // ─── Submission ─────────────────────────────────────────────────────────
@@ -224,8 +211,7 @@ export async function submitUserOperation(userOp, bundlerUrl, entryPointAddress)
 
     const result = await response.json();
     if (result.error) {
-        throw new Error("❌ Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
+        throw new Error("Failed to submit to bundler: " + (result.error.message || 'Unknown error'));
     }
-
     return result.result;
 }

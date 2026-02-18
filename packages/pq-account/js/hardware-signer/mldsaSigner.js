@@ -10,9 +10,7 @@ let _transport = null;
 
 export async function init(config = {}) {
     const bip32Path = config.bip32Path || DEFAULT_BIP32_PATH;
-    if (!_transport) {
-        _transport = await openTransport();
-    }
+    if (!_transport) _transport = await openTransport();
     await deriveMldsaSeed(_transport, bip32Path);
 }
 
@@ -28,15 +26,10 @@ export async function getPublicKey() {
 
 export async function cleanup() {
     if (_transport) {
-        try { await _transport.close(); } catch (e) {}
+        try { await _transport.close(); } catch (_) {}
         _transport = null;
     }
 }
 
-export function getTransport() {
-    return _transport;
-}
-
-export function setTransport(t) {
-    _transport = t;
-}
+export function getTransport() { return _transport; }
+export function setTransport(t) { _transport = t; }
