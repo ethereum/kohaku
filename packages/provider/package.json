@@ -33,6 +33,11 @@
       "import": "./dist/colibri.js",
       "require": "./dist/colibri.cjs"
     },
+    "./helios": {
+      "types": "./dist/helios.d.ts",
+      "import": "./dist/helios.js",
+      "require": "./dist/helios.cjs"
+    },
     "./raw": {
       "types": "./dist/raw.d.ts",
       "import": "./dist/raw.js",
@@ -67,10 +72,14 @@
   "author": "",
   "license": "MIT",
   "peerDependencies": {
+    "@a16z/helios": ">=0.11",
     "@corpus-core/colibri-stateless": ">=1.1.0 <2",
     "ethers": "^6.13.1"
   },
   "peerDependenciesMeta": {
+    "@a16z/helios": {
+      "optional": true
+    },
     "@corpus-core/colibri-stateless": {
       "optional": true
     },
@@ -85,6 +94,7 @@
     }
   },
   "devDependencies": {
+    "@a16z/helios": ">=0.11",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",
     "@types/node": "^24.1.0",
@@ -98,9 +108,12 @@
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",
     "typescript": "^5.9.2",
-    "viem": "^2.0.0",
+    "viem": "^2.45.0",
     "vite": "^6.0.0",
     "vite-tsconfig-paths": "^5.1.0",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "ox": "^0.12.0"
   }
 }

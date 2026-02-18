@@ -1,21 +1,35 @@
 {
   "name": "@kohaku-eth/plugins",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha.1",
   "description": "",
   "type": "module",
-  "main": "index.js",
+  "private": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "packageManager": "pnpm@10.24.0",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./broadcaster": {
+      "types": "./dist/broadcaster/base.d.ts",
+      "import": "./dist/broadcaster/base.js"
+    },
+    "./instance": {
+      "types": "./dist/instance/base.d.ts",
+      "import": "./dist/instance/base.js"
+    }
   },
   "dependencies": {
     "@kohaku-eth/provider": "workspace:*",
-    "viem": "^2.44.4"
+    "ox": "^0.12.0"
   }
 }

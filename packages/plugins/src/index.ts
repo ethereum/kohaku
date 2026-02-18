@@ -1,4 +1,5 @@
-export * from './plugin';
+export * from './base';
+export * from './instance/base';
 export * from './host';
-export * from './types';
 export * from './errors';
+export * from './shared';

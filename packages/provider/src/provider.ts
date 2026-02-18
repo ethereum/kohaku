@@ -1,3 +1,4 @@
+import { Filter } from "ox/Filter";
 import { TxData, TxLog, TransactionReceipt } from "./tx";
 
 /**
@@ -8,18 +9,19 @@ export type EthereumProvider<T = unknown> = {
   _internal: T;
 
   /**
+   * Get the chain ID
+   */
+  getChainId(): Promise<bigint>;
+
+  /**
    * Fetch logs from the blockchain
    */
-  getLogs(params: {
-    address: string;
-    fromBlock: number;
-    toBlock: number;
-  }): Promise<TxLog[]>;
+  getLogs(params: Filter): Promise<TxLog[]>;
 
   /**
    * Get the current block number
    */
-  getBlockNumber(): Promise<number>;
+  getBlockNumber(): Promise<bigint>;
 
   /**
    * Wait for a transaction to be mined

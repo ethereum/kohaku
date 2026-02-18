@@ -1,12 +1,14 @@
-import type { EIP1193Client } from "@corpus-core/colibri-stateless";
+import { Hex } from "ox/Hex";
 import { EthereumProvider, TransactionReceipt, TxLog } from "..";
-import { HexString, hexToBigInt, hexToNumber } from "./hex";
+import { HexString, hexToBigInt } from "./hex";
+import { Provider } from 'ox/Provider';
+import { Block, Filter } from "ox";
 
-export const raw = (client: EIP1193Client): EthereumProvider<EIP1193Client> => {
+export const raw = (client: Provider): EthereumProvider<Provider> => {
     const getTransactionReceipt = async (txHash: string): Promise<TransactionReceipt | null> => {
         const receipt = await client.request({
             method: 'eth_getTransactionReceipt',
-            params: [txHash],
+            params: [txHash as Hex],
         }) as RpcReceipt;
 
         if (!receipt) return null;
@@ -16,25 +18,29 @@ export const raw = (client: EIP1193Client): EthereumProvider<EIP1193Client> => {
 
     return {
         _internal: client,
-        async getLogs(params: { address: string; fromBlock: number; toBlock: number }): Promise<TxLog[]> {
+        async getLogs(params: Filter.Filter): Promise<TxLog[]> {
             const logs = await client.request({
                 method: 'eth_getLogs',
-                params: [params],
-            }) as RpcLog[];
+                params: [Filter.toRpc(params)],
+            });
 
             return logs.map(convertLog);
         },
-        async getBlockNumber(): Promise<number> {
+        async getChainId(): Promise<bigint> {
             const hex = await client.request({
-                method: 'eth_blockNumber',
-                params: [],
+                method: 'eth_chainId',
+                params: undefined,
             });
 
-            if (typeof hex !== 'string') {
-                throw new Error('Expected hex string, got: ' + typeof hex);
-            }
+            return hexToBigInt(hex);
+        },
+        async getBlockNumber(): Promise<bigint> {
+            const hex = await client.request({
+                method: 'eth_blockNumber',
+                params: undefined,
+            });
 
-            return hexToNumber(hex);
+            return hexToBigInt(hex);
         },
         async waitForTransaction(txHash: string): Promise<void> {
             const start = Date.now();
@@ -54,18 +60,18 @@ export const raw = (client: EIP1193Client): EthereumProvider<EIP1193Client> => {
                 await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
             }
         },
-        async getBalance(address: string): Promise<bigint> {
+        async getBalance(address: Hex, block?: Block.Identifier | Block.Tag): Promise<bigint> {
             const hex = await client.request({
                 method: 'eth_getBalance',
-                params: [address],
+                params: [address, block ?? 'latest'],
             }) as HexString;
 
             return hexToBigInt(hex);
         },
-        async getCode(address: string): Promise<string> {
+        async getCode(address: Hex, block?: Block.Identifier | Block.Tag): Promise<string> {
             const hex = await client.request({
                 method: 'eth_getCode',
-                params: [address],
+                params: [address, block ?? 'latest'],
             }) as HexString;
 
             return hex ?? '0x';
@@ -89,15 +95,15 @@ type RpcReceipt = {
 };
 
 const convertLog = (log: RpcLog): TxLog => ({
-    blockNumber: hexToNumber(log.blockNumber),
+    blockNumber: hexToBigInt(log.blockNumber),
     topics: [...log.topics],
     data: log.data,
     address: log.address,
 });
 
 const convertReceipt = (receipt: RpcReceipt): TransactionReceipt => ({
-    blockNumber: hexToNumber(receipt.blockNumber),
-    status: receipt.status ? hexToNumber(receipt.status) : 0,
+    blockNumber: hexToBigInt(receipt.blockNumber),
+    status: receipt.status ? hexToBigInt(receipt.status) : BigInt(0),
     logs: receipt.logs.map(convertLog),
     gasUsed: hexToBigInt(receipt.gasUsed),
 });

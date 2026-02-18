@@ -1,4 +1,4 @@
-import { AccountId, AssetId, ChainId } from "./types";
+import { AccountId, AssetId, ChainId } from "~/shared";
 
 export class PluginError extends Error {
     constructor(message: string) {
