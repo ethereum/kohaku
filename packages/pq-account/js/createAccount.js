@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 import { nttCompact, redirectConsole, explorerTxUrl } from './utils.js';
 import { to_expanded_encoded_bytes } from './utils_mldsa.js';
-import * as softEcdsaKeygen  from './software-signer/ecdsaKeygen.js';
-import * as softMldsaKeygen  from './software-signer/mldsaKeygen.js';
+import * as softEcdsaKeygen from './software-signer/ecdsaKeygen.js';
+import * as softMldsaKeygen from './software-signer/mldsaKeygen.js';
 import * as softFalconKeygen from './software-signer/falconKeygen.js';
 import {
     openTransport,
@@ -95,7 +95,7 @@ async function main(mode) {
                 sepolia: '0xaa36a7',
                 arbitrumSepolia: '0x66eee', baseSepolia: '0x14a34',
             };
-            const selectedNetwork  = document.getElementById('targetNetwork')?.value;
+            const selectedNetwork = document.getElementById('targetNetwork')?.value;
             const expectedChainHex = networkToChainId[selectedNetwork];
 
             await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -114,7 +114,7 @@ async function main(mode) {
             }
 
             provider = new ethers.BrowserProvider(window.ethereum);
-            signer   = await provider.getSigner();
+            signer = await provider.getSigner();
 
             const address = await signer.getAddress();
             const balance = await provider.getBalance(address);
@@ -130,7 +130,7 @@ async function main(mode) {
 
         if (mode === 'ledger') {
             const ecdsaPubkey = await getEcdsaPublicKey(transport, "m/44'/60'/0'/0/0");
-            const raw  = ecdsaPubkey.subarray(2, 66);
+            const raw = ecdsaPubkey.subarray(2, 66);
             const hash = ethers.keccak256(raw);
             preQuantumPubKey = ethers.getAddress('0x' + hash.slice(-40));
             console.log("✅ ECDSA address: " + preQuantumPubKey);
@@ -139,7 +139,7 @@ async function main(mode) {
             pqPublicKey = await getMldsaPublicKey(transport);
             console.log("✅ ML-DSA public key retrieved (" + pqPublicKey.length + " bytes)");
         } else {
-            const preQuantumSeed  = document.getElementById('prequantum').value.trim();
+            const preQuantumSeed = document.getElementById('prequantum').value.trim();
             const postQuantumSeed = document.getElementById('postquantum').value.trim();
 
             try {
@@ -175,7 +175,7 @@ async function main(mode) {
             console.log("🎉 DEPLOYMENT COMPLETE!");
             console.log("🔑 Account: " + result.address);
             if (result.transactionHash) console.log("🔍 Tx: " + result.transactionHash);
-            if (result.alreadyExists)   console.log("ℹ️  Account already existed at this address");
+            if (result.alreadyExists) console.log("ℹ️  Account already existed at this address");
             console.log("============================================================");
         } else {
             console.error("Deployment failed" + (result.error ? ": " + result.error : ""));
@@ -183,7 +183,7 @@ async function main(mode) {
 
     } finally {
         if (transport) {
-            try { await transport.close(); } catch (_) {}
+            try { await transport.close(); } catch (_) { }
         }
     }
 }
@@ -191,9 +191,9 @@ async function main(mode) {
 // ─── UI Setup ───────────────────────────────────────────────────────────
 
 function setup() {
-    const deployBtn       = document.getElementById('deploy');
+    const deployBtn = document.getElementById('deploy');
     const deployLedgerBtn = document.getElementById('deploy-ledger');
-    const output          = document.getElementById('output');
+    const output = document.getElementById('output');
 
     if (!output) { console.error('Missing UI elements'); return; }
 
@@ -233,7 +233,7 @@ function setup() {
         }
     }
 
-    if (deployBtn)       deployBtn.addEventListener('click', () => run('soft'));
+    if (deployBtn) deployBtn.addEventListener('click', () => run('soft'));
     if (deployLedgerBtn) deployLedgerBtn.addEventListener('click', () => run('ledger'));
 }
 
@@ -343,20 +343,32 @@ export async function deployERC4337Account(
             estimatedGas = 5000000n;
             console.log("- Using default gas limit: " + estimatedGas.toString());
         }
-
         const feeData = await provider.getFeeData();
-        const gasCostWei = estimatedGas * (feeData.gasPrice || feeData.maxFeePerGas || 0n);
-        console.log("- Gas price: " + ethers.formatUnits(feeData.gasPrice || feeData.maxFeePerGas || 0n, "gwei") + " gwei");
-        console.log("- Estimated cost: " + ethers.formatEther(gasCostWei) + " ETH");
 
+        // Ensure a minimum priority fee so OP-Stack sequencers don't drop the tx
+        const minTip = 1_000_000n;                       // 0.001 gwei floor
+        const maxPriority = (feeData.maxPriorityFeePerGas && feeData.maxPriorityFeePerGas > minTip)
+            ? feeData.maxPriorityFeePerGas
+            : minTip;
+        const maxFee = feeData.maxFeePerGas
+            ? (feeData.maxFeePerGas > maxPriority ? feeData.maxFeePerGas * 2n : maxPriority * 2n)
+            : maxPriority * 2n;
+
+        const gasCostWei = estimatedGas * maxFee;
+        console.log("- Max fee: " + ethers.formatUnits(maxFee, "gwei") + " gwei");
+        console.log("- Max priority fee: " + ethers.formatUnits(maxPriority, "gwei") + " gwei");
+        console.log("- Estimated cost (upper bound): " + ethers.formatEther(gasCostWei) + " ETH");
         console.log("🚀 Creating account — please confirm the transaction...");
 
         const tx = await factory.createAccount(
             preQuantumPubKey,
             postQuantumPubKey,
-            { gasLimit: estimatedGas * 120n / 100n }
+            {
+                gasLimit: estimatedGas * 120n / 100n,
+                maxFeePerGas: maxFee,
+                maxPriorityFeePerGas: maxPriority,
+            }
         );
-
         const txHash = tx.hash;
         console.log("✅ Transaction signed: " + txHash);
 
