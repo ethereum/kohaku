@@ -5,7 +5,7 @@ libs = ["lib"]
 optimizer = true
 optimizer_runs = 10000
 solc_version = "0.8.30"
-evm_version = "osaka"
+evm_version = "cancun"
 ffi = true
 # Enable file reading permissions
 fs_permissions = [{ access = "read-write", path = "./" }]
