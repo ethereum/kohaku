@@ -5,12 +5,12 @@ export const createEmptyStorageLayer = (): StorageLayer => {
     let storage: string | undefined;
 
     return {
-        read() {
+        get() {
             if (!storage) return;
 
             return JSON.parse(storage);
         },
-        async write(data) {
+        async set(data) {
             storage = JSON.stringify(data);
         },
     }

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { PluginInstance } from "../src/instance/base";
 import { Broadcaster } from "../src/broadcaster/base";
-import { Plugin, CreatePluginFn, Host, PrivateOperation, AssetAmount } from "../src/index";
+import { CreatePluginFn, Host, PrivateOperation, AssetAmount, PluginInstance } from "../src/index";
 
 export type RGBroadcasterParameters = {
     broadcasterUrl: string;
@@ -11,52 +10,35 @@ export type RailgunAddress = `0zk${string}`;
 export type RGInstance = PluginInstance<
     RailgunAddress,
     {
-        input: AssetAmount,
-        internal: AssetAmount,
-        output: AssetAmount,
-    },
-    RGPrivateOperation,
-    {
-        prepareShield: true,
-        prepareShieldMulti: true,
-        prepareTransfer: true,
-        prepareTransferMulti: true,
-        prepareUnshield: true,
-        prepareUnshieldMulti: true,
+        assetAmounts: {
+            input: AssetAmount,
+            internal: AssetAmount,
+            output: AssetAmount,
+        },
+        privateOp: RGPrivateOperation,
+        features: {
+            prepareShield: true,
+            prepareShieldMulti: true,
+            prepareTransfer: true,
+            prepareTransferMulti: true,
+            prepareUnshield: true,
+            prepareUnshieldMulti: true,
+        }
     }
 >;
 
 export type RGBroadcaster = Broadcaster<RGBroadcasterParameters>;
 export type RGPluginParameters = { foo: 'bar' };
-export type RailgunPlugin = Plugin<"railgun", RGInstance, RGPrivateOperation, Host, RGBroadcaster, RGPluginParameters>;
 
-export const createRailgunPlugin: CreatePluginFn<RailgunPlugin> = (host, params) => {
-    // setup railgun plugin here
-    const instances: RGInstance[] = [];
-    const createInstance = () => {
-        const instance = {} as RGInstance;
+export const createRailgunPlugin: CreatePluginFn<RGInstance, RGPluginParameters> = (host, params) => {
+    const x = {} as RGInstance;
 
-        instances.push(instance);
-
-        return instance;
-    };
-
-    const broadcaster = {} as RGBroadcaster;
-
-    return {
-        instances: () => instances,
-        createInstance,
-        broadcaster,
-        plugin_name: "railgun",
-    };
+    return x;
 };
 
 const exampleUsage = async () => {
-
     const host: Host = {} as Host;
-
-    const plugin = await createRailgunPlugin(host, {});
-    const acc = await plugin.createInstance();
+    const acc = await createRailgunPlugin(host, { foo: 'bar' });
 
     const address = await acc.instanceId();
     const balance = await acc.balance(["erc20:0x0000000000000000000000000000000000000000"]);
@@ -65,9 +47,4 @@ const exampleUsage = async () => {
     const preparedShield = await acc.prepareShield(amount, "0zk123");
 
     acc.prepareShield({ asset: { __type: "erc20", contract: "0x0000000000000000000000000000000000000000" }, amount: 100n }, "0zk123");
-
-    // acc.prepareShield();
-    // acc.prepareTransfer();
-    // acc.prepareUnshield();
-    // plugin.broadcaster.broadcast(preparedShield);
 };

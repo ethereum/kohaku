@@ -24,12 +24,12 @@ export const createFileStorageLayer = (path: string, params?: FileStorageParams)
     console.log('fullPath', fullPath);
 
     return {
-        async read() {
+        async get() {
             if (!existsSync(fullPath)) return;
 
             return JSON.parse(await readFile(fullPath, 'utf8'));
         },
-        async write(data) {
+        async set(data) {
             if (skipWrite) return;
 
             console.log('writing to file', fullPath);

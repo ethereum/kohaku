@@ -5,9 +5,8 @@
  * enforce both compile-time and run-time checks for supported assets.
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { PluginInstance } from "../src/instance/base";
 import { Broadcaster } from "../src/broadcaster/base";
-import { Plugin, CreatePluginFn, Host, PrivateOperation, PublicOperation, AssetAmount } from "../src/index";
+import { CreatePluginFn, Host, PrivateOperation, PublicOperation, AssetAmount, PluginInstance } from "../src/index";
 
 export const TC_SAMPLE_CONFIG = {
     eth: {
@@ -36,55 +35,36 @@ export type TornadoAddress = `${number}`;
 export type TCInstance = PluginInstance<
     TornadoAddress,
     {
-        input: TCAssetAmount,
-        internal: TCAssetAmount,
-        output: TCAssetAmount,
-    },
-    TCPrivateOperation,
-    { prepareShield: true, prepareUnshield: true }
+        assetAmounts: {
+            input: TCAssetAmount,
+            internal: TCAssetAmount,
+            output: TCAssetAmount,
+        },
+        privateOp: TCPrivateOperation,
+        features: {
+            prepareShield: true,
+            prepareUnshield: true,
+        },
+    }
 >;
 
 export type TCPluginParameters = { foo: 'bar' };
 export type TBroadcaster = Broadcaster<{ broadcasterUrl: string }>;
-export type TornadoPlugin = Plugin<"tornado", TCInstance, TCPrivateOperation, Host, TBroadcaster, TCPluginParameters>;
 
-export const createTornadoPlugin: CreatePluginFn<TornadoPlugin> = (host, params) => {
-    // setup tornado plugin here
-    const instances: TCInstance[] = [];
-    const createInstance = () => {
-        const instance = {
-            instanceId: () => Promise.resolve("0"),
-            balance(assets) {
-                return Promise.resolve([] as Array<AssetAmount | undefined>);
-            },
-            prepareShield(asset, to) {
-                return Promise.resolve({} as PublicOperation);
-            },
-            prepareUnshield(asset, to) {
-                return Promise.resolve({} as TCPrivateOperation);
-            },
-        } as TCInstance;
-
-        instances.push(instance);
-
-        return instance;
-    };
-
-    const broadcaster = {} as TBroadcaster;
+export const createTornadoPlugin: CreatePluginFn<TCInstance, TCPluginParameters> = (host, params) => {
 
     return {
-        instances: () => instances,
-        createInstance,
-        broadcaster,
-        plugin_name: "tornado",
+        instanceId: async () => "0",
+        balance: async () => [],
+        prepareShield: async () => ({}),
+        prepareUnshield: async () => ({}),
     };
 };
 
 const exampleUsage = async () => {
     const host: Host = {} as Host;
 
-    const plugin = await createTornadoPlugin(host, {});
-    const acc = await plugin.createInstance();
+    const acc = await createTornadoPlugin(host, { foo: 'bar' });
 
     const balance = await acc.balance(["erc20:0x0000000000000000000000000000000000000000"]);
 
@@ -96,9 +76,4 @@ const exampleUsage = async () => {
     acc.prepareShield({
         asset: 'eip155:1:0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', amount: 100000000000000000n,
     }, "0")
-
-    // acc.shield();
-    // acc.unshield();
-    // // acc.
-    // plugin.broadcaster.broadcast(operation);
 };

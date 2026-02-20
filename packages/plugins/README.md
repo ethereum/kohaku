@@ -33,9 +33,6 @@ export type PluginInstance = {
     // Broadcast a private operation
     broadcastPrivateOperation: (operation: PrivateOperation) => Promise<void>;
 };
-
-// Specify any other generics you might want to narrow down here
-export type MyPlugin = Plugin<"my-plugin", MyPluginInstance, MyPrivateOperation, Host, never, MyPluginParameters>;
 ```
 
 ### Host interfaces

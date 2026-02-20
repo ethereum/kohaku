@@ -1,6 +1,6 @@
 export type StorageLayer = {
-    read: () => Promise<object | undefined>;
-    write: (data: object) => Promise<void>;
+    get: () => Promise<object | undefined>;
+    set: (data: object) => Promise<void>;
 };
 
 export type StorageParser<O extends object, C extends object> = {
@@ -13,7 +13,7 @@ export type Storage<O extends object> = {
     save: (data: O) => Promise<void>;
 };
 
-export const createBaseStorage = <O extends object, C extends object>({ read, write }: StorageLayer, { parse, serialize}: StorageParser<O, C>): Storage<O> => {
+export const createBaseStorage = <O extends object, C extends object>({ get: read, set: write }: StorageLayer, { parse, serialize}: StorageParser<O, C>): Storage<O> => {
     const load = async () => {
         console.log('loading base storage');
         const raw = await read() as C;
