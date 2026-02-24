@@ -29,7 +29,7 @@ export class TongoPlugin extends Plugin<AssetAmount, ShieldPreparation, PrivateO
     }
 
     async balance(assets: Array<AssetId> | undefined): Promise<Array<AssetAmount>> {
-        const balances = [];
+        const balances: AssetAmount[] = [];
 
         this.config.deploys.forEach(async (tongoAddress, assetId) => {
             if (assets === undefined || assets.includes(assetId)) {
@@ -39,7 +39,7 @@ export class TongoPlugin extends Plugin<AssetAmount, ShieldPreparation, PrivateO
                 balances.push({ asset: assetId, amount: state.balance + state.pending })
             }
         })
-        throw new Error("Method not implemented.");
+	return balances;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
