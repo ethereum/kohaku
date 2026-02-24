@@ -15,7 +15,9 @@ export type PPv1Instance = PluginInstance<
         input: PPv1AssetAmount,
         internal: PPv1AssetAmount,
         output: PPv1AssetAmount,
+        balance: PPv1AssetAmount
     },
+    PublicOperation,
     PPv1PrivateOperation,
     {
         prepareShield: true,

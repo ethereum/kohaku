@@ -11,7 +11,7 @@ export type PPv2Broadcaster = Broadcaster<PPv2BroadcasterParameters>;
 export type PPv2PluginParameters = { foo: 'bar' }; // TODO: add deployment params 
 export type PPv2Plugin = Plugin<"privacy-pools-v2", PPv2Instance, PrivateOperation, Host, PPv2Broadcaster, PPv2PluginParameters>;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export const createPPv2Plugin: CreatePluginFn<PPv2Plugin> = (host, params) => {
     // setup privacy pools v2 plugin here
 
@@ -24,5 +24,6 @@ export const createPPv2Plugin: CreatePluginFn<PPv2Plugin> = (host, params) => {
         createInstance: () => instance,
         broadcaster,
         plugin_name: "privacy-pools-v2",
+        params,
     };
 };
