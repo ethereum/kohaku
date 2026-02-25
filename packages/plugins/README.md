@@ -6,15 +6,32 @@ Kohaku SDK provides a set of private transaction protocol plugins out-of-the-box
 
 ### Plugin Interface
 
-Every plugin must comply with the standard interface. Plugins may extend interface, or opt-in to additional features.
+Every plugins by default follows a standard format. Plugins may extend the interface, or opt-in to additional features.
 
-[File: src/base.ts](./src/base.ts)
 ```ts
-export type AssetAmount = {
-    asset: AssetId;
-    amount: bigint;
-};
+export type MyInstance = PluginInstance<
+  // The account ID type
+  MyAccountId,
+  {
+    credential: MyCredential;
+    assetAmounts: { input: MyInput; internal: MyInternal; output: MyOutput };
+    privateOp: MyPrivateOperation;
+    // The features the plugin supports
+    features: {
+      prepareShield: true;
+      prepareShieldMulti: true;
+      prepareTransfer: false;
+      prepareTransferMulti: false;
+      prepareUnshield: true;
+      prepareUnshieldMulti: true;
+    };
+  }
+>;
+```
 
+And so the final plugin ends up looking like this:
+
+```ts
 export type PluginInstance = {
     // Returns the internal instance identifier (0zk, 0x, etc)
     instanceId: () => Promise<string>;
@@ -33,9 +50,6 @@ export type PluginInstance = {
     // Broadcast a private operation
     broadcastPrivateOperation: (operation: PrivateOperation) => Promise<void>;
 };
-
-// Specify any other generics you might want to narrow down here
-export type MyPlugin = Plugin<"my-plugin", MyPluginInstance, MyPrivateOperation, Host, never, MyPluginParameters>;
 ```
 
 ### Host interfaces
@@ -125,24 +139,21 @@ const host: Host = {
 const config: RGPluginParameters = {};
 const railgun = await createRailgunPlugin(host, config);
 
-// Create instance
-const account = await railgun.createInstance();
-
 // Get balance
-const balances = await account.balance();
+const balances = await railgun.balance();
 
 // Shield
 const tokenToShield = {
     asset: 'erc20:0x0000000000000000000000000000000000000000',
     amount: 100n,
 };
-const publicTx = await account.prepareShield(tokenToShield);
+const publicTx = await railgun.prepareShield(tokenToShield);
 
 await myWallet.sendTransaction(publicTx);
 
 // Unshield
 const recipient = '0x0000000000000000000000000000000000000000';
-const myPrivateTx = await account.prepareUnshield(balances[0], recipient);
+const myPrivateTx = await railgun.prepareUnshield(balances[0], recipient);
 
-await account.broadcastPrivateOperation(myPrivateTx);
+await railgun.broadcastPrivateOperation(myPrivateTx);
 ```

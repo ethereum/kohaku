@@ -1,6 +1,9 @@
 // Configuration
 export * from './config';
 
+// Plugin functionality
+export * from './plugin.js';
+
 // Indexer functionality
 export * from './indexer/base.js';
 export * from './indexer/storage.js';
