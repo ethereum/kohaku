@@ -35,6 +35,7 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
 
             return code ?? '0x';
         },
+        request: client.request.bind(client),
         async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
             const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
 
