@@ -26,6 +26,7 @@ abstract contract VerifierDeployer is BaseScript {
         if (block.chainid == 11155111) network = "sepolia";
         else if (block.chainid == 1) network = "mainnet";
         else if (block.chainid == 421614) network = "arbitrumSepolia";
+        else if (block.chainid == 84532) network = "baseSepolia";
         else revert("Unsupported chain");
 
         string memory basePath =
@@ -57,7 +58,7 @@ abstract contract VerifierDeployer is BaseScript {
 
 contract MLDSAFixedContract is VerifierDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSA_VERIFIER_V0_0_7";
+        saltLabel = "ZKNOX_MLDSA_VERIFIER_V0_0_10";
         verifierKey = "mldsa";
     }
     function deployContract(bytes32 salt) internal override returns (address) {
@@ -67,7 +68,7 @@ contract MLDSAFixedContract is VerifierDeployer {
 
 contract MLDSAETHFixedContract is VerifierDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSAETH_VERIFIER_V0_0_1";
+        saltLabel = "ZKNOX_MLDSAETH_VERIFIER_V0_0_3";
         verifierKey = "mldsaeth";
     }
     function deployContract(bytes32 salt) internal override returns (address) {
@@ -77,7 +78,7 @@ contract MLDSAETHFixedContract is VerifierDeployer {
 
 contract FALCONFixedContract is VerifierDeployer {
     constructor() {
-        saltLabel = "ZKNOX_FALCON_VERIFIER_V0_0_1";
+        saltLabel = "ZKNOX_FALCON_VERIFIER_V0_0_4";
         verifierKey = "falcon";
     }
     function deployContract(bytes32 salt) internal override returns (address) {
@@ -87,7 +88,7 @@ contract FALCONFixedContract is VerifierDeployer {
 
 contract ETHFALCONFixedContract is VerifierDeployer {
     constructor() {
-        saltLabel = "ZKNOX_ETHFALCON_VERIFIER_V0_0_1";
+        saltLabel = "ZKNOX_ETHFALCON_VERIFIER_V0_0_2";
         verifierKey = "ethfalcon";
     }
     function deployContract(bytes32 salt) internal override returns (address) {

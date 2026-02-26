@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Send ERC4337 Transaction</title>
+    <style>
+        nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        nav a {
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: #555;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        nav a:hover { background: #f0f0f0; }
+        nav a.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .config-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .config-section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: inline-block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .input-group input[type="text"],
+        .input-group select {
+            width: 100%;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .input-group input[type="text"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .input-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        button:hover { background: #45a049; }
+        button:disabled { background: #cccccc; cursor: not-allowed; box-shadow: none; }
+        
+        .twocols {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .twocols .input-group { flex: 1; }
+
+        #output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: calc(100vh - 500px);
+            max-height: none;
+            overflow-y: visible;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        #output:empty { min-height: 50px; }
+
+        /* ─── Signing mode toggle ─── */
+        .signing-mode-toggle {
+            display: flex;
+            gap: 0;
+            margin-bottom: 18px;
+        }
+
+        .signing-mode-toggle label {
+            flex: 1;
+            text-align: center;
+            padding: 12px 20px;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            background: #fafafa;
+            font-weight: bold;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .signing-mode-toggle label:first-of-type {
+            border-radius: 6px 0 0 6px;
+            border-right: 1px solid #ddd;
+        }
+
+        .signing-mode-toggle label:last-of-type {
+            border-radius: 0 6px 6px 0;
+            border-left: 1px solid #ddd;
+        }
+
+        .signing-mode-toggle input[type="radio"] { display: none; }
+
+        .signing-mode-toggle input[type="radio"]:checked + label {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+
+        .signing-mode-toggle input[type="radio"]:disabled + label {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ledger-info {
+            background: #e8f5e9;
+            border: 1px solid #4CAF50;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: #2e7d32;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="create-account.html">Create Account</a>
+        <a href="send-tx.html" class="active">Send Transaction</a>
+    </nav>
+    
+    <div class="config-section">
+        <h2>&#128203; Transaction Details</h2>
+
+        <div class="twocols">
+            <!-- Network + RPC: always visible for both modes -->
+            <div class="input-group">
+                <label for="targetNetwork">Target Network:</label>
+                <select id="targetNetwork">
+                    <option value="sepolia" data-chain="11155111">Sepolia</option>
+                    <option value="arbitrumSepolia" data-chain="421614" selected>Arbitrum Sepolia</option>
+                    <option value="baseSepolia" data-chain="84532">Base Sepolia</option>
+                </select>
+                <input type="hidden" id="rpcUrl" value="https://sepolia-rollup.arbitrum.io/rpc">
+            </div>
+
+            <div class="input-group">
+                <label>Pimlico API Key:</label>
+                <input type="text" id="pimlicoApiKey" value="">
+            </div>
+        </div>
+
+        <div class="twocols">
+            <div class="input-group">
+                <label>Your ERC4337 Account Address:</label>
+                <input type="text" id="accountAddress" value="0x9E58A65Ce894fE2F1d0BC33a1d8aD7a155ffeb40">
+            </div>
+            <div class="input-group">
+                <label>To Address:</label>
+                <input type="text" id="targetAddress" value="0xdA4e72C962C201D77d515B02dEd76B1a41E1DBab">
+            </div>
+        </div>
+        
+        <div class="twocols">
+            <div class="input-group">
+                <label>Value (ETH):</label>
+                <input type="text" id="value" value="0.0001">
+                <small>Amount of ETH to send</small>
+            </div>
+            <div class="input-group">
+                <label>Call Data:</label>
+                <input type="text" id="callData" value="0x">
+                <small>Leave as 0x for simple ETH transfer</small>
+            </div>
+        </div>
+
+        <!-- ─── PQ Algorithm selector ─── -->
+        <div class="input-group">
+            <label for="pqAlgo">Post-Quantum Algorithm:</label>
+            <select id="pqAlgo">
+                <option value="mldsa">ML-DSA-44</option>
+                <option value="falcon">Falcon-512 (software only)</option>
+            </select>
+            <small>Must match the algorithm used when the account was created</small>
+        </div>
+
+        <label style="font-weight: bold; color: #555; font-size: 14px; margin-bottom: 10px; display: block;">
+            Signing Mode:
+        </label>
+        <div class="signing-mode-toggle">
+            <input type="radio" name="signingMode" id="modeSoft" value="soft" checked>
+            <label for="modeSoft">&#128187; Software</label>
+            <input type="radio" name="signingMode" id="modeLedger" value="ledger">
+            <label for="modeLedger">&#128274; Ledger Hardware</label>
+        </div>
+
+        <!-- ─── Software mode: both seeds ─── -->
+        <div id="softSeedGroup">
+            <div class="twocols">
+                <div class="input-group">
+                    <label>Pre-Quantum Seed (ECDSA):</label>
+                    <input type="text" id="preQuantumSeed" value="0x1b48e04041e23c72cacdaa9b0775d31515fc74d6a6d3c8804172f7e7d1248529">
+                    <small>Same seed used to create the account</small>
+                </div>
+                <div class="input-group">
+                    <label id="pqSeedLabel">Post-Quantum Seed (ML-DSA):</label>
+                    <input type="text" id="postQuantumSeed" value="0xac38da90e1a47bd048580b74e07ce649649642f1a9696b714977bf9f2942c1a4">
+                    <small>Same seed used to create the account</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Ledger mode: info banner ─── -->
+        <div id="ledgerInfoGroup" style="display: none;">
+            <div class="ledger-info">
+                &#128274; Both ECDSA and ML-DSA keys are derived on the Ledger secure element
+                via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="button-container">
+        <button id="sendTx">Create & Sign UserOperation</button>
+    </div>
+    
+    <div id="output"></div>
+    
+    <!-- Network selector + wallet auto-sync + PQ algo wiring -->
+    <script>
+    (function() {
+        const rpcDefaults = {
+            sepolia:         'https://eth-sepolia-testnet.api.pocket.network',
+            arbitrumSepolia: 'https://sepolia-rollup.arbitrum.io/rpc',
+            baseSepolia:     'https://sepolia.base.org',
+        };
+
+        const chainToNetwork = {
+            '0xaa36a7': 'sepolia',
+            '0x66eee':  'arbitrumSepolia',
+            '0x14a34':  'baseSepolia',
+        };
+
+        // Dropdown change → update RPC URL
+        const sel = document.getElementById('targetNetwork');
+        if (sel) {
+            sel.addEventListener('change', () => {
+                const rpcInput = document.getElementById('rpcUrl');
+                const key = sel.value;
+                if (rpcDefaults[key] && rpcInput) rpcInput.value = rpcDefaults[key];
+            });
+        }
+
+        // ── PQ algorithm change → update labels + disable Ledger if Falcon ──
+        const pqAlgoSelect = document.getElementById('pqAlgo');
+        const pqSeedLabel  = document.getElementById('pqSeedLabel');
+        const ledgerRadio  = document.getElementById('modeLedger');
+        const softRadio    = document.getElementById('modeSoft');
+
+        if (pqAlgoSelect) {
+            pqAlgoSelect.addEventListener('change', () => {
+                const isFalcon = pqAlgoSelect.value === 'falcon';
+
+                // Update seed label
+                if (pqSeedLabel) {
+                    pqSeedLabel.textContent = isFalcon
+                        ? 'Post-Quantum Seed (Falcon-512):'
+                        : 'Post-Quantum Seed (ML-DSA):';
+                }
+
+                // Disable/enable Ledger radio
+                if (ledgerRadio) {
+                    ledgerRadio.disabled = isFalcon;
+                    if (isFalcon && ledgerRadio.checked) {
+                        softRadio.checked = true;
+                        softRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            });
+        }
+
+        // Wallet auto-sync (Software mode only)
+        function syncFromWallet(chainIdHex) {
+            const mode = document.querySelector('input[name="signingMode"]:checked');
+            if (mode && mode.value !== 'soft') return;
+
+            const key = chainToNetwork[chainIdHex.toLowerCase()];
+            if (!key) return;
+
+            const rpcInput = document.getElementById('rpcUrl');
+            if (sel) sel.value = key;
+            if (rpcInput && rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
+        }
+
+        async function initWalletSync() {
+            if (!window.ethereum) return;
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                syncFromWallet(chainId);
+            } catch (e) {}
+            window.ethereum.on('chainChanged', syncFromWallet);
+        }
+
+        // Re-sync when switching back to Software mode
+        document.querySelectorAll('input[name="signingMode"]').forEach(radio => {
+            radio.addEventListener('change', async () => {
+                if (radio.value === 'soft' && radio.checked && window.ethereum) {
+                    try {
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        syncFromWallet(chainId);
+                    } catch (e) {}
+                }
+            });
+        });
+
+        initWalletSync();
+    })();
+    </script>
+    
+    <script type="module" src="./sendTransaction.js"></script>
+</body>
+</html>
