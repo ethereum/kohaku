@@ -15,10 +15,11 @@ export type AssetAmounts<
 export type TxFeatureMap<
     TAccountId extends string,
     TAssetAmounts extends AssetAmounts,
+    TPublicOperation extends PublicOperation,
     TPrivateOperation extends PrivateOperation,
 > = {
-    prepareShield(asset: TAssetAmounts['input'], to?: TAccountId): Promise<PublicOperation>;
-    prepareShieldMulti(assets: Array<AssetAmount>, to?: TAccountId): Promise<PublicOperation>;
+    prepareShield(asset: TAssetAmounts['input'], to?: TAccountId): Promise<TPublicOperation>;
+    prepareShieldMulti(assets: Array<AssetAmount>, to?: TAccountId): Promise<TPublicOperation>;
     prepareTransfer(asset: TAssetAmounts['internal'], to: TAccountId): Promise<TPrivateOperation>;
     prepareTransferMulti(assets: Array<TAssetAmounts['internal']>, to: TAccountId): Promise<TPrivateOperation>;
     prepareUnshield(asset: TAssetAmounts['output'], to: Address): Promise<TPrivateOperation>;
@@ -35,23 +36,28 @@ type EnabledKeys<
 export type TxFeatures<
     TAccountId extends string = string,
     TAssetAmounts extends AssetAmounts = AssetAmounts,
+    TPublicOperation extends PublicOperation = PublicOperation,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
-> = Partial<Record<keyof TxFeatureMap<TAccountId, TAssetAmounts, TPrivateOperation>, boolean>>;
+> = Partial<Record<keyof TxFeatureMap<TAccountId, TAssetAmounts, TPublicOperation, TPrivateOperation>, boolean>>;
 
 export type PICapabilities = {
     credential: unknown;
     features: TxFeatures;
     privateOp: PrivateOperation;
+    publicOp: PublicOperation;
     assetAmounts: AssetAmounts;
+    extraFeatures: Record<string, any>;
 };
 
-export type PICapCfg<T extends Partial<PICapabilities> = object> = PICapabilities & T;
+export type PICapCfg<T extends Partial<PICapabilities> = object> = {
+    [key in keyof PICapabilities]: undefined extends T[key] ? PICapabilities[key] : T[key];
+};
 
 export type Transact<
     TAccountId extends string,
     C extends PICapabilities
-> = Pick<TxFeatureMap<TAccountId, C['assetAmounts'], C['privateOp']>, EnabledKeys<TxFeatureMap<TAccountId, C['assetAmounts'], C['privateOp']>, C['features']>> & {
-    balance: (assets: Array<C['assetAmounts']['internal']['asset']> | undefined) => Promise<Array<C['assetAmounts']['internal']>>;
+> = Pick<TxFeatureMap<TAccountId, C['assetAmounts'], C['publicOp'], C['privateOp']>, EnabledKeys<TxFeatureMap<TAccountId, C['assetAmounts'], C['publicOp'], C['privateOp']>, C['features']>> & {
+    balance: (assets?: Array<C['assetAmounts']['internal']['asset']>) => Promise<Array<C['assetAmounts']['internal']>>;
 };
 
 export type PluginInstance<
@@ -59,8 +65,9 @@ export type PluginInstance<
     C extends Partial<PICapabilities> = object,
 > = {
     instanceId: () => Promise<TAccountId>;
-} & Transact<TAccountId, PICapCfg<C>>;
+} & Transact<TAccountId, PICapCfg<C> extends PICapabilities ? PICapCfg<C> : never>
+    & { [key in keyof C['extraFeatures']]: C['extraFeatures'][key] };
 
-export type PICapabilitiesExtract<C extends PluginInstance> = C extends PluginInstance<string, infer T extends Partial<PICapabilities>> ? PICapCfg<T> : never;
+export type PICapabilitiesExtract<C extends PluginInstance<any, any>> = C extends PluginInstance<any, infer T extends Partial<PICapabilities>> ? T : never;
 
 export type CreatePluginFn<TPI, TParams> = (host: Host, params: TParams) => Promise<TPI> | TPI;
