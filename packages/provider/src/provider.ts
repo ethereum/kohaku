@@ -1,4 +1,5 @@
 import { Filter } from "ox/Filter";
+import { RpcRequest } from "ox/RpcRequest";
 import { TxData, TxLog, TransactionReceipt } from "./tx";
 
 /**
@@ -42,6 +43,11 @@ export type EthereumProvider<T = unknown> = {
    * Get transaction receipt
    */
   getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null>;
+
+  /**
+   * Generic make request method to be able to use ABIs
+   */
+  request(request: Pick<RpcRequest, 'method' | 'params'>): Promise<unknown>;
 }
 
 /**

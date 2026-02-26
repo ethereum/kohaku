@@ -38,6 +38,9 @@ export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvi
     async getCode(address: string): Promise<string> {
       return await provider.getCode(address);
     },
+    async request({ params, method }) {
+      return provider.send(method, params as any);
+    },
     async getTransactionReceipt(txHash: string): Promise<TransactionReceipt | null> {
       const receipt = await provider.getTransactionReceipt(txHash);
 
