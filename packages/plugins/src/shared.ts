@@ -14,9 +14,10 @@ export type AssetId = ERC20AssetId | ERC721AssetId;
 export type ChainId = bigint;
 export type AccountId = Address;
 
-export type AssetAmount<TAssetId = AssetId, TAmount extends bigint = bigint> = {
+export type AssetAmount<TAssetId = AssetId, TAmount extends bigint = bigint, TTag extends string | undefined = string> = {
     asset: TAssetId;
     amount: TAmount;
+    tag?: TTag;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
