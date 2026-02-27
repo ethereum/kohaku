@@ -52,7 +52,7 @@ export const createPPv1Plugin: CreatePluginFn<PPv1Instance, PPv1PluginParameters
     // setup privacy pools v1 plugin here
     const pubKey = "" as Address;
 
-    const x: PPv1Instance = {
+    return {
         instanceId: () => Promise.resolve(pubKey),
         balance: async () => {
             return [
@@ -86,6 +86,4 @@ export const createPPv1Plugin: CreatePluginFn<PPv1Instance, PPv1PluginParameters
         prepareUnshield: () => Promise.resolve({} as PPv1PrivateOperation),
         prepareUnshieldMulti: () => Promise.resolve({} as PPv1PrivateOperation),
     };
-
-    return x;
 };
