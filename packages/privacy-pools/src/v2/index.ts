@@ -1,5 +1,5 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
-import { CreatePluginFn, PrivateOperation, PublicOperation, AssetAmount, PluginInstance } from "@kohaku-eth/plugins";
+import { CreatePluginFn, PrivateOperation, PublicOperation, AssetAmount, PluginInstance, ERC20AssetId } from "@kohaku-eth/plugins";
 import { Address } from 'cluster';
 
 
@@ -18,13 +18,16 @@ export type PPv2Credential = {
     accountIndex: number;
 };
 
+export type PPv2AssetAmount = AssetAmount<ERC20AssetId, bigint, 'spendable' | 'unspendable'>;
+
 export type PPv2Instance = PluginInstance<
     PPv2Address & string,
     {
         assetAmounts: {
-            input: AssetAmount,
-            internal: AssetAmount,
-            output: AssetAmount,
+            input: PPv2AssetAmount,
+            internal: PPv2AssetAmount,
+            output: PPv2AssetAmount,
+            read: PPv2AssetAmount,
         },
         credential: PPv2Credential,
         privateOp: PPv2PrivateOperation,

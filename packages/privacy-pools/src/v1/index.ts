@@ -7,7 +7,7 @@ import { Address } from 'ox/Address';
  */
 export type PPv1Address = Address;
 
-export type PPv1AssetAmount = AssetAmount<ERC20AssetId>;
+export type PPv1AssetAmount = AssetAmount<ERC20AssetId, bigint, 'spendable' | 'unspendable'>;
 
 export type PPv1Credential = {
     type: 'private-key';
@@ -27,6 +27,7 @@ export type PPv1Instance = PluginInstance<
             input: PPv1AssetAmount,
             internal: PPv1AssetAmount,
             output: PPv1AssetAmount,
+            read: PPv1AssetAmount,
         },
         privateOp: PPv1PrivateOperation,
         features: {
@@ -49,15 +50,42 @@ export type PPv1PluginParameters = { foo: 'bar' }; // TODO: add deployment param
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const createPPv1Plugin: CreatePluginFn<PPv1Instance, PPv1PluginParameters> = (host, params) => {
     // setup privacy pools v1 plugin here
-
     const pubKey = "" as Address;
 
-    return {
+    const x: PPv1Instance = {
         instanceId: () => Promise.resolve(pubKey),
-        balance: () => Promise.resolve([]),
+        balance: async () => {
+            return [
+                {
+                    asset: {
+                        __type: 'erc20',
+                        contract: '0x0000000000000000000000000000000000000000',
+                    },
+                    amount: 0n,
+                    tag: 'unspendable',
+                },
+                {
+                    asset: {
+                        __type: 'erc20',
+                        contract: '0x0000000000000000000000000000000000000000',
+                    },
+                    amount: 0n,
+                    tag: 'spendable',
+                },
+                {
+                    asset: {
+                        __type: 'erc20',
+                        contract: '0x0000000000000000000000000000000000000000',
+                    },
+                    amount: 0n,
+                },
+            ]
+        },
         prepareShield: () => Promise.resolve({} as PublicOperation),
         prepareShieldMulti: () => Promise.resolve({} as PublicOperation),
         prepareUnshield: () => Promise.resolve({} as PPv1PrivateOperation),
         prepareUnshieldMulti: () => Promise.resolve({} as PPv1PrivateOperation),
     };
+
+    return x;
 };

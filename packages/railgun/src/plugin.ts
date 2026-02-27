@@ -1,4 +1,4 @@
-import { AssetAmount, CreatePluginFn, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
+import { AssetAmount, CreatePluginFn, ERC20AssetId, ERC721AssetId, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
 import { createRailgunAccount } from "./account/base";
 import { createRailgunIndexer } from "./indexer/base";
 import { getNetworkConfig } from "./config";
@@ -7,15 +7,17 @@ import { RailgunAddress } from "./account/actions/address";
 
 export type RGPluginParameters = { credential: KeyConfig };
 export type RGPrivateOperation = PrivateOperation & { bar: 'hi' };
+export type RGAssetAmount = AssetAmount<ERC20AssetId | ERC721AssetId, bigint, 'non-ppoi' | 'cleared'>;
 export type RGInstance = PluginInstance<
     RailgunAddress,
     {
         credential: KeyConfig,
-        // assetAmounts: {
-        //     input: AssetAmount,
-        //     internal: AssetAmount,
-        //     output: AssetAmount,
-        // },
+        assetAmounts: {
+            input: AssetAmount,
+            internal: AssetAmount,
+            output: AssetAmount,
+            read: AssetAmount,
+        },
         privateOp: RGPrivateOperation,
         features: {
             prepareShield: true,
@@ -56,12 +58,20 @@ export const createRailgunPlugin: CreatePluginFn<RGInstance, RGPluginParameters>
         balance: async (assets) => {
             return Promise.all(
                 assets?.map(async (asset) => {
-                    const tokenBalance = await account.getBalance(asset);
+                    if (asset.__type === 'erc20') {
+                        const tokenBalance = await account.getBalance(asset.contract);
 
+                        return {
+                            asset,
+                            amount: tokenBalance,
+                        };
+                    }
+
+                    // TODO: add 721 support
                     return {
                         asset,
-                        amount: tokenBalance,
-                    };
+                        amount: 0n,
+                    }
                 }) ?? []
             );
         },
