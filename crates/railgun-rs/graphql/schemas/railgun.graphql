@@ -1,0 +1,2152 @@
+# Exposes a URL that specifies the behaviour of this scalar.
+directive @specifiedBy(
+  # The URL that specifies the behaviour of this scalar.
+  url: String!
+) on SCALAR
+
+# Big number integer
+scalar BigInt
+
+# Binary data encoded as a hex string always prefixed with 0x
+scalar Bytes
+
+type Ciphertext {
+  id: String!
+  iv: Bytes!
+  tag: Bytes!
+  data: [Bytes!]!
+}
+
+type CiphertextEdge {
+  node: Ciphertext!
+  cursor: String!
+}
+
+enum CiphertextOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  iv_ASC
+  iv_DESC
+  iv_ASC_NULLS_FIRST
+  iv_ASC_NULLS_LAST
+  iv_DESC_NULLS_FIRST
+  iv_DESC_NULLS_LAST
+  tag_ASC
+  tag_DESC
+  tag_ASC_NULLS_FIRST
+  tag_ASC_NULLS_LAST
+  tag_DESC_NULLS_FIRST
+  tag_DESC_NULLS_LAST
+}
+
+type CiphertextsConnection {
+  edges: [CiphertextEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input CiphertextWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  iv_isNull: Boolean
+  iv_eq: Bytes
+  iv_not_eq: Bytes
+  tag_isNull: Boolean
+  tag_eq: Bytes
+  tag_not_eq: Bytes
+  data_isNull: Boolean
+  data_containsAll: [Bytes!]
+  data_containsAny: [Bytes!]
+  data_containsNone: [Bytes!]
+  AND: [CiphertextWhereInput!]
+  OR: [CiphertextWhereInput!]
+}
+
+interface Commitment {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  treeNumber: Int!
+  batchStartTreePosition: Int!
+  treePosition: Int!
+  commitmentType: CommitmentType!
+  hash: BigInt!
+}
+
+type CommitmentBatchEventNew {
+  id: String!
+  treeNumber: BigInt!
+  batchStartTreePosition: BigInt!
+}
+
+type CommitmentBatchEventNewEdge {
+  node: CommitmentBatchEventNew!
+  cursor: String!
+}
+
+enum CommitmentBatchEventNewOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  batchStartTreePosition_ASC
+  batchStartTreePosition_DESC
+  batchStartTreePosition_ASC_NULLS_FIRST
+  batchStartTreePosition_ASC_NULLS_LAST
+  batchStartTreePosition_DESC_NULLS_FIRST
+  batchStartTreePosition_DESC_NULLS_LAST
+}
+
+type CommitmentBatchEventNewsConnection {
+  edges: [CommitmentBatchEventNewEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input CommitmentBatchEventNewWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  treeNumber_isNull: Boolean
+  treeNumber_eq: BigInt
+  treeNumber_not_eq: BigInt
+  treeNumber_gt: BigInt
+  treeNumber_gte: BigInt
+  treeNumber_lt: BigInt
+  treeNumber_lte: BigInt
+  treeNumber_in: [BigInt!]
+  treeNumber_not_in: [BigInt!]
+  batchStartTreePosition_isNull: Boolean
+  batchStartTreePosition_eq: BigInt
+  batchStartTreePosition_not_eq: BigInt
+  batchStartTreePosition_gt: BigInt
+  batchStartTreePosition_gte: BigInt
+  batchStartTreePosition_lt: BigInt
+  batchStartTreePosition_lte: BigInt
+  batchStartTreePosition_in: [BigInt!]
+  batchStartTreePosition_not_in: [BigInt!]
+  AND: [CommitmentBatchEventNewWhereInput!]
+  OR: [CommitmentBatchEventNewWhereInput!]
+}
+
+type CommitmentCiphertext {
+  id: String!
+  ciphertext: Ciphertext!
+  blindedSenderViewingKey: Bytes!
+  blindedReceiverViewingKey: Bytes!
+  annotationData: Bytes!
+  memo: Bytes!
+}
+
+type CommitmentCiphertextEdge {
+  node: CommitmentCiphertext!
+  cursor: String!
+}
+
+enum CommitmentCiphertextOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  ciphertext_id_ASC
+  ciphertext_id_DESC
+  ciphertext_id_ASC_NULLS_FIRST
+  ciphertext_id_ASC_NULLS_LAST
+  ciphertext_id_DESC_NULLS_FIRST
+  ciphertext_id_DESC_NULLS_LAST
+  ciphertext_iv_ASC
+  ciphertext_iv_DESC
+  ciphertext_iv_ASC_NULLS_FIRST
+  ciphertext_iv_ASC_NULLS_LAST
+  ciphertext_iv_DESC_NULLS_FIRST
+  ciphertext_iv_DESC_NULLS_LAST
+  ciphertext_tag_ASC
+  ciphertext_tag_DESC
+  ciphertext_tag_ASC_NULLS_FIRST
+  ciphertext_tag_ASC_NULLS_LAST
+  ciphertext_tag_DESC_NULLS_FIRST
+  ciphertext_tag_DESC_NULLS_LAST
+  blindedSenderViewingKey_ASC
+  blindedSenderViewingKey_DESC
+  blindedSenderViewingKey_ASC_NULLS_FIRST
+  blindedSenderViewingKey_ASC_NULLS_LAST
+  blindedSenderViewingKey_DESC_NULLS_FIRST
+  blindedSenderViewingKey_DESC_NULLS_LAST
+  blindedReceiverViewingKey_ASC
+  blindedReceiverViewingKey_DESC
+  blindedReceiverViewingKey_ASC_NULLS_FIRST
+  blindedReceiverViewingKey_ASC_NULLS_LAST
+  blindedReceiverViewingKey_DESC_NULLS_FIRST
+  blindedReceiverViewingKey_DESC_NULLS_LAST
+  annotationData_ASC
+  annotationData_DESC
+  annotationData_ASC_NULLS_FIRST
+  annotationData_ASC_NULLS_LAST
+  annotationData_DESC_NULLS_FIRST
+  annotationData_DESC_NULLS_LAST
+  memo_ASC
+  memo_DESC
+  memo_ASC_NULLS_FIRST
+  memo_ASC_NULLS_LAST
+  memo_DESC_NULLS_FIRST
+  memo_DESC_NULLS_LAST
+}
+
+type CommitmentCiphertextsConnection {
+  edges: [CommitmentCiphertextEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input CommitmentCiphertextWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  ciphertext_isNull: Boolean
+  ciphertext: CiphertextWhereInput
+  blindedSenderViewingKey_isNull: Boolean
+  blindedSenderViewingKey_eq: Bytes
+  blindedSenderViewingKey_not_eq: Bytes
+  blindedReceiverViewingKey_isNull: Boolean
+  blindedReceiverViewingKey_eq: Bytes
+  blindedReceiverViewingKey_not_eq: Bytes
+  annotationData_isNull: Boolean
+  annotationData_eq: Bytes
+  annotationData_not_eq: Bytes
+  memo_isNull: Boolean
+  memo_eq: Bytes
+  memo_not_eq: Bytes
+  AND: [CommitmentCiphertextWhereInput!]
+  OR: [CommitmentCiphertextWhereInput!]
+}
+
+type CommitmentEdge {
+  node: Commitment!
+  cursor: String!
+}
+
+enum CommitmentOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  batchStartTreePosition_ASC
+  batchStartTreePosition_DESC
+  batchStartTreePosition_ASC_NULLS_FIRST
+  batchStartTreePosition_ASC_NULLS_LAST
+  batchStartTreePosition_DESC_NULLS_FIRST
+  batchStartTreePosition_DESC_NULLS_LAST
+  treePosition_ASC
+  treePosition_DESC
+  treePosition_ASC_NULLS_FIRST
+  treePosition_ASC_NULLS_LAST
+  treePosition_DESC_NULLS_FIRST
+  treePosition_DESC_NULLS_LAST
+  commitmentType_ASC
+  commitmentType_DESC
+  commitmentType_ASC_NULLS_FIRST
+  commitmentType_ASC_NULLS_LAST
+  commitmentType_DESC_NULLS_FIRST
+  commitmentType_DESC_NULLS_LAST
+  hash_ASC
+  hash_DESC
+  hash_ASC_NULLS_FIRST
+  hash_ASC_NULLS_LAST
+  hash_DESC_NULLS_FIRST
+  hash_DESC_NULLS_LAST
+  _type_ASC
+  _type_DESC
+}
+
+type CommitmentPreimage {
+  id: String!
+  npk: Bytes!
+  token: Token!
+  value: BigInt!
+}
+
+type CommitmentPreimageEdge {
+  node: CommitmentPreimage!
+  cursor: String!
+}
+
+enum CommitmentPreimageOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  npk_ASC
+  npk_DESC
+  npk_ASC_NULLS_FIRST
+  npk_ASC_NULLS_LAST
+  npk_DESC_NULLS_FIRST
+  npk_DESC_NULLS_LAST
+  token_id_ASC
+  token_id_DESC
+  token_id_ASC_NULLS_FIRST
+  token_id_ASC_NULLS_LAST
+  token_id_DESC_NULLS_FIRST
+  token_id_DESC_NULLS_LAST
+  token_tokenType_ASC
+  token_tokenType_DESC
+  token_tokenType_ASC_NULLS_FIRST
+  token_tokenType_ASC_NULLS_LAST
+  token_tokenType_DESC_NULLS_FIRST
+  token_tokenType_DESC_NULLS_LAST
+  token_tokenAddress_ASC
+  token_tokenAddress_DESC
+  token_tokenAddress_ASC_NULLS_FIRST
+  token_tokenAddress_ASC_NULLS_LAST
+  token_tokenAddress_DESC_NULLS_FIRST
+  token_tokenAddress_DESC_NULLS_LAST
+  token_tokenSubID_ASC
+  token_tokenSubID_DESC
+  token_tokenSubID_ASC_NULLS_FIRST
+  token_tokenSubID_ASC_NULLS_LAST
+  token_tokenSubID_DESC_NULLS_FIRST
+  token_tokenSubID_DESC_NULLS_LAST
+  value_ASC
+  value_DESC
+  value_ASC_NULLS_FIRST
+  value_ASC_NULLS_LAST
+  value_DESC_NULLS_FIRST
+  value_DESC_NULLS_LAST
+}
+
+type CommitmentPreimagesConnection {
+  edges: [CommitmentPreimageEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input CommitmentPreimageWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  npk_isNull: Boolean
+  npk_eq: Bytes
+  npk_not_eq: Bytes
+  token_isNull: Boolean
+  token: TokenWhereInput
+  value_isNull: Boolean
+  value_eq: BigInt
+  value_not_eq: BigInt
+  value_gt: BigInt
+  value_gte: BigInt
+  value_lt: BigInt
+  value_lte: BigInt
+  value_in: [BigInt!]
+  value_not_in: [BigInt!]
+  AND: [CommitmentPreimageWhereInput!]
+  OR: [CommitmentPreimageWhereInput!]
+}
+
+type CommitmentsConnection {
+  edges: [CommitmentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+enum CommitmentType {
+  ShieldCommitment
+  TransactCommitment
+  LegacyGeneratedCommitment
+  LegacyEncryptedCommitment
+}
+
+input CommitmentWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  treeNumber_isNull: Boolean
+  treeNumber_eq: Int
+  treeNumber_not_eq: Int
+  treeNumber_gt: Int
+  treeNumber_gte: Int
+  treeNumber_lt: Int
+  treeNumber_lte: Int
+  treeNumber_in: [Int!]
+  treeNumber_not_in: [Int!]
+  batchStartTreePosition_isNull: Boolean
+  batchStartTreePosition_eq: Int
+  batchStartTreePosition_not_eq: Int
+  batchStartTreePosition_gt: Int
+  batchStartTreePosition_gte: Int
+  batchStartTreePosition_lt: Int
+  batchStartTreePosition_lte: Int
+  batchStartTreePosition_in: [Int!]
+  batchStartTreePosition_not_in: [Int!]
+  treePosition_isNull: Boolean
+  treePosition_eq: Int
+  treePosition_not_eq: Int
+  treePosition_gt: Int
+  treePosition_gte: Int
+  treePosition_lt: Int
+  treePosition_lte: Int
+  treePosition_in: [Int!]
+  treePosition_not_in: [Int!]
+  commitmentType_isNull: Boolean
+  commitmentType_eq: CommitmentType
+  commitmentType_not_eq: CommitmentType
+  commitmentType_in: [CommitmentType!]
+  commitmentType_not_in: [CommitmentType!]
+  hash_isNull: Boolean
+  hash_eq: BigInt
+  hash_not_eq: BigInt
+  hash_gt: BigInt
+  hash_gte: BigInt
+  hash_lt: BigInt
+  hash_lte: BigInt
+  hash_in: [BigInt!]
+  hash_not_in: [BigInt!]
+  AND: [CommitmentWhereInput!]
+  OR: [CommitmentWhereInput!]
+}
+
+type LegacyCommitmentCiphertext {
+  id: String!
+  ciphertext: Ciphertext!
+  ephemeralKeys: [Bytes!]!
+  memo: [Bytes!]!
+}
+
+type LegacyCommitmentCiphertextEdge {
+  node: LegacyCommitmentCiphertext!
+  cursor: String!
+}
+
+enum LegacyCommitmentCiphertextOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  ciphertext_id_ASC
+  ciphertext_id_DESC
+  ciphertext_id_ASC_NULLS_FIRST
+  ciphertext_id_ASC_NULLS_LAST
+  ciphertext_id_DESC_NULLS_FIRST
+  ciphertext_id_DESC_NULLS_LAST
+  ciphertext_iv_ASC
+  ciphertext_iv_DESC
+  ciphertext_iv_ASC_NULLS_FIRST
+  ciphertext_iv_ASC_NULLS_LAST
+  ciphertext_iv_DESC_NULLS_FIRST
+  ciphertext_iv_DESC_NULLS_LAST
+  ciphertext_tag_ASC
+  ciphertext_tag_DESC
+  ciphertext_tag_ASC_NULLS_FIRST
+  ciphertext_tag_ASC_NULLS_LAST
+  ciphertext_tag_DESC_NULLS_FIRST
+  ciphertext_tag_DESC_NULLS_LAST
+}
+
+type LegacyCommitmentCiphertextsConnection {
+  edges: [LegacyCommitmentCiphertextEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input LegacyCommitmentCiphertextWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  ciphertext_isNull: Boolean
+  ciphertext: CiphertextWhereInput
+  ephemeralKeys_isNull: Boolean
+  ephemeralKeys_containsAll: [Bytes!]
+  ephemeralKeys_containsAny: [Bytes!]
+  ephemeralKeys_containsNone: [Bytes!]
+  memo_isNull: Boolean
+  memo_containsAll: [Bytes!]
+  memo_containsAny: [Bytes!]
+  memo_containsNone: [Bytes!]
+  AND: [LegacyCommitmentCiphertextWhereInput!]
+  OR: [LegacyCommitmentCiphertextWhereInput!]
+}
+
+type LegacyEncryptedCommitment implements Commitment {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  treeNumber: Int!
+  batchStartTreePosition: Int!
+  treePosition: Int!
+  commitmentType: CommitmentType!
+  hash: BigInt!
+  ciphertext: LegacyCommitmentCiphertext!
+}
+
+type LegacyEncryptedCommitmentEdge {
+  node: LegacyEncryptedCommitment!
+  cursor: String!
+}
+
+enum LegacyEncryptedCommitmentOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  batchStartTreePosition_ASC
+  batchStartTreePosition_DESC
+  batchStartTreePosition_ASC_NULLS_FIRST
+  batchStartTreePosition_ASC_NULLS_LAST
+  batchStartTreePosition_DESC_NULLS_FIRST
+  batchStartTreePosition_DESC_NULLS_LAST
+  treePosition_ASC
+  treePosition_DESC
+  treePosition_ASC_NULLS_FIRST
+  treePosition_ASC_NULLS_LAST
+  treePosition_DESC_NULLS_FIRST
+  treePosition_DESC_NULLS_LAST
+  commitmentType_ASC
+  commitmentType_DESC
+  commitmentType_ASC_NULLS_FIRST
+  commitmentType_ASC_NULLS_LAST
+  commitmentType_DESC_NULLS_FIRST
+  commitmentType_DESC_NULLS_LAST
+  hash_ASC
+  hash_DESC
+  hash_ASC_NULLS_FIRST
+  hash_ASC_NULLS_LAST
+  hash_DESC_NULLS_FIRST
+  hash_DESC_NULLS_LAST
+  ciphertext_id_ASC
+  ciphertext_id_DESC
+  ciphertext_id_ASC_NULLS_FIRST
+  ciphertext_id_ASC_NULLS_LAST
+  ciphertext_id_DESC_NULLS_FIRST
+  ciphertext_id_DESC_NULLS_LAST
+}
+
+type LegacyEncryptedCommitmentsConnection {
+  edges: [LegacyEncryptedCommitmentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input LegacyEncryptedCommitmentWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  treeNumber_isNull: Boolean
+  treeNumber_eq: Int
+  treeNumber_not_eq: Int
+  treeNumber_gt: Int
+  treeNumber_gte: Int
+  treeNumber_lt: Int
+  treeNumber_lte: Int
+  treeNumber_in: [Int!]
+  treeNumber_not_in: [Int!]
+  batchStartTreePosition_isNull: Boolean
+  batchStartTreePosition_eq: Int
+  batchStartTreePosition_not_eq: Int
+  batchStartTreePosition_gt: Int
+  batchStartTreePosition_gte: Int
+  batchStartTreePosition_lt: Int
+  batchStartTreePosition_lte: Int
+  batchStartTreePosition_in: [Int!]
+  batchStartTreePosition_not_in: [Int!]
+  treePosition_isNull: Boolean
+  treePosition_eq: Int
+  treePosition_not_eq: Int
+  treePosition_gt: Int
+  treePosition_gte: Int
+  treePosition_lt: Int
+  treePosition_lte: Int
+  treePosition_in: [Int!]
+  treePosition_not_in: [Int!]
+  commitmentType_isNull: Boolean
+  commitmentType_eq: CommitmentType
+  commitmentType_not_eq: CommitmentType
+  commitmentType_in: [CommitmentType!]
+  commitmentType_not_in: [CommitmentType!]
+  hash_isNull: Boolean
+  hash_eq: BigInt
+  hash_not_eq: BigInt
+  hash_gt: BigInt
+  hash_gte: BigInt
+  hash_lt: BigInt
+  hash_lte: BigInt
+  hash_in: [BigInt!]
+  hash_not_in: [BigInt!]
+  ciphertext_isNull: Boolean
+  ciphertext: LegacyCommitmentCiphertextWhereInput
+  AND: [LegacyEncryptedCommitmentWhereInput!]
+  OR: [LegacyEncryptedCommitmentWhereInput!]
+}
+
+type LegacyGeneratedCommitment implements Commitment {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  treeNumber: Int!
+  batchStartTreePosition: Int!
+  treePosition: Int!
+  commitmentType: CommitmentType!
+  hash: BigInt!
+  preimage: CommitmentPreimage!
+  encryptedRandom: [Bytes!]!
+}
+
+type LegacyGeneratedCommitmentEdge {
+  node: LegacyGeneratedCommitment!
+  cursor: String!
+}
+
+enum LegacyGeneratedCommitmentOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  batchStartTreePosition_ASC
+  batchStartTreePosition_DESC
+  batchStartTreePosition_ASC_NULLS_FIRST
+  batchStartTreePosition_ASC_NULLS_LAST
+  batchStartTreePosition_DESC_NULLS_FIRST
+  batchStartTreePosition_DESC_NULLS_LAST
+  treePosition_ASC
+  treePosition_DESC
+  treePosition_ASC_NULLS_FIRST
+  treePosition_ASC_NULLS_LAST
+  treePosition_DESC_NULLS_FIRST
+  treePosition_DESC_NULLS_LAST
+  commitmentType_ASC
+  commitmentType_DESC
+  commitmentType_ASC_NULLS_FIRST
+  commitmentType_ASC_NULLS_LAST
+  commitmentType_DESC_NULLS_FIRST
+  commitmentType_DESC_NULLS_LAST
+  hash_ASC
+  hash_DESC
+  hash_ASC_NULLS_FIRST
+  hash_ASC_NULLS_LAST
+  hash_DESC_NULLS_FIRST
+  hash_DESC_NULLS_LAST
+  preimage_id_ASC
+  preimage_id_DESC
+  preimage_id_ASC_NULLS_FIRST
+  preimage_id_ASC_NULLS_LAST
+  preimage_id_DESC_NULLS_FIRST
+  preimage_id_DESC_NULLS_LAST
+  preimage_npk_ASC
+  preimage_npk_DESC
+  preimage_npk_ASC_NULLS_FIRST
+  preimage_npk_ASC_NULLS_LAST
+  preimage_npk_DESC_NULLS_FIRST
+  preimage_npk_DESC_NULLS_LAST
+  preimage_value_ASC
+  preimage_value_DESC
+  preimage_value_ASC_NULLS_FIRST
+  preimage_value_ASC_NULLS_LAST
+  preimage_value_DESC_NULLS_FIRST
+  preimage_value_DESC_NULLS_LAST
+}
+
+type LegacyGeneratedCommitmentsConnection {
+  edges: [LegacyGeneratedCommitmentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input LegacyGeneratedCommitmentWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  treeNumber_isNull: Boolean
+  treeNumber_eq: Int
+  treeNumber_not_eq: Int
+  treeNumber_gt: Int
+  treeNumber_gte: Int
+  treeNumber_lt: Int
+  treeNumber_lte: Int
+  treeNumber_in: [Int!]
+  treeNumber_not_in: [Int!]
+  batchStartTreePosition_isNull: Boolean
+  batchStartTreePosition_eq: Int
+  batchStartTreePosition_not_eq: Int
+  batchStartTreePosition_gt: Int
+  batchStartTreePosition_gte: Int
+  batchStartTreePosition_lt: Int
+  batchStartTreePosition_lte: Int
+  batchStartTreePosition_in: [Int!]
+  batchStartTreePosition_not_in: [Int!]
+  treePosition_isNull: Boolean
+  treePosition_eq: Int
+  treePosition_not_eq: Int
+  treePosition_gt: Int
+  treePosition_gte: Int
+  treePosition_lt: Int
+  treePosition_lte: Int
+  treePosition_in: [Int!]
+  treePosition_not_in: [Int!]
+  commitmentType_isNull: Boolean
+  commitmentType_eq: CommitmentType
+  commitmentType_not_eq: CommitmentType
+  commitmentType_in: [CommitmentType!]
+  commitmentType_not_in: [CommitmentType!]
+  hash_isNull: Boolean
+  hash_eq: BigInt
+  hash_not_eq: BigInt
+  hash_gt: BigInt
+  hash_gte: BigInt
+  hash_lt: BigInt
+  hash_lte: BigInt
+  hash_in: [BigInt!]
+  hash_not_in: [BigInt!]
+  preimage_isNull: Boolean
+  preimage: CommitmentPreimageWhereInput
+  encryptedRandom_isNull: Boolean
+  encryptedRandom_containsAll: [Bytes!]
+  encryptedRandom_containsAny: [Bytes!]
+  encryptedRandom_containsNone: [Bytes!]
+  AND: [LegacyGeneratedCommitmentWhereInput!]
+  OR: [LegacyGeneratedCommitmentWhereInput!]
+}
+
+type Nullifier {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  treeNumber: Int!
+  nullifier: Bytes!
+}
+
+type NullifierEdge {
+  node: Nullifier!
+  cursor: String!
+}
+
+enum NullifierOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  nullifier_ASC
+  nullifier_DESC
+  nullifier_ASC_NULLS_FIRST
+  nullifier_ASC_NULLS_LAST
+  nullifier_DESC_NULLS_FIRST
+  nullifier_DESC_NULLS_LAST
+}
+
+type NullifiersConnection {
+  edges: [NullifierEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input NullifierWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  treeNumber_isNull: Boolean
+  treeNumber_eq: Int
+  treeNumber_not_eq: Int
+  treeNumber_gt: Int
+  treeNumber_gte: Int
+  treeNumber_lt: Int
+  treeNumber_lte: Int
+  treeNumber_in: [Int!]
+  treeNumber_not_in: [Int!]
+  nullifier_isNull: Boolean
+  nullifier_eq: Bytes
+  nullifier_not_eq: Bytes
+  AND: [NullifierWhereInput!]
+  OR: [NullifierWhereInput!]
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String!
+  endCursor: String!
+}
+
+type Query {
+  tokens(where: TokenWhereInput, orderBy: [TokenOrderByInput!], offset: Int, limit: Int): [Token!]!
+  tokenById(id: String!): Token
+  tokensConnection(orderBy: [TokenOrderByInput!]!, after: String, first: Int, where: TokenWhereInput): TokensConnection!
+  commitmentPreimages(where: CommitmentPreimageWhereInput, orderBy: [CommitmentPreimageOrderByInput!], offset: Int, limit: Int): [CommitmentPreimage!]!
+  commitmentPreimageById(id: String!): CommitmentPreimage
+  commitmentPreimagesConnection(orderBy: [CommitmentPreimageOrderByInput!]!, after: String, first: Int, where: CommitmentPreimageWhereInput): CommitmentPreimagesConnection!
+  ciphertexts(where: CiphertextWhereInput, orderBy: [CiphertextOrderByInput!], offset: Int, limit: Int): [Ciphertext!]!
+  ciphertextById(id: String!): Ciphertext
+  ciphertextsConnection(orderBy: [CiphertextOrderByInput!]!, after: String, first: Int, where: CiphertextWhereInput): CiphertextsConnection!
+  legacyCommitmentCiphertexts(where: LegacyCommitmentCiphertextWhereInput, orderBy: [LegacyCommitmentCiphertextOrderByInput!], offset: Int, limit: Int): [LegacyCommitmentCiphertext!]!
+  legacyCommitmentCiphertextById(id: String!): LegacyCommitmentCiphertext
+  legacyCommitmentCiphertextsConnection(orderBy: [LegacyCommitmentCiphertextOrderByInput!]!, after: String, first: Int, where: LegacyCommitmentCiphertextWhereInput): LegacyCommitmentCiphertextsConnection!
+  commitmentCiphertexts(where: CommitmentCiphertextWhereInput, orderBy: [CommitmentCiphertextOrderByInput!], offset: Int, limit: Int): [CommitmentCiphertext!]!
+  commitmentCiphertextById(id: String!): CommitmentCiphertext
+  commitmentCiphertextsConnection(orderBy: [CommitmentCiphertextOrderByInput!]!, after: String, first: Int, where: CommitmentCiphertextWhereInput): CommitmentCiphertextsConnection!
+  legacyGeneratedCommitments(where: LegacyGeneratedCommitmentWhereInput, orderBy: [LegacyGeneratedCommitmentOrderByInput!], offset: Int, limit: Int): [LegacyGeneratedCommitment!]!
+  legacyGeneratedCommitmentById(id: String!): LegacyGeneratedCommitment
+  legacyGeneratedCommitmentsConnection(orderBy: [LegacyGeneratedCommitmentOrderByInput!]!, after: String, first: Int, where: LegacyGeneratedCommitmentWhereInput): LegacyGeneratedCommitmentsConnection!
+  commitments(where: CommitmentWhereInput, orderBy: [CommitmentOrderByInput!], offset: Int, limit: Int): [Commitment!]!
+  commitmentsConnection(orderBy: [CommitmentOrderByInput!]!, after: String, first: Int, where: CommitmentWhereInput): CommitmentsConnection!
+  legacyEncryptedCommitments(where: LegacyEncryptedCommitmentWhereInput, orderBy: [LegacyEncryptedCommitmentOrderByInput!], offset: Int, limit: Int): [LegacyEncryptedCommitment!]!
+  legacyEncryptedCommitmentById(id: String!): LegacyEncryptedCommitment
+  legacyEncryptedCommitmentsConnection(orderBy: [LegacyEncryptedCommitmentOrderByInput!]!, after: String, first: Int, where: LegacyEncryptedCommitmentWhereInput): LegacyEncryptedCommitmentsConnection!
+  shieldCommitments(where: ShieldCommitmentWhereInput, orderBy: [ShieldCommitmentOrderByInput!], offset: Int, limit: Int): [ShieldCommitment!]!
+  shieldCommitmentById(id: String!): ShieldCommitment
+  shieldCommitmentsConnection(orderBy: [ShieldCommitmentOrderByInput!]!, after: String, first: Int, where: ShieldCommitmentWhereInput): ShieldCommitmentsConnection!
+  transactCommitments(where: TransactCommitmentWhereInput, orderBy: [TransactCommitmentOrderByInput!], offset: Int, limit: Int): [TransactCommitment!]!
+  transactCommitmentById(id: String!): TransactCommitment
+  transactCommitmentsConnection(orderBy: [TransactCommitmentOrderByInput!]!, after: String, first: Int, where: TransactCommitmentWhereInput): TransactCommitmentsConnection!
+  unshields(where: UnshieldWhereInput, orderBy: [UnshieldOrderByInput!], offset: Int, limit: Int): [Unshield!]!
+  unshieldById(id: String!): Unshield
+  unshieldsConnection(orderBy: [UnshieldOrderByInput!]!, after: String, first: Int, where: UnshieldWhereInput): UnshieldsConnection!
+  nullifiers(where: NullifierWhereInput, orderBy: [NullifierOrderByInput!], offset: Int, limit: Int): [Nullifier!]!
+  nullifierById(id: String!): Nullifier
+  nullifiersConnection(orderBy: [NullifierOrderByInput!]!, after: String, first: Int, where: NullifierWhereInput): NullifiersConnection!
+  transactions(where: TransactionWhereInput, orderBy: [TransactionOrderByInput!], offset: Int, limit: Int): [Transaction!]!
+  transactionById(id: String!): Transaction
+  transactionsConnection(orderBy: [TransactionOrderByInput!]!, after: String, first: Int, where: TransactionWhereInput): TransactionsConnection!
+  verificationHashes(where: VerificationHashWhereInput, orderBy: [VerificationHashOrderByInput!], offset: Int, limit: Int): [VerificationHash!]!
+  verificationHashById(id: String!): VerificationHash
+  verificationHashesConnection(orderBy: [VerificationHashOrderByInput!]!, after: String, first: Int, where: VerificationHashWhereInput): VerificationHashesConnection!
+  commitmentBatchEventNews(where: CommitmentBatchEventNewWhereInput, orderBy: [CommitmentBatchEventNewOrderByInput!], offset: Int, limit: Int): [CommitmentBatchEventNew!]!
+  commitmentBatchEventNewById(id: String!): CommitmentBatchEventNew
+  commitmentBatchEventNewsConnection(orderBy: [CommitmentBatchEventNewOrderByInput!]!, after: String, first: Int, where: CommitmentBatchEventNewWhereInput): CommitmentBatchEventNewsConnection!
+  squidStatus: SquidStatus
+}
+
+type ShieldCommitment implements Commitment {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  treeNumber: Int!
+  batchStartTreePosition: Int!
+  treePosition: Int!
+  commitmentType: CommitmentType!
+  hash: BigInt!
+  preimage: CommitmentPreimage!
+  encryptedBundle: [Bytes!]!
+  shieldKey: Bytes!
+  fee: BigInt
+}
+
+type ShieldCommitmentEdge {
+  node: ShieldCommitment!
+  cursor: String!
+}
+
+enum ShieldCommitmentOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  batchStartTreePosition_ASC
+  batchStartTreePosition_DESC
+  batchStartTreePosition_ASC_NULLS_FIRST
+  batchStartTreePosition_ASC_NULLS_LAST
+  batchStartTreePosition_DESC_NULLS_FIRST
+  batchStartTreePosition_DESC_NULLS_LAST
+  treePosition_ASC
+  treePosition_DESC
+  treePosition_ASC_NULLS_FIRST
+  treePosition_ASC_NULLS_LAST
+  treePosition_DESC_NULLS_FIRST
+  treePosition_DESC_NULLS_LAST
+  commitmentType_ASC
+  commitmentType_DESC
+  commitmentType_ASC_NULLS_FIRST
+  commitmentType_ASC_NULLS_LAST
+  commitmentType_DESC_NULLS_FIRST
+  commitmentType_DESC_NULLS_LAST
+  hash_ASC
+  hash_DESC
+  hash_ASC_NULLS_FIRST
+  hash_ASC_NULLS_LAST
+  hash_DESC_NULLS_FIRST
+  hash_DESC_NULLS_LAST
+  preimage_id_ASC
+  preimage_id_DESC
+  preimage_id_ASC_NULLS_FIRST
+  preimage_id_ASC_NULLS_LAST
+  preimage_id_DESC_NULLS_FIRST
+  preimage_id_DESC_NULLS_LAST
+  preimage_npk_ASC
+  preimage_npk_DESC
+  preimage_npk_ASC_NULLS_FIRST
+  preimage_npk_ASC_NULLS_LAST
+  preimage_npk_DESC_NULLS_FIRST
+  preimage_npk_DESC_NULLS_LAST
+  preimage_value_ASC
+  preimage_value_DESC
+  preimage_value_ASC_NULLS_FIRST
+  preimage_value_ASC_NULLS_LAST
+  preimage_value_DESC_NULLS_FIRST
+  preimage_value_DESC_NULLS_LAST
+  shieldKey_ASC
+  shieldKey_DESC
+  shieldKey_ASC_NULLS_FIRST
+  shieldKey_ASC_NULLS_LAST
+  shieldKey_DESC_NULLS_FIRST
+  shieldKey_DESC_NULLS_LAST
+  fee_ASC
+  fee_DESC
+  fee_ASC_NULLS_FIRST
+  fee_ASC_NULLS_LAST
+  fee_DESC_NULLS_FIRST
+  fee_DESC_NULLS_LAST
+}
+
+type ShieldCommitmentsConnection {
+  edges: [ShieldCommitmentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input ShieldCommitmentWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  treeNumber_isNull: Boolean
+  treeNumber_eq: Int
+  treeNumber_not_eq: Int
+  treeNumber_gt: Int
+  treeNumber_gte: Int
+  treeNumber_lt: Int
+  treeNumber_lte: Int
+  treeNumber_in: [Int!]
+  treeNumber_not_in: [Int!]
+  batchStartTreePosition_isNull: Boolean
+  batchStartTreePosition_eq: Int
+  batchStartTreePosition_not_eq: Int
+  batchStartTreePosition_gt: Int
+  batchStartTreePosition_gte: Int
+  batchStartTreePosition_lt: Int
+  batchStartTreePosition_lte: Int
+  batchStartTreePosition_in: [Int!]
+  batchStartTreePosition_not_in: [Int!]
+  treePosition_isNull: Boolean
+  treePosition_eq: Int
+  treePosition_not_eq: Int
+  treePosition_gt: Int
+  treePosition_gte: Int
+  treePosition_lt: Int
+  treePosition_lte: Int
+  treePosition_in: [Int!]
+  treePosition_not_in: [Int!]
+  commitmentType_isNull: Boolean
+  commitmentType_eq: CommitmentType
+  commitmentType_not_eq: CommitmentType
+  commitmentType_in: [CommitmentType!]
+  commitmentType_not_in: [CommitmentType!]
+  hash_isNull: Boolean
+  hash_eq: BigInt
+  hash_not_eq: BigInt
+  hash_gt: BigInt
+  hash_gte: BigInt
+  hash_lt: BigInt
+  hash_lte: BigInt
+  hash_in: [BigInt!]
+  hash_not_in: [BigInt!]
+  preimage_isNull: Boolean
+  preimage: CommitmentPreimageWhereInput
+  encryptedBundle_isNull: Boolean
+  encryptedBundle_containsAll: [Bytes!]
+  encryptedBundle_containsAny: [Bytes!]
+  encryptedBundle_containsNone: [Bytes!]
+  shieldKey_isNull: Boolean
+  shieldKey_eq: Bytes
+  shieldKey_not_eq: Bytes
+  fee_isNull: Boolean
+  fee_eq: BigInt
+  fee_not_eq: BigInt
+  fee_gt: BigInt
+  fee_gte: BigInt
+  fee_lt: BigInt
+  fee_lte: BigInt
+  fee_in: [BigInt!]
+  fee_not_in: [BigInt!]
+  AND: [ShieldCommitmentWhereInput!]
+  OR: [ShieldCommitmentWhereInput!]
+}
+
+type SquidStatus {
+  # The height of the processed part of the chain
+  height: Int
+}
+
+type Token {
+  id: String!
+  tokenType: TokenType!
+  tokenAddress: Bytes!
+  tokenSubID: String!
+}
+
+type TokenEdge {
+  node: Token!
+  cursor: String!
+}
+
+enum TokenOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  tokenType_ASC
+  tokenType_DESC
+  tokenType_ASC_NULLS_FIRST
+  tokenType_ASC_NULLS_LAST
+  tokenType_DESC_NULLS_FIRST
+  tokenType_DESC_NULLS_LAST
+  tokenAddress_ASC
+  tokenAddress_DESC
+  tokenAddress_ASC_NULLS_FIRST
+  tokenAddress_ASC_NULLS_LAST
+  tokenAddress_DESC_NULLS_FIRST
+  tokenAddress_DESC_NULLS_LAST
+  tokenSubID_ASC
+  tokenSubID_DESC
+  tokenSubID_ASC_NULLS_FIRST
+  tokenSubID_ASC_NULLS_LAST
+  tokenSubID_DESC_NULLS_FIRST
+  tokenSubID_DESC_NULLS_LAST
+}
+
+type TokensConnection {
+  edges: [TokenEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+enum TokenType {
+  ERC20
+  ERC721
+  ERC1155
+}
+
+input TokenWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  tokenType_isNull: Boolean
+  tokenType_eq: TokenType
+  tokenType_not_eq: TokenType
+  tokenType_in: [TokenType!]
+  tokenType_not_in: [TokenType!]
+  tokenAddress_isNull: Boolean
+  tokenAddress_eq: Bytes
+  tokenAddress_not_eq: Bytes
+  tokenSubID_isNull: Boolean
+  tokenSubID_eq: String
+  tokenSubID_not_eq: String
+  tokenSubID_gt: String
+  tokenSubID_gte: String
+  tokenSubID_lt: String
+  tokenSubID_lte: String
+  tokenSubID_in: [String!]
+  tokenSubID_not_in: [String!]
+  tokenSubID_contains: String
+  tokenSubID_not_contains: String
+  tokenSubID_containsInsensitive: String
+  tokenSubID_not_containsInsensitive: String
+  tokenSubID_startsWith: String
+  tokenSubID_not_startsWith: String
+  tokenSubID_endsWith: String
+  tokenSubID_not_endsWith: String
+  AND: [TokenWhereInput!]
+  OR: [TokenWhereInput!]
+}
+
+type TransactCommitment implements Commitment {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  treeNumber: Int!
+  batchStartTreePosition: Int!
+  treePosition: Int!
+  commitmentType: CommitmentType!
+  hash: BigInt!
+  ciphertext: CommitmentCiphertext!
+}
+
+type TransactCommitmentEdge {
+  node: TransactCommitment!
+  cursor: String!
+}
+
+enum TransactCommitmentOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  treeNumber_ASC
+  treeNumber_DESC
+  treeNumber_ASC_NULLS_FIRST
+  treeNumber_ASC_NULLS_LAST
+  treeNumber_DESC_NULLS_FIRST
+  treeNumber_DESC_NULLS_LAST
+  batchStartTreePosition_ASC
+  batchStartTreePosition_DESC
+  batchStartTreePosition_ASC_NULLS_FIRST
+  batchStartTreePosition_ASC_NULLS_LAST
+  batchStartTreePosition_DESC_NULLS_FIRST
+  batchStartTreePosition_DESC_NULLS_LAST
+  treePosition_ASC
+  treePosition_DESC
+  treePosition_ASC_NULLS_FIRST
+  treePosition_ASC_NULLS_LAST
+  treePosition_DESC_NULLS_FIRST
+  treePosition_DESC_NULLS_LAST
+  commitmentType_ASC
+  commitmentType_DESC
+  commitmentType_ASC_NULLS_FIRST
+  commitmentType_ASC_NULLS_LAST
+  commitmentType_DESC_NULLS_FIRST
+  commitmentType_DESC_NULLS_LAST
+  hash_ASC
+  hash_DESC
+  hash_ASC_NULLS_FIRST
+  hash_ASC_NULLS_LAST
+  hash_DESC_NULLS_FIRST
+  hash_DESC_NULLS_LAST
+  ciphertext_id_ASC
+  ciphertext_id_DESC
+  ciphertext_id_ASC_NULLS_FIRST
+  ciphertext_id_ASC_NULLS_LAST
+  ciphertext_id_DESC_NULLS_FIRST
+  ciphertext_id_DESC_NULLS_LAST
+  ciphertext_blindedSenderViewingKey_ASC
+  ciphertext_blindedSenderViewingKey_DESC
+  ciphertext_blindedSenderViewingKey_ASC_NULLS_FIRST
+  ciphertext_blindedSenderViewingKey_ASC_NULLS_LAST
+  ciphertext_blindedSenderViewingKey_DESC_NULLS_FIRST
+  ciphertext_blindedSenderViewingKey_DESC_NULLS_LAST
+  ciphertext_blindedReceiverViewingKey_ASC
+  ciphertext_blindedReceiverViewingKey_DESC
+  ciphertext_blindedReceiverViewingKey_ASC_NULLS_FIRST
+  ciphertext_blindedReceiverViewingKey_ASC_NULLS_LAST
+  ciphertext_blindedReceiverViewingKey_DESC_NULLS_FIRST
+  ciphertext_blindedReceiverViewingKey_DESC_NULLS_LAST
+  ciphertext_annotationData_ASC
+  ciphertext_annotationData_DESC
+  ciphertext_annotationData_ASC_NULLS_FIRST
+  ciphertext_annotationData_ASC_NULLS_LAST
+  ciphertext_annotationData_DESC_NULLS_FIRST
+  ciphertext_annotationData_DESC_NULLS_LAST
+  ciphertext_memo_ASC
+  ciphertext_memo_DESC
+  ciphertext_memo_ASC_NULLS_FIRST
+  ciphertext_memo_ASC_NULLS_LAST
+  ciphertext_memo_DESC_NULLS_FIRST
+  ciphertext_memo_DESC_NULLS_LAST
+}
+
+type TransactCommitmentsConnection {
+  edges: [TransactCommitmentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input TransactCommitmentWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  treeNumber_isNull: Boolean
+  treeNumber_eq: Int
+  treeNumber_not_eq: Int
+  treeNumber_gt: Int
+  treeNumber_gte: Int
+  treeNumber_lt: Int
+  treeNumber_lte: Int
+  treeNumber_in: [Int!]
+  treeNumber_not_in: [Int!]
+  batchStartTreePosition_isNull: Boolean
+  batchStartTreePosition_eq: Int
+  batchStartTreePosition_not_eq: Int
+  batchStartTreePosition_gt: Int
+  batchStartTreePosition_gte: Int
+  batchStartTreePosition_lt: Int
+  batchStartTreePosition_lte: Int
+  batchStartTreePosition_in: [Int!]
+  batchStartTreePosition_not_in: [Int!]
+  treePosition_isNull: Boolean
+  treePosition_eq: Int
+  treePosition_not_eq: Int
+  treePosition_gt: Int
+  treePosition_gte: Int
+  treePosition_lt: Int
+  treePosition_lte: Int
+  treePosition_in: [Int!]
+  treePosition_not_in: [Int!]
+  commitmentType_isNull: Boolean
+  commitmentType_eq: CommitmentType
+  commitmentType_not_eq: CommitmentType
+  commitmentType_in: [CommitmentType!]
+  commitmentType_not_in: [CommitmentType!]
+  hash_isNull: Boolean
+  hash_eq: BigInt
+  hash_not_eq: BigInt
+  hash_gt: BigInt
+  hash_gte: BigInt
+  hash_lt: BigInt
+  hash_lte: BigInt
+  hash_in: [BigInt!]
+  hash_not_in: [BigInt!]
+  ciphertext_isNull: Boolean
+  ciphertext: CommitmentCiphertextWhereInput
+  AND: [TransactCommitmentWhereInput!]
+  OR: [TransactCommitmentWhereInput!]
+}
+
+type Transaction implements TransactionInterface {
+  id: String!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  merkleRoot: Bytes!
+  nullifiers: [Bytes!]!
+  commitments: [Bytes!]!
+  boundParamsHash: Bytes!
+  hasUnshield: Boolean!
+  utxoTreeIn: BigInt!
+  utxoTreeOut: BigInt!
+  utxoBatchStartPositionOut: BigInt!
+  unshieldToken: Token!
+  unshieldToAddress: Bytes!
+  unshieldValue: BigInt!
+  blockTimestamp: BigInt!
+  verificationHash: Bytes!
+}
+
+type TransactionEdge {
+  node: Transaction!
+  cursor: String!
+}
+
+interface TransactionInterface {
+  id: String!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  merkleRoot: Bytes!
+  nullifiers: [Bytes!]!
+  commitments: [Bytes!]!
+  boundParamsHash: Bytes!
+  hasUnshield: Boolean!
+  utxoTreeIn: BigInt!
+  utxoTreeOut: BigInt!
+  utxoBatchStartPositionOut: BigInt!
+  unshieldToken: Token!
+  unshieldToAddress: Bytes!
+  unshieldValue: BigInt!
+  blockTimestamp: BigInt!
+  verificationHash: Bytes!
+}
+
+enum TransactionOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  merkleRoot_ASC
+  merkleRoot_DESC
+  merkleRoot_ASC_NULLS_FIRST
+  merkleRoot_ASC_NULLS_LAST
+  merkleRoot_DESC_NULLS_FIRST
+  merkleRoot_DESC_NULLS_LAST
+  boundParamsHash_ASC
+  boundParamsHash_DESC
+  boundParamsHash_ASC_NULLS_FIRST
+  boundParamsHash_ASC_NULLS_LAST
+  boundParamsHash_DESC_NULLS_FIRST
+  boundParamsHash_DESC_NULLS_LAST
+  hasUnshield_ASC
+  hasUnshield_DESC
+  hasUnshield_ASC_NULLS_FIRST
+  hasUnshield_ASC_NULLS_LAST
+  hasUnshield_DESC_NULLS_FIRST
+  hasUnshield_DESC_NULLS_LAST
+  utxoTreeIn_ASC
+  utxoTreeIn_DESC
+  utxoTreeIn_ASC_NULLS_FIRST
+  utxoTreeIn_ASC_NULLS_LAST
+  utxoTreeIn_DESC_NULLS_FIRST
+  utxoTreeIn_DESC_NULLS_LAST
+  utxoTreeOut_ASC
+  utxoTreeOut_DESC
+  utxoTreeOut_ASC_NULLS_FIRST
+  utxoTreeOut_ASC_NULLS_LAST
+  utxoTreeOut_DESC_NULLS_FIRST
+  utxoTreeOut_DESC_NULLS_LAST
+  utxoBatchStartPositionOut_ASC
+  utxoBatchStartPositionOut_DESC
+  utxoBatchStartPositionOut_ASC_NULLS_FIRST
+  utxoBatchStartPositionOut_ASC_NULLS_LAST
+  utxoBatchStartPositionOut_DESC_NULLS_FIRST
+  utxoBatchStartPositionOut_DESC_NULLS_LAST
+  unshieldToken_id_ASC
+  unshieldToken_id_DESC
+  unshieldToken_id_ASC_NULLS_FIRST
+  unshieldToken_id_ASC_NULLS_LAST
+  unshieldToken_id_DESC_NULLS_FIRST
+  unshieldToken_id_DESC_NULLS_LAST
+  unshieldToken_tokenType_ASC
+  unshieldToken_tokenType_DESC
+  unshieldToken_tokenType_ASC_NULLS_FIRST
+  unshieldToken_tokenType_ASC_NULLS_LAST
+  unshieldToken_tokenType_DESC_NULLS_FIRST
+  unshieldToken_tokenType_DESC_NULLS_LAST
+  unshieldToken_tokenAddress_ASC
+  unshieldToken_tokenAddress_DESC
+  unshieldToken_tokenAddress_ASC_NULLS_FIRST
+  unshieldToken_tokenAddress_ASC_NULLS_LAST
+  unshieldToken_tokenAddress_DESC_NULLS_FIRST
+  unshieldToken_tokenAddress_DESC_NULLS_LAST
+  unshieldToken_tokenSubID_ASC
+  unshieldToken_tokenSubID_DESC
+  unshieldToken_tokenSubID_ASC_NULLS_FIRST
+  unshieldToken_tokenSubID_ASC_NULLS_LAST
+  unshieldToken_tokenSubID_DESC_NULLS_FIRST
+  unshieldToken_tokenSubID_DESC_NULLS_LAST
+  unshieldToAddress_ASC
+  unshieldToAddress_DESC
+  unshieldToAddress_ASC_NULLS_FIRST
+  unshieldToAddress_ASC_NULLS_LAST
+  unshieldToAddress_DESC_NULLS_FIRST
+  unshieldToAddress_DESC_NULLS_LAST
+  unshieldValue_ASC
+  unshieldValue_DESC
+  unshieldValue_ASC_NULLS_FIRST
+  unshieldValue_ASC_NULLS_LAST
+  unshieldValue_DESC_NULLS_FIRST
+  unshieldValue_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  verificationHash_ASC
+  verificationHash_DESC
+  verificationHash_ASC_NULLS_FIRST
+  verificationHash_ASC_NULLS_LAST
+  verificationHash_DESC_NULLS_FIRST
+  verificationHash_DESC_NULLS_LAST
+}
+
+type TransactionsConnection {
+  edges: [TransactionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input TransactionWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  merkleRoot_isNull: Boolean
+  merkleRoot_eq: Bytes
+  merkleRoot_not_eq: Bytes
+  nullifiers_isNull: Boolean
+  nullifiers_containsAll: [Bytes!]
+  nullifiers_containsAny: [Bytes!]
+  nullifiers_containsNone: [Bytes!]
+  commitments_isNull: Boolean
+  commitments_containsAll: [Bytes!]
+  commitments_containsAny: [Bytes!]
+  commitments_containsNone: [Bytes!]
+  boundParamsHash_isNull: Boolean
+  boundParamsHash_eq: Bytes
+  boundParamsHash_not_eq: Bytes
+  hasUnshield_isNull: Boolean
+  hasUnshield_eq: Boolean
+  hasUnshield_not_eq: Boolean
+  utxoTreeIn_isNull: Boolean
+  utxoTreeIn_eq: BigInt
+  utxoTreeIn_not_eq: BigInt
+  utxoTreeIn_gt: BigInt
+  utxoTreeIn_gte: BigInt
+  utxoTreeIn_lt: BigInt
+  utxoTreeIn_lte: BigInt
+  utxoTreeIn_in: [BigInt!]
+  utxoTreeIn_not_in: [BigInt!]
+  utxoTreeOut_isNull: Boolean
+  utxoTreeOut_eq: BigInt
+  utxoTreeOut_not_eq: BigInt
+  utxoTreeOut_gt: BigInt
+  utxoTreeOut_gte: BigInt
+  utxoTreeOut_lt: BigInt
+  utxoTreeOut_lte: BigInt
+  utxoTreeOut_in: [BigInt!]
+  utxoTreeOut_not_in: [BigInt!]
+  utxoBatchStartPositionOut_isNull: Boolean
+  utxoBatchStartPositionOut_eq: BigInt
+  utxoBatchStartPositionOut_not_eq: BigInt
+  utxoBatchStartPositionOut_gt: BigInt
+  utxoBatchStartPositionOut_gte: BigInt
+  utxoBatchStartPositionOut_lt: BigInt
+  utxoBatchStartPositionOut_lte: BigInt
+  utxoBatchStartPositionOut_in: [BigInt!]
+  utxoBatchStartPositionOut_not_in: [BigInt!]
+  unshieldToken_isNull: Boolean
+  unshieldToken: TokenWhereInput
+  unshieldToAddress_isNull: Boolean
+  unshieldToAddress_eq: Bytes
+  unshieldToAddress_not_eq: Bytes
+  unshieldValue_isNull: Boolean
+  unshieldValue_eq: BigInt
+  unshieldValue_not_eq: BigInt
+  unshieldValue_gt: BigInt
+  unshieldValue_gte: BigInt
+  unshieldValue_lt: BigInt
+  unshieldValue_lte: BigInt
+  unshieldValue_in: [BigInt!]
+  unshieldValue_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  verificationHash_isNull: Boolean
+  verificationHash_eq: Bytes
+  verificationHash_not_eq: Bytes
+  AND: [TransactionWhereInput!]
+  OR: [TransactionWhereInput!]
+}
+
+type Unshield {
+  id: String!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  to: Bytes!
+  token: Token!
+  amount: BigInt!
+  fee: BigInt!
+  eventLogIndex: BigInt!
+}
+
+type UnshieldEdge {
+  node: Unshield!
+  cursor: String!
+}
+
+enum UnshieldOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  blockNumber_ASC
+  blockNumber_DESC
+  blockNumber_ASC_NULLS_FIRST
+  blockNumber_ASC_NULLS_LAST
+  blockNumber_DESC_NULLS_FIRST
+  blockNumber_DESC_NULLS_LAST
+  blockTimestamp_ASC
+  blockTimestamp_DESC
+  blockTimestamp_ASC_NULLS_FIRST
+  blockTimestamp_ASC_NULLS_LAST
+  blockTimestamp_DESC_NULLS_FIRST
+  blockTimestamp_DESC_NULLS_LAST
+  transactionHash_ASC
+  transactionHash_DESC
+  transactionHash_ASC_NULLS_FIRST
+  transactionHash_ASC_NULLS_LAST
+  transactionHash_DESC_NULLS_FIRST
+  transactionHash_DESC_NULLS_LAST
+  to_ASC
+  to_DESC
+  to_ASC_NULLS_FIRST
+  to_ASC_NULLS_LAST
+  to_DESC_NULLS_FIRST
+  to_DESC_NULLS_LAST
+  token_id_ASC
+  token_id_DESC
+  token_id_ASC_NULLS_FIRST
+  token_id_ASC_NULLS_LAST
+  token_id_DESC_NULLS_FIRST
+  token_id_DESC_NULLS_LAST
+  token_tokenType_ASC
+  token_tokenType_DESC
+  token_tokenType_ASC_NULLS_FIRST
+  token_tokenType_ASC_NULLS_LAST
+  token_tokenType_DESC_NULLS_FIRST
+  token_tokenType_DESC_NULLS_LAST
+  token_tokenAddress_ASC
+  token_tokenAddress_DESC
+  token_tokenAddress_ASC_NULLS_FIRST
+  token_tokenAddress_ASC_NULLS_LAST
+  token_tokenAddress_DESC_NULLS_FIRST
+  token_tokenAddress_DESC_NULLS_LAST
+  token_tokenSubID_ASC
+  token_tokenSubID_DESC
+  token_tokenSubID_ASC_NULLS_FIRST
+  token_tokenSubID_ASC_NULLS_LAST
+  token_tokenSubID_DESC_NULLS_FIRST
+  token_tokenSubID_DESC_NULLS_LAST
+  amount_ASC
+  amount_DESC
+  amount_ASC_NULLS_FIRST
+  amount_ASC_NULLS_LAST
+  amount_DESC_NULLS_FIRST
+  amount_DESC_NULLS_LAST
+  fee_ASC
+  fee_DESC
+  fee_ASC_NULLS_FIRST
+  fee_ASC_NULLS_LAST
+  fee_DESC_NULLS_FIRST
+  fee_DESC_NULLS_LAST
+  eventLogIndex_ASC
+  eventLogIndex_DESC
+  eventLogIndex_ASC_NULLS_FIRST
+  eventLogIndex_ASC_NULLS_LAST
+  eventLogIndex_DESC_NULLS_FIRST
+  eventLogIndex_DESC_NULLS_LAST
+}
+
+type UnshieldsConnection {
+  edges: [UnshieldEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input UnshieldWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  blockNumber_isNull: Boolean
+  blockNumber_eq: BigInt
+  blockNumber_not_eq: BigInt
+  blockNumber_gt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_lte: BigInt
+  blockNumber_in: [BigInt!]
+  blockNumber_not_in: [BigInt!]
+  blockTimestamp_isNull: Boolean
+  blockTimestamp_eq: BigInt
+  blockTimestamp_not_eq: BigInt
+  blockTimestamp_gt: BigInt
+  blockTimestamp_gte: BigInt
+  blockTimestamp_lt: BigInt
+  blockTimestamp_lte: BigInt
+  blockTimestamp_in: [BigInt!]
+  blockTimestamp_not_in: [BigInt!]
+  transactionHash_isNull: Boolean
+  transactionHash_eq: Bytes
+  transactionHash_not_eq: Bytes
+  to_isNull: Boolean
+  to_eq: Bytes
+  to_not_eq: Bytes
+  token_isNull: Boolean
+  token: TokenWhereInput
+  amount_isNull: Boolean
+  amount_eq: BigInt
+  amount_not_eq: BigInt
+  amount_gt: BigInt
+  amount_gte: BigInt
+  amount_lt: BigInt
+  amount_lte: BigInt
+  amount_in: [BigInt!]
+  amount_not_in: [BigInt!]
+  fee_isNull: Boolean
+  fee_eq: BigInt
+  fee_not_eq: BigInt
+  fee_gt: BigInt
+  fee_gte: BigInt
+  fee_lt: BigInt
+  fee_lte: BigInt
+  fee_in: [BigInt!]
+  fee_not_in: [BigInt!]
+  eventLogIndex_isNull: Boolean
+  eventLogIndex_eq: BigInt
+  eventLogIndex_not_eq: BigInt
+  eventLogIndex_gt: BigInt
+  eventLogIndex_gte: BigInt
+  eventLogIndex_lt: BigInt
+  eventLogIndex_lte: BigInt
+  eventLogIndex_in: [BigInt!]
+  eventLogIndex_not_in: [BigInt!]
+  AND: [UnshieldWhereInput!]
+  OR: [UnshieldWhereInput!]
+}
+
+type VerificationHash {
+  id: String!
+  verificationHash: Bytes!
+}
+
+type VerificationHashEdge {
+  node: VerificationHash!
+  cursor: String!
+}
+
+type VerificationHashesConnection {
+  edges: [VerificationHashEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+enum VerificationHashOrderByInput {
+  id_ASC
+  id_DESC
+  id_ASC_NULLS_FIRST
+  id_ASC_NULLS_LAST
+  id_DESC_NULLS_FIRST
+  id_DESC_NULLS_LAST
+  verificationHash_ASC
+  verificationHash_DESC
+  verificationHash_ASC_NULLS_FIRST
+  verificationHash_ASC_NULLS_LAST
+  verificationHash_DESC_NULLS_FIRST
+  verificationHash_DESC_NULLS_LAST
+}
+
+input VerificationHashWhereInput {
+  id_isNull: Boolean
+  id_eq: String
+  id_not_eq: String
+  id_gt: String
+  id_gte: String
+  id_lt: String
+  id_lte: String
+  id_in: [String!]
+  id_not_in: [String!]
+  id_contains: String
+  id_not_contains: String
+  id_containsInsensitive: String
+  id_not_containsInsensitive: String
+  id_startsWith: String
+  id_not_startsWith: String
+  id_endsWith: String
+  id_not_endsWith: String
+  verificationHash_isNull: Boolean
+  verificationHash_eq: Bytes
+  verificationHash_not_eq: Bytes
+  AND: [VerificationHashWhereInput!]
+  OR: [VerificationHashWhereInput!]
+}
+

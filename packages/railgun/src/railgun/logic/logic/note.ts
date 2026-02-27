@@ -1,3 +1,4 @@
+import { toHex } from 'viem';
 import {
   bigIntToArray,
   hexStringToArray,
@@ -271,6 +272,17 @@ class Note {
     return edBabyJubJub.signPoseidon(key, sighash);
   }
 
+  async signRaw(message: Uint8Array<ArrayBufferLike>[]): Promise<[Uint8Array, Uint8Array, Uint8Array]> {
+    const key = this.spendingKey;
+
+    console.log("message", message.map(m => toHex(m)));
+    const sighash = await hash.poseidon(message);
+    console.log("key", toHex(key));
+    console.log("sighash", toHex(sighash));
+
+    return edBabyJubJub.signPoseidon(key, sighash);
+  }
+
   /**
    * Gets commitment preimage
    *
@@ -358,6 +370,8 @@ class Note {
       blindedKeys.blindedReceiverPublicKey,
     );
 
+    console.log("sharedKey", toHex(sharedKey));
+
     // Encode memo text
     const memo = new TextEncoder().encode(this.memo);
 
@@ -371,6 +385,8 @@ class Note {
       ],
       sharedKey,
     );
+
+    console.log("encryptedSharedBundle", encryptedSharedBundle.map(b => toHex(b!)));
 
     // Encrypt sender ciphertext
     const encryptedSenderBundle = await aes.ctr.encrypt(
@@ -454,7 +470,7 @@ class Note {
     // Try to decrypt encrypted shared bundle
     try {
       // Get shared key
-      const sharedKey = ed25519.getSharedKey(viewingKey, encrypted.blindedSenderViewingKey);
+      const sharedKey = ed25519.getSharedKey(viewingKey, encrypted.blindedReceiverViewingKey);
 
       // Decrypt
       sharedBundle = await aes.gcm.decrypt(encryptedSharedBundle, sharedKey);
@@ -472,7 +488,7 @@ class Note {
     }
 
     // Decode tokenData
-    const tokenData = two.length >= 96 ? {tokenType: Number(arrayToBigInt(two.slice(0, 32)).toString()), tokenAddress: arrayToHexString(two.slice(44, 64), true), tokenSubID: arrayToBigInt(two.slice(64, 96))} : {tokenType: 0, tokenAddress: arrayToHexString(two.slice(12, 32), true), tokenSubID: BigInt(0)};
+    const tokenData = two.length >= 96 ? { tokenType: Number(arrayToBigInt(two.slice(0, 32)).toString()), tokenAddress: arrayToHexString(two.slice(44, 64), true), tokenSubID: arrayToBigInt(two.slice(64, 96)) } : { tokenType: 0, tokenAddress: arrayToHexString(two.slice(12, 32), true), tokenSubID: BigInt(0) };
 
     // Construct note
     const note = new Note(
@@ -644,77 +660,77 @@ class SendNote {
     return hash.poseidon([bigIntToArray(this.masterPublicKey, 32), arrayToByteLength(this.random, 32)]);
   }
 
-/**
-   * Generates encrypted commitment bundle
-   *
-   * @param senderViewingPrivateKey - sender's viewing private key
-   * @param blind - blind sender from receiver
-   * @returns Ciphertext
-   */
-async encrypt(
-  senderViewingPrivateKey: Uint8Array,
-  blind: boolean,
-): Promise<CommitmentCiphertext> {
-  // For contract tests always use output type of 0
-  const outputType = 0n;
+  /**
+     * Generates encrypted commitment bundle
+     *
+     * @param senderViewingPrivateKey - sender's viewing private key
+     * @param blind - blind sender from receiver
+     * @returns Ciphertext
+     */
+  async encrypt(
+    senderViewingPrivateKey: Uint8Array,
+    blind: boolean,
+  ): Promise<CommitmentCiphertext> {
+    // For contract tests always use output type of 0
+    const outputType = 0n;
 
-  // For contract tests always use this fixed application identifier
-  const applicationIdentifier = railgunBase37.encode('railgun tests');
+    // For contract tests always use this fixed application identifier
+    const applicationIdentifier = railgunBase37.encode('railgun tests');
 
-  // Get sender public key
-  const senderViewingPublicKey = await ed25519.privateKeyToPublicKey(senderViewingPrivateKey);
+    // Get sender public key
+    const senderViewingPublicKey = await ed25519.privateKeyToPublicKey(senderViewingPrivateKey);
 
-  // Get sender random, set to 0 is not blinding
-  const senderRandom = blind ? randomBytes(15) : new Uint8Array(15);
+    // Get sender random, set to 0 is not blinding
+    const senderRandom = blind ? randomBytes(15) : new Uint8Array(15);
 
-  // Blind keys
-  const blindedKeys = ed25519.railgunKeyExchange.blindKeys(
-    senderViewingPublicKey,
-    this.viewingPublicKey,
-    this.random,
-    senderRandom,
-  );
+    // Blind keys
+    const blindedKeys = ed25519.railgunKeyExchange.blindKeys(
+      senderViewingPublicKey,
+      this.viewingPublicKey,
+      this.random,
+      senderRandom,
+    );
 
-  // Get shared key
-  const sharedKey = ed25519.getSharedKey(
-    senderViewingPrivateKey,
-    blindedKeys.blindedReceiverPublicKey,
-  );
+    // Get shared key
+    const sharedKey = ed25519.getSharedKey(
+      senderViewingPrivateKey,
+      blindedKeys.blindedReceiverPublicKey,
+    );
 
-  // Encode memo text
-  const memo = new TextEncoder().encode(this.memo);
+    // Encode memo text
+    const memo = new TextEncoder().encode(this.memo);
 
-  // Encrypt shared ciphertext
-  const encryptedSharedBundle = await aes.gcm.encrypt(
-    [
-      bigIntToArray(this.masterPublicKey, 32),
-      combine([this.random, bigIntToArray(this.value, 16)]),
-      this.getTokenID(),
-      memo,
-    ],
-    sharedKey,
-  );
+    // Encrypt shared ciphertext
+    const encryptedSharedBundle = await aes.gcm.encrypt(
+      [
+        bigIntToArray(this.masterPublicKey, 32),
+        combine([this.random, bigIntToArray(this.value, 16)]),
+        this.getTokenID(),
+        memo,
+      ],
+      sharedKey,
+    );
 
-  // Encrypt sender ciphertext
-  const encryptedSenderBundle = await aes.ctr.encrypt(
-    [combine([bigIntToArray(outputType, 1), senderRandom, applicationIdentifier])],
-    senderViewingPrivateKey,
-  );
+    // Encrypt sender ciphertext
+    const encryptedSenderBundle = await aes.ctr.encrypt(
+      [combine([bigIntToArray(outputType, 1), senderRandom, applicationIdentifier])],
+      senderViewingPrivateKey,
+    );
 
-  // Return formatted commitment bundle
-  return {
-    ciphertext: [
-      encryptedSharedBundle[0]!,
-      encryptedSharedBundle[1]!,
-      encryptedSharedBundle[2]!,
-      encryptedSharedBundle[3]!,
-    ],
-    blindedSenderViewingKey: blindedKeys.blindedSenderPublicKey,
-    blindedReceiverViewingKey: blindedKeys.blindedReceiverPublicKey,
-    annotationData: combine(encryptedSenderBundle),
-    memo: encryptedSharedBundle[4]!,
-  };
-}
+    // Return formatted commitment bundle
+    return {
+      ciphertext: [
+        encryptedSharedBundle[0]!,
+        encryptedSharedBundle[1]!,
+        encryptedSharedBundle[2]!,
+        encryptedSharedBundle[3]!,
+      ],
+      blindedSenderViewingKey: blindedKeys.blindedSenderPublicKey,
+      blindedReceiverViewingKey: blindedKeys.blindedReceiverPublicKey,
+      annotationData: combine(encryptedSenderBundle),
+      memo: encryptedSharedBundle[4]!,
+    };
+  }
 
   /**
    * Gets token ID from token data

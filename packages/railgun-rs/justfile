@@ -1,0 +1,28 @@
+fork_url := env_var("RPC_URL_MAINNET")
+fork_block := "24379760"
+
+wasm:
+    wasm-pack build --target nodejs ../../crates/railgun-rs --out-dir ../../packages/railgun-js/src/pkg --no-default-features --features wasm,poi
+
+integration-sync-utxo:
+    pnpm vitest run -t "sync-utxo"
+
+integration-transact:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Start anvil in background
+    anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --load-state ../../crates/railgun-rs/tests/fixtures/state.json &
+    ANVIL_PID=$!
+    trap "kill $ANVIL_PID 2>/dev/null" EXIT
+
+    # Wait for anvil to be ready
+    sleep 2
+
+    pnpm vitest run -t "transact-utxo"
+
+integration-transact-poi:
+    pnpm vitest run -t "transact-poi"
+
+anvil:
+    anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --auto-impersonate --load-state ../../crates/railgun-rs/tests/fixtures/state.json

@@ -1,0 +1,5 @@
+query BlockNumberQuery {
+  transactions(orderBy: blockNumber_DESC, limit: 1) {
+    blockNumber
+  }
+}

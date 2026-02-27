@@ -1,0 +1,22 @@
+{
+  "name": "@kohaku-eth/railgun-js",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {},
+  "dependencies": {
+    "@waku/sdk": "^0.0.36",
+    "snarkjs": "^0.7.6",
+    "viem": "^2.45.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "@types/snarkjs": "^0.7.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0"
+}

@@ -1,0 +1,6 @@
+---
+source: railgun-rs/src/railgun/note/utxo.rs
+assertion_line: 351
+expression: nullifying_key
+---
+11044075259344817595544633535096475825354771420816801683721629142825992460598

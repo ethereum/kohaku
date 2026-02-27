@@ -1,0 +1,68 @@
+[package]
+name = "tc-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["wasm", "broadcaster"]
+native = []
+broadcaster = ["dep:reqwest", "dep:tokio"]
+wasm = [
+    "wasm-bindgen-futures",
+    "js-sys",
+    "serde-wasm-bindgen",
+    "console_error_panic_hook",
+    "getrandom_02",
+    "getrandom/wasm_js",
+    "tracing-wasm",
+    "gloo-timers",
+    "prover/wasm",
+]
+
+[dependencies]
+alloy = { workspace = true }
+alloy-sol-types = { workspace = true }
+alloy-contract = { workspace = true }
+ark-bn254 = { workspace = true }
+ark-ff = { workspace = true }
+crypto = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+ruint = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+ark-relations = { workspace = true }
+prover = { workspace = true }
+num-bigint = { workspace = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+serde-wasm-bindgen = { workspace = true, optional = true }
+console_error_panic_hook = { workspace = true, optional = true }
+tracing-wasm = { workspace = true, optional = true }
+gloo-timers = { workspace = true, features = ["futures"], optional = true }
+tsify = { workspace = true }
+wasm-bindgen = { workspace = true }
+getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
+getrandom_02 = { package = "getrandom", version = "0.2", features = [
+    "js",
+], optional = true }
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["time"] }
+web-time = { workspace = true, features = ["serde"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tracing-test = { workspace = true }
+tracing-subscriber = { workspace = true }
+insta = { workspace = true }
+rand_chacha = { workspace = true }
+tokio = { workspace = true }

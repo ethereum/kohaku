@@ -1,6 +1,7 @@
 import { encodeAddress } from '~/railgun/lib/key-derivation/bech32';
 import { DerivedKeys, deriveKeys, KeyConfig } from '../keys';
 import { ACCOUNT_CHAIN_ID, ACCOUNT_VERSION } from '~/config';
+import { toHex } from 'viem';
 
 export type RailgunAddress = `0zk${string}`;
 
@@ -11,6 +12,7 @@ export type GetRailgunAddressFnParams = Pick<DerivedKeys, 'master' | 'viewing'>;
 
 export const makeGetRailgunAddress = ({ master, viewing }: GetRailgunAddressFnParams): GetRailgunAddressFn => async () => {
     const { pubkey: viewingPublicKey } = await viewing.getViewingKeyPair();
+    console.log('viewingPublicKey', toHex(viewingPublicKey));
 
     return encodeAddress({
         masterPublicKey: master,

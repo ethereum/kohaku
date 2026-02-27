@@ -1,0 +1,86 @@
+[package]
+name = "railgun-rs"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.graphql]
+scalars = { "BigInt" = "U256", "Bytes" = "Bytes" }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["native", "poi"]
+native = ["wasmer", "ark-circom", "reqwest/rustls"]
+wasm = [
+    "wasm-bindgen-futures",
+    "js-sys",
+    "serde-wasm-bindgen",
+    "console_error_panic_hook",
+    "getrandom_02",
+    "getrandom/wasm_js",
+    "tracing-wasm",
+    "gloo-timers",
+]
+poi = []
+
+[dependencies]
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+alloy = { workspace = true }
+alloy-contract = { workspace = true }
+alloy-sol-types = { workspace = true }
+ark-bn254 = { workspace = true }
+ark-circom = { workspace = true, optional = true }
+ark-ff = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-relations = { workspace = true }
+ark-std = { workspace = true }
+async-trait = { workspace = true }
+bech32 = { workspace = true }
+console_error_panic_hook = { workspace = true, optional = true }
+ctr = { workspace = true }
+crypto = { workspace = true }
+curve25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true }
+futures = { workspace = true }
+getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
+getrandom_02 = { package = "getrandom", version = "0.2", features = [
+    "js",
+], optional = true }
+gloo-timers = { workspace = true, features = ["futures"], optional = true }
+graphql_client = { workspace = true }
+hex = { workspace = true }
+js-sys = { workspace = true, optional = true }
+num-bigint = { workspace = true, features = ["serde"] }
+num-traits = { workspace = true }
+poseidon-rust = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json"] }
+ruint = { workspace = true, features = ["num-bigint", "serde", "ark-ff-05"] }
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen = { workspace = true, optional = true }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-wasm = { workspace = true, optional = true }
+tsify = { workspace = true, features = ["js"] }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+wasmer = { workspace = true, optional = true }
+web-time = { workspace = true }
+prover = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+insta = { workspace = true }
+serial_test = { workspace = true }
+tracing-test = { workspace = true }

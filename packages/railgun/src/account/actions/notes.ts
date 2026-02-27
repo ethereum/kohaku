@@ -18,7 +18,7 @@ export type GetNotes = { getAllNotes: GetAllNotesFn, getTransactNotes: GetTransa
 export type GetNotesContext = {
     notebooks: Notebook[];
 } & Pick<Indexer, 'getTrees'>
- & Pick<DerivedKeys, 'spending' | 'viewing'>;
+    & Pick<DerivedKeys, 'spending' | 'viewing'>;
 
 export const makeGetNotes = async ({ notebooks, getTrees, spending, viewing }: GetNotesContext): Promise<GetNotes> => {
     const spendingKey = spending.getSpendingKeyPair().privateKey;

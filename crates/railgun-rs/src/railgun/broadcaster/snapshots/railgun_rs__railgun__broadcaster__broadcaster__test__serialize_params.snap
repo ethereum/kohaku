@@ -1,0 +1,55 @@
+---
+source: railgun-rs/src/railgun/broadcaster/broadcaster.rs
+assertion_line: 420
+expression: serialized
+---
+{
+  "txidVersion": "V2_PoseidonMerkle",
+  "to": "0x000000000000000000000000000000000000dead",
+  "data": "0x01020304",
+  "broadcasterViewingKey": "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1",
+  "chainID": 1,
+  "chainType": 0,
+  "minGasPrice": "100",
+  "feesID": "test-fees-id",
+  "useRelayAdapt": false,
+  "devLog": false,
+  "minVersion": "8.0.0",
+  "maxVersion": "8.999.0",
+  "preTransactionPOIsPerTxidLeafPerList": {
+    "test_list_key": {
+      "0000000000000000000000000000000000000000000000000000000000000014": {
+        "snarkProof": {
+          "pi_a": [
+            "10",
+            "20"
+          ],
+          "pi_b": [
+            [
+              "30",
+              "40"
+            ],
+            [
+              "50",
+              "60"
+            ]
+          ],
+          "pi_c": [
+            "70",
+            "80"
+          ]
+        },
+        "txidMerkleroot": "0000000000000000000000000000000000000000000000000000000000000009",
+        "poiMerkleroots": [
+          "000000000000000000000000000000000000000000000000000000000000000a",
+          "000000000000000000000000000000000000000000000000000000000000000b"
+        ],
+        "blindedCommitmentsOut": [
+          "0x000000000000000000000000000000000000000000000000000000000000000c",
+          "0x000000000000000000000000000000000000000000000000000000000000000d"
+        ],
+        "railgunTxidIfHasUnshield": "000000000000000000000000000000000000000000000000000000000000000e"
+      }
+    }
+  }
+}

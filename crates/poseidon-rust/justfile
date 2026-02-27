@@ -1,0 +1,7 @@
+generate:
+    #!/usr/bin/env bash
+    widths=(0 0 56 57 56 60 60 63 64 63 60 66 60 65 70 60 64 68)
+    for t in {2..14}; do
+        sage src/bn254/parameters.sage 1 0 254 $t 8 ${widths[$t]} 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001 > src/bn254/circom_t$t.rs
+    done
+ 

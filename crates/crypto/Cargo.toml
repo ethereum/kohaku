@@ -1,0 +1,37 @@
+[package]
+name = "crypto"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ruint = { workspace = true, features = ["num-bigint", "ark-ff-05"] }
+poseidon-rust = { workspace = true }
+blake-hash = { workspace = true, default-features = false }
+ark-ff = { workspace = true }
+ark-bn254 = { workspace = true }
+num-bigint = { workspace = true }
+num-traits = { workspace = true }
+alloy = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+prover = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true }
+tracing-test = { workspace = true }
+criterion = { workspace = true }
+insta = { workspace = true }
+serde_json = { workspace = true }
+
+[[bench]]
+name = "pedersen"
+harness = false
+
+[[bench]]
+name = "babyjubjub"
+harness = false
+
+[lints]
+workspace = true
