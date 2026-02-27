@@ -1,0 +1,20 @@
+{
+  "name": "railgun-rs",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {},
+  "dependencies": {
+    "@waku/sdk": "^0.0.36",
+    "snarkjs": "^0.7.6",
+    "viem": "^2.45.3",
+    "eth-rpc": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/snarkjs": "^0.7.9",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0"
+}

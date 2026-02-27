@@ -1,0 +1,2 @@
+wasm:
+    wasm-pack build --release --target nodejs ../../crates/eth-rpc --out-dir ../../packages/eth-rpc/src/pkg

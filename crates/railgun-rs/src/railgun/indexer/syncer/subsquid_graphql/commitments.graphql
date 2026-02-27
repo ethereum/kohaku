@@ -1,0 +1,40 @@
+query CommitmentsQuery($id_gt: String, $blockNumber_gte: BigInt, $blockNumber_lte: BigInt, $limit: Int) {
+  commitments(
+    orderBy: id_ASC
+    where: {id_gt: $id_gt, blockNumber_gte: $blockNumber_gte, blockNumber_lte: $blockNumber_lte}
+    limit: $limit
+  ) {
+    __typename
+    blockNumber
+    id
+    hash
+    treeNumber
+    treePosition
+    ... on TransactCommitment {
+      ciphertext {
+        ciphertext {
+          tag
+          iv
+          data
+        }
+        memo
+        blindedSenderViewingKey
+        blindedReceiverViewingKey
+        annotationData
+      }
+    }
+    ... on ShieldCommitment {
+      preimage {
+        value
+        token {
+          tokenAddress
+          tokenSubID
+          tokenType
+        }
+        npk
+      }
+      shieldKey
+      encryptedBundle
+    }
+  }
+}

@@ -1,0 +1,6 @@
+---
+source: railgun-rs/src/caip.rs
+assertion_line: 84
+expression: erc20.hash()
+---
+5731378969925109483151705226338364782964441345
