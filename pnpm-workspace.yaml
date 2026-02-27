@@ -6,3 +6,5 @@ packages:
   - "packages/plugins"
   - "examples/pq-account"
   - "docs"
+  - "packages/tc-js"
+  - "packages/railgun-js"

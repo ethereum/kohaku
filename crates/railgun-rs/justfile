@@ -1,0 +1,52 @@
+fork_url := env_var("RPC_URL_MAINNET")
+fork_block := "24379760"
+rpc_url := "http://127.0.0.1:8545"
+whale_address := "0x3b4d794a66304f130a4db8f2551b0070dfcf5ca7"
+dev_address := "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+railgun_address := "0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9"
+usdc := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+
+anvil:
+    anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --auto-impersonate --load-state ./tests/fixtures/state.json &
+
+snapshot:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --auto-impersonate --dump-state ./tests/fixtures/state.json &
+    ANVIL_PID=$!
+    sleep 1
+    
+    # setup txs
+    cast send --from {{whale_address}} --unlocked --rpc-url {{rpc_url}} {{usdc}} "transfer(address,uint256)" {{dev_address}} 100000000000000
+    cast send --from {{dev_address}} --unlocked --rpc-url {{rpc_url}} {{usdc}} "approve(address,uint256)" {{railgun_address}} 100000000000000
+
+    # dump
+    kill $ANVIL_PID
+
+test: 
+    cargo test
+
+integration: integration-sync-txid integration-sync-utxo integration-transact
+
+integration-sync-utxo:
+    RUST_LOG=info cargo test --release --no-default-features --features native -- test_sync_utxo --ignored --nocapture
+
+integration-transact:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Start anvil in background
+    anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --load-state ./tests/fixtures/state.json &
+    ANVIL_PID=$!
+    trap "kill $ANVIL_PID" EXIT
+
+    # Wait for anvil to be ready
+    sleep 2
+
+    RUST_LOG=info cargo test --release --no-default-features --features native -- test_transact --ignored --nocapture
+
+integration-sync-txid:
+    RUST_LOG=info cargo test --release --no-default-features --features native,poi -- test_sync_txid --ignored --nocapture
+
+integration-transact-poi:
+    RUST_LOG=info cargo test --release --no-default-features --features native,poi -- test_transact_poi --ignored --nocapture

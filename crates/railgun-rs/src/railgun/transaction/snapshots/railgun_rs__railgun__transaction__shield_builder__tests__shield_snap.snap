@@ -1,0 +1,24 @@
+---
+source: railgun-rs/src/railgun/transaction/shield_builder.rs
+assertion_line: 140
+expression: shield_request
+---
+ShieldRequest {
+    preimage: CommitmentPreimage {
+        npk: 0x08c1a57f0f758e01aabacfec93ff6ebbe0cabbdec199b710447d84485b9365bb,
+        token: TokenData {
+            tokenType: ERC20,
+            tokenAddress: 0x0000000000000000000000000000000000000000,
+            tokenSubID: 0,
+        },
+        value: 1000000,
+    },
+    ciphertext: ShieldCiphertext {
+        encryptedBundle: [
+            0xb420ae6b7631610e810f737914e6997b92aa19ddb926b97955bbedebadd85abb,
+            0x21d8b2cd99b20b82686528236588525f686558fd71089ddd463b4e54838f0b39,
+            0xae88cc0332b203926ec4db187cfb6e776241cdc4d46984d1c994b8385ffdce67,
+        ],
+        shieldKey: 0x5bed515de4e5aecbc697e0f827459ff5e5384c2dc4b0fb74b335434ea2ca1646,
+    },
+}

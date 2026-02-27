@@ -1,0 +1,12 @@
+query NullifiersQuery($id_gt: String, $blockNumber_gte: BigInt, $blockNumber_lte: BigInt, $limit: Int) {
+  nullifiers(
+    where: {id_gt: $id_gt, blockNumber_gte: $blockNumber_gte, blockNumber_lte: $blockNumber_lte}, 
+    limit: $limit, 
+    orderBy: id_ASC
+  ) {
+    id
+    nullifier
+    treeNumber
+    blockNumber
+  }
+}

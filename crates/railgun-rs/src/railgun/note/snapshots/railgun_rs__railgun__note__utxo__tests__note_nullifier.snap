@@ -1,0 +1,6 @@
+---
+source: railgun-rs/src/railgun/note/utxo.rs
+assertion_line: 342
+expression: nullifier
+---
+7344303769311454485041481768889762774214369760214733867852841155011901210150

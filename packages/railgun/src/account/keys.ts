@@ -1,6 +1,6 @@
-import { Wallet } from "ethers";
+import { hexlify, Wallet } from "ethers";
 import { match } from "ts-pattern";
-import { UnionRequiredBy } from "viem";
+import { toHex, UnionRequiredBy } from "viem";
 import { deriveNodes, Mnemonic, WalletNode } from "~/railgun/lib/key-derivation";
 
 export type KeyConfig = UnionRequiredBy<KeyConfigMnemonic | KeyConfigPrivateKey, 'type'>;
@@ -34,8 +34,13 @@ export const getWalletNodeFromPrivateKey = (privateKey: string): WalletNode => {
 export const getMasterPublicKey = async (spending: WalletNode, viewing: WalletNode) => {
     const { pubkey } = spending.getSpendingKeyPair();
     const nullifyingKey = await viewing.getNullifyingKey();
+    const masterKey = WalletNode.getMasterPublicKey(pubkey, nullifyingKey);
+    console.log('spending', spending);
+    console.log('pubkey', toHex(pubkey[0]), toHex(pubkey[1]));
+    console.log('nullifyingKey', toHex(nullifyingKey));
+    console.log('masterKey', toHex(masterKey));
 
-    return WalletNode.getMasterPublicKey(pubkey, nullifyingKey);
+    return masterKey;
 };
 
 export const deriveKeysFromMnemonic: (config: KeyConfigMnemonic) => Promise<DerivedKeys> = async ({ mnemonic, accountIndex }) => {
