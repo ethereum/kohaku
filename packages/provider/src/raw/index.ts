@@ -18,7 +18,7 @@ export const raw = (client: Provider): EthereumProvider<Provider> => {
 
     return {
         _internal: client,
-        request: client.request,
+        request: client.request.bind(client),
         async getLogs(params: Filter.Filter): Promise<TxLog[]> {
             const logs = await client.request({
                 method: 'eth_getLogs',
