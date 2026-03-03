@@ -1,0 +1,20 @@
+{
+  "name": "tc-js",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {},
+  "keywords": [],
+  "type": "module",
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0",
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "viem": "^2.45.3",
+    "eth-rpc": "workspace:*",
+    "@tornado/snarkjs": "github:Robert-MacWha/tornado-snarkjs",
+    "@tornado/websnark": "github:Robert-MacWha/tornado-websnark"
+  }
+}

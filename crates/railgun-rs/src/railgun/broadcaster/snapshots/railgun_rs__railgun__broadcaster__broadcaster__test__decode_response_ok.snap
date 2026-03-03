@@ -1,0 +1,8 @@
+---
+source: railgun-rs/src/railgun/broadcaster/broadcaster.rs
+assertion_line: 500
+expression: resp
+---
+Some(
+    0x22dc78c43e68439337d04292a359de42ad9b8fa4f96ddee5b1e6a83e535dfb45,
+)

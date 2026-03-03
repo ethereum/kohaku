@@ -1,0 +1,16 @@
+query OperationsQuery($blockNumber_gte: BigInt, $blockNumber_lte: BigInt, $id_gt: String, $limit: Int) {
+  transactions(
+    orderBy: id_ASC,
+    where: {blockNumber_gte: $blockNumber_gte, blockNumber_lte: $blockNumber_lte, id_gt: $id_gt},
+    limit: $limit
+  ) {
+    id
+    blockNumber
+    nullifiers
+    commitments
+    boundParamsHash
+    utxoTreeIn
+    utxoTreeOut
+    utxoBatchStartPositionOut
+  }
+}

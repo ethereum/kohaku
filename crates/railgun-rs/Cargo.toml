@@ -1,0 +1,77 @@
+[package]
+name = "railgun-rs"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["poi"]
+poi = []
+
+[dependencies]
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+ark-bn254 = { workspace = true }
+ark-ff = { workspace = true }
+ark-std = { workspace = true }
+async-trait = { workspace = true }
+bech32 = { workspace = true }
+common = { workspace = true }
+crypto = { workspace = true }
+ctr = { workspace = true }
+curve25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true }
+eth-rpc = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+num-bigint = { workspace = true, features = ["serde"] }
+num-traits = { workspace = true }
+poseidon-rust = { workspace = true }
+prover = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+request = { workspace = true }
+ruint = { workspace = true, features = ["num-bigint", "serde", "ark-ff-05"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+web-time = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+alloy = { workspace = true }
+ark-circom = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-relations = { workspace = true }
+tokio = { workspace = true }
+wasmer = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = { workspace = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+gloo-timers = { workspace = true, features = ["futures"] }
+js-sys = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+tracing-wasm = { workspace = true }
+tsify = { workspace = true, features = ["js"] }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+serial_test = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-test = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = { workspace = true }
