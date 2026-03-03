@@ -1,5 +1,5 @@
-fork_url := env_var("RPC_URL_MAINNET")
-fork_block := "22300000"
+fork_url := env_var("RPC_URL_SEPOLIA")
+fork_block := "8800000"
 
 wasm:
     wasm-pack build --release --target nodejs ../../crates/tc-rs --out-dir ../../packages/tc-js/src/pkg
