@@ -14,3 +14,6 @@
 [submodule "packages/pq-account/lib/openzeppelin-contracts"]
 	path = packages/pq-account/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "tools/tools"]
+	path = tools/tools
+	url = https://github.com/pcaversaccio/safe-tx-hashes-util
