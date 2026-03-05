@@ -80,6 +80,6 @@
   "dependencies": {
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
-    "tc-js": "https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/tc-js-0.1.0.tgz"
+    "tc-js": "https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.4/tc-js-0.1.0.tgz"
   }
 }

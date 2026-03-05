@@ -47,14 +47,14 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
     // Broadcasters require certain keys to perform transactions. In general
     // they require the ofac sanction key, but it's not like that's canonical.
     // We could have it user-customized?
-    const list_key = provider.list_keys()[0];
+    const list_key = provider.listKeys()[0];
 
     async function balance(assets: RailgunAddress[] | undefined): Promise<AssetAmount[]> {
         if (list_key === undefined) {
             throw new Error("No list key available for balance query");
         }
         const balance = await provider.balance(account1.address, list_key);
-        const validBalance: AssetAmount[] = balance.filter((b) => b.poi_status === "Valid").filter((b) => b.balance > 0n).map((b) => ({
+        const validBalance: AssetAmount[] = balance.filter((b) => b.poiStatus === "Valid").filter((b) => b.balance > 0n).map((b) => ({
             asset: {
                 __type: 'erc20',
                 // contract: b.asset_id.value
@@ -71,7 +71,7 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for prepareShield");
         }
 
-        const txData = provider.shield().shield(account1.address, { Erc20: token.asset.contract }, token.amount).build();
+        const txData = provider.shield().shield(account1.address, { type: "Erc20", value: token.asset.contract }, token.amount).build();
         return {
             to: txData.to,
             data: txData.data,
@@ -84,7 +84,7 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for prepareUnshield");
         }
 
-        const builder = provider.transact().unshield(account1, to, { Erc20: token.asset.contract }, token.amount);
+        const builder = provider.transact().unshield(account1, to, { type: "Erc20", value: token.asset.contract }, token.amount);
         const tx = await provider.build(builder);
         return {
             __type: 'privateOperation',
@@ -108,7 +108,7 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for prepareTransfer");
         }
 
-        const builder = provider.transact().transfer(account1, to, { Erc20: token.asset.contract }, token.amount, "");
+        const builder = provider.transact().transfer(account1, to, { type: "Erc20", value: token.asset.contract }, token.amount, "");
         const tx = await provider.build(builder);
         return {
             __type: 'privateOperation',
