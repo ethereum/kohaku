@@ -14,9 +14,6 @@
 [submodule "packages/pq-account/lib/openzeppelin-contracts"]
 	path = packages/pq-account/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
-[submodule "SafeLens"]
-	path = SafeLens
-	url = https://github.com/Th0rgal/SafeLens
 [submodule "tools/safe-tx-hashes-util"]
 	path = tools/safe-tx-hashes-util
 	url = https://github.com/pcaversaccio/safe-tx-hashes-util
