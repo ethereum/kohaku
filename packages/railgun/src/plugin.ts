@@ -1,16 +1,16 @@
-import { AssetAmount, CreatePluginFn, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
-import { createRailgunAccount } from "./account/base";
-import { createRailgunIndexer } from "./indexer/base";
-import { getNetworkConfig } from "./config";
-import { KeyConfig } from "./account/keys";
-import { RailgunAddress } from "./account/actions/address";
+import { AssetAmount, Host, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
+import { JsPoiProvedTx, JsPoiProvider, JsSigner, JsSyncer, RailgunAddress } from "node_modules/railgun-js/dist/pkg/railgun_rs";
+import { createBroadcaster, GrothProverAdapter, RemoteArtifactLoader } from "railgun-js";
+import { EthereumProviderAdapter } from "./ethereum-provider";
+import { TxData } from "@kohaku-eth/provider";
 
-export type RGPluginParameters = { credential: KeyConfig };
-export type RGPrivateOperation = PrivateOperation & { bar: 'hi' };
+export type RGPrivateOperation = PrivateOperation & {
+    operation: JsPoiProvedTx,
+    // broadcaster: JsBroadcaster | undefined,
+};
 export type RGInstance = PluginInstance<
     RailgunAddress,
     {
-        credential: KeyConfig,
         // assetAmounts: {
         //     input: AssetAmount,
         //     internal: AssetAmount,
@@ -28,48 +28,130 @@ export type RGInstance = PluginInstance<
     }
 >;
 
-export const createRailgunPlugin: CreatePluginFn<RGInstance, RGPluginParameters> = async (host, params) => {
-    const { provider } = host;
-    const { credential } = params;
+export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
+    const chain_id = await host.provider.getChainId();
 
-    const storage = <T extends object>(subspace: string) => ({
-        get: async () => JSON.parse(host.storage.get(subspace) ?? '{}') as T,
-        set: async (data: T) => host.storage.set(subspace, JSON.stringify(data)),
-    });
+    // TODO: Replace me with a loaded account
+    const account1 = JsSigner.random(chain_id);
+    // const account1 = new JsSigner(spending_key, viewing_key, chain_id);
 
-    const chainId = await provider.getChainId();
-    const network = getNetworkConfig(chainId.toString() as `${bigint}`);
-    const indexer = await createRailgunIndexer({
-        network,
-        storage: storage('indexer'),
-    });
-    const account = await createRailgunAccount({
-        indexer,
-        credential,
-        provider,
-        network,
-        storage: storage('account'),
-    });
+    const provider = await newRailgunProvider(host, chain_id);
 
-    return {
-        instanceId: account.getRailgunAddress,
-        balance: async (assets) => {
-            return Promise.all(
-                assets?.map(async (asset) => {
-                    const tokenBalance = await account.getBalance(asset);
+    // TODO: Enable broadcasting of transactions. Currently still unreliable
+    // due to issues with the waku network. But worst comes to worst we can brute-force
+    // it by retrying until it goes through.
+    const broadcastManager = await createBroadcaster(chain_id);
 
-                    return {
-                        asset,
-                        amount: tokenBalance,
-                    };
-                }) ?? []
-            );
-        },
-        prepareShield: undefined as never,
-        prepareShieldMulti: undefined as never,
-        prepareTransfer: undefined as never,
-        prepareTransferMulti: undefined as never,
-        prepareUnshield: undefined as never,
-        prepareUnshieldMulti: undefined as never,
-    };
+    // TODO: How do we want to handle list keys?
+    // 
+    // Broadcasters require certain keys to perform transactions. In general
+    // they require the ofac sanction key, but it's not like that's canonical.
+    // We could have it user-customized?
+    const list_key = provider.list_keys()[0];
+
+    async function balance(assets: RailgunAddress[] | undefined): Promise<AssetAmount[]> {
+        if (list_key === undefined) {
+            throw new Error("No list key available for balance query");
+        }
+        const balance = await provider.balance(account1.address, list_key);
+        const validBalance: AssetAmount[] = balance.filter((b) => b.poi_status === "Valid").filter((b) => b.balance > 0n).map((b) => ({
+            asset: {
+                __type: 'erc20',
+                // contract: b.asset_id.value
+                contract: "0x1234",
+            },
+            amount: b.balance,
+        }));
+
+        return validBalance;
+    }
+
+    async function prepareShield(token: AssetAmount): Promise<TxData> {
+        if (list_key === undefined) {
+            throw new Error("No list key available for prepareShield");
+        }
+
+        const txData = provider.shield().shield(account1.address, { Erc20: token.asset.contract }, token.amount).build();
+        return {
+            to: txData.to,
+            data: txData.data,
+            value: BigInt(txData.value)
+        };
+    }
+
+    async function prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
+        if (list_key === undefined) {
+            throw new Error("No list key available for prepareUnshield");
+        }
+
+        const builder = provider.transact().unshield(account1, to, { Erc20: token.asset.contract }, token.amount);
+        const tx = await provider.build(builder);
+        return {
+            __type: 'privateOperation',
+            operation: tx,
+        };
+
+        // const broadcaster = await broadcastManager.best_broadcaster_for_token();
+        // if (broadcaster === undefined) {
+        //     throw new Error("No broadcaster available for prepareUnshield");
+        // }
+        // const tx = await provider.build_broadcast(builder, account1, broadcaster.fee());
+        // return {
+        //     __type: 'privateOperation',
+        //     operation: tx,
+        //     broadcaster,
+        // }
+    }
+
+    async function prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
+        if (list_key === undefined) {
+            throw new Error("No list key available for prepareTransfer");
+        }
+
+        const builder = provider.transact().transfer(account1, to, { Erc20: token.asset.contract }, token.amount, "");
+        const tx = await provider.build(builder);
+        return {
+            __type: 'privateOperation',
+            operation: tx,
+        };
+
+        // const broadcaster = await broadcastManager.best_broadcaster_for_token();
+        // if (broadcaster === undefined) {
+        //     throw new Error("No broadcaster available for prepareUnshield");
+        // }
+        // const tx = await provider.build_broadcast(builder, account1, broadcaster.fee());
+        // return {
+        //     __type: 'privateOperation',
+        //     operation: tx,
+        //     broadcaster,
+        // }
+    }
+
+    async function broadcastPrivateOperation(op: RGPrivateOperation): Promise<void> {
+        const txData: TxData = {
+            to: op.operation.to,
+            data: op.operation.data,
+            value: BigInt(op.operation.value),
+        };
+
+        // const broadcaster = op.broadcaster;
+        // if (broadcaster === undefined) {
+        //     throw new Error("No broadcaster available for broadcastPrivateOperation");
+        // }
+        // await provider.broadcast(broadcaster, op.operation);
+
+    }
 };
+
+async function newRailgunProvider(host: Host, chain_id: bigint): Promise<JsPoiProvider> {
+    const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
+    const rpcAdapter = new EthereumProviderAdapter(host.provider);
+    const prover = new GrothProverAdapter(new RemoteArtifactLoader(ARTIFACTS_URL));
+    const syncer = JsSyncer.newChained([
+        JsSyncer.newSubsquid(chain_id),
+        await JsSyncer.newRpc(rpcAdapter, chain_id, 10n),
+    ]);
+
+    return await JsPoiProvider.new(rpcAdapter, syncer, prover);
+}
+
