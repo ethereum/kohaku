@@ -54,14 +54,18 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for balance query");
         }
         const balance = await provider.balance(account1.address, list_key);
-        const validBalance: AssetAmount[] = balance.filter((b) => b.poiStatus === "Valid").filter((b) => b.balance > 0n).map((b) => ({
-            asset: {
-                __type: 'erc20',
-                // contract: b.asset_id.value
-                contract: "0x1234",
-            },
-            amount: b.balance,
-        }));
+        const validBalance: AssetAmount[] = balance
+            .filter((b) => b.poiStatus === "Valid")
+            .filter((b) => b.balance > 0n)
+            .filter((b) => b.assetId.type === "Erc20")
+            .map((b) => ({
+                asset: {
+                    __type: 'erc20',
+                    //? Safe to cast since we filter for Erc20 above
+                    contract: b.assetId.value as `0x${string}`,
+                },
+                amount: b.balance,
+            }));
 
         return validBalance;
     }
