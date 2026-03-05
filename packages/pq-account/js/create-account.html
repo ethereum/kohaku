@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Deploy ERC4337 Account</title>
+    <style>
+        nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        nav a {
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: #555;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        nav a:hover { background: #f0f0f0; }
+        nav a.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .config-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .config-section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: inline-block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .input-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #deploy-ledger {
+            background: #4CAF50;
+        }
+
+        #deploy-ledger:hover {
+            background: #45a049;
+        }
+        
+        #output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: calc(100vh - 500px);
+            max-height: none;
+            overflow-y: visible;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        #output:empty {
+            min-height: 50px;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        
+        .warning strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .twocols {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .twocols .input-group {
+            flex: 1;
+        }
+
+        /* ── Mode toggle ── */
+        .mode-toggle {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+        }
+
+        .mode-toggle button {
+            flex: 1;
+            text-align: center;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid #ddd;
+            border-radius: 0;
+            box-shadow: none;
+            background: #fafafa;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .mode-toggle button:first-of-type {
+            border-radius: 6px 0 0 6px;
+            border-right: 1px solid #ddd;
+        }
+
+        .mode-toggle button:last-of-type {
+            border-radius: 0 6px 6px 0;
+            border-left: 1px solid #ddd;
+        }
+
+        .mode-toggle button:hover {
+            background: #f0f0f0;
+        }
+
+        .mode-toggle button.active {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+
+        .mode-toggle button.active:hover {
+            background: #4CAF50;
+        }
+
+        .mode-toggle button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #fafafa;
+            color: #666;
+        }
+
+        .mode-toggle button:disabled:hover {
+            background: #fafafa;
+        }
+
+        .mode-panel {
+            display: none;
+        }
+
+        .mode-panel.active {
+            display: block;
+        }
+
+        .ledger-info {
+            background: #e8f5e9;
+            border: 1px solid #4CAF50;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: #2e7d32;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .falcon-info {
+            background: #e3f2fd;
+            border: 1px solid #2196F3;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: #1565c0;
+            font-size: 14px;
+            margin-bottom: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="create-account.html" class="active">Create Account</a>
+        <a href="send-tx.html">Send Transaction</a>
+    </nav>
+    
+    <div class="warning">
+        <strong>&#9888;&#65039; Security Note:</strong>
+        These seeds will generate your account's public keys. Do not use real seeds in production on a public website. 
+        This is for testing purposes only.
+    </div>
+    
+    <div class="config-section">
+        <h2>&#128295; Configuration</h2>
+
+        <!-- Unified network selector for both modes -->
+        <div class="input-group">
+            <label for="targetNetwork">Target Network:</label>
+            <select id="targetNetwork">
+                <option value="sepolia">Sepolia</option>
+                <option value="arbitrumSepolia" selected>Arbitrum Sepolia</option>
+                <option value="baseSepolia">Base Sepolia</option>
+            </select>
+            <input type="hidden" id="rpcUrl" value="https://sepolia-rollup.arbitrum.io/rpc">
+        </div>
+
+        <div class="input-group" style="display:none;">
+            <label for="factory">Factory Contract Address:</label>
+            <span id="factory">&mdash;</span>
+        </div>
+
+        <!-- Load deployments and wire up factory address -->
+        <script type="module">
+        import deployments from './deployments/deployments.json' assert { type: 'json' };
+
+        window.__deployments = deployments;
+
+        function updateFactory(networkKey, accountMode) {
+            const factorySpan = document.getElementById('factory');
+            accountMode = accountMode || document.getElementById('accountMode')?.value || 'mldsa_k1';
+            if (networkKey && deployments[networkKey] && deployments[networkKey].accounts[accountMode]) {
+                factorySpan.textContent = deployments[networkKey].accounts[accountMode].address;
+            } else {
+                factorySpan.textContent = '\u2014';
+            }
+        }
+
+        window.__updateFactory = updateFactory;
+
+        // Set factory for default selection
+        updateFactory(document.getElementById('targetNetwork').value);
+        </script>
+
+        <div class="input-group">
+            <label for="accountMode">Account Mode:</label>
+            <select id="accountMode">
+                <option value="mldsa_k1">ML-DSA-44 + ECDSA-K1</option>
+                <option value="falcon_k1">Falcon-512 + ECDSA-K1 (software only)</option>
+            </select>
+            <small>Choose the account type / key scheme</small>
+        </div>
+
+        <div id="falconNotice" class="falcon-info">
+            &#129413; Falcon-512 uses a WASM-compiled signer and is available in software (Hot Wallet) mode only.
+            Ledger support is not available for Falcon.
+        </div>
+
+    </div>
+
+    <div class="config-section">
+        <h2>&#128273; Signing Keys</h2>
+
+        <div class="mode-toggle">
+            <button id="mode-hot" class="active">&#128187; Software</button>
+            <button id="mode-ledger">&#128274; Ledger Hardware</button>
+        </div>
+
+        <!-- Hot Wallet panel -->
+        <div id="panel-hot" class="mode-panel active">
+            <div class="twocols">
+                <div class="input-group">
+                    <label for="prequantum">Pre-Quantum Seed:</label>
+                    <input type="text" id="prequantum" value="0x1b48e04041e23c72cacdaa9b0775d31515fc74d6a6d3c8804172f7e7d1248529">
+                    <small>32 bytes (64 hex characters) for ECDSA key generation</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="postquantum">Post-Quantum Seed:</label>
+                    <input type="text" id="postquantum" value="0xac38da90e1a47bd048580b74e07ce649649642f1a9696b714977bf9f2942c1a4">
+                    <small id="pqSeedHint">32 bytes (64 hex characters) for ML-DSA-44 key generation</small>
+                </div>
+            </div>    
+            <div class="button-container">
+                <button id="deploy">Connect Wallet & Deploy Account</button>
+            </div>
+        </div>
+
+        <!-- Ledger panel -->
+        <div id="panel-ledger" class="mode-panel">
+            <div class="ledger-info">
+                &#128274; Both ECDSA and ML-DSA keys are derived on the Ledger secure element
+                via BIP32 path <code>m/44'/60'/0'/0/0</code>. No keys leave the device.<br>
+                The deployment transaction will also be signed by the Ledger &mdash; no browser wallet needed.
+            </div>
+
+            <div class="button-container">
+                <button id="deploy-ledger">&#128274; Connect Ledger & Deploy Account</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="output"></div>
+
+    <!-- Mode toggle + network selector + wallet auto-sync + accountMode wiring -->
+    <script>
+    (function() {
+        const rpcDefaults = {
+            sepolia:         'https://eth-sepolia-testnet.api.pocket.network',
+            arbitrumSepolia: 'https://sepolia-rollup.arbitrum.io/rpc',
+            baseSepolia:     'https://sepolia.base.org',
+        };
+
+        const chainToNetwork = {
+            '0xaa36a7': 'sepolia',
+            '0x66eee':  'arbitrumSepolia',
+            '0x14a34':  'baseSepolia',
+        };
+
+        const sel = document.getElementById('targetNetwork');
+        const rpcInput = document.getElementById('rpcUrl');
+        const accountModeSelect = document.getElementById('accountMode');
+        const falconNotice = document.getElementById('falconNotice');
+        const pqSeedHint = document.getElementById('pqSeedHint');
+
+        // Dropdown change → update RPC URL + factory
+        sel.addEventListener('change', () => {
+            const key = sel.value;
+            if (rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
+            if (window.__updateFactory) window.__updateFactory(key);
+        });
+
+        // Account mode change → update factory + toggle Falcon notice
+        accountModeSelect.addEventListener('change', () => {
+            const networkKey = sel.value;
+            if (window.__updateFactory) window.__updateFactory(networkKey, accountModeSelect.value);
+
+            const isFalcon = accountModeSelect.value.startsWith('falcon');
+            falconNotice.style.display = isFalcon ? 'block' : 'none';
+            pqSeedHint.textContent = isFalcon
+                ? '32 bytes (64 hex characters) for Falcon-512 key generation'
+                : '32 bytes (64 hex characters) for ML-DSA-44 key generation';
+
+            // Disable/enable Ledger button
+            modeLedger.disabled = isFalcon;
+
+            // If Falcon selected and currently on Ledger panel, switch to Hot
+            if (isFalcon && modeLedger.classList.contains('active')) {
+                modeHot.click();
+            }
+        });
+
+        // ── Mode toggle ──
+        const modeHot = document.getElementById('mode-hot');
+        const modeLedger = document.getElementById('mode-ledger');
+
+        modeHot.addEventListener('click', () => {
+            modeHot.classList.add('active');
+            modeLedger.classList.remove('active');
+            document.getElementById('panel-hot').classList.add('active');
+            document.getElementById('panel-ledger').classList.remove('active');
+            // Re-sync from wallet when switching back
+            walletSync();
+        });
+
+        modeLedger.addEventListener('click', () => {
+            if (modeLedger.disabled) return;
+            modeLedger.classList.add('active');
+            modeHot.classList.remove('active');
+            document.getElementById('panel-ledger').classList.add('active');
+            document.getElementById('panel-hot').classList.remove('active');
+        });
+
+        // ── Wallet auto-sync (Hot Wallet mode only) ──
+        function isHotMode() {
+            return modeHot.classList.contains('active');
+        }
+
+        function syncFromWallet(chainIdHex) {
+            if (!isHotMode()) return;
+            const key = chainToNetwork[chainIdHex.toLowerCase()];
+            if (!key) return;
+            sel.value = key;
+            if (rpcDefaults[key]) rpcInput.value = rpcDefaults[key];
+            if (window.__updateFactory) window.__updateFactory(key);
+        }
+
+        async function walletSync() {
+            if (!window.ethereum || !isHotMode()) return;
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                syncFromWallet(chainId);
+            } catch (e) {}
+        }
+
+        // Init
+        if (window.ethereum) {
+            walletSync();
+            window.ethereum.on('chainChanged', syncFromWallet);
+        }
+    })();
+    </script>
+    
+    <script type="module" src="./createAccount.js"></script>
+</body>
+</html>
