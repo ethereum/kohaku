@@ -328,8 +328,8 @@ importers:
         specifier: ^1.0.6
         version: 1.0.6
       railgun-js:
-        specifier: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/railgun-js-0.1.0.tgz
-        version: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
+        specifier: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/railgun-js-0.1.0.tgz
+        version: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
       ts-pattern:
         specifier: ^5.4.0
         version: 5.9.0
@@ -413,8 +413,8 @@ importers:
         specifier: workspace:*
         version: link:../provider
       tc-js:
-        specifier: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/tc-js-0.1.0.tgz
-        version: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/tc-js-0.1.0.tgz(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
+        specifier: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/tc-js-0.1.0.tgz
+        version: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/tc-js-0.1.0.tgz(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
 
 packages:
 
@@ -6957,8 +6957,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/railgun-js-0.1.0.tgz:
-    resolution: {integrity: sha512-aENznXjuIonGxWUmGIxR3z2+QQpGZLVxRdM5AX/4XpABClRaL1y4p6VBu4Cj1VG/nylObWLlScxKtNtlBy3AwA==, tarball: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/railgun-js-0.1.0.tgz}
+  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/railgun-js-0.1.0.tgz:
+    resolution: {integrity: sha512-Y0vuls8R2EfZ0EbOvoCcZiehXes4vChWVn/sSgvmIzY0621+ueWx8ETD1uzbEdpcn7RAwBnLi/FujMvPJ3W17Q==, tarball: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/railgun-js-0.1.0.tgz}
     version: 0.1.0
 
   randombytes@2.1.0:
@@ -7645,8 +7645,8 @@ packages:
     engines: {node: '>=18'}
     deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
-  tc-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/tc-js-0.1.0.tgz:
-    resolution: {integrity: sha512-wudTl5yDQDFnEZ/uOLTY7uZh9JawuGy4vUfxhE+mknR17FzDCkCPJaweYeks8Gy+T/DVgcSq8Kj3w7gMot2EnA==, tarball: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/tc-js-0.1.0.tgz}
+  tc-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/tc-js-0.1.0.tgz:
+    resolution: {integrity: sha512-wudTl5yDQDFnEZ/uOLTY7uZh9JawuGy4vUfxhE+mknR17FzDCkCPJaweYeks8Gy+T/DVgcSq8Kj3w7gMot2EnA==, tarball: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/tc-js-0.1.0.tgz}
     version: 0.1.0
 
   term-size@2.2.1:
@@ -9942,7 +9942,7 @@ snapshots:
 
   '@libp2p/peer-id@5.1.7':
     dependencies:
-      '@libp2p/crypto': 5.1.6
+      '@libp2p/crypto': 5.1.13
       '@libp2p/interface': 2.11.0
       multiformats: 13.4.2
       uint8arrays: 5.1.0
@@ -16735,7 +16735,7 @@ snapshots:
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
-  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6):
+  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6):
     dependencies:
       '@waku/sdk': 0.0.36(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       snarkjs: 0.7.6
@@ -17637,7 +17637,7 @@ snapshots:
       mkdirp: 3.0.1
       yallist: 5.0.0
 
-  tc-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.2/tc-js-0.1.0.tgz(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6):
+  tc-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.3/tc-js-0.1.0.tgz(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6):
     dependencies:
       '@tornado/snarkjs': https://codeload.github.com/Robert-MacWha/tornado-snarkjs/tar.gz/6b9fe1116830ce8d7e36ca431db9fa5aa9456009
       '@tornado/websnark': https://codeload.github.com/Robert-MacWha/tornado-websnark/tar.gz/1c33316732c46d2ce234824ea1eb4e8699fca0ab
