@@ -2,10 +2,10 @@ import { ERC20AssetId, Host } from '@kohaku-eth/plugins';
 import { AbiCoder, CallExceptionError, Contract, ContractTransactionResponse, getAddress, JsonRpcProvider, keccak256, SigningKey, toBeHex, Wallet } from "ethers";
 
 import { PrivacyPoolsV1Protocol } from '../../src';
+import { IEntrypoint } from '../../src/plugin/interfaces/protocol-params.interface';
 import { type AnvilPool } from './anvil';
-import { InitialState, loadInitialState, MAINNET_ENTRYPOINT } from './common';
-import { createMockHost } from './mock-host';
-
+import { InitialState } from './common';
+import { createMockAspService, IMockAspService } from './mock-asp-service';
 /**
  * Fund an account with ETH using anvil pool's setBalance
  */
@@ -58,12 +58,12 @@ export async function approveERC20(
   tokenAddress: string,
   spender: string,
   amount: bigint
-): Promise<void> {
+) {
   const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)'];
   const token = new Contract(tokenAddress, erc20Abi, signer);
   const tx = await token.approve(spender, amount);
 
-  await tx.wait();
+  return tx.wait() as Promise<{ status: number; }>;
 }
 
 /**
@@ -76,7 +76,7 @@ export async function transferERC20FromWhale(
   whaleAddress: string,
   recipient: string,
   amount: bigint
-): Promise<void> {
+) {
   const provider = new JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
 
   // Normalize addresses
@@ -93,11 +93,12 @@ export async function transferERC20FromWhale(
   const token = new Contract(tokenAddress, erc20Abi, impersonatedSigner);
 
   const tx = await token.transfer(recipient, amount);
-
-  await tx.wait();
+  const r = await tx.wait();
 
   // Stop impersonating
   await provider.send('anvil_stopImpersonatingAccount', [normalizedWhale]);
+
+  return r;
 }
 
 interface Callback<T> {
@@ -121,8 +122,6 @@ export async function pushNewAspRoot(
   const provider = new JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
   // Normalize addresses
   const normalizedPostman = getAddress(postmanAddress.toLowerCase());
-
-  // const postmanAbi = ['function updateRoot(_root uint256, _ipfsCID string) returns (_index uint256)'];
   const postmanAbi = [{
     "type": "function",
     "name": "updateRoot",
@@ -147,7 +146,13 @@ export async function pushNewAspRoot(
   return { hash, txData: { data, to, from: normalizedPostman } };
 }
 
-export async function assetVettingFee(provider: JsonRpcProvider, entrypointAddress: bigint, asset: ERC20AssetId) {
+interface GetAssetConfigParams {
+  provider: JsonRpcProvider;
+  entrypointAddress: bigint;
+  asset: ERC20AssetId;
+}
+
+export async function getAssetConfig({ provider, entrypointAddress, asset }: GetAssetConfigParams) {
   const epAbi = [{
     "type": "function",
     "name": "assetConfig",
@@ -168,12 +173,24 @@ export async function assetVettingFee(provider: JsonRpcProvider, entrypointAddre
   const ep = new Contract(eadd, epAbi, provider);
   const assetConfig = await ep.assetConfig(asset.contract);
   const [
-    _pool,                      // eslint-disable-line @typescript-eslint/no-unused-vars
-    _minimumDepositAmount,      // eslint-disable-line @typescript-eslint/no-unused-vars
+    pool,
+    minimumDepositAmount,
     vettingFeeBPS,
+    maxRelayFeeBPS
   ] = assetConfig;
 
-  return vettingFeeBPS as bigint;
+  return {
+    pool: getAddress(pool),
+    minimumDepositAmount: BigInt(minimumDepositAmount),
+    vettingFeeBPS: BigInt(vettingFeeBPS),
+    maxRelayFeeBPS: BigInt(maxRelayFeeBPS)
+  };
+}
+
+export async function assetVettingFee({ provider, entrypointAddress, asset }: GetAssetConfigParams) {
+  const { vettingFeeBPS } = await getAssetConfig({ provider, entrypointAddress, asset });
+
+  return vettingFeeBPS;
 }
 
 export async function getPoolStateRoot(pool: AnvilPool, poolAddress: bigint) {
@@ -193,20 +210,28 @@ export async function getPoolStateRoot(pool: AnvilPool, poolAddress: bigint) {
 }
 
 interface SimplifiedProtocolParams {
+  entrypoint: IEntrypoint,
   host: Host,
-  initialState: InitialState;
+  initialState?: InitialState;
+  aspServiceFactory?: () => IMockAspService;
 }
 export const getProtocolWithState = ({
-  host = createMockHost(),
-  initialState = loadInitialState()
-}: Partial<SimplifiedProtocolParams> = {}) => new PrivacyPoolsV1Protocol(host, {
+  entrypoint,
+  host,
   initialState,
-  entrypoint: MAINNET_ENTRYPOINT,
-});
+  aspServiceFactory = createMockAspService,
+}: SimplifiedProtocolParams) => {
+  const aspService = aspServiceFactory();
 
-export const getProtocol = (host = createMockHost()) => new PrivacyPoolsV1Protocol(host, {
-  entrypoint: MAINNET_ENTRYPOINT,
-});
+  aspService.setLeaves([0n, 1n, 2n]);
+  const protocol = new PrivacyPoolsV1Protocol(host, {
+    aspServiceFactory: () => aspService,
+    initialState,
+    entrypoint,
+  });
+
+  return { aspService, protocol };
+};
 
 export async function sendTx(signer: Wallet, { to, data, value }: { to: string; data: string; value: bigint; }) {
   return signer.sendTransaction({ to, data, value, gasLimit: 6000000n });
@@ -221,8 +246,6 @@ export async function sendTxAndWait(signer: Wallet, { to, data, value }: { to: s
 
         return receipt;
       } else {
-        console.log(e);
-
         return { status: 0 };
       }
     });

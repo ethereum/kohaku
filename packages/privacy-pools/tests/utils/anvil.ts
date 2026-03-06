@@ -1,14 +1,12 @@
 import { createServer } from 'prool';
 import { anvil, type AnvilParameters } from 'prool/instances';
 import { JsonRpcProvider } from 'ethers';
-
-export const ANVIL_PORT = 8545;
+import getPort from 'get-port';
 
 type DefineAnvilParameters = {
   forkUrl: string;
-  forkBlockNumber?: number;
-  port?: number;
-  chainId?: number;
+  forkBlockNumber?: string | number;
+  chainId: number;
 };
 
 export interface AnvilPool {
@@ -61,15 +59,15 @@ function createPool(baseUrl: string, poolId: number): AnvilPool {
   };
 }
 
-export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
+export async function defineAnvil(params: DefineAnvilParameters): Promise<AnvilInstance> {
   const {
     forkUrl,
     forkBlockNumber,
-    port = ANVIL_PORT,
-    chainId = 11155111,
+    chainId
   } = params;
 
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const port = await getPort();
+  const baseUrl = `${forkUrl}`;
   let stopFn: (() => Promise<void>) | undefined;
 
   return {
@@ -86,12 +84,13 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
       };
 
       const instance = anvil(anvilOptions);
-
-      stopFn = await createServer({
+      const server = createServer({
         limit: 100,
         instance,
         port,
-      }).start();
+      });
+
+      stopFn = await server.start();
     },
 
     async stop() {
@@ -102,11 +101,11 @@ export function defineAnvil(params: DefineAnvilParameters): AnvilInstance {
     },
 
     pool(poolId: number): AnvilPool {
-      return createPool(baseUrl, poolId);
+      return createPool(`http://127.0.0.1:${port}`, poolId);
     },
 
     raw(): AnvilPool {
-      const anvilUrl = `http://127.0.0.1:8545`;
+      const anvilUrl = baseUrl;
 
       const provider = new JsonRpcProvider(anvilUrl, undefined, {
         staticNetwork: true,

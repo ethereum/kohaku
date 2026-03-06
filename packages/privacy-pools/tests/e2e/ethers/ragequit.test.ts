@@ -1,40 +1,55 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import getPort from "get-port";
 
-import { E_ADDRESS } from '../../../src/config/constants';
-import { MAINNET_CONFIG } from '../../../src/config/index';
+import { E_ADDRESS } from '../../../src/config';
+import { chainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
-import { ERC20Asset, getEnv, InitialState, unwrapBalance } from '../../utils/common';
+import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { assetVettingFee, deductVettingFees, getProtocolWithState, sendTxAndWait, setupWallet } from '../../utils/test-helpers';
+import { deductVettingFees, getAssetConfig, getProtocolWithState, sendTxAndWait, setupWallet } from '../../utils/test-helpers';
 
 describe('PrivacyPools v1 E2E Flow', () => {
   let anvil: AnvilInstance;
   let latestState: InitialState;
 
-  const MAINNET_FORK_URL = getEnv('MAINNET_RPC_URL', 'https://no-fallback');
-  const ENTRYPOINT_ADDRESS = BigInt(MAINNET_CONFIG.ENTRYPOINT_ADDRESS);
+  const chainId = 11155111;
+  const {
+    entrypoint,
+    rpcUrl,
+    forkBlockNumber,
+  } = chainConfigSetup[chainId];
+
+  const ENTRYPOINT_ADDRESS = entrypoint.address;
   // E_ADDRESS represents native ETH in Privacy Pools
   const nativeAsset = ERC20Asset(E_ADDRESS);
   let vettingFees: bigint;
+  let poolAddress: string;
 
   beforeAll(async () => {
 
-    anvil = defineAnvil({
-      forkUrl: MAINNET_FORK_URL,
-      port: await getPort(),
-      chainId: 1,
+    anvil = await defineAnvil({
+      forkUrl: rpcUrl,
+      forkBlockNumber: Number(forkBlockNumber),
+      chainId,
     });
 
     await anvil.start();
 
-    const _protocol = getProtocolWithState();
+    const pool = anvil.pool(1);
+    const { protocol: _protocol } = getProtocolWithState({
+      entrypoint,
+      initialState: await loadInitialState(),
+      host: createMockHost({ rpcUrl: pool.rpcUrl })
+    });
 
     await _protocol.sync();
     latestState = _protocol.dumpState();
 
-    vettingFees = await assetVettingFee(await anvil.pool(1).getProvider(), ENTRYPOINT_ADDRESS, nativeAsset);
+    ({ vettingFeeBPS: vettingFees, pool: poolAddress } = await getAssetConfig({
+      provider: await anvil.pool(1).getProvider(),
+      entrypointAddress: ENTRYPOINT_ADDRESS,
+      asset: nativeAsset
+    }));
 
   }, 300_000);
 
@@ -48,8 +63,9 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const bob = await setupWallet(pool, TEST_ACCOUNTS.bob.privateKey);
 
     // Create host with pool-specific RPC URL
-    const protocol = getProtocolWithState({
-      host: createMockHost(undefined, pool.rpcUrl),
+    const { protocol } = getProtocolWithState({
+      entrypoint,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
       initialState: latestState
     });
 
@@ -95,7 +111,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
 
     ragequitTxs.txns.map(({ to, data }) => {
       // mainnet ethereum pool
-      expect(to.toLowerCase()).toEqual("0xF241d57C6DebAe225c0F2e6eA1529373C9A9C9fB".toLowerCase());
+      expect(to.toLowerCase()).toEqual(poolAddress.toLowerCase());
       expect(data).toBeDefined();
       expect(data.startsWith("0x")).toBeTruthy();
     });

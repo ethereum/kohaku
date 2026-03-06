@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ethers } from '@kohaku-eth/provider/ethers';
-import getPort from "get-port";
 
-import { E_ADDRESS } from '../../../src/config/constants';
-import { MAINNET_CONFIG } from '../../../src/config/index';
+import { E_ADDRESS } from '../../../src/config';
+import { addressToHex } from '../../../src/utils';
+import { chainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
-import { ERC20Asset, getEnv, InitialState, unwrapBalance } from '../../utils/common';
+import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
+import { createMockAspService } from '../../utils/mock-asp-service';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { approveERC20, assetVettingFee, deductVettingFees, getProtocolWithState, sendTxAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
@@ -15,35 +15,54 @@ describe('PrivacyPools v1 E2E Flow', () => {
   let anvil: AnvilInstance;
   let latestState: InitialState;
 
-  const MAINNET_FORK_URL = getEnv('MAINNET_RPC_URL', 'https://no-fallback');
-  const ENTRYPOINT_ADDRESS = BigInt(MAINNET_CONFIG.ENTRYPOINT_ADDRESS);
+  const mockAspService = createMockAspService();
+
+  mockAspService.addLabels([0n, 1n, 2n]);
+
+  const chainId = 11155111;
+  const {
+    entrypoint,
+    rpcUrl,
+    forkBlockNumber,
+    erc20Address,
+    erc20WhaleAddress,
+  } = chainConfigSetup[chainId];
+
+  const ENTRYPOINT_ADDRESS = entrypoint.address;
+  const ENTRYPOINT_ADDRESS_HEX = addressToHex(ENTRYPOINT_ADDRESS);
 
   // E_ADDRESS represents native ETH in Privacy Pools
   const nativeAsset = ERC20Asset(E_ADDRESS);
 
-  const USDC_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
-  const usdcAsset = ERC20Asset(USDC_ADDRESS);
+  const erc20Asset = ERC20Asset(erc20Address);
 
   let vettingFeesNative: bigint;
-  let vettingFeesUsdc: bigint;
+  let vettingFeesErc20: bigint;
 
   beforeAll(async () => {
 
-    anvil = defineAnvil({
-      forkUrl: MAINNET_FORK_URL,
-      port: await getPort(),
-      chainId: 1,
+    anvil = await defineAnvil({
+      forkUrl: rpcUrl,
+      forkBlockNumber: Number(forkBlockNumber),
+      chainId,
     });
 
     await anvil.start();
 
-    const _protocol = getProtocolWithState();
+    const pool = anvil.pool(1);
+    const { protocol: _protocol } = getProtocolWithState({
+      entrypoint,
+      initialState: await loadInitialState(),
+      host: createMockHost({ rpcUrl: pool.rpcUrl })
+    });
 
     await _protocol.sync();
     latestState = _protocol.dumpState();
 
-    vettingFeesNative = await assetVettingFee(await anvil.pool(1).getProvider(), ENTRYPOINT_ADDRESS, nativeAsset);
-    vettingFeesUsdc = await assetVettingFee(await anvil.pool(1).getProvider(), ENTRYPOINT_ADDRESS, usdcAsset);
+    const provider = await pool.getProvider();
+
+    vettingFeesNative = await assetVettingFee({ provider, entrypointAddress: ENTRYPOINT_ADDRESS, asset: nativeAsset });
+    vettingFeesErc20 = await assetVettingFee({ provider, entrypointAddress: ENTRYPOINT_ADDRESS, asset: erc20Asset });
 
   }, 300_000);
 
@@ -52,8 +71,13 @@ describe('PrivacyPools v1 E2E Flow', () => {
   });
 
   it('[prepareShield] generates valid native ETH deposit transaction', async () => {
-    const protocol = getProtocolWithState({ initialState: latestState });
 
+    const pool = anvil.pool(2);
+    const { protocol } = getProtocolWithState({
+      entrypoint,
+      initialState: latestState,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+    });
 
     const { txns } = await protocol.prepareShield(
       { asset: nativeAsset, amount: 1000000000000000000n } // 1 ETH
@@ -62,18 +86,19 @@ describe('PrivacyPools v1 E2E Flow', () => {
     expect(txns).toHaveLength(1);
     const tx = txns[0];
 
-    expect(tx.to?.toLowerCase()).toBe(MAINNET_CONFIG.ENTRYPOINT_ADDRESS.toLowerCase());
+    expect(tx.to?.toLowerCase()).toBe(ENTRYPOINT_ADDRESS_HEX.toLowerCase());
     expect(tx.value).toBe(1000000000000000000n);
     expect(tx.data).toMatch(/^0x/);
   });
 
   it('[prepareShield] executes successful deposit on forked mainnet', { timeout: 600_000 }, async () => {
-    const pool = anvil.pool(1);
+    const pool = anvil.pool(3);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create host with pool-specific RPC URL
-    const protocol = getProtocolWithState({
-      host: createMockHost(undefined, pool.rpcUrl),
+    const { protocol } = getProtocolWithState({
+      entrypoint,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
       initialState: latestState
     });
 
@@ -110,90 +135,88 @@ describe('PrivacyPools v1 E2E Flow', () => {
   });
 
   it('[prepareShield] generates valid ERC20 deposit transaction', { timeout: 60_000 }, async () => {
-    const protocol = getProtocolWithState({ initialState: latestState });
+    const pool = anvil.pool(4);
+    const { protocol } = getProtocolWithState({
+      entrypoint,
+      initialState: latestState,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+    });
 
 
     const { txns } = await protocol.prepareShield(
-      { asset: usdcAsset, amount: 100000000n } // 100 USDC
+      { asset: erc20Asset, amount: 100000000n } // 100 USDC
     );
 
     expect(txns).toHaveLength(1);
     const [tx] = txns;
 
-    expect(tx.to?.toLowerCase()).toBe(MAINNET_CONFIG.ENTRYPOINT_ADDRESS.toLowerCase());
+    expect(tx.to?.toLowerCase()).toBe(ENTRYPOINT_ADDRESS_HEX.toLowerCase());
     expect(tx.value).toBe(0n); // ERC20 has no ETH value
     expect(tx.data).toMatch(/^0x/);
   });
 
   it('[prepareShield] executes successful ERC20 deposit on forked mainnet', { timeout: 60_000 }, async () => {
-    const pool = anvil.pool(2);
-    const provider = ethers(await pool.getProvider());
+    const pool = anvil.pool(5);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create host with pool-specific RPC URL
-    const protocol = getProtocolWithState({
-      host: createMockHost(undefined, pool.rpcUrl),
+    const { protocol } = getProtocolWithState({
+      entrypoint,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
       initialState: latestState
     });
 
-    const USDC_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
-    const USDC_WHALE = '0x55FE002aefF02f77364de339a1292923A15844B8'; // Circle Treasury
     const DEPOSIT_AMOUNT = 100000000n; // 100 USDC (6 decimals)
 
-    const usdcAsset = ERC20Asset(USDC_ADDRESS);
+    const erc20Asset = ERC20Asset(erc20Address);
 
     // 1. Check initial balance is 0
-    const initialBalance = await protocol.balance([usdcAsset]);
-    let { pending, approved } = unwrapBalance(initialBalance, usdcAsset);
+    const initialBalance = await protocol.balance([erc20Asset]);
+    let { pending, approved } = unwrapBalance(initialBalance, erc20Asset);
 
     expect(approved?.amount).toBe(0n);
     expect(pending?.amount).toBe(0n);
 
-    // 2. Setup: Transfer USDC from whale to Alice
-    await transferERC20FromWhale(pool.rpcUrl, USDC_ADDRESS, USDC_WHALE, alice.address, DEPOSIT_AMOUNT);
+    // 2. Setup: Transfer ERC20 from whale to Alice
+    await transferERC20FromWhale(pool.rpcUrl, erc20Address, erc20WhaleAddress, alice.address, DEPOSIT_AMOUNT);
 
-    // 3. Approve entrypoint to spend USDC
-    await approveERC20(alice, USDC_ADDRESS, MAINNET_CONFIG.ENTRYPOINT_ADDRESS, DEPOSIT_AMOUNT);
+    // 3. Approve entrypoint to spend ERC20
+    const appReceipt = await approveERC20(alice, erc20Address, ENTRYPOINT_ADDRESS_HEX, DEPOSIT_AMOUNT);
+
+    expect(appReceipt).toBeTruthy();
+    expect(appReceipt?.status).toBe(1); // Success
 
     // 4. Prepare and execute deposit
     const { txns } = await protocol.prepareShield(
-      { asset: usdcAsset, amount: DEPOSIT_AMOUNT }
+      { asset: erc20Asset, amount: DEPOSIT_AMOUNT }
     );
 
     const [tx] = txns;
-    const txResponse = await alice.sendTransaction({
-      to: tx.to,
-      data: tx.data,
-      value: tx.value,
-      gasLimit: 6000000n,
-    });
-
-    await pool.mine(1);
-    const receipt = await provider.getTransactionReceipt(txResponse.hash);
+    const receipt = await sendTxAndWait(alice, tx);
 
     expect(receipt).toBeTruthy();
-    expect(receipt?.status).toBe(1n); // Success
+    expect(receipt?.status).toBe(1); // Success
 
     // 5. Verify state after deposit
-    const postDepositBalance = await protocol.balance([usdcAsset]);
+    const postDepositBalance = await protocol.balance([erc20Asset]);
 
-    const DEPOSIT_AMOUNT_AFTER_EP_FEE = deductVettingFees(DEPOSIT_AMOUNT, vettingFeesUsdc);
+    const DEPOSIT_AMOUNT_AFTER_EP_FEE = deductVettingFees(DEPOSIT_AMOUNT, vettingFeesErc20);
 
-    ({ pending, approved } = unwrapBalance(postDepositBalance, usdcAsset));
+    ({ pending, approved } = unwrapBalance(postDepositBalance, erc20Asset));
     expect(approved?.amount).toBe(0n);
     expect(pending?.amount).toBe(DEPOSIT_AMOUNT_AFTER_EP_FEE);
   });
 
   it('[prepareShield] accumulates multiple deposits correctly', { timeout: 60_000 }, async () => {
-    const pool = anvil.pool(3);
-    // const pool = anvil.raw();
+    const pool = anvil.pool(6);
 
     // Fund with enough ETH for multiple deposits
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create host with pool-specific RPC URL
-    const protocol = getProtocolWithState({
-      host: createMockHost(undefined, pool.rpcUrl),
+    const { protocol } = getProtocolWithState({
+      entrypoint,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
       initialState: latestState
     });
 

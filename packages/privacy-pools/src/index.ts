@@ -8,7 +8,6 @@ export { SecretManager } from './account/keys';
 // Types
 export type { SecretManagerParams, ISecretManager } from './account/keys';
 export type { Commitment, Nullifier } from './account/types';
-export type { PPv1NetworkConfig as NetworkConfig } from './config';
 
 // Configs
-export { MOCK_POOL_ADDRESS, MOCK_VERIFIER_ADDRESS, SEPOLIA_CONFIG, MAINNET_CONFIG, E_ADDRESS } from './config';
+export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';

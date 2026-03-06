@@ -224,6 +224,9 @@ importers:
       prool:
         specifier: ^0.0.24
         version: 0.0.24
+      snarkjs:
+        specifier: ^0.7.5
+        version: 0.7.5
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@24.5.0)(typescript@5.9.3)

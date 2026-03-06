@@ -37,8 +37,9 @@ const reducers = {
  } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
+type LogLevel = 'error' | 'verbose' | 'off';
 
-const logger: Middleware<object, RootState> = (api) => (next) => (action) => {
+const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (logLevel) => (api) => (next) => (action) => {
   const result = next(action);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const error = (action as any).error;
@@ -71,10 +72,12 @@ const logger: Middleware<object, RootState> = (api) => (next) => (action) => {
   Latest known ASP root ipfs: ${lastUpdateRootEvent?.ipfsCID},
   `;
 
-  console.group(`action ${type}`);
-  console.log("%c action", "color: #9E9E9E", transformedAction);
-  console.log("%c next state", "color: #4CAF50", transformedState);
-  console.groupEnd();
+  if (logLevel === 'verbose' || logLevel === 'error' && error) {
+    console.group(`action ${type}`);
+    console.log("%c action", "color: #9E9E9E", transformedAction);
+    console.log("%c next state", "color: #4CAF50", transformedState);
+    console.groupEnd();
+  }
 
   return result;
 };
@@ -84,21 +87,30 @@ type StoreShape = typeof reducers extends ReducersMapObject<infer StateType> ? S
 interface StoreFactoryParams {
   entrypointInfo: EntrypointInfoState;
   initialState?: StoreShape;
+  logLevel?: 'verbose' | 'error' | 'off';
 }
 
 export const storeFactory = ({
   entrypointInfo,
   initialState,
+  logLevel = 'error',
 }: StoreFactoryParams) => {
   const store = configureStore({
     preloadedState: initialState,
     reducer: reducers,
-    middleware: (getDefaultMiddleware) =>
-      getDefaultMiddleware({
+    middleware: (getDefaultMiddleware) => {
+      const defaultMiddleware = getDefaultMiddleware({
         serializableCheck: {
           ignoreActions: true,
         },
-      }).concat(logger),
+      });
+
+      if (logLevel !== 'off') {
+        defaultMiddleware.concat(loggerFactory(logLevel));
+      }
+
+      return defaultMiddleware;
+    }
   });
 
   store.dispatch(setEntrypointInfo(entrypointInfo));

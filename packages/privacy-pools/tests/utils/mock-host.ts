@@ -39,7 +39,7 @@ const createEthProvider = (rpcUrl = 'http://127.0.0.1:8545'): EthereumProvider =
   return viem(publicClient);
 };
 
-export function createMockHost(mnemonic?: string, rpcUrl = 'http://127.0.0.1:8545'): Host {
+export function createMockHost({ mnemonic, rpcUrl = 'http://127.0.0.1:8545' }: { mnemonic?: string; rpcUrl?: string; } = {}): Host {
   return {
     keystore: createMockKeystore(mnemonic),
     network: { fetch },
