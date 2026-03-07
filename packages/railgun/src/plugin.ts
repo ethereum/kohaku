@@ -32,7 +32,8 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
     const chain_id = await host.provider.getChainId();
 
     // TODO: Replace me with a loaded account
-    const account1 = JsSigner.random(chain_id);
+    const mainAccount = JsSigner.random(chain_id);
+    const importedAccount = JsSigner.random(chain_id);
     // const account1 = new JsSigner(spending_key, viewing_key, chain_id);
 
     const provider = await newRailgunProvider(host, chain_id);
@@ -49,11 +50,15 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
     // We could have it user-customized?
     const list_key = provider.listKeys()[0];
 
+    async function sync(): Promise<void> {
+        await provider.sync();
+    }
+
     async function balance(assets: RailgunAddress[] | undefined): Promise<AssetAmount[]> {
         if (list_key === undefined) {
             throw new Error("No list key available for balance query");
         }
-        const balance = await provider.balance(account1.address, list_key);
+        const balance = await provider.balance(mainAccount.address, list_key);
         const validBalance: AssetAmount[] = balance
             .filter((b) => b.poiStatus === "Valid")
             .filter((b) => b.balance > 0n)
@@ -75,7 +80,10 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for prepareShield");
         }
 
-        const txData = provider.shield().shield(account1.address, { type: "Erc20", value: token.asset.contract }, token.amount).build();
+        const txData = provider
+            .shield()
+            .shield(account1.address, { type: "Erc20", value: token.asset.contract }, token.amount)
+            .build();
         return {
             to: txData.to,
             data: txData.data,
@@ -88,7 +96,13 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for prepareUnshield");
         }
 
-        const builder = provider.transact().unshield(account1, to, { type: "Erc20", value: token.asset.contract }, token.amount);
+        const importedBal = await provider.balance(importedAccount.address, list_key);
+
+
+        const builder = provider
+            .transact()
+            .unshield(importedAccount, to, { type: "Erc20", value: token.asset.contract }, token.amount - 10n)
+            .unshield(account1, to, { type: "Erc20", value: token.asset.contract }, 10n);
         const tx = await provider.build(builder);
         return {
             __type: 'privateOperation',
@@ -112,7 +126,9 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
             throw new Error("No list key available for prepareTransfer");
         }
 
-        const builder = provider.transact().transfer(account1, to, { type: "Erc20", value: token.asset.contract }, token.amount, "");
+        const builder = provider
+            .transact()
+            .transfer(account1, to, { type: "Erc20", value: token.asset.contract }, token.amount, "");
         const tx = await provider.build(builder);
         return {
             __type: 'privateOperation',
@@ -143,7 +159,6 @@ export async function createRailgunPlugin(host: Host): Promise<RGInstance> {
         //     throw new Error("No broadcaster available for broadcastPrivateOperation");
         // }
         // await provider.broadcast(broadcaster, op.operation);
-
     }
 };
 
@@ -153,9 +168,11 @@ async function newRailgunProvider(host: Host, chain_id: bigint): Promise<JsPoiPr
     const prover = new GrothProverAdapter(new RemoteArtifactLoader(ARTIFACTS_URL));
     const syncer = JsSyncer.newChained([
         JsSyncer.newSubsquid(chain_id),
-        await JsSyncer.newRpc(rpcAdapter, chain_id, 10n),
+        //? Since all the broadcasters & POI nodes rely on subsquid, there's no 
+        //? actual sense in us syncing past subsquid.  So no need to have a RPC
+        //? syncer that goes ahead
+        // await JsSyncer.newRpc(rpcAdapter, chain_id, 10n),
     ]);
 
     return await JsPoiProvider.new(rpcAdapter, syncer, prover);
 }
-
