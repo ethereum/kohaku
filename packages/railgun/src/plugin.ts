@@ -1,5 +1,5 @@
 import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress } from "node_modules/railgun-js/dist/pkg/railgun_rs";
+import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "node_modules/railgun-js/dist/pkg/railgun_rs";
 import { createBroadcaster, GrothProverAdapter, RemoteArtifactLoader } from "railgun-js";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { TxData } from "@kohaku-eth/provider";
@@ -94,11 +94,15 @@ export class RailgunPlugin implements RGInstance {
         private signer: JsSigner,
         private broadcasterManager: JsBroadcasterManager,
         private storage: Storage
-    ) { }
+    ) {
+        this.provider.register(signer);
+    }
 
-    addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
+    async addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
         const signer = new JsSigner(spendingKey, viewingKey, this.chainId);
         this.internalSigners.push(signer);
+        this.provider.register(signer);
+        await this.saveState();
     }
 
     async instanceId(): Promise<RailgunAddress> {
@@ -108,28 +112,33 @@ export class RailgunPlugin implements RGInstance {
     // TODO: Once tags are implemented, enable return poiStatus for each item
     async balance(assets: AssetId[] | undefined): Promise<AssetAmount[]> {
         await this.provider.sync();
-        const balance = await this.provider.balance(this.signer.address, LIST_KEY);
-        const validBalance: AssetAmount[] = balance
-            .filter((b) => b.poiStatus === "Valid")
-            .filter((b) => b.balance > 0n)
-            .filter((b) => b.assetId.type === "Erc20")
-            .map((b) => ({
-                asset: {
-                    __type: 'erc20',
-                    //? Safe to cast since we filter for Erc20 above
-                    contract: b.assetId.value as `0x${string}`,
-                },
-                amount: b.balance,
-            }));
+        await this.saveState();
+        const balances = await this.signerBalances();
 
-        const filteredBalance: AssetAmount[] = validBalance.filter((b) => {
-            if (assets === undefined) {
-                return true;
+        const all: Map<string, AssetAmount> = new Map();
+        for (const [_, balance] of balances) {
+            for (const b of balance) {
+                if (b.assetId.type !== "Erc20") { continue; }
+                if (assets !== undefined && !assets.some((a) => a.__type === 'erc20' && a.contract === b.assetId.value)) { continue; }
+
+                const key = b.assetId.value;
+                const existing = all.get(key);
+                if (existing) {
+                    existing.amount += b.balance;
+                    continue;
+                }
+
+                all.set(key, {
+                    asset: {
+                        __type: 'erc20',
+                        contract: b.assetId.value,
+                    },
+                    amount: b.balance,
+                });
             }
-            return assets.some((a) => a.__type === 'erc20' && a.contract === b.asset.contract);
-        });
+        }
 
-        return filteredBalance;
+        return Array.from(all.values());
     }
 
     async prepareShield(token: AssetAmount): Promise<TxData> {
@@ -163,47 +172,41 @@ export class RailgunPlugin implements RGInstance {
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
         tokenGuard(token);
-
-        const builder = this.provider
-            .transact()
-            .unshield(this.signer, to, { type: "Erc20", value: token.asset.contract }, token.amount);
-
-        const operation = await this.buildWithBroadcaster(builder);
-        return operation;
+        const builder = await this.buildMultiSigner([token], (builder, signer, asset, amount) =>
+            builder.unshield(signer, to, asset, amount)
+        );
+        return this.buildWithBroadcaster(builder);
     }
 
     async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
-        let builder = this.provider.transact();
-
         for (const token of tokens) {
             tokenGuard(token);
-            builder = builder.unshield(this.signer, to, { type: "Erc20", value: token.asset.contract }, token.amount);
         }
 
-        const operation = await this.buildWithBroadcaster(builder);
-        return operation;
+        const builder = await this.buildMultiSigner(tokens, (builder, signer, asset, amount) =>
+            builder.unshield(signer, to, asset, amount)
+        );
+        return this.buildWithBroadcaster(builder);
     }
 
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
         tokenGuard(token);
+        const builder = await this.buildMultiSigner([token], (builder, signer, asset, amount) =>
+            builder.transfer(signer, to, asset, amount, "")
+        );
+        return this.buildWithBroadcaster(builder);
 
-        const builder = this.provider
-            .transact()
-            .transfer(this.signer, to, { type: "Erc20", value: token.asset.contract }, token.amount, "");
-        const operation = await this.buildWithBroadcaster(builder);
-        return operation;
     }
 
     async prepareTransferMulti(tokens: AssetAmount[], to: RailgunAddress): Promise<RGPrivateOperation> {
-        let builder = this.provider.transact();
-
         for (const token of tokens) {
             tokenGuard(token);
-            builder = builder.transfer(this.signer, to, { type: "Erc20", value: token.asset.contract }, token.amount, "");
         }
 
-        const operation = await this.buildWithBroadcaster(builder);
-        return operation;
+        const builder = await this.buildMultiSigner(tokens, (builder, signer, asset, amount) =>
+            builder.transfer(signer, to, asset, amount, "")
+        );
+        return this.buildWithBroadcaster(builder);
     }
 
     /**
@@ -220,6 +223,42 @@ export class RailgunPlugin implements RGInstance {
     async broadcastPrivateOperation(op: RGPrivateOperation): Promise<void> {
         const broadcaster = op.broadcaster;
         await this.provider.broadcast(broadcaster, op.operation);
+    }
+
+    /**
+     * Builds a private operation by iterating through the user's signers and
+     * draining the required tokens.
+     * 
+     * @param tokens The token amounts required for the operation.
+     * @param addToBuilder Callback that adds the required action to the builder for a given signer, token, and amount.
+     * @returns A transaction builder with the required actions added for the selected signers and tokens.
+     */
+    private async buildMultiSigner(
+        tokens: AssetAmount[],
+        addToBuilder: (builder: JsPoiTransactionBuilder, signer: JsSigner, asset: RailgunAssetId, amount: bigint) => JsPoiTransactionBuilder,
+    ): Promise<JsPoiTransactionBuilder> {
+        let builder = this.provider.transact();
+        const remaining = new Map(tokens.map(t => [t.asset.contract, t.amount]));
+
+        const balances = await this.signerBalances();
+        for (const [signer, balance] of balances) {
+            for (const b of balance) {
+                if (b.assetId.type !== "Erc20") continue;
+                const need = remaining.get(b.assetId.value as `0x${string}`);
+                if (!need || need <= 0n) continue;
+
+                const take = need < b.balance ? need : b.balance;
+                builder = addToBuilder(builder, signer, b.assetId, take);
+                remaining.set(b.assetId.value as `0x${string}`, need - take);
+            }
+        }
+
+        // check remaining are all 0
+        for (const [asset, amt] of remaining) {
+            if (amt > 0n) throw new Error(`Insufficient balance for ${asset}`);
+        }
+
+        return builder;
     }
 
     /**
@@ -259,7 +298,7 @@ export class RailgunPlugin implements RGInstance {
         throw new Error("Failed to build transaction with any broadcaster");
     }
 
-    private saveState() {
+    private async saveState() {
         const providerState = this.provider.state();
         const internalSigners = this.internalSigners.map((s) => ({
             spendingKey: s.spendingKey,
@@ -274,6 +313,16 @@ export class RailgunPlugin implements RGInstance {
         };
 
         this.storage.set(LIST_KEY, JSON.stringify(state));
+    }
+
+    private async signerBalances(): Promise<[JsSigner, JsPoiBalance[]][]> {
+        const signers = [this.signer, ...this.internalSigners];
+        return Promise.all(signers.map(async s => [s, await this.validBalance(s)]));
+    }
+
+    private async validBalance(signer: JsSigner): Promise<JsPoiBalance[]> {
+        const balance = await this.provider.balance(signer.address, LIST_KEY);
+        return balance.filter((b) => b.poiStatus === "Valid" && b.balance > 0n);
     }
 };
 
