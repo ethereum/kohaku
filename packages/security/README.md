@@ -19,6 +19,8 @@ A collection of security-focused utilities for wallets. Aims to provide a baseli
   - [ ] Display EIP-712 structs
   - [ ] Integrate with blocklist and address poisoning utilities
   - [ ] Decode well-known contract interactions (e.g. Uniswap swaps, OpenSea listings, etc.)
+- [ ] Dust transaction filtering
+- [ ] Flag blocked, frozen, or blacklisted funds in address balances
 
 ## Specs
  - [Walletbeat Security Features](https://github.com/walletbeat/walletbeat/blob/beta/docs/features.md#srcschemafeaturessecurityaccount-recoveryts)
