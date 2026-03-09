@@ -1,4 +1,4 @@
-import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
+import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
 import { JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress } from "node_modules/railgun-js/dist/pkg/railgun_rs";
 import { createBroadcaster, GrothProverAdapter, RemoteArtifactLoader } from "railgun-js";
 import { EthereumProviderAdapter } from "./ethereum-provider";
@@ -30,19 +30,76 @@ export type RGInstance = PluginInstance<
     }
 >;
 
+interface RailgunPluginState {
+    providerState: Uint8Array,
+    internalSigners: {
+        spendingKey: `0x${string}`,
+        viewingKey: `0x${string}`,
+    }[],
+    chainId: bigint,
+    version: '0.1.0',
+}
+
 const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88";
 
 export async function createRailgunProvider(host: Host, spendingKey: `0x${string}`, viewingKey: `0x${string}`): Promise<RailgunPlugin> {
+    try {
+        return await loadRailgunProvider(host);
+    } catch (e) {
+        console.log("Failed to load existing Railgun provider, creating new one", e);
+    }
+
     const chainId = await host.provider.getChainId();
     const provider = await newRailgunProvider(host, chainId);
     const signer = new JsSigner(spendingKey, viewingKey, chainId);
     const broadcastManager = await createBroadcaster(chainId);
 
-    return new RailgunPlugin(chainId, provider, signer, broadcastManager);
+    return new RailgunPlugin(chainId, provider, signer, broadcastManager, host.storage);
+}
+
+async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
+    const savedState = host.storage.get(LIST_KEY);
+    if (!savedState) {
+        throw new Error("No saved state found for Railgun plugin");
+    }
+
+    const { providerState, internalSigners, chainId }: RailgunPluginState = JSON.parse(savedState);
+    const remoteChainId = await host.provider.getChainId();
+    if (remoteChainId !== chainId) {
+        throw new Error(`Unexpected chain ID: remote: ${remoteChainId}, expected: ${chainId}`);
+    }
+
+    const provider = await newRailgunProvider(host, chainId);
+    provider.setState(providerState);
+
+    const broadcastManager = await createBroadcaster(chainId);
+
+    const plugin = new RailgunPlugin(chainId, provider, null as any, broadcastManager, host.storage);
+    for (const signer of internalSigners) {
+        plugin.addInternalSigner(signer.spendingKey, signer.viewingKey);
+    }
+
+    return plugin;
 }
 
 export class RailgunPlugin implements RGInstance {
-    constructor(private chainId: bigint, private provider: JsPoiProvider, private signer: JsSigner, private broadcasterManager: JsBroadcasterManager) { }
+    /**
+     * InternalSigners are preferentially used to fund transact operations.
+     */
+    private internalSigners: JsSigner[] = [];
+
+    constructor(
+        private chainId: bigint,
+        private provider: JsPoiProvider,
+        private signer: JsSigner,
+        private broadcasterManager: JsBroadcasterManager,
+        private storage: Storage
+    ) { }
+
+    addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
+        const signer = new JsSigner(spendingKey, viewingKey, this.chainId);
+        this.internalSigners.push(signer);
+    }
 
     async instanceId(): Promise<RailgunAddress> {
         return this.signer.address;
@@ -186,12 +243,12 @@ export class RailgunPlugin implements RGInstance {
             if (!broadcaster) { continue; }
 
             try {
-                const tx = await this.provider.buildBroadcast(builder, this.signer, broadcaster.fee());
+                const tx = await this.provider.buildBroadcast(builder, this.signer, broadcaster.fee);
                 return {
                     __type: 'privateOperation',
                     operation: tx,
                     broadcaster,
-                    feeToken: broadcaster.fee().token,
+                    feeToken: broadcaster.fee.token,
                 };
             } catch (e) {
                 console.log("Failed to build with broadcaster, trying next one", e);
@@ -200,6 +257,23 @@ export class RailgunPlugin implements RGInstance {
         }
 
         throw new Error("Failed to build transaction with any broadcaster");
+    }
+
+    private saveState() {
+        const providerState = this.provider.state();
+        const internalSigners = this.internalSigners.map((s) => ({
+            spendingKey: s.spendingKey,
+            viewingKey: s.viewingKey,
+        }));
+
+        const state: RailgunPluginState = {
+            providerState,
+            internalSigners,
+            chainId: this.chainId,
+            version: '0.1.0',
+        };
+
+        this.storage.set(LIST_KEY, JSON.stringify(state));
     }
 };
 

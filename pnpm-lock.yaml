@@ -334,8 +334,8 @@ importers:
         specifier: ^1.0.6
         version: 1.0.6
       railgun-js:
-        specifier: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.4/railgun-js-0.1.0.tgz
-        version: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.4/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
+        specifier: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.5/railgun-js-0.1.0.tgz
+        version: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.5/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
       ts-pattern:
         specifier: ^5.4.0
         version: 5.9.0
@@ -6969,8 +6969,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.4/railgun-js-0.1.0.tgz:
-    resolution: {tarball: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.4/railgun-js-0.1.0.tgz}
+  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.5/railgun-js-0.1.0.tgz:
+    resolution: {tarball: https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.5/railgun-js-0.1.0.tgz}
     version: 0.1.0
 
   randombytes@2.1.0:
@@ -16758,7 +16758,7 @@ snapshots:
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
-  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.4/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6):
+  railgun-js@https://github.com/Robert-MacWha/privacy-protocols/releases/download/v0.1.5/railgun-js-0.1.0.tgz(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6):
     dependencies:
       '@waku/sdk': 0.0.36(@multiformats/multiaddr@12.5.1)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       snarkjs: 0.7.6
