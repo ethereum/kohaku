@@ -22,7 +22,6 @@ import { addressToHex } from "../utils";
 import { decodeRelayData } from "../utils/encoding.utils";
 import { calculateContext } from "../utils/proof.util";
 import { BaseSelectorParams } from "./interfaces/selectors.interface";
-import { createMyUnsyncedAssetsSelector } from "./selectors/assets.selector";
 import {
   createAllAssetsBalanceSelector,
   createMyAssetsBalanceSelector,
@@ -92,8 +91,6 @@ const initializeSelectors = <const T extends Store>({
 
   const myPoolsSelector = createMyPoolsSelector(myEntrypointDepositsSelector);
 
-  const myUnsyncedAssetsSelector =
-    createMyUnsyncedAssetsSelector(myPoolsSelector);
   const myDepositsBalanceSelector = createMyDepositsBalanceSelector({
     myDepositsWithAssetSelector,
     myRagequitsSelector,
@@ -156,9 +153,6 @@ const initializeSelectors = <const T extends Store>({
 
       myPoolsSelector: () => myPoolsSelector(store.getState()),
       poolFromAssetSelector: (assetAddress: Address) => poolFromAssetSelector(store.getState(), assetAddress),
-
-      myUnsyncedAssetsSelector: () =>
-        myUnsyncedAssetsSelector(store.getState()),
 
       // Ragequit selectors
       getUnapprovedNotes: () => unapprovedNotesSelector(store.getState()),

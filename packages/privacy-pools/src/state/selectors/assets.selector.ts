@@ -1,7 +1,7 @@
 import { createSelector } from "@reduxjs/toolkit";
 
 import { createMyPoolsSelector } from "./pools.selector";
-import { assetSelector } from "./slices.selectors";
+import { assetSelector, poolsSelector } from "./slices.selectors";
 
 export const createAreAssetsSyncedSelector = (
   myPoolsSelector: ReturnType<typeof createMyPoolsSelector>
@@ -21,17 +21,15 @@ export const createAreAssetsSyncedSelector = (
   );
 };
 
-export const createMyUnsyncedAssetsSelector = (
-  myPoolsSelector: ReturnType<typeof createMyPoolsSelector>
-) => {
-  return createSelector(
+export const unsyncedAssetsSelector = createSelector(
     [
-      myPoolsSelector,
+      poolsSelector,
       assetSelector,
     ],
-    (myPools, assets): bigint[] => {
+    (pools, assets): bigint[] => {
       const uniqueAssetAddresses = new Set(
-        myPools.map(({ asset }) => asset)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        Array.from(pools).map(([_, { asset }]) => asset)
       );
 
       return Array.from(uniqueAssetAddresses).filter(
@@ -39,4 +37,3 @@ export const createMyUnsyncedAssetsSelector = (
       );
     }
   );
-};

@@ -1,15 +1,18 @@
-import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IEntrypoint, INote, PPv1PrivateOperation, PPv1PublicOperation } from '../plugin/interfaces/protocol-params.interface.js';
+import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { Address } from 'ox/Address';
+import { IAspService } from "../data/asp.interface.js";
+import { IEntrypoint, INote, PPv1PrivateOperation, PPv1PublicOperation } from '../plugin/interfaces/protocol-params.interface.js';
+import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
 
 export type PPv1BroadcasterParameters = {
     broadcasterUrl: string | Record<string, string>;
 };
-export type PPv1Broadcaster = Broadcaster<PPv1BroadcasterParameters, PPv1PrivateOperation>;
+export type PPv1Broadcaster = Broadcaster<PPv1PrivateOperation, ISuccessfullRelayResponse>;
 export interface PPv1PluginParameters extends PPv1BroadcasterParameters, PPv1BaseCredential {
     entrypoint: IEntrypoint;
     ipfsUrl?: string;
+    aspServiceFactory?: () => IAspService
 };
 export interface PPv1PluginWithMnemonicParameters extends PPv1PluginParameters {
     mnemonic: string;
@@ -49,8 +52,9 @@ type PPv1InstanceFactory<Credential extends PPv1Credentials> = PluginInstance<
             read: PPv1AssetBalance,
         },
         extras: {
-            notes(assets: ERC20AssetId[], includeSpent?: boolean): Promise<INote[]>;
-            ragequit(labels: INote['label'][]): Promise<PPv1PublicOperation>
+            notes(assets: ERC20AssetId[], includeSpent?: boolean): Promise<INote[]>,
+            ragequit(labels: INote['label'][]): Promise<PPv1PublicOperation>,
+            sync(): Promise<void>,
         },
         publicOp: PPv1PublicOperation,
         privateOp: PPv1PrivateOperation,

@@ -5,6 +5,15 @@ import { encodeAbiParameters, keccak256, numberToHex } from "viem";
 
 const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
+
+export function computeMerkleTreeRoot(leaves: bigint[]) {
+  const tree = new LeanIMT<bigint>((a, b) => poseidon([a, b]));
+
+  tree.insertMany(leaves);
+
+  return tree.root
+}
+
 /**
  * Generates a Merkle inclusion proof for a given leaf in a set of leaves.
  *
