@@ -17,8 +17,8 @@ export function createMockHost(provider: JsonRpcProvider, overrides?: Partial<Ho
       provider.send(method, Array.isArray(params) ? params : []),
   };
   const keystore = { deriveAt: (_path: string) => '0x1' as `0x${string}` };
-  const host = { ethProvider, keystore, ...overrides } as unknown as Host;
-  
+  const host = { provider: ethProvider, keystore, ...overrides } as unknown as Host;
+
   return { host, ethProvider };
 }
 

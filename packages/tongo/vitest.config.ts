@@ -11,6 +11,8 @@ export default defineConfig({
           name: 'e2e',
           include: ['tests/e2e/**/*.test.ts'],
           testTimeout: 60_000,
+          hookTimeout: 120_000,
+          envFile: 'tests/.env.e2e.tests',
         }
       }
     ]

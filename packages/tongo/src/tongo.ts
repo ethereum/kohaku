@@ -1,6 +1,5 @@
-import { ERC20AssetId, PrivateOperation, PublicOperation, UnsupportedAssetError, InsufficientBalanceError, Host, MultiAssetsNotSupportedError } from "@kohaku-eth/plugins";
+import { ERC20AssetId, UnsupportedAssetError, InsufficientBalanceError, Host, MultiAssetsNotSupportedError } from "@kohaku-eth/plugins";
 
-import { Address } from "@kohaku-eth/provider";
 import { pubKeyBase58ToAffine, Account as TongoAccount } from "@fatsolutions/tongo-evm";
 
 import { KeystoreManagerFactory } from "./keystoreManager";
@@ -9,14 +8,18 @@ import {
   IKeystoreManager,
   TongoAddress,
   TongoAssetAmount,
+  TongoAssetAmountInput,
   TongoAssetBalance,
+  TongoAssetId,
   TongoInstance,
   TongoPluginConfig,
+  TongoPublicOperation,
+  TongoPrivateOperation,
 } from "./interfaces";
 
 export class TongoPlugin implements TongoInstance {
     chain: number;
-    deploys: Map<ERC20AssetId, Address>;
+    deploys: Map<ERC20AssetId, TongoAddress>;
     keystoreManager: IKeystoreManager;
 
     constructor(readonly host: Host, {
@@ -32,7 +35,7 @@ export class TongoPlugin implements TongoInstance {
     }
 
     private async getSender(): Promise<string> {
-        const accounts = await this.host.ethProvider.request({ method: 'eth_accounts' }) as string[];     
+        const accounts = await this.host.provider.request({ method: 'eth_accounts' }) as string[];     
 
         return accounts[0]!;
     }
@@ -42,7 +45,7 @@ export class TongoPlugin implements TongoInstance {
     }
 
     private deriveAccountFromKey(tongoContract: string, derivedKey: bigint): TongoAccount {
-        return new TongoAccount(derivedKey, tongoContract, this.host.ethProvider);
+        return new TongoAccount(derivedKey, tongoContract, this.host.provider);
     }
 
     async instanceId(): Promise<TongoAddress> {
@@ -55,37 +58,43 @@ export class TongoPlugin implements TongoInstance {
         return state.balance + state.pending;
     }
 
-    async balance(assets: Array<ERC20AssetId> | undefined): Promise<Array<TongoAssetBalance>> {
+    async balance(assets: Array<TongoAssetId> | undefined): Promise<Array<TongoAssetBalance>> {
         const derivedKey = this.keystoreManager.deriveKey();
 
-        const balances = [...this.deploys.entries()]
-            .filter(([assetId]) => assets === undefined || assets.includes(assetId))
-            .map(async ([assetId, tongoContract]) => {
+        const balances = await Promise.all(
+            [...this.deploys.entries()]
+            .filter(([, tongoContract]) => assets === undefined || assets.some(a => a.contract === tongoContract))
+            .map(async ([, tongoContract]) => {
+                const tongoAssetId: TongoAssetId = { __type: 'tongo', contract: tongoContract };
                 const tongoAccount = this.deriveAccountFromKey(tongoContract, derivedKey);
-                const amount = await this._balance(tongoAccount);
+                const state = await tongoAccount.state();
 
-                return { asset: assetId, amount } as TongoAssetBalance;
-            });
+                return [
+                    { asset: tongoAssetId, amount: state.balance },
+                    { asset: tongoAssetId, amount: state.pending, tag: 'pending' as const },
+                ];
+            })
+        );
 
-        return Promise.all(balances);
+        return balances.flat();
     }
 
-    async prepareShield(asset: TongoAssetAmount, to?: TongoAddress, from?: TongoAddress): Promise<PublicOperation> {
+    async prepareShield(asset: TongoAssetAmountInput, to?: TongoAddress, from?: TongoAddress): Promise<TongoPublicOperation> {
         const tongoContract = this.deploys.get(asset.asset);
 
         if (tongoContract === undefined) { throw UnsupportedAssetError; }
 
-        const fund = await this.deriveAccount(tongoContract).fund({ amount: asset.amount, sender: from! });
+        const sender = from ?? to ?? await this.getSender();
+        const fund = await this.deriveAccount(tongoContract).fund({ amount: asset.amount, sender });
 
-        const op = { __type: "publicOperation" as const, txns: [fund.approve, fund.toCalldata()] };
-        
-        return op;
+        return { __type: "publicOperation" as const, txns: [fund.approve, fund.toCalldata()] };
+    
     }
 
-    async prepareUnshield(asset: TongoAssetAmount, to: TongoAddress, from?: TongoAddress): Promise<PrivateOperation> {
-        const tongoContract = this.deploys.get(asset.asset);
+    async prepareUnshield(asset: TongoAssetAmount, to: TongoAddress, from?: TongoAddress): Promise<TongoPrivateOperation> {
+        const tongoContract = asset.asset.contract;
 
-        if (tongoContract === undefined) { throw UnsupportedAssetError; }
+        if (![...this.deploys.values()].includes(tongoContract)) { throw UnsupportedAssetError; }
 
         const tongoAccount = this.deriveAccount(tongoContract);
 
@@ -110,10 +119,10 @@ export class TongoPlugin implements TongoInstance {
         return op;
     }
 
-    async prepareTransfer(asset: TongoAssetAmount, to: TongoAddress, from?: TongoAddress): Promise<PrivateOperation> {
-        const tongoContract = this.deploys.get(asset.asset);
+    async prepareTransfer(asset: TongoAssetAmount, to: TongoAddress, from?: TongoAddress): Promise<TongoPrivateOperation> {
+        const tongoContract = asset.asset.contract;
 
-        if (tongoContract === undefined) { throw UnsupportedAssetError; }
+        if (![...this.deploys.values()].includes(tongoContract)) { throw UnsupportedAssetError; }
 
         const tongoAccount = this.deriveAccount(tongoContract);
 
@@ -138,12 +147,12 @@ export class TongoPlugin implements TongoInstance {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    prepareTransferMulti(assets: Array<TongoAssetAmount>, to: TongoAddress, from?: TongoAddress): Promise<PrivateOperation> {
+    prepareTransferMulti(assets: Array<TongoAssetAmount>, to: TongoAddress, from?: TongoAddress): Promise<TongoPrivateOperation> {
         throw new MultiAssetsNotSupportedError();
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async broadcastPrivateOperation(operation: PrivateOperation): Promise<void> {
+    async broadcastPrivateOperation(operation: TongoPrivateOperation): Promise<void> {
         throw new Error("Method not implemented.");
     }
 }

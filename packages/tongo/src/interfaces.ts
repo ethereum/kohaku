@@ -1,9 +1,15 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, Host, PluginInstance, PrivateOperation, PublicOperation } from "@kohaku-eth/plugins";
-import { Address } from "@kohaku-eth/provider";
+
+type Address = ERC20AssetId['contract'];
 
 export type TongoBroadcasterParameters = {
     broadcasterUrl: string | Record<string, string>;
+};
+
+export type TongoAssetId = {
+    __type: 'tongo';
+    contract: Address;
 };
 
 export interface IEntrypoint {
@@ -19,8 +25,14 @@ export interface TongoPluginParameters extends TongoBroadcasterParameters, Tongo
 
 export type TongoAddress = Address;
 
-export type TongoAssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
-export type TongoAssetBalance = TongoAssetAmount<'pending'>;
+export type TongoAssetAmount<Tag extends string | undefined = undefined> = AssetAmount<TongoAssetId, bigint, Tag>;
+export type TongoAssetBalance = TongoAssetAmount | TongoAssetAmount<'pending'>;
+
+export type TongoAssetAmountInput<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
+
+type TxCalldata = { to: string; data: string; value: bigint };
+export type TongoPublicOperation = PublicOperation & { txns: TxCalldata[] };
+export type TongoPrivateOperation = PrivateOperation & { txns: TxCalldata[] };
 
 export interface TongoCredentials {
     accountIndex: number;
@@ -54,14 +66,14 @@ export type TongoInstance = PluginInstance<
             prepareTransferMulti: false,
         },
         assetAmounts: {
-            input: TongoAssetAmount,
+            input: TongoAssetAmountInput,
             internal: TongoAssetAmount,
             output: TongoAssetAmount,
             read: TongoAssetBalance,
         },
         // extras: {
         // },
-        publicOp: PublicOperation,
-        privateOp: PrivateOperation,
+        publicOp: TongoPublicOperation,
+        privateOp: TongoPrivateOperation,
     }
 >;

@@ -1,11 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Account as TongoAccount } from '@fatsolutions/tongo-evm';
 
 import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 import { getEnv } from '../utils/common';
 import { setupWallet, mintERC20, sendTx, createProvider, createMockHost } from '../utils/test-helpers';
 import { TongoPlugin } from '../../src/tongo';
-import { Erc20Id, CustomAccountId, CustomChainId, Eip155AccountId, InsufficientBalanceError } from '@kohaku-eth/plugins';
+import { InsufficientBalanceError } from '@kohaku-eth/plugins';
 import getPort from 'get-port';
 
 const SEPOLIA_FORK_URL = getEnv('SEPOLIA_RPC_URL', 'https://no-fallback');
@@ -16,6 +16,8 @@ const USDC_ADDRESS =
 const TONGO_CONTRACT_ADDRESS =
   '0xDf978aD176352906a5dAC3D1c025Cf4CEE9B1124';
 
+const TONGO_DEPLOYMENT_BLOCK = 10329629;
+
 describe('tongo EVM Transfer E2E', () => {
   let anvil: AnvilInstance;
   let rate = 0n;
@@ -23,24 +25,23 @@ describe('tongo EVM Transfer E2E', () => {
   beforeAll(async () => {
     anvil = defineAnvil({
       forkUrl: SEPOLIA_FORK_URL,
+      forkBlockNumber: TONGO_DEPLOYMENT_BLOCK,
       port: await getPort(),
       chainId: 11155111,
     });
 
     await anvil.start();
-  }, 300000);
 
-  afterAll(async () => {
-    await anvil.stop();
-  });
-
-  beforeEach(async () => {
     const pool = anvil.pool(10);
     const provider = createProvider(pool.rpcUrl);
     const { ethProvider } = createMockHost(provider);
     const tongoAccount = new TongoAccount(1n, TONGO_CONTRACT_ADDRESS, ethProvider);
 
     rate = await tongoAccount.rate();
+  }, 300000);
+
+  afterAll(async () => {
+    await anvil.stop();
   });
 
   it('[prepareTransfer] returns correctly shaped transaction', async () => {
@@ -48,7 +49,8 @@ describe('tongo EVM Transfer E2E', () => {
     const provider = createProvider(pool.rpcUrl);
     const { host, ethProvider } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
@@ -60,11 +62,10 @@ describe('tongo EVM Transfer E2E', () => {
     vi.spyOn(TongoAccount.prototype, 'state').mockResolvedValue({ balance: AMOUNT, pending: 0n, nonce: 1n });
     vi.spyOn(TongoAccount.prototype, 'transfer').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
 
-    const account2TongoAddress = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress();
-    const recipient = new CustomAccountId(account2TongoAddress, new CustomChainId('tongo-evm', 11155111));
+    const recipient = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress() as `0x${string}`;
 
     const { txns } = await plugin.prepareTransfer(
-      { asset: usdcAssetId, amount: AMOUNT },
+      { asset: tongoAssetId, amount: AMOUNT },
       recipient
     );
 
@@ -88,7 +89,8 @@ describe('tongo EVM Transfer E2E', () => {
     const { host, ethProvider } = createMockHost(provider);
 
     const account1 = new TongoAccount(1n, TONGO_CONTRACT_ADDRESS, ethProvider);
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
@@ -100,7 +102,7 @@ describe('tongo EVM Transfer E2E', () => {
 
     const { txns: shieldTxns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: FUND_AMOUNT },
-      new Eip155AccountId(aliceWallet.address as `0x${string}`)
+      aliceWallet.address as `0x${string}`
     );
 
     await sendTx(aliceWallet, shieldTxns[0]);
@@ -111,13 +113,12 @@ describe('tongo EVM Transfer E2E', () => {
     expect(stateAfterFund.balance).toBe(FUND_AMOUNT);
 
     // --- Transfer to account 2 ---
-    const account2TongoAddress = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress();
-    const recipient = new CustomAccountId(account2TongoAddress, new CustomChainId('tongo-evm', 11155111));
+    const recipient = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress() as `0x${string}`;
 
     const { txns } = await plugin.prepareTransfer(
-      { asset: usdcAssetId, amount: FUND_AMOUNT },
+      { asset: tongoAssetId, amount: FUND_AMOUNT },
       recipient,
-      new Eip155AccountId(aliceWallet.address as `0x${string}`)
+      aliceWallet.address as `0x${string}`
     );
 
     await sendTx(aliceWallet, txns[0]);
@@ -132,7 +133,8 @@ describe('tongo EVM Transfer E2E', () => {
     const provider = createProvider(pool.rpcUrl);
     const { host, ethProvider } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
@@ -145,11 +147,10 @@ describe('tongo EVM Transfer E2E', () => {
     vi.spyOn(TongoAccount.prototype, 'rollover').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
     vi.spyOn(TongoAccount.prototype, 'transfer').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
 
-    const account2TongoAddress = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress();
-    const recipient = new CustomAccountId(account2TongoAddress, new CustomChainId('tongo-evm', 11155111));
+    const recipient = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress() as `0x${string}`;
 
     const { txns } = await plugin.prepareTransfer(
-      { asset: usdcAssetId, amount: AMOUNT },
+      { asset: tongoAssetId, amount: AMOUNT },
       recipient
     );
 
@@ -174,18 +175,18 @@ describe('tongo EVM Transfer E2E', () => {
     const provider = createProvider(pool.rpcUrl);
     const { host, ethProvider } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
     });
 
-    const account2TongoAddress = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress();
-    const recipient = new CustomAccountId(account2TongoAddress, new CustomChainId('tongo-evm', 11155111));
+    const recipient = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress() as `0x${string}`;
 
     await expect(
       plugin.prepareTransfer(
-        { asset: usdcAssetId, amount: 100_000_000n },
+        { asset: tongoAssetId, amount: 100_000_000n },
         recipient
       )
     ).rejects.toBe(InsufficientBalanceError);

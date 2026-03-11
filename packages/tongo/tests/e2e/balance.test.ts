@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Account as TongoAccount } from '@fatsolutions/tongo-evm';
 import getPort from "get-port";
 
@@ -6,7 +6,6 @@ import { defineAnvil, type AnvilInstance } from '../utils/anvil';
 import { getEnv } from '../utils/common';
 import { setupWallet, mintERC20, sendTx, createProvider, createMockHost } from '../utils/test-helpers';
 import { TongoPlugin } from '../../src/tongo';
-import { Erc20Id, Eip155AccountId } from '@kohaku-eth/plugins';
 
 const SEPOLIA_FORK_URL = getEnv('SEPOLIA_RPC_URL', 'https://no-fallback');
 
@@ -16,6 +15,8 @@ const USDC_ADDRESS =
 const TONGO_CONTRACT_ADDRESS =
   '0xDf978aD176352906a5dAC3D1c025Cf4CEE9B1124';
 
+const TONGO_DEPLOYMENT_BLOCK = 10329629;
+
 describe('tongo EVM Balance E2E', () => {
   let anvil: AnvilInstance;
   let rate = 0n;
@@ -23,24 +24,23 @@ describe('tongo EVM Balance E2E', () => {
   beforeAll(async () => {
     anvil = defineAnvil({
       forkUrl: SEPOLIA_FORK_URL,
+      forkBlockNumber: TONGO_DEPLOYMENT_BLOCK,
       port: await getPort(),
       chainId: 11155111,
     });
 
     await anvil.start();
-  }, 300000);
 
-  afterAll(async () => {
-    await anvil.stop();
-  });
-
-  beforeEach(async () => {
     const pool = anvil.pool(15);
     const provider = createProvider(pool.rpcUrl);
     const { ethProvider } = createMockHost(provider);
     const tongoAccount = new TongoAccount(1n, TONGO_CONTRACT_ADDRESS, ethProvider);
 
     rate = await tongoAccount.rate();
+  }, 300000);
+
+  afterAll(async () => {
+    await anvil.stop();
   });
 
   it('[balance] returns zero for a fresh account', async () => {
@@ -48,17 +48,20 @@ describe('tongo EVM Balance E2E', () => {
     const provider = createProvider(pool.rpcUrl);
     const { host } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
     });
 
-    const result = await plugin.balance([usdcAssetId]);
+    const result = await plugin.balance([tongoAssetId]);
 
-    expect(result).toHaveLength(1);
-    expect(result[0]!.asset).toBe(usdcAssetId);
+    expect(result).toHaveLength(2);
+    expect(result[0]!.asset).toEqual(tongoAssetId);
     expect(result[0]!.amount).toBe(0n);
+    expect(result[1]!.amount).toBe(0n);
+    expect(result[1]!.tag).toBe('pending');
   });
 
   it('[balance] returns correct balance after shielding', async () => {
@@ -67,7 +70,8 @@ describe('tongo EVM Balance E2E', () => {
     const aliceWallet = await setupWallet(pool, process.env.TEST_PRIVATE_KEY!);
     const { host } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
@@ -78,25 +82,26 @@ describe('tongo EVM Balance E2E', () => {
 
     const { txns: shieldTxns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: FUND_AMOUNT },
-      new Eip155AccountId(aliceWallet.address as `0x${string}`)
+      aliceWallet.address as `0x${string}`
     );
 
     await sendTx(aliceWallet, shieldTxns[0]);
     await sendTx(aliceWallet, shieldTxns[1]);
 
-    const result = await plugin.balance([usdcAssetId]);
+    const result = await plugin.balance([tongoAssetId]);
 
-    expect(result).toHaveLength(1);
-    expect(result[0]!.asset).toBe(usdcAssetId);
-    expect(result[0]!.amount).toBe(FUND_AMOUNT);
+    expect(result).toHaveLength(2);
+    const balanceEntry = result.find(r => !r.tag);
+    expect(balanceEntry!.amount).toBe(FUND_AMOUNT);
   });
 
-  it('[balance] sums balance and pending in the returned amount', async () => {
+  it('[balance] returns balance and pending as separate entries', async () => {
     const pool = anvil.pool(18);
     const provider = createProvider(pool.rpcUrl);
     const { host } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
@@ -107,13 +112,15 @@ describe('tongo EVM Balance E2E', () => {
 
     vi.spyOn(TongoAccount.prototype, 'state').mockResolvedValue({ balance: BALANCE, pending: PENDING, nonce: 1n });
 
-    const result = await plugin.balance([usdcAssetId]);
+    const result = await plugin.balance([tongoAssetId]);
 
     vi.restoreAllMocks();
 
-    expect(result).toHaveLength(1);
-    expect(result[0]!.asset).toBe(usdcAssetId);
-    expect(result[0]!.amount).toBe(BALANCE + PENDING);
+    expect(result).toHaveLength(2);
+    const balanceEntry = result.find(r => !r.tag);
+    const pendingEntry = result.find(r => r.tag === 'pending');
+    expect(balanceEntry!.amount).toBe(BALANCE);
+    expect(pendingEntry!.amount).toBe(PENDING);
   });
 
   it('[balance] returns empty array for unconfigured asset', async () => {
@@ -126,8 +133,8 @@ describe('tongo EVM Balance E2E', () => {
       deploys: new Map(),
     });
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
-    const result = await plugin.balance([usdcAssetId]);
+    const tongoAssetId = { __type: 'tongo' as const, contract: TONGO_CONTRACT_ADDRESS as `0x${string}` };
+    const result = await plugin.balance([tongoAssetId]);
 
     expect(result).toHaveLength(0);
   });
@@ -137,7 +144,7 @@ describe('tongo EVM Balance E2E', () => {
     const provider = createProvider(pool.rpcUrl);
     const { host } = createMockHost(provider);
 
-    const usdcAssetId = new Erc20Id(USDC_ADDRESS);
+    const usdcAssetId = { __type: 'erc20' as const, contract: USDC_ADDRESS as `0x${string}` };
     const plugin = new TongoPlugin(host, {
       chain: 11155111,
       deploys: new Map([[usdcAssetId, TONGO_CONTRACT_ADDRESS]]),
@@ -152,8 +159,10 @@ describe('tongo EVM Balance E2E', () => {
 
     vi.restoreAllMocks();
 
-    expect(result).toHaveLength(1);
-    expect(result[0]!.asset).toBe(usdcAssetId);
-    expect(result[0]!.amount).toBe(BALANCE + PENDING);
+    expect(result).toHaveLength(2);
+    const balanceEntry = result.find(r => !r.tag);
+    const pendingEntry = result.find(r => r.tag === 'pending');
+    expect(balanceEntry!.amount).toBe(BALANCE);
+    expect(pendingEntry!.amount).toBe(PENDING);
   });
 });
