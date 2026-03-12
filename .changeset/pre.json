@@ -11,7 +11,8 @@
   },
   "changesets": [
     "clear-plums-post",
-    "clear-views-sing"
+    "clear-views-sing",
+    "petite-views-attack"
   ],
   "ignore": [
     "docs",
