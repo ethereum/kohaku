@@ -61,7 +61,7 @@ export class TongoPlugin implements TongoInstance {
     async balance(assets: Array<TongoAssetId> | undefined): Promise<Array<TongoAssetBalance>> {
         const derivedKey = this.keystoreManager.deriveKey();
 
-        const balances = await Promise.all(
+       return (await Promise.all(
             [...this.deploys.entries()]
             .filter(([, tongoContract]) => assets === undefined || assets.some(a => a.contract === tongoContract))
             .map(async ([, tongoContract]) => {
@@ -74,9 +74,7 @@ export class TongoPlugin implements TongoInstance {
                     { asset: tongoAssetId, amount: state.pending, tag: 'pending' as const },
                 ];
             })
-        );
-
-        return balances.flat();
+        )).flat();
     }
 
     async prepareShield(asset: TongoAssetAmountInput, to?: TongoAddress, from?: TongoAddress): Promise<TongoPublicOperation> {
