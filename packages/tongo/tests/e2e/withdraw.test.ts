@@ -205,6 +205,6 @@ describe('tongo EVM Unshield E2E', () => {
         { asset: tongoAssetId, amount: 100_000_000n },
         '0x0000000000000000000000000000000000000001'
       )
-    ).rejects.toBe(InsufficientBalanceError);
+    ).rejects.toBeInstanceOf(InsufficientBalanceError);
   });
 });

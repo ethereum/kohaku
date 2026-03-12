@@ -12,16 +12,7 @@ export type TongoAssetId = {
     contract: Address;
 };
 
-export interface IEntrypoint {
-  address: Address;
-  deploymentBlock: bigint;
-}
-
 export type TongoBroadcaster = Broadcaster<TongoBroadcasterParameters, PrivateOperation>;
-export interface TongoPluginParameters extends TongoBroadcasterParameters, TongoCredentials {
-    entrypoint: IEntrypoint;
-    ipfsUrl?: string;
-};
 
 export type TongoAddress = Address;
 

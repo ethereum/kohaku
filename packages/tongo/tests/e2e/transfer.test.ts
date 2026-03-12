@@ -189,6 +189,6 @@ describe('tongo EVM Transfer E2E', () => {
         { asset: tongoAssetId, amount: 100_000_000n },
         recipient
       )
-    ).rejects.toBe(InsufficientBalanceError);
+    ).rejects.toBeInstanceOf(InsufficientBalanceError);
   });
 });
