@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { IAspService } from '../../data/asp.service';
+import { IAspService } from '../../data/asp.interface.js';
 import { isAspRootUpToDateSelector } from '../selectors/asp.selector';
 import { registerAspTree } from '../slices/aspSlice';
 import { RootState } from '../store';
@@ -25,7 +25,7 @@ export const syncAspThunk = createAsyncThunk<void, SyncAspThunkParams, { state: 
       return;
     }
 
-    const aspTree = await aspService.getAspTree(lastUpdateRootEvent.ipfsCID);
+    const aspTree = await aspService.getAspTree(state);
 
     const [aspTreeRoot] = aspTree.at(-1) || [];
 

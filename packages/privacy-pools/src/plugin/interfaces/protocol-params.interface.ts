@@ -3,7 +3,7 @@ import { ChainId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins'
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
-import { IAspService } from "../../data/asp.service";
+import { IAspService } from "../../data/asp.interface.js";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { Address } from "../../interfaces/types.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';

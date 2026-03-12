@@ -62,6 +62,14 @@ export default defineConfig({
           include: ['tests/sync.test.ts'],
           testTimeout: 1200_000,
         }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'asp-integration',
+          include: ['tests/e2e/asp-services.test.ts'],
+          testTimeout: 60_000,
+        }
       }
     ]
   },

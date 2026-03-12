@@ -1,4 +1,4 @@
-import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
+import { IRelayerClient, ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
 import { PPv1Broadcaster, PPv1BroadcasterParameters } from "../v1";
 import { PPv1RelayerConstructorParams } from "./base";
@@ -26,14 +26,14 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
     }, quoteData: {
       relayerId, quote: { feeCommitment },
     },
-  }: PPv1PrivateOperation): Promise<void> {
+  }: PPv1PrivateOperation): Promise<ISuccessfullRelayResponse> {
     const relayerUrl = this.relayersList[relayerId];
 
     if (!relayerUrl) {
       throw new Error("Specified relayer not found.");
     }
 
-    await this.relayerClient.relay({
+    return this.relayerClient.relay({
       chainId,
       scope,
       feeCommitment,
@@ -43,6 +43,5 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
       proof,
     });
 
-    return void 0;
   }
 }
