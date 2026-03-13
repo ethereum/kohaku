@@ -252,6 +252,9 @@ importers:
       '@a16z/helios':
         specifier: '>=0.11'
         version: 0.11.0
+      '@corpus-core/colibri-stateless':
+        specifier: ^1.1.4
+        version: 1.1.4
       '@typechain/ethers-v6':
         specifier: ^0.5.1
         version: 0.5.1(ethers@6.16.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.9.3)
@@ -670,6 +673,9 @@ packages:
     resolution: {integrity: sha512-0MhX9/B4iL6Re04jPrttDm+BsP8y6mS7byuv0BvXgdXhbV5PdlsHt55dvNsuBCPZ7xq1oTAOOuotR9NFbQyMSA==}
     bundledDependencies:
       - is-unicode-supported
+
+  '@corpus-core/colibri-stateless@1.1.4':
+    resolution: {integrity: sha512-AxnkZDXQYVbpdFoudRA2N0X9BUx0P/bq95NCG/p6fitjGdwTcOTU9J08adY5/2RFgevzbwPfaZlWov9/FenRpw==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -8470,6 +8476,8 @@ snapshots:
       '@clack/core': 0.3.5
       picocolors: 1.1.1
       sisteransi: 1.0.5
+
+  '@corpus-core/colibri-stateless@1.1.4': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
