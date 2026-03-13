@@ -34,12 +34,6 @@ export class TongoPlugin implements TongoInstance {
         this.keystoreManager = keystoreManagerFactory({ host, accountIndex, groupOrder });
     }
 
-    private async getSender(): Promise<string> {
-        const accounts = await this.host.provider.request({ method: 'eth_accounts' }) as string[];     
-
-        return accounts[0]!;
-    }
-
     private getTongoContract(asset: TongoAssetId | ERC20AssetId): TongoAddress {
         if ('__type' in asset && asset.__type === 'tongo') {
             const { contract } = asset;
@@ -83,17 +77,14 @@ export class TongoPlugin implements TongoInstance {
         )).flat();
     }
 
-    async prepareShield(asset: TongoAssetAmountInput, to?: TongoAddress, from?: TongoAddress): Promise<TongoPublicOperation> {
+    async prepareShield(asset: TongoAssetAmountInput, to: TongoAddress | undefined, from: TongoAddress): Promise<TongoPublicOperation> {
         const tongoContract = this.getTongoContract(asset.asset);
-
-        const sender = from ?? to ?? await this.getSender();
-        const fund = await this.deriveAccount(tongoContract).fund({ amount: asset.amount, sender });
+        const fund = await this.deriveAccount(tongoContract).fund({ amount: asset.amount, sender: from });
 
         return { __type: "publicOperation" as const, txns: [fund.approve, fund.toCalldata()] };
-    
     }
 
-    async prepareUnshield(asset: TongoAssetAmount, to: TongoAddress, from?: TongoAddress): Promise<TongoPrivateOperation> {
+    async prepareUnshield(asset: TongoAssetAmount, to: TongoAddress, from: TongoAddress): Promise<TongoPrivateOperation> {
         const tongoContract = this.getTongoContract(asset.asset);
         const tongoAccount = this.deriveAccount(tongoContract);
         const state = await tongoAccount.state();
@@ -101,17 +92,16 @@ export class TongoPlugin implements TongoInstance {
 
         if (asset.amount > balance) { throw new InsufficientBalanceError(asset.asset, asset.amount, balance); }
 
-        const sender = from ?? await this.getSender();
         const { pending } = state;
         const txns = [];
 
         if (pending > 0n) {
-            const rollover = await tongoAccount.rollover({ sender });
+            const rollover = await tongoAccount.rollover({ sender: from });
 
             txns.push(rollover.toCalldata());
         }
 
-        const withdraw = await tongoAccount.withdraw({ amount: asset.amount, to, sender });
+        const withdraw = await tongoAccount.withdraw({ amount: asset.amount, to, sender: from });
 
         txns.push(withdraw.toCalldata());
 
@@ -120,7 +110,7 @@ export class TongoPlugin implements TongoInstance {
         return op;
     }
 
-    async prepareTransfer(asset: TongoAssetAmount, to: TongoAddress, from?: TongoAddress): Promise<TongoPrivateOperation> {
+    async prepareTransfer(asset: TongoAssetAmount, to: TongoAddress, from: TongoAddress): Promise<TongoPrivateOperation> {
         const tongoContract = this.getTongoContract(asset.asset);
         const tongoAccount = this.deriveAccount(tongoContract);
         const state = await tongoAccount.state();
@@ -128,17 +118,16 @@ export class TongoPlugin implements TongoInstance {
 
         if (asset.amount > balance) { throw new InsufficientBalanceError(asset.asset, asset.amount, balance); }
 
-        const sender = from ?? await this.getSender();
         const { pending } = state;
         const txns = [];
 
         if (pending > 0n) {
-            const rollover = await tongoAccount.rollover({ sender });
+            const rollover = await tongoAccount.rollover({ sender: from });
 
             txns.push(rollover.toCalldata());
         }
 
-        const transfer = await tongoAccount.transfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender });
+        const transfer = await tongoAccount.transfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from });
 
         txns.push(transfer.toCalldata());
 

@@ -67,6 +67,7 @@ describe('tongo EVM Unshield E2E', () => {
 
     const { txns: shieldTxns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: FUND_AMOUNT },
+      undefined,
       aliceWallet.address as `0x${string}`
     );
 
@@ -111,6 +112,7 @@ describe('tongo EVM Unshield E2E', () => {
 
     const { txns: shieldTxns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: FUND_AMOUNT },
+      undefined,
       aliceWallet.address as `0x${string}`
     );
 
@@ -169,6 +171,7 @@ describe('tongo EVM Unshield E2E', () => {
 
     const { txns } = await plugin.prepareUnshield(
       { asset: tongoAssetId, amount: AMOUNT },
+      RECIPIENT,
       RECIPIENT
     );
 
@@ -203,6 +206,7 @@ describe('tongo EVM Unshield E2E', () => {
     await expect(
       plugin.prepareUnshield(
         { asset: tongoAssetId, amount: 100_000_000n },
+        '0x0000000000000000000000000000000000000001',
         '0x0000000000000000000000000000000000000001'
       )
     ).rejects.toBeInstanceOf(InsufficientBalanceError);

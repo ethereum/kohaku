@@ -102,6 +102,7 @@ describe('tongo EVM Transfer E2E', () => {
 
     const { txns: shieldTxns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: FUND_AMOUNT },
+      undefined,
       aliceWallet.address as `0x${string}`
     );
 

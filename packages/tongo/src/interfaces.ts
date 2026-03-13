@@ -47,7 +47,7 @@ export interface TongoPluginConfig {
     keystoreManagerFactory: (params: KeystoreManagerParams) => IKeystoreManager;
 }
 
-export type TongoInstance = PluginInstance<
+export type TongoInstance = Omit<PluginInstance<
     TongoAddress,
     {
         features: {
@@ -67,4 +67,8 @@ export type TongoInstance = PluginInstance<
         publicOp: TongoPublicOperation,
         privateOp: TongoPrivateOperation,
     }
->;
+>, 'prepareShield' | 'prepareUnshield' | 'prepareTransfer'> & {
+    prepareShield(asset: TongoAssetAmountInput, to: TongoAddress | undefined, from: TongoAddress): Promise<TongoPublicOperation>;
+    prepareUnshield(asset: TongoAssetAmount, to: TongoAddress, from: TongoAddress): Promise<TongoPrivateOperation>;
+    prepareTransfer(asset: TongoAssetAmount, to: TongoAddress, from: TongoAddress): Promise<TongoPrivateOperation>;
+};

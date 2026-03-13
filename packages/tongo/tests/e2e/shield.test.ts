@@ -76,6 +76,7 @@ describe('tongo EVM Fund E2E', () => {
 
     const { txns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: FUND_AMOUNT },
+      undefined,
       aliceWallet.address as `0x${string}`
     );
 
@@ -110,6 +111,7 @@ describe('tongo EVM Fund E2E', () => {
 
     const { txns } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: 100_000_000n },
+      undefined,
       '0x0000000000000000000000000000000000000001'
     );
 
@@ -148,6 +150,7 @@ describe('tongo EVM Fund E2E', () => {
     // --- Deposit A ---
     const { txns: txnsA } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: A },
+      undefined,
       aliceWallet.address as `0x${string}`
     );
 
@@ -157,6 +160,7 @@ describe('tongo EVM Fund E2E', () => {
     // --- Deposit B ---
     const { txns: txnsB } = await plugin.prepareShield(
       { asset: usdcAssetId, amount: B },
+      undefined,
       aliceWallet.address as `0x${string}`
     );
 
