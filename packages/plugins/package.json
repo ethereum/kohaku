@@ -15,6 +15,9 @@
   "scripts": {
     "build": "tsc"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [],
   "author": "",
   "packageManager": "pnpm@10.24.0",
