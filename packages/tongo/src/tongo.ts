@@ -3,6 +3,7 @@ import { ERC20AssetId, UnsupportedAssetError, InsufficientBalanceError, Host, Mu
 import { pubKeyBase58ToAffine, Account as TongoAccount } from "@fatsolutions/tongo-evm";
 
 import { KeystoreManagerFactory } from "./keystoreManager";
+import { isTongoAsset, isERC20Asset } from "./utils";
 
 import {
   IKeystoreManager,
@@ -16,6 +17,8 @@ import {
   TongoPublicOperation,
   TongoPrivateOperation,
 } from "./interfaces";
+
+
 
 export class TongoPlugin implements TongoInstance {
     chain: number;
@@ -35,16 +38,26 @@ export class TongoPlugin implements TongoInstance {
     }
 
     private getTongoContract(asset: TongoAssetId | ERC20AssetId): TongoAddress {
-        if ('__type' in asset && asset.__type === 'tongo') {
+        if (isTongoAsset(asset)) {
             const { contract } = asset;
-            if (![...this.deploys.values()].includes(contract)) throw new UnsupportedAssetError(asset);
+
+            if (![...this.deploys.values()].includes(contract)) {
+                throw new UnsupportedAssetError(asset);
+            }
             return contract;
         }
-        const contract = this.deploys.get(asset as ERC20AssetId);
-        if (contract === undefined) throw new UnsupportedAssetError(asset as ERC20AssetId);
-        return contract;
-    }
 
+        if (isERC20Asset(asset)) {
+            const contract = this.deploys.get(asset);
+            if (!contract) {
+                throw new UnsupportedAssetError(asset);
+            }
+            return contract;
+        }
+
+        throw new UnsupportedAssetError(asset);
+    }
+    
     private deriveAccount(tongoContract: string): TongoAccount {
         return this.deriveAccountFromKey(tongoContract, this.keystoreManager.deriveKey());
     }
