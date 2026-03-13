@@ -95,11 +95,11 @@ export class TongoPlugin implements TongoInstance {
         const { pending } = state;
         const txns = [];
 
-        if (pending > 0n) {
-            const rollover = await tongoAccount.rollover({ sender: from });
+//        if (pending > 0n) {
+//            const rollove = await tongoAccount.rollover({ sender: from });
 
-            txns.push(rollover.toCalldata());
-        }
+//            txns.push(rollover.toCalldata());
+//        } TODO: FIX
 
         const withdraw = await tongoAccount.withdraw({ amount: asset.amount, to, sender: from });
 
@@ -121,11 +121,11 @@ export class TongoPlugin implements TongoInstance {
         const { pending } = state;
         const txns = [];
 
-        if (pending > 0n) {
-            const rollover = await tongoAccount.rollover({ sender: from });
-
-            txns.push(rollover.toCalldata());
-        }
+//        if (pending > 0n) {
+//            const rollover = await tongoAccount.rollover({ sender: from });
+//
+//            txns.push(rollover.toCalldata());
+//        } TODO: FIX
 
         const transfer = await tongoAccount.transfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from });
 
