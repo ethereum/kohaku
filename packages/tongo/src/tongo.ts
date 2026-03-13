@@ -23,12 +23,12 @@ export class TongoPlugin implements TongoInstance {
     keystoreManager: IKeystoreManager;
 
     constructor(readonly host: Host, {
-        chain = 1,
+        chain,
         deploys = new Map(),
         accountIndex,
         groupOrder,
         keystoreManagerFactory = KeystoreManagerFactory,
-    }: Partial<TongoPluginConfig> = {}) {
+    }: Pick<TongoPluginConfig, 'chain'> & Partial<Omit<TongoPluginConfig, 'chain'>>) {
         this.chain = chain;
         this.deploys = deploys;
         this.keystoreManager = keystoreManagerFactory({ host, accountIndex, groupOrder });
