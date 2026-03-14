@@ -1,5 +1,13 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.6
+
+### Patch Changes
+
+- Updated dependencies [42607db]
+  - @kohaku-eth/provider@0.1.0-alpha.3
+  - @kohaku-eth/plugins@0.0.1-alpha.3
+
 ## 0.0.1-alpha.5
 
 ### Patch Changes
