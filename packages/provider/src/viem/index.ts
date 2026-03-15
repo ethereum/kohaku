@@ -8,7 +8,7 @@ import type { PublicClient } from 'viem';
 export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
     return {
         _internal: client,
-        request: client.request,
+        request: client.request.bind(client),
         async getLogs(params: Filter.Filter): Promise<TxLog[]> {
             const logs = await client.getLogs({
                 address: params.address as `0x${string}`,
