@@ -26,7 +26,7 @@
     "build": "echo Building @kohaku-eth/privacy-pools && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "demo": "tsx demo/simple.ts",
-    "test": "vitest run",
+    "test": "vitest run --project=all",
     "test:unit": "vitest run --project=unit",
     "test:e2e": ". ./.env.e2e.tests && vitest run --project=e2e",
     "test:e2e:wl": ". ./.env.e2e.tests && vitest run --project=withdraw-live",
