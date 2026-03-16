@@ -1,5 +1,11 @@
 # @kohaku-eth/provider
 
+## 0.1.0-alpha.4
+
+### Minor Changes
+
+- 88b2cbb: fix missing binding
+
 ## 0.1.0-alpha.3
 
 ### Minor Changes
