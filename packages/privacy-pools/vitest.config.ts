@@ -5,8 +5,27 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    exclude: [ '*' ],
+    exclude: ['*'],
     projects: [
+      {
+        extends: true,
+        test: {
+          name: 'all',
+          include: [
+            'tests/unit/**/*.test.ts',
+            'tests/e2e/**/*.test.ts'
+          ],
+          testTimeout: 600_000,
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'e2e',
+          include: ['tests/e2e/**/*.test.ts'],
+          testTimeout: 600_000,
+        }
+      },
       {
         extends: true,
         test: {
@@ -36,14 +55,6 @@ export default defineConfig({
         test: {
           name: 'ragequit',
           include: ['tests/e2e/**/ragequit.test.ts'],
-          testTimeout: 600_000,
-        }
-      },
-      {
-        extends: true,
-        test: {
-          name: 'e2e',
-          include: ['tests/e2e/**/*.test.ts'],
           testTimeout: 600_000,
         }
       },
