@@ -1,5 +1,11 @@
 # @kohaku-eth/provider
 
+## 0.1.0-alpha.5
+
+### Patch Changes
+
+- 20fa0c9: Optimized test filtering for ci/cd
+
 ## 0.1.0-alpha.4
 
 ### Minor Changes
