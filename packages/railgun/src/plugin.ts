@@ -3,6 +3,7 @@ import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoi
 import { createBroadcaster, GrothProverAdapter, RemoteArtifactLoader } from "railgun-js";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { TxData } from "@kohaku-eth/provider";
+import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 
 export type RGPrivateOperation = PrivateOperation & {
     operation: JsPoiProvedTx,
@@ -29,6 +30,8 @@ export type RGInstance = PluginInstance<
         },
     }
 >;
+
+export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
 interface RailgunPluginState {
     providerState: Uint8Array,
@@ -82,7 +85,7 @@ async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
     return plugin;
 }
 
-export class RailgunPlugin implements RGInstance {
+export class RailgunPlugin implements RGInstance, RGBroadcaster {
     /**
      * InternalSigners are preferentially used to fund transact operations.
      */
@@ -220,7 +223,7 @@ export class RailgunPlugin implements RGInstance {
      * at broadcast time, but that means we won't be able to expose any fee info
      * in the privateOperation object. 
      */
-    async broadcastPrivateOperation(op: RGPrivateOperation): Promise<void> {
+    async broadcast(op: RGPrivateOperation): Promise<void> {
         const broadcaster = op.broadcaster;
         await this.provider.broadcast(broadcaster, op.operation);
     }
