@@ -1,18 +1,22 @@
-import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
+import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
+import { IEntrypoint, INote, PPv1PrivateOperation, PPv1PublicOperation, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
-import { IEntrypoint, INote, PPv1PrivateOperation, PPv1PublicOperation } from '../plugin/interfaces/protocol-params.interface.js';
 import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
 
 export type PPv1BroadcasterParameters = {
     broadcasterUrl: string | Record<string, string>;
 };
 export type PPv1Broadcaster = Broadcaster<PPv1PrivateOperation, ISuccessfullRelayResponse>;
+interface PPv1BaseCredential {
+    accountIndex: number;
+}
 export interface PPv1PluginParameters extends PPv1BroadcasterParameters, PPv1BaseCredential {
     entrypoint: IEntrypoint;
     ipfsUrl?: string;
     aspServiceFactory?: () => IAspService
+    initialState?: PrivacyPoolsV1ProtocolParams['initialState']
 };
 export interface PPv1PluginWithMnemonicParameters extends PPv1PluginParameters {
     mnemonic: string;
@@ -23,9 +27,6 @@ export type PPv1Address = Address;
 export type PPv1AssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
 export type PPv1AssetBalance = PPv1AssetAmount<'pending'>;
 
-interface PPv1BaseCredential {
-    accountIndex: number;
-}
 export interface PPv1NativeCredential extends PPv1BaseCredential {
     type: 'native';
 }
