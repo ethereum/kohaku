@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PrivateOperation } from "~/shared";
 
 export type Broadcaster<
-    TParameters extends Record<string, unknown>,
     TPrivateOperation extends PrivateOperation = PrivateOperation,
+    TPrivateOperationResult = void
 > = {
     /**
      * Broadcasts the specified private operation. Broadcasting an operation may
@@ -13,7 +12,5 @@ export type Broadcaster<
      * 
      * @throws {Error} If the operation could not be broadcasted.
      */
-    broadcast: (operation: TPrivateOperation) => Promise<void>;
+    broadcast: (operation: TPrivateOperation) => Promise<TPrivateOperationResult>;
 };
-
-export type BroadcasterParameters<T> = T extends Broadcaster<infer TParameters, any> ? TParameters : never;

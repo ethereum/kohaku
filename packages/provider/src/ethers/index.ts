@@ -12,6 +12,9 @@ export * from './signer';
 export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvider> => {
   return {
     _internal: provider,
+    async request({ params, method }) {
+      return provider.send(method, params as unknown[]);
+    },
     async getLogs({ address, fromBlock, toBlock, topics }: Filter.Filter): Promise<TxLog[]> {
       const logs = await provider.getLogs({
         address: address as AddressLike,

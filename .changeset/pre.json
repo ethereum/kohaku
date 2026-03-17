@@ -5,10 +5,18 @@
     "@kohaku-eth/provider": "0.0.1-alpha.1",
     "@kohaku-eth/railgun": "0.0.1-alpha.3",
     "docs": "0.0.0",
-    "@kohaku-eth/privacy-pools": "0.0.1-alpha.1"
+    "@kohaku-eth/privacy-pools": "0.0.1-alpha.1",
+    "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
+    "@kohaku-eth/plugins": "0.0.1-alpha.1"
   },
   "changesets": [
-    "clear-views-sing"
+    "clear-plums-post",
+    "clear-views-sing",
+    "easy-tigers-rescue",
+    "good-papers-kick",
+    "heavy-readers-sniff",
+    "major-sides-call",
+    "petite-views-attack"
   ],
   "ignore": [
     "docs",
