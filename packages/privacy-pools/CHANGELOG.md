@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.5
+
+### Patch Changes
+
+- 5383533: Expose option for providing an initial state for Privacy Pools V1 Plugin
+
 ## 0.0.2-alpha.4
 
 ### Patch Changes
