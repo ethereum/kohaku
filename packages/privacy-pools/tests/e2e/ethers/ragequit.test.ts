@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { E_ADDRESS } from '../../../src/config';
 import { chainConfigSetup } from '../../constants';
@@ -15,7 +15,6 @@ describe('PrivacyPools v1 E2E Flow', () => {
   const chainId = 11155111;
   const {
     entrypoint,
-    rpcUrl,
     forkBlockNumber,
   } = chainConfigSetup[chainId];
 
@@ -28,7 +27,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
   beforeAll(async () => {
 
     anvil = await defineAnvil({
-      forkUrl: rpcUrl,
+      forkUrl: inject('rpcUrl'),
       forkBlockNumber: Number(forkBlockNumber),
       chainId,
     });

@@ -6,6 +6,7 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     exclude: ['*'],
+    globalSetup: './tests/shared-anvil.ts',
     projects: [
       {
         extends: true,
