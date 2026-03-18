@@ -1,23 +1,19 @@
-import { AssetAmount, CreatePluginFn, ERC20AssetId, ERC721AssetId, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
-import { createRailgunAccount } from "./account/base";
-import { createRailgunIndexer } from "./indexer/base";
-import { getNetworkConfig } from "./config";
-import { KeyConfig } from "./account/keys";
-import { RailgunAddress } from "./account/actions/address";
+import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
+import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "node_modules/railgun-js/dist/pkg/railgun_rs";
+import { createBroadcaster, GrothProverAdapter, RemoteArtifactLoader } from "railgun-js";
+import { EthereumProviderAdapter } from "./ethereum-provider";
+import { TxData } from "@kohaku-eth/provider";
+import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 
-export type RGPluginParameters = { credential: KeyConfig };
-export type RGPrivateOperation = PrivateOperation & { bar: 'hi' };
-export type RGAssetAmount = AssetAmount<ERC20AssetId | ERC721AssetId, bigint, 'non-ppoi' | 'cleared'>;
+export type RGPrivateOperation = PrivateOperation & {
+    operation: JsPoiProvedTx,
+    broadcaster: JsBroadcaster,
+    feeToken: `0x${string}`,
+};
+
 export type RGInstance = PluginInstance<
     RailgunAddress,
     {
-        credential: KeyConfig,
-        assetAmounts: {
-            input: AssetAmount,
-            internal: AssetAmount,
-            output: AssetAmount,
-            read: AssetAmount,
-        },
         privateOp: RGPrivateOperation,
         features: {
             prepareShield: true,
@@ -30,56 +26,321 @@ export type RGInstance = PluginInstance<
     }
 >;
 
-export const createRailgunPlugin: CreatePluginFn<RGInstance, RGPluginParameters> = async (host, params) => {
-    const { provider } = host;
-    const { credential } = params;
+export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
-    const storage = <T extends object>(subspace: string) => ({
-        get: async () => JSON.parse(host.storage.get(subspace) ?? '{}') as T,
-        set: async (data: T) => host.storage.set(subspace, JSON.stringify(data)),
-    });
+interface RailgunPluginState {
+    providerState: Uint8Array,
+    internalSigners: {
+        spendingKey: `0x${string}`,
+        viewingKey: `0x${string}`,
+    }[],
+    chainId: bigint,
+    version: '0.1.0',
+}
 
-    const chainId = await provider.getChainId();
-    const network = getNetworkConfig(chainId.toString() as `${bigint}`);
-    const indexer = await createRailgunIndexer({
-        network,
-        storage: storage('indexer'),
-    });
-    const account = await createRailgunAccount({
-        indexer,
-        credential,
-        provider,
-        network,
-        storage: storage('account'),
-    });
+const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88";
 
-    return {
-        instanceId: account.getRailgunAddress,
-        balance: async (assets) => {
-            return Promise.all(
-                assets?.map(async (asset) => {
-                    if (asset.__type === 'erc20') {
-                        const tokenBalance = await account.getBalance(asset.contract);
+export async function createRailgunProvider(host: Host, spendingKey: `0x${string}`, viewingKey: `0x${string}`): Promise<RailgunPlugin> {
+    try {
+        return await loadRailgunProvider(host);
+    } catch (e) {
+        console.log("Failed to load existing Railgun provider, creating new one", e);
+    }
 
-                        return {
-                            asset,
-                            amount: tokenBalance,
-                        };
-                    }
+    const chainId = await host.provider.getChainId();
+    const provider = await newRailgunProvider(host, chainId);
+    const signer = new JsSigner(spendingKey, viewingKey, chainId);
+    const broadcastManager = await createBroadcaster(chainId);
 
-                    // TODO: add 721 support
-                    return {
-                        asset,
-                        amount: 0n,
-                    }
-                }) ?? []
-            );
-        },
-        prepareShield: undefined as never,
-        prepareShieldMulti: undefined as never,
-        prepareTransfer: undefined as never,
-        prepareTransferMulti: undefined as never,
-        prepareUnshield: undefined as never,
-        prepareUnshieldMulti: undefined as never,
-    };
+    return new RailgunPlugin(chainId, provider, signer, broadcastManager, host.storage);
+}
+
+async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
+    const savedState = host.storage.get(LIST_KEY);
+    if (!savedState) {
+        throw new Error("No saved state found for Railgun plugin");
+    }
+
+    const { providerState, internalSigners, chainId }: RailgunPluginState = JSON.parse(savedState);
+    const remoteChainId = await host.provider.getChainId();
+    if (remoteChainId !== chainId) {
+        throw new Error(`Unexpected chain ID: remote: ${remoteChainId}, expected: ${chainId}`);
+    }
+
+    const provider = await newRailgunProvider(host, chainId);
+    provider.setState(providerState);
+
+    const broadcastManager = await createBroadcaster(chainId);
+
+    const plugin = new RailgunPlugin(chainId, provider, null as any, broadcastManager, host.storage);
+    for (const signer of internalSigners) {
+        plugin.addInternalSigner(signer.spendingKey, signer.viewingKey);
+    }
+
+    return plugin;
+}
+
+export class RailgunPlugin implements RGInstance, RGBroadcaster {
+    /**
+     * InternalSigners are preferentially used to fund transact operations.
+     */
+    private internalSigners: JsSigner[] = [];
+
+    constructor(
+        private chainId: bigint,
+        private provider: JsPoiProvider,
+        private signer: JsSigner,
+        private broadcasterManager: JsBroadcasterManager,
+        private storage: Storage
+    ) {
+        this.provider.register(signer);
+    }
+
+    async addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
+        const signer = new JsSigner(spendingKey, viewingKey, this.chainId);
+        this.internalSigners.push(signer);
+        this.provider.register(signer);
+        await this.saveState();
+    }
+
+    async instanceId(): Promise<RailgunAddress> {
+        return this.signer.address;
+    }
+
+    // TODO: Once tags are implemented, enable return poiStatus for each item
+    async balance(assets: AssetId[] | undefined): Promise<AssetAmount[]> {
+        await this.provider.sync();
+        await this.saveState();
+        const balances = await this.signerBalances();
+
+        const all: Map<string, AssetAmount> = new Map();
+        for (const [_, balance] of balances) {
+            for (const b of balance) {
+                if (b.assetId.type !== "Erc20") { continue; }
+                if (assets !== undefined && !assets.some((a) => a.__type === 'erc20' && a.contract === b.assetId.value)) { continue; }
+
+                const key = b.assetId.value;
+                const existing = all.get(key);
+                if (existing) {
+                    existing.amount += b.balance;
+                    continue;
+                }
+
+                all.set(key, {
+                    asset: {
+                        __type: 'erc20',
+                        contract: b.assetId.value,
+                    },
+                    amount: b.balance,
+                });
+            }
+        }
+
+        return Array.from(all.values());
+    }
+
+    async prepareShield(token: AssetAmount): Promise<TxData> {
+        tokenGuard(token);
+
+        const txData = this.provider
+            .shield()
+            .shield(this.signer.address, { type: "Erc20", value: token.asset.contract }, token.amount)
+            .build();
+        return {
+            to: txData.to,
+            data: txData.data,
+            value: BigInt(txData.value)
+        };
+    }
+
+    async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData> {
+        let builder = this.provider.shield();
+        for (const token of tokens) {
+            tokenGuard(token);
+            builder = builder.shield(this.signer.address, { type: "Erc20", value: token.asset.contract }, token.amount);
+        }
+
+        const txData = builder.build();
+        return {
+            to: txData.to,
+            data: txData.data,
+            value: BigInt(txData.value)
+        };
+    }
+
+    async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
+        tokenGuard(token);
+        const builder = await this.buildMultiSigner([token], (builder, signer, asset, amount) =>
+            builder.unshield(signer, to, asset, amount)
+        );
+        return this.buildWithBroadcaster(builder);
+    }
+
+    async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
+        for (const token of tokens) {
+            tokenGuard(token);
+        }
+
+        const builder = await this.buildMultiSigner(tokens, (builder, signer, asset, amount) =>
+            builder.unshield(signer, to, asset, amount)
+        );
+        return this.buildWithBroadcaster(builder);
+    }
+
+    async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
+        tokenGuard(token);
+        const builder = await this.buildMultiSigner([token], (builder, signer, asset, amount) =>
+            builder.transfer(signer, to, asset, amount, "")
+        );
+        return this.buildWithBroadcaster(builder);
+
+    }
+
+    async prepareTransferMulti(tokens: AssetAmount[], to: RailgunAddress): Promise<RGPrivateOperation> {
+        for (const token of tokens) {
+            tokenGuard(token);
+        }
+
+        const builder = await this.buildMultiSigner(tokens, (builder, signer, asset, amount) =>
+            builder.transfer(signer, to, asset, amount, "")
+        );
+        return this.buildWithBroadcaster(builder);
+    }
+
+    /**
+     * Broadcast a private operation to the network. The operation is consumed 
+     * by this call, so any re-attempts must be made by re-building the operation 
+     * with the prepare* methods.
+     * 
+     * TODO: The above is unintuitive. It's a requirement because the broadcaster 
+     * is selected at build time so, if the issue is with the broadcaster, we need 
+     * to re-build to select a new one.  It might be better to select the broadcaster 
+     * at broadcast time, but that means we won't be able to expose any fee info
+     * in the privateOperation object. 
+     */
+    async broadcast(op: RGPrivateOperation): Promise<void> {
+        const broadcaster = op.broadcaster;
+        await this.provider.broadcast(broadcaster, op.operation);
+    }
+
+    /**
+     * Builds a private operation by iterating through the user's signers and
+     * draining the required tokens.
+     * 
+     * @param tokens The token amounts required for the operation.
+     * @param addToBuilder Callback that adds the required action to the builder for a given signer, token, and amount.
+     * @returns A transaction builder with the required actions added for the selected signers and tokens.
+     */
+    private async buildMultiSigner(
+        tokens: AssetAmount[],
+        addToBuilder: (builder: JsPoiTransactionBuilder, signer: JsSigner, asset: RailgunAssetId, amount: bigint) => JsPoiTransactionBuilder,
+    ): Promise<JsPoiTransactionBuilder> {
+        let builder = this.provider.transact();
+        const remaining = new Map(tokens.map(t => [t.asset.contract, t.amount]));
+
+        const balances = await this.signerBalances();
+        for (const [signer, balance] of balances) {
+            for (const b of balance) {
+                if (b.assetId.type !== "Erc20") continue;
+                const need = remaining.get(b.assetId.value as `0x${string}`);
+                if (!need || need <= 0n) continue;
+
+                const take = need < b.balance ? need : b.balance;
+                builder = addToBuilder(builder, signer, b.assetId, take);
+                remaining.set(b.assetId.value as `0x${string}`, need - take);
+            }
+        }
+
+        // check remaining are all 0
+        for (const [asset, amt] of remaining) {
+            if (amt > 0n) throw new Error(`Insufficient balance for ${asset}`);
+        }
+
+        return builder;
+    }
+
+    /**
+     * Builds a private operation by selecting the first valid broadcaster from the 
+     * user's balance. 
+     * 
+     * TODO: Implement a more robust selection strategory, allowing users to designate
+     * preferred broadcasters, preferred fee assets, etc.
+     */
+    private async buildWithBroadcaster(
+        builder: JsTransactionBuilder,
+    ): Promise<RGPrivateOperation> {
+        const balance = await this.provider.balance(this.signer.address, LIST_KEY);
+
+        for (const b of balance) {
+            if (b.poiStatus !== "Valid") { continue; }
+            if (b.assetId.type !== "Erc20") { continue; }
+            if (b.balance <= 0n) { continue; }
+
+            const broadcaster = await this.broadcasterManager.bestBroadcasterForToken(b.assetId.value, BigInt(Date.now()));
+            if (!broadcaster) { continue; }
+
+            try {
+                const tx = await this.provider.buildBroadcast(builder, this.signer, broadcaster.fee);
+                return {
+                    __type: 'privateOperation',
+                    operation: tx,
+                    broadcaster,
+                    feeToken: broadcaster.fee.token,
+                };
+            } catch (e) {
+                console.log("Failed to build with broadcaster, trying next one", e);
+                continue;
+            }
+        }
+
+        throw new Error("Failed to build transaction with any broadcaster");
+    }
+
+    private async saveState() {
+        const providerState = this.provider.state();
+        const internalSigners = this.internalSigners.map((s) => ({
+            spendingKey: s.spendingKey,
+            viewingKey: s.viewingKey,
+        }));
+
+        const state: RailgunPluginState = {
+            providerState,
+            internalSigners,
+            chainId: this.chainId,
+            version: '0.1.0',
+        };
+
+        this.storage.set(LIST_KEY, JSON.stringify(state));
+    }
+
+    private async signerBalances(): Promise<[JsSigner, JsPoiBalance[]][]> {
+        const signers = [this.signer, ...this.internalSigners];
+        return Promise.all(signers.map(async s => [s, await this.validBalance(s)]));
+    }
+
+    private async validBalance(signer: JsSigner): Promise<JsPoiBalance[]> {
+        const balance = await this.provider.balance(signer.address, LIST_KEY);
+        return balance.filter((b) => b.poiStatus === "Valid" && b.balance > 0n);
+    }
 };
+
+async function newRailgunProvider(host: Host, chain_id: bigint): Promise<JsPoiProvider> {
+    const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
+    const rpcAdapter = new EthereumProviderAdapter(host.provider);
+    const prover = new GrothProverAdapter(new RemoteArtifactLoader(ARTIFACTS_URL));
+    const syncer = JsSyncer.newChained([
+        JsSyncer.newSubsquid(chain_id),
+        //? Since all the broadcasters & POI nodes rely on subsquid, there's no 
+        //? actual sense in us syncing past subsquid.  So no need to have a RPC
+        //? syncer that goes ahead
+    ]);
+
+    return await JsPoiProvider.new(rpcAdapter, syncer, prover);
+}
+
+function tokenGuard(token: AssetAmount) {
+    const asset = token.asset;
+    if (asset.__type !== 'erc20') {
+        throw new Error("Only ERC20 tokens are supported for shielding");
+    }
+}
