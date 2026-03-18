@@ -21,9 +21,9 @@ export class EthereumProviderAdapter implements EthRpcAdapter {
         });
 
         const rawLogs: RawLog[] = logs.map(log => ({
-            block_number: Number(log.blockNumber),
-            block_timestamp: null, // Provider doesn't return timestamp in logs
-            transaction_hash: null, // Provider doesn't return transaction hash in logs
+            blockNumber: Number(log.blockNumber),
+            blockTimestamp: null, // Provider doesn't return timestamp in logs
+            transactionHash: null, // Provider doesn't return transaction hash in logs
             address,
             topics: log.topics as `0x${string}`[], // TODO: Confirm this is valid
             data: log.data as `0x${string}`,  // TODO: Confirm this is valid

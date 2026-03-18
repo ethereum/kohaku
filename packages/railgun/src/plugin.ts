@@ -14,11 +14,6 @@ export type RGPrivateOperation = PrivateOperation & {
 export type RGInstance = PluginInstance<
     RailgunAddress,
     {
-        // assetAmounts: {
-        //     input: AssetAmount,
-        //     internal: AssetAmount,
-        //     output: AssetAmount,
-        // },
         privateOp: RGPrivateOperation,
         features: {
             prepareShield: true,
