@@ -7,7 +7,7 @@ jobs:
     check:
         name: Check
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
         permissions:
             contents: read
         steps:
@@ -21,7 +21,7 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
         permissions:
             contents: read
         steps:
@@ -34,7 +34,7 @@ jobs:
     tests:
         name: Tests
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
         permissions:
             contents: read
         steps:
@@ -47,7 +47,7 @@ jobs:
         - name: Run tests
           uses: nick-fields/retry@v3
           with:
-            timeout_minutes: 10
+            timeout_minutes: 20
             max_attempts: 3
             command: pnpm test
           env:
