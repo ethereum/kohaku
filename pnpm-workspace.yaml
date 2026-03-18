@@ -4,6 +4,5 @@ packages:
   - "packages/railgun"
   - "packages/privacy-pools"
   - "packages/plugins"
-  - "packages/tornadocash"
   - "examples/pq-account"
   - "docs"
