@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.6
+
+### Patch Changes
+
+- 83aed07: Use snapshot state only if there's no previous stored state
+
 ## 0.0.2-alpha.5
 
 ### Patch Changes
