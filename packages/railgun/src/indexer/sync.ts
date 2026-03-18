@@ -5,8 +5,9 @@ import { ProcessLogFn } from "./events";
 import { progressBar } from "~/utils/progress";
 import { MerkleTree } from "~/railgun/logic/logic/merkletree";
 import { batchBuffer } from "./buffer";
+import { verifyMerkleRoot } from "~/verification/verifyMerkleRoot";
 
-export type RpcSyncFn = (params?: { fromBlock?: number, toBlock?: number, logProgress?: boolean }) => Promise<void>;
+export type RpcSyncFn = (params?: { fromBlock?: number, toBlock?: number, logProgress?: boolean, verify?: boolean }) => Promise<void>;
 export type RpcGetLogsFn = (fromBlock: number, toBlock: number) => AsyncGenerator<{ logs: TxLog[], toBlock: number }>;
 export type RpcSyncContext = {
     provider: EthereumProvider;
@@ -94,10 +95,13 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
         }
     };
 
-    const sync: RpcSyncFn = async ({ fromBlock, toBlock, logProgress } = {}) => {
+    const sync: RpcSyncFn = async ({ fromBlock, toBlock, logProgress, verify = true } = {}) => {
         const startTime = Date.now();
         const startBlock = fromBlock ?? getCurrentBlock();
         const endBlock = toBlock ?? Number(await provider.getBlockNumber());
+
+        if (startBlock > endBlock) return;
+
         const allLogs = getLogs(startBlock, endBlock);
 
         console.log('Starting sync from block ', startBlock, ' to block ', endBlock);
@@ -111,7 +115,6 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
             let lastBlock = 0;
 
             console.log('Processing batch of logs (size: ', batch.length, ', entries: ', batch.reduce((acc, { logs }) => acc + logs.length, 0), ')');
-
             const hasLogs = batch.some(({ logs }) => logs.length > 0);
 
             for (const { logs, toBlock } of batch) {
@@ -131,20 +134,27 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
                 console.log(`Estimated time remaining: ` + formatDuration(estimatedTimeRemaining));
             }
 
-            setEndBlock(lastBlock);
+            if (lastBlock > lastSave + SAVE_INTERVAL && hasLogs) {
+                for (const tree of getTrees()) {
+                    if (!tree) continue;
 
-            if (lastBlock > lastSave + SAVE_INTERVAL) {
-                if (hasLogs) {
-                    console.log('rebuilding sparse trees');
+                    await tree.rebuildSparseTree();
+                }
 
-                    for (const tree of getTrees()) {
-                        if (!tree) continue; // Skip null trees (sparse array handling)
+                if (verify) {
+                    const latestTree = getTrees().filter(Boolean).at(-1);
 
-                        console.log('rebuilding tree');
-                        await tree.rebuildSparseTree();
+                    if (latestTree) {
+                        await verifyMerkleRoot({
+                            provider,
+                            contractAddress: network.RAILGUN_ADDRESS,
+                            localRoot: latestTree.root,
+                            atBlock: lastBlock,
+                        });
                     }
                 }
 
+                setEndBlock(lastBlock);
                 console.log('saving trees');
                 await saveTrees()
 
@@ -159,6 +169,20 @@ export const createRpcSync: (context: RpcSyncContext) => Promise<RpcSync> = asyn
             await tree.rebuildSparseTree();
         }
 
+        if (verify) {
+            const latestTree = getTrees().filter(Boolean).at(-1);
+
+            if (latestTree) {
+                await verifyMerkleRoot({
+                    provider,
+                    contractAddress: network.RAILGUN_ADDRESS,
+                    localRoot: latestTree.root,
+                    atBlock: endBlock,
+                });
+            }
+        }
+
+        setEndBlock(endBlock);
         console.log('saving trees');
         await saveTrees()
     };
