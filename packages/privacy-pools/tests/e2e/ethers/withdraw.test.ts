@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 
 import { AccountId } from '@kohaku-eth/plugins';
 
@@ -22,7 +22,6 @@ describe('PrivacyPools v1 Unshield E2E', () => {
   const chainId = 11155111;
   const {
     entrypoint,
-    rpcUrl,
     forkBlockNumber,
     postman,
   } = chainConfigSetup[chainId];
@@ -36,7 +35,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
   beforeAll(async () => {
 
     anvil = await defineAnvil({
-      forkUrl: rpcUrl,
+      forkUrl: inject('rpcUrl'),
       forkBlockNumber: Number(forkBlockNumber),
       chainId,
     });
