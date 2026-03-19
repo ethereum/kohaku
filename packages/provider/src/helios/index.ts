@@ -4,20 +4,56 @@ import { raw } from "../raw";
 import type { EthereumProvider } from "../provider";
 import { Provider } from "ox/Provider";
 
-/**
- * Creates a Helios light client provider.
- * 
- * @param config - Configuration object for the provider
- * @param kind - The type of network to connect to
- * @returns A promise that resolves to an EthereumProvider instance wrapping the HeliosProvider
- */
-export async function helios(config: Config, kind: NetworkKind): Promise<EthereumProvider<HeliosProvider>> {
-    const client = await createHeliosProvider(config, kind);
- 
-    await client.waitSynced();
+function bypassGetLogs(client: HeliosProvider, rpcUrl: string) {
+    let nextId = 1;
 
     return {
-        ...raw(client as unknown as Provider),
+        async request(req: { method: string; params: unknown[] }) {
+            if (req.method === 'eth_getLogs') {
+                const res = await fetch(rpcUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // eslint-disable-next-line no-restricted-syntax -- JSON-RPC requires `id`
+                    body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method: req.method, params: req.params }),
+                });
+                const { result, error } = await res.json();
+
+                if (error) throw new Error(error.message);
+
+                return result;
+            }
+
+            return client.request(req);
+        },
+    } as unknown as Provider;
+}
+
+/**
+ * Creates a Helios light client provider.
+ *
+ * @param config - Configuration object for the provider
+ * @param kind - The type of network to connect to
+ * @param bypassLogs - When true (default), `eth_getLogs` requests are proxied directly
+ *   to the execution RPC URL instead of going through Helios. Set to false to route
+ *   all requests through the light client — note that it's only possible for requests
+ *   within the latest 8,191 blocks range and it may be very slow. It does not suit tasks like indexer sync.
+ * @returns A promise that resolves to an EthereumProvider instance wrapping the HeliosProvider
+ */
+export async function helios(config: Config, kind: NetworkKind, bypassLogs = true): Promise<EthereumProvider<HeliosProvider>> {
+    if (!config.executionRpc) {
+        throw new Error('Unable to initialize Helios provider: executionRpc is required');
+    }
+
+    const client = await createHeliosProvider(config, kind);
+
+    await client.waitSynced();
+
+    const provider = bypassLogs
+        ? bypassGetLogs(client, config.executionRpc)
+        : client as unknown as Provider;
+
+    return {
+        ...raw(provider),
         _internal: client,
     };
 }
