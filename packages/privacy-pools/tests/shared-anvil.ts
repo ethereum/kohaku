@@ -15,10 +15,6 @@ export async function setup(project: TestProject) {
 
         (globalThis as any).anvilInstance = anvilInstance;
         await anvilInstance.start();
-        // Eagerly initialize pool 1 so it's fully forked from the RPC before
-        // any test worker starts. Without this, multiple concurrent workers all
-        // hit the lazy pool at the same time, causing race conditions in CI.
-        await anvilInstance.pool(1).getBlockNumber();
         project.provide('rpcUrl', `http://127.0.0.1:${anvilInstance.port}/1`);
     }
 }

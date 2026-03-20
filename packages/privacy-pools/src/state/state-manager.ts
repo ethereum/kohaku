@@ -16,6 +16,8 @@ import {
   IWithdrawapOperationParams,
   StateRagequitPayload,
   StateWithdrawalPayload,
+  StoreKey,
+  StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { addressToHex } from "../utils";
@@ -169,12 +171,11 @@ interface GetChainStoreParams {
 const getStoreKey = ({
   chainId,
   entrypoint: { address },
-}: GetChainStoreParams): `${string}-${string}` =>
-  `${chainId.toString()}-${address}`;
+}: GetChainStoreParams): StoreKey => `${chainId.toString()}-${address}`;
+
 const getStoreStorageKey = (
   params: GetChainStoreParams,
-): `privacy-pool-state-${ReturnType<typeof getStoreKey>}` =>
-  `privacy-pool-state-${getStoreKey(params)}`;
+): StoreStorageKey => `privacy-pool-state-${getStoreKey(params)}`;
 
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
@@ -183,7 +184,7 @@ const storeByChainAndEntrypoint = ({
 }: Omit<StoreFactoryParams, "dataService">) => {
 
   const chainStoreMap = new Map<
-    string,
+    StoreKey,
     ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>
   >();
 
@@ -221,7 +222,7 @@ const storeByChainAndEntrypoint = ({
       return Array.from(chainStoreMap).reduce(
         (completeState, [chainKey, state]) => ({
           ...completeState,
-          [chainKey]: state.getState(),
+          [`privacy-pool-state-${chainKey}`]: state.getState(),
         }),
         {} as ReturnType<IStateManager['dumpState']>,
       );
