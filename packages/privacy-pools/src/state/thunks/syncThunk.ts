@@ -10,6 +10,7 @@ import { syncAspThunk, SyncAspThunkParams } from './syncAspThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
 import { entrypointInfoSelector } from '../selectors/slices.selectors';
+import { verifyRootsThunk } from './verifyRootsThunk';
 
 export interface SyncThunkParams extends
   SyncEventsThunkParams,
@@ -17,11 +18,12 @@ export interface SyncThunkParams extends
   SyncAssetsThunkParams,
   SyncAspThunkParams {
   dataService: IDataService;
+  verify?: boolean;
 }
 
 export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
-  async ({ dataService, ...params }, { getState, dispatch }) => {
+  async ({ dataService, verify = true, ...params }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     const fromBlock = selectLastSyncedBlock(state);
@@ -62,6 +64,12 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     await dispatch(syncAssetsThunk({ dataService, ...params }));
 
     await dispatch(syncAspThunk({ ...params }));
+
+    if (verify) {
+      const verifyResult = await dispatch(verifyRootsThunk({ dataService }));
+
+      unwrapResult(verifyResult);
+    }
 
     dispatch(setLastSyncedBlock(syncEventsLastBlock));
   }

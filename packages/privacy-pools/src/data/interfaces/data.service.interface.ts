@@ -77,4 +77,11 @@ export interface IDataService {
   ): Promise<IPoolConfig>;
   getPoolScope(poolAddress: Address): Promise<bigint>;
   getChainId(): Promise<ChainId>;
+
+  getPoolStateRoot(poolAddress: Address): Promise<bigint>;
+  getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
+  getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint>;
+  getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint>;
+  getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint>;
+  getLatestBlockTimestamp(): Promise<bigint>;
 }
