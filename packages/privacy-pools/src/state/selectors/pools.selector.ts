@@ -2,6 +2,7 @@ import { createSelector } from "@reduxjs/toolkit";
 
 import { IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
+import { computeMerkleTreeRoot } from "../../utils/proof.util";
 import { RootState } from "../store";
 import { createMyEntrypointDepositsSelector } from "./deposits.selector";
 import {
@@ -102,6 +103,19 @@ export const poolCommitmentsSelector = createSelector(
     return new Set(
       eventsSorterByBlockNumber.map(({ commitment }) => commitment),
     );
+  },
+);
+
+export const poolMerkleTreeRootSelector = createSelector(
+  [poolCommitmentsSelector],
+  (commitments): bigint => {
+    const leaves = Array.from(commitments);
+
+    if (leaves.length === 0) {
+      return 0n;
+    }
+
+    return computeMerkleTreeRoot(leaves);
   },
 );
 
