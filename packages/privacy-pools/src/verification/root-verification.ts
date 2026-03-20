@@ -1,36 +1,10 @@
 import { IDataService } from '../data/interfaces/data.service.interface.js';
-import { computeMerkleTreeRoot } from '../utils/proof.util.js';
 import { Address } from '../interfaces/types.interface.js';
 
 // Privacy Pool stores the last 64 state roots in a circular buffer on-chain.
 // This value must match the contract's ROOT_HISTORY_SIZE exactly so historical
 // root lookups wrap over the same slots as _isKnownRoot().
 const ROOT_HISTORY_SIZE = 64;
-
-/**
- * Verifies that a locally computed merkle root from leaves matches the expected root.
- * Pure function — no RPC calls.
- */
-export function verifyLocalRoot(leaves: bigint[], expectedRoot: bigint): void {
-  if (leaves.length === 0) {
-    if (expectedRoot !== 0n) {
-      throw new Error(
-        `Root verification failed: empty leaves but non-zero expected root (${expectedRoot})`
-      );
-    }
-
-    return;
-  }
-
-  const localRoot = computeMerkleTreeRoot(leaves);
-
-  if (localRoot !== expectedRoot) {
-    throw new Error(
-      'Root verification failed: locally computed root does not match expected root ' +
-      `(local=${localRoot}, expected=${expectedRoot})`
-    );
-  }
-}
 
 /**
  * Wraps an index within a ring buffer of the given size,

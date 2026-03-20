@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 import type { Address } from '../../src/interfaces/types.interface';
-import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
 import {
   verifyAspRootOnChain,
-  verifyLocalRoot,
   verifyStateRootOnChain,
 } from '../../src/verification/root-verification';
 
@@ -19,30 +17,6 @@ describe('root verification', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe('verifyLocalRoot', () => {
-    it('accepts an empty tree only when the expected root is zero', () => {
-      expect(() => verifyLocalRoot([], 0n)).not.toThrow();
-      expect(() => verifyLocalRoot([], 5n)).toThrow(
-        'Root verification failed: empty leaves but non-zero expected root (5)',
-      );
-    });
-
-    it('accepts a locally computed root that matches the expected root', () => {
-      const leaves = [11n, 22n, 33n];
-      const expectedRoot = computeMerkleTreeRoot(leaves);
-
-      expect(() => verifyLocalRoot(leaves, expectedRoot)).not.toThrow();
-    });
-
-    it('throws when the locally computed root differs from the expected root', () => {
-      const leaves = [11n, 22n, 33n];
-
-      expect(() => verifyLocalRoot(leaves, 999n)).toThrow(
-        'Root verification failed: locally computed root does not match expected root',
-      );
-    });
   });
 
   describe('verifyAspRootOnChain', () => {
