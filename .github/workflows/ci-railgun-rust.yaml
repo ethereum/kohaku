@@ -28,7 +28,7 @@ jobs:
 
     - uses: ./.github/actions/setup-workspace
       with:
-        shell: ci
+        shell: ci-js
         build-packages: false
 
     - name: Run tests
