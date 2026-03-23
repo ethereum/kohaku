@@ -13,7 +13,6 @@ poseidon-rust = { workspace = true }
 prover = { workspace = true }
 ruint = { workspace = true, features = ["serde", "num-bigint", "ark-ff-05"] }
 serde = { workspace = true }
-serde_with = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

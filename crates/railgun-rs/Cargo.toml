@@ -32,8 +32,6 @@ eth-rpc = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 num-bigint = { workspace = true, features = ["serde"] }
-num-traits = { workspace = true }
-poseidon-rust = { workspace = true }
 prover = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }

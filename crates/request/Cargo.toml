@@ -7,8 +7,6 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-async-trait = { workspace = true }
-common = { workspace = true }
 http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

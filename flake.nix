@@ -51,14 +51,14 @@
               pkgs.wasm-pack
               pkgs.nodejs_22
               pkgs.pnpm
-              pkgs.twiggy
+              # pkgs.twiggy
 
               # Cargo tools
-              pkgs.cargo-bloat
-              pkgs.cargo-machete
-              pkgs.cargo-insta
-              pkgs.cargo-sort
-              pkgs.cargo-llvm-cov
+              # pkgs.cargo-bloat
+              # pkgs.cargo-machete
+              # pkgs.cargo-insta
+              # pkgs.cargo-sort
+              # pkgs.cargo-llvm-cov
 
               pkgs.sops
             ];
