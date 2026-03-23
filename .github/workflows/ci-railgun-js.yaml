@@ -31,16 +31,16 @@ jobs:
         shell: ci-js
         build-packages: false
 
-    - run: cd packages/railgun-js && pnpm install
+    - run: cd packages/railgun && pnpm install
 
     - name: Pack wasm
-      run: cd packages/railgun-js && just wasm
+      run: cd packages/railgun && just wasm
 
     - name: Run sync-utxo
-      run: cd packages/railgun-js && just integration-sync-utxo
+      run: cd packages/railgun && just integration-sync-utxo
 
     - name: Run transact
-      run: cd packages/railgun-js && just integration-transact
+      run: cd packages/railgun && just integration-transact
 
     # - name: Run transact-poi
-    #   run: cd packages/railgun-js && just integration-transact-poi
+    #   run: cd packages/railgun && just integration-transact-poi
