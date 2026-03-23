@@ -1,5 +1,5 @@
 import { EthereumProvider } from '@kohaku-eth/provider';
-import { EthRpcAdapter, RawLog } from 'node_modules/railgun-js/dist/pkg/railgun_rs';
+import { EthRpcAdapter, RawLog } from './pkg/railgun_rs';
 
 export class EthereumProviderAdapter implements EthRpcAdapter {
     constructor(private provider: EthereumProvider) { }
@@ -25,18 +25,18 @@ export class EthereumProviderAdapter implements EthRpcAdapter {
             blockTimestamp: null, // Provider doesn't return timestamp in logs
             transactionHash: null, // Provider doesn't return transaction hash in logs
             address,
-            topics: log.topics as `0x${string}`[], // TODO: Confirm this is valid
-            data: log.data as `0x${string}`,  // TODO: Confirm this is valid
+            topics: log.topics as `0x${string}`[],
+            data: log.data as `0x${string}`,
         }));
         return rawLogs;
     }
 
     async ethCall(to: `0x${string}`, data: `0x${string}`): Promise<`0x${string}`> {
-        return await this.provider.call(to, data);
+        return await this.provider.call({ to, input: data }) ?? '0x';
     }
 
     async estimateGas(to: `0x${string}`, from: `0x${string}` | undefined, data: `0x${string}`): Promise<bigint> {
-        return await this.provider.estimateGas(to, from, data);
+        return await this.provider.estimateGas({ to, from, input: data });
     }
 
     async getGasPrice(): Promise<bigint> {

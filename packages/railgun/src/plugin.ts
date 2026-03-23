@@ -1,6 +1,7 @@
 import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "node_modules/railgun-js/dist/pkg/railgun_rs";
-import { createBroadcaster, GrothProverAdapter, RemoteArtifactLoader } from "railgun-js";
+import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "./pkg/railgun_rs";
+import { createBroadcaster } from "./waku-adapter";
+import { GrothProverAdapter, RemoteArtifactLoader } from "./prover-adapter";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
