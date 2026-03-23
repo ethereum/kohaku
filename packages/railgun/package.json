@@ -44,7 +44,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
+    "build": "pnpm run build:wasm && pnpm run build:js",
+    "build:wasm": "wasm-pack build --release --target nodejs ../../crates/railgun-rs --out-dir ../../packages/railgun/src/pkg",
+    "build:js": "tsc && mkdir -p dist/pkg && cp -r src/pkg dist/pkg && rm -f dist/pkg/.gitignore",
     "dev": "tsup --config tsup.config.ts --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -66,20 +68,16 @@
   "license": "MIT",
   "peerDependencies": {
     "@corpus-core/colibri-stateless": ">=1.1.0 <2",
-    "ethers": "^6.13.1",
-    "snarkjs": "^0.7.5"
+    "ethers": "^6.13.1"
   },
   "peerDependenciesMeta": {
     "@corpus-core/colibri-stateless": {
       "optional": true
-    },
-    "snarkjs": {
-      "optional": true
     }
   },
   "dependencies": {
-    "@kohaku-eth/provider": "workspace:*",
     "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*",
     "@noble/ciphers": "^1.0.0",
     "@noble/ed25519": "^1.7.1",
     "@noble/hashes": "1.8.0",
@@ -87,15 +85,20 @@
     "@railgun-community/curve25519-scalarmult-wasm": "0.1.5",
     "@railgun-community/poseidon-hash-wasm": "1.0.1",
     "@scure/base": "^2.0.0",
+    "@scure/bip32": "^2.0.1",
+    "@scure/bip39": "^2.0.1",
+    "@waku/sdk": "^0.0.36",
     "brotli": "^1.3.3",
     "browserify-aes": "^1.2.0",
     "buffer-xor": "^2.0.2",
     "circomlibjs": "^0.1.7",
     "ethereum-cryptography": "^3.2.0",
     "fast-text-encoding": "^1.0.6",
+    "snarkjs": "^0.7.6",
     "ts-pattern": "^5.4.0"
   },
   "devDependencies": {
+    "@types/snarkjs": "^0.7.6",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/brotli": "^1.3.4",
     "@types/buffer-xor": "^2.0.0",
@@ -110,7 +113,6 @@
     "ethers": "^6.15.0",
     "mocha": "^11.7.1",
     "prool": "^0.0.24",
-    "snarkjs": "^0.7.5",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.17.0",

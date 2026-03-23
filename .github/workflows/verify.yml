@@ -15,6 +15,8 @@ jobs:
           uses: actions/checkout@v4
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
+          with:
+            shell: ci-js
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
@@ -30,6 +32,7 @@ jobs:
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
+            shell: ci-js
             build-packages: true
     tests:
         name: Tests
@@ -43,6 +46,7 @@ jobs:
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
+            shell: ci-js
             build-packages: true
         - name: Run tests
           uses: nick-fields/retry@v3
@@ -53,3 +57,13 @@ jobs:
           env:
             SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+        
+        - name: Run Railgun integration tests
+          run: cd packages/railgun && just integration
+          env:
+            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+            RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+            DEV_KEY: ${{ secrets.DEV_KEY }}
+            DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
+            DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
+            DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}

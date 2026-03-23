@@ -49,7 +49,7 @@
               # Wasm tools
               pkgs.binaryen
               pkgs.wasm-pack
-              pkgs.nodejs_22
+              pkgs.nodejs_24
               pkgs.pnpm
               # pkgs.twiggy
 
@@ -79,7 +79,7 @@
               pkgs.foundry
               pkgs.binaryen
               pkgs.wasm-pack
-              pkgs.nodejs_22
+              pkgs.nodejs_24
               pkgs.pnpm
             ];
           };

@@ -2,14 +2,10 @@ name: 'Setup Workspace'
 description: 'Sets up Node.js, pnpm, caching, installs dependencies, and builds packages'
 
 inputs:
-  node-version:
-    description: 'Node.js version to use'
+  shell:
+    description: 'Nix shell to use for this job'
     required: false
-    default: '24.x'
-  pnpm-version:
-    description: 'pnpm version to use'
-    required: false
-    default: '10.10.0'
+    default: 'ci'
   build-packages:
     description: 'Whether to build packages'
     required: false
@@ -18,15 +14,23 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - uses: nixbuild/nix-quick-install-action@v30
       with:
-        node-version: ${{ inputs.node-version }}
+        nix_conf: |
+          keep-env-derivations = true
+          keep-outputs = true
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+    - uses: nix-community/cache-nix-action@v7
       with:
-        version: ${{ inputs.pnpm-version }}
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
+        purge: true
+        purge-prefixes: nix-${{ runner.os }}-
+        purge-primary-key: never
+
+    - uses: nicknovitski/nix-develop@v1
+      with:
+        arguments: .#${{ inputs.shell }}
 
     - name: Get pnpm store directory
       shell: bash
@@ -41,6 +45,8 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
 
+    - uses: Swatinem/rust-cache@v2
+
     - name: Install dependencies
       shell: bash
       run: |
@@ -52,9 +58,3 @@ runs:
       shell: bash
       run: |
         pnpm build
-
-    - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@v1
-      with:
-        version: stable
-    
