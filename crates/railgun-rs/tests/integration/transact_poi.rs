@@ -12,10 +12,9 @@ use railgun_rs::{
     chain_config::{ChainConfig, SEPOLIA_CONFIG},
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     railgun::{
-        PoiProvider,
+        PoiProvider, Signer,
         indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
         poi::{ListKey, PoiClient, PoiStatus},
-        signer::Signer,
         transaction::PoiTransactionBuilder,
     },
 };
@@ -76,10 +75,8 @@ async fn test_transact_poi() {
     );
 
     info!("Setting up accounts");
-    let account_1 =
-        railgun_rs::railgun::signer::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
-    let account_2 =
-        railgun_rs::railgun::signer::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
 
     info!("Syncing to latest block");
     railgun.sync().await.unwrap();

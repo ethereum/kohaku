@@ -11,9 +11,7 @@ use railgun_rs::{
     caip::AssetId,
     chain_config::{ChainConfig, MAINNET_CONFIG},
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
-    railgun::{
-        RailgunProvider, indexer::RpcSyncer, signer::Signer, transaction::TransactionBuilder,
-    },
+    railgun::{RailgunProvider, Signer, indexer::RpcSyncer, transaction::TransactionBuilder},
 };
 use rand::random;
 use tracing::info;
@@ -63,10 +61,8 @@ async fn test_transact() {
     railgun.set_state(railgun_state).unwrap();
 
     info!("Setting up accounts");
-    let account_1 =
-        railgun_rs::railgun::signer::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
-    let account_2 =
-        railgun_rs::railgun::signer::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
     railgun.register(account_1.clone());
     railgun.register(account_2.clone());
 

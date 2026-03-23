@@ -21,7 +21,7 @@ impl JsSyncer {
 
     #[wasm_bindgen(js_name = "newRemote")]
     pub fn new_remote(base_url: &str) -> JsSyncer {
-        RemoteSyncer::new(base_url.to_string()).into()
+        RemoteSyncer::new(base_url).into()
     }
 
     #[wasm_bindgen(js_name = "newChained")]
