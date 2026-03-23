@@ -28,16 +28,14 @@ jobs:
 
     - uses: ./.github/actions/setup-workspace
       with:
-        shell: ci-rust
+        shell: ci
         build-packages: false
 
-    - uses: Swatinem/rust-cache@v2
-
     - name: Run tests
-      run: nix develop .#ci --command cargo test
+      run: cargo test
 
     - name: Run sync
-      run: nix develop .#ci --command bash -c "cd crates/tc-rs && just integration-sync"
+      run: cd crates/tc-rs && just integration-sync
 
     - name: Run sync-relayer
-      run: nix develop .#ci --command bash -c "cd crates/tc-rs && just integration-sync-relayer"
+      run: cd crates/tc-rs && just integration-sync-relayer

@@ -45,6 +45,8 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
 
+    - uses: Swatinem/rust-cache@v2
+
     - name: Install dependencies
       shell: bash
       run: |

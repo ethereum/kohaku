@@ -28,21 +28,19 @@ jobs:
 
     - uses: ./.github/actions/setup-workspace
       with:
-        shell: ci-rust
+        shell: ci-js
         build-packages: false
 
-    - uses: Swatinem/rust-cache@v2
-
-    - run: nix develop .#ci-js --command bash -c "cd packages/railgun-js && pnpm install"
+    - run: cd packages/railgun-js && pnpm install
 
     - name: Pack wasm
-      run: nix develop .#ci-js --command bash -c "cd packages/railgun-js && just wasm"
+      run: cd packages/railgun-js && just wasm
 
     - name: Run sync-utxo
-      run: nix develop .#ci-js --command bash -c "cd packages/railgun-js && just integration-sync-utxo"
+      run: cd packages/railgun-js && just integration-sync-utxo
 
     - name: Run transact
-      run: nix develop .#ci-js --command bash -c "cd packages/railgun-js && just integration-transact"
+      run: cd packages/railgun-js && just integration-transact
 
     # - name: Run transact-poi
-    #   run: nix develop .#ci-js --command bash -c "cd packages/railgun-js && just integration-transact-poi"
+    #   run: cd packages/railgun-js && just integration-transact-poi
