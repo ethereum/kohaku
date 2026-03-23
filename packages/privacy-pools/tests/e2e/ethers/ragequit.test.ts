@@ -16,6 +16,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
   const {
     entrypoint,
     forkBlockNumber,
+    rpcUrl
   } = chainConfigSetup[chainId];
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
@@ -27,7 +28,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
   beforeAll(async () => {
 
     anvil = await defineAnvil({
-      forkUrl: inject('rpcUrl'),
+      forkUrl: rpcUrl,
       forkBlockNumber: Number(forkBlockNumber),
       chainId,
     });

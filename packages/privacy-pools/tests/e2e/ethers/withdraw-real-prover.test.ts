@@ -23,6 +23,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     entrypoint,
     forkBlockNumber,
     postman,
+    rpcUrl
   } = chainConfigSetup[chainId];
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
@@ -34,7 +35,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
   beforeAll(async () => {
 
     anvil = await defineAnvil({
-      forkUrl: inject('rpcUrl'),
+      forkUrl: rpcUrl,
       forkBlockNumber: Number(forkBlockNumber),
       chainId,
     });

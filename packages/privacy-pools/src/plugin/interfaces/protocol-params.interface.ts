@@ -113,6 +113,8 @@ export type StateRagequitPayload = {
   proofResult: CommitmentProveOutput;
 };
 
+export type StoreKey = `${string}-${string}`;
+export type StoreStorageKey = `privacy-pool-state-${StoreKey}`;
 
 export interface IStateManager {
   /**
@@ -142,7 +144,7 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
-  dumpState: () => Record<string, RootState>;
+  dumpState: () => Record<StoreStorageKey, RootState>;
   /**
    * Gets all notes for the account.
    * @param includeSpent - If true, include notes with zero balance
