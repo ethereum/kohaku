@@ -1,9 +1,9 @@
-import { describe } from "vitest";
-import { initLogging, JsRailgunProvider, JsSyncer } from "../src/pkg/railgun_rs.js";
-import { GrothProverAdapter, RemoteArtifactLoader } from "../src/prover-adapter.js";
+import { test } from "vitest";
+import { initLogging, JsRailgunProvider, JsSyncer } from "../../src/pkg/railgun_rs.js";
+import { GrothProverAdapter, RemoteArtifactLoader } from "../../src/prover-adapter.js";
 import { writeFileSync } from "node:fs";
 import { viem } from "@kohaku-eth/provider/viem";
-import { EthereumProviderAdapter } from "../src/ethereum-provider.js";
+import { EthereumProviderAdapter } from "../../src/ethereum-provider.js";
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
 
@@ -12,9 +12,7 @@ const RPC_URL = process.env.RPC_URL_MAINNET!;
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 const FORK_BLOCK = 24379760n;
 
-const run = process.env.INTEGRATION ? describe : describe.skip;
-
-run("sync-utxo", async () => {
+test("sync-utxo", async () => {
   initLogging();
 
   const publicClient = createPublicClient({

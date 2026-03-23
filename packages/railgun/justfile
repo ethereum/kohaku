@@ -7,7 +7,7 @@ wasm:
 integration: integration-sync-utxo integration-transact integration-transact-poi
 
 integration-sync-utxo:
-    pnpm vitest run -t "sync-utxo"
+    INTEGRATION=1 pnpm vitest run -t "sync-utxo"
 
 integration-transact:
     #!/usr/bin/env bash
@@ -21,10 +21,10 @@ integration-transact:
     # Wait for anvil to be ready
     sleep 2
 
-    pnpm vitest run -t "transact-utxo"
+    INTEGRATION=1 pnpm vitest run -t "transact-utxo"
 
 integration-transact-poi:
-    pnpm vitest run -t "transact-poi"
+    INTEGRATION=1 pnpm vitest run -t "transact-poi"
 
 anvil:
     anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --auto-impersonate --load-state ../../crates/railgun-rs/tests/fixtures/state.json

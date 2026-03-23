@@ -1,5 +1,5 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
-import { expect, test } from "vitest";
+import { expect, describe } from "vitest";
 import { erc20, JsPoiProvider, JsSigner, JsSyncer, type AssetId, type RailgunAddress, type ListKey, initLogging } from "../src/pkg/railgun_rs.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -19,7 +19,9 @@ const erc20Abi = parseAbi([
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-test("transact-poi", async () => {
+const run = process.env.INTEGRATION ? describe : describe.skip;
+
+run("transact-poi", async () => {
   initLogging();
 
   const USDC = erc20(USDC_ADDRESS);

@@ -26,33 +26,24 @@ jobs:
     #   with:
     #     age_key: ${{ secrets.SOPS_AGE_KEY }}
 
-    - uses: nixbuild/nix-quick-install-action@v30
+    - uses: ./.github/actions/setup-workspace
       with:
-        nix_conf: |
-          keep-env-derivations = true
-          keep-outputs = true
-
-    - uses: nix-community/cache-nix-action@v7
-      with:
-        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-        restore-prefixes-first-match: nix-${{ runner.os }}-
-        purge: true
-        purge-prefixes: nix-${{ runner.os }}-
-        purge-primary-key: never
+        shell: ci-rust
+        build-packages: false
 
     - uses: Swatinem/rust-cache@v2
 
     - name: Run tests
-      run: nix develop .#ci --command cargo test
+      run: cargo test
 
     - name: Run sync-utxo
-      run: nix develop .#ci --command bash -c "cd crates/railgun-rs && just integration-sync-utxo"
+      run: cd crates/railgun-rs && just integration-sync-utxo
 
     - name: Run sync-txid
-      run: nix develop .#ci --command bash -c "cd crates/railgun-rs && just integration-sync-txid"
+      run: cd crates/railgun-rs && just integration-sync-txid
 
     - name: Run transact
-      run: nix develop .#ci --command bash -c "cd crates/railgun-rs && just integration-transact"
+      run: cd crates/railgun-rs && just integration-transact
 
     # - name: Run transact-poi
-    #   run: nix develop .#ci --command bash -c "cd crates/railgun-rs && just integration-transact-poi"
+    #   run: cd crates/railgun-rs && just integration-transact-poi

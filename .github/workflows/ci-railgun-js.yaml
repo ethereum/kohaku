@@ -26,19 +26,10 @@ jobs:
     #   with:
     #     age_key: ${{ secrets.SOPS_AGE_KEY }}
 
-    - uses: nixbuild/nix-quick-install-action@v30
+    - uses: ./.github/actions/setup-workspace
       with:
-        nix_conf: |
-          keep-env-derivations = true
-          keep-outputs = true
-
-    - uses: nix-community/cache-nix-action@v7
-      with:
-        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-        restore-prefixes-first-match: nix-${{ runner.os }}-
-        purge: true
-        purge-prefixes: nix-${{ runner.os }}-
-        purge-primary-key: never
+        shell: ci-rust
+        build-packages: false
 
     - uses: Swatinem/rust-cache@v2
 
