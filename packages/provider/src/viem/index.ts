@@ -53,9 +53,9 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
                 to: call.to,
                 account: call.from,
                 data: call.input,
-                value: BigInt(call.value ?? 0),
-                gas: BigInt(call.gas ?? 0),
-                gasPrice: BigInt(call.gasPrice ?? 0),
+                value: call.value ? BigInt(call.value) : undefined,
+                gas: call.gas ? BigInt(call.gas) : undefined,
+                gasPrice: call.gasPrice ? BigInt(call.gasPrice) : undefined,
             });
 
             return result.data;
@@ -65,7 +65,7 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
                 to: call.to,
                 account: call.from,
                 data: call.input,
-                value: BigInt(call.value ?? 0),
+                value: call.value ? BigInt(call.value) : undefined,
             });
 
             return gas;
