@@ -4,7 +4,7 @@ fork_block := "24379760"
 wasm:
     wasm-pack build --release --target nodejs ../../crates/railgun-rs --out-dir ../../packages/railgun/src/pkg
 
-integration: integration-sync-utxo integration-transact integration-transact-poi
+integration: wasm integration-sync-utxo integration-transact integration-transact-poi
 
 integration-sync-utxo:
     INTEGRATION=1 pnpm vitest run -t "sync-utxo"
