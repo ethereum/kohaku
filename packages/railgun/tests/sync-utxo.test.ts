@@ -1,4 +1,4 @@
-import { describe } from "vitest";
+import { test } from "vitest";
 import { initLogging, JsRailgunProvider, JsSyncer } from "../src/pkg/railgun_rs.js";
 import { GrothProverAdapter, RemoteArtifactLoader } from "../src/prover-adapter.js";
 import { writeFileSync } from "node:fs";
@@ -12,9 +12,7 @@ const RPC_URL = process.env.RPC_URL_MAINNET!;
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 const FORK_BLOCK = 24379760n;
 
-const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
-
-run("sync-utxo", async () => {
+test("sync-utxo", async () => {
   if (!process.env.INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
     return;

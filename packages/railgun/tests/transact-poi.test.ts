@@ -1,5 +1,5 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
-import { expect, describe } from "vitest";
+import { expect, test } from "vitest";
 import { erc20, JsPoiProvider, JsSigner, JsSyncer, type AssetId, type RailgunAddress, type ListKey, initLogging } from "../src/pkg/railgun_rs.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -19,9 +19,7 @@ const erc20Abi = parseAbi([
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
-
-run("transact-poi", async () => {
+test("transact-poi", async () => {
   if (!process.env.INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
     return;
