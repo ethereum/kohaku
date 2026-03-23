@@ -3,6 +3,11 @@
  *
  * Adapter that owns the Waku LightNode lifecycle and exposes a minimal
  * interface for the Rust WASM transport to bind against.
+ * 
+ * TODO: Impl this rust-native. Waku light clients communicate over websocket,
+ * in a seemingly simple request/response pattern.  So it should be simple enough
+ * to impl this in rust, drop the @waku/sdk dependency, and enable more efficient
+ * handling + portability to non-browser environments.
  */
 
 import {
@@ -16,7 +21,6 @@ import {
   type QueryRequestParams,
 } from "@waku/sdk";
 import { JsBroadcasterManager, WakuAdapter, type WakuMessage } from "./pkg/railgun_rs";
-
 
 const WAKU_RAILGUN_PUB_SUB_TOPIC = "/waku/2/rs/1/1";
 const WAKU_RAILGUN_SHARD_CONFIG = {

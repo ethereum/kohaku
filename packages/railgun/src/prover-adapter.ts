@@ -14,6 +14,10 @@ export interface ArtifactLoader {
   loadZkey(circuitName: string): Promise<Uint8Array>;
 }
 
+/**
+ * GrothProverAdapter wraps the snarkjs groth16 proving logic for the Rust WASM
+ * to bind against.
+ */
 export class GrothProverAdapter implements ProverAdapter {
   private verify: boolean;
   private artifactCache = new Map<

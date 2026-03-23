@@ -1,6 +1,10 @@
 import { EthereumProvider } from '@kohaku-eth/provider';
 import { EthRpcAdapter, RawLog } from './pkg/railgun_rs';
 
+/**
+ * Adapter that wraps an EthereumProvider and exposes the EthRpcAdapter interface
+ * for the Rust WASM transport to bind against.
+ */
 export class EthereumProviderAdapter implements EthRpcAdapter {
     constructor(private provider: EthereumProvider) { }
 
