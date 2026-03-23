@@ -46,7 +46,7 @@
   "scripts": {
     "build": "pnpm run build:wasm && pnpm run build:js",
     "build:wasm": "wasm-pack build --release --target nodejs ../../crates/railgun-rs --out-dir ../../packages/railgun/src/pkg",
-    "build:js": "tsc && cp -r src/pkg dist/pkg && rm -f dist/pkg/.gitignore",
+    "build:js": "tsc && mkdir -p dist/pkg && cp -r src/pkg dist/pkg && rm -f dist/pkg/.gitignore",
     "dev": "tsup --config tsup.config.ts --watch",
     "test": "vitest run",
     "test:watch": "vitest",
