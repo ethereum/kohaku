@@ -3,8 +3,6 @@ packages:
   - "packages/provider"
   - "packages/railgun"
   - "packages/privacy-pools"
-  - "packages/eth-rpc"
   - "packages/plugins"
   - "examples/pq-account"
-  - "packages/tornadocash"
   - "docs"

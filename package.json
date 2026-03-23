@@ -23,10 +23,5 @@
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.3.0",
     "tsx": "^4.21.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "@tornado/snarkjs": "github:Robert-MacWha/tornado-snarkjs"
-    }
   }
 }
