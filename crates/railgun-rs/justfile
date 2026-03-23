@@ -33,6 +33,9 @@ integration: integration-sync-utxo integration-transact integration-sync-txid in
 integration-sync-utxo:
     RUST_LOG=info cargo test --profile release-test --no-default-features -- test_sync_utxo --ignored --nocapture
 
+integration-sync-utxo-sepolia:
+    RUST_LOG=info cargo test --profile release-test --no-default-features -- test_sync_utxo_sepolia --ignored --nocapture
+
 integration-transact:
     #!/usr/bin/env bash
     set -euo pipefail
