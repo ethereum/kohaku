@@ -21,6 +21,11 @@ const erc20Abi = parseAbi([
 const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
 
 run("transact-utxo", async () => {
+  if (!process.env.INTEGRATION) {
+    console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+    return;
+  }
+
   initLogging();
 
   const USDC = erc20(USDC_ADDRESS);

@@ -14,9 +14,12 @@ const FORK_BLOCK = 24379760n;
 
 const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
 
-
 run("sync-utxo", async () => {
-  throw new Error("This test is meant to be run with INTEGRATION=1 environment variable set.");
+  if (!process.env.INTEGRATION) {
+    console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+    return;
+  }
+
   initLogging();
 
   const publicClient = createPublicClient({
