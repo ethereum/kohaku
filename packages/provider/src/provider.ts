@@ -1,5 +1,5 @@
 import { Filter } from "ox/Filter";
-import { TxData, TxLog, TransactionReceipt } from "./tx";
+import { TxLog, TransactionReceipt, CallData, TxData } from "./tx";
 import { RpcRequest } from "ox/RpcRequest";
 
 /**
@@ -48,6 +48,21 @@ export type EthereumProvider<T = unknown> = {
    * Generic make request method to be able to use ABIs
    */
   request(request: Pick<RpcRequest, 'method' | 'params'>): Promise<unknown>;
+
+  /**
+   * Make a call to the blockchain without sending a transaction
+   */
+  call(call: CallData): Promise<`0x${string}` | undefined>;
+
+  /**
+   * Estimate gas for a transaction
+   */
+  estimateGas(call: CallData): Promise<bigint>;
+
+  /**
+   * Get the current gas price
+   */
+  getGasPrice(): Promise<bigint>;
 }
 
 /**

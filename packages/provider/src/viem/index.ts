@@ -1,6 +1,6 @@
 export { ViemSignerAdapter } from './signer';
 
-import type { TxLog, TransactionReceipt } from '../tx';
+import type { TxLog, TransactionReceipt, CallData } from '../tx';
 import type { EthereumProvider } from '../provider';
 import { Filter } from 'ox';
 import type { PublicClient } from 'viem';
@@ -47,6 +47,31 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
                 logs: receipt.logs,
                 gasUsed: BigInt(receipt.gasUsed),
             };
+        },
+        async call(call: CallData): Promise<`0x${string}` | undefined> {
+            const result = await client.call({
+                to: call.to,
+                account: call.from,
+                data: call.input,
+                value: BigInt(call.value ?? 0),
+                gas: BigInt(call.gas ?? 0),
+                gasPrice: BigInt(call.gasPrice ?? 0),
+            });
+
+            return result.data;
+        },
+        async estimateGas(call: CallData): Promise<bigint> {
+            const gas = await client.estimateGas({
+                to: call.to,
+                account: call.from,
+                data: call.input,
+                value: BigInt(call.value ?? 0),
+            });
+
+            return gas;
+        },
+        async getGasPrice(): Promise<bigint> {
+            return await client.getGasPrice();
         }
-    }
+    };
 };
