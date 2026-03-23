@@ -1,6 +1,6 @@
 import { Prover } from '@fatsolutions/privacy-pools-core-circuits';
 import { AccountId } from '@kohaku-eth/plugins';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 
 import { E_ADDRESS } from '../../../src/config';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
@@ -21,9 +21,9 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
   const chainId = 11155111;
   const {
     entrypoint,
-    rpcUrl,
     forkBlockNumber,
     postman,
+    rpcUrl
   } = chainConfigSetup[chainId];
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;

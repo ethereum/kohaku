@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 
 import { AccountId } from '@kohaku-eth/plugins';
 
@@ -22,9 +22,9 @@ describe('PrivacyPools v1 Unshield E2E', () => {
   const chainId = 11155111;
   const {
     entrypoint,
-    rpcUrl,
     forkBlockNumber,
     postman,
+    rpcUrl
   } = chainConfigSetup[chainId];
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;

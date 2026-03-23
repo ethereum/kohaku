@@ -20,6 +20,7 @@ export interface AnvilPool {
 
 export interface AnvilInstance {
   baseUrl: string;
+  port: number;
   start(): Promise<void>;
   stop(): Promise<void>;
   pool(poolId: number): AnvilPool;
@@ -72,7 +73,7 @@ export async function defineAnvil(params: DefineAnvilParameters): Promise<AnvilI
 
   return {
     baseUrl,
-
+    port,
     async start() {
       const anvilOptions: AnvilParameters = {
         chainId,

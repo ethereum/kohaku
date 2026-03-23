@@ -7,7 +7,7 @@ jobs:
     check:
         name: Check
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         permissions:
             contents: read
         steps:
@@ -21,7 +21,7 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         permissions:
             contents: read
         steps:
@@ -34,7 +34,7 @@ jobs:
     tests:
         name: Tests
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         permissions:
             contents: read
         steps:
@@ -52,3 +52,4 @@ jobs:
             command: pnpm test
           env:
             SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+            RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}

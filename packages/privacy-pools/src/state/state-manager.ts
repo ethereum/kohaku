@@ -16,6 +16,8 @@ import {
   IWithdrawapOperationParams,
   StateRagequitPayload,
   StateWithdrawalPayload,
+  StoreKey,
+  StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { addressToHex } from "../utils";
@@ -55,7 +57,6 @@ import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
-import { deserialize } from "./utils/serialize.utils";
 
 export interface StoreFactoryParams
   extends BaseSelectorParams, SyncAspThunkParams {
@@ -170,36 +171,22 @@ interface GetChainStoreParams {
 const getStoreKey = ({
   chainId,
   entrypoint: { address },
-}: GetChainStoreParams): `${string}-${string}` =>
-  `${chainId.toString()}-${address}`;
+}: GetChainStoreParams): StoreKey => `${chainId.toString()}-${address}`;
+
 const getStoreStorageKey = (
   params: GetChainStoreParams,
-): `privacy-pool-state-${ReturnType<typeof getStoreKey>}` =>
-  `privacy-pool-state-${getStoreKey(params)}`;
+): StoreStorageKey => `privacy-pool-state-${getStoreKey(params)}`;
 
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
-  initialState,
+  initialState: initialStateByChainAndEntrypoint = {},
   ...params
 }: Omit<StoreFactoryParams, "dataService">) => {
-  const initialMapState = Object.entries(initialState || {}).map(
-    ([key, state]) =>
-      [
-        key,
-        initializeSelectors({
-          ...params,
-          store: storeFactory({
-            entrypointInfo: deserialize(state!.entrypointInfo),
-            initialState: state,
-          }),
-        }),
-      ] as const,
-  );
 
   const chainStoreMap = new Map<
-    string,
+    StoreKey,
     ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>
-  >(initialMapState);
+  >();
 
   return {
     getChainStore: (getChainStoreParams: GetChainStoreParams) => {
@@ -210,14 +197,12 @@ const storeByChainAndEntrypoint = ({
       const computedChainKey = getStoreKey(getChainStoreParams);
       let storeWithSelectors = chainStoreMap.get(computedChainKey);
 
-      const storedState = storageToSyncTo?.get(
-        getStoreStorageKey(getChainStoreParams),
-      );
-
       if (!storeWithSelectors) {
-        const initialState: RootState | undefined = storedState
-          ? JSON.parse(storedState)
-          : undefined;
+        const storageKey = getStoreStorageKey(getChainStoreParams);
+        const rawStoredState = storageToSyncTo?.get(storageKey);
+        const storedState: RootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+        const snapshotInitialState = initialStateByChainAndEntrypoint[storageKey];
+        const initialState: RootState | undefined = storedState || snapshotInitialState;
         const store = storeFactory({
           entrypointInfo: {
             chainId,
@@ -237,7 +222,7 @@ const storeByChainAndEntrypoint = ({
       return Array.from(chainStoreMap).reduce(
         (completeState, [chainKey, state]) => ({
           ...completeState,
-          [chainKey]: state.getState(),
+          [`privacy-pool-state-${chainKey}`]: state.getState(),
         }),
         {} as ReturnType<IStateManager['dumpState']>,
       );

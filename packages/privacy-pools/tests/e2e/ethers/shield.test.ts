@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 
 import { E_ADDRESS } from '../../../src/config';
@@ -22,10 +22,10 @@ describe('PrivacyPools v1 E2E Flow', () => {
   const chainId = 11155111;
   const {
     entrypoint,
-    rpcUrl,
     forkBlockNumber,
     erc20Address,
     erc20WhaleAddress,
+    rpcUrl
   } = chainConfigSetup[chainId];
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
