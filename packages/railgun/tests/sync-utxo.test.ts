@@ -12,9 +12,11 @@ const RPC_URL = process.env.RPC_URL_MAINNET!;
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 const FORK_BLOCK = 24379760n;
 
-const run = process.env.INTEGRATION ? describe : describe.skip;
+const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
+
 
 run("sync-utxo", async () => {
+  throw new Error("This test is meant to be run with INTEGRATION=1 environment variable set.");
   initLogging();
 
   const publicClient = createPublicClient({

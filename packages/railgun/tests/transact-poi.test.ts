@@ -19,7 +19,7 @@ const erc20Abi = parseAbi([
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const run = process.env.INTEGRATION ? describe : describe.skip;
+const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
 
 run("transact-poi", async () => {
   initLogging();

@@ -18,7 +18,7 @@ const erc20Abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
 ]);
 
-const run = process.env.INTEGRATION ? describe : describe.skip;
+const run = process.env.INTEGRATION === "1" ? describe : describe.skip;
 
 run("transact-utxo", async () => {
   initLogging();
