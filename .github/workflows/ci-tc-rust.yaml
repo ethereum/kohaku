@@ -2,9 +2,9 @@ name: CI TC Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,6 +12,13 @@ env:
 jobs:
   ci-tc-rust:
     runs-on: ubuntu-latest
+    env:
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+      DEV_KEY: ${{ secrets.DEV_KEY }}
+      DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
+      DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
+      DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}
     steps:
     - uses: actions/checkout@v5
 
@@ -40,20 +47,6 @@ jobs:
 
     - name: Run sync
       run: nix develop .#ci --command bash -c "cd crates/tc-rs && just integration-sync"
-      with:
-        RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
-        RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
-        DEV_KEY: ${{ secrets.DEV_KEY }}
-        DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
-        DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
-        DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}
 
     - name: Run sync-relayer
       run: nix develop .#ci --command bash -c "cd crates/tc-rs && just integration-sync-relayer"
-      with:
-        RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
-        RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
-        DEV_KEY: ${{ secrets.DEV_KEY }}
-        DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
-        DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
-        DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}
