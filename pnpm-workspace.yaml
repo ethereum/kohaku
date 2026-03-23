@@ -5,4 +5,5 @@ packages:
   - "packages/privacy-pools"
   - "packages/plugins"
   - "examples/pq-account"
+  - "packages/tornadocash"
   - "docs"

@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "pack": "wasm-pack build --release --target nodejs ../../crates/tc-rs --out-dir ../../packages/tc-js/src/pkg",
-    "build": "tsc && cp -r src/pkg dist/pkg && rm -f dist/pkg/.gitignore"
+    "build": "tsc && cp -r src/pkg dist/pkg && rm -f dist/pkg/.gitignore",
+    "test": "vitest"
   },
   "keywords": [],
   "author": "",

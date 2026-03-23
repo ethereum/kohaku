@@ -15,7 +15,7 @@ integration-transact:
     # Wait for anvil to be ready
     sleep 2
 
-    pnpm vitest run -t "transact"
+    pnpm test run -t "transact"
 
 # integration-broadcast:
 #     #!/usr/bin/env bash
