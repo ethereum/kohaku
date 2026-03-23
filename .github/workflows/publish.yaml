@@ -1,0 +1,67 @@
+name: Publish JS Packages
+
+on:
+  release:
+    types: [published]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v5
+
+    # - uses: ./.github/actions/load-sops-secrets
+    #   with:
+    #     age_key: ${{ secrets.SOPS_AGE_KEY }}
+
+    - uses: nixbuild/nix-quick-install-action@v30
+      with:
+        nix_conf: |
+          keep-env-derivations = true
+          keep-outputs = true
+
+    - uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
+        purge: true
+        purge-prefixes: nix-${{ runner.os }}-
+        purge-primary-key: never
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Install dependencies
+      run: nix develop .#ci-js --command bash -c "pnpm install"
+
+    - name: Build eth-rpc WASM
+      run: nix develop .#ci-js --command bash -c "cd packages/eth-rpc && just wasm"
+
+    - name: Build railgun-js WASM
+      run: nix develop .#ci-js --command bash -c "cd packages/railgun-js && just wasm"
+
+    - name: Build tc-js WASM
+      run: nix develop .#ci-js --command bash -c "cd packages/tc-js && just wasm"
+
+    - name: Build packages
+      run: |
+        nix develop .#ci-js --command bash -c "cd packages/eth-rpc && pnpm build"
+        nix develop .#ci-js --command bash -c "cd packages/railgun-js && pnpm build"
+        nix develop .#ci-js --command bash -c "cd packages/tc-js && pnpm build"
+
+    - name: Pack packages
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/release-assets
+        nix develop .#ci-js --command bash -c "cd packages/eth-rpc && pnpm pack --pack-destination $GITHUB_WORKSPACE/release-assets"
+        nix develop .#ci-js --command bash -c "cd packages/railgun-js && pnpm pack --pack-destination $GITHUB_WORKSPACE/release-assets"
+        nix develop .#ci-js --command bash -c "cd packages/tc-js && pnpm pack --pack-destination $GITHUB_WORKSPACE/release-assets"
+
+    - name: Upload to release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: gh release upload ${{ github.event.release.tag_name }} $GITHUB_WORKSPACE/release-assets/*.tgz

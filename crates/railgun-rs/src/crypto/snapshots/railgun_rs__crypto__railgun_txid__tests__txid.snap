@@ -1,0 +1,8 @@
+---
+source: railgun-rs/src/crypto/railgun_txid.rs
+assertion_line: 155
+expression: txid
+---
+Txid(
+    16377560740762083297602124407587012236402803616921752695154194813882621728488,
+)

@@ -1,0 +1,34 @@
+{
+  "name": "tc-js",
+  "version": "0.1.0",
+  "description": "",
+  "type": "module",
+  "main": "./dist/index.node.js",
+  "types": "./dist/index.node.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.node.js",
+      "types": "./dist/index.node.d.ts"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "pack": "wasm-pack build --release --target nodejs ../../crates/tc-rs --out-dir ../../packages/tc-js/src/pkg",
+    "build": "tsc && cp -r src/pkg dist/pkg && rm -f dist/pkg/.gitignore"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0",
+  "devDependencies": {
+    "vitest": "^4.0.18",
+    "eth-rpc": "workspace:*"
+  },
+  "dependencies": {
+    "viem": "^2.45.3",
+    "@tornado/snarkjs": "github:Robert-MacWha/tornado-snarkjs",
+    "@tornado/websnark": "github:Robert-MacWha/tornado-websnark"
+  }
+}

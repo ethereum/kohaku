@@ -1,0 +1,21 @@
+[package]
+name = "tc-syncer"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "tc-syncer"
+path = "src/main.rs"
+
+[dependencies]
+tc-rs = { path = "../tc-rs", default-features = false }
+alloy = { workspace = true, features = ["providers"] }
+tokio = { workspace = true, features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[lints]
+workspace = true
