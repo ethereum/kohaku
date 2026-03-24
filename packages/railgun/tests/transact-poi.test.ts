@@ -83,9 +83,9 @@ test("transact-poi", async () => {
     const builder = railgun.transact().transfer(account1, account2.address, USDC, 5n, "test transfer");
     const tx = await railgun.build(builder);
     const transferHash = await walletClient.sendTransaction({
-      to: tx.to as `0x${string}`,
-      data: tx.data as `0x${string}`,
-      value: tx.value,
+      to: tx.tx.to as `0x${string}`,
+      data: tx.tx.data as `0x${string}`,
+      value: BigInt(tx.tx.value),
     });
     await publicClient.waitForTransactionReceipt({ hash: transferHash });
     console.log(`Executed transfer: ${transferHash}`);
@@ -108,9 +108,9 @@ test("transact-poi", async () => {
     const builder = railgun.transact().unshield(account1, unshieldRecipient, USDC, 2n);
     const tx = await railgun.build(builder);
     const unshieldHash = await walletClient.sendTransaction({
-      to: tx.to as `0x${string}`,
-      data: tx.data as `0x${string}`,
-      value: tx.value,
+      to: tx.tx.to as `0x${string}`,
+      data: tx.tx.data as `0x${string}`,
+      value: BigInt(tx.tx.value),
     });
     await publicClient.waitForTransactionReceipt({ hash: unshieldHash });
     console.log(`Executed unshield: ${unshieldHash}`);
