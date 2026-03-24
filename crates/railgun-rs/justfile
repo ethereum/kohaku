@@ -23,9 +23,6 @@ snapshot:
     # dump
     kill $ANVIL_PID
 
-test: 
-    cargo test
-
 # Release enabled for integration tests since the txid syncing is *very* slow in 
 # debug mode.
 integration: integration-sync-utxo integration-transact integration-sync-txid integration-transact-poi

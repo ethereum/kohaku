@@ -1,5 +1,5 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
-import { expect, describe } from "vitest";
+import { expect, test } from "vitest";
 import { erc20, initLogging, JsRailgunProvider, JsSigner, JsSyncer } from "../src/pkg/railgun_rs.js";
 import { mainnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -18,9 +18,12 @@ const erc20Abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
 ]);
 
-const run = process.env.INTEGRATION ? describe : describe.skip;
+test("transact-utxo", async () => {
+  if (!process.env.INTEGRATION) {
+    console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+    return;
+  }
 
-run("transact-utxo", async () => {
   initLogging();
 
   const USDC = erc20(USDC_ADDRESS);

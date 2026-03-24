@@ -5,7 +5,7 @@ inputs:
   shell:
     description: 'Nix shell to use for this job'
     required: false
-    default: 'ci'
+    default: 'ci-js'
   build-packages:
     description: 'Whether to build packages'
     required: false

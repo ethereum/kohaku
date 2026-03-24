@@ -1,8 +1,5 @@
 fork_url := env_var("RPC_URL_SEPOLIA")
 
-test: 
-    cargo test
-
 integration: integration-sync integration-sync-relayer
 
 integration-sync:
