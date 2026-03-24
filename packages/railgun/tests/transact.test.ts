@@ -21,6 +21,7 @@ const erc20Abi = parseAbi([
 test("transact-utxo", async () => {
   if (!process.env.INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+
     return;
   }
 
@@ -48,6 +49,7 @@ test("transact-utxo", async () => {
   const railgun = await JsRailgunProvider.new(rpcAdapter, syncer, prover);
 
   const state = readFileSync("./provider_state_utxo_1.json");
+
   railgun.setState(state);
 
   const account1 = JsSigner.random(CHAIN_ID);
@@ -66,6 +68,7 @@ test("transact-utxo", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: shieldHash });
 
     await railgun.sync();
@@ -85,6 +88,7 @@ test("transact-utxo", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: transferHash });
 
     await railgun.sync();
@@ -105,6 +109,7 @@ test("transact-utxo", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: unshieldHash });
 
     await railgun.sync();
@@ -120,6 +125,7 @@ test("transact-utxo", async () => {
       functionName: "balanceOf",
       args: [unshieldRecipient as `0x${string}`],
     });
+
     expect(eoaBalance).toBe(998n);
   }
 }, 300 * 1000);

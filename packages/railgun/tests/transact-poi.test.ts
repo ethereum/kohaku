@@ -22,6 +22,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 test("transact-poi", async () => {
   if (!process.env.INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+
     return;
   }
 
@@ -52,6 +53,7 @@ test("transact-poi", async () => {
   const railgun = await JsPoiProvider.new(rpcAdapter, syncer, prover);
 
   const listKeys = railgun.listKeys();
+
   expect(listKeys.length).toBeGreaterThan(0);
   const listKey = listKeys[0]!;
 
@@ -71,6 +73,7 @@ test("transact-poi", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: shieldHash });
     console.log(`Executed shield: ${shieldHash}`);
 
@@ -87,6 +90,7 @@ test("transact-poi", async () => {
       data: tx.tx.data as `0x${string}`,
       value: BigInt(tx.tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: transferHash });
     console.log(`Executed transfer: ${transferHash}`);
 
@@ -112,6 +116,7 @@ test("transact-poi", async () => {
       data: tx.tx.data as `0x${string}`,
       value: BigInt(tx.tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: unshieldHash });
     console.log(`Executed unshield: ${unshieldHash}`);
 
@@ -124,6 +129,7 @@ test("transact-poi", async () => {
       functionName: "balanceOf",
       args: [unshieldRecipient as `0x${string}`],
     });
+
     expect(postUnshieldBalance - preUnshieldBalance).toBe(2n);
   }
 }, 500 * 1000);
@@ -149,6 +155,7 @@ async function awaitBalanceUpdate(
 
     await railgun.sync();
     const balance = await railgun.balance(address, listKey);
+
     console.log('Balance:', balance);
 
     const validBalance = balance.find(

@@ -15,6 +15,7 @@ const FORK_BLOCK = 24379760n;
 test("sync-utxo", async () => {
   if (!process.env.INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+
     return;
   }
 
@@ -38,6 +39,7 @@ test("sync-utxo", async () => {
   await railgun.syncTo(FORK_BLOCK);
 
   // Save state to disk
-  let state = railgun.state();
+  const state = railgun.state();
+
   writeFileSync("./provider_state_utxo_1.json", state);
 }, 300 * 1000);
