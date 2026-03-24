@@ -89,16 +89,21 @@ const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e
  * @param host Host struct
  * @returns `RailgunPlugin` instance
  */
-export async function createRailgunProvider(host: Host, spendingKey: `0x${string}`, viewingKey: `0x${string}`): Promise<RailgunPlugin> {
+export async function createRailgunPlugin(host: Host): Promise<RailgunPlugin> {
     try {
         return await loadRailgunProvider(host);
     } catch (e) {
         console.log("Failed to load existing Railgun provider, creating new one", e);
     }
 
+    const { spendingPath, viewingPath } = derivationPaths(0);
+    const spendingKey = host.keystore.deriveAt(spendingPath);
+    const viewingKey = host.keystore.deriveAt(viewingPath);
+
     const chainId = await host.provider.getChainId();
     const provider = await newRailgunProvider(host, chainId);
     const signer = new JsSigner(spendingKey, viewingKey, chainId);
+    const pool = new SignerPool(signer);
     const broadcastManager = await createBroadcaster(chainId);
 
     return new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
