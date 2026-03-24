@@ -33,8 +33,6 @@ jobs:
     #     age_key: ${{ secrets.SOPS_AGE_KEY }}
 
     - uses: ./.github/actions/setup-workspace
-      with:
-        build-packages: false
 
     - name: Run tests
       run: cargo test
