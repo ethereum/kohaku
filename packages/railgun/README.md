@@ -12,11 +12,4 @@ pnpm add @kohaku-eth/railgun
 
 ## Quick Start
 
-TODO
-
-```ts
-
-```
-
 See the [tests](./tests/) for more examples.
-
