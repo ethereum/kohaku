@@ -324,9 +324,6 @@ importers:
       snarkjs:
         specifier: ^0.7.6
         version: 0.7.6
-      vitest:
-        specifier: ^4.1.1
-        version: 4.1.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.20.5)(yaml@2.8.1)
     devDependencies:
       '@types/snarkjs':
         specifier: ^0.7.6
@@ -340,6 +337,9 @@ importers:
       viem:
         specifier: ^2.0.0
         version: 2.37.9(typescript@5.9.3)(zod@4.3.6)
+      vitest:
+        specifier: ^4.1.1
+        version: 4.1.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.20.5)(yaml@2.8.1)
 
 packages:
 
