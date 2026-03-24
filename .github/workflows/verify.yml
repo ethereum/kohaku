@@ -58,7 +58,6 @@ jobs:
             max_attempts: 3
             command: pnpm test
           env:
-            SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
         
         - name: Run Railgun integration tests
