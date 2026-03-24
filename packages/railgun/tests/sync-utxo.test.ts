@@ -13,6 +13,13 @@ const INTEGRATION = process.env.INTEGRATION === "1";
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 const FORK_BLOCK = 24379760n;
 
+/**
+ * Integration test for syncing UTXO state. 
+ * 
+ * This test syncs the Railgun provider to a specific block and saves the state to 
+ * disk. It verifies that the sync process completes successfully, and that the
+ * resulting merkle root is valid against the on-chain root.
+ */
 test("sync-utxo", async () => {
   if (!INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");

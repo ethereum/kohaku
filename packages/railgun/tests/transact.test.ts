@@ -18,6 +18,15 @@ const erc20Abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
 ]);
 
+/**
+ * Tests a full transact flow, including shielding, transferring, and unshielding.
+ * 
+ * This integration test ensures that the entire transact flow works correctly using
+ * the public RailgunProvider interface. Includes internal syncing, tx building, UTXO
+ * management, and UTXO proof generation.
+ * 
+ * This integration test DOES NOT verify any TXID or POI functionality.
+ */
 test("transact-utxo", async () => {
   if (!INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
