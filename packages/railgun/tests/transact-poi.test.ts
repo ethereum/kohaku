@@ -1,16 +1,17 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { erc20, JsPoiProvider, JsSigner, JsSyncer, type AssetId, type RailgunAddress, type ListKey, initLogging } from "../src/pkg/railgun_rs.js";
+import { erc20, JsPoiProvider, JsSigner, JsSyncer, type AssetId, type RailgunAddress, type ListKey, initLogging } from "../src/index.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { viem } from "@kohaku-eth/provider/viem";
 import { EthereumProviderAdapter } from "../src/ethereum-provider.js";
 import { GrothProverAdapter, RemoteArtifactLoader } from "../src/prover-adapter.js";
 
-const USDC_ADDRESS = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238";
 const CHAIN_ID = 11155111n;
 const RPC_URL = process.env.RPC_URL_SEPOLIA!;
+const INTEGRATION = process.env.INTEGRATION === "1";
 const SIGNER_KEY = `0x${process.env.DEV_KEY!}` as `0x${string}`;
+const USDC_ADDRESS = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238";
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 
 const erc20Abi = parseAbi([
@@ -20,8 +21,9 @@ const erc20Abi = parseAbi([
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test("transact-poi", async () => {
-  if (!process.env.INTEGRATION) {
+  if (!INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+
     return;
   }
 
@@ -52,6 +54,7 @@ test("transact-poi", async () => {
   const railgun = await JsPoiProvider.new(rpcAdapter, syncer, prover);
 
   const listKeys = railgun.listKeys();
+
   expect(listKeys.length).toBeGreaterThan(0);
   const listKey = listKeys[0]!;
 
@@ -71,6 +74,7 @@ test("transact-poi", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: shieldHash });
     console.log(`Executed shield: ${shieldHash}`);
 
@@ -87,6 +91,7 @@ test("transact-poi", async () => {
       data: tx.tx.data as `0x${string}`,
       value: BigInt(tx.tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: transferHash });
     console.log(`Executed transfer: ${transferHash}`);
 
@@ -112,6 +117,7 @@ test("transact-poi", async () => {
       data: tx.tx.data as `0x${string}`,
       value: BigInt(tx.tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: unshieldHash });
     console.log(`Executed unshield: ${unshieldHash}`);
 
@@ -124,6 +130,7 @@ test("transact-poi", async () => {
       functionName: "balanceOf",
       args: [unshieldRecipient as `0x${string}`],
     });
+
     expect(postUnshieldBalance - preUnshieldBalance).toBe(2n);
   }
 }, 500 * 1000);
@@ -149,6 +156,7 @@ async function awaitBalanceUpdate(
 
     await railgun.sync();
     const balance = await railgun.balance(address, listKey);
+
     console.log('Balance:', balance);
 
     const validBalance = balance.find(

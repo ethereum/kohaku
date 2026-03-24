@@ -1,6 +1,6 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { erc20, initLogging, JsRailgunProvider, JsSigner, JsSyncer } from "../src/pkg/railgun_rs.js";
+import { erc20, initLogging, JsRailgunProvider, JsSigner, JsSyncer } from "../src/index.js";
 import { mainnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { readFileSync } from "node:fs";
@@ -8,19 +8,20 @@ import { viem } from "@kohaku-eth/provider/viem";
 import { EthereumProviderAdapter } from "../src/ethereum-provider.js";
 import { GrothProverAdapter, RemoteArtifactLoader } from "../src/prover-adapter.js";
 
-const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const CHAIN_ID = 1n;
+const INTEGRATION = process.env.INTEGRATION === "1";
 const RPC_URL = "http://localhost:8545";
+const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
-const FORK_BLOCK = 24379760n;
 
 const erc20Abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
 ]);
 
 test("transact-utxo", async () => {
-  if (!process.env.INTEGRATION) {
+  if (!INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
+
     return;
   }
 
@@ -48,13 +49,14 @@ test("transact-utxo", async () => {
   const railgun = await JsRailgunProvider.new(rpcAdapter, syncer, prover);
 
   const state = readFileSync("./provider_state_utxo_1.json");
+
   railgun.setState(state);
 
   const account1 = JsSigner.random(CHAIN_ID);
   const account2 = JsSigner.random(CHAIN_ID);
 
   console.log("Sync Railgun");
-  await railgun.syncTo(FORK_BLOCK);
+  await railgun.sync();
   railgun.register(account1);
   railgun.register(account2);
 
@@ -66,6 +68,7 @@ test("transact-utxo", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: shieldHash });
 
     await railgun.sync();
@@ -85,6 +88,7 @@ test("transact-utxo", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: transferHash });
 
     await railgun.sync();
@@ -105,6 +109,7 @@ test("transact-utxo", async () => {
       data: tx.data,
       value: BigInt(tx.value),
     });
+
     await publicClient.waitForTransactionReceipt({ hash: unshieldHash });
 
     await railgun.sync();
@@ -120,6 +125,7 @@ test("transact-utxo", async () => {
       functionName: "balanceOf",
       args: [unshieldRecipient as `0x${string}`],
     });
+
     expect(eoaBalance).toBe(998n);
   }
 }, 300 * 1000);

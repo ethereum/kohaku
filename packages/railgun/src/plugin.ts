@@ -40,7 +40,7 @@
  */
 
 import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "./pkg/railgun_rs";
+import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
 import { createBroadcaster } from "./waku-adapter";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
@@ -122,6 +122,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     async addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
         const signer = new JsSigner(spendingKey, viewingKey, this.chainId);
+
         this.pool.add(signer);
         await this.saveState();
     }
@@ -136,19 +137,25 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         await this.saveState();
 
         const all: Map<string, AssetAmount> = new Map();
+
         for (const signer of this.pool.all) {
             const balance = await this.provider.balance(signer.address, LIST_KEY);
+
             for (const b of balance) {
                 if (b.assetId.type !== "Erc20") continue;
+
                 if (b.poiStatus !== "Valid" || b.balance <= 0n) continue;
+
                 if (assets && !assets.some(a => a.__type === 'erc20' && a.contract === b.assetId.value)) continue;
 
                 const key = b.assetId.value;
                 const existing = all.get(key);
+
                 if (existing) { existing.amount += b.balance; }
                 else { all.set(key, { asset: { __type: 'erc20', contract: key }, amount: b.balance }); }
             }
         }
+
         return Array.from(all.values());
     }
 
@@ -159,6 +166,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             .shield()
             .shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount)
             .build();
+
         return {
             to: txData.to,
             data: txData.data,
@@ -168,12 +176,14 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData> {
         let builder = this.provider.shield();
+
         for (const token of tokens) {
             tokenGuard(token);
             builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount);
         }
 
         const txData = builder.build();
+
         return {
             to: txData.to,
             data: txData.data,
@@ -185,9 +195,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         tokenGuard(token);
         const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
         let builder = this.provider.transact();
+
         for (const e of entries) {
             builder = builder.unshield(e.signer, to, e.asset, e.amount);
         }
+
         return this.buildWithBroadcaster(builder);
 
     }
@@ -199,9 +211,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
         let builder = this.provider.transact();
+
         for (const e of entries) {
             builder = builder.unshield(e.signer, to, e.asset, e.amount);
         }
+
         return this.buildWithBroadcaster(builder);
     }
 
@@ -210,9 +224,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
         let builder = this.provider.transact();
+
         for (const e of entries) {
             builder = builder.transfer(e.signer, to, e.asset, e.amount, "");
         }
+
         return this.buildWithBroadcaster(builder);
 
     }
@@ -224,9 +240,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
         let builder = this.provider.transact();
+
         for (const e of entries) {
             builder = builder.transfer(e.signer, to, e.asset, e.amount, "");
         }
+
         return this.buildWithBroadcaster(builder);
     }
 
@@ -243,6 +261,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
      */
     async broadcast(op: RGPrivateOperation): Promise<void> {
         const broadcaster = op.broadcaster;
+
         await this.provider.broadcast(broadcaster, op.provedTx);
     }
 
@@ -260,14 +279,18 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         for (const b of balance) {
             if (b.poiStatus !== "Valid") { continue; }
+
             if (b.assetId.type !== "Erc20") { continue; }
+
             if (b.balance <= 0n) { continue; }
 
             const broadcaster = await this.broadcasterManager.bestBroadcasterForToken(b.assetId.value, BigInt(Date.now()));
+
             if (!broadcaster) { continue; }
 
             try {
                 const tx = await this.provider.buildBroadcast(builder, this.pool.primary, broadcaster.fee);
+
                 return {
                     __type: 'privateOperation',
                     provedTx: tx,
@@ -289,6 +312,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             chainId: this.chainId,
             version: '0.1.0',
         };
+
         this.storage.set(STATE_KEY, JSON.stringify(state));
     }
 };
@@ -296,6 +320,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
 function tokenGuard(token: AssetAmount) {
     const asset = token.asset;
+
     if (asset.__type !== 'erc20') {
         throw new Error("Only ERC20 tokens are supported for shielding");
     }

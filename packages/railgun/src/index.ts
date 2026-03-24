@@ -1,1 +1,6 @@
-export { RGPrivateOperation, RGInstance, RGBroadcaster, RailgunPlugin } from './plugin'
+import { initialize } from './init'
+
+await initialize();
+export type { RGPrivateOperation, RGInstance, RGBroadcaster } from './plugin'
+export { RailgunPlugin } from './plugin'
+export * from './pkg/railgun_rs'

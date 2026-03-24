@@ -9,17 +9,20 @@ import { SignerPool } from "./signer-pool";
 
 export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
     const savedState = host.storage.get(STATE_KEY);
+
     if (!savedState) {
         throw new Error("No saved state found for Railgun plugin");
     }
 
     const { providerState, internalSigners, chainId }: RailgunPluginState = JSON.parse(savedState);
     const remoteChainId = await host.provider.getChainId();
+
     if (remoteChainId !== chainId) {
         throw new Error(`Unexpected chain ID: remote: ${remoteChainId}, expected: ${chainId}`);
     }
 
     const provider = await newRailgunProvider(host, chainId);
+
     provider.setState(providerState);
 
     if (internalSigners.length === 0) {
@@ -28,6 +31,7 @@ export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
 
     const primary = new JsSigner(internalSigners[0]!.spendingKey, internalSigners[0]!.viewingKey, chainId);
     const pool = new SignerPool(primary);
+
     for (const signer of internalSigners.slice(1)) {
         pool.add(new JsSigner(signer.spendingKey, signer.viewingKey, chainId));
     }
@@ -35,6 +39,7 @@ export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
     const broadcastManager = await createBroadcaster(chainId);
 
     const plugin = new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
+
     for (const signer of internalSigners) {
         plugin.addInternalSigner(signer.spendingKey, signer.viewingKey);
     }

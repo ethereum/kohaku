@@ -56,14 +56,18 @@ export class SignerPool {
 
         for (const signer of this.signers) {
             const balance = await provider.balance(signer.address, listKey);
+
             for (const b of balance) {
                 if (b.poiStatus !== "Valid" || b.balance <= 0n) continue;
+
                 if (b.assetId.type !== "Erc20") continue;
 
                 const need = remaining.get(b.assetId.value as `0x${string}`);
+
                 if (!need || need <= 0n) continue;
 
                 const take = need < b.balance ? need : b.balance;
+
                 entries.push({ signer, asset: b.assetId, amount: take });
                 remaining.set(b.assetId.value as `0x${string}`, need - take);
             }
