@@ -40,21 +40,21 @@
  */
 
 import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "./pkg/railgun_rs";
+import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "./pkg/railgun_rs";
 import { createBroadcaster } from "./waku-adapter";
-import { GrothProverAdapter, RemoteArtifactLoader } from "./prover-adapter";
-import { EthereumProviderAdapter } from "./ethereum-provider";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
+import { loadRailgunProvider, newRailgunProvider } from "./railgun-provider";
+import { RailgunPluginState, STATE_KEY } from "./state";
+import { SignerPool } from "./signer-pool";
 
 /**
  * A proved private transaction ready for relay.
  * Consumed on `broadcast()` — rebuild via `prepare*` if retrying.
  */
 export type RGPrivateOperation = PrivateOperation & {
-    operation: JsPoiProvedTx,
+    provedTx: JsPoiProvedTx,
     broadcaster: JsBroadcaster,
-    feeToken: `0x${string}`,
 };
 
 /**
@@ -80,16 +80,6 @@ export type RGInstance = PluginInstance<
  */
 export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
-interface RailgunPluginState {
-    providerState: Uint8Array,
-    internalSigners: {
-        spendingKey: `0x${string}`,
-        viewingKey: `0x${string}`,
-    }[],
-    chainId: bigint,
-    version: '0.1.0',
-}
-
 const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88";
 
 /**
@@ -111,90 +101,49 @@ export async function createRailgunProvider(host: Host, spendingKey: `0x${string
     const signer = new JsSigner(spendingKey, viewingKey, chainId);
     const broadcastManager = await createBroadcaster(chainId);
 
-    return new RailgunPlugin(chainId, provider, signer, broadcastManager, host.storage);
-}
-
-async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
-    const savedState = host.storage.get(LIST_KEY);
-    if (!savedState) {
-        throw new Error("No saved state found for Railgun plugin");
-    }
-
-    const { providerState, internalSigners, chainId }: RailgunPluginState = JSON.parse(savedState);
-    const remoteChainId = await host.provider.getChainId();
-    if (remoteChainId !== chainId) {
-        throw new Error(`Unexpected chain ID: remote: ${remoteChainId}, expected: ${chainId}`);
-    }
-
-    const provider = await newRailgunProvider(host, chainId);
-    provider.setState(providerState);
-
-    const broadcastManager = await createBroadcaster(chainId);
-
-    const plugin = new RailgunPlugin(chainId, provider, null as any, broadcastManager, host.storage);
-    for (const signer of internalSigners) {
-        plugin.addInternalSigner(signer.spendingKey, signer.viewingKey);
-    }
-
-    return plugin;
+    return new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
-    /**
-     * InternalSigners are preferentially used to fund transact operations.
-     */
-    private internalSigners: JsSigner[] = [];
-
     constructor(
         private chainId: bigint,
         private provider: JsPoiProvider,
-        private signer: JsSigner,
+        private pool: SignerPool,
         private broadcasterManager: JsBroadcasterManager,
         private storage: Storage
     ) {
-        this.provider.register(signer);
+        this.pool.registerAll(provider)
     }
 
     async addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
         const signer = new JsSigner(spendingKey, viewingKey, this.chainId);
-        this.internalSigners.push(signer);
-        this.provider.register(signer);
+        this.pool.add(signer);
         await this.saveState();
     }
 
     async instanceId(): Promise<RailgunAddress> {
-        return this.signer.address;
+        return this.pool.primary.address;
     }
 
     // TODO: Once tags are implemented, enable return poiStatus for each item
     async balance(assets: AssetId[] | undefined): Promise<AssetAmount[]> {
         await this.provider.sync();
         await this.saveState();
-        const balances = await this.signerBalances();
 
         const all: Map<string, AssetAmount> = new Map();
-        for (const [_, balance] of balances) {
+        for (const signer of this.pool.all) {
+            const balance = await this.provider.balance(signer.address, LIST_KEY);
             for (const b of balance) {
-                if (b.assetId.type !== "Erc20") { continue; }
-                if (assets !== undefined && !assets.some((a) => a.__type === 'erc20' && a.contract === b.assetId.value)) { continue; }
+                if (b.assetId.type !== "Erc20") continue;
+                if (b.poiStatus !== "Valid" || b.balance <= 0n) continue;
+                if (assets && !assets.some(a => a.__type === 'erc20' && a.contract === b.assetId.value)) continue;
 
                 const key = b.assetId.value;
                 const existing = all.get(key);
-                if (existing) {
-                    existing.amount += b.balance;
-                    continue;
-                }
-
-                all.set(key, {
-                    asset: {
-                        __type: 'erc20',
-                        contract: b.assetId.value,
-                    },
-                    amount: b.balance,
-                });
+                if (existing) { existing.amount += b.balance; }
+                else { all.set(key, { asset: { __type: 'erc20', contract: key }, amount: b.balance }); }
             }
         }
-
         return Array.from(all.values());
     }
 
@@ -203,7 +152,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         const txData = this.provider
             .shield()
-            .shield(this.signer.address, { type: "Erc20", value: token.asset.contract }, token.amount)
+            .shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount)
             .build();
         return {
             to: txData.to,
@@ -216,7 +165,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         let builder = this.provider.shield();
         for (const token of tokens) {
             tokenGuard(token);
-            builder = builder.shield(this.signer.address, { type: "Erc20", value: token.asset.contract }, token.amount);
+            builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount);
         }
 
         const txData = builder.build();
@@ -229,10 +178,13 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
         tokenGuard(token);
-        const builder = await this.buildMultiSigner([token], (builder, signer, asset, amount) =>
-            builder.unshield(signer, to, asset, amount)
-        );
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
+        let builder = this.provider.transact();
+        for (const e of entries) {
+            builder = builder.unshield(e.signer, to, e.asset, e.amount);
+        }
         return this.buildWithBroadcaster(builder);
+
     }
 
     async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
@@ -240,17 +192,22 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             tokenGuard(token);
         }
 
-        const builder = await this.buildMultiSigner(tokens, (builder, signer, asset, amount) =>
-            builder.unshield(signer, to, asset, amount)
-        );
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
+        let builder = this.provider.transact();
+        for (const e of entries) {
+            builder = builder.unshield(e.signer, to, e.asset, e.amount);
+        }
         return this.buildWithBroadcaster(builder);
     }
 
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
         tokenGuard(token);
-        const builder = await this.buildMultiSigner([token], (builder, signer, asset, amount) =>
-            builder.transfer(signer, to, asset, amount, "")
-        );
+
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
+        let builder = this.provider.transact();
+        for (const e of entries) {
+            builder = builder.transfer(e.signer, to, e.asset, e.amount, "");
+        }
         return this.buildWithBroadcaster(builder);
 
     }
@@ -260,9 +217,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             tokenGuard(token);
         }
 
-        const builder = await this.buildMultiSigner(tokens, (builder, signer, asset, amount) =>
-            builder.transfer(signer, to, asset, amount, "")
-        );
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
+        let builder = this.provider.transact();
+        for (const e of entries) {
+            builder = builder.transfer(e.signer, to, e.asset, e.amount, "");
+        }
         return this.buildWithBroadcaster(builder);
     }
 
@@ -279,43 +238,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
      */
     async broadcast(op: RGPrivateOperation): Promise<void> {
         const broadcaster = op.broadcaster;
-        await this.provider.broadcast(broadcaster, op.operation);
-    }
-
-    /**
-     * Builds a private operation by iterating through the user's signers and
-     * draining the required tokens.
-     * 
-     * @param tokens The token amounts required for the operation.
-     * @param addToBuilder Callback that adds the required action to the builder for a given signer, token, and amount.
-     * @returns A transaction builder with the required actions added for the selected signers and tokens.
-     */
-    private async buildMultiSigner(
-        tokens: AssetAmount[],
-        addToBuilder: (builder: JsPoiTransactionBuilder, signer: JsSigner, asset: RailgunAssetId, amount: bigint) => JsPoiTransactionBuilder,
-    ): Promise<JsPoiTransactionBuilder> {
-        let builder = this.provider.transact();
-        const remaining = new Map(tokens.map(t => [t.asset.contract, t.amount]));
-
-        const balances = await this.signerBalances();
-        for (const [signer, balance] of balances) {
-            for (const b of balance) {
-                if (b.assetId.type !== "Erc20") continue;
-                const need = remaining.get(b.assetId.value as `0x${string}`);
-                if (!need || need <= 0n) continue;
-
-                const take = need < b.balance ? need : b.balance;
-                builder = addToBuilder(builder, signer, b.assetId, take);
-                remaining.set(b.assetId.value as `0x${string}`, need - take);
-            }
-        }
-
-        // check remaining are all 0
-        for (const [asset, amt] of remaining) {
-            if (amt > 0n) throw new Error(`Insufficient balance for ${asset}`);
-        }
-
-        return builder;
+        await this.provider.broadcast(broadcaster, op.provedTx);
     }
 
     /**
@@ -328,7 +251,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     private async buildWithBroadcaster(
         builder: JsTransactionBuilder,
     ): Promise<RGPrivateOperation> {
-        const balance = await this.provider.balance(this.signer.address, LIST_KEY);
+        const balance = await this.provider.balance(this.pool.primary.address, LIST_KEY);
 
         for (const b of balance) {
             if (b.poiStatus !== "Valid") { continue; }
@@ -339,12 +262,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             if (!broadcaster) { continue; }
 
             try {
-                const tx = await this.provider.buildBroadcast(builder, this.signer, broadcaster.fee);
+                const tx = await this.provider.buildBroadcast(builder, this.pool.primary, broadcaster.fee);
                 return {
                     __type: 'privateOperation',
-                    operation: tx,
+                    provedTx: tx,
                     broadcaster,
-                    feeToken: broadcaster.fee.token,
                 };
             } catch (e) {
                 console.log("Failed to build with broadcaster, trying next one", e);
@@ -356,46 +278,16 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     private async saveState() {
-        const providerState = this.provider.state();
-        const internalSigners = this.internalSigners.map((s) => ({
-            spendingKey: s.spendingKey,
-            viewingKey: s.viewingKey,
-        }));
-
         const state: RailgunPluginState = {
-            providerState,
-            internalSigners,
+            providerState: this.provider.state(),
+            internalSigners: this.pool.internalKeys(),
             chainId: this.chainId,
             version: '0.1.0',
         };
-
-        this.storage.set(LIST_KEY, JSON.stringify(state));
-    }
-
-    private async signerBalances(): Promise<[JsSigner, JsPoiBalance[]][]> {
-        const signers = [this.signer, ...this.internalSigners];
-        return Promise.all(signers.map(async s => [s, await this.validBalance(s)]));
-    }
-
-    private async validBalance(signer: JsSigner): Promise<JsPoiBalance[]> {
-        const balance = await this.provider.balance(signer.address, LIST_KEY);
-        return balance.filter((b) => b.poiStatus === "Valid" && b.balance > 0n);
+        this.storage.set(STATE_KEY, JSON.stringify(state));
     }
 };
 
-async function newRailgunProvider(host: Host, chain_id: bigint): Promise<JsPoiProvider> {
-    const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
-    const rpcAdapter = new EthereumProviderAdapter(host.provider);
-    const prover = new GrothProverAdapter(new RemoteArtifactLoader(ARTIFACTS_URL));
-    const syncer = JsSyncer.newChained([
-        JsSyncer.newSubsquid(chain_id),
-        //? Since all the broadcasters & POI nodes rely on subsquid, there's no 
-        //? actual sense in us syncing past subsquid.  So no need to have a RPC
-        //? syncer that goes ahead
-    ]);
-
-    return await JsPoiProvider.new(rpcAdapter, syncer, prover);
-}
 
 function tokenGuard(token: AssetAmount) {
     const asset = token.asset;
