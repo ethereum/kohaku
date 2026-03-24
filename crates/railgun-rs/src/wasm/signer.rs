@@ -15,6 +15,8 @@ pub struct JsSigner {
     inner: Arc<PrivateKeySigner>,
 }
 
+/// Derivation paths for a given index, used to derive the spending and viewing keys for a Railgun
+/// account.
 #[derive(Debug, Clone, Serialize, Deserialize, tsify::Tsify)]
 #[serde(rename_all = "camelCase")]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -23,6 +25,8 @@ pub struct JsDerivationPaths {
     pub viewing_path: String,
 }
 
+/// Railgun derivation paths for the given index, given in the form `m/44'/1984'/0'/0'/index` for
+/// spending key and `m/420'/1984'/0'/0'/index` for viewing key.
 #[wasm_bindgen(js_name = "derivationPaths")]
 pub fn derivation_paths(index: u32) -> JsDerivationPaths {
     let (spending_path, viewing_path) = railgun::derivation_paths(index);

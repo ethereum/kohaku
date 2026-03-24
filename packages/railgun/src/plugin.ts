@@ -1,3 +1,44 @@
+/**
+ * @module railgun-plugin
+ *
+ * Railgun privacy provider for Kohaku. Wraps railgun-rs WASM bindings into the
+ * Kohaku plugin interface.
+ *
+ * ## Pipeline
+ *
+ * 1. **Create**: `createRailgunProvider(host, spendingKey, viewingKey)`
+ *    Loads persisted state if available, otherwise initializes fresh.
+ *    Returns a `RailgunPlugin` that implements both `RGInstance` and 
+ *    `RGBroadcaster`.
+ *
+ * 2. **Sync**: Happens implicitly on `balance()`. The provider pulls new
+ *    commitments from Subsquid and updates local UTXO state.
+ *
+ * 3. **Prepare**:
+ *    - Shield returns raw `TxData` (user signs & sends directly).
+ *    - Transfer/Unshield return `RGPrivateOperation` — a proved tx bundled
+ *      with a selected broadcaster, ready for relay.
+ *
+ * 4. **Broadcast**: relays the proved tx through the selected Waku broadcaster. 
+ *    The operation is consumed; rebuild on failure.
+ *
+ * ## Internal Signers
+ *
+ * A plugin instance has one primary signer (set at creation) plus optional
+ * internal signers added via `addInternalSigner`. When building private ops,
+ * `buildMultiSigner` drains UTXOs across all signers to satisfy the requested
+ * amounts — primary first, then internal signers in insertion order.
+ *
+ * This matters for recovery/consolidation flows where funds are spread across
+ * multiple Railgun keypairs.
+ *
+ * ## State Persistence
+ *
+ * Provider state + internal signer keys are serialized to `host.storage`
+ * after every sync and signer addition. On reload, `createRailgunProvider`
+ * restores from storage automatically.
+ */
+
 import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
 import { JsBroadcaster, JsBroadcasterManager, JsPoiBalance, JsPoiProvedTx, JsPoiProvider, JsPoiTransactionBuilder, JsSigner, JsSyncer, JsTransactionBuilder, RailgunAddress, AssetId as RailgunAssetId } from "./pkg/railgun_rs";
 import { createBroadcaster } from "./waku-adapter";
@@ -6,12 +47,19 @@ import { EthereumProviderAdapter } from "./ethereum-provider";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 
+/**
+ * A proved private transaction ready for relay.
+ * Consumed on `broadcast()` — rebuild via `prepare*` if retrying.
+ */
 export type RGPrivateOperation = PrivateOperation & {
     operation: JsPoiProvedTx,
     broadcaster: JsBroadcaster,
     feeToken: `0x${string}`,
 };
 
+/**
+ * Full plugin interface: prepare private operations + query balances.
+ */
 export type RGInstance = PluginInstance<
     RailgunAddress,
     {
@@ -27,6 +75,9 @@ export type RGInstance = PluginInstance<
     }
 >;
 
+/**
+ * Broadcast interface: relay proved transactions via Waku.
+ */
 export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
 interface RailgunPluginState {
@@ -41,6 +92,13 @@ interface RailgunPluginState {
 
 const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88";
 
+/**
+ * Creates or loads a Railgun plugin instance. If persisted state exists, it will
+ * loaded; otherwise, new keys will be generated and a new provider initialized.
+ * 
+ * @param host Host struct
+ * @returns `RailgunPlugin` instance
+ */
 export async function createRailgunProvider(host: Host, spendingKey: `0x${string}`, viewingKey: `0x${string}`): Promise<RailgunPlugin> {
     try {
         return await loadRailgunProvider(host);
