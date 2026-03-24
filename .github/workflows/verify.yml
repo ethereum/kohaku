@@ -16,7 +16,6 @@ jobs:
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
-            shell: ci-js
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
@@ -32,7 +31,6 @@ jobs:
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
-            shell: ci-js
             build-packages: true
     tests:
         name: Tests
@@ -46,7 +44,6 @@ jobs:
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
-            shell: ci-js
             build-packages: true
         - name: Run tests
           uses: nick-fields/retry@v3
