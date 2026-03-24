@@ -10,8 +10,14 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check-secrets:
+    uses: ./.github/workflows/check-secrets.yml
+    secrets: inherit
+
   ci-railgun-rust:
     runs-on: ubuntu-latest
+    needs: check-secrets
+    if: needs.check-secrets.outputs.available == 'true'
     env:
       RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
       RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
