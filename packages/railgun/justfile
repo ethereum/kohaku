@@ -2,7 +2,7 @@ fork_url := env_var("RPC_URL_MAINNET")
 fork_block := "24379760"
 
 wasm:
-    wasm-pack build --release --target web ../../crates/railgun-rs --out-dir ../../packages/railgun/src/pkg
+    pnpm build:wasm
 
 integration: wasm integration-sync-utxo integration-transact
 
