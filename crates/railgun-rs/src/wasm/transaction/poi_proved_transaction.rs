@@ -1,9 +1,7 @@
-use std::str::FromStr;
-
 use eth_rpc::TxData;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::railgun::transaction::PoiProvedTx;
+use crate::railgun::{broadcaster::broadcaster::Fee, transaction::PoiProvedTx};
 
 /// POI proved transaction
 #[wasm_bindgen]
@@ -13,28 +11,23 @@ pub struct JsPoiProvedTx {
 
 #[wasm_bindgen]
 impl JsPoiProvedTx {
-    /// Contract address to call (0x...)
-    #[wasm_bindgen(getter, unchecked_return_type = "`0x${string}`")]
-    pub fn to(&self) -> String {
-        self.inner.tx_data.to.to_checksum(None)
-    }
-
-    /// Raw calldata bytes
-    #[wasm_bindgen(getter, unchecked_return_type = "`0x${string}`")]
-    pub fn data(&self) -> String {
-        self.inner.tx_data.data.clone().to_string()
-    }
-
-    /// ETH value to send
-    #[wasm_bindgen(getter)]
-    pub fn value(&self) -> js_sys::BigInt {
-        js_sys::BigInt::from_str(&self.inner.tx_data.value.to_string()).unwrap()
-    }
-
-    /// Full transaction data (to, data, value) as a TxData object
-    #[wasm_bindgen(js_name = "txData")]
-    pub fn tx_data(&self) -> TxData {
+    /// Full transaction data (to, data, value, etc.)
+    #[wasm_bindgen(getter, js_name = "tx")]
+    pub fn tx(&self) -> TxData {
         self.inner.tx_data.clone()
+    }
+
+    /// Fee information for this operation, if available. Only broadcaster transactions
+    /// will have fees.
+    #[wasm_bindgen(getter, js_name = "fee")]
+    pub fn fee(&self) -> Option<Fee> {
+        self.inner.fee.clone()
+    }
+
+    /// Minimum gas price for this transaction, in gwei.
+    #[wasm_bindgen(getter, js_name = "minGasPrice")]
+    pub fn min_gas_price(&self) -> u128 {
+        self.inner.min_gas_price
     }
 }
 

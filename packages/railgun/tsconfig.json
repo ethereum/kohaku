@@ -11,21 +11,8 @@
   },
   "include": [
     "src",
-    "demo",
-    "../provider/src/colibri-stateless.d.ts"
   ],
   "exclude": [
-    "src/railgun/logic",
-    "src/account/*",
-    "src/broadcast/*",
-    "src/circuits/*",
-    "src/config/*",
-    "src/indexer/*",
-    "src/railgun/*",
-    "src/storage/*",
-    "src/utils/*",
-    "src/utils",
-    "src/webpack.d.ts",
-    "src/webpack.ts"
+    "src/pkg"
   ]
 }
