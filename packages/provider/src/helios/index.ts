@@ -33,13 +33,13 @@ function bypassGetLogs(client: HeliosProvider, rpcUrl: string) {
  *
  * @param config - Configuration object for the provider
  * @param kind - The type of network to connect to
- * @param bypassLogs - When true (default), `eth_getLogs` requests are proxied directly
- *   to the execution RPC URL instead of going through Helios. Set to false to route
- *   all requests through the light client — note that it's only possible for requests
+ * @param bypassLogs - When true, `eth_getLogs` requests are proxied directly to the
+ *   execution RPC URL instead of going through Helios. When false (default), all requests
+ *   go through the light client — note that `eth_getLogs` is only possible for requests
  *   within the latest 8,191 blocks range and it may be very slow. It does not suit tasks like indexer sync.
  * @returns A promise that resolves to an EthereumProvider instance wrapping the HeliosProvider
  */
-export async function helios(config: Config, kind: NetworkKind, bypassLogs = true): Promise<EthereumProvider<HeliosProvider>> {
+export async function helios(config: Config, kind: NetworkKind, bypassLogs = false): Promise<EthereumProvider<HeliosProvider>> {
     if (!config.executionRpc) {
         throw new Error('Unable to initialize Helios provider: executionRpc is required');
     }
