@@ -87,16 +87,17 @@ const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e
  * loaded; otherwise, new keys will be generated and a new provider initialized.
  * 
  * @param host Host struct
+ * @param keyIndex Optional index for key derivation (default: 0)
  * @returns `RailgunPlugin` instance
  */
-export async function createRailgunPlugin(host: Host): Promise<RailgunPlugin> {
+export async function createRailgunPlugin(host: Host, keyIndex: number = 0): Promise<RailgunPlugin> {
     try {
         return await loadRailgunProvider(host);
     } catch (e) {
         console.log("Failed to load existing Railgun provider, creating new one", e);
     }
 
-    const { spendingPath, viewingPath } = derivationPaths(0);
+    const { spendingPath, viewingPath } = derivationPaths(keyIndex);
     const spendingKey = host.keystore.deriveAt(spendingPath);
     const viewingKey = host.keystore.deriveAt(viewingPath);
 
