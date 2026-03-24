@@ -53,6 +53,9 @@
               pkgs.pnpm
               # pkgs.twiggy
 
+              # Playwright browser
+              pkgs.chromium
+
               # Cargo tools
               # pkgs.cargo-bloat
               # pkgs.cargo-machete

@@ -5,7 +5,6 @@
  * for the Rust WASM prover to bind against.
  */
 
-import { readFile } from "node:fs/promises";
 import * as snarkjs from "snarkjs";
 import { JsProof, ProverAdapter } from "./pkg/railgun_rs";
 
@@ -96,18 +95,6 @@ export class GrothProverAdapter implements ProverAdapter {
     this.artifactCache.set(circuitName, artifacts);
 
     return artifacts;
-  }
-}
-
-export class FsArtifactLoader implements ArtifactLoader {
-  constructor(private basePath: string) { }
-
-  async loadWasm(circuitName: string): Promise<Uint8Array> {
-    return readFile(`${this.basePath}/${circuitName}.wasm`);
-  }
-
-  async loadZkey(circuitName: string): Promise<Uint8Array> {
-    return readFile(`${this.basePath}/${circuitName}.zkey`);
   }
 }
 
