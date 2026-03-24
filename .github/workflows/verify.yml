@@ -51,16 +51,19 @@ jobs:
           uses: ./.github/actions/setup-workspace
           with:
             build-packages: true
-        - name: Run tests
+        - name: Run Privacy Pools tests
           uses: nick-fields/retry@v3
           with:
             timeout_minutes: 20
             max_attempts: 3
-            command: pnpm test
+            command: pnpm --filter @kohaku-eth/privacy-pools test
           env:
+            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+            PPV1_MAINNET_FORK_BLOCK: ${{ secrets.PPV1_MAINNET_FORK_BLOCK }}
+            PPV1_SEPOLIA_FORK_BLOCK: ${{ secrets.PPV1_SEPOLIA_FORK_BLOCK }}
         
-        - name: Run Railgun integration tests
+        - name: Run Railgun tests
           run: cd packages/railgun && just integration
           env:
             RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
