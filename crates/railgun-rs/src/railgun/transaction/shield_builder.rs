@@ -14,7 +14,12 @@ use crate::{
     },
 };
 
-/// Basic builder for constructing shield transactions.
+/// Basic builder for constructing shield transactions. Shield transactions
+/// are used to move assets from an external address into the RAILGUN protocol.
+/// They consume assets from a single EOA, shielding them into a number of
+/// RAILGUN accounts in a single transaction.
+///
+/// Shield transactions must be self-broadcast.
 pub struct ShieldBuilder {
     chain: ChainConfig,
     shields: Vec<(RailgunAddress, AssetId, u128)>,

@@ -30,6 +30,9 @@ use crate::{
     },
 };
 
+/// Builder for constructing transactions with POI proofs. This builder extends
+/// the basic TransactionBuilder with support for attaching POI proofs to transactions
+/// and calculating broadcaster fees for broadcasted transactions.
 pub struct PoiTransactionBuilder {
     inner: TransactionBuilder,
 }
@@ -59,6 +62,7 @@ impl PoiTransactionBuilder {
         }
     }
 
+    /// See [TransactionBuilder::transfer]
     pub fn transfer(
         self,
         from: Arc<dyn Signer>,
@@ -72,6 +76,7 @@ impl PoiTransactionBuilder {
         }
     }
 
+    /// See [TransactionBuilder::set_unshield]
     pub fn set_unshield(
         self,
         from: Arc<dyn Signer>,
@@ -115,6 +120,10 @@ impl PoiTransactionBuilder {
     ///
     /// The resulting transaction includes POI proof data and a broadcaster fee, and is
     /// ready for broadcasting with the provided broadcaster.
+    ///
+    /// WARNING: Self-broadcasting transactions built with this method will still
+    /// incur broadcaster fees. Only use this method if you intend to broadcast
+    /// with a broadcaster.
     pub async fn build_broadcast<R: Rng>(
         self,
         chain: ChainConfig,
