@@ -13,6 +13,9 @@ use tracing_subscriber::EnvFilter;
 const CHAIN: ChainConfig = MAINNET_CONFIG;
 const FORK_BLOCK: u64 = 24379760;
 
+/// Tests syncing the TxidIndexer to a specific block. This integration test ensures that
+/// the Txid indexer can successfully sync and verifies that its merkle tree is consistent
+/// with subsquid's ground truth.
 #[tokio::test]
 #[serial_test::serial]
 #[ignore]

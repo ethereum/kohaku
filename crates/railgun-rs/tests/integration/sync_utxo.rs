@@ -12,8 +12,9 @@ use tracing_subscriber::EnvFilter;
 const CHAIN: ChainConfig = MAINNET_CONFIG;
 const FORK_BLOCK: u64 = 24379760;
 
-/// Integration test for syncing the UTXO indexer's state from subsquid. Also
-/// caches the provider state after syncing, which is used in subsequent tests.
+/// Tests syncing the UTXO state to a specific block. This integration test ensures that
+/// the UTXO syncer can successfully sync and verifies that the provider's state is consistent
+/// with railgun's on-chain merkle tree.
 #[tokio::test]
 #[serial_test::serial]
 #[ignore]
@@ -39,6 +40,9 @@ async fn test_sync_utxo() {
     let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts",
     )));
+    //? We use the RailgunProvider here instead of a UtxoIndexer so that we can write
+    //? the provider state to a file after syncing. This snapshot can be used in subsequent
+    //? tests to avoid re-syncing from scratch, which currently takes ~1 minute.
     let mut railgun =
         RailgunProvider::new(CHAIN, provider.clone(), subsquid_syncer.clone(), prover);
 

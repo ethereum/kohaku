@@ -24,6 +24,8 @@ pub type MessageStream = Pin<Box<dyn Stream<Item = WakuMessage> + Send>>;
 pub type MessageStream = Pin<Box<dyn Stream<Item = WakuMessage>>>;
 
 /// Transport layer for Waku network communication.
+///
+/// TODO: Make me a pure rust impl
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait WakuTransport: common::MaybeSend {

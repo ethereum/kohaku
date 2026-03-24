@@ -7,3 +7,6 @@ pub mod broadcaster_manager;
 mod content_topics;
 pub mod transport;
 pub mod types;
+
+pub use broadcaster::{BroadcastError, Broadcaster, Fee};
+pub use broadcaster_manager::{BroadcasterManager, BroadcastersError};

@@ -20,6 +20,22 @@ const erc20Abi = parseAbi([
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Tests a full POI transact flow including shielding, transferring, and unshielding.
+ * 
+ * This integration test ensures that the entire POI transact flow works correctly
+ * using the public PoiProvider interface. Includes internal syncing, tx building,
+ * UTXO management, UTXO/TXID proof generation, and POI submission.
+ * 
+ * WARNING: This test currently runs against the real Sepolia testnet, and will
+ * submit real transactions that affect real funds. Minimal amounts are used,
+ * but ensure a throwaway DEV_KEY account is funded with testnet ETH and USDC
+ * before running.
+ * 
+ * The test is run on Sepolia because the POI submission process relies on
+ * submitting POI proofs to a real POI endpoint, which in turn verifies that the
+ * proofs are valid against the real chain state.
+ */
 test("transact-poi", async () => {
   if (!INTEGRATION) {
     console.warn("Skipping integration test. Set INTEGRATION=1 to run.");

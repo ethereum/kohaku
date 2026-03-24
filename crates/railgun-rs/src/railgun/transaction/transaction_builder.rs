@@ -53,7 +53,9 @@ use crate::{
     },
 };
 
-/// A builder for constructing railgun transactions (transfers, unshields)
+/// Basic builder for constructing railgun transactions. Transactions are sets
+/// of shielded operations (transfers and unshield) that are proved together
+/// and can be executed in a single on-chain transaction.
 #[derive(Clone)]
 pub struct TransactionBuilder {
     pub(crate) transfers: Vec<TransferData>,
@@ -107,6 +109,7 @@ impl TransactionBuilder {
 }
 
 impl TransactionBuilder {
+    /// Adds a transfer operation to this transaction.
     pub fn transfer(
         mut self,
         from: Arc<dyn Signer>,
@@ -129,6 +132,8 @@ impl TransactionBuilder {
         self
     }
 
+    /// Sets an unshield operation for this transaction. Only one unshield operation
+    /// is permitted per transaction per asset, due to limitations in the RAILGUN protocol.
     pub fn set_unshield(
         mut self,
         from: Arc<dyn Signer>,

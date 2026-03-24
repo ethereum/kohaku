@@ -19,7 +19,8 @@ use crate::{
     },
 };
 
-/// Provides access to Railgun interactions
+/// Interfaces with the RAILGUN protocol. Handles UTXO syncing,
+/// transaction building, and proving. Does NOT handle transaction submission.
 pub struct RailgunProvider {
     pub chain: ChainConfig,
     pub(crate) utxo_indexer: UtxoIndexer,
