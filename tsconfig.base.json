@@ -13,7 +13,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "outDir": "dist",
+    "outDir": "./dist",
     "newLine": "lf",
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,

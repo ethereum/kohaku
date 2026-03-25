@@ -1,0 +1,589 @@
+common v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/common)
+├── gloo-timers v0.3.0
+│   ├── futures-channel v0.3.31
+│   │   ├── futures-core v0.3.31
+│   │   └── futures-sink v0.3.31
+│   ├── futures-core v0.3.31
+│   ├── js-sys v0.3.85
+│   │   ├── once_cell v1.21.3
+│   │   └── wasm-bindgen v0.2.108
+│   │       ├── cfg-if v1.0.4
+│   │       ├── once_cell v1.21.3
+│   │       ├── wasm-bindgen-macro v0.2.108 (proc-macro)
+│   │       │   ├── quote v1.0.44
+│   │       │   │   └── proc-macro2 v1.0.106
+│   │       │   │       └── unicode-ident v1.0.23
+│   │       │   └── wasm-bindgen-macro-support v0.2.108
+│   │       │       ├── bumpalo v3.19.1
+│   │       │       ├── proc-macro2 v1.0.106 (*)
+│   │       │       ├── quote v1.0.44 (*)
+│   │       │       ├── syn v2.0.114
+│   │       │       │   ├── proc-macro2 v1.0.106 (*)
+│   │       │       │   ├── quote v1.0.44 (*)
+│   │       │       │   └── unicode-ident v1.0.23
+│   │       │       └── wasm-bindgen-shared v0.2.108
+│   │       │           └── unicode-ident v1.0.23
+│   │       └── wasm-bindgen-shared v0.2.108
+│   │           └── unicode-ident v1.0.23
+│   │       [build-dependencies]
+│   │       └── rustversion v1.0.22 (proc-macro)
+│   └── wasm-bindgen v0.2.108 (*)
+├── ruint v1.17.2
+│   ├── ark-ff v0.5.0
+│   │   ├── ark-ff-asm v0.5.0 (proc-macro)
+│   │   │   ├── quote v1.0.44 (*)
+│   │   │   └── syn v2.0.114 (*)
+│   │   ├── ark-ff-macros v0.5.0 (proc-macro)
+│   │   │   ├── num-bigint v0.4.6
+│   │   │   │   ├── num-integer v0.1.46
+│   │   │   │   │   └── num-traits v0.2.19
+│   │   │   │   │       [build-dependencies]
+│   │   │   │   │       └── autocfg v1.5.0
+│   │   │   │   └── num-traits v0.2.19 (*)
+│   │   │   ├── num-traits v0.2.19 (*)
+│   │   │   ├── proc-macro2 v1.0.106 (*)
+│   │   │   ├── quote v1.0.44 (*)
+│   │   │   └── syn v2.0.114 (*)
+│   │   ├── ark-serialize v0.5.0
+│   │   │   ├── ark-serialize-derive v0.5.0 (proc-macro)
+│   │   │   │   ├── proc-macro2 v1.0.106 (*)
+│   │   │   │   ├── quote v1.0.44 (*)
+│   │   │   │   └── syn v2.0.114 (*)
+│   │   │   ├── ark-std v0.5.0
+│   │   │   │   ├── num-traits v0.2.19
+│   │   │   │   │   [build-dependencies]
+│   │   │   │   │   └── autocfg v1.5.0
+│   │   │   │   └── rand v0.8.5
+│   │   │   │       ├── rand_chacha v0.3.1
+│   │   │   │       │   ├── ppv-lite86 v0.2.21
+│   │   │   │       │   │   └── zerocopy v0.8.39
+│   │   │   │       │   └── rand_core v0.6.4
+│   │   │   │       │       └── getrandom v0.2.17
+│   │   │   │       │           ├── cfg-if v1.0.4
+│   │   │   │       │           ├── js-sys v0.3.85 (*)
+│   │   │   │       │           └── wasm-bindgen v0.2.108 (*)
+│   │   │   │       └── rand_core v0.6.4 (*)
+│   │   │   ├── arrayvec v0.7.6
+│   │   │   ├── digest v0.10.7
+│   │   │   │   ├── block-buffer v0.10.4
+│   │   │   │   │   └── generic-array v0.14.7
+│   │   │   │   │       └── typenum v1.19.0
+│   │   │   │   │       [build-dependencies]
+│   │   │   │   │       └── version_check v0.9.5
+│   │   │   │   └── crypto-common v0.1.7
+│   │   │   │       ├── generic-array v0.14.7 (*)
+│   │   │   │       ├── rand_core v0.6.4 (*)
+│   │   │   │       └── typenum v1.19.0
+│   │   │   └── num-bigint v0.4.6
+│   │   │       ├── num-integer v0.1.46
+│   │   │       │   └── num-traits v0.2.19 (*)
+│   │   │       ├── num-traits v0.2.19 (*)
+│   │   │       └── serde v1.0.228
+│   │   │           ├── serde_core v1.0.228
+│   │   │           └── serde_derive v1.0.228 (proc-macro)
+│   │   │               ├── proc-macro2 v1.0.106 (*)
+│   │   │               ├── quote v1.0.44 (*)
+│   │   │               └── syn v2.0.114 (*)
+│   │   ├── ark-std v0.5.0 (*)
+│   │   ├── arrayvec v0.7.6
+│   │   ├── digest v0.10.7 (*)
+│   │   ├── educe v0.6.0 (proc-macro)
+│   │   │   ├── enum-ordinalize v4.3.2
+│   │   │   │   └── enum-ordinalize-derive v4.3.2 (proc-macro)
+│   │   │   │       ├── proc-macro2 v1.0.106 (*)
+│   │   │   │       ├── quote v1.0.44 (*)
+│   │   │   │       └── syn v2.0.114 (*)
+│   │   │   ├── proc-macro2 v1.0.106 (*)
+│   │   │   ├── quote v1.0.44 (*)
+│   │   │   └── syn v2.0.114 (*)
+│   │   ├── itertools v0.13.0
+│   │   │   └── either v1.15.0
+│   │   ├── num-bigint v0.4.6 (*)
+│   │   ├── num-traits v0.2.19 (*)
+│   │   ├── paste v1.0.15 (proc-macro)
+│   │   └── zeroize v1.8.2
+│   │       └── zeroize_derive v1.4.3 (proc-macro)
+│   │           ├── proc-macro2 v1.0.106 (*)
+│   │           ├── quote v1.0.44 (*)
+│   │           └── syn v2.0.114 (*)
+│   ├── num-bigint v0.4.6 (*)
+│   ├── ruint-macro v1.2.1 (proc-macro)
+│   └── serde_core v1.0.228
+├── serde v1.0.228 (*)
+└── web-time v1.1.0
+    ├── js-sys v0.3.85 (*)
+    ├── serde v1.0.228 (*)
+    └── wasm-bindgen v0.2.108 (*)
+
+crypto v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/crypto)
+├── ark-bn254 v0.5.0
+│   ├── ark-ec v0.5.0
+│   │   ├── ahash v0.8.12
+│   │   │   ├── cfg-if v1.0.4
+│   │   │   ├── once_cell v1.21.3
+│   │   │   └── zerocopy v0.8.39
+│   │   │   [build-dependencies]
+│   │   │   └── version_check v0.9.5
+│   │   ├── ark-ff v0.5.0 (*)
+│   │   ├── ark-poly v0.5.0
+│   │   │   ├── ahash v0.8.12 (*)
+│   │   │   ├── ark-ff v0.5.0 (*)
+│   │   │   ├── ark-serialize v0.5.0 (*)
+│   │   │   ├── ark-std v0.5.0 (*)
+│   │   │   ├── educe v0.6.0 (proc-macro) (*)
+│   │   │   └── hashbrown v0.15.5
+│   │   │       └── allocator-api2 v0.2.21
+│   │   ├── ark-serialize v0.5.0 (*)
+│   │   ├── ark-std v0.5.0 (*)
+│   │   ├── educe v0.6.0 (proc-macro) (*)
+│   │   ├── hashbrown v0.15.5 (*)
+│   │   ├── itertools v0.13.0 (*)
+│   │   ├── num-bigint v0.4.6 (*)
+│   │   ├── num-integer v0.1.46 (*)
+│   │   ├── num-traits v0.2.19 (*)
+│   │   └── zeroize v1.8.2 (*)
+│   ├── ark-ff v0.5.0 (*)
+│   └── ark-std v0.5.0 (*)
+├── ark-ff v0.5.0 (*)
+├── blake-hash v0.2.0
+│   ├── block-buffer v0.7.3
+│   │   ├── block-padding v0.1.5
+│   │   │   └── byte-tools v0.3.1
+│   │   ├── byte-tools v0.3.1
+│   │   ├── byteorder v1.5.0
+│   │   └── generic-array v0.12.4
+│   │       └── typenum v1.19.0
+│   └── digest v0.8.1
+│       └── generic-array v0.12.4 (*)
+├── num-bigint v0.4.6 (*)
+├── num-traits v0.2.19 (*)
+├── poseidon-rust v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/poseidon-rust)
+│   ├── ark-bn254 v0.5.0 (*)
+│   ├── ark-ff v0.5.0 (*)
+│   ├── ark-serialize v0.5.0 (*)
+│   ├── ark-std v0.5.0 (*)
+│   ├── itertools v0.14.0
+│   │   └── either v1.15.0
+│   ├── num-bigint v0.4.6 (*)
+│   ├── num-traits v0.2.19 (*)
+│   └── thiserror v2.0.18
+│       └── thiserror-impl v2.0.18 (proc-macro)
+│           ├── proc-macro2 v1.0.106 (*)
+│           ├── quote v1.0.44 (*)
+│           └── syn v2.0.114 (*)
+│   [dev-dependencies]
+│   ├── getrandom v0.2.17 (*)
+│   ├── getrandom v0.3.4
+│   │   ├── cfg-if v1.0.4
+│   │   └── wasm-bindgen v0.2.108 (*)
+│   └── rand v0.9.2
+│       ├── rand_chacha v0.9.0
+│       │   ├── ppv-lite86 v0.2.21 (*)
+│       │   └── rand_core v0.9.5
+│       │       └── getrandom v0.3.4 (*)
+│       └── rand_core v0.9.5 (*)
+├── prover v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/prover)
+│   ├── ark-bn254 v0.5.0 (*)
+│   ├── ark-ff v0.5.0 (*)
+│   ├── async-trait v0.1.89 (proc-macro)
+│   │   ├── proc-macro2 v1.0.106 (*)
+│   │   ├── quote v1.0.44 (*)
+│   │   └── syn v2.0.114 (*)
+│   ├── common v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/common) (*)
+│   ├── ruint v1.17.2 (*)
+│   ├── serde v1.0.228 (*)
+│   ├── serde-wasm-bindgen v0.6.5
+│   │   ├── js-sys v0.3.85 (*)
+│   │   ├── serde v1.0.228 (*)
+│   │   └── wasm-bindgen v0.2.108 (*)
+│   ├── thiserror v2.0.18 (*)
+│   ├── tsify v0.5.6
+│   │   ├── gloo-utils v0.2.0
+│   │   │   ├── js-sys v0.3.85 (*)
+│   │   │   ├── serde v1.0.228 (*)
+│   │   │   ├── serde_json v1.0.149
+│   │   │   │   ├── itoa v1.0.17
+│   │   │   │   ├── memchr v2.8.0
+│   │   │   │   ├── serde_core v1.0.228
+│   │   │   │   └── zmij v1.0.20
+│   │   │   ├── wasm-bindgen v0.2.108 (*)
+│   │   │   └── web-sys v0.3.85
+│   │   │       ├── js-sys v0.3.85 (*)
+│   │   │       └── wasm-bindgen v0.2.108 (*)
+│   │   ├── serde v1.0.228 (*)
+│   │   ├── serde-wasm-bindgen v0.6.5 (*)
+│   │   ├── serde_json v1.0.149 (*)
+│   │   ├── tsify-macros v0.5.6 (proc-macro)
+│   │   │   ├── proc-macro2 v1.0.106 (*)
+│   │   │   ├── quote v1.0.44 (*)
+│   │   │   ├── serde_derive_internals v0.29.1
+│   │   │   │   ├── proc-macro2 v1.0.106 (*)
+│   │   │   │   ├── quote v1.0.44 (*)
+│   │   │   │   └── syn v2.0.114 (*)
+│   │   │   └── syn v2.0.114 (*)
+│   │   └── wasm-bindgen v0.2.108 (*)
+│   ├── wasm-bindgen v0.2.108 (*)
+│   └── wasm-bindgen-futures v0.4.58
+│       ├── cfg-if v1.0.4
+│       ├── futures-util v0.3.31
+│       │   ├── futures-channel v0.3.31 (*)
+│       │   ├── futures-core v0.3.31
+│       │   ├── futures-io v0.3.31
+│       │   ├── futures-macro v0.3.31 (proc-macro)
+│       │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   ├── quote v1.0.44 (*)
+│       │   │   └── syn v2.0.114 (*)
+│       │   ├── futures-sink v0.3.31
+│       │   ├── futures-task v0.3.31
+│       │   ├── memchr v2.8.0
+│       │   ├── pin-project-lite v0.2.16
+│       │   ├── pin-utils v0.1.0
+│       │   └── slab v0.4.12
+│       ├── js-sys v0.3.85 (*)
+│       ├── once_cell v1.21.3
+│       └── wasm-bindgen v0.2.108 (*)
+│   [dev-dependencies]
+│   ├── insta v1.46.3
+│   │   ├── console v0.15.11
+│   │   │   ├── libc v0.2.180
+│   │   │   └── once_cell v1.21.3
+│   │   ├── once_cell v1.21.3
+│   │   ├── serde v1.0.228 (*)
+│   │   ├── similar v2.7.0
+│   │   └── tempfile v3.24.0
+│   │       ├── fastrand v2.3.0
+│   │       └── once_cell v1.21.3
+│   ├── serde_json v1.0.149 (*)
+│   └── tracing-test v0.2.6
+│       ├── tracing-core v0.1.36
+│       │   └── once_cell v1.21.3
+│       ├── tracing-subscriber v0.3.22
+│       │   ├── matchers v0.2.0
+│       │   │   └── regex-automata v0.4.14
+│       │   │       └── regex-syntax v0.8.9
+│       │   ├── nu-ansi-term v0.50.3
+│       │   ├── once_cell v1.21.3
+│       │   ├── regex-automata v0.4.14 (*)
+│       │   ├── sharded-slab v0.1.7
+│       │   │   └── lazy_static v1.5.0
+│       │   ├── smallvec v1.15.1
+│       │   ├── thread_local v1.1.9
+│       │   │   └── cfg-if v1.0.4
+│       │   ├── tracing v0.1.44
+│       │   │   ├── pin-project-lite v0.2.16
+│       │   │   ├── tracing-attributes v0.1.31 (proc-macro)
+│       │   │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   │   ├── quote v1.0.44 (*)
+│       │   │   │   └── syn v2.0.114 (*)
+│       │   │   └── tracing-core v0.1.36 (*)
+│       │   ├── tracing-core v0.1.36 (*)
+│       │   └── tracing-log v0.2.0
+│       │       ├── log v0.4.29
+│       │       ├── once_cell v1.21.3
+│       │       └── tracing-core v0.1.36 (*)
+│       └── tracing-test-macro v0.2.6 (proc-macro)
+│           ├── quote v1.0.44 (*)
+│           └── syn v2.0.114 (*)
+├── ruint v1.17.2 (*)
+├── serde v1.0.228 (*)
+├── thiserror v2.0.18 (*)
+└── tracing v0.1.44 (*)
+[dev-dependencies]
+├── getrandom v0.2.17 (*)
+├── getrandom v0.3.4 (*)
+├── insta v1.46.3 (*)
+├── rand v0.9.2 (*)
+├── serde_json v1.0.149 (*)
+└── tracing-test v0.2.6 (*)
+
+eth-rpc v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/eth-rpc)
+├── alloy-primitives v1.5.4
+│   ├── bytes v1.11.1
+│   │   └── serde v1.0.228 (*)
+│   ├── cfg-if v1.0.4
+│   ├── const-hex v1.17.0
+│   │   ├── cfg-if v1.0.4
+│   │   └── serde_core v1.0.228
+│   ├── derive_more v2.0.1
+│   │   └── derive_more-impl v2.0.1 (proc-macro)
+│   │       ├── proc-macro2 v1.0.106 (*)
+│   │       ├── quote v1.0.44 (*)
+│   │       ├── syn v2.0.114 (*)
+│   │       └── unicode-xid v0.2.6
+│   ├── itoa v1.0.17
+│   ├── paste v1.0.15 (proc-macro)
+│   ├── ruint v1.17.2 (*)
+│   ├── rustc-hash v2.1.1
+│   ├── serde v1.0.228 (*)
+│   └── sha3 v0.10.8
+│       ├── digest v0.10.7 (*)
+│       └── keccak v0.1.5
+├── alloy-sol-types v1.5.4
+│   ├── alloy-primitives v1.5.4 (*)
+│   └── alloy-sol-macro v1.5.4 (proc-macro)
+│       ├── alloy-sol-macro-expander v1.5.4
+│       │   ├── alloy-sol-macro-input v1.5.4
+│       │   │   ├── const-hex v1.17.0
+│       │   │   │   ├── cfg-if v1.0.4
+│       │   │   │   └── cpufeatures v0.2.17
+│       │   │   ├── dunce v1.0.5
+│       │   │   ├── heck v0.5.0
+│       │   │   ├── macro-string v0.1.4
+│       │   │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   │   ├── quote v1.0.44 (*)
+│       │   │   │   └── syn v2.0.114 (*)
+│       │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   ├── quote v1.0.44 (*)
+│       │   │   ├── syn v2.0.114 (*)
+│       │   │   └── syn-solidity v1.5.4
+│       │   │       ├── paste v1.0.15 (proc-macro)
+│       │   │       ├── proc-macro2 v1.0.106 (*)
+│       │   │       ├── quote v1.0.44 (*)
+│       │   │       └── syn v2.0.114 (*)
+│       │   ├── const-hex v1.17.0 (*)
+│       │   ├── heck v0.5.0
+│       │   ├── indexmap v2.11.4
+│       │   │   ├── equivalent v1.0.2
+│       │   │   └── hashbrown v0.16.1
+│       │   ├── proc-macro-error2 v2.0.1
+│       │   │   ├── proc-macro-error-attr2 v2.0.0 (proc-macro)
+│       │   │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   │   └── quote v1.0.44 (*)
+│       │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   ├── quote v1.0.44 (*)
+│       │   │   └── syn v2.0.114 (*)
+│       │   ├── proc-macro2 v1.0.106 (*)
+│       │   ├── quote v1.0.44 (*)
+│       │   ├── sha3 v0.10.8
+│       │   │   ├── digest v0.10.7
+│       │   │   │   ├── block-buffer v0.10.4
+│       │   │   │   │   └── generic-array v0.14.7
+│       │   │   │   │       └── typenum v1.19.0
+│       │   │   │   │       [build-dependencies]
+│       │   │   │   │       └── version_check v0.9.5
+│       │   │   │   └── crypto-common v0.1.7
+│       │   │   │       ├── generic-array v0.14.7 (*)
+│       │   │   │       └── typenum v1.19.0
+│       │   │   └── keccak v0.1.5
+│       │   ├── syn v2.0.114 (*)
+│       │   └── syn-solidity v1.5.4 (*)
+│       ├── alloy-sol-macro-input v1.5.4 (*)
+│       ├── proc-macro-error2 v2.0.1 (*)
+│       ├── proc-macro2 v1.0.106 (*)
+│       ├── quote v1.0.44 (*)
+│       └── syn v2.0.114 (*)
+├── async-trait v0.1.89 (proc-macro) (*)
+├── common v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/common) (*)
+├── hex v0.4.3
+├── js-sys v0.3.85 (*)
+├── serde v1.0.228 (*)
+├── serde-wasm-bindgen v0.6.5 (*)
+├── thiserror v2.0.18 (*)
+├── tsify v0.5.6 (*)
+├── wasm-bindgen v0.2.108 (*)
+└── wasm-bindgen-futures v0.4.58 (*)
+
+poseidon-rust v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/poseidon-rust) (*)
+
+prover v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/prover) (*)
+
+railgun-rs v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/railgun-rs)
+├── aes v0.8.4
+│   ├── cfg-if v1.0.4
+│   └── cipher v0.4.4
+│       ├── crypto-common v0.1.7 (*)
+│       └── inout v0.1.4
+│           └── generic-array v0.14.7 (*)
+├── aes-gcm v0.10.3
+│   ├── aead v0.5.2
+│   │   ├── crypto-common v0.1.7 (*)
+│   │   └── generic-array v0.14.7 (*)
+│   ├── aes v0.8.4 (*)
+│   ├── cipher v0.4.4 (*)
+│   ├── ctr v0.9.2
+│   │   └── cipher v0.4.4 (*)
+│   ├── ghash v0.5.1
+│   │   ├── opaque-debug v0.3.1
+│   │   └── polyval v0.6.2
+│   │       ├── cfg-if v1.0.4
+│   │       ├── opaque-debug v0.3.1
+│   │       └── universal-hash v0.5.1
+│   │           ├── crypto-common v0.1.7 (*)
+│   │           └── subtle v2.6.1
+│   └── subtle v2.6.1
+├── alloy-primitives v1.5.4 (*)
+├── alloy-sol-types v1.5.4 (*)
+├── ark-bn254 v0.5.0 (*)
+├── ark-ff v0.5.0 (*)
+├── ark-std v0.5.0 (*)
+├── async-trait v0.1.89 (proc-macro) (*)
+├── bech32 v0.11.1
+├── common v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/common) (*)
+├── console_error_panic_hook v0.1.7
+│   ├── cfg-if v1.0.4
+│   └── wasm-bindgen v0.2.108 (*)
+├── crypto v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/crypto) (*)
+├── ctr v0.9.2 (*)
+├── curve25519-dalek v4.1.3
+│   ├── cfg-if v1.0.4
+│   ├── digest v0.10.7 (*)
+│   ├── subtle v2.6.1
+│   └── zeroize v1.8.2 (*)
+│   [build-dependencies]
+│   └── rustc_version v0.4.1
+│       └── semver v1.0.27
+├── ed25519-dalek v2.2.0
+│   ├── curve25519-dalek v4.1.3 (*)
+│   ├── ed25519 v2.2.3
+│   │   └── signature v2.2.0
+│   ├── sha2 v0.10.9
+│   │   ├── cfg-if v1.0.4
+│   │   └── digest v0.10.7 (*)
+│   ├── subtle v2.6.1
+│   └── zeroize v1.8.2 (*)
+├── eth-rpc v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/eth-rpc) (*)
+├── futures v0.3.31
+│   ├── futures-channel v0.3.31 (*)
+│   ├── futures-core v0.3.31
+│   ├── futures-executor v0.3.31
+│   │   ├── futures-core v0.3.31
+│   │   ├── futures-task v0.3.31
+│   │   └── futures-util v0.3.31 (*)
+│   ├── futures-io v0.3.31
+│   ├── futures-sink v0.3.31
+│   ├── futures-task v0.3.31
+│   └── futures-util v0.3.31 (*)
+├── getrandom v0.2.17 (*)
+├── getrandom v0.3.4 (*)
+├── gloo-timers v0.3.0 (*)
+├── hex v0.4.3
+├── js-sys v0.3.85 (*)
+├── num-bigint v0.4.6 (*)
+├── prover v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/prover) (*)
+├── rand v0.9.2 (*)
+├── rand_chacha v0.9.0 (*)
+├── request v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/request)
+│   ├── gloo-net v0.6.0
+│   │   ├── futures-channel v0.3.31 (*)
+│   │   ├── futures-core v0.3.31
+│   │   ├── futures-sink v0.3.31
+│   │   ├── gloo-utils v0.2.0 (*)
+│   │   ├── http v1.4.0
+│   │   │   ├── bytes v1.11.1 (*)
+│   │   │   └── itoa v1.0.17
+│   │   ├── js-sys v0.3.85 (*)
+│   │   ├── pin-project v1.1.10
+│   │   │   └── pin-project-internal v1.1.10 (proc-macro)
+│   │   │       ├── proc-macro2 v1.0.106 (*)
+│   │   │       ├── quote v1.0.44 (*)
+│   │   │       └── syn v2.0.114 (*)
+│   │   ├── serde v1.0.228 (*)
+│   │   ├── serde_json v1.0.149 (*)
+│   │   ├── thiserror v1.0.69
+│   │   │   └── thiserror-impl v1.0.69 (proc-macro)
+│   │   │       ├── proc-macro2 v1.0.106 (*)
+│   │   │       ├── quote v1.0.44 (*)
+│   │   │       └── syn v2.0.114 (*)
+│   │   ├── wasm-bindgen v0.2.108 (*)
+│   │   ├── wasm-bindgen-futures v0.4.58 (*)
+│   │   └── web-sys v0.3.85 (*)
+│   ├── http v1.4.0 (*)
+│   ├── js-sys v0.3.85 (*)
+│   ├── serde v1.0.228 (*)
+│   ├── serde_json v1.0.149 (*)
+│   └── thiserror v2.0.18 (*)
+├── ruint v1.17.2 (*)
+├── serde v1.0.228 (*)
+├── serde-wasm-bindgen v0.6.5 (*)
+├── serde_json v1.0.149 (*)
+├── serde_with v3.16.1
+│   ├── serde_core v1.0.228
+│   └── serde_with_macros v3.16.1 (proc-macro)
+│       ├── darling v0.21.3
+│       │   ├── darling_core v0.21.3
+│       │   │   ├── fnv v1.0.7
+│       │   │   ├── ident_case v1.0.1
+│       │   │   ├── proc-macro2 v1.0.106 (*)
+│       │   │   ├── quote v1.0.44 (*)
+│       │   │   ├── strsim v0.11.1
+│       │   │   └── syn v2.0.114 (*)
+│       │   └── darling_macro v0.21.3 (proc-macro)
+│       │       ├── darling_core v0.21.3 (*)
+│       │       ├── quote v1.0.44 (*)
+│       │       └── syn v2.0.114 (*)
+│       ├── proc-macro2 v1.0.106 (*)
+│       ├── quote v1.0.44 (*)
+│       └── syn v2.0.114 (*)
+├── sha2 v0.10.9 (*)
+├── thiserror v2.0.18 (*)
+├── tracing v0.1.44 (*)
+├── tracing-wasm v0.2.1
+│   ├── tracing v0.1.44 (*)
+│   ├── tracing-subscriber v0.3.22 (*)
+│   └── wasm-bindgen v0.2.108 (*)
+├── tsify v0.5.6 (*)
+├── wasm-bindgen v0.2.108 (*)
+├── wasm-bindgen-futures v0.4.58 (*)
+└── web-time v1.1.0 (*)
+[dev-dependencies]
+├── insta v1.46.3 (*)
+├── serial_test v3.3.1
+│   ├── futures-executor v0.3.31 (*)
+│   ├── futures-util v0.3.31 (*)
+│   ├── log v0.4.29
+│   ├── once_cell v1.21.3
+│   ├── parking_lot v0.12.5
+│   │   ├── lock_api v0.4.14
+│   │   │   └── scopeguard v1.2.0
+│   │   └── parking_lot_core v0.9.12
+│   │       ├── cfg-if v1.0.4
+│   │       └── smallvec v1.15.1
+│   ├── scc v2.4.0
+│   │   └── sdd v3.0.10
+│   └── serial_test_derive v3.3.1 (proc-macro)
+│       ├── proc-macro2 v1.0.106 (*)
+│       ├── quote v1.0.44 (*)
+│       └── syn v2.0.114 (*)
+├── tracing-subscriber v0.3.22 (*)
+└── tracing-test v0.2.6 (*)
+
+request v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/request) (*)
+
+tc-rs v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/tc-rs)
+├── alloy-primitives v1.5.4 (*)
+├── alloy-sol-types v1.5.4 (*)
+├── ark-bn254 v0.5.0 (*)
+├── ark-ff v0.5.0 (*)
+├── ark-relations v0.5.1
+│   ├── ark-ff v0.5.0 (*)
+│   ├── ark-std v0.5.0 (*)
+│   └── tracing v0.1.44 (*)
+├── async-trait v0.1.89 (proc-macro) (*)
+├── common v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/common) (*)
+├── console_error_panic_hook v0.1.7 (*)
+├── crypto v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/crypto) (*)
+├── eth-rpc v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/eth-rpc) (*)
+├── getrandom v0.2.17 (*)
+├── getrandom v0.3.4 (*)
+├── gloo-timers v0.3.0 (*)
+├── hex v0.4.3
+├── js-sys v0.3.85 (*)
+├── prover v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/prover) (*)
+├── rand v0.9.2 (*)
+├── request v0.1.0 (/home/rmacwha/Documents/git/kohaku/crates/request) (*)
+├── ruint v1.17.2 (*)
+├── serde v1.0.228 (*)
+├── serde-wasm-bindgen v0.6.5 (*)
+├── serde_json v1.0.149 (*)
+├── thiserror v2.0.18 (*)
+├── tracing v0.1.44 (*)
+├── tracing-wasm v0.2.1 (*)
+├── tsify v0.5.6 (*)
+├── wasm-bindgen v0.2.108 (*)
+├── wasm-bindgen-futures v0.4.58 (*)
+└── web-time v1.1.0 (*)
+[dev-dependencies]
+├── insta v1.46.3 (*)
+├── rand_chacha v0.9.0 (*)
+├── tracing-subscriber v0.3.22 (*)
+└── tracing-test v0.2.6 (*)
