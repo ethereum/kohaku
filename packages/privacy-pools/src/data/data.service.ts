@@ -157,4 +157,39 @@ export class DataService implements IDataService {
 
     return BigInt(chainIdHex);
   }
+
+  async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
+    return this.ethClient.makeContractRequest(poolAddress, "pool", "currentRoot");
+  }
+
+  async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {
+    return Number(
+      await this.ethClient.makeContractRequest(poolAddress, "pool", "currentRootIndex")
+    );
+  }
+
+  async getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint> {
+    return this.ethClient.makeContractRequest(poolAddress, "pool", "roots", BigInt(index));
+  }
+
+  async getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint> {
+    return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "latestRoot");
+  }
+
+  async getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint> {
+    return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "rootByIndex", BigInt(index));
+  }
+
+  async getLatestBlockTimestamp(): Promise<bigint> {
+    const block = await this.ethClient.request({
+      method: "eth_getBlockByNumber",
+      params: ["latest", false],
+    }) as { timestamp?: string } | null;
+
+    if (!block?.timestamp) {
+      throw new Error("Failed to fetch latest block timestamp");
+    }
+
+    return BigInt(block.timestamp);
+  }
 }
