@@ -49,6 +49,7 @@ export async function createBroadcaster(
   nodeOptions?: CreateNodeOptions
 ): Promise<JsBroadcasterManager> {
   const resolved = adapter ?? (await createWakuAdapter(nodeOptions));
+
   return new JsBroadcasterManager(chainId, resolved, whitelistedBroadcasters);
 }
 
@@ -62,6 +63,7 @@ async function createWakuAdapter(
   }
 ): Promise<WakuNodeAdapter> {
   const node = await createLightNode(options);
+
   await node.start();
 
   console.log("Waiting for Waku peers...");
@@ -71,6 +73,7 @@ async function createWakuAdapter(
   );
 
   const peers = await node.getConnectedPeers();
+
   console.log(`Connected to ${peers.length} Waku peers`);
 
   return new WakuNodeAdapter(node);
@@ -93,6 +96,7 @@ class WakuNodeAdapter implements WakuAdapter {
 
     await this.node.filter.subscribe(decoders, (decoded: IDecodedMessage) => {
       const msg = WakuNodeAdapter.toWakuMessage(decoded);
+
       this.enqueue(msg);
     });
   }
@@ -101,6 +105,7 @@ class WakuNodeAdapter implements WakuAdapter {
     if (this.messageQueue.length > 0) {
       return this.messageQueue.shift()!;
     }
+
     if (this.closed) return null;
 
     return new Promise<WakuMessage | null>((resolve) => {
@@ -113,6 +118,7 @@ class WakuNodeAdapter implements WakuAdapter {
       contentTopic: topic,
       routingInfo: WAKU_RAILGUN_SHARD_CONFIG,
     });
+
     await this.node.lightPush.send(encoder, { payload });
   }
 
@@ -134,8 +140,11 @@ class WakuNodeAdapter implements WakuAdapter {
     for await (const page of generator) {
       for (const promise of page) {
         if (promise == null) continue;
+
         const decoded = await promise;
+
         if (decoded == null) continue;
+
         messages.push(WakuNodeAdapter.toWakuMessage(decoded));
       }
     }
@@ -150,6 +159,7 @@ class WakuNodeAdapter implements WakuAdapter {
    */
   close(): void {
     this.closed = true;
+
     for (const resolve of this.waiters) {
       resolve(null);
     }
@@ -158,6 +168,7 @@ class WakuNodeAdapter implements WakuAdapter {
 
   private enqueue(msg: WakuMessage): void {
     const waiter = this.waiters.shift();
+
     if (waiter) {
       waiter(msg);
     } else {

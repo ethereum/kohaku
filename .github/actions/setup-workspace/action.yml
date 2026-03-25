@@ -2,10 +2,6 @@ name: 'Setup Workspace'
 description: 'Sets up Node.js, pnpm, caching, installs dependencies, and builds packages'
 
 inputs:
-  shell:
-    description: 'Nix shell to use for this job'
-    required: false
-    default: 'ci-js'
   build-packages:
     description: 'Whether to build packages'
     required: false
@@ -30,7 +26,7 @@ runs:
 
     - uses: nicknovitski/nix-develop@v1
       with:
-        arguments: .#${{ inputs.shell }}
+        arguments: .#ci
 
     - name: Get pnpm store directory
       shell: bash

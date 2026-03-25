@@ -1,11 +1,10 @@
-Modifications:
-1. Add `poseidon_hash` fn
-2. Add benchmark
-
-Notes:
-- The impls here are ~20-40% faster than those in light_poseidon.  light_poseidon is also ~1MiB, similar to this crate's 1.2MiB. Plus, this one supports t=14.
-
 # Circom Compatible Poseidon Hash
+
+> This crate was forked from [taceolabs/poseidon-rust](https://github.com/TaceoLabs/poseidon-rust) under the MIT license. The original README is available below.
+>
+> This crate has been modified to:
+>  - Add a `poseidon_hash` function to hash an arbitrary number of field elements
+>  - Add benchmarks for the `poseidon_hash` function
 
 This crate contains a custom rust implementation of the Poseidon hash function, which is compatible with [Circom](https://docs.circom.io/).
 Currently, only the parameters for Poseidon with statesizes t=3 (allows hashing two field elements) and t=4 (allows hashing three field elements) for the BN254 curve is present. However, different parameters can be generated with the `src/bn254/parameters.sage` script, which is a modified copy of the original Poseidon instance generation script from [https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/master/code/generate_parameters_grain.sage](https://extgit.iaik.tugraz.at/krypto/hadeshash/-/blob/master/code/generate_parameters_grain.sage).

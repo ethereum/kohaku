@@ -26,6 +26,23 @@ const USDC_ADDRESS: Address = address!("0x1c7d4b196cb0c7b01d743fbc6116a902379c72
 const USDC: AssetId = AssetId::Erc20(USDC_ADDRESS);
 const CHAIN: ChainConfig = SEPOLIA_CONFIG;
 
+/// Tests a full POI transact flow including shielding, transferring, and unshielding.
+///
+/// This integration test ensures that the entire POI transact flow works correctly
+/// using the public PoiProvider interface. Includes internal syncing, tx building,
+/// UTXO management, UTXO/TXID proof generation, and POI submission.
+///
+/// WARNING: This test currently runs against the real Sepolia testnet, and will
+/// submit real transactions that affect real funds. Minimal amounts are used,
+/// but ensure a throwaway DEV_KEY account is funded with testnet ETH and USDC
+/// before running.
+///
+/// The test is run on Sepolia because the POI submission process relies on
+/// submitting POI proofs to a real POI endpoint, which in turn verifies that the
+/// proofs are valid against the real chain state.
+///
+/// TODO: Make this a snapshot test that runs against a local fork with a mocked POI
+/// endpoint, and only runs against sepolia when the snapshot needs to be refreshed.
 #[tokio::test]
 #[serial_test::serial]
 #[ignore]

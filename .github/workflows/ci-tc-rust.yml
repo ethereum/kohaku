@@ -10,7 +10,13 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check-secrets:
+    uses: ./.github/workflows/check-secrets.yml
+    secrets: inherit
+
   ci-tc-rust:
+    needs: check-secrets
+    if: needs.check-secrets.outputs.available == 'true'
     runs-on: ubuntu-latest
     env:
       RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
@@ -28,7 +34,6 @@ jobs:
 
     - uses: ./.github/actions/setup-workspace
       with:
-        shell: ci-js
         build-packages: false
 
     - name: Run tests

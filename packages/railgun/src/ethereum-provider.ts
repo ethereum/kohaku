@@ -32,6 +32,7 @@ export class EthereumProviderAdapter implements EthRpcAdapter {
             topics: log.topics as `0x${string}`[],
             data: log.data as `0x${string}`,
         }));
+
         return rawLogs;
     }
 

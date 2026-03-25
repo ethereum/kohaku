@@ -49,12 +49,14 @@ pub struct Broadcaster {
 #[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct Fee {
+    /// Address of the token used for fee payment
     #[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))]
     pub token: Address,
     /// Fee per unit gas, where the fee is in the token's base units and the gas
     /// is in units of ether (1e18)
     #[cfg_attr(target_arch = "wasm32", tsify(type = "bigint"))]
     pub per_unit_gas: u128,
+    /// Address of the fee recipient (broadcaster)
     pub recipient: RailgunAddress,
     /// Unix timestamp when this fee expires
     pub expiration: u64,
@@ -65,7 +67,7 @@ pub struct Fee {
     /// Address of the relay adapt contract
     #[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))]
     pub relay_adapt: Address,
-    /// Reliability score (0-100)
+    /// Broadcaster reliability score (0-100)
     pub reliability: u32,
     /// List keys required by the broadcaster for POI selection
     pub list_keys: Vec<ListKey>,

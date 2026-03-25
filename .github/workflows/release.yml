@@ -28,9 +28,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-        with:
-          shell: ci-js
-          build-packages: false
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
@@ -55,7 +52,6 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
-          shell: ci-js
           build-packages: true
 
       - name: Publish to NPM
