@@ -264,6 +264,41 @@ UserOp hash: 0x...
 
 ---
 
+## Step 6 — Verify Your Transaction
+
+UserOps are **not regular transactions** — they won't show up if you search the hash on Etherscan directly. You need a UserOp-aware explorer.
+
+### Why Etherscan won't work
+
+Pimlico bundles your UserOp with others and submits them as a **single regular transaction** from the bundler's address. Etherscan shows the bundler's tx, not your specific UserOp inside it.
+
+### Where to verify
+
+**Jiffyscan** (recommended)
+```
+https://jiffyscan.xyz
+```
+Paste your UserOp hash → select **Sepolia** → you'll see:
+- Status: `success` or `failed`
+- Your smart account as sender
+- The actual ETH transfer
+- Gas breakdown: ~13.5M for ML-DSA verification + execution gas
+- The Pimlico bundler that submitted it
+
+**ERC4337 Scan**
+```
+https://www.erc4337.io/userops
+```
+
+**Blockscout Sepolia** (also UserOp aware)
+```
+https://eth-sepolia.blockscout.com
+```
+
+> **Note:** UserOps take 30 sec – 2 min to appear onchain. The bundler batches multiple ops before submitting. If you don't see it immediately, wait and refresh.
+
+---
+
 ## Troubleshooting
 
 | Problem | Cause | Fix |
