@@ -22,7 +22,7 @@ jobs:
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
-        - run: cargo check 
+        - run: cargo test
         - run: cargo check --target wasm32-unknown-unknown 
 
     build:
