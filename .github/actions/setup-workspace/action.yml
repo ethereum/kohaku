@@ -1,5 +1,5 @@
 name: 'Setup Workspace'
-description: 'Sets up Node.js, pnpm, caching, installs dependencies, and builds packages'
+description: 'Sets up Node.js, pnpm, Rust, Foundry, and builds packages'
 
 inputs:
   build-packages:
@@ -10,23 +10,33 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - uses: nixbuild/nix-quick-install-action@v30
-      with:
-        nix_conf: |
-          keep-env-derivations = true
-          keep-outputs = true
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install wasm32 target
+      shell: bash
+      run: rustup target add wasm32-unknown-unknown
 
-    - uses: nix-community/cache-nix-action@v7
-      with:
-        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-        restore-prefixes-first-match: nix-${{ runner.os }}-
-        purge: true
-        purge-prefixes: nix-${{ runner.os }}-
-        purge-primary-key: never
+    - uses: Swatinem/rust-cache@v2
 
-    - uses: nicknovitski/nix-develop@v1
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Install wasm-pack
+      uses: jetli/wasm-pack-action@v0.4.0
+
+    - name: Install just
+      uses: extractions/setup-just@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        arguments: .#ci
+        node-version: '24'
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: '10'
 
     - name: Get pnpm store directory
       shell: bash
@@ -40,8 +50,6 @@ runs:
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
-
-    - uses: Swatinem/rust-cache@v2
 
     - name: Install dependencies
       shell: bash
