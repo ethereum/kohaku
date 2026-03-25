@@ -54,7 +54,7 @@
               # pkgs.twiggy
 
               # Playwright browser
-              pkgs.chromium
+              # pkgs.chromium
 
               # Cargo tools
               # pkgs.cargo-bloat
