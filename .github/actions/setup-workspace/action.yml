@@ -11,8 +11,8 @@ runs:
   using: 'composite'
   steps:
     - name: Install Rust toolchain
-      uses: dtolnay/rust-action/setup@v1
-
+      uses: dtolnay/rust-toolchain@stable
+    
     - name: Install wasm32 target
       shell: bash
       run: rustup target add wasm32-unknown-unknown
@@ -26,7 +26,7 @@ runs:
       uses: jetli/wasm-pack-action@v0.4.0
 
     - name: Install binaryen
-      uses: nicolo-ribaudo/setup-binaryen@v1
+      uses: Zxilly/setup-binaryen@v1
 
     - name: Install just
       uses: extractions/setup-just@v2
