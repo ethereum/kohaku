@@ -22,7 +22,8 @@ jobs:
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
-    
+        - run: cargo check 
+
     build:
         name: Build
         runs-on: ubuntu-latest
