@@ -1,5 +1,14 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.8
+
+### Patch Changes
+
+- 3587a82: bump all pkg alpha releases to test pipeline
+- Updated dependencies [3587a82]
+  - @kohaku-eth/plugins@0.0.1-alpha.7
+  - @kohaku-eth/provider@0.1.0-alpha.7
+
 ## 0.0.2-alpha.7
 
 ### Patch Changes
