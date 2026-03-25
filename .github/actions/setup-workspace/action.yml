@@ -25,9 +25,6 @@ runs:
     - name: Install wasm-pack
       uses: jetli/wasm-pack-action@v0.4.0
 
-    - name: Install binaryen
-      uses: Zxilly/setup-binaryen@v1
-
     - name: Install just
       uses: extractions/setup-just@v2
 
