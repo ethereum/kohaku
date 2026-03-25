@@ -11,11 +11,11 @@ runs:
   using: 'composite'
   steps:
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Install wasm32 target
-      shell: bash
-      run: rustup target add wasm32-unknown-unknown
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: 1.88.0
+        components: rust-src,llvm-tools
+        targets: wasm32-unknown-unknown
 
     - uses: Swatinem/rust-cache@v2
 
