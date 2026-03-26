@@ -1,7 +1,8 @@
 import { LeanIMT } from "@zk-kit/lean-imt";
 import { poseidon } from 'maci-crypto/build/ts/hashing';
+import { IAspService } from "../../src/data/asp.interface";
+import { lastUpdateRootEventSelector } from "../../src/state/selectors/slices.selectors";
 
-import { IAspService } from '../../src/data/asp.service';
 
 /**
  * Extended interface for mock ASP service with test helper methods
@@ -50,12 +51,18 @@ export function createMockAspService(): IMockAspService {
   const cidToTree = new Map<string, bigint[][]>();
   let leaves: bigint[] = [];
 
-  const service: IMockAspService = {
+  const service = {
 
     // XXX: we only care about the root and leaves.
-    async getAspTree(ipfsCID: string): Promise<bigint[][]> {
+    async getAspTree(rootState): Promise<bigint[][]> {
       // Check if there's a custom tree set for this CID
-      const customTree = cidToTree.get(ipfsCID);
+      const lastUpdateRoot = lastUpdateRootEventSelector(rootState)
+
+      if (!lastUpdateRoot) {
+        return [];
+      }
+  
+      const customTree = cidToTree.get(lastUpdateRoot.ipfsCID);
 
       if (customTree) {
         return customTree;
@@ -101,7 +108,7 @@ export function createMockAspService(): IMockAspService {
     setTreeForCID(ipfsCID: string, tree: bigint[][]): void {
       cidToTree.set(ipfsCID, tree);
     },
-  };
+  } satisfies IMockAspService;
 
   return service;
 }

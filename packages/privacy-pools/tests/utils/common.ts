@@ -29,8 +29,8 @@ const PPV1_E2E_STATE_PATH_ENV = 'PPV1_E2E_STATE_PATH';
  *          or an empty object if the env var is not set or the file
  *          cannot be loaded/parsed.
  */
-export async function loadInitialState(): Promise<InitialState> {
-  const default_state = path.resolve(path.join(__dirname, "..", "state.11155111.json"));
+export async function loadInitialState(chainId: 1 | 11155111): Promise<InitialState> {
+  const default_state = path.resolve(path.join(__dirname, "..", `state.${chainId}.json`));
   const statePath = getEnv(
     PPV1_E2E_STATE_PATH_ENV,
     default_state

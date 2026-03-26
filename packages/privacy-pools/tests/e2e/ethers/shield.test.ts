@@ -6,7 +6,6 @@ import { addressToHex } from '../../../src/utils';
 import { chainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
-import { createMockAspService } from '../../utils/mock-asp-service';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { approveERC20, assetVettingFee, deductVettingFees, getProtocolWithState, sendTxAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
@@ -15,14 +14,11 @@ describe('PrivacyPools v1 E2E Flow', () => {
   let anvil: AnvilInstance;
   let latestState: InitialState;
 
-  const mockAspService = createMockAspService();
-
-  mockAspService.addLabels([0n, 1n, 2n]);
-
-  const chainId = 11155111;
+  const chainId = inject('chainId');
   const {
     entrypoint,
     forkBlockNumber,
+    postman,
     erc20Address,
     erc20WhaleAddress,
     rpcUrl
@@ -50,10 +46,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
     await anvil.start();
 
     const pool = anvil.pool(1);
-    const { protocol: _protocol } = getProtocolWithState({
+    const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(),
-      host: createMockHost({ rpcUrl: pool.rpcUrl })
+      initialState: await loadInitialState(chainId),
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     await _protocol.sync();
@@ -73,10 +71,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
   it('[prepareShield] generates valid native ETH deposit transaction', async () => {
 
     const pool = anvil.pool(2);
-    const { protocol } = getProtocolWithState({
+    const { protocol } = await getProtocolWithState({
       entrypoint,
       initialState: latestState,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     const { txns } = await protocol.prepareShield(
@@ -96,10 +96,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create host with pool-specific RPC URL
-    const { protocol } = getProtocolWithState({
+    const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState
+      initialState: latestState,
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     const DEPOSIT_AMOUNT = 1000000000000000000n; // 1 ETH
@@ -136,10 +138,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
 
   it('[prepareShield] generates valid ERC20 deposit transaction', { timeout: 60_000 }, async () => {
     const pool = anvil.pool(4);
-    const { protocol } = getProtocolWithState({
+    const { protocol } = await getProtocolWithState({
       entrypoint,
       initialState: latestState,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
 
@@ -160,10 +164,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create host with pool-specific RPC URL
-    const { protocol } = getProtocolWithState({
+    const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState
+      initialState: latestState,
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     const DEPOSIT_AMOUNT = 100000000n; // 100 USDC (6 decimals)
@@ -214,10 +220,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create host with pool-specific RPC URL
-    const { protocol } = getProtocolWithState({
+    const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState
+      initialState: latestState,
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     const nativeAsset = ERC20Asset(E_ADDRESS);

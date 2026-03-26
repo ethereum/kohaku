@@ -247,11 +247,13 @@ export const storeStateManager = (
 
       const store = getChainStore(chainInfo);
 
-      await store.dispatch(
-        syncThunk({
-          ...params,
-          ...store.selectors,
-        }),
+      unwrapResult(
+        await store.dispatch(
+          syncThunk({
+            ...params,
+            ...store.selectors,
+          }),
+        ),
       );
 
       if (storageToSyncTo) {
