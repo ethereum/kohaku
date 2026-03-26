@@ -4,9 +4,16 @@
     "verbatimModuleSyntax": false,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./src/*"]
-    }
+      "~/*": [
+        "./src/*"
+      ]
+    },
+    "outDir": "./dist",
   },
-  "include": ["src", "demo", "../provider/src/colibri-stateless.d.ts"],
-  "exclude": ["src/railgun/logic"]
+  "include": [
+    "src",
+  ],
+  "exclude": [
+    "src/pkg/*"
+  ]
 }

@@ -1,0 +1,46 @@
+name: CI TC Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-secrets:
+    uses: ./.github/workflows/check-secrets.yml
+    secrets: inherit
+
+  ci-tc-rust:
+    needs: check-secrets
+    if: needs.check-secrets.outputs.available == 'true'
+    runs-on: ubuntu-latest
+    env:
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+      DEV_KEY: ${{ secrets.DEV_KEY }}
+      DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
+      DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
+      DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}
+    steps:
+    - uses: actions/checkout@v5
+
+    # - uses: ./.github/actions/load-sops-secrets
+    #   with:
+    #     age_key: ${{ secrets.SOPS_AGE_KEY }}
+
+    - uses: ./.github/actions/setup-workspace
+      with:
+        build-packages: false
+
+    - name: Run tests
+      run: cargo test
+
+    - name: Run sync
+      run: cd crates/tc-rs && just integration-sync
+
+    - name: Run sync-relayer
+      run: cd crates/tc-rs && just integration-sync-relayer

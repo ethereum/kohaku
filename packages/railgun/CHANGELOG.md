@@ -1,5 +1,23 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.10
+
+### Patch Changes
+
+- 3587a82: bump all pkg alpha releases to test pipeline
+- Updated dependencies [3587a82]
+  - @kohaku-eth/plugins@0.0.1-alpha.7
+  - @kohaku-eth/provider@0.1.0-alpha.7
+
+## 0.0.1-alpha.9
+
+### Patch Changes
+
+- 00db9b6: new rust based railgun version + helios provider updates
+- Updated dependencies [00db9b6]
+  - @kohaku-eth/provider@0.1.0-alpha.6
+  - @kohaku-eth/plugins@0.0.1-alpha.6
+
 ## 0.0.1-alpha.8
 
 ### Patch Changes

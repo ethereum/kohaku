@@ -4,10 +4,14 @@ on:
   workflow_dispatch:
 
 jobs:
+    check-secrets:
+        uses: ./.github/workflows/check-secrets.yml
+        secrets: inherit
+
     check:
         name: Check
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
         permissions:
             contents: read
         steps:
@@ -18,10 +22,13 @@ jobs:
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
+        - run: cargo test
+        - run: cargo check --target wasm32-unknown-unknown 
+
     build:
         name: Build
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
         permissions:
             contents: read
         steps:
@@ -33,8 +40,10 @@ jobs:
             build-packages: true
     tests:
         name: Tests
+        needs: check-secrets
+        if: needs.check-secrets.outputs.available == 'true'
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
         permissions:
             contents: read
         steps:
@@ -44,12 +53,24 @@ jobs:
           uses: ./.github/actions/setup-workspace
           with:
             build-packages: true
-        - name: Run tests
+        - name: Run Privacy Pools tests
           uses: nick-fields/retry@v3
           with:
-            timeout_minutes: 10
+            timeout_minutes: 20
             max_attempts: 3
-            command: pnpm test
+            command: pnpm --filter @kohaku-eth/privacy-pools test
           env:
-            SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+            PPV1_MAINNET_FORK_BLOCK: ${{ secrets.PPV1_MAINNET_FORK_BLOCK }}
+            PPV1_SEPOLIA_FORK_BLOCK: ${{ secrets.PPV1_SEPOLIA_FORK_BLOCK }}
+        
+        - name: Run Railgun tests
+          run: cd packages/railgun && just integration
+          env:
+            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+            RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+            DEV_KEY: ${{ secrets.DEV_KEY }}
+            DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
+            DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
+            DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}

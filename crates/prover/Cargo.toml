@@ -1,0 +1,33 @@
+[package]
+name = "prover"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+
+[dependencies]
+ark-bn254 = { workspace = true }
+ark-ff = { workspace = true }
+async-trait = { workspace = true }
+common = { workspace = true }
+ruint = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen = { workspace = true }
+
+thiserror = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ark-groth16 = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tsify = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+serde_json = { workspace = true }
+tracing-test = { workspace = true }
+
+[lints]
+workspace = true

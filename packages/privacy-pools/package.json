@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/privacy-pools",
-  "version": "0.0.2-alpha.6",
+  "version": "0.0.2-alpha.8",
   "description": "Simplified Privacy Pools TS utils",
   "type": "module",
   "private": false,
@@ -39,7 +39,6 @@
     "test:sync": ". ./.env.e2e.tests && vitest run --project=sync",
     "test:sync:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=sync",
     "test:watch": "vitest",
-    "prepublishOnly": "pnpm -w -r build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
