@@ -428,8 +428,8 @@ importers:
   packages/tongo:
     dependencies:
       '@fatsolutions/tongo-evm':
-        specifier: ^1.3.0
-        version: 1.3.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
+        specifier: ^1.4.0
+        version: 1.4.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
       '@kohaku-eth/plugins':
         specifier: workspace:*
         version: link:../plugins
@@ -1345,8 +1345,8 @@ packages:
   '@fatsolutions/she-evm@1.3.0':
     resolution: {integrity: sha512-8GV+hhD/KDyEaFNmVxx5NeUBX/yjfSlsaXs5mQL5uQSzAhD43613gMWQVVRc2jH525nlT5xrINlwYzT+3BHnTw==}
 
-  '@fatsolutions/tongo-evm@1.3.0':
-    resolution: {integrity: sha512-m4CqeQWfJ4bErb/hI3cNgKYE6b/ra4F1/shGTe6IU91nAtd6aDHUgbA+48YHX7hIIbPn/pQVV5uMEOELeilcZQ==}
+  '@fatsolutions/tongo-evm@1.4.0':
+    resolution: {integrity: sha512-VirMJ4J2VvOCinWOoKwAIaAKR4OOCTd08OZKuY7/cBx4eGQRo9x81hiODr7RFb09FzVQnTf6p4CuqHd/CnxMqw==}
 
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
@@ -8967,7 +8967,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@fatsolutions/tongo-evm@1.3.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)':
+  '@fatsolutions/tongo-evm@1.4.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)':
     dependencies:
       '@fatsolutions/she-evm': 1.3.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
       '@noble/ciphers': 2.1.1

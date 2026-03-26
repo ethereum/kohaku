@@ -46,7 +46,7 @@
     }
   },
   "dependencies": {
-    "@fatsolutions/tongo-evm": "^1.3.0",
+    "@fatsolutions/tongo-evm": "^1.4.0",
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
     "@reduxjs/toolkit": "^2.11.2",

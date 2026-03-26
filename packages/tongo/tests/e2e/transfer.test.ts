@@ -71,7 +71,7 @@ describe('tongo EVM Transfer E2E', () => {
 
     vi.restoreAllMocks();
 
-    // pending = 0, so no rollover — just transfer
+    // pending = 0 — uses transfer directly
     expect(txns).toHaveLength(1);
 
     const [transferTx] = txns;
@@ -129,7 +129,7 @@ describe('tongo EVM Transfer E2E', () => {
   });
 
 
-  it('[prepareTransfer] includes rollover when account has pending balance', async () => {
+  it('[prepareTransfer] uses rolloverTransfer when account has pending balance', async () => {
     const pool = anvil.pool(13);
     const provider = createProvider(pool.rpcUrl);
     const { host, ethProvider } = createMockHost(provider);
@@ -145,8 +145,7 @@ describe('tongo EVM Transfer E2E', () => {
     const stubTx = (to: string) => ({ to, data: '0xabcdef', value: 0n });
 
     vi.spyOn(TongoAccount.prototype, 'state').mockResolvedValue({ balance: 0n, pending: AMOUNT, nonce: 1n });
-    vi.spyOn(TongoAccount.prototype, 'rollover').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
-    vi.spyOn(TongoAccount.prototype, 'transfer').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
+    vi.spyOn(TongoAccount.prototype, 'rolloverTransfer').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
 
     const recipient = new TongoAccount(2n, TONGO_CONTRACT_ADDRESS, ethProvider).tongoAddress() as `0x${string}`;
 
@@ -157,13 +156,10 @@ describe('tongo EVM Transfer E2E', () => {
 
     vi.restoreAllMocks();
 
-    expect(txns).toHaveLength(2);
+    // rolloverTransfer is atomic — 1 tx regardless of pending
+    expect(txns).toHaveLength(1);
 
-    const [rolloverTx, transferTx] = txns;
-
-    expect(rolloverTx.to.toLowerCase()).toBe(TONGO_CONTRACT_ADDRESS.toLowerCase());
-    expect(rolloverTx.value).toBe(0n);
-    expect(rolloverTx.data).toMatch(/^0x/);
+    const [transferTx] = txns;
 
     expect(transferTx.to.toLowerCase()).toBe(TONGO_CONTRACT_ADDRESS.toLowerCase());
     expect(transferTx.value).toBe(0n);

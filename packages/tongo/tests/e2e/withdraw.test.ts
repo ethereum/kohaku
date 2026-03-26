@@ -148,7 +148,7 @@ describe('tongo EVM Unshield E2E', () => {
   });
 
 
-  it('[prepareUnshield] includes rollover when account has pending balance from transfer', async () => {
+  it('[prepareUnshield] throws when account has pending balance', async () => {
     const pool = anvil.pool(8);
     const provider = createProvider(pool.rpcUrl);
     const { host } = createMockHost(provider);
@@ -162,32 +162,13 @@ describe('tongo EVM Unshield E2E', () => {
     const AMOUNT = 50_000_000n;
     const RECIPIENT = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as `0x${string}`;
 
-    // Simulate an account that received a transfer — pending > 0 without needing a real ZK transfer
-    const stubTx = (to: string) => ({ to, data: '0xabcdef', value: 0n });
-
     vi.spyOn(TongoAccount.prototype, 'state').mockResolvedValue({ balance: 0n, pending: AMOUNT, nonce: 1n });
-    vi.spyOn(TongoAccount.prototype, 'rollover').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
-    vi.spyOn(TongoAccount.prototype, 'withdraw').mockResolvedValue({ toCalldata: () => stubTx(TONGO_CONTRACT_ADDRESS) } as any);
 
-    const { txns } = await plugin.prepareUnshield(
-      { asset: tongoAssetId, amount: AMOUNT },
-      RECIPIENT,
-      RECIPIENT
-    );
+    await expect(
+      plugin.prepareUnshield({ asset: tongoAssetId, amount: AMOUNT }, RECIPIENT, RECIPIENT)
+    ).rejects.toThrow('Cannot unshield with pending balance');
 
     vi.restoreAllMocks();
-
-    expect(txns).toHaveLength(2);
-
-    const [rolloverTx, withdrawTx] = txns;
-
-    expect(rolloverTx.to.toLowerCase()).toBe(TONGO_CONTRACT_ADDRESS.toLowerCase());
-    expect(rolloverTx.value).toBe(0n);
-    expect(rolloverTx.data).toMatch(/^0x/);
-
-    expect(withdrawTx.to.toLowerCase()).toBe(TONGO_CONTRACT_ADDRESS.toLowerCase());
-    expect(withdrawTx.value).toBe(0n);
-    expect(withdrawTx.data).toMatch(/^0x/);
   });
 
 

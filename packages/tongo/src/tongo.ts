@@ -106,13 +106,12 @@ export class TongoPlugin implements TongoInstance {
         if (asset.amount > balance) { throw new InsufficientBalanceError(asset.asset, asset.amount, balance); }
 
         const { pending } = state;
+
+        if (pending > 0n) {
+            throw new Error("Cannot unshield with pending balance. Please rollover first.");
+        }
+
         const txns = [];
-
-//        if (pending > 0n) {
-//            const rollove = await tongoAccount.rollover({ sender: from });
-
-//            txns.push(rollover.toCalldata());
-//        } TODO: FIX
 
         const withdraw = await tongoAccount.withdraw({ amount: asset.amount, to, sender: from });
 
@@ -134,13 +133,9 @@ export class TongoPlugin implements TongoInstance {
         const { pending } = state;
         const txns = [];
 
-//        if (pending > 0n) {
-//            const rollover = await tongoAccount.rollover({ sender: from });
-//
-//            txns.push(rollover.toCalldata());
-//        } TODO: FIX
-
-        const transfer = await tongoAccount.transfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from });
+        const transfer = pending > 0n
+            ? await tongoAccount.rolloverTransfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from })
+            : await tongoAccount.transfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from });
 
         txns.push(transfer.toCalldata());
 
