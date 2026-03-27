@@ -4,7 +4,7 @@ import { getEnv } from "./utils/common";
 export const chainConfigSetup = {
   1: {
     rpcUrl: getEnv('RPC_URL_MAINNET'),
-    forkBlockNumber: getEnv('PPV1_MAINNET_FORK_BLOCK', '24528387'),
+    forkBlockNumber: getEnv('PPV1_MAINNET_FORK_BLOCK', '24628323'),
     erc20Address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',  // USDC
     erc20WhaleAddress: '0x55FE002aefF02f77364de339a1292923A15844B8',
     entrypoint: {

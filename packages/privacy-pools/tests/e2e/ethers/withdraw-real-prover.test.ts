@@ -7,18 +7,18 @@ import { PrivacyPoolsV1Protocol } from '../../../src/index';
 import { chainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
-import { createMockAspService } from '../../utils/mock-asp-service';
+
 import { createMockHost } from '../../utils/mock-host';
 import { createMockRelayerClient } from '../../utils/mock-relayer';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { assetVettingFee, deductVettingFees, getProtocolWithState, pushNewAspRoot, sendTxAndWait, setupWallet } from '../../utils/test-helpers';
+import { assetVettingFee, deductVettingFees, getProtocolWithState, MOCK_IPFS_CID, pushNewAspRoot, sendTxAndWait, setupMockAspForTest, setupWallet } from '../../utils/test-helpers';
 
 
 describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
   let anvil: AnvilInstance;
   let latestState: InitialState;
 
-  const chainId = 11155111;
+  const chainId = inject('chainId');
   const {
     entrypoint,
     forkBlockNumber,
@@ -43,10 +43,12 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     await anvil.start();
 
     const pool = anvil.pool(1);
-    const { protocol: _protocol } = getProtocolWithState({
+    const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(),
-      host: createMockHost({ rpcUrl: pool.rpcUrl })
+      initialState: await loadInitialState(chainId),
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     await _protocol.sync();
@@ -72,9 +74,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create mock asp
-    const mockAspService = createMockAspService();
-
-    mockAspService.addLabels([0n, 1n, 2n]);
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
 
     // Create mock relayer
     const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' });
@@ -118,7 +118,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     await pushNewAspRoot(pool.rpcUrl,
       "0x" + ENTRYPOINT_ADDRESS.toString(16),
       "0x" + POSTMAN_ADDRESS.toString(16),
-      { _root: mockAspService.getRoot(), _ipfsCID: "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii" }
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
     );
 
     const balanceAfterDepositApproved = await protocol.balance([nativeAsset]);
@@ -159,9 +159,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create mock asp
-    const mockAspService = createMockAspService();
-
-    mockAspService.addLabels([0n, 1n, 2n]);
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
 
     // Create mock relayer
     const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' });
@@ -205,7 +203,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     await pushNewAspRoot(pool.rpcUrl,
       "0x" + ENTRYPOINT_ADDRESS.toString(16),
       "0x" + POSTMAN_ADDRESS.toString(16),
-      { _root: mockAspService.getRoot(), _ipfsCID: "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii" }
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
     );
 
     // 3. Prepare withdrawal with real prover
@@ -229,9 +227,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     // Create mock asp
-    const mockAspService = createMockAspService();
-
-    mockAspService.addLabels([0n, 1n, 2n]);
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
 
     // Create mock relayer
     const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' });
@@ -275,7 +271,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     await pushNewAspRoot(pool.rpcUrl,
       "0x" + ENTRYPOINT_ADDRESS.toString(16),
       "0x" + POSTMAN_ADDRESS.toString(16),
-      { _root: mockAspService.getRoot(), _ipfsCID: "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii" }
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
     );
 
 

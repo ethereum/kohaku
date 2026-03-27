@@ -44,10 +44,10 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       address: entrypointAddress,
     });
 
-    await dispatch(syncPoolsThunk({
+    unwrapResult(await dispatch(syncPoolsThunk({
       poolsRegistered,
       poolsWoundDown,
-    }));
+    })));
 
     if (EntrypointDeposited.length > 0) {
       dispatch(registerEntrypointDeposits(EntrypointDeposited));
@@ -61,9 +61,9 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
 
     const syncEventsLastBlock = unwrapResult(syncEventsResult);
 
-    await dispatch(syncAssetsThunk({ dataService, ...params }));
+    unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
-    await dispatch(syncAspThunk({ ...params }));
+    unwrapResult(await dispatch(syncAspThunk({ ...params })));
 
     if (verify) {
       const verifyResult = await dispatch(verifyRootsThunk({ dataService }));

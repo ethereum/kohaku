@@ -35,7 +35,7 @@ export const createMyPoolsSelector = (
 };
 
 export const selectPoolLeaves = createSelector(
-  [poolsLeavesSelector, (_, poolAddress: Address) => poolAddress],
+  [poolsLeavesSelector, (_: RootState, poolAddress: Address) => poolAddress],
   (poolsLeaves, poolAddress) => {
     const poolLeaves = poolsLeaves.get(poolAddress);
 

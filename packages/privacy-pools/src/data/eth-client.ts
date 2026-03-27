@@ -84,7 +84,7 @@ export class EthClient {
         const result = await this.request({
             method: 'eth_call',
             params: [{
-                to: toHex(contractAddress),
+                to: toHex(contractAddress, { size: 20 }),
                 data
             }, 'latest'],
         });

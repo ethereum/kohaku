@@ -12,10 +12,11 @@ describe('PrivacyPools v1 E2E Flow', () => {
   let anvil: AnvilInstance;
   let latestState: InitialState;
 
-  const chainId = 11155111;
+  const chainId = inject('chainId');
   const {
     entrypoint,
     forkBlockNumber,
+    postman,
     rpcUrl
   } = chainConfigSetup[chainId];
 
@@ -36,10 +37,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
     await anvil.start();
 
     const pool = anvil.pool(1);
-    const { protocol: _protocol } = getProtocolWithState({
+    const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(),
-      host: createMockHost({ rpcUrl: pool.rpcUrl })
+      initialState: await loadInitialState(chainId),
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     await _protocol.sync();
@@ -63,10 +66,12 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const bob = await setupWallet(pool, TEST_ACCOUNTS.bob.privateKey);
 
     // Create host with pool-specific RPC URL
-    const { protocol } = getProtocolWithState({
+    const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState
+      initialState: latestState,
+      rpcUrl: pool.rpcUrl,
+      postman,
     });
 
     const DEPOSIT_AMOUNT = 1000000000000000000n; // 1 ETH

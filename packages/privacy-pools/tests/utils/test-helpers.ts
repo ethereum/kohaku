@@ -209,21 +209,35 @@ export async function getPoolStateRoot(pool: AnvilPool, poolAddress: bigint) {
   return root as bigint;
 }
 
+export const MOCK_IPFS_CID = 'bafybeihrecrgyfkzyzli2oxnpfos5z2fgjt7zs52cbjyppigu64hva4z3i';
+
 interface SimplifiedProtocolParams {
   entrypoint: IEntrypoint,
   host: Host,
   initialState?: InitialState;
   aspServiceFactory?: () => IMockAspService;
+  rpcUrl: string;
+  postman: string;
 }
-export const getProtocolWithState = ({
+export const getProtocolWithState = async ({
   entrypoint,
   host,
   initialState,
   aspServiceFactory = createMockAspService,
+  rpcUrl,
+  postman,
 }: SimplifiedProtocolParams) => {
   const aspService = aspServiceFactory();
 
   aspService.setLeaves([0n, 1n, 2n]);
+
+  await pushNewAspRoot(
+    rpcUrl,
+    "0x" + entrypoint.address.toString(16),
+    "0x" + BigInt(postman).toString(16),
+    { _root: aspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+  );
+
   const protocol = new PrivacyPoolsV1Protocol(host, {
     aspServiceFactory: () => aspService,
     initialState,
@@ -232,6 +246,24 @@ export const getProtocolWithState = ({
 
   return { aspService, protocol };
 };
+
+export async function setupMockAspForTest(
+  rpcUrl: string,
+  entrypointAddress: bigint,
+  postman: string,
+  initialLabels: bigint[] = [0n, 1n, 2n],
+): Promise<IMockAspService> {
+  const mockAspService = createMockAspService();
+
+  mockAspService.addLabels(initialLabels);
+  await pushNewAspRoot(
+    rpcUrl,
+    "0x" + entrypointAddress.toString(16),
+    "0x" + BigInt(postman).toString(16),
+    { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+  );
+  return mockAspService;
+}
 
 export async function sendTx(signer: Wallet, { to, data, value }: { to: string; data: string; value: bigint; }) {
   return signer.sendTransaction({ to, data, value, gasLimit: 6000000n });
