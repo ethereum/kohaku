@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.9
+
+### Patch Changes
+
+- d1335e9: Added Mainnet tests and small fixes
+
 ## 0.0.2-alpha.8
 
 ### Patch Changes
