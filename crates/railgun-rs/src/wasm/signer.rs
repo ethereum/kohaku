@@ -42,12 +42,22 @@ impl JsSigner {
     ///
     /// @param spending_key - 32-byte hex string (with or without 0x prefix)
     /// @param viewing_key - 32-byte hex string (with or without 0x prefix)
-    /// @param chain_id - The chain ID for this account
+    /// @param chain_id - The chain ID for this account.  If omitted, the signer will
+    /// be constructed for all chains.
     #[wasm_bindgen(constructor)]
-    pub fn new(spending_key: &str, viewing_key: &str, chain_id: u64) -> Result<JsSigner, JsValue> {
+    pub fn new(
+        spending_key: &str,
+        viewing_key: &str,
+        chain_id: Option<u64>,
+    ) -> Result<JsSigner, JsValue> {
         let spending_key = SpendingKey::from_hex(spending_key)?;
         let viewing_key = ViewingKey::from_hex(viewing_key)?;
-        Ok(PrivateKeySigner::new_evm(spending_key, viewing_key, chain_id).into())
+        let chain_id = match chain_id {
+            Some(id) => railgun::address::ChainId::EVM(id),
+            None => railgun::address::ChainId::All,
+        };
+
+        Ok(PrivateKeySigner::new(spending_key, viewing_key, chain_id).into())
     }
 
     pub fn random(chain_id: u64) -> JsSigner {
