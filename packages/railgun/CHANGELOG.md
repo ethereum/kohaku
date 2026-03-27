@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.11
+
+### Patch Changes
+
+- 76b3a72: fix: 0zk address encoding bug
+
 ## 0.0.1-alpha.10
 
 ### Patch Changes
