@@ -27,8 +27,8 @@ pub struct PrivateKeySigner {
 }
 
 pub fn derivation_paths(index: u32) -> (String, String) {
-    let spending_path = format!("m/44'/1984'/0'/0'/{}", index);
-    let viewing_path = format!("m/420'/1984'/0'/0'/{}", index);
+    let spending_path = format!("m/44'/1984'/0'/0'/{}'", index);
+    let viewing_path = format!("m/420'/1984'/0'/0'/{}'", index);
     (spending_path, viewing_path)
 }
 
@@ -82,7 +82,7 @@ mod tests {
     fn test_derivation_paths() {
         let index = 5;
         let (spending_path, viewing_path) = derivation_paths(index);
-        assert_eq!(spending_path, "m/44'/1984'/0'/0'/5");
-        assert_eq!(viewing_path, "m/420'/1984'/0'/0'/5");
+        assert_eq!(spending_path, "m/44'/1984'/0'/0'/5'");
+        assert_eq!(viewing_path, "m/420'/1984'/0'/0'/5'");
     }
 }
