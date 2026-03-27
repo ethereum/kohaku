@@ -27,8 +27,8 @@ pub struct PrivateKeySigner {
 }
 
 pub fn derivation_paths(index: u32) -> (String, String) {
-    let spending_path = format!("m/44'/1984'/0'/0'/{}", index);
-    let viewing_path = format!("m/420'/1984'/0'/0'/{}", index);
+    let spending_path = format!("m/44'/1984'/0'/0'/{}'", index);
+    let viewing_path = format!("m/420'/1984'/0'/0'/{}'", index);
     (spending_path, viewing_path)
 }
 
@@ -77,12 +77,32 @@ impl Debug for dyn Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::keys::HexKey;
 
     #[test]
     fn test_derivation_paths() {
         let index = 5;
         let (spending_path, viewing_path) = derivation_paths(index);
-        assert_eq!(spending_path, "m/44'/1984'/0'/0'/5");
-        assert_eq!(viewing_path, "m/420'/1984'/0'/0'/5");
+        assert_eq!(spending_path, "m/44'/1984'/0'/0'/5'");
+        assert_eq!(viewing_path, "m/420'/1984'/0'/0'/5'");
+    }
+
+    #[test]
+    fn test_address() {
+        let spending_key = SpendingKey::from_hex(
+            "039b3b11110e49d7340cbe7171791972e3c0d94ef31b18d6ab93d7ace62d278a",
+        )
+        .unwrap();
+        let viewing_key = ViewingKey::from_hex(
+            "d345b2cc2f414aa93413b9572fa2b26e0e869e9274b006415a8d62ab1fa2dcb1",
+        )
+        .unwrap();
+
+        let signer = PrivateKeySigner::new(spending_key, viewing_key, ChainId::All);
+        let address = signer.address();
+        assert_eq!(
+            address.to_string(),
+            "0zk1qynw6pq3nvntq90sts0khgs8ndqxzsrza88cd553dqwt28mskxlxtrv7j6fe3z53l7lczqdhfmfffxa8cps4hw7nprhx3hv3ykx097l8p7gjh2xla365qacrwu2"
+        );
     }
 }

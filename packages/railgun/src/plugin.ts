@@ -103,7 +103,7 @@ export async function createRailgunPlugin(host: Host, keyIndex: number = 0): Pro
 
     const chainId = await host.provider.getChainId();
     const provider = await newRailgunProvider(host, chainId);
-    const signer = new JsSigner(spendingKey, viewingKey, chainId);
+    const signer = new JsSigner(spendingKey, viewingKey);
     const pool = new SignerPool(signer);
     const broadcastManager = await createBroadcaster(chainId);
 
