@@ -49,7 +49,7 @@ pub enum RailgunAddressError {
 const ADDRESS_LENGTH_LIMIT: usize = 127;
 const PREFIX: Hrp = Hrp::parse_unchecked("0zk");
 const ADDRESS_VERSION: u8 = 1;
-const ALL_CHAINS_NETWORK_ID: u8 = 255;
+const ALL_CHAINS_NETWORK_ID: &str = "ffffffffffffffff";
 
 impl RailgunAddress {
     pub fn new(
@@ -104,7 +104,12 @@ impl Display for RailgunAddress {
         let address_buffer = bech32::encode::<bech32::Bech32m>(PREFIX, &payload).unwrap();
 
         if address_buffer.len() > ADDRESS_LENGTH_LIMIT {
-            panic!("Generated address exceeds length limit");
+            warn!(
+                "Generated address exceeds length limit: {} ({} chars)",
+                address_buffer,
+                address_buffer.len()
+            );
+            return Err(std::fmt::Error);
         }
 
         write!(f, "{}", address_buffer)
@@ -156,7 +161,7 @@ impl From<RailgunAddress> for String {
 fn encode_chain_id(chain: &ChainId) -> String {
     match chain {
         ChainId::EVM(id) => encode_evm_chain_id(*id),
-        ChainId::All => format!("{:02x}", ALL_CHAINS_NETWORK_ID),
+        ChainId::All => ALL_CHAINS_NETWORK_ID.to_string(),
     }
 }
 
@@ -177,7 +182,7 @@ fn decode_network_id(encoded: &str) -> Result<ChainId, RailgunAddressError> {
             let id = u64::from_be_bytes(id_bytes);
             Ok(ChainId::EVM(id))
         }
-        ALL_CHAINS_NETWORK_ID => Ok(ChainId::All),
+        255 => Ok(ChainId::All),
         _ => {
             warn!("Invalid chain ID in address: {}", hex::encode(&encoded));
             Err(RailgunAddressError::InvalidChainId(encoded[0]))
@@ -219,15 +224,14 @@ mod tests {
         assert_eq!(parsed, railgun_address);
     }
 
-    // #[test]
-    // #[traced_test]
-    // fn test_railgun_address_all_chains() {
-    //     let address =
-    // "0zk1qykqj8ed50tfm8a4ezl2qekk3aqxuq37pgv88pv6s9phk0vj3lv7erv7j6fe3z53la8hh9taj9xq34y835wrscryymjf8qqrasmm2vxrm68y0qsxtcvzj6paxpy"
-    // ;     let parsed: RailgunAddress = address.parse().unwrap();
-    //     assert_eq!(parsed.chain(), ChainId::All);
+    #[test]
+    #[traced_test]
+    fn test_railgun_address_all_chains() {
+        let address = "0zk1qykqj8ed50tfm8a4ezl2qekk3aqxuq37pgv88pv6s9phk0vj3lv7erv7j6fe3z53la8hh9taj9xq34y835wrscryymjf8qqrasmm2vxrm68y0qsxtcvzj6paxpy";
+        let parsed: RailgunAddress = address.parse().unwrap();
+        assert_eq!(parsed.chain(), ChainId::All);
 
-    //     let address_string = parsed.to_string();
-    //     assert_eq!(address_string, address);
-    // }
+        let address_string = parsed.to_string();
+        assert_eq!(address_string, address);
+    }
 }
