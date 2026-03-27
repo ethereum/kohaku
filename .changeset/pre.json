@@ -10,6 +10,7 @@
     "@kohaku-eth/plugins": "0.0.1-alpha.1"
   },
   "changesets": [
+    "bold-moons-train",
     "clear-plums-post",
     "clear-views-sing",
     "easy-tigers-rescue",
