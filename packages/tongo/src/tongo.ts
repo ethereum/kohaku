@@ -106,14 +106,11 @@ export class TongoPlugin implements TongoInstance {
         if (asset.amount > balance) { throw new InsufficientBalanceError(asset.asset, asset.amount, balance); }
 
         const { pending } = state;
-
-        if (pending > 0n) {
-            throw new Error("Cannot unshield with pending balance. Please rollover first.");
-        }
-
         const txns = [];
 
-        const withdraw = await tongoAccount.withdraw({ amount: asset.amount, to, sender: from });
+        const withdraw = pending > 0n
+            ? await tongoAccount.rolloverWithdraw({ amount: asset.amount, to, sender: from })
+            : await tongoAccount.withdraw({ amount: asset.amount, to, sender: from });
 
         txns.push(withdraw.toCalldata());
 
