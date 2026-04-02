@@ -66,7 +66,7 @@ export default defineConfig({
           ]
         },
         {
-          text: 'Proof of Innocence',
+          text: 'Private Proofs of Innocence',
           link: '/railgun/ppoi'
         }
       ]
@@ -97,7 +97,7 @@ export default defineConfig({
           disabled: true,
         },
         {
-          text: 'Proof of Innocence',
+          text: 'Private Proofs of Innocence',
           link: '/privacy-pools/ppoi',
           disabled: true,
         }
