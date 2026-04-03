@@ -1,0 +1,86 @@
+{
+  "name": "@kohaku-eth/tornado-cash",
+  "version": "0.0.2-alpha.8",
+  "description": "Simplified Privacy Pools TS utils",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/tornado-cash"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "echo Building @kohaku-eth/tornado-cash && tsup --config tsup.config.ts",
+    "dev": "tsup --config tsup.config.ts --watch",
+    "demo": "tsx demo/simple.ts",
+    "test": "vitest run --project=e2e-sepolia",
+    "test:unit": "vitest run --project=unit",
+    "test:e2e:mainnet": ". ./.env.e2e.tests && vitest run --project=e2e-mainnet",
+    "test:e2e:sepolia": ". ./.env.e2e.tests && vitest run --project=e2e-sepolia",
+    "test:e2e:wl": ". ./.env.e2e.tests && vitest run --project=withdraw-live",
+    "test:e2e:wm": ". ./.env.e2e.tests && vitest run --project=withdraw-mocked",
+    "test:e2e:sh": ". ./.env.e2e.tests && vitest run --project=shield",
+    "test:e2e:sh:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=shield",
+    "test:e2e:rq": ". ./.env.e2e.tests && vitest run --project=ragequit",
+    "test:e2e:asp": "vitest run --project=asp-integration",
+    "test:e2e:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run e2e",
+    "test:sync:sepolia": ". ./.env.e2e.tests && vitest run --project=sync-sepolia",
+    "test:sync:mainnet": ". ./.env.e2e.tests && vitest run --project=sync-mainnet",
+    "test:sync:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=sync",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "ethers": "^6.13.1"
+  },
+  "peerDependenciesMeta": {
+    "ethers": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*",
+    "@reduxjs/toolkit": "^2.11.2",
+    "maci-crypto": "2.5.0",
+    "ox": "^0.12.0",
+    "viem": "^2.37.9"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "dotenv": "^17.2.1",
+    "ethers": "^6.16.0",
+    "get-port": "^7.1.0",
+    "prool": "^0.0.24",
+    "snarkjs": "^0.7.5",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.0.0"
+  }
+}
