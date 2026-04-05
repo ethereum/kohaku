@@ -88,26 +88,27 @@ const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e
  * 
  * @param host Host struct
  * @param keyIndex Optional index for key derivation (default: 0)
+ * @param chainId Optional chain ID (default: auto-detected)
  * @returns `RailgunPlugin` instance
  */
-export async function createRailgunPlugin(host: Host, keyIndex: number = 0): Promise<RailgunPlugin> {
+export async function createRailgunPlugin(host: Host, keyIndex: number = 0, chainId?: bigint): Promise<RailgunPlugin> {
     try {
         return await loadRailgunProvider(host);
-    } catch (e) {
-        console.log("Failed to load existing Railgun provider, creating new one", e);
+    } catch (_e) {
+        // console.log("Failed to load existing Railgun provider, creating new one");
     }
 
     const { spendingPath, viewingPath } = derivationPaths(keyIndex);
     const spendingKey = host.keystore.deriveAt(spendingPath);
     const viewingKey = host.keystore.deriveAt(viewingPath);
 
-    const chainId = await host.provider.getChainId();
-    const provider = await newRailgunProvider(host, chainId);
-    const signer = new JsSigner(spendingKey, viewingKey);
+    const resolvedChainId = chainId ?? await host.provider.getChainId();
+    const provider = await newRailgunProvider(host, resolvedChainId);
+    const signer = new JsSigner(spendingKey, viewingKey, resolvedChainId);
     const pool = new SignerPool(signer);
-    const broadcastManager = await createBroadcaster(chainId);
+    const broadcastManager = await createBroadcaster(resolvedChainId);
 
-    return new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
+    return new RailgunPlugin(resolvedChainId, provider, pool, broadcastManager, host.storage);
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
@@ -298,7 +299,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
                     broadcaster,
                 };
             } catch (e) {
-                console.log("Failed to build with broadcaster, trying next one", e);
+                // console.log("Failed to build with broadcaster, trying next one", e);
                 continue;
             }
         }

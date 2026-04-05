@@ -66,15 +66,15 @@ async function createWakuAdapter(
 
   await node.start();
 
-  console.log("Waiting for Waku peers...");
+  // console.log("Waiting for Waku peers...");
   await node.waitForPeers(
     [Protocols.Filter, Protocols.LightPush, Protocols.Store],
     PEER_DISCOVERY_TIMEOUT_MS
   );
 
-  const peers = await node.getConnectedPeers();
+  // const peers = await node.getConnectedPeers();
 
-  console.log(`Connected to ${peers.length} Waku peers`);
+  // console.log(`Connected to ${peers.length} Waku peers`);
 
   return new WakuNodeAdapter(node);
 }

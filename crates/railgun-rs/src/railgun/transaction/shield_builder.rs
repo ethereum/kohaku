@@ -5,7 +5,7 @@ use ruint::aliases::U256;
 use thiserror::Error;
 
 use crate::{
-    abis::railgun::{RailgunSmartWallet, ShieldRequest},
+    abis::railgun::{RailgunSmartWallet, RelayAdapt, ShieldRequest},
     caip::AssetId,
     chain_config::ChainConfig,
     railgun::{
@@ -29,6 +29,8 @@ pub struct ShieldBuilder {
 pub enum ShieldError {
     #[error("Encryption error: {0}")]
     Encrypt(#[from] EncryptError),
+    #[error("Sum of native shield amounts overflowed u128")]
+    NativeAmountOverflow,
 }
 
 impl ShieldBuilder {
@@ -47,30 +49,82 @@ impl ShieldBuilder {
 
     /// Builds the shield transaction. Shield txns must be self-broadcast.
     pub fn build<R: Rng>(self, rng: &mut R) -> Result<TxData, ShieldError> {
+        let mut native_total: u128 = 0;
+        for (_, asset, value) in &self.shields {
+            if asset.is_native_base_token() {
+                native_total = native_total
+                    .checked_add(*value)
+                    .ok_or(ShieldError::NativeAmountOverflow)?;
+            }
+        }
+
+        let weth = self.chain.wrapped_base_token;
         let shields = self
             .shields
             .into_iter()
-            .map(|(r, a, v)| encrypt_shield(r, a, v, rng))
+            .map(|(r, a, v)| {
+                let enc_asset = if a.is_native_base_token() {
+                    AssetId::Erc20(weth)
+                } else {
+                    a
+                };
+                encrypt_shield(r, enc_asset, v, rng)
+            })
             .collect::<Result<Vec<ShieldRequest>, EncryptError>>()?;
 
-        let call = RailgunSmartWallet::shieldCall {
+        if native_total == 0 {
+            let call = RailgunSmartWallet::shieldCall {
+                _shieldRequests: shields,
+            };
+            return Ok(TxData {
+                to: self.chain.railgun_smart_wallet,
+                data: call.abi_encode().into(),
+                value: U256::ZERO,
+            });
+        }
+
+        let relay = self.chain.relay_adapt_contract;
+        let wrap_calldata = RelayAdapt::wrapBaseCall {
+            _amount: U256::from(native_total),
+        }
+        .abi_encode();
+        let shield_calldata = RelayAdapt::shieldCall {
             _shieldRequests: shields,
+        }
+        .abi_encode();
+
+        let calls = vec![
+            RelayAdapt::Call {
+                to: relay,
+                data: wrap_calldata.into(),
+                value: U256::ZERO,
+            },
+            RelayAdapt::Call {
+                to: relay,
+                data: shield_calldata.into(),
+                value: U256::ZERO,
+            },
+        ];
+
+        let multicall = RelayAdapt::multicallCall {
+            _requireSuccess: true,
+            _calls: calls,
         };
-        let calldata = call.abi_encode();
 
         Ok(TxData {
-            to: self.chain.railgun_smart_wallet,
-            data: calldata.into(),
-            value: U256::ZERO,
+            to: relay,
+            data: multicall.abi_encode().into(),
+            value: U256::from(native_total),
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::Address;
+    use alloy_primitives::{Address, address};
     use rand::SeedableRng;
     use rand_chacha::ChaChaRng;
+    use ruint::aliases::U256;
 
     use super::*;
     use crate::{
@@ -87,7 +141,8 @@ mod tests {
         let signer = PrivateKeySigner::new_evm(spending_key, viewing_key, 1);
         let recipient = signer.address();
 
-        let asset: AssetId = AssetId::Erc20(Address::from([0u8; 20]));
+        // Non-zero ERC-20: must target RailgunSmartWallet.shield directly (not RelayAdapt).
+        let asset: AssetId = AssetId::Erc20(address!("0x0000000000000000000000000000000000000001"));
         let value: u128 = 1_000_000;
 
         let shield_request = ShieldBuilder::new(MAINNET_CONFIG)
@@ -96,5 +151,24 @@ mod tests {
             .unwrap();
 
         insta::assert_debug_snapshot!(shield_request);
+    }
+
+    #[test]
+    fn test_shield_builder_native_eth_uses_relay_adapt() {
+        let mut rng = ChaChaRng::seed_from_u64(0);
+        let spending_key: SpendingKey = rng.random();
+        let viewing_key: ViewingKey = rng.random();
+        let signer = PrivateKeySigner::new_evm(spending_key, viewing_key, 1);
+        let recipient = signer.address();
+
+        let native: AssetId = AssetId::Erc20(Address::ZERO);
+        let tx = ShieldBuilder::new(MAINNET_CONFIG)
+            .shield(recipient, native, 1_000_000)
+            .build(&mut rng)
+            .unwrap();
+
+        assert_eq!(tx.to, MAINNET_CONFIG.relay_adapt_contract);
+        assert_eq!(tx.value, U256::from(1_000_000u128));
+        assert!(!tx.data.is_empty());
     }
 }
