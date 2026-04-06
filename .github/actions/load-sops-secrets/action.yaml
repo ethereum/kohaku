@@ -1,0 +1,23 @@
+name: "Load SOPS Secrets"
+description: "Decrypt secrets for this job"
+
+inputs:
+  age_key:
+    description: "AGE private key for SOPS"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup SOPS
+      uses: nhedger/setup-sops@v2
+
+    - name: Decrypt and export secrets
+      shell: bash
+      env:
+        SOPS_AGE_KEY: ${{ inputs.age_key }}
+      run: |
+        sops -d --output-type dotenv secrets/secrets.yaml | grep -v '^#' | grep -v '^$' | while IFS='=' read -r key value; do
+          echo "::add-mask::$value"
+          echo "$key=$value" >> $GITHUB_ENV
+        done

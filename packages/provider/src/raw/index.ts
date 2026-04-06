@@ -1,5 +1,5 @@
 import { Hex } from "ox/Hex";
-import { EthereumProvider, TransactionReceipt, TxLog } from "..";
+import { EthereumProvider, TransactionReceipt, TxLog, CallData } from "..";
 import { HexString, hexToBigInt } from "./hex";
 import { Provider } from 'ox/Provider';
 import { Block, Filter } from "ox";
@@ -18,6 +18,7 @@ export const raw = (client: Provider): EthereumProvider<Provider> => {
 
     return {
         _internal: client,
+        request: client.request.bind(client),
         async getLogs(params: Filter.Filter): Promise<TxLog[]> {
             const logs = await client.request({
                 method: 'eth_getLogs',
@@ -75,6 +76,30 @@ export const raw = (client: Provider): EthereumProvider<Provider> => {
             }) as HexString;
 
             return hex ?? '0x';
+        },
+        async call(call: CallData): Promise<`0x${string}` | undefined> {
+            const result = await client.request({
+                method: 'eth_call',
+                params: [call, call.block ?? 'latest'],
+            }) as `0x${string}`;
+
+            return result;
+        },
+        async estimateGas(call: CallData): Promise<bigint> {
+            const hex = await client.request({
+                method: 'eth_estimateGas',
+                params: [call],
+            }) as HexString;
+
+            return hexToBigInt(hex);
+        },
+        async getGasPrice(): Promise<bigint> {
+            const hex = await client.request({
+                method: 'eth_gasPrice',
+                params: undefined,
+            }) as HexString;
+
+            return hexToBigInt(hex);
         },
         getTransactionReceipt,
     }

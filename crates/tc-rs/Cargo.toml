@@ -1,0 +1,60 @@
+[package]
+name = "tc-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["relay"]
+relay = []
+
+[dependencies]
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+ark-bn254 = { workspace = true }
+ark-ff = { workspace = true }
+ark-relations = { workspace = true }
+async-trait = { workspace = true }
+common = { workspace = true }
+crypto = { workspace = true }
+eth-rpc = { workspace = true }
+hex = { workspace = true }
+prover = { workspace = true }
+rand = { workspace = true }
+request = { workspace = true }
+ruint = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tsify = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-time = { workspace = true, features = ["serde"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+alloy = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = { workspace = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+gloo-timers = { workspace = true, features = ["futures"] }
+js-sys = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+tracing-wasm = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+rand_chacha = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-test = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+reqwest = { workspace = true, features = ["json"] }
+
+[lints]
+workspace = true

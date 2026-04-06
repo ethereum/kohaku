@@ -1,0 +1,50 @@
+name: CI Railgun Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-secrets:
+    uses: ./.github/workflows/check-secrets.yml
+    secrets: inherit
+
+  ci-railgun-rust:
+    runs-on: ubuntu-latest
+    needs: check-secrets
+    if: needs.check-secrets.outputs.available == 'true'
+    env:
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+      DEV_KEY: ${{ secrets.DEV_KEY }}
+      DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
+      DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
+      DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}
+    steps:
+    - uses: actions/checkout@v5
+
+    # - uses: ./.github/actions/load-sops-secrets
+    #   with:
+    #     age_key: ${{ secrets.SOPS_AGE_KEY }}
+
+    - uses: ./.github/actions/setup-workspace
+
+    - name: Run tests
+      run: cargo test
+
+    - name: Run sync-utxo
+      run: cd crates/railgun-rs && just integration-sync-utxo
+
+    - name: Run sync-txid
+      run: cd crates/railgun-rs && just integration-sync-txid
+
+    - name: Run transact
+      run: cd crates/railgun-rs && just integration-transact
+
+    # - name: Run transact-poi
+    #   run: cd crates/railgun-rs && just integration-transact-poi

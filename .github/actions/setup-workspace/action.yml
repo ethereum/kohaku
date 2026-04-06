@@ -1,15 +1,7 @@
 name: 'Setup Workspace'
-description: 'Sets up Node.js, pnpm, caching, installs dependencies, and builds packages'
+description: 'Sets up Node.js, pnpm, Rust, Foundry, and builds packages'
 
 inputs:
-  node-version:
-    description: 'Node.js version to use'
-    required: false
-    default: '24.x'
-  pnpm-version:
-    description: 'pnpm version to use'
-    required: false
-    default: '10.10.0'
   build-packages:
     description: 'Whether to build packages'
     required: false
@@ -18,15 +10,33 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: 1.88.0
+        components: rust-src,llvm-tools
+        targets: wasm32-unknown-unknown
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Install wasm-pack
+      uses: jetli/wasm-pack-action@v0.4.0
+
+    - name: Install just
+      uses: extractions/setup-just@v2
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ inputs.node-version }}
+        node-version: '24'
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: ${{ inputs.pnpm-version }}
+        version: '10'
 
     - name: Get pnpm store directory
       shell: bash
@@ -52,9 +62,3 @@ runs:
       shell: bash
       run: |
         pnpm build
-
-    - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@v1
-      with:
-        version: stable
-    

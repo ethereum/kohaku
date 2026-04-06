@@ -28,8 +28,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-        with:
-          build-packages: false
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
@@ -42,7 +40,7 @@ jobs:
     name: Release
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
       id-token: write

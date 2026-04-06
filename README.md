@@ -22,6 +22,20 @@ Privacy-first tooling for the Ethereum ecosystem
 | Package                                             | Status | Description                                  |
 | ----------------------------------------------------| ------ | -------------------------------------------- |
 | [@kohaku-eth/railgun](packages/railgun)             | ✅     | railgun privacy protocol lib                 |
+| [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools privacy protocol lib           |
+| [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, helios, colibri) |
 | [@kohaku-eth/pq-account](packages/pq-account)       | ✅     | post-quantum 4337 account implementation     |
-| [@kohaku-eth/privacy-pools](packages/privacy-pools) | 🚧     | privacy pools privacy protocol lib           |
-| [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, colibri) |
+
+## Development
+
+Navigate to the README in each package in `packages/` for package specific details.
+
+In general, easiest way to have a stable dev environment is to use nix. [Install Nix here](https://nixos.org/download/)
+
+then run:
+
+```shell
+nix develop --extra-experimental-features "nix-command flakes" --command $SHELL
+```
+
+fill your `.env` file in the root dir manually (with the vars in `.env.sample`) OR get a maintainer to register a sops key for you, so you can decrypt env secrets directly.

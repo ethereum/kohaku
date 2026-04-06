@@ -1,0 +1,30 @@
+---
+source: crypto/src/merkle_tree/merkle_tree.rs
+assertion_line: 233
+expression: tree.state()
+---
+MerkleTreeState {
+    number: 0,
+    tree: [
+        [
+            1,
+            2,
+            3,
+            4,
+        ],
+        [
+            3,
+            7,
+        ],
+        [
+            4,
+        ],
+        [
+            4,
+        ],
+        [
+            4,
+        ],
+    ],
+    phantom: PhantomData<crypto::merkle_tree::config::TestMerkleConfig>,
+}

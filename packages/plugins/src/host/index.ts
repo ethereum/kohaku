@@ -19,38 +19,15 @@ export type Network = {
 };
 
 /**
- * Provides persistent insecure storage to plugins.
+ * Provides persistent storage to plugins.
  * 
- * Plugins MUST assume that data written here is stored in plaintext.
+ * Host SHOULD implement secure, encrypted storage for storage of data
+ * as some data written by plugins MAY be sensitive.
+ * (ultimately, security/integrity of persisted data is determined by the Host implementation)
  * 
- * Dedicated secure and insecure storage interfaces are provided to separate concerns and
- * reduce the amount of sensitive data implementers are required to handle.
  */
 export type Storage = {
     readonly _brand: 'Storage';
-
-    /**
-     * Sets a value in storage.
-     * @throws {Error}
-     */
-    set(key: string, value: string): void;
-
-    /**
-     * Gets a value from storage.
-     * 
-     * @returns The value associated with the key, or null if the key does not exist.
-     * @throws {Error}
-     */
-    get(key: string): string | null;
-};
-
-/**
- * Provides persistent secure storage to plugins.
- * 
- * Implementations MUST ensure that data written here is encrypted at rest. 
- */
-export type SecretStorage = {
-    readonly _brand: 'SecureStorage';
 
     /**
      * Sets a value in storage.

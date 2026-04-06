@@ -1,123 +1,57 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1-alpha.4",
+  "version": "0.0.1-alpha.11",
   "description": "Simplified Railgun TS utils",
   "type": "module",
   "private": false,
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/ethereum/kohaku.git",
     "directory": "packages/railgun"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./storage/layers/file": {
-      "types": "./dist/storage/layers/file.d.ts",
-      "import": "./dist/storage/layers/file.js"
-    },
-    "./storage/layers/empty": {
-      "types": "./dist/storage/layers/empty.d.ts",
-      "import": "./dist/storage/layers/empty.js"
-    },
-    "./webpack": {
-      "types": "./dist/webpack.d.ts",
-      "import": "./dist/webpack.js",
-      "require": "./dist/webpack.cjs",
-      "default": "./dist/webpack.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "browser": {
-    "module": false,
-    "crypto": false,
-    "fs": false,
-    "path": false
-  },
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "build": "echo Building @kohaku-eth/railgun && tsup --config tsup.config.ts",
-    "dev": "tsup --config tsup.config.ts --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:e2e": "vitest run tests/e2e",
-    "prepublishOnly": "pnpm -w -r build",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
-  },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
-  "peerDependencies": {
-    "@corpus-core/colibri-stateless": ">=1.1.0 <2",
-    "ethers": "^6.13.1",
-    "snarkjs": "^0.7.5"
-  },
-  "peerDependenciesMeta": {
-    "@corpus-core/colibri-stateless": {
-      "optional": true
-    },
-    "snarkjs": {
-      "optional": true
-    }
+  "scripts": {
+    "build": "pnpm run build:wasm && pnpm run build:js",
+    "build:wasm": "wasm-pack build --release --target web ../../crates/railgun-rs --out-dir ../../packages/railgun/src/pkg",
+    "build:js": "tsc && mkdir -p dist/pkg && cp -r src/pkg/* dist/pkg && rm -f dist/pkg/.gitignore",
+    "test:browser": "vite serve e2e",
+    "dev": "tsup --config tsup.config.ts --watch",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@kohaku-eth/provider": "workspace:*",
     "@kohaku-eth/plugins": "workspace:*",
-    "@noble/ciphers": "^1.0.0",
-    "@noble/ed25519": "^1.7.1",
-    "@noble/hashes": "1.8.0",
-    "@railgun-community/circomlibjs": "0.0.8",
-    "@railgun-community/curve25519-scalarmult-wasm": "0.1.5",
-    "@railgun-community/poseidon-hash-wasm": "1.0.1",
-    "@scure/base": "^2.0.0",
-    "brotli": "^1.3.3",
-    "browserify-aes": "^1.2.0",
-    "buffer-xor": "^2.0.2",
-    "circomlibjs": "^0.1.7",
-    "ethereum-cryptography": "^3.2.0",
-    "fast-text-encoding": "^1.0.6",
-    "ts-pattern": "^5.4.0"
+    "@kohaku-eth/provider": "workspace:*",
+    "@waku/sdk": "^0.0.36",
+    "snarkjs": "^0.7.6"
   },
   "devDependencies": {
-    "@typechain/ethers-v6": "^0.5.1",
-    "@types/brotli": "^1.3.4",
-    "@types/buffer-xor": "^2.0.0",
-    "@types/chai": "^4.3.20",
-    "@types/chai-as-promised": "^7.1.8",
-    "@types/circomlibjs": "^0.1.6",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^24.1.0",
-    "chai": "^4.5.0",
-    "chai-as-promised": "^7.1.2",
-    "dotenv": "^17.2.1",
-    "ethers": "^6.15.0",
-    "mocha": "^11.7.1",
-    "prool": "^0.0.24",
-    "snarkjs": "^0.7.5",
-    "ts-node": "^10.9.2",
-    "tsup": "^8.5.0",
-    "tsx": "^4.17.0",
+    "@types/node": "^25.5.0",
+    "@types/snarkjs": "^0.7.6",
     "typescript": "^5.9.2",
     "viem": "^2.0.0",
-    "vite": "^6.0.0",
-    "vite-tsconfig-paths": "^5.1.0",
-    "vitest": "^2.0.0"
+    "vite": "^8.0.2",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^4.1.1"
   }
 }

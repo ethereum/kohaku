@@ -1,6 +1,6 @@
 import type { JsonRpcProvider, Log } from 'ethers';
 import { Filter } from 'ox';
-import type { TxLog, TransactionReceipt } from '../tx';
+import type { TxLog, TransactionReceipt, CallData } from '../tx';
 import type { EthereumProvider } from '../provider';
 import { AddressLike } from 'ethers';
 import { HexString } from '~/raw/hex';
@@ -12,6 +12,9 @@ export * from './signer';
 export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvider> => {
   return {
     _internal: provider,
+    async request({ params, method }) {
+      return provider.send(method, params as unknown[]);
+    },
     async getLogs({ address, fromBlock, toBlock, topics }: Filter.Filter): Promise<TxLog[]> {
       const logs = await provider.getLogs({
         address: address as AddressLike,
@@ -49,6 +52,33 @@ export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvi
         logs: receipt.logs.map(convertLog),
         gasUsed: receipt.gasUsed,
       };
+    },
+    async call(call: CallData): Promise<`0x${string}` | undefined> {
+      const result = await provider.call({
+        to: call.to,
+        from: call.from,
+        data: call.input,
+        value: call.value ? BigInt(call.value) : undefined,
+        gasLimit: call.gas ? BigInt(call.gas) : undefined,
+        gasPrice: call.gasPrice ? BigInt(call.gasPrice) : undefined,
+      });
+
+      return result as `0x${string}`;
+    },
+    async estimateGas(call: CallData): Promise<bigint> {
+      const gas = await provider.estimateGas({
+        to: call.to,
+        from: call.from,
+        data: call.input,
+        value: call.value ? BigInt(call.value) : undefined,
+        gasLimit: call.gas ? BigInt(call.gas) : undefined,
+        gasPrice: call.gasPrice ? BigInt(call.gasPrice) : undefined,
+      });
+
+      return gas;
+    },
+    async getGasPrice(): Promise<bigint> {
+      return await provider.getFeeData().then((feeData) => feeData.gasPrice ?? BigInt(0));
     }
   };
 };
