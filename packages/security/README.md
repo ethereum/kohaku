@@ -22,10 +22,10 @@ The utilities provided by this package are intended to provide baseline security
     - [ ] Flag unnecessarily large approvals
     - [ ] Query and display outstanding ERC20/permit2 approvals
     - [ ] Generate revocation transactions
-- [ ] Flag blocked, frozen, or blacklisted funds in address balances for accounts
-- [ ] Dust transaction filtering
+  - [ ] Flag blocked, frozen, or blacklisted funds in address balances for accounts
+  - [ ] Dust transaction filtering
 
-Utilities
+ - Utilities
   - [ ] EIP-55 Checksum validation (defer to viem probably?).
   - [ ] Address formatting - Format addresses in a human-readable and standard way.
   - [ ] Human-readable transaction formatter
