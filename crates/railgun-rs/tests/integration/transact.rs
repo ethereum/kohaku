@@ -19,6 +19,7 @@ use tracing_subscriber::EnvFilter;
 
 const USDC_ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
 const USDC: AssetId = AssetId::Erc20(USDC_ADDRESS);
+const WETH: AssetId = AssetId::Erc20(MAINNET_CONFIG.wrapped_base_token);
 const CHAIN: ChainConfig = MAINNET_CONFIG;
 
 /// Tests a full transact flow, including shielding, transferring, and unshielding.
@@ -78,23 +79,28 @@ async fn test_transact() {
     let shield_tx = railgun
         .shield()
         .shield(account_1.address(), USDC, 1_000_000)
+        .shield_native(account_1.address(), 100_000)
         .build(&mut rand::rng())
         .unwrap();
 
-    provider
-        .send_transaction(shield_tx.into())
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    for tx in shield_tx {
+        provider
+            .send_transaction(tx.into())
+            .await
+            .unwrap()
+            .get_receipt()
+            .await
+            .unwrap();
+    }
 
     railgun.sync().await.unwrap();
     let balance_1 = railgun.balance(account_1.address());
     let balance_2 = railgun.balance(account_2.address());
 
     assert_eq!(balance_1.get(&USDC), Some(&997_500));
+    assert_eq!(balance_1.get(&WETH), Some(&99_750));
     assert_eq!(balance_2.get(&USDC), None);
+    assert_eq!(balance_2.get(&WETH), None);
 
     // Test Transfer
     info!("Testing transfer");
