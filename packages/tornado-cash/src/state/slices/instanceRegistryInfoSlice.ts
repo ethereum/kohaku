@@ -9,6 +9,10 @@ export interface InstanceRegistryInfoState {
   instanceRegistryAddress: Address;
   deploymentBlock: bigint;
   lastDeployedOnBlock?: bigint;
+  relayerRegistryAddress: Address;
+  relayerRegistryDeploymentBlock: bigint;
+  aggregatorAddress: Address;
+  ensSubdomainKey: string;
 }
 
 type ActualInstanceRegistryInfoState = Serializable<InstanceRegistryInfoState>;
@@ -17,6 +21,10 @@ const initialState: ActualInstanceRegistryInfoState = {
   chainId: '0',
   instanceRegistryAddress: '0',
   deploymentBlock: '0',
+  relayerRegistryAddress: '0',
+  relayerRegistryDeploymentBlock: '0',
+  aggregatorAddress: '0',
+  ensSubdomainKey: '',
 };
 
 export const instanceRegistryInfoSlice = createSlice({

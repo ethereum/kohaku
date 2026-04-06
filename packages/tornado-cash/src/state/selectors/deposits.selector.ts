@@ -1,7 +1,7 @@
 import { TxData } from '@kohaku-eth/provider';
 import { createSelector } from '@reduxjs/toolkit';
 
-import { ISecretManager, Secret } from '../../account/keys';
+import { ISecretManager } from '../../account/keys';
 import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield';
 import { IIndexedDepositEvent } from '../../data/interfaces/events.interface';
 import { Address, Commitment } from '../../interfaces/types.interface';
@@ -93,29 +93,30 @@ export const createGetNextDepositsPayloadSelector = ({
             depositIndex,
             poolAddress: pool.address
           });
-          
+
           return prepareNativeShield({
             commitment,
-            poolAddress: poolAddressHex
+            poolAddress: poolAddressHex,
+            denomination: pool.denomination,
           });
         });
       } else {
         const assetHex = addressToHex(pool.asset);
 
-        return newSecretsIndexes.map((depositIndex) => {
+        return newSecretsIndexes.flatMap((depositIndex) => {
           const { commitment } = secretsManager.getDepositSecrets({
             chainId,
             depositIndex,
             poolAddress: pool.address
           });
-          
+
           return prepareErc20Shield({
             commitment,
             tokenAddress: assetHex,
-            poolAddress: poolAddressHex
+            poolAddress: poolAddressHex,
+            denomination: pool.denomination,
           });
         });
-
       }
     }
   );

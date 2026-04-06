@@ -1,6 +1,7 @@
 import type { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { ContractFunctionName, decodeFunctionResult, DecodeFunctionResultReturnType, encodeFunctionData, EncodeFunctionDataParameters, erc20Abi, toHex } from 'viem';
 import { Address } from "../interfaces/types.interface";
+import { aggregatorAbi } from "./abis/aggregator.abi";
 import { instanceRegistryAbi } from "./abis/instance-registry.abi";
 import { poolAbi } from "./abis/pool.abi";
 
@@ -15,6 +16,7 @@ const abis = {
     erc20: erc20Abi,
     pool: poolAbi,
     instanceRegistry: instanceRegistryAbi,
+    aggregator: aggregatorAbi,
 } as const;
 
 export class EthClient {

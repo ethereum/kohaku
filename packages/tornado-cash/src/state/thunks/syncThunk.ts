@@ -1,10 +1,12 @@
 import { createAsyncThunk, unwrapResult } from '@reduxjs/toolkit';
 import { IDataService } from '../../data/interfaces/data.service.interface';
+import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { RootState } from '../store';
 import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
 import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
+import { syncRelayersThunk } from './syncRelayersThunk';
 import { verifyRootsThunk } from './verifyRootsThunk';
 
 export interface SyncThunkParams extends
@@ -12,6 +14,7 @@ export interface SyncThunkParams extends
   Omit<SyncPoolsThunkParams, 'poolsRegistered' | 'poolsWoundDown'>,
   SyncAssetsThunkParams {
   dataService: IDataService;
+  relayerClient: IRelayerClient;
   verify?: boolean;
 }
 
@@ -22,6 +25,8 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
     })));
+
+    unwrapResult(await dispatch(syncRelayersThunk({ dataService })));
 
     const syncEventsResult = await dispatch(syncEventsThunk({ dataService, ...params }));
 

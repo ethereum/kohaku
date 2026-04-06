@@ -17,6 +17,7 @@ import {
   StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
+import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, setRelayerFeeConfig } from "./slices/relayersSlice";
 import { addressToHex } from "../utils";
 import { decodeRelayData } from "../utils/encoding.utils";
 import { calculateContext } from "../utils/proof.util";
@@ -172,7 +173,7 @@ const storeByChainAndEntrypoint = ({
     getChainStore: (getChainStoreParams: GetChainStoreParams) => {
       const {
         chainId,
-        instanceRegistry: { address, deploymentBlock },
+        instanceRegistry: { address, deploymentBlock, relayerRegistry },
       } = getChainStoreParams;
       const computedChainKey = getStoreKey(getChainStoreParams);
       let storeWithSelectors = chainStoreMap.get(computedChainKey);
@@ -188,9 +189,17 @@ const storeByChainAndEntrypoint = ({
             chainId,
             instanceRegistryAddress: address,
             deploymentBlock,
+            relayerRegistryAddress: relayerRegistry.address,
+            relayerRegistryDeploymentBlock: relayerRegistry.deploymentBlock,
+            aggregatorAddress: relayerRegistry.aggregatorAddress,
+            ensSubdomainKey: relayerRegistry.ensSubdomainKey,
           },
           initialState,
         });
+
+        const feeConfig = relayerRegistry.feeConfig
+          ?? (chainId === 1n ? DEFAULT_MAINNET_FEE_CONFIG : DEFAULT_OTHER_FEE_CONFIG);
+        store.dispatch(setRelayerFeeConfig(feeConfig));
 
         storeWithSelectors = initializeSelectors({ ...params, store });
         chainStoreMap.set(computedChainKey, storeWithSelectors);

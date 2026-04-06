@@ -14,6 +14,7 @@ import {
   setInstanceregistryInfo,
 } from "./slices/instanceRegistryInfoSlice";
 import { poolsReducer } from "./slices/poolsSlice";
+import { relayersReducer } from "./slices/relayersSlice";
 import { syncReducer } from "./slices/syncSlice";
 import { withdrawalsReducer } from "./slices/withdrawalsSlice";
 
@@ -22,6 +23,7 @@ const reducers = {
   withdrawals: withdrawalsReducer,
   assets: assetsReducer,
   pools: poolsReducer,
+  relayers: relayersReducer,
   instanceRegistryInfo: instanceRegistryInfoReducer,
   sync: syncReducer,
  } as const;

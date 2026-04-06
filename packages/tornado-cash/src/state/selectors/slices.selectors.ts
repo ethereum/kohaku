@@ -15,6 +15,7 @@ import {
 } from "../../data/interfaces/events.interface";
 import { createSelector } from "@reduxjs/toolkit";
 import { InstanceRegistryInfoState } from "../slices/instanceRegistryInfoSlice";
+import { IRelayerInfo } from "../slices/relayersSlice";
 
 export const depositsSelector = selectEntityMap(
   (s) => s.deposits.depositsTuples,
@@ -23,7 +24,7 @@ export const depositsSelector = selectEntityMap(
 
 export const instanceRegistryInfoSelector = createSelector(
   [(state: RootState) => state.instanceRegistryInfo],
-  (poolInfo) => deserialize(poolInfo) as InstanceRegistryInfoState,
+  (poolInfo) => deserialize(poolInfo, { ensSubdomainKey: true }) as InstanceRegistryInfoState,
 );
 
 /**
@@ -48,3 +49,13 @@ export const assetSelector = selectEntityMap(
       IAsset,
     ],
 );
+
+export const relayersSelector = createSelector(
+  [(state: RootState) => state.relayers.relayersTuples],
+  (tuples): IRelayerInfo[] =>
+    tuples.map(([, relayer]) =>
+      deserialize(relayer, { ensName: true, hostname: true }) as IRelayerInfo,
+    ),
+);
+
+export const relayerFeeConfigSelector = (state: RootState) => state.relayers.feeConfig;

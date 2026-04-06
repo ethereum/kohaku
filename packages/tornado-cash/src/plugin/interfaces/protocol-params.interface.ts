@@ -34,6 +34,16 @@ export interface PPv1PublicOperation extends PublicOperation {
 export interface IInstanceRegistry {
   address: Address;
   deploymentBlock: bigint;
+  relayerRegistry: {
+    address: Address;
+    deploymentBlock: bigint;
+    aggregatorAddress: Address;
+    ensSubdomainKey: string;
+    feeConfig?: {
+      minFee: number;
+      maxFee: number;
+    };
+  };
 }
 
 export interface PrivacyPoolsV1ProtocolParams {

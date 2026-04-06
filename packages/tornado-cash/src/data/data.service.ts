@@ -2,6 +2,7 @@ import { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import {
   GetEventsFn,
   IDataService,
+  IRelayerAggregatorData,
   IRelayerRegistryEvents,
   IPoolConfig,
   IPoolEvents,
@@ -177,6 +178,27 @@ export class DataService implements IDataService {
 
   async getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint> {
     return this.ethClient.makeContractRequest(poolAddress, "pool", "roots", BigInt(index)).then(hexToBigInt);
+  }
+
+  async getRelayerData(
+    aggregatorAddress: Address,
+    relayerNameHashes: bigint[],
+    subdomains: string[],
+  ): Promise<IRelayerAggregatorData[]> {
+    const hashes = relayerNameHashes.map((h) => toHex(h, { size: 32 }) as `0x${string}`);
+    const results = await this.ethClient.makeContractRequest(
+      aggregatorAddress,
+      'aggregator',
+      'relayersData',
+      hashes,
+      subdomains,
+    );
+    return results.map(({ owner, balance, isRegistered, records }) => ({
+      owner: BigInt(owner),
+      balance,
+      isRegistered,
+      records: Array.from(records),
+    }));
   }
 
   async getLatestBlockTimestamp(): Promise<bigint> {

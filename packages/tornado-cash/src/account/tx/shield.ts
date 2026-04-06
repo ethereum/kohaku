@@ -1,10 +1,7 @@
 import { createTx, TxData } from '@kohaku-eth/provider';
-import { Address, encodeFunctionData } from "viem";
-import { Commitment } from '../types';
-import { entrypointDepositErc20Abi, entrypointDepositNativeAbi } from '../../data/abis/instance-registry.abi';
-
-export type ShieldFn = (token: Address, value: bigint) => { commitment: Commitment; tx: TxData; };
-export type Shield = { shield: ShieldFn; };
+import { encodeFunctionData, toHex } from "viem";
+import { poolAbi } from '../../data/abis/pool.abi';
+import { erc20Abi } from 'viem';
 
 type PrepareNativeShieldParam = {
   commitment: bigint;
@@ -15,24 +12,34 @@ type PrepareErc20ShieldParam = {
   commitment: bigint;
   tokenAddress: string;
   poolAddress: string;
+  denomination: bigint;
 };
 
-export function prepareNativeShield({ commitment, poolAddress }: PrepareNativeShieldParam) {
+export function prepareNativeShield({ commitment, poolAddress }: PrepareNativeShieldParam): TxData {
   const data = encodeFunctionData({
-    abi: entrypointDepositNativeAbi,
+    abi: poolAbi,
     functionName: 'deposit',
-    args: [commitment]
+    args: [toHex(commitment, { size: 32 })],
   });
 
   return createTx(poolAddress, data);
 }
 
-export function prepareErc20Shield({ commitment, tokenAddress, poolAddress }: PrepareErc20ShieldParam) {
-  const data = encodeFunctionData({
-    abi: entrypointDepositErc20Abi,
-    functionName:'deposit',
-    args: [tokenAddress as `0x${string}`, commitment]
+export function prepareErc20Shield({ commitment, tokenAddress, poolAddress, denomination }: PrepareErc20ShieldParam): TxData[] {
+  const approveData = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: 'approve',
+    args: [poolAddress as `0x${string}`, denomination],
   });
 
-  return createTx(poolAddress, data);
+  const depositData = encodeFunctionData({
+    abi: poolAbi,
+    functionName: 'deposit',
+    args: [toHex(commitment, { size: 32 })],
+  });
+
+  return [
+    createTx(tokenAddress, approveData),
+    createTx(poolAddress, depositData),
+  ];
 }

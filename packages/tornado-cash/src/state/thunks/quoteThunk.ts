@@ -2,7 +2,7 @@ import { createAsyncThunk } from '@reduxjs/toolkit';
 import { IQuoteResponse, IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import { RootState } from '../store';
-import { entrypointInfoSelector } from '../selectors/slices.selectors';
+import { instanceRegistryInfoSelector, relayerFeeConfigSelector, relayersSelector } from '../selectors/slices.selectors';
 
 export interface QuoteResult {
   quote: IQuoteResponse;
@@ -18,14 +18,15 @@ export interface QuoteThunkParams {
   extraGas?: boolean;
 }
 
+
 /**
  * Validates that the withdrawalData from a relayer quote is not malicious.
  * Checks that recipient and fee match what was requested.
  */
 const validateWithdrawalData = (
-  quote: IQuoteResponse,
-  recipient: Address,
-  amount: bigint,
+  _quote: IQuoteResponse,
+  _recipient: Address,
+  _amount: bigint,
   relayerId: string
 ): void => {
   // TODO: Implement actual ABI decoding of withdrawalData
@@ -53,17 +54,35 @@ export const quoteThunk = createAsyncThunk<
 >(
   'quote/getBestQuote',
   async (params, { getState }) => {
-    const { chainId } = entrypointInfoSelector(getState());
+    const state = getState();
+    const { chainId } = instanceRegistryInfoSelector(state); // used in status netId check
+    const relayers = relayersSelector(state);
+    const { minFee, maxFee } = relayerFeeConfigSelector(state);
     const { relayerClient, asset, amount, recipient, extraGas } = params;
 
-    if (relayers.size === 0) {
-      throw new Error('No relayers configured');
+    if (relayers.length === 0) {
+      throw new Error('No relayers available');
     }
 
-    // Query all relayers in parallel
-    const quotePromises = Array.from(relayers.entries()).map(
-      async ([relayerId, relayerUrl]): Promise<QuoteResult | null> => {
+    // Check liveness and quote all relayers in parallel
+    const quotePromises = relayers.map(
+      async (relayer): Promise<QuoteResult | null> => {
+        const { ensName, hostname } = relayer;
+        const relayerUrl = `https://${hostname}`;
+
         try {
+          const status = await relayerClient.getStatus(hostname);
+
+          if (
+            status.netId !== Number(chainId) ||
+            status.currentQueue > 5 ||
+            status.tornadoServiceFee < minFee ||
+            status.tornadoServiceFee >= maxFee
+          ) {
+            console.warn(`[quoteThunk] Relayer ${ensName} failed liveness check`, status);
+            return null;
+          }
+
           const quote = await relayerClient.getQuote({
             relayerUrl,
             chainId,
@@ -73,14 +92,11 @@ export const quoteThunk = createAsyncThunk<
             extraGas,
           });
 
-          // Validate withdrawalData to prevent malicious relayers
-          validateWithdrawalData(quote, recipient, amount, relayerId);
+          validateWithdrawalData(quote, recipient, amount, ensName);
 
-          return { quote, relayerId, relayerUrl };
+          return { quote, relayerId: ensName, relayerUrl };
         } catch (error) {
-          // Log but don't fail - other relayers might succeed
-          console.warn(`Relayer ${relayerId} failed to quote:`, error);
-
+          console.warn(`[quoteThunk] Relayer ${ensName} failed:`, error);
           return null;
         }
       }
@@ -94,13 +110,11 @@ export const quoteThunk = createAsyncThunk<
     }
 
     // Select lowest feeBPS
-    const bestQuote = validQuotes.reduce((best, current) => {
+    return validQuotes.reduce((best, current) => {
       const bestFee = BigInt(best.quote.feeBPS);
       const currentFee = BigInt(current.quote.feeBPS);
 
       return currentFee < bestFee ? current : best;
     });
-
-    return bestQuote;
   }
 );

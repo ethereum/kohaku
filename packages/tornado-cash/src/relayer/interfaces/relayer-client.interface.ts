@@ -145,6 +145,15 @@ interface IFailedRelayResponse extends IBaseRelayResponse {
 
 export type IRelayResponse = ISuccessfullRelayResponse | IFailedRelayResponse;
 
+export interface IRelayerStatusResponse {
+  currentQueue: number;
+  netId: number;
+  rewardAccount: string;
+  version: string;
+  tornadoServiceFee: number;
+  ethPrices: Record<string, string>;
+}
+
 export interface IRelayerClient {
   getQuote(
     body: IQuoteRequest,
@@ -155,4 +164,5 @@ export interface IRelayerClient {
   getFees(
     body: IRelayFeesRequest,
   ): Promise<IRelayerFeeResponse>;
+  getStatus(hostname: string): Promise<IRelayerStatusResponse>;
 }

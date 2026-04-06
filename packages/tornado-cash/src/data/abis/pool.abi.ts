@@ -54,5 +54,18 @@ export const poolAbi = [
     ],
     stateMutability: "view"
   },
+  {
+    type: "function",
+    name: "deposit",
+    inputs: [
+      {
+        name: "_commitment",
+        type: "bytes32",
+        internalType: "bytes32"
+      }
+    ],
+    outputs: [],
+    stateMutability: "payable"
+  },
 ] as const satisfies Abi;
 

@@ -4,6 +4,7 @@ import {
   IQuoteResponse,
   IRelayerClient,
   IRelayerFeeResponse,
+  IRelayerStatusResponse,
   IRelayFeesRequest,
   IRelayRequest,
   IRelayRequestBody,
@@ -88,5 +89,11 @@ export class RelayerClient implements IRelayerClient {
     const feesResponse = await this.fetch(feesUrl);
 
     return feesResponse.json();
+  }
+
+  async getStatus(hostname: string): Promise<IRelayerStatusResponse> {
+    const statusResponse = await this.fetch(`https://${hostname}/status`);
+
+    return statusResponse.json();
   }
 }

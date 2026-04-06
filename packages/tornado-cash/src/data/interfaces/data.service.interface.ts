@@ -62,6 +62,13 @@ export interface IPoolConfig {
   denomination: bigint;
 }
 
+export interface IRelayerAggregatorData {
+  owner: Address;
+  balance: bigint;
+  isRegistered: boolean;
+  records: string[];
+}
+
 export interface IDataService {
   getPoolEvents: GetEventsFn<typeof POOL_EVENTS_SIGNATURES, IPoolEvents>;
   getRelayerRegistryEvents: GetEventsFn<
@@ -82,4 +89,9 @@ export interface IDataService {
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
   getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint>;
   getLatestBlockTimestamp(): Promise<bigint>;
+  getRelayerData(
+    aggregatorAddress: Address,
+    relayerNameHashes: bigint[],
+    subdomains: string[],
+  ): Promise<IRelayerAggregatorData[]>;
 }
