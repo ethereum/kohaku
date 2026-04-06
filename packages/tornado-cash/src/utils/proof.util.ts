@@ -1,54 +1,67 @@
-import { LeanIMT, LeanIMTMerkleProof } from "@zk-kit/lean-imt";
-import { poseidon } from "maci-crypto/build/ts/hashing";
+import { buildMimcSponge } from 'circomlibjs';
+import { MerkleTree } from 'fixed-merkle-tree';
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { encodeAbiParameters, keccak256, numberToHex } from "viem";
 
 const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
+// Tornado Merkle tree parameters
+const TREE_LEVELS = 20;
+// keccak256("tornado") % SNARK_SCALAR_FIELD
+const ZERO_VALUE = '21663839004416932945382355908790599225266501822907911457504978515578255421292';
 
-export function computeMerkleTreeRoot(leaves: bigint[]) {
-  const tree = new LeanIMT<bigint>((a, b) => poseidon([a, b]));
+// MiMC Sponge singleton — loaded once at module import, sync after that
+type MimcSponge = Awaited<ReturnType<typeof buildMimcSponge>>;
 
-  tree.insertMany(leaves);
+let _sponge: MimcSponge | null = null;
 
-  return tree.root
+async function buildTree(leaves: bigint[]): Promise<MerkleTree> {
+  if (!_sponge) {
+    _sponge = await buildMimcSponge();
+  }
+
+  const hashFunction = (left: string | number, right: string | number) => _sponge!.F.toString(_sponge!.multiHash([BigInt(left), BigInt(right)]));
+  
+  return new MerkleTree(TREE_LEVELS, leaves.map(String), {
+    zeroElement: ZERO_VALUE,
+    hashFunction,
+  });
 }
+
+export async function computeMerkleTreeRoot(leaves: bigint[]): Promise<bigint> {
+  return BigInt((await buildTree(leaves)).root);
+}
+
+export type MerkleProof = {
+  index: number;
+  root: bigint;
+  siblings: bigint[];
+  pathIndices: number[];
+};
 
 /**
  * Generates a Merkle inclusion proof for a given leaf in a set of leaves.
  *
- * @param {bigint[]} leaves - Array of leaves for the Lean Incremental Merkle tree.
- * @param {bigint} leaf - The specific leaf to generate the inclusion proof for.
- * @returns {LeanIMTMerkleProof<bigint>} A lean incremental Merkle tree inclusion proof.
+ * @param {bigint[]} leaves - All commitment leaves for the tornado pool.
+ * @param {bigint} leaf - The specific commitment to generate the proof for.
+ * @returns {MerkleProof} Merkle proof compatible with the tornado withdraw circuit.
  * @throws {Error} If the leaf is not found in the leaves array.
  */
-export function generateMerkleProof(
-  leaves: bigint[],
-  leaf: bigint,
-): LeanIMTMerkleProof<bigint> {
-  const tree = new LeanIMT<bigint>((a, b) => poseidon([a, b]));
+export async function generateMerkleProof(leaves: bigint[], leaf: bigint): Promise<MerkleProof> {
+  const tree = await buildTree(leaves);
+  const leafStr = leaf.toString();
+  const index = tree.indexOf(leafStr);
 
-  tree.insertMany(leaves);
+  if (index === -1) throw new Error('Leaf not found in the leaves array.');
 
-  const leafIndex = tree.indexOf(leaf);
+  const { pathElements, pathIndices, pathRoot } = tree.proof(leafStr);
 
-  // if leaf does not exist in tree, throw error
-  if (leafIndex === -1) {
-    throw new Error(
-      "Leaf not found in the leaves array.",
-    );
-  }
-
-  const proof = tree.generateProof(leafIndex);
-
-  if (proof.siblings.length < 32) {
-    proof.siblings = [
-      ...proof.siblings,
-      ...Array(32 - proof.siblings.length).fill(BigInt(0)),
-    ];
-  }
-
-  return proof;
+  return {
+    index,
+    root: BigInt(pathRoot),
+    siblings: pathElements.map(BigInt),
+    pathIndices,
+  };
 }
 
 export function calculateContext(withdrawal: WithdrawalPayload, scope: bigint): string {

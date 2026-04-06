@@ -1,15 +1,5 @@
-import { poseidon } from "maci-crypto/build/ts/hashing";
 import { getAddress } from "viem";
 import { Address } from "./interfaces/types.interface";
-import { INote } from "./plugin/interfaces/protocol-params.interface";
-
-/**
- * Given a note, computes it commitment
- *
- */
-export function commitment({ balance: value, label, precommitment }: INote): bigint {
-  return poseidon([value, label, precommitment]);
-}
 
 /**
  * Converts an Address type to a hex string

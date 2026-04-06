@@ -20,7 +20,6 @@ import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { addressToHex } from "../utils";
 import { decodeRelayData } from "../utils/encoding.utils";
 import { calculateContext } from "../utils/proof.util";
-import { BaseSelectorParams } from "./interfaces/selectors.interface";
 import {
   createAllAssetsBalanceSelector,
   createMyAssetsBalanceSelector,
@@ -47,9 +46,12 @@ import { RootState, storeFactory } from "./store";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
+import { IDataService } from "../data/interfaces/data.service.interface";
+import { ISecretManager } from "../account/keys";
 
-export interface StoreFactoryParams
-  extends BaseSelectorParams {
+export interface StoreFactoryParams {
+  secretManagerFactory: () => Promise<ISecretManager>
+  dataService: IDataService;
   relayerClient: IRelayerClient;
   storageToSyncTo?: Storage;
   instanceRegistry: IInstanceRegistry;
@@ -60,10 +62,14 @@ export interface StoreFactoryParams
   >;
 }
 
+type SelectorParams = Omit<StoreFactoryParams, 'dataService' | 'secretManagerFactory'> & {
+  secretManager: ISecretManager
+}
+
 const initializeSelectors = <const T extends Store>({
   store,
   ...params
-}: Omit<StoreFactoryParams, "dataService"> & { store: T; }) => {
+}: SelectorParams & { store: T; }) => {
   // We need to tie the selectors instances to a specific store
   // so they can memoize correctly
   const myDepositsSelector = createMyDepositsSelector(params);
@@ -155,7 +161,7 @@ const storeByChainAndEntrypoint = ({
   storageToSyncTo,
   initialState: initialStateByChainAndEntrypoint = {},
   ...params
-}: Omit<StoreFactoryParams, "dataService">) => {
+}: SelectorParams) => {
 
   const chainStoreMap = new Map<
     StoreKey,
@@ -204,10 +210,11 @@ const storeByChainAndEntrypoint = ({
   };
 };
 
-export const storeStateManager = (
-  params: StoreFactoryParams,
-): IStateManager => {
-  const { getChainStore, getAllStores } = storeByChainAndEntrypoint(params);
+export const storeStateManager = async (
+  { secretManagerFactory, ...params }: StoreFactoryParams,
+): Promise<IStateManager> => {
+  const secretManager = await secretManagerFactory();
+  const { getChainStore, getAllStores } = storeByChainAndEntrypoint({...params, secretManager});
   const { storageToSyncTo } = params;
 
   const getChainInfo = async () => ({

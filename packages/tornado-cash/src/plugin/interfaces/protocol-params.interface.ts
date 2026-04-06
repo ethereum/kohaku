@@ -38,8 +38,8 @@ export interface IInstanceRegistry {
 
 export interface PrivacyPoolsV1ProtocolParams {
   accountIndex?: number;
-  secretManager: (params: SecretManagerParams) => ISecretManager;
-  stateManager: (params: StoreFactoryParams) => IStateManager;
+  secretManagerFactory: (params: SecretManagerParams) => Promise<ISecretManager>;
+  stateManager: (params: StoreFactoryParams) => Promise<IStateManager>;
   relayerClientFactory: () => IRelayerClient;
   instanceRegistry: IInstanceRegistry;
   proverFactory: () => ReturnType<typeof Prover>;

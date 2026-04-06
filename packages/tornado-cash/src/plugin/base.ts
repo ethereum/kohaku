@@ -7,8 +7,7 @@ import {
   Host,
 } from "@kohaku-eth/plugins";
 
-import { TxData } from "packages/provider/dist/index.js";
-import { ISecretManager, SecretManager } from "../account/keys";
+import { SecretManager } from "../account/keys";
 import { DataService } from "../data/data.service";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
@@ -39,9 +38,7 @@ export interface PPv1RelayerConstructorParams extends PPv1BroadcasterParameters 
 }
 
 export class PrivacyPoolsV1Protocol implements PPv1Instance {
-  private accountIndex: number;
-  private secretManager: ISecretManager;
-  private stateManager: IStateManager;
+  private stateManager: Promise<IStateManager>;
   private instanceRegistry: IInstanceRegistry;
   private relayerClient: IRelayerClient;
 
@@ -50,23 +47,18 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     {
       accountIndex = 0,
       initialState = {},
-      secretManager = SecretManager,
+      secretManagerFactory = SecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       instanceRegistry,
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = Prover,
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry'>,
   ) {
-    this.accountIndex = accountIndex;
     this.instanceRegistry = instanceRegistry;
     this.relayerClient = relayerClientFactory();
-    this.secretManager = secretManager({
-      host,
-      accountIndex: this.accountIndex,
-    });
     this.stateManager = stateManagerFactory({
       initialState: { ...initialState },
-      secretManager: this.secretManager,
+      secretManagerFactory: () => secretManagerFactory({ accountIndex, host }),
       dataService: new DataService({ provider: host.provider }),
       relayerClient: this.relayerClient,
       proverFactory,
@@ -83,51 +75,46 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * The assets retain the provided order. If an asset is not supported its balance will be 0
    */
   async balance(assets: ERC20AssetId[] = []): Promise<PPv1AssetBalance[]> {
-    await this.stateManager.sync();
+    const stateManager = await this.stateManager;
+
+    await stateManager.sync();
     const parsedDesiredAssets = assets.map(({ contract }) => BigInt(contract));
 
-    const balances = await this.stateManager.getBalances(
+    const balances = await stateManager.getBalances(
       assets.length > 0 ? parsedDesiredAssets : undefined,
-      "both",
     );
     
     const actuallySelectedAssets = assets.length > 0 ? assets.map((a) => a.contract) : [...balances.keys()].map((a) => addressToHex(a))
 
     return actuallySelectedAssets.map((assetAddress, index) => {
-      const { approved, unapproved } = balances.get(BigInt(actuallySelectedAssets[index]!)) || {
-        approved: 0n,
-        unapproved: 0n
-      };
+      const balance = balances.get(BigInt(actuallySelectedAssets[index]!)) || 0n;
 
       const asset: ERC20AssetId = {
         contract: assetAddress,
         __type: 'erc20'
       }; 
 
-      return [{
+      return {
         asset,
-        amount: approved,
-      }, {
-        asset,
-        amount: unapproved,
-        tag: 'pending' as const
-      }];
-    }).flat();
+        amount: balance,
+      };
+    });
   }
 
   async prepareShield(
     assets: PPv1AssetAmount,
   ): Promise<PPv1PublicOperation> {
     const { asset, amount } = assets;
+    const stateManager = await this.stateManager;
 
-    await this.stateManager.sync();
+    await stateManager.sync();
 
-    const tx = await this.stateManager.getDepositPayload({
+    const tx = await stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
     });
 
-    return { txns: [tx] } as PPv1PublicOperation;
+    return { txns: tx } as PPv1PublicOperation;
   }
 
   /**
@@ -139,11 +126,13 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     assets: ERC20AssetId[] = [],
     includeSpent = false,
   ): Promise<INote[]> {
-    await this.stateManager.sync();
+    const stateManager = await this.stateManager;
+
+    await stateManager.sync();
 
     const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
 
-    return this.stateManager.getNotes({
+    return stateManager.getNotes({
       includeSpent,
       assets: assetsAddresses.length > 0 ? assetsAddresses : undefined,
     });
@@ -153,10 +142,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     const { asset, amount } = assets;
     const instanceRegistry = this.instanceRegistry;
     const assetAddress = BigInt(asset.contract);
+    const stateManager = await this.stateManager;
 
-    await this.stateManager.sync();
+    await stateManager.sync();
 
-    const [result] = await this.stateManager.getWithdrawalPayloads({
+    const [result] = await stateManager.getWithdrawalPayloads({
       asset: assetAddress,
       amount,
       recipient: BigInt(to),
@@ -197,11 +187,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     } as PPv1PrivateOperation;
   }
 
-  sync() {
-    return this.stateManager.sync();
+  async sync() {
+    const stateManager = await this.stateManager;
+
+    return stateManager.sync();
   }
 
-  dumpState() {
-    return this.stateManager.dumpState();
+  async dumpState() {
+    const stateManager = await this.stateManager;
+
+    return stateManager.dumpState();
   }
 }
