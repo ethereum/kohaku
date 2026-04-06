@@ -23,7 +23,6 @@ export interface Blocklist {
     isAddressBlocked(address: `0x${string}`): Promise<BlocklistItem>;
 }
 
-
 export interface BlocklistItem {
     /**
      * Whether the item is blocked or not.
