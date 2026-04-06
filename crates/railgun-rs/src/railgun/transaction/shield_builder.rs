@@ -124,7 +124,6 @@ mod tests {
     use alloy_primitives::{Address, address};
     use rand::SeedableRng;
     use rand_chacha::ChaChaRng;
-    use ruint::aliases::U256;
 
     use super::*;
     use crate::{
@@ -141,8 +140,7 @@ mod tests {
         let signer = PrivateKeySigner::new_evm(spending_key, viewing_key, 1);
         let recipient = signer.address();
 
-        // Non-zero ERC-20: must target RailgunSmartWallet.shield directly (not RelayAdapt).
-        let asset: AssetId = AssetId::Erc20(address!("0x0000000000000000000000000000000000000001"));
+        let asset: AssetId = AssetId::Erc20(Address::from([0u8; 20]));
         let value: u128 = 1_000_000;
 
         let shield_request = ShieldBuilder::new(MAINNET_CONFIG)
@@ -161,14 +159,12 @@ mod tests {
         let signer = PrivateKeySigner::new_evm(spending_key, viewing_key, 1);
         let recipient = signer.address();
 
-        let native: AssetId = AssetId::Erc20(Address::ZERO);
+        let native: AssetId = AssetId::Erc20(address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"));
         let tx = ShieldBuilder::new(MAINNET_CONFIG)
             .shield(recipient, native, 1_000_000)
             .build(&mut rng)
             .unwrap();
 
-        assert_eq!(tx.to, MAINNET_CONFIG.relay_adapt_contract);
-        assert_eq!(tx.value, U256::from(1_000_000u128));
-        assert!(!tx.data.is_empty());
+        insta::assert_debug_snapshot!(tx);
     }
 }

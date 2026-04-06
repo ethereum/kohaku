@@ -29,12 +29,12 @@ impl AssetId {
         token_data.hash()
     }
 
-    /// `true` when this id represents native chain currency passed through an ERC-20–shaped API
-    /// (`0x0000…` or `0xEeee…`), which must be shielded via RelayAdapt (wrap + WETH note), not as a plain ERC-20 shield on the wallet.
+    /// `true` when this id represents native chain currency passed through an ERC-20–shaped API (`0xEeee…`),
+    /// which must be shielded via RelayAdapt (wrap + WETH note), not as a plain ERC-20 shield on the wallet.
     pub fn is_native_base_token(&self) -> bool {
         matches!(
             self,
-            AssetId::Erc20(a) if *a == Address::ZERO || *a == address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
+            AssetId::Erc20(a) if *a == address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
         )
     }
 }
