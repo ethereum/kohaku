@@ -161,7 +161,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         return Array.from(all.values());
     }
 
-    async prepareShield(token: AssetAmount): Promise<TxData> {
+    async prepareShield(token: AssetAmount): Promise<TxData[]> {
         tokenGuard(token);
 
         const txData = this.provider
@@ -169,14 +169,14 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             .shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount)
             .build();
 
-        return {
-            to: txData.to,
-            data: txData.data,
-            value: BigInt(txData.value)
-        };
+        return txData.map(tx => ({
+            to: tx.to,
+            data: tx.data,
+            value: BigInt(tx.value)
+        }));
     }
 
-    async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData> {
+    async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData[]> {
         let builder = this.provider.shield();
 
         for (const token of tokens) {
@@ -186,11 +186,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         const txData = builder.build();
 
-        return {
-            to: txData.to,
-            data: txData.data,
-            value: BigInt(txData.value)
-        };
+        return txData.map(tx => ({
+            to: tx.to,
+            data: tx.data,
+            value: BigInt(tx.value)
+        }));
     }
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
