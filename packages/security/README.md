@@ -1,15 +1,13 @@
 # SecurityUtils
 
-A collection of basic security-focused utilities for wallets. Aims to provide a baseline implementation of the walletbeat security standards and to be easily extensible for further additions.
+A collection of basic security-focused utilities for wallets. Security utilities should be small, focused, ideally stateless, and easy to integrate. Using these should provide a baseline implementation of the walletbeat security standards and be easily extensible for further additions within the SDK or by wallets.
 
-The utilities provided by this package are intended to provide baseline security that can be universally integrated into wallets. They are not intended to be comprehensive or to cover all possible security features.  More advanced or wallet-specific features are out-of-scope and should be implemented by wallets themselves.
+Utilities in this list should be applicable to all wallets. More advanced or wallet-specific features are out-of-scope and should be implemented by wallets themselves. Specialized utilities already covered by standard libraries and vendor-specific integrations are also out-of-scope for now.
 
 ## Utilities
-- Blocklist - Fetches and parses blocklists from various sources, currently supporting domains and addresses.
-- Address Poisoning - Provides utilities for poisoning addresses to prevent them from being used in transactions.
-
-### Planned Utilities
 - Phishing
+  - [x] Address Poisoning - Provides utilities for poisoning addresses to prevent them from being used in transactions.
+  - [x] Blocklist - Fetches and parses blocklists from various sources, currently supporting domains and addresses.
   - [ ] ENS/address label resolution - Resolve ENS names or address labels for known addresses.
   - [ ] Fuzzy malicious URL detection - Match against potentially malicious URLs for typosquat / cyrillic character detection.
   - [ ] Fuzzy malicious contract detection - Match against potentially malicious code hashes / bytecode patterns.
@@ -37,10 +35,10 @@ The utilities provided by this package are intended to provide baseline security
     - [ ] Integrate with blocklist and address poisoning utilities
     - [ ] Decode well-known contract interactions (e.g. Uniswap swaps, OpenSea listings, etc.)
 
-#### Open Questions
+### Open Questions
  - Transaction formatting might be too complex.  Very wallet-specific, since it's highly UX dependent, and there are existing services (IE tenderly) that provide this functionality.  Clearsigning is also part of [eip-7730](https://eips.ethereum.org/EIPS/eip-7730) so either defer to this standard impl or impl their standard here.
 
-### Out-of-scope
+## Out-of-scope
 Utilities not universally applicable to all wallets, or are better handled by specialized existing libraries, are out-of-scope for this package. Some examples include:
 
 - Existing standardized libraries - functionality that is already well-covered by existing libraries.
