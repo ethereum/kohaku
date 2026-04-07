@@ -71,7 +71,11 @@ test("transact-utxo", async () => {
 
   console.log("Testing Shield");
   {
-    const tx = railgun.shield().shield(account1.address, USDC, 1_000_000n).build();
+    const txs = railgun.shield().shield(account1.address, USDC, 1_000_000n).build();
+    const tx = txs[0];
+    if (!tx) {
+      throw new Error("Expected at least one shield transaction");
+    }
     const shieldHash = await walletClient.sendTransaction({
       to: tx.to,
       data: tx.data,

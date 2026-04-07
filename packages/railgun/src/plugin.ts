@@ -166,10 +166,10 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         builder = this.addShield(asset.asset, asset.amount, builder);
 
         const txData = builder.build();
-        return txData.map(tx => ({
+        return txData.map((tx) => ({
             to: tx.to,
             data: tx.data,
-            value: BigInt(tx.value)
+            value: BigInt(tx.value),
         }));
     }
 
@@ -182,14 +182,14 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         const txData = builder.build();
 
-        return txData.map(tx => ({
+        return txData.map((tx) => ({
             to: tx.to,
             data: tx.data,
-            value: BigInt(tx.value)
+            value: BigInt(tx.value),
         }));
     }
 
-    private addShield(asset: AssetId, amount: bigint, builder: JsShieldBuilder) {
+    private addShield(asset: AssetId | { __type: 'native' }, amount: bigint, builder: JsShieldBuilder) {
         if (asset.__type === 'erc20') {
             builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: asset.contract }, amount);
         } else if (asset.__type === 'native') {
