@@ -8,6 +8,7 @@ packages:
   - "packages/provider"
   - "packages/privacy-pools"
   - "packages/plugins"
+  - "packages/tornado-cash"
   - "examples/pq-account"
   - "docs"
   - "crates/railgun-ts"

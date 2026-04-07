@@ -58,7 +58,7 @@ export const poolCommitmentsSelector = createSelector(
 
 export const poolMerkleTreeRootSelector = createSelector(
   [poolCommitmentsSelector],
-  (commitments): bigint => {
+  async (commitments): Promise<bigint> => {
     const leaves = Array.from(commitments);
 
     if (leaves.length === 0) {

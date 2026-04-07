@@ -1,44 +1,18 @@
 import { CreatePluginFn, Host } from "@kohaku-eth/plugins";
 import { PrivacyPoolsBroadcaster, PrivacyPoolsV1Protocol } from "../plugin";
-import {
-  PPv1Broadcaster,
-  PPv1BroadcasterParameters,
-  PPv1Instance,
-  PPv1LegacyInstance,
-  PPv1PluginParameters,
-  PPv1PluginWithMnemonicParameters,
-} from "./interfaces";
+import { TCBroadcaster, TCBroadcasterParameters, TCInstance, TCPluginParameters } from "./interfaces";
 
-export const createPPv1Broadcaster = (
+export const createTCBroadcaster = (
   host: Host,
-  params: PPv1BroadcasterParameters,
-): PPv1Broadcaster => {
+  params: TCBroadcasterParameters,
+): TCBroadcaster => {
   return new PrivacyPoolsBroadcaster({ host, ...params });
 };
 
-export const createPPv1Plugin = (<
-  Params extends PPv1PluginParameters | PPv1PluginWithMnemonicParameters,
->(
+export const createTCPlugin = ((
   host: Host,
-  params: Params,
-): Params extends PPv1PluginWithMnemonicParameters
-  ? PPv1LegacyInstance
-  : PPv1Instance => {
-  if ("mnemonic" in params) {
-    throw new Error("Not implemented.");
-  }
-
-  const broadcasterUrl = params.broadcasterUrl;
-  const relayersList =
-    typeof broadcasterUrl === "string"
-      ? { default: broadcasterUrl }
-      : broadcasterUrl;
-
-  return new PrivacyPoolsV1Protocol(host, {
-    ...params,
-    relayersList,
-  });
-}) satisfies CreatePluginFn<
-  PPv1Instance,
-  PPv1PluginParameters | PPv1PluginWithMnemonicParameters
+  params: TCPluginParameters,
+): TCInstance => new PrivacyPoolsV1Protocol(host, params)) satisfies CreatePluginFn<
+  TCInstance,
+  TCPluginParameters
 >;

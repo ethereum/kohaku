@@ -1,33 +1,26 @@
-import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
-import { TxData } from '@kohaku-eth/provider';
+import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
-import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { Address } from "../../interfaces/types.interface";
-import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
+import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { RootState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
-import { WithdrawProveOutput } from "../../state/thunks/withdrawThunk";
+import { TornadoProveOutput } from "../../utils/tornado-prover";
+import { ITornadoProver } from "../../utils/tornado-prover";
+import { TxData } from '@kohaku-eth/provider';
 
-export interface PPv1PrivateOperation extends PrivateOperation {
-  rawData: {
-    context: bigint,
-    relayData: IRelayData,
-    proof: WithdrawProveOutput;
-    withdrawalPayload: WithdrawalPayload;
-    chainId: bigint;
-    scope: bigint;
-  };
-  txData: TxData;
-  quoteData: {
-    quote: IQuoteResponse;
-    relayerId: string;
-  };
+export interface IWithdrawalPayload {
+  proof: TornadoProveOutput;
+  poolAddress: Address;
+  relayerUrl: string;
+};
+
+export interface TCPrivateOperation extends PrivateOperation {
+  withdrawals: IWithdrawalPayload[];
 }
 
-export interface PPv1PublicOperation extends PublicOperation {
+export interface TCPublicOperation extends PublicOperation {
   txns: TxData[];
 }
 
@@ -46,13 +39,19 @@ export interface IInstanceRegistry {
   };
 }
 
+export interface ITornadoArtifacts {
+  wasmUrl: string;
+  zkeyUrl: string;
+}
+
 export interface PrivacyPoolsV1ProtocolParams {
   accountIndex?: number;
   secretManagerFactory: (params: SecretManagerParams) => Promise<ISecretManager>;
   stateManager: (params: StoreFactoryParams) => Promise<IStateManager>;
   relayerClientFactory: () => IRelayerClient;
   instanceRegistry: IInstanceRegistry;
-  proverFactory: () => ReturnType<typeof Prover>;
+  artifacts: ITornadoArtifacts;
+  proverFactory?: () => Promise<ITornadoProver>;
   initialState?: Record<string, RootState>;
 }
 
@@ -82,39 +81,6 @@ export interface IGetNotesParams extends IBaseOperationParams {
   assets?: Address[];
 }
 
-export type INote = Pick<IDepositWithBalance,
-  "commitment" | "balance" | "assetAddress"
-> & {
-  // deposit index
-  deposit: number;
-  // withdraw index
-  withdraw: number;
-};
-
-export type StateWithdrawalPayload = {
-  withdrawalInfo: {
-    context: bigint;
-    scope: bigint;
-    relayDataAbi: string;
-    relayDataObject: IRelayData;
-    withdrawalObject: WithdrawalPayload;
-  };
-  proofResult: WithdrawProveOutput,
-  quoteData: { quote: IQuoteResponse, relayerId: string; };
-  chainId: ChainId;
-};
-
-export type ProveOutput = Awaited<ReturnType<Awaited<ReturnType<typeof Prover>>['prove']>>;
-export type CommitmentProveOutput = Omit<ProveOutput, 'mappedSignals'> & {
-  mappedSignals: CommitmentPublicSignals;
-};
-
-export type StateRagequitPayload = {
-  note: INote;
-  poolAddress: Address;
-  proofResult: CommitmentProveOutput;
-};
-
 export type StoreKey = `${string}-${string}`;
 export type StoreStorageKey = `privacy-pool-state-${StoreKey}`;
 
@@ -128,19 +94,13 @@ export interface IStateManager {
    */
   getDepositPayload: (params: IDepositOperationParams) => Promise<TxData[]>;
   /**
-   * Generates the relayer quotes and withdrawals payloads for the specified amount
+   * Calls the relayer to submit withdrawals and returns job IDs
    */
-  getWithdrawalPayloads: (params: IWithdrawapOperationParams) => Promise<StateWithdrawalPayload[]>;
+  getWithdrawalPayloads: (params: IWithdrawapOperationParams) => Promise<IWithdrawalPayload[]>;
   /**
    * Gets the balance of the specified assets.
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
   dumpState: () => Record<StoreStorageKey, RootState>;
-  /**
-   * Gets all notes for the account.
-   * @param includeSpent - If true, include notes with zero balance
-   * @param assets - Optional filter by specific assets
-   */
-  getNotes: (params: IGetNotesParams) => Promise<INote[]>;
 }

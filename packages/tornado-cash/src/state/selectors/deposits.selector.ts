@@ -8,7 +8,7 @@ import { Address, Commitment } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { BaseSelectorParams } from '../interfaces/selectors.interface';
 import { RootState } from '../store';
-import { depositsSelector, instanceRegistryInfoSelector, poolsSelector } from './slices.selectors';
+import { depositsSelector, instanceRegistryInfoSelector, poolsSelector, withdrawalsSelector } from './slices.selectors';
 
 /**
  * Returns a Map with every deposit we own. We also check approved status.
@@ -97,7 +97,6 @@ export const createGetNextDepositsPayloadSelector = ({
           return prepareNativeShield({
             commitment,
             poolAddress: poolAddressHex,
-            denomination: pool.denomination,
           });
         });
       } else {

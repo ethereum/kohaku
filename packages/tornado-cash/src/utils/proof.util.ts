@@ -1,9 +1,5 @@
 import { buildMimcSponge } from 'circomlibjs';
 import { MerkleTree } from 'fixed-merkle-tree';
-import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
-import { encodeAbiParameters, keccak256, numberToHex } from "viem";
-
-const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 // Tornado Merkle tree parameters
 const TREE_LEVELS = 20;
@@ -64,32 +60,3 @@ export async function generateMerkleProof(leaves: bigint[], leaf: bigint): Promi
   };
 }
 
-export function calculateContext(withdrawal: WithdrawalPayload, scope: bigint): string {
-  const hash =
-    BigInt(
-      keccak256(
-        encodeAbiParameters(
-          [
-            {
-              name: "withdrawal",
-              type: "tuple",
-              components: [
-                { name: "processooor", type: "address" },
-                { name: "data", type: "bytes" },
-              ],
-            },
-            { name: "scope", type: "uint256" },
-          ],
-          [
-            {
-              processooor: withdrawal.processooor,
-              data: withdrawal.data,
-            },
-            scope,
-          ],
-        ),
-      ),
-    ) % SNARK_SCALAR_FIELD;
-
-  return numberToHex(hash);
-}

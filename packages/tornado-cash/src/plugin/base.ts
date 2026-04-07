@@ -1,5 +1,4 @@
 /* eslint-disable max-lines */
-import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import {
   AccountId,
   AssetAmount,
@@ -13,33 +12,23 @@ import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
 import { storeStateManager } from "../state/state-manager";
 import { addressToHex, } from "../utils.js";
-import { encodeWithdrawalPayload } from "../utils/encoding.utils.js";
 import {
-  PPv1AssetAmount,
-  PPv1AssetBalance,
-  PPv1BroadcasterParameters,
-  PPv1Instance,
+  TCAssetAmount,
+  TCAssetBalance,
+  TCInstance,
 } from "../v1/interfaces.js";
+import { downloadArtifactsAndCreateProver } from "../utils/tornado-prover";
 import {
-  IInstanceRegistry,
-  INote,
   IStateManager,
-  PPv1PrivateOperation,
-  PPv1PublicOperation,
+  TCPrivateOperation,
+  TCPublicOperation,
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
-import { toHex } from "viem";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
-export interface PPv1RelayerConstructorParams extends PPv1BroadcasterParameters {
-  relayerClientFactory?: () => IRelayerClient;
-  host: Host;
-}
-
-export class PrivacyPoolsV1Protocol implements PPv1Instance {
+export class PrivacyPoolsV1Protocol implements TCInstance {
   private stateManager: Promise<IStateManager>;
-  private instanceRegistry: IInstanceRegistry;
   private relayerClient: IRelayerClient;
 
   constructor(
@@ -50,11 +39,14 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       secretManagerFactory = SecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       instanceRegistry,
+      artifacts = {
+        wasmUrl: '',
+        zkeyUrl: ''
+      },
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
-      proverFactory = Prover,
+      proverFactory = () => downloadArtifactsAndCreateProver(host, artifacts.wasmUrl, artifacts.zkeyUrl),
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry'>,
   ) {
-    this.instanceRegistry = instanceRegistry;
     this.relayerClient = relayerClientFactory();
     this.stateManager = stateManagerFactory({
       initialState: { ...initialState },
@@ -74,7 +66,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * Returns the balances of the requested assets.
    * The assets retain the provided order. If an asset is not supported its balance will be 0
    */
-  async balance(assets: ERC20AssetId[] = []): Promise<PPv1AssetBalance[]> {
+  async balance(assets: ERC20AssetId[] = []): Promise<TCAssetBalance[]> {
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
@@ -102,8 +94,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   }
 
   async prepareShield(
-    assets: PPv1AssetAmount,
-  ): Promise<PPv1PublicOperation> {
+    assets: TCAssetAmount,
+  ): Promise<TCPublicOperation> {
     const { asset, amount } = assets;
     const stateManager = await this.stateManager;
 
@@ -114,77 +106,26 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       amount,
     });
 
-    return { txns: tx } as PPv1PublicOperation;
+    return { txns: tx } as TCPublicOperation;
   }
 
-  /**
-   * Returns all notes for the account.
-   * @param assets - Filter by specific assets (optional, if empty returns all chains)
-   * @param includeSpent - Include notes with zero balance (default: false)
-   */
-  async notes(
-    assets: ERC20AssetId[] = [],
-    includeSpent = false,
-  ): Promise<INote[]> {
-    const stateManager = await this.stateManager;
-
-    await stateManager.sync();
-
-    const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
-
-    return stateManager.getNotes({
-      includeSpent,
-      assets: assetsAddresses.length > 0 ? assetsAddresses : undefined,
-    });
-  }
-
-  async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<PPv1PrivateOperation> {
+  async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<TCPrivateOperation> {
     const { asset, amount } = assets;
-    const instanceRegistry = this.instanceRegistry;
     const assetAddress = BigInt(asset.contract);
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
 
-    const [result] = await stateManager.getWithdrawalPayloads({
+    const withdrawals = await stateManager.getWithdrawalPayloads({
       asset: assetAddress,
       amount,
       recipient: BigInt(to),
     });
 
-    if (!result) throw new Error("We failed to create a withdrawalPayload");
-
-    const {
-      proofResult,
-      quoteData,
-      withdrawalInfo: { scope, relayDataObject, context, withdrawalObject },
-      chainId,
-    } = result;
-
-    const rawData = {
-      context,
-      relayData: relayDataObject,
-      proof: proofResult,
-      withdrawalPayload: withdrawalObject,
-      chainId,
-      scope,
-    };
-
-    const encodedWithdrawalData = encodeWithdrawalPayload(
-      withdrawalObject,
-      proofResult,
-      scope,
-    );
-
     return {
-      rawData,
-      txData: {
-        to: toHex(instanceRegistry.address, { size: 20 }),
-        data: encodedWithdrawalData,
-        value: 0n,
-      },
-      quoteData,
-    } as PPv1PrivateOperation;
+      __type: 'privateOperation',
+      withdrawals
+    }as TCPrivateOperation;
   }
 
   async sync() {

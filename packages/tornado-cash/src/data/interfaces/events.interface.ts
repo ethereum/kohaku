@@ -1,3 +1,4 @@
+import { Secret } from "../../account/keys";
 import { Address, Commitment, NullifierHash } from "../../interfaces/types.interface";
 
 interface IBaseEvent {
@@ -18,6 +19,8 @@ export interface IDepositEvent extends IPoolEvent {
 export interface IIndexedDepositEvent extends IDepositEvent {
   index: number;
 }
+
+export type IIndexedDepositWithSecrets = IIndexedDepositEvent & Secret;
 
 export interface IDepositWithAsset extends IIndexedDepositEvent {
   assetAddress: Address;

@@ -1,7 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { INote, } from '../../plugin/interfaces/protocol-params.interface';
-import { Secret } from '../../account/keys';
 import { poolCommitmentsSelector } from './pools.selector';
 import { Commitment } from '../../interfaces/types.interface';
 import { generateMerkleProof } from '../../utils/proof.util';
@@ -21,9 +19,9 @@ export const stateLeavesSelector = createSelector(
 export const stateMerkleProofSelector = createSelector(
   [
     stateLeavesSelector,
-    (_state: RootState, _poolAddress: bigint, note: INote & Secret) => note,
+    (_state: RootState, _poolAddress: bigint, commitment: Commitment) => commitment,
   ],
-  (stateLeaves, note) => {
-    return generateMerkleProof(stateLeaves, note.commitment);
+  (stateLeaves, commitment: Commitment) => {
+    return generateMerkleProof(stateLeaves, commitment);
   }
 );

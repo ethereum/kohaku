@@ -67,5 +67,20 @@ export const poolAbi = [
     outputs: [],
     stateMutability: "payable"
   },
+  {
+    type: "function",
+    name: "withdraw",
+    inputs: [
+      { name: "_proof", type: "bytes", internalType: "bytes" },
+      { name: "_root", type: "bytes32", internalType: "bytes32" },
+      { name: "_nullifierHash", type: "bytes32", internalType: "bytes32" },
+      { name: "_recipient", type: "address", internalType: "address" },
+      { name: "_relayer", type: "address", internalType: "address" },
+      { name: "_fee", type: "uint256", internalType: "uint256" },
+      { name: "_refund", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "payable"
+  },
 ] as const satisfies Abi;
 

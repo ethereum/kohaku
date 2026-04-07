@@ -23,7 +23,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
 
       if (poolLeaves.length === 0) continue;
 
-      const localRoot = poolMerkleTreeRootSelector(state, poolAddress);
+      const localRoot = await poolMerkleTreeRootSelector(state, poolAddress);
 
       await verifyStateRootOnChain(dataService, poolAddress, localRoot);
     }
