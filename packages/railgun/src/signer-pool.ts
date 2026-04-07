@@ -1,4 +1,4 @@
-import { AssetAmount } from "@kohaku-eth/plugins";
+import { AssetAmount, ERC20AssetId } from "@kohaku-eth/plugins";
 import { JsPoiProvider, JsSigner, AssetId as RailgunAssetId } from "./pkg/railgun_rs";
 
 export interface DrainEntry {
@@ -49,7 +49,7 @@ export class SignerPool {
     async drain(
         provider: JsPoiProvider,
         listKey: string,
-        tokens: AssetAmount[],
+        tokens: AssetAmount<ERC20AssetId>[],
     ): Promise<DrainEntry[]> {
         const remaining = new Map(tokens.map(t => [t.asset.contract, t.amount]));
         const entries: DrainEntry[] = [];

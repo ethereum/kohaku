@@ -147,15 +147,17 @@ async fn test_shield_poi<P: Provider>(
         .build(&mut rand::rng())
         .unwrap();
 
-    let tx = provider
-        .send_transaction(shield_tx.into())
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    for tx in shield_tx {
+        let receipt = provider
+            .send_transaction(tx.into())
+            .await
+            .unwrap()
+            .get_receipt()
+            .await
+            .unwrap();
 
-    info!("Shielded with tx hash: {:?}", tx.transaction_hash);
+        info!("Shielded with tx hash: {:?}", receipt.transaction_hash);
+    }
     await_balance_update(railgun, account_1.clone(), USDC, list_key, Some(10)).await;
     await_balance_update(railgun, account_2.clone(), USDC, list_key, None).await;
 }

@@ -23,14 +23,13 @@ use crate::{
 pub struct ShieldBuilder {
     chain: ChainConfig,
     shields: Vec<(RailgunAddress, AssetId, u128)>,
+    native_shields: Vec<(RailgunAddress, u128)>,
 }
 
 #[derive(Debug, Error)]
 pub enum ShieldError {
     #[error("Encryption error: {0}")]
     Encrypt(#[from] EncryptError),
-    #[error("Sum of native shield amounts overflowed u128")]
-    NativeAmountOverflow,
 }
 
 impl ShieldBuilder {
@@ -38,6 +37,7 @@ impl ShieldBuilder {
         Self {
             chain,
             shields: Vec::new(),
+            native_shields: Vec::new(),
         }
     }
 
@@ -47,81 +47,92 @@ impl ShieldBuilder {
         self
     }
 
-    /// Builds the shield transaction. Shield txns must be self-broadcast.
-    pub fn build<R: Rng>(self, rng: &mut R) -> Result<TxData, ShieldError> {
-        let mut native_total: u128 = 0;
-        for (_, asset, value) in &self.shields {
-            if asset.is_native_base_token() {
-                native_total = native_total
-                    .checked_add(*value)
-                    .ok_or(ShieldError::NativeAmountOverflow)?;
-            }
-        }
+    /// Adds a shield operation for a native asset to the transaction builder
+    pub fn shield_native(mut self, recipient: RailgunAddress, value: u128) -> Self {
+        self.native_shields.push((recipient, value));
+        self
+    }
 
-        let weth = self.chain.wrapped_base_token;
-        let shields = self
-            .shields
-            .into_iter()
-            .map(|(r, a, v)| {
-                let enc_asset = if a.is_native_base_token() {
-                    AssetId::Erc20(weth)
-                } else {
-                    a
-                };
-                encrypt_shield(r, enc_asset, v, rng)
-            })
-            .collect::<Result<Vec<ShieldRequest>, EncryptError>>()?;
+    /// Builds the shield transaction. Shield txns must be self-broadcast
+    pub fn build<R: Rng>(self, rng: &mut R) -> Result<Vec<TxData>, ShieldError> {
+        // We return multiple txns here rather than using the RelayAdapt multicall for
+        // all shields. This is because when calling the RailgunSmartWallet to shield,
+        // it assumes that the caller (msg.sender) holds the assets & has approved
+        // the RailgunSmartWallet to spend them. In theory we could approve the RelayAdapt
+        // to spend, then transferFrom & approve in the multicall. But this is more complex
+        // and means we need to know the msg.sender address beforehand, which adds a
+        // public API requirement. Just having two txns is simpler and more gas efficient,
+        // just slightly less elegant.
 
-        if native_total == 0 {
+        let mut txns = Vec::new();
+
+        if !self.shields.is_empty() {
+            let shields = self
+                .shields
+                .into_iter()
+                .map(|(r, a, v)| encrypt_shield(r, a, v, rng))
+                .collect::<Result<Vec<ShieldRequest>, EncryptError>>()?;
+
             let call = RailgunSmartWallet::shieldCall {
                 _shieldRequests: shields,
             };
-            return Ok(TxData {
+
+            txns.push(TxData {
                 to: self.chain.railgun_smart_wallet,
                 data: call.abi_encode().into(),
                 value: U256::ZERO,
             });
         }
 
-        let relay = self.chain.relay_adapt_contract;
-        let wrap_calldata = RelayAdapt::wrapBaseCall {
-            _amount: U256::from(native_total),
-        }
-        .abi_encode();
-        let shield_calldata = RelayAdapt::shieldCall {
-            _shieldRequests: shields,
-        }
-        .abi_encode();
+        if !self.native_shields.is_empty() {
+            let native_total: u128 = self.native_shields.iter().map(|(_, v)| v).sum();
+            let native_shields = self
+                .native_shields
+                .into_iter()
+                .map(|(r, v)| {
+                    encrypt_shield(r, AssetId::Erc20(self.chain.wrapped_base_token), v, rng)
+                })
+                .collect::<Result<Vec<ShieldRequest>, EncryptError>>()?;
 
-        let calls = vec![
-            RelayAdapt::Call {
+            let wrap_calldata = RelayAdapt::wrapBaseCall {
+                _amount: U256::from(native_total),
+            };
+            let shield_calldata = RelayAdapt::shieldCall {
+                _shieldRequests: native_shields,
+            };
+
+            let relay = self.chain.relay_adapt_contract;
+            let calls = vec![
+                RelayAdapt::Call {
+                    to: relay,
+                    data: wrap_calldata.abi_encode().into(),
+                    value: U256::ZERO,
+                },
+                RelayAdapt::Call {
+                    to: relay,
+                    data: shield_calldata.abi_encode().into(),
+                    value: U256::ZERO,
+                },
+            ];
+            let multicall = RelayAdapt::multicallCall {
+                _requireSuccess: true,
+                _calls: calls,
+            };
+
+            txns.push(TxData {
                 to: relay,
-                data: wrap_calldata.into(),
-                value: U256::ZERO,
-            },
-            RelayAdapt::Call {
-                to: relay,
-                data: shield_calldata.into(),
-                value: U256::ZERO,
-            },
-        ];
+                data: multicall.abi_encode().into(),
+                value: U256::from(native_total),
+            });
+        }
 
-        let multicall = RelayAdapt::multicallCall {
-            _requireSuccess: true,
-            _calls: calls,
-        };
-
-        Ok(TxData {
-            to: relay,
-            data: multicall.abi_encode().into(),
-            value: U256::from(native_total),
-        })
+        Ok(txns)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{Address, address};
+    use alloy_primitives::Address;
     use rand::SeedableRng;
     use rand_chacha::ChaChaRng;
 
@@ -159,9 +170,8 @@ mod tests {
         let signer = PrivateKeySigner::new_evm(spending_key, viewing_key, 1);
         let recipient = signer.address();
 
-        let native: AssetId = AssetId::Erc20(address!("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"));
         let tx = ShieldBuilder::new(MAINNET_CONFIG)
-            .shield(recipient, native, 1_000_000)
+            .shield_native(recipient, 1_000_000)
             .build(&mut rng)
             .unwrap();
 
