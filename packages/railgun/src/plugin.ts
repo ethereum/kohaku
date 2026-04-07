@@ -40,7 +40,7 @@
  */
 
 import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
+import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsShieldBuilder, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
 import { createBroadcaster } from "./waku-adapter";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
@@ -161,14 +161,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         return Array.from(all.values());
     }
 
-    async prepareShield(token: AssetAmount): Promise<TxData[]> {
-        tokenGuard(token);
+    async prepareShield(asset: AssetAmount): Promise<TxData[]> {
+        let builder = this.provider.shield();
+        builder = this.addShield(asset.asset, asset.amount, builder);
 
-        const txData = this.provider
-            .shield()
-            .shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount)
-            .build();
-
+        const txData = builder.build();
         return txData.map(tx => ({
             to: tx.to,
             data: tx.data,
@@ -180,8 +177,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         let builder = this.provider.shield();
 
         for (const token of tokens) {
-            tokenGuard(token);
-            builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount);
+            this.addShield(token.asset, token.amount, builder);
         }
 
         const txData = builder.build();
@@ -191,6 +187,17 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             data: tx.data,
             value: BigInt(tx.value)
         }));
+    }
+
+    private addShield(asset: AssetId, amount: bigint, builder: JsShieldBuilder) {
+        if (asset.__type === 'erc20') {
+            builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: asset.contract }, amount);
+        } else if (asset.__type === 'native') {
+            builder = builder.shieldNative(this.pool.primary.address, amount);
+        } else {
+            throw new Error("Unsupported asset type for shielding");
+        }
+        return builder;
     }
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
@@ -203,7 +210,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         }
 
         return this.buildWithBroadcaster(builder);
-
     }
 
     async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
@@ -318,7 +324,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         this.storage.set(STATE_KEY, JSON.stringify(state));
     }
 };
-
 
 function tokenGuard(token: AssetAmount) {
     const asset = token.asset;

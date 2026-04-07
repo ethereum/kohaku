@@ -55,6 +55,15 @@ impl ShieldBuilder {
 
     /// Builds the shield transaction. Shield txns must be self-broadcast
     pub fn build<R: Rng>(self, rng: &mut R) -> Result<Vec<TxData>, ShieldError> {
+        // We return multiple txns here rather than using the RelayAdapt multicall for
+        // all shields. This is because when calling the RailgunSmartWallet to shield,
+        // it assumes that the caller (msg.sender) holds the assets & has approved
+        // the RailgunSmartWallet to spend them. In theory we could approve the RelayAdapt
+        // to spend, then transferFrom & approve in the multicall. But this is more complex
+        // and means we need to know the msg.sender address beforehand, which adds a
+        // public API requirement. Just having two txns is simpler and more gas efficient,
+        // just slightly less elegant.
+
         let mut txns = Vec::new();
 
         if !self.shields.is_empty() {
@@ -88,7 +97,7 @@ impl ShieldBuilder {
             let wrap_calldata = RelayAdapt::wrapBaseCall {
                 _amount: U256::from(native_total),
             };
-            let shield_claldata = RelayAdapt::shieldCall {
+            let shield_calldata = RelayAdapt::shieldCall {
                 _shieldRequests: native_shields,
             };
 
@@ -101,7 +110,7 @@ impl ShieldBuilder {
                 },
                 RelayAdapt::Call {
                     to: relay,
-                    data: shield_claldata.abi_encode().into(),
+                    data: shield_calldata.abi_encode().into(),
                     value: U256::ZERO,
                 },
             ];

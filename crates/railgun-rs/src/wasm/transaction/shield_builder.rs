@@ -21,6 +21,8 @@ impl JsShieldBuilder {
         }
     }
 
+    #[wasm_bindgen(js_name = shieldNative)]
+    /// Add a shield operation for the chain's native asset.
     pub fn shield_native(self, recipient: RailgunAddress, amount: u128) -> Self {
         JsShieldBuilder {
             inner: self.inner.shield_native(recipient, amount),
