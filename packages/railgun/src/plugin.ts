@@ -39,7 +39,7 @@
  * restores from storage automatically.
  */
 
-import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
+import { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
 import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsShieldBuilder, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
 import { createBroadcaster } from "./waku-adapter";
 import { TxData } from "@kohaku-eth/provider";
@@ -202,7 +202,9 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
         tokenGuard(token);
-        const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
+
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -217,7 +219,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             tokenGuard(token);
         }
 
-        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens as AssetAmount<ERC20AssetId>[]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -230,7 +233,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
         tokenGuard(token);
 
-        const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -246,7 +250,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             tokenGuard(token);
         }
 
-        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens as AssetAmount<ERC20AssetId>[]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
