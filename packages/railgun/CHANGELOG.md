@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.12
+
+### Patch Changes
+
+- e687cb3: fix shield builder for native ETH
+
 ## 0.0.1-alpha.11
 
 ### Patch Changes
