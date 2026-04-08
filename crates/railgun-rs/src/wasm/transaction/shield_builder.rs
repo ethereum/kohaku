@@ -21,14 +21,22 @@ impl JsShieldBuilder {
         }
     }
 
+    #[wasm_bindgen(js_name = shieldNative)]
+    /// Add a shield operation for the chain's native asset.
+    pub fn shield_native(self, recipient: RailgunAddress, amount: u128) -> Self {
+        JsShieldBuilder {
+            inner: self.inner.shield_native(recipient, amount),
+        }
+    }
+
     /// Build the shield transaction calldata
-    pub fn build(self) -> Result<TxData, JsError> {
-        let tx = self
+    pub fn build(self) -> Result<Vec<TxData>, JsError> {
+        let txns = self
             .inner
             .build(&mut rand::rng())
             .map_err(|e| JsError::new(&format!("Shield build error: {}", e)))?;
 
-        Ok(tx.into())
+        Ok(txns.into_iter().map(|txn| txn.into()).collect())
     }
 }
 

@@ -1,5 +1,8 @@
 import { Address } from "ox/Address";
 
+export type NativeAssetId = {
+    __type: 'native';
+};
 export type ERC20AssetId = {
     __type: 'erc20'
     contract: Address;
@@ -9,7 +12,7 @@ export type ERC721AssetId = {
     contract: Address;
     tokenId: bigint;
 };
-export type AssetId = ERC20AssetId | ERC721AssetId;
+export type AssetId = NativeAssetId | ERC20AssetId | ERC721AssetId;
 
 export type ChainId = bigint;
 export type AccountId = Address;

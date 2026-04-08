@@ -14,6 +14,10 @@ export async function initialize(wasmInput?: BufferSource | Response) {
         wasmInput = new Uint8Array(await readFile(join(dir, 'pkg/railgun_rs_bg.wasm')));
     }
 
-    await init(wasmInput);
+    if (wasmInput !== undefined) {
+        await init({ module_or_path: wasmInput });
+    } else {
+        await init();
+    }
     initialized = true;
 }

@@ -39,8 +39,8 @@
  * restores from storage automatically.
  */
 
-import { AssetAmount, AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
+import { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
+import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsShieldBuilder, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
 import { createBroadcaster } from "./waku-adapter";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
@@ -88,26 +88,27 @@ const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e
  * 
  * @param host Host struct
  * @param keyIndex Optional index for key derivation (default: 0)
+ * @param chainId Optional chain ID (default: auto-detected)
  * @returns `RailgunPlugin` instance
  */
-export async function createRailgunPlugin(host: Host, keyIndex: number = 0): Promise<RailgunPlugin> {
+export async function createRailgunPlugin(host: Host, keyIndex: number = 0, chainId?: bigint): Promise<RailgunPlugin> {
     try {
         return await loadRailgunProvider(host);
-    } catch (e) {
-        console.log("Failed to load existing Railgun provider, creating new one", e);
+    } catch (_e) {
+        // console.log("Failed to load existing Railgun provider, creating new one");
     }
 
     const { spendingPath, viewingPath } = derivationPaths(keyIndex);
     const spendingKey = host.keystore.deriveAt(spendingPath);
     const viewingKey = host.keystore.deriveAt(viewingPath);
 
-    const chainId = await host.provider.getChainId();
-    const provider = await newRailgunProvider(host, chainId);
-    const signer = new JsSigner(spendingKey, viewingKey);
+    const resolvedChainId = chainId ?? await host.provider.getChainId();
+    const provider = await newRailgunProvider(host, resolvedChainId);
+    const signer = new JsSigner(spendingKey, viewingKey, resolvedChainId);
     const pool = new SignerPool(signer);
-    const broadcastManager = await createBroadcaster(chainId);
+    const broadcastManager = await createBroadcaster(resolvedChainId);
 
-    return new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
+    return new RailgunPlugin(resolvedChainId, provider, pool, broadcastManager, host.storage);
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
@@ -160,41 +161,50 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         return Array.from(all.values());
     }
 
-    async prepareShield(token: AssetAmount): Promise<TxData> {
-        tokenGuard(token);
+    async prepareShield(asset: AssetAmount): Promise<TxData[]> {
+        let builder = this.provider.shield();
+        builder = this.addShield(asset.asset, asset.amount, builder);
 
-        const txData = this.provider
-            .shield()
-            .shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount)
-            .build();
-
-        return {
-            to: txData.to,
-            data: txData.data,
-            value: BigInt(txData.value)
-        };
+        const txData = builder.build();
+        return txData.map((tx) => ({
+            to: tx.to,
+            data: tx.data,
+            value: BigInt(tx.value),
+        }));
     }
 
-    async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData> {
+    async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData[]> {
         let builder = this.provider.shield();
 
         for (const token of tokens) {
-            tokenGuard(token);
-            builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: token.asset.contract }, token.amount);
+            this.addShield(token.asset, token.amount, builder);
         }
 
         const txData = builder.build();
 
-        return {
-            to: txData.to,
-            data: txData.data,
-            value: BigInt(txData.value)
-        };
+        return txData.map((tx) => ({
+            to: tx.to,
+            data: tx.data,
+            value: BigInt(tx.value),
+        }));
+    }
+
+    private addShield(asset: AssetId | { __type: 'native' }, amount: bigint, builder: JsShieldBuilder) {
+        if (asset.__type === 'erc20') {
+            builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: asset.contract }, amount);
+        } else if (asset.__type === 'native') {
+            builder = builder.shieldNative(this.pool.primary.address, amount);
+        } else {
+            throw new Error("Unsupported asset type for shielding");
+        }
+        return builder;
     }
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
         tokenGuard(token);
-        const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
+
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -202,7 +212,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         }
 
         return this.buildWithBroadcaster(builder);
-
     }
 
     async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
@@ -210,7 +219,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             tokenGuard(token);
         }
 
-        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens as AssetAmount<ERC20AssetId>[]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -223,7 +233,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
         tokenGuard(token);
 
-        const entries = await this.pool.drain(this.provider, LIST_KEY, [token]);
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -239,7 +250,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             tokenGuard(token);
         }
 
-        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens);
+        //? Safe because of above tokenGuard
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens as AssetAmount<ERC20AssetId>[]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -298,7 +310,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
                     broadcaster,
                 };
             } catch (e) {
-                console.log("Failed to build with broadcaster, trying next one", e);
+                // console.log("Failed to build with broadcaster, trying next one", e);
                 continue;
             }
         }
@@ -317,7 +329,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         this.storage.set(STATE_KEY, JSON.stringify(state));
     }
 };
-
 
 function tokenGuard(token: AssetAmount) {
     const asset = token.asset;

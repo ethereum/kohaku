@@ -43,7 +43,7 @@ export class GrothProverAdapter implements ProverAdapter {
 
     const { wasm, zkey } = await this.loadArtifacts(circuitName);
 
-    console.log(`Generating proof for ${circuitName}`);
+    // console.log(`Generating proof for ${circuitName}`);
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
       bigintInputs,
       wasm,
@@ -54,7 +54,7 @@ export class GrothProverAdapter implements ProverAdapter {
     );
 
     if (this.verify) {
-      console.log(`Verifying proof for ${circuitName}`);
+      // console.log(`Verifying proof for ${circuitName}`);
       const vkey = await snarkjs.zKey.exportVerificationKey(zkey);
       const valid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
 
@@ -62,7 +62,7 @@ export class GrothProverAdapter implements ProverAdapter {
         throw new Error(`Proof verification failed for ${circuitName}`);
       }
 
-      console.log("Proof verified");
+      // console.log("Proof verified");
     }
 
     return {

@@ -262,6 +262,18 @@ sol! {
         G2Point b;
         G1Point c;
     }
+
+    /// RelayAdapt: native wrap + shield entrypoint (see Railgun `RelayAdapt.json` ABI).
+    contract RelayAdapt {
+        struct Call {
+            address to;
+            bytes data;
+            uint256 value;
+        }
+        function multicall(bool _requireSuccess, Call[] calldata _calls) external payable;
+        function wrapBase(uint256 _amount) external;
+        function shield(ShieldRequest[] calldata _shieldRequests) external;
+    }
 }
 
 #[cfg(test)]

@@ -97,7 +97,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       assets.length > 0 ? parsedDesiredAssets : undefined,
       "both",
     );
-    
+
     const actuallySelectedAssets = assets.length > 0 ? assets.map((a) => a.contract) : [...balances.keys()].map((a) => addressToHex(a))
 
     return actuallySelectedAssets.map((assetAddress, index) => {
@@ -109,7 +109,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       const asset: ERC20AssetId = {
         contract: assetAddress,
         __type: 'erc20'
-      }; 
+      };
 
       return [{
         asset,
@@ -178,6 +178,10 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<PPv1PrivateOperation> {
     const { asset, amount } = assets;
+    if (asset.__type === 'native') {
+      throw new Error("Unshielding native assets is not supported in this version of the protocol");
+    }
+
     const entrypoint = this.entrypoint;
     const assetAddress = BigInt(asset.contract);
 
