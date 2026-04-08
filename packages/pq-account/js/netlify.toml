@@ -1,0 +1,8 @@
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/create-account.html"
+  status = 200

@@ -14,7 +14,7 @@ import {ZKNOX_ERC4337_account} from "../src/ZKNOX_ERC4337_account.sol";
 
 import {PythonSigner} from "ETHFALCON/src/ZKNOX_PythonSigner.sol";
 import {_packUint256Array, _packSignature} from "ETHFALCON/src/ZKNOX_common.sol";
-import {Constants} from "ETHDILITHIUM/test/ZKNOX_seed.sol";
+import {Constants} from "ETHDILITHIUM/test/seed.sol";
 
 import {ZKNOX_falcon} from "ETHFALCON/src/ZKNOX_falcon.sol";
 import {ECDSAk1Verifier} from "lib/InterfaceVerifier/src/VerifierECDSAk1.sol";
@@ -137,6 +137,8 @@ contract TestERC4337_Account is Test {
 
         // Call handleOps on the EntryPoint
         uint256 gasStart = gasleft();
+        address eoa = makeAddr("eoa");
+        vm.prank(eoa, eoa);
         entryPoint.handleOps(ops, payable(owner));
         uint256 gasUsed = gasStart - gasleft();
         console.log("Gas used:", gasUsed);
