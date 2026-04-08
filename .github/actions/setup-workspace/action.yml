@@ -22,8 +22,31 @@ runs:
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
 
+    # wasm-pack 0.14 still bundles Binaryen 117, which cannot parse current Rust +
+    # wasm-bindgen wasm. Nix devShell puts newer binaryen on PATH; CI needs the same.
     - name: Install wasm-pack
       uses: jetli/wasm-pack-action@v0.4.0
+      with:
+        version: v0.14.0
+
+    - name: Install binaryen (wasm-opt for wasm-pack)
+      shell: bash
+      env:
+        BINARYEN_TAG: version_129
+      run: |
+        set -euo pipefail
+        case "${RUNNER_ARCH}" in
+          X64|X86) target=x86_64-linux ;;
+          ARM64|ARM) target=aarch64-linux ;;
+          *) echo "unsupported RUNNER_ARCH=${RUNNER_ARCH}"; exit 1 ;;
+        esac
+        url="https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN_TAG}/binaryen-${BINARYEN_TAG}-${target}.tar.gz"
+        curl -fsSL "$url" | tar xz -C "${RUNNER_TEMP}"
+        bin="${RUNNER_TEMP}/binaryen-${BINARYEN_TAG}/bin"
+        echo "$bin" >> "${GITHUB_PATH}"
+        # GITHUB_PATH only affects later steps; export for this step's wasm-opt check.
+        export PATH="$bin:$PATH"
+        wasm-opt --version
 
     - name: Install just
       uses: extractions/setup-just@v2
