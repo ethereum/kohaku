@@ -42,7 +42,10 @@ runs:
         esac
         url="https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN_TAG}/binaryen-${BINARYEN_TAG}-${target}.tar.gz"
         curl -fsSL "$url" | tar xz -C "${RUNNER_TEMP}"
-        echo "${RUNNER_TEMP}/binaryen-${BINARYEN_TAG}/bin" >> "${GITHUB_PATH}"
+        bin="${RUNNER_TEMP}/binaryen-${BINARYEN_TAG}/bin"
+        echo "$bin" >> "${GITHUB_PATH}"
+        # GITHUB_PATH only affects later steps; export for this step's wasm-opt check.
+        export PATH="$bin:$PATH"
         wasm-opt --version
 
     - name: Install just
