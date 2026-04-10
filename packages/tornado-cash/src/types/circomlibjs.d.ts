@@ -5,7 +5,7 @@ declare module 'circomlibjs' {
   }
 
   interface PedersenHash {
-    hash(data: Uint8Array): unknown;
+    hash(data: Uint8Array, options?: { baseHash: 'blake' | 'blake2b' }): unknown;
   }
 
   interface MimcSponge {

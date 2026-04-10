@@ -82,7 +82,7 @@ export interface IGetNotesParams extends IBaseOperationParams {
 }
 
 export type StoreKey = `${string}-${string}`;
-export type StoreStorageKey = `privacy-pool-state-${StoreKey}`;
+export type StoreStorageKey = `tornado-cash-state-${StoreKey}`;
 
 export interface IStateManager {
   /**

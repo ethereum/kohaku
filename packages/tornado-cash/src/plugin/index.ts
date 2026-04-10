@@ -1,2 +1,2 @@
 export * from './base';
-export { PrivacyPoolsBroadcaster } from './broadcaster'
+export { TornadoCashBroadcaster } from './broadcaster'

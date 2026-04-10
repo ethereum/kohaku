@@ -1,5 +1,6 @@
 // Protocol constants
 export const E_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+export const E_ADDRESS_BIGINT = BigInt(E_ADDRESS);
 
 export const PrivacyPoolsV1_0xBow = {
   1: {

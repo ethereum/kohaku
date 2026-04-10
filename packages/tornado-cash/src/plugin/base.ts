@@ -1,4 +1,4 @@
-/* eslint-disable max-lines */
+ 
 import {
   AccountId,
   AssetAmount,
@@ -17,17 +17,18 @@ import {
   TCAssetBalance,
   TCInstance,
 } from "../v1/interfaces.js";
-import { downloadArtifactsAndCreateProver } from "../utils/tornado-prover";
+import { BUNDLED_WASM_URL, BUNDLED_ZKEY_URL, downloadArtifactsAndCreateProver } from "../utils/tornado-prover";
 import {
   IStateManager,
   TCPrivateOperation,
   TCPublicOperation,
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
+import { E_ADDRESS_BIGINT } from "../config";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
-export class PrivacyPoolsV1Protocol implements TCInstance {
+export class TornadoCashProtocol implements TCInstance {
   private stateManager: Promise<IStateManager>;
   private relayerClient: IRelayerClient;
 
@@ -39,10 +40,7 @@ export class PrivacyPoolsV1Protocol implements TCInstance {
       secretManagerFactory = SecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       instanceRegistry,
-      artifacts = {
-        wasmUrl: '',
-        zkeyUrl: ''
-      },
+      artifacts = { wasmUrl: BUNDLED_WASM_URL, zkeyUrl: BUNDLED_ZKEY_URL },
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = () => downloadArtifactsAndCreateProver(host, artifacts.wasmUrl, artifacts.zkeyUrl),
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry'>,
@@ -70,7 +68,11 @@ export class PrivacyPoolsV1Protocol implements TCInstance {
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
-    const parsedDesiredAssets = assets.map(({ contract }) => BigInt(contract));
+    const parsedDesiredAssets = assets.map(({ contract }) => {
+      const parsedAddress = BigInt(contract);
+
+      return parsedAddress === E_ADDRESS_BIGINT ? 0n : parsedAddress;
+    });
 
     const balances = await stateManager.getBalances(
       assets.length > 0 ? parsedDesiredAssets : undefined,
@@ -101,8 +103,10 @@ export class PrivacyPoolsV1Protocol implements TCInstance {
 
     await stateManager.sync();
 
+    const parsedAsset = BigInt(asset.contract);
+
     const tx = await stateManager.getDepositPayload({
-      asset: BigInt(asset.contract),
+      asset: parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset,
       amount,
     });
 
@@ -111,13 +115,13 @@ export class PrivacyPoolsV1Protocol implements TCInstance {
 
   async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<TCPrivateOperation> {
     const { asset, amount } = assets;
-    const assetAddress = BigInt(asset.contract);
+    const parsedAsset = BigInt(asset.contract);
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
 
     const withdrawals = await stateManager.getWithdrawalPayloads({
-      asset: assetAddress,
+      asset: parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset,
       amount,
       recipient: BigInt(to),
     });

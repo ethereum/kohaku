@@ -75,7 +75,7 @@ export async function SecretManager({
   const pedersen = await buildPedersenHash();
 
   function pedersenHash(data: Uint8Array): bigint {
-    const hash = pedersen.hash(data);
+    const hash = pedersen.hash(data, { baseHash: 'blake2b' });
     const [x] = babyjub.unpackPoint(hash);
 
     return babyjub.F.toObject(x);

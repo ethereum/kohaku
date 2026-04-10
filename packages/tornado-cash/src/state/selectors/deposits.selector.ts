@@ -81,7 +81,7 @@ export const createGetNextDepositsPayloadSelector = ({
       const poolAddressHex = addressToHex(pool.address);
 
       const poolDepositsCount = filterMyDepositsByPool(myDeposits, pool.address);
-      const depositsToGenerate = pool.denomination / amount;
+      const depositsToGenerate = amount / pool.denomination;
 
       const newSecretsIndexes = new Array(Number(depositsToGenerate))
         .fill(0).map((_ , index) => poolDepositsCount + index);
@@ -97,6 +97,7 @@ export const createGetNextDepositsPayloadSelector = ({
           return prepareNativeShield({
             commitment,
             poolAddress: poolAddressHex,
+            poolDenomination: pool.denomination,
           });
         });
       } else {

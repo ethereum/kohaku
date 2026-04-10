@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import {
   GetEventsFn,
@@ -6,7 +7,6 @@ import {
   IRelayerRegistryEvents,
   IPoolConfig,
   IPoolEvents,
-  IInstanceRegistryEvents,
 } from "./interfaces/data.service.interface";
 import { parseEventLogs, pad, toHex, type RpcLog, type Hex, hexToBigInt } from "viem";
 import {
@@ -42,8 +42,6 @@ export interface DataServiceParams {
   provider: EthereumProvider;
 }
 
-const depositEvents = new Set(["PoolDeposited", "EntrypointDeposited"]);
-
 type GenericGetEvents = GetEventsFn<
   typeof EVENTS_SIGNATURES,
   IPoolEvents & IRelayerRegistryEvents & InstanceRegistryEventTypes
@@ -76,9 +74,7 @@ export class DataService implements IDataService {
         [eventType]: parseEventLogs({
           logs: logs.map(txLogToRpcLog),
           abi: [EVENTS_SIGNATURES[eventType]] as const,
-          eventName: (depositEvents.has(eventType)
-            ? "Deposited"
-            : eventType) as never,
+          eventName: EVENTS_SIGNATURES[eventType].name as never,
           strict: true,
         } as const).map((parsedLog) =>
           EVENTS_PARSERS[eventType](parsedLog as never),
@@ -105,7 +101,7 @@ export class DataService implements IDataService {
   getInstanceRegistryEvents = this.getEvents;
 
   async getAsset(address: Address): Promise<IAsset> {
-    if (address === BigInt(E_ADDRESS)) {
+    if (address === BigInt(E_ADDRESS) || address === 0n) {
       return {
         name: "ETH",
         address,
@@ -193,6 +189,7 @@ export class DataService implements IDataService {
       hashes,
       subdomains,
     );
+
     return results.map(({ owner, balance, isRegistered, records }) => ({
       owner: BigInt(owner),
       balance,

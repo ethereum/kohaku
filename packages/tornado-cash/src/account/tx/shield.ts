@@ -6,6 +6,7 @@ import { erc20Abi } from 'viem';
 type PrepareNativeShieldParam = {
   commitment: bigint;
   poolAddress: string;
+  poolDenomination: bigint;
 };
 
 type PrepareErc20ShieldParam = {
@@ -15,14 +16,14 @@ type PrepareErc20ShieldParam = {
   denomination: bigint;
 };
 
-export function prepareNativeShield({ commitment, poolAddress }: PrepareNativeShieldParam): TxData {
+export function prepareNativeShield({ commitment, poolAddress, poolDenomination }: PrepareNativeShieldParam): TxData {
   const data = encodeFunctionData({
     abi: poolAbi,
     functionName: 'deposit',
     args: [toHex(commitment, { size: 32 })],
   });
 
-  return createTx(poolAddress, data);
+  return createTx(poolAddress, data, poolDenomination);
 }
 
 export function prepareErc20Shield({ commitment, tokenAddress, poolAddress, denomination }: PrepareErc20ShieldParam): TxData[] {

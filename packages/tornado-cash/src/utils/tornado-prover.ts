@@ -36,12 +36,16 @@ export interface ITornadoProver {
 function packProof(proof: Awaited<ReturnType<typeof groth16.fullProve>>['proof']): `0x${string}` {
   const elements = [
     proof.pi_a[0], proof.pi_a[1],
-    proof.pi_b[0][1], proof.pi_b[0][0],
-    proof.pi_b[1][1], proof.pi_b[1][0],
+    proof.pi_b[0]![1], proof.pi_b[0]![0],
+    proof.pi_b[1]![1], proof.pi_b[1]![0],
     proof.pi_c[0], proof.pi_c[1],
-  ];
+  ] as string[];
   return ('0x' + elements.map(e => BigInt(e).toString(16).padStart(64, '0')).join('')) as `0x${string}`;
 }
+
+// Resolved from dist/index.js → ../circuits/ (package root)
+export const BUNDLED_WASM_URL = new URL('../circuits/withdraw.wasm', import.meta.url).href;
+export const BUNDLED_ZKEY_URL = new URL('../circuits/withdraw_final.zkey', import.meta.url).href;
 
 export async function downloadArtifactsAndCreateProver(
   { network: { fetch } }: Host,
@@ -62,8 +66,8 @@ export async function downloadArtifactsAndCreateProver(
 }
 
 export function createTornadoProver(
-  wasm: Uint8Array | Buffer,
-  zkey: Uint8Array | Buffer,
+  wasm: Uint8Array,
+  zkey: Uint8Array,
 ): ITornadoProver {
   return {
     async prove(inputs: TornadoWithdrawInputs): Promise<TornadoProveOutput> {
@@ -87,12 +91,12 @@ export function createTornadoProver(
       return {
         proof: packProof(proof),
         args: [
-          toHex(BigInt(publicSignals[0]), { size: 32 }), // root
-          toHex(BigInt(publicSignals[1]), { size: 32 }), // nullifierHash
-          toHex(BigInt(publicSignals[2]), { size: 20 }), // recipient
-          toHex(BigInt(publicSignals[3]), { size: 20 }), // relayer
-          toHex(BigInt(publicSignals[4]), { size: 32 }), // fee
-          toHex(BigInt(publicSignals[5]), { size: 32 }), // refund
+          toHex(BigInt(publicSignals[0]!), { size: 32 }), // root
+          toHex(BigInt(publicSignals[1]!), { size: 32 }), // nullifierHash
+          toHex(BigInt(publicSignals[2]!), { size: 20 }), // recipient
+          toHex(BigInt(publicSignals[3]!), { size: 20 }), // relayer
+          toHex(BigInt(publicSignals[4]!), { size: 32 }), // fee
+          toHex(BigInt(publicSignals[5]!), { size: 32 }), // refund
         ],
       };
     },

@@ -1,7 +1,7 @@
 export * from './v1';
 export * from './v2';
 // Main factory
-export { PrivacyPoolsV1Protocol } from './plugin/base';
+export { TornadoCashProtocol } from './plugin/base';
 export { SecretManager } from './account/keys';
 
 // Types

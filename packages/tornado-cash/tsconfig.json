@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "outDir": "./dist",
     "verbatimModuleSyntax": false
   },
   "include": ["src", "demo"]

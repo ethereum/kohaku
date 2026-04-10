@@ -1,27 +1,27 @@
 import { Host } from "@kohaku-eth/plugins";
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
-import { PPv1Broadcaster, PPv1BroadcasterParameters } from "../v1";
-import { PPv1PrivateOperation } from "./interfaces/protocol-params.interface";
+import { TCBroadcaster, TCBroadcasterParameters } from "../v1";
+import { TCPrivateOperation } from "./interfaces/protocol-params.interface";
 import { addressToHex } from "../utils";
 
-export interface PPv1RelayerConstructorParams extends PPv1BroadcasterParameters {
+export interface TCRelayerConstructorParams extends TCBroadcasterParameters {
   relayerClientFactory?: () => IRelayerClient;
   host: Host;
 }
 
-export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
+export class TornadoCashBroadcaster implements TCBroadcaster {
   private relayerClient: IRelayerClient;
 
   constructor({
     host, relayerClientFactory = () => new RelayerClient({ network: host.network }),
-  }: PPv1RelayerConstructorParams) {
+  }: TCRelayerConstructorParams) {
     this.relayerClient = relayerClientFactory();
   }
 
   async broadcast({
     withdrawals
-  }: PPv1PrivateOperation): Promise<ITornadoWithdrawResponse[]> {
+  }: TCPrivateOperation): Promise<ITornadoWithdrawResponse[]> {
     const withdrawalsResults = await Promise.allSettled(withdrawals.map(async ({ proof: { args, proof }, poolAddress, relayerUrl }) => {
       return this.relayerClient.withdraw(relayerUrl, {
         proof,

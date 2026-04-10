@@ -6,19 +6,15 @@ import { Address } from "../interfaces/types.interface";
 import {
   IDepositOperationParams,
   IInstanceRegistry,
-  IGetNotesParams,
   IStateManager,
   IWithdrawapOperationParams,
-  StateWithdrawalPayload,
   StoreKey,
   StoreStorageKey,
-  PPv1PrivateOperation,
   IWithdrawalPayload,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, setRelayerFeeConfig } from "./slices/relayersSlice";
 import { ITornadoProver } from "../utils/tornado-prover";
-import { addressToHex } from "../utils";
 import {
   createAllAssetsBalanceSelector,
   createMyAssetsBalanceSelector,
@@ -34,12 +30,10 @@ import {
 import { poolFromAssetSelector } from "./selectors/pools.selector";
 import { createGetWithdrawableDepositsSelector, createMyWithdrawalsSelector } from "./selectors/withdrawals.selector";
 import { RootState, storeFactory } from "./store";
-import { quoteThunk } from "./thunks/quoteThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { ISecretManager } from "../account/keys";
-import { IIndexedDepositWithSecrets } from "../data/interfaces/events.interface";
 
 export interface StoreFactoryParams {
   secretManagerFactory: () => Promise<ISecretManager>
@@ -120,7 +114,7 @@ const getStoreKey = ({
 
 const getStoreStorageKey = (
   params: GetChainStoreParams,
-): StoreStorageKey => `privacy-pool-state-${getStoreKey(params)}`;
+): StoreStorageKey => `tornado-cash-state-${getStoreKey(params)}`;
 
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
