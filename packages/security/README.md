@@ -35,6 +35,9 @@ Utilities in this list should be applicable to all wallets. More advanced or wal
     - [ ] Integrate with blocklist and address poisoning utilities
     - [ ] Decode well-known contract interactions (e.g. Uniswap swaps, OpenSea listings, etc.)
 
+- Privacy
+  - [ ] Address connectivity - list which addresses are publically associated (trivially, possibly include multiple hops) so you can alert users when new addresses become associated.
+
 ### Open Questions
  - Transaction formatting might be too complex.  Very wallet-specific, since it's highly UX dependent, and there are existing services (IE tenderly) that provide this functionality.  Clearsigning is also part of [eip-7730](https://eips.ethereum.org/EIPS/eip-7730) so either defer to this standard impl or impl their standard here.
 
