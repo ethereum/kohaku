@@ -15,6 +15,9 @@ Utilities in this list should be applicable to all wallets. More advanced or wal
   - [ ] Contract freshness - Check if a contract is recently deployed.
   - [ ] Contract source verification - Check if a contract's source code is verified on Etherscan or similar services.
 
+- Drainers
+  - [ ] DNS freshess - check if the DNS record was recently changed.
+
 - Tokens
   - [ ] Approval Management - 
     - [ ] Flag unlimited approvals
