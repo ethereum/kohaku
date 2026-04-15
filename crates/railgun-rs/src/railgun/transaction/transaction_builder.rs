@@ -438,18 +438,27 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
         return Err(TransactionBuilderError::MissingNativeUnshieldOperation);
     }
 
-    // Current transaction builder only supports single-tree operations, so we encode
-    // nullifiers as a single row (`bytes32[][]` with length=1) for adapt params hashing.
-    let tree_nullifiers: Vec<FixedBytes<32>> = native_ops
-        .iter()
-        .flat_map(|op| op.in_notes().iter())
-        .map(|note| {
-            let nf = note.nullifier(U256::from(note.leaf_index()));
-            FixedBytes::<32>::from(nf.to_be_bytes::<32>())
-        })
-        .collect();
+    // First pass: build transactions with a placeholder adapt params so we can
+    // derive nullifier matrix exactly as on-chain getAdaptParams does.
+    let first_pass = create_transactions(
+        prover,
+        utxo_trees,
+        operations,
+        chain,
+        min_gas_price,
+        relay,
+        &[0u8; 32],
+        rng,
+    )
+    .await?;
 
-    let adapt_params = adapt_params_hash(vec![tree_nullifiers], &action_data);
+    let nullifiers_2d: Vec<Vec<FixedBytes<32>>> = first_pass
+        .iter()
+        .map(|(_, tx)| tx.nullifiers.clone())
+        .collect();
+    let adapt_params = adapt_params_hash(nullifiers_2d, &action_data);
+
+    // Second pass: rebuild with the final adapt params hash bound in proofs.
     let tx_results = create_transactions(
         prover,
         utxo_trees,
