@@ -5,6 +5,7 @@ use alloy::{
     primitives::{Address, address},
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
+    sol_types::SolCall,
 };
 use railgun_rs::{
     abis::erc20::ERC20,
@@ -12,6 +13,7 @@ use railgun_rs::{
     chain_config::{ChainConfig, MAINNET_CONFIG},
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     railgun::{RailgunProvider, Signer, indexer::RpcSyncer, transaction::TransactionBuilder},
+    abis::railgun::RelayAdapt,
 };
 use rand::random;
 use tracing::info;
@@ -158,4 +160,45 @@ async fn test_transact() {
     assert_eq!(balance_1.get(&USDC), Some(&991500));
     assert_eq!(balance_2.get(&USDC), Some(&5000));
     assert_eq!(balance_eoa, 998);
+
+    // Test Native Unshielding (WETH notes -> ETH via RelayAdapt)
+    info!("Testing native unshielding");
+    let native_receiver = address!("0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199");
+    let native_unshield_value: u128 = 10_000;
+    let pre_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
+    let pre_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
+
+    let tx = TransactionBuilder::new().set_unshield_native(
+        account_1.clone(),
+        native_receiver,
+        native_unshield_value,
+    );
+    let native_unshield_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
+
+    // Native unshield must execute through RelayAdapt.relay(...)
+    assert_eq!(native_unshield_tx.tx_data.to, CHAIN.relay_adapt_contract);
+    assert_eq!(
+        native_unshield_tx.tx_data.data[..4],
+        RelayAdapt::relayCall::SELECTOR
+    );
+
+    provider
+        .send_transaction(native_unshield_tx.tx_data.into())
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+
+    railgun.sync().await.unwrap();
+    let post_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
+    let post_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
+
+    // Wrapped base-token notes are spent by the unshield amount.
+    assert_eq!(
+        pre_weth_balance.unwrap() - post_weth_balance.unwrap(),
+        native_unshield_value
+    );
+    // Base token arrives to the native receiver.
+    assert!(post_native_balance_eoa > pre_native_balance_eoa);
 }
