@@ -15,49 +15,26 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     dataService
   }, { dispatch, getState }) => {
     const state = getState();
-    const { instanceRegistryAddress, deploymentBlock, lastDeployedOnBlock } = instanceRegistryInfoSelector(state);
+    const { instanceRegistryAddress } = instanceRegistryInfoSelector(state);
     const existingPools = poolsSelector(state);
-    // const deadPools = new Map(poolsWoundDown.map((pool) => [pool.pool, pool]));
-  
-    // const pools = poolsRegistered.map(({
-    //   pool: address,
-    //   blockNumber,
-    //   asset,
-    //   scope,
-    // }): IPool => {
-    //   const woundDownAtBlock = deadPools.get(address)?.blockNumber ?? null;
-      
-    //   return {
-    //     address,
-    //     asset,
-    //     registeredBlock: blockNumber,
-    //     woundDownAtBlock,
-    //     scope,
-    //   }
-    // });
 
     const poolsAddressses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
     const unsyncedPools = poolsAddressses.filter((address) => !existingPools.has(address));
-    const unsyncedPoolsInformation = await Promise.allSettled(unsyncedPools.map(
-      (poolAddress) => dataService.getPoolConfig(instanceRegistryAddress, poolAddress)
-    ));
 
-    const poolRegisteredEvents = await dataService.getInstanceRegistryEvents({
-      events: 'InstanceStateUpdated',
-      address: instanceRegistryAddress,
-      fromBlock: deploymentBlock,
-      toBlock: lastDeployedOnBlock
-    });
+    const unsyncedPoolsData = await Promise.allSettled(
+      unsyncedPools.map(async (poolAddress) => {
+        const [config, registeredBlock] = await Promise.all([
+          dataService.getPoolConfig(instanceRegistryAddress, poolAddress),
+          dataService.getContractDeploymentBlock(poolAddress),
+        ]);
 
-    const poolsRegisteredAtBlockMap = new Map(
-      poolRegisteredEvents.InstanceStateUpdated
-        .map(({ address, blockNumber }) => [address, blockNumber] as const)
+        return { config, registeredBlock };
+      })
     );
-
-    const fetchedPools = unsyncedPoolsInformation.filter((p) => p.status === 'fulfilled');
+    const fetchedPools = unsyncedPoolsData.filter((p) => p.status === 'fulfilled');
 
     if (fetchedPools.length < unsyncedPools.length) {
-      const failedFetches = unsyncedPoolsInformation.filter((p) => p.status === 'rejected');
+      const failedFetches = unsyncedPoolsData.filter((p) => p.status === 'rejected');
 
       console.warn('Failed to fetch some pools information', failedFetches.map((p) => p.reason))
     }
@@ -65,23 +42,28 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     const pools: IPool[] = fetchedPools
     .map(({
       value: {
-        poolAddress,
-        protocolFeePercentage,
-        token,
-        uniswapPoolSwappingFee,
-        state,
-        isERC20,
-        denomination
+        registeredBlock,
+        config: {
+          poolAddress,
+          protocolFeePercentage,
+          token,
+          uniswapPoolSwappingFee,
+          state,
+          isERC20,
+          denomination,
+          rootHistorySize
+        }
       }
     }) => ({
       address: poolAddress,
       asset: token,
       isERC20,
       denomination,
-      registeredBlock: poolsRegisteredAtBlockMap.get(poolAddress)!,
+      registeredBlock,
       uniswapPoolSwappingFee,
       protocolFeePercentage,
-      state
+      state,
+      rootHistorySize
     }))
 
     dispatch(registerPools(pools));

@@ -81,7 +81,8 @@ export class TornadoCashProtocol implements TCInstance {
     const actuallySelectedAssets = assets.length > 0 ? assets.map((a) => a.contract) : [...balances.keys()].map((a) => addressToHex(a))
 
     return actuallySelectedAssets.map((assetAddress, index) => {
-      const balance = balances.get(BigInt(actuallySelectedAssets[index]!)) || 0n;
+      const parsedSelectedAsset = BigInt(actuallySelectedAssets[index]!);
+      const balance = balances.get(parsedSelectedAsset === E_ADDRESS_BIGINT ? 0n : parsedSelectedAsset) || 0n;
 
       const asset: ERC20AssetId = {
         contract: assetAddress,

@@ -60,6 +60,7 @@ export interface IPoolConfig {
   uniswapPoolSwappingFee: number;
   protocolFeePercentage: number;
   denomination: bigint;
+  rootHistorySize: number;
 }
 
 export interface IRelayerAggregatorData {
@@ -85,8 +86,10 @@ export interface IDataService {
   getPoolConfig(registryAddress: Address, poolAddress: Address): Promise<IPoolConfig>;
   getChainId(): Promise<ChainId>;
 
+  getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint>;
   getPoolStateRoot(poolAddress: Address): Promise<bigint>;
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
+  isPoolRootValid(poolAddress: Address, root: bigint): Promise<boolean>;
   getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint>;
   getLatestBlockTimestamp(): Promise<bigint>;
   getRelayerData(

@@ -1,15 +1,14 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { depositsSelector, instanceRegistryInfoSelector, withdrawalsSelector } from './slices.selectors';
+import { depositsSelector, withdrawalsSelector } from './slices.selectors';
 
 export const selectLastSyncedBlock = createSelector(
   [
     depositsSelector,
     withdrawalsSelector,
-    instanceRegistryInfoSelector,
     (state: RootState) => BigInt(state.sync.lastSyncedBlock),
   ],
-  (depositsMap, withdrawalsMap, { deploymentBlock }, lastSyncedBlock): bigint => {
+  (depositsMap, withdrawalsMap, lastSyncedBlock): bigint => {
     let maxBlock = 0n;
 
     for (const deposit of depositsMap.values()) {
@@ -26,10 +25,6 @@ export const selectLastSyncedBlock = createSelector(
 
     if (lastSyncedBlock > maxBlock) {
       maxBlock = lastSyncedBlock;
-    }
-
-    if (deploymentBlock > maxBlock) {
-      maxBlock = deploymentBlock;
     }
 
     return maxBlock;

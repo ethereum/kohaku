@@ -34,7 +34,7 @@ const txLogToRpcLog = ({
   transactionIndex: '0x0',
   blockHash: '0x0',
   blockNumber: toHex(blockNumber),
-  logIndex: `0x${index}` as const,
+  logIndex: toHex(index),
   removed: false,
 });
 
@@ -132,7 +132,11 @@ export class DataService implements IDataService {
     registryAddress: Address,
     poolAddress: Address,
   ): Promise<IPoolConfig> {
-    const [[isERC20, token, state, uniswapPoolSwappingFee, protocolFeePercentage], denomination] =
+    const [
+      [isERC20, token, state, uniswapPoolSwappingFee, protocolFeePercentage],
+      denomination,
+      rootHistorySize
+    ] =
     await Promise.all([
       this.ethClient.makeContractRequest(
         registryAddress,
@@ -140,7 +144,8 @@ export class DataService implements IDataService {
         'instances',
         toHex(poolAddress, { size: 20 })
       ),
-      await this.ethClient.makeContractRequest(poolAddress, 'pool', 'denomination'),
+      this.ethClient.makeContractRequest(poolAddress, 'pool', 'denomination'),
+      this.ethClient.makeContractRequest(poolAddress, 'pool', 'ROOT_HISTORY_SIZE'),
     ]);
 
     return {
@@ -150,7 +155,8 @@ export class DataService implements IDataService {
       state: state as 0 | 1,
       uniswapPoolSwappingFee,
       protocolFeePercentage,
-      denomination
+      denomination,
+      rootHistorySize
     };
   }
 
@@ -162,6 +168,14 @@ export class DataService implements IDataService {
     }) as string;
 
     return BigInt(chainIdHex);
+  }
+
+  isPoolRootValid(poolAddress: Address, root: bigint): Promise<boolean> {
+    return this.ethClient.makeContractRequest(poolAddress, 'pool', 'isKnownRoot', toHex(root))
+  }
+
+  async getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint> {
+    return this.ethClient.getDeploymentBlock(address, fromBlock);
   }
 
   async getPoolStateRoot(poolAddress: Address): Promise<bigint> {

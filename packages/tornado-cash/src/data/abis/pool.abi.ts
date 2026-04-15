@@ -82,5 +82,26 @@ export const poolAbi = [
     outputs: [],
     stateMutability: "payable"
   },
+  {
+    type: "function",
+    name: "ROOT_HISTORY_SIZE",
+    inputs: [],
+    outputs: [{
+      type: "uint32"
+    }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "isKnownRoot",
+    inputs: [{
+      name: "_root",
+      type: "bytes32"
+    }],
+    outputs: [{
+      type: "bool"
+    }],
+    stateMutability: "view"
+  }
 ] as const satisfies Abi;
 

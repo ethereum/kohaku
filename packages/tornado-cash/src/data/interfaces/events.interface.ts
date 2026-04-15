@@ -66,6 +66,7 @@ export interface IPool {
   denomination: bigint;
   registeredBlock: bigint;
   state: 0 | 1;
+  rootHistorySize: number;
 }
 
 export interface IAsset {

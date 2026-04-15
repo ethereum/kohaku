@@ -64,6 +64,27 @@ export class EthClient {
         return this.provider.getBlockNumber();
     }
 
+    async getDeploymentBlock(address: Address, fromBlock: bigint = 0n): Promise<bigint> {
+        let low = fromBlock;
+        let high = await this.getBlockNumber();
+
+        while (low < high) {
+            const mid = (low + high) / 2n;
+            const code = await this.request({
+                method: 'eth_getCode',
+                params: [toHex(address, { size: 20 }), toHex(mid)],
+            }) as string;
+
+            if (code === '0x') {
+                low = mid + 1n;
+            } else {
+                high = mid;
+            }
+        }
+
+        return low;
+    }
+
     async makeContractRequest<
         Contract extends keyof typeof abis,
         Abi extends typeof abis[Contract],
