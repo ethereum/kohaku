@@ -29,7 +29,7 @@ async function importColibri(): Promise<ColibriConstructor> {
 export const colibri = async (config: ColibriConfig): Promise<EthereumProvider<Colibri>> => {
     const createColibri = await importColibri();
     const client = new createColibri({
-        verifyTransactions: true,
+        verifyTransactions: config.fallback_provider ? true : false,
         zk_proof: true,
         ...config,
     });
