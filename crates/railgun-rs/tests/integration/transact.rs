@@ -294,6 +294,21 @@ async fn test_transact() {
         )
             .abi_encode(),
     ));
+    let local_full_transactions_action = FixedBytes::<32>::from(keccak256(
+        (
+            relay_call._transactions.clone(),
+            relay_call._actionData.clone(),
+        )
+            .abi_encode(),
+    ));
+    let local_full_transactions_len_action = FixedBytes::<32>::from(keccak256(
+        (
+            relay_call._transactions.clone(),
+            U256::from(relay_call._transactions.len()),
+            relay_call._actionData.clone(),
+        )
+            .abi_encode(),
+    ));
     let non_empty_nullifiers: Vec<Vec<FixedBytes<32>>> = nullifiers_2d
         .iter()
         .filter(|row| !row.is_empty())
@@ -369,6 +384,10 @@ async fn test_transact() {
                 relay_call._actionData.minGasLimit,
                 relay_call._actionData.calls.len()
             );
+            eprintln!(
+                "ActionData random byte len: {}",
+                relay_call._actionData.random.as_slice().len()
+            );
             for (call_i, call) in relay_call._actionData.calls.iter().enumerate() {
                 eprintln!(
                     "  call[{call_i}]: to={:?} value={:?} data=0x{}",
@@ -420,6 +439,14 @@ async fn test_transact() {
             eprintln!(
                 "Candidate hash (bytes32 random left-shifted): {:?}",
                 local_bytes32_random_left_shift
+            );
+            eprintln!(
+                "Candidate hash (abi.encode(_transactions,_actionData)): {:?}",
+                local_full_transactions_action
+            );
+            eprintln!(
+                "Candidate hash (abi.encode(_transactions,_transactions.length,_actionData)): {:?}",
+                local_full_transactions_len_action
             );
             eprintln!("ABI-encoded adapt params input: 0x{}", hex::encode(&local_encoded));
         }
