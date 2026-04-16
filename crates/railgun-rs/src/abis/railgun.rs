@@ -286,6 +286,7 @@ sol! {
         function unwrapBase(uint256 _amount) external;
         function shield(ShieldRequest[] calldata _shieldRequests) external;
         function transfer(TokenTransfer[] calldata _transfers) external;
+        function getAdaptParams(Transaction[] calldata _transactions, ActionData calldata _actionData) external pure returns (bytes32);
         function relay(Transaction[] calldata _transactions, ActionData calldata _actionData) external payable;
     }
 }

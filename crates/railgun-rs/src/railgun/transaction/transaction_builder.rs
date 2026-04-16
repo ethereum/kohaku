@@ -438,38 +438,34 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
         return Err(TransactionBuilderError::MissingNativeUnshieldOperation);
     }
 
-    // First pass: build transactions with a placeholder adapt params so we can
-    // derive nullifier matrix exactly as on-chain getAdaptParams does.
-    let first_pass = create_transactions(
-        prover,
-        utxo_trees,
-        operations,
-        chain,
-        min_gas_price,
-        relay,
-        &[0u8; 32],
-        rng,
-    )
-    .await?;
+    // Build until adapt params converges for the exact transactions being encoded.
+    // This guarantees parity with RelayAdapt.getAdaptParams(_transactions, _actionData).
+    let mut adapt_params = [0u8; 32];
+    let mut tx_results = Vec::new();
+    const MAX_ADAPT_CONVERGENCE_ITERS: usize = 4;
+    for _ in 0..MAX_ADAPT_CONVERGENCE_ITERS {
+        tx_results = create_transactions(
+            prover,
+            utxo_trees,
+            operations,
+            chain,
+            min_gas_price,
+            relay,
+            &adapt_params,
+            rng,
+        )
+        .await?;
 
-    let nullifiers_2d: Vec<Vec<FixedBytes<32>>> = first_pass
-        .iter()
-        .map(|(_, tx)| tx.nullifiers.clone())
-        .collect();
-    let adapt_params = adapt_params_hash(nullifiers_2d, &action_data);
-
-    // Second pass: rebuild with the final adapt params hash bound in proofs.
-    let tx_results = create_transactions(
-        prover,
-        utxo_trees,
-        operations,
-        chain,
-        min_gas_price,
-        relay,
-        &adapt_params,
-        rng,
-    )
-    .await?;
+        let nullifiers_2d: Vec<Vec<FixedBytes<32>>> = tx_results
+            .iter()
+            .map(|(_, tx)| tx.nullifiers.clone())
+            .collect();
+        let next_adapt = adapt_params_hash(nullifiers_2d, &action_data);
+        if next_adapt == adapt_params {
+            break;
+        }
+        adapt_params = next_adapt;
+    }
 
     let proved_operations: Vec<ProvedOperation<N>> = operations
         .iter()

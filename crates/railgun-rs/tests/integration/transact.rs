@@ -7,6 +7,7 @@ use alloy::{
     signers::local::PrivateKeySigner,
     sol_types::SolCall,
 };
+use eth_rpc::eth_call_sol;
 use railgun_rs::{
     abis::erc20::ERC20,
     caip::AssetId,
@@ -181,6 +182,30 @@ async fn test_transact() {
         native_unshield_tx.tx_data.data[..4],
         RelayAdapt::relayCall::SELECTOR
     );
+
+    // Debug parity check: offchain adapt params in boundParams must exactly match
+    // onchain RelayAdapt.getAdaptParams(_transactions, _actionData).
+    let relay_call = RelayAdapt::relayCall::abi_decode(&native_unshield_tx.tx_data.data).unwrap();
+    let onchain_adapt_params: alloy::primitives::FixedBytes<32> = eth_call_sol(
+        provider.as_ref(),
+        CHAIN.relay_adapt_contract,
+        RelayAdapt::getAdaptParamsCall {
+            _transactions: relay_call._transactions.clone(),
+            _actionData: relay_call._actionData.clone(),
+        },
+    )
+    .await
+    .unwrap();
+    for (i, tx) in relay_call._transactions.iter().enumerate() {
+        let local_adapt = tx.boundParams.adaptParams;
+        if local_adapt != onchain_adapt_params {
+            eprintln!(
+                "Adapt params mismatch at tx[{i}]: local={:?}, onchain={:?}",
+                local_adapt, onchain_adapt_params
+            );
+        }
+        assert_eq!(local_adapt, onchain_adapt_params);
+    }
 
     provider
         .send_transaction(native_unshield_tx.tx_data.into())
