@@ -187,8 +187,11 @@ export async function createCurvyPlugin(host: Host, params: CurvyPluginParams): 
     } = params;
 
     const { spendingPath, viewingPath } = derivationPaths(keyIndex);
-    const s = host.keystore.deriveAt(spendingPath);
-    const v = host.keystore.deriveAt(viewingPath);
+    const sRaw = host.keystore.deriveAt(spendingPath);
+    const vRaw = host.keystore.deriveAt(viewingPath);
+    // Strip 0x prefix — Go WASM hex.DecodeString expects raw hex.
+    const s = sRaw.startsWith("0x") ? sRaw.slice(2) : sRaw;
+    const v = vRaw.startsWith("0x") ? vRaw.slice(2) : vRaw;
 
     const storage = new HostStorageAdapter(host.storage);
     const customFetch = host.network.fetch.bind(host.network);
@@ -212,7 +215,7 @@ export async function createCurvyPlugin(host: Host, params: CurvyPluginParams): 
         wrapSdkError(err, curvyId !== undefined ? `register(${curvyId})` : "login");
     }
 
-    return new CurvyPlugin(sdk);
+    return new CurvyPlugin(sdk, hostChainId);
 }
 
 function balanceEntryToAssetId(entry: BalanceEntry): AssetId {
@@ -245,10 +248,12 @@ function assetMatches(filter: AssetId, candidate: AssetId): boolean {
 }
 
 export class CurvyPlugin implements CurvyInstance {
-    constructor(private readonly sdk: CurvySDK) {}
+    constructor(private readonly sdk: CurvySDK, private readonly hostChainId: bigint) {}
 
     private findCurrencyAndNetwork(assetId: AssetId): { currency: Currency; network: Network } | undefined {
         for (const network of this.sdk.getNetworks()) {
+            // Only match currencies on the host's connected chain.
+            if (BigInt(network.chainId) !== this.hostChainId) continue;
             for (const currency of network.currencies) {
                 if (assetId.__type === "native" && currency.nativeCurrency) {
                     return { currency, network };
@@ -316,6 +321,7 @@ export class CurvyPlugin implements CurvyInstance {
             portalAddress = await this.sdk.generateEntryPortal({
                 curvyId,
                 currencyId: foundCurrencyId,
+                coinType: String(found.network.slip0044),
             });
         } catch (err) {
             wrapSdkError(err, "prepareShield");

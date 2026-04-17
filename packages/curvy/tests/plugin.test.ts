@@ -126,15 +126,16 @@ function makeWrongChainHost(): Host {
  * Generate a fresh ephemeral EVM identity per test run to avoid conflicts with
  * previously registered accounts on the devenv backend.
  */
+let identityCounter = 0;
 function freshIdentity(): { signingAddress: `0x${string}`; curvyId: CurvyId } {
     const privateKey = Secp256k1.randomPrivateKey();
     const publicKey = Secp256k1.getPublicKey({ privateKey });
     const signingAddress = OxAddress.fromPublicKey(publicKey);
 
-    // Handle: 't' + 8-char base-36 timestamp suffix, padded to ensure >= 3 chars.
-    // Domain '.local-curvy.name' is the devenv domain.
+    // Handle: 't' + timestamp + counter to guarantee uniqueness across calls
+    // in the same millisecond. Domain '.local-curvy.name' is the devenv domain.
     const suffix = Date.now().toString(36).slice(-8);
-    const curvyId = `t${suffix}.local-curvy.name` as CurvyId;
+    const curvyId = `t${suffix}${identityCounter++}.local-curvy.name` as CurvyId;
 
     return { signingAddress, curvyId };
 }
@@ -517,7 +518,7 @@ describe("Phase 6: Unshield end-to-end (requires Anvil + backend)", () => {
         await fundPortal(portalAddress, SHIELD_AMOUNT);
 
         // Wait for the backend to detect the deposit and credit the balance.
-        balanceBeforeUnshield = await pollForNativeBalance(plugin, UNSHIELD_AMOUNT, 60_000);
+        balanceBeforeUnshield = await pollForNativeBalance(plugin, UNSHIELD_AMOUNT, 90_000);
     }, 120_000);
 
     it("prepareUnshield returns a CurvyPrivateOperation with an EstimatedPlan", async () => {
@@ -541,7 +542,7 @@ describe("Phase 6: Unshield end-to-end (requires Anvil + backend)", () => {
         const balancesAfter = await plugin.balance([{ __type: "native" }]);
         const totalAfter = balancesAfter.reduce((sum, b) => sum + b.amount, 0n);
         expect(totalAfter).toBeLessThan(balanceBeforeUnshield);
-    }, 60_000);
+    }, 120_000);
 });
 
 // ---------------------------------------------------------------------------

@@ -8,8 +8,10 @@
         "./src/*"
       ]
     },
+    "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
+    "ignoreDeprecations": "6.0",
   },
   "include": [
     "src",
