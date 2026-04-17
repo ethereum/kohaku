@@ -221,6 +221,9 @@ async fn test_transact() {
         pre_weth_balance.unwrap() - post_weth_balance.unwrap(),
         native_unshield_value
     );
-    // Base token arrives to the native receiver.
-    assert!(post_native_balance_eoa > pre_native_balance_eoa);
+    // Diagnostic assertion: with transfer subcall temporarily disabled, unwrapped ETH
+    // should remain on the RelayAdapt contract.
+    assert!(post_relay_balance > pre_relay_balance);
+    // The receiver is expected unchanged in this temporary diagnostic mode.
+    assert_eq!(post_native_balance_eoa, pre_native_balance_eoa);
 }

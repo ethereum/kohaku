@@ -417,7 +417,7 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
     let unwrap_call = RelayAdapt::unwrapBaseCall {
         _amount: U256::ZERO,
     };
-    let transfer_call = RelayAdapt::transferCall {
+    let _transfer_call = RelayAdapt::transferCall {
         _transfers: vec![RelayAdapt::TokenTransfer {
             token: abis::railgun::TokenData {
                 tokenType: abis::railgun::TokenType::ERC20,
@@ -439,11 +439,13 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
                 data: unwrap_call.abi_encode().into(),
                 value: U256::ZERO,
             },
-            RelayAdapt::Call {
-                to: relay,
-                data: transfer_call.abi_encode().into(),
-                value: U256::ZERO,
-            },
+            // Diagnostic-only: temporarily disable the RelayAdapt.transfer call so
+            // unwrapped ETH should remain on the RelayAdapt contract.
+            // RelayAdapt::Call {
+            //     to: relay,
+            //     data: transfer_call.abi_encode().into(),
+            //     value: U256::ZERO,
+            // },
         ],
     };
 
