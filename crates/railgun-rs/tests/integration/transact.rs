@@ -163,7 +163,7 @@ async fn test_transact() {
 
     // Test Native Unshielding (WETH notes -> ETH via RelayAdapt)
     info!("Testing native unshielding");
-    let native_receiver = address!("0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199");
+    let native_receiver = address!("0x1d60C34f508BbBd7f1cb50b375c4CdD25e718D1c");
     let native_unshield_value: u128 = 10_000;
     let pre_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
     let pre_relay_balance = provider.get_balance(CHAIN.relay_adapt_contract).await.unwrap();
@@ -238,9 +238,6 @@ async fn test_transact() {
         pre_weth_balance.unwrap() - post_weth_balance.unwrap(),
         native_unshield_value
     );
-    // Diagnostic assertion: with transfer subcall temporarily disabled, unwrapped ETH
-    // should remain on the RelayAdapt contract.
-    assert!(post_relay_balance > pre_relay_balance);
-    // The receiver is expected unchanged in this temporary diagnostic mode.
-    assert_eq!(post_native_balance_eoa, pre_native_balance_eoa);
+    // With transfer subcall enabled, ETH should reach the receiver.
+    assert!(post_native_balance_eoa > pre_native_balance_eoa);
 }
