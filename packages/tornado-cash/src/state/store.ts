@@ -84,6 +84,7 @@ export const storeFactory = ({
       const defaultMiddleware = getDefaultMiddleware({
         serializableCheck: {
           ignoreActions: true,
+          immutableCheck: false,
         },
       });
 

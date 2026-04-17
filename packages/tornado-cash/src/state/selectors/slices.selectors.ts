@@ -17,9 +17,18 @@ import { createSelector } from "@reduxjs/toolkit";
 import { InstanceRegistryInfoState } from "../slices/instanceRegistryInfoSlice";
 import { IRelayerInfo } from "../slices/relayersSlice";
 
-export const depositsSelector = selectEntityMap(
-  (s) => s.deposits.depositsTuples,
-  deserialize as () => [Commitment, IDepositEvent],
+export const depositsSelector = createSelector(
+  [(s: RootState) => s.deposits.depositsTuples],
+  (tuples): Map<Address, Map<Commitment, IDepositEvent>> => {
+    const deserialized = deserialize(tuples);
+
+    return new Map(
+      deserialized.map(
+        ([poolAddress, innerTuples]) =>
+          [poolAddress, new Map(innerTuples)] as const,
+      ),
+    );
+  },
 );
 
 export const instanceRegistryInfoSelector = createSelector(

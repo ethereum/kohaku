@@ -1,5 +1,4 @@
 export * from './v1';
-export * from './v2';
 // Main factory
 export { TornadoCashProtocol } from './plugin/base';
 export { SecretManager } from './account/keys';

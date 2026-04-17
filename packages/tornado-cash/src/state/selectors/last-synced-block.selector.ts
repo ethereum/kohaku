@@ -11,9 +11,11 @@ export const selectLastSyncedBlock = createSelector(
   (depositsMap, withdrawalsMap, lastSyncedBlock): bigint => {
     let maxBlock = 0n;
 
-    for (const deposit of depositsMap.values()) {
-      if (deposit.blockNumber > maxBlock) {
-        maxBlock = deposit.blockNumber;
+    for (const poolDeposits of depositsMap.values()) {
+      for (const deposit of poolDeposits.values()) {
+        if (deposit.blockNumber > maxBlock) {
+          maxBlock = deposit.blockNumber;
+        }
       }
     }
 

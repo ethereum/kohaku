@@ -1,12 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { IDepositEvent } from '../../data/interfaces/events.interface';
-import { Commitment } from '../../interfaces/types.interface';
+import { Address, Commitment } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
 import { serialize } from '../utils/serialize.utils';
 
 export interface DepositsState {
-  depositsTuples: [Commitment, IDepositEvent][];
+  depositsTuples: [Address, [Commitment, IDepositEvent][]][];
 }
 
 type ActualDepositsState = Serializable<DepositsState>;
@@ -20,15 +20,26 @@ export const depositsSlice = createSlice({
   initialState,
   reducers: {
     registerDeposits: ({ depositsTuples }, { payload: deposits }: PayloadAction<IDepositEvent[]>) => {
-      const newDeposits = new Map(depositsTuples);
+      const allPools = new Map(
+        depositsTuples.map(([pool, innerTuples]) =>
+          [pool, new Map(innerTuples)] as const
+        )
+      );
+
 
       deposits.forEach((deposit) => {
-        const key = deposit.commitment;
-
-        newDeposits.set(serialize(key), serialize(deposit));
+        const poolKey = serialize(deposit.pool);
+        const poolDeposits: Map<string, Serializable<IDepositEvent>> = allPools.get(poolKey) || new Map();
+    
+        allPools.set(poolKey, poolDeposits);
+        poolDeposits.set(serialize(deposit.commitment), serialize(deposit));
       });
 
-      return { depositsTuples: Array.from(newDeposits) };
+      return {
+        depositsTuples: Array.from(allPools).map(
+          ([pool, innerMap]) => [pool, Array.from(innerMap)] as const,
+        ),
+      };
     },
   },
 });

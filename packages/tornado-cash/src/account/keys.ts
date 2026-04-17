@@ -66,6 +66,16 @@ function concat(...arrays: Uint8Array[]): Uint8Array {
   return result;
 }
 
+// Base points for the circomlib v2.0.5 Pedersen hash circuit, generated with Blake1/256.
+// These are hardcoded in the circuit's pedersen.circom as BASE[10][2].
+// We pre-seed the circomlibjs instance with these to avoid calling blake1, which is
+// not browser-compatible. Pedersen(248) needs indices 0-1; Pedersen(496) needs 0-2.
+const PEDERSEN_BASE_POINTS: [bigint, bigint][] = [
+  [10457101036533406547632367118273992217979173478358440826365724437999023779287n, 19824078218392094440610104313265183977899662750282163392862422243483260492317n],
+  [2671756056509184035029146175565761955751135805354291559563293617232983272177n,   2663205510731142763556352975002641716101654201788071096152948830924149045094n],
+  [5802099305472655231388284418920769829666717045250560929368476121199858275951n,   5980429700218124965372158798884772646841287887664001482443826541541529227896n],
+];
+
 export async function SecretManager({
   host: { keystore },
   accountIndex = 0
@@ -74,8 +84,18 @@ export async function SecretManager({
   const babyjub = await buildBabyjub();
   const pedersen = await buildPedersenHash();
 
+  // Pre-seed the base-point cache so the hash function never calls blake1 (not
+  // browser-compatible).  circomlibjs checks `this.bases[i]` before computing,
+  // so injecting the circuit's hardcoded Edwards-form points here is sufficient.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pedersenAny = pedersen as any;
+
+  pedersenAny.bases = PEDERSEN_BASE_POINTS.map(
+    ([x, y]) => [pedersenAny.babyJub.F.e(x), pedersenAny.babyJub.F.e(y)],
+  );
+
   function pedersenHash(data: Uint8Array): bigint {
-    const hash = pedersen.hash(data, { baseHash: 'blake2b' });
+    const hash = pedersen.hash(data);
     const [x] = babyjub.unpackPoint(hash);
 
     return babyjub.F.toObject(x);

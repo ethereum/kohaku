@@ -8,7 +8,7 @@ import { Address, Commitment } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { BaseSelectorParams } from '../interfaces/selectors.interface';
 import { RootState } from '../store';
-import { depositsSelector, instanceRegistryInfoSelector, poolsSelector, withdrawalsSelector } from './slices.selectors';
+import { depositsSelector, instanceRegistryInfoSelector, poolsSelector } from './slices.selectors';
 
 /**
  * Returns a Map with every deposit we own. We also check approved status.
@@ -34,8 +34,8 @@ export const createMyDepositsSelector = ({
             depositIndex,
           });
   
-          const deposit = depositsMap.get(commitment);
-  
+          const deposit = depositsMap.get(poolAddress)?.get(commitment);
+
           if (!deposit) {
             break;
           }

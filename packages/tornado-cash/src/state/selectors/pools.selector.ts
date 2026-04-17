@@ -1,6 +1,6 @@
 import { createSelector } from "@reduxjs/toolkit";
 
-import { IPool } from "../../data/interfaces/events.interface";
+import { IDepositEvent, IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
 import { computeMerkleTreeRoot } from "../../utils/proof.util";
 import { RootState } from "../store";
@@ -17,13 +17,7 @@ export const poolEventsSelector = createSelector(
     (state: RootState, poolAddress: Address) => poolAddress,
   ],
   (deposits, withdrawals, poolAddress) => {
-    // Filter deposits by pool address
-    const filteredDeposits = new Map(
-      Array.from(deposits).filter(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ([_, deposit]) => deposit.pool === poolAddress,
-      ),
-    );
+    const filteredDeposits = deposits.get(poolAddress) ?? new Map<Commitment, IDepositEvent>();
 
     // Filter withdrawals by pool address
     const filteredWithdrawals = new Map(

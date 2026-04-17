@@ -17,7 +17,7 @@ import {
   TCAssetBalance,
   TCInstance,
 } from "../v1/interfaces.js";
-import { BUNDLED_WASM_URL, BUNDLED_ZKEY_URL, downloadArtifactsAndCreateProver } from "../utils/tornado-prover";
+import { downloadArtifactsAndCreateProver } from "../utils/tornado-prover";
 import {
   IStateManager,
   TCPrivateOperation,
@@ -36,17 +36,17 @@ export class TornadoCashProtocol implements TCInstance {
     readonly host: Host,
     {
       accountIndex = 0,
-      initialState = {},
+      initialState = async () => ({}),
       secretManagerFactory = SecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       instanceRegistry,
-      artifacts = { wasmUrl: BUNDLED_WASM_URL, zkeyUrl: BUNDLED_ZKEY_URL },
+      artifacts,
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = () => downloadArtifactsAndCreateProver(host, artifacts.wasmUrl, artifacts.zkeyUrl),
-    }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry'>,
+    }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry' | 'artifacts'>,
   ) {
     this.relayerClient = relayerClientFactory();
-    this.stateManager = stateManagerFactory({
+    this.stateManager = initialState().then((initialState) => stateManagerFactory({
       initialState: { ...initialState },
       secretManagerFactory: () => secretManagerFactory({ accountIndex, host }),
       dataService: new DataService({ provider: host.provider }),
@@ -54,7 +54,7 @@ export class TornadoCashProtocol implements TCInstance {
       proverFactory,
       storageToSyncTo: host.storage,
       instanceRegistry,
-    });
+    }));
   }
 
   instanceId = () => Promise.resolve("0x1" as const);

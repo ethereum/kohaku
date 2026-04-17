@@ -157,6 +157,7 @@ const storeByChainAndEntrypoint = ({
 
         const feeConfig = relayerRegistry.feeConfig
           ?? (chainId === 1n ? DEFAULT_MAINNET_FEE_CONFIG : DEFAULT_OTHER_FEE_CONFIG);
+
         store.dispatch(setRelayerFeeConfig(feeConfig));
 
         storeWithSelectors = initializeSelectors({ ...params, store });
@@ -169,7 +170,7 @@ const storeByChainAndEntrypoint = ({
       return Array.from(chainStoreMap).reduce(
         (completeState, [chainKey, state]) => ({
           ...completeState,
-          [`privacy-pool-state-${chainKey}`]: state.getState(),
+          [`tornado-cash-state-${chainKey}`]: state.getState(),
         }),
         {} as ReturnType<IStateManager['dumpState']>,
       );

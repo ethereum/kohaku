@@ -12,7 +12,7 @@ interface TCBaseCredential {
 export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential {
     instanceRegistry: IInstanceRegistry;
     initialState?: PrivacyPoolsV1ProtocolParams['initialState'];
-    artifacts?: ITornadoArtifacts;
+    artifacts: ITornadoArtifacts;
 };
 
 export type TCAddress = Address;

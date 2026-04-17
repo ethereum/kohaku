@@ -52,7 +52,7 @@ export interface PrivacyPoolsV1ProtocolParams {
   instanceRegistry: IInstanceRegistry;
   artifacts: ITornadoArtifacts;
   proverFactory?: () => Promise<ITornadoProver>;
-  initialState?: Record<string, RootState>;
+  initialState?: () => Promise<Record<string, RootState>>;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type
