@@ -206,6 +206,23 @@ async fn test_transact() {
         .await
         .unwrap();
     eprintln!("Native unshield receipt: {:?}", native_receipt);
+    let receipt_debug = format!("{:?}", native_receipt);
+    let weth_withdrawal_topic =
+        "0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65";
+    let relay_topic = format!("0x000000000000000000000000{}", hex::encode(CHAIN.relay_adapt_contract));
+    assert!(
+        receipt_debug.contains(weth_withdrawal_topic),
+        "expected WETH Withdrawal log in receipt"
+    );
+    assert!(
+        receipt_debug.contains(&relay_topic),
+        "expected WETH Withdrawal indexed src to be RelayAdapt"
+    );
+    let withdrawal_data_marker = "data: 0x0000000000000000000000000000000000000000000000000000000000000000";
+    assert!(
+        !receipt_debug.contains(withdrawal_data_marker),
+        "expected non-zero WETH Withdrawal amount"
+    );
 
     railgun.sync().await.unwrap();
     let post_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
