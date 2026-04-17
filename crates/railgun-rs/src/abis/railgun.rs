@@ -270,9 +270,24 @@ sol! {
             bytes data;
             uint256 value;
         }
+        struct ActionData {
+            bytes31 random;
+            bool requireSuccess;
+            uint256 minGasLimit;
+            Call[] calls;
+        }
+        struct TokenTransfer {
+            TokenData token;
+            address to;
+            uint256 value;
+        }
         function multicall(bool _requireSuccess, Call[] calldata _calls) external payable;
         function wrapBase(uint256 _amount) external;
+        function unwrapBase(uint256 _amount) external;
         function shield(ShieldRequest[] calldata _shieldRequests) external;
+        function transfer(TokenTransfer[] calldata _transfers) external;
+        function getAdaptParams(Transaction[] calldata _transactions, ActionData calldata _actionData) external pure returns (bytes32);
+        function relay(Transaction[] calldata _transactions, ActionData calldata _actionData) external payable;
     }
 }
 

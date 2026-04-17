@@ -40,4 +40,8 @@ impl MerkleTreeVerifier for SmartWalletUtxoVerifier {
         )
         .await?)
     }
+
+    fn eth_rpc(&self) -> Option<&dyn EthRpcClient> {
+        Some(self.provider.as_ref())
+    }
 }

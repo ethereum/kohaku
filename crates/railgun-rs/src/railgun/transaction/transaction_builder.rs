@@ -19,9 +19,9 @@ use std::{
     sync::Arc,
 };
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, FixedBytes};
 use alloy_sol_types::SolCall;
-use eth_rpc::TxData;
+use eth_rpc::{EthRpcClientError, TxData, eth_call_sol};
 use prover::{Prover, ProverError};
 use rand::Rng;
 use ruint::aliases::U256;
@@ -29,7 +29,10 @@ use thiserror::Error;
 use tracing::{info, warn};
 
 use crate::{
-    abis::{self, railgun::RailgunSmartWallet},
+    abis::{
+        self,
+        railgun::{RailgunSmartWallet, RelayAdapt},
+    },
     caip::AssetId,
     chain_config::ChainConfig,
     circuit::{
@@ -60,6 +63,7 @@ use crate::{
 pub struct TransactionBuilder {
     pub(crate) transfers: Vec<TransferData>,
     pub(crate) unshields: HashMap<AssetId, UnshieldData>,
+    pub(crate) native_unshield: Option<NativeUnshieldData>,
     pub(crate) signers: HashMap<ViewingPublicKey, Arc<dyn Signer>>,
 }
 
@@ -80,6 +84,13 @@ pub struct UnshieldData {
     pub value: u128,
 }
 
+#[derive(Clone)]
+pub struct NativeUnshieldData {
+    pub from: Arc<dyn Signer>,
+    pub to: Address,
+    pub value: u128,
+}
+
 #[derive(Debug, Error)]
 pub enum TransactionBuilderError {
     #[error("Multiple unshield operations are not supported")]
@@ -96,6 +107,14 @@ pub enum TransactionBuilderError {
     TransactCircuitInput(#[from] TransactCircuitInputsError),
     #[error("Operation verification error: {0}")]
     OperationVerification(#[from] OperationVerificationError),
+    #[error("Native unshield must be the only unshield operation in this transaction")]
+    InvalidNativeUnshieldConfiguration,
+    #[error("Native unshield operation not found in built operations")]
+    MissingNativeUnshieldOperation,
+    #[error("Missing Ethereum RPC client for native unshield")]
+    MissingEthRpcClient,
+    #[error("Ethereum RPC error: {0}")]
+    Rpc(#[from] EthRpcClientError),
 }
 
 impl TransactionBuilder {
@@ -103,6 +122,7 @@ impl TransactionBuilder {
         Self {
             transfers: Vec::new(),
             unshields: HashMap::new(),
+            native_unshield: None,
             signers: HashMap::new(),
         }
     }
@@ -144,6 +164,12 @@ impl TransactionBuilder {
         self.signers
             .insert(from.viewing_key().public_key(), from.clone());
 
+        // Native unshield and regular unshield are mutually exclusive.
+        if self.native_unshield.is_some() {
+            warn!("Ignoring set_unshield because native unshield is already set");
+            return self;
+        }
+
         let unshield_data = UnshieldData {
             from,
             to,
@@ -160,21 +186,77 @@ impl TransactionBuilder {
         self
     }
 
+    /// Sets a native unshield operation (WETH -> ETH via RelayAdapt).
+    ///
+    /// This consumes wrapped base-token notes and unshields to the chain's
+    /// RelayAdapt contract, which then unwraps and transfers native ETH to `to`.
+    pub fn set_unshield_native(
+        mut self,
+        from: Arc<dyn Signer>,
+        to: Address,
+        value: u128,
+    ) -> Self {
+        self.signers
+            .insert(from.viewing_key().public_key(), from.clone());
+
+        if !self.unshields.is_empty() {
+            warn!("Ignoring set_unshield_native because standard unshields are already set");
+            return self;
+        }
+
+        self.native_unshield = Some(NativeUnshieldData { from, to, value });
+        self
+    }
+
     /// Builds and proves a transaction for railgun.
     ///
     /// The resulting transaction can be self-broadcasted, but does not include
     /// any POI proofs.
     pub async fn build<R: Rng>(
-        self,
+        mut self,
         chain: ChainConfig,
         indexer: &UtxoIndexer,
         prover: &dyn Prover,
         rng: &mut R,
     ) -> Result<ProvedTx, TransactionBuilderError> {
+        if let Some(native) = &self.native_unshield {
+            if !self.unshields.is_empty() {
+                return Err(TransactionBuilderError::InvalidNativeUnshieldConfiguration);
+            }
+            let wrapped_asset = AssetId::Erc20(chain.wrapped_base_token);
+            self.unshields.insert(
+                wrapped_asset,
+                UnshieldData {
+                    from: native.from.clone(),
+                    to: chain.relay_adapt_contract,
+                    asset: wrapped_asset,
+                    value: native.value,
+                },
+            );
+        }
+
         let in_notes = indexer.all_unspent();
         let draft = self.draft_operations(rng);
         let ops = build_operations(draft, in_notes, rng)?;
-        let proved = prove_operations(prover, &indexer.utxo_trees, &ops, chain, 0, rng).await?;
+        let proved = match &self.native_unshield {
+            Some(native) => {
+                let eth_rpc = indexer
+                    .eth_rpc()
+                    .ok_or(TransactionBuilderError::MissingEthRpcClient)?;
+                prove_native_unshield_operations(
+                    prover,
+                    &indexer.utxo_trees,
+                    &ops,
+                    chain,
+                    native.to,
+                    0,
+                    eth_rpc,
+                    rng,
+                )
+                .await?
+            }
+            None => prove_operations(prover, &indexer.utxo_trees, &ops, chain, 0, rng).await?,
+        };
 
         Ok(proved)
     }
@@ -298,6 +380,129 @@ pub async fn prove_operations<N: IncludedNote + SignableNote + Clone, R: Rng>(
     }
     .abi_encode();
     let tx_data = TxData::new(chain.railgun_smart_wallet, calldata.into(), U256::ZERO);
+
+    Ok(ProvedTx {
+        proved_operations,
+        tx_data,
+        min_gas_price,
+    })
+}
+
+/// Proves operations for a native unshield transaction routed through RelayAdapt.
+pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + Clone, R: Rng>(
+    prover: &dyn Prover,
+    utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
+    operations: &[Operation<N>],
+    chain: ChainConfig,
+    native_receiver: Address,
+    min_gas_price: u128,
+    eth_rpc: &dyn eth_rpc::EthRpcClient,
+    rng: &mut R,
+) -> Result<ProvedTx<N>, TransactionBuilderError> {
+    let relay = chain.relay_adapt_contract;
+
+    let native_ops: Vec<&Operation<N>> = operations
+        .iter()
+        .filter(|op| {
+            op.unshield_note()
+                .map(|n| n.receiver == relay && n.asset == AssetId::Erc20(chain.wrapped_base_token))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if native_ops.is_empty() {
+        return Err(TransactionBuilderError::MissingNativeUnshieldOperation);
+    }
+
+    let unwrap_call = RelayAdapt::unwrapBaseCall {
+        _amount: U256::ZERO,
+    };
+    let transfer_call = RelayAdapt::transferCall {
+        _transfers: vec![RelayAdapt::TokenTransfer {
+            token: abis::railgun::TokenData {
+                tokenType: abis::railgun::TokenType::ERC20,
+                tokenAddress: Address::ZERO,
+                tokenSubID: U256::ZERO,
+            },
+            to: native_receiver,
+            value: U256::ZERO,
+        }],
+    };
+
+    let action_data = RelayAdapt::ActionData {
+        random: FixedBytes::<31>::from(rng.random::<[u8; 31]>()),
+        requireSuccess: true,
+        minGasLimit: U256::from(min_gas_price),
+        calls: vec![
+            RelayAdapt::Call {
+                to: relay,
+                data: unwrap_call.abi_encode().into(),
+                value: U256::ZERO,
+            },
+            RelayAdapt::Call {
+                to: relay,
+                data: transfer_call.abi_encode().into(),
+                value: U256::ZERO,
+            },
+        ],
+    };
+
+    // TODO: Compute AdaptID locally with ABI encoding matching RelayAdapt.getAdaptParams
+    // (keccak256 over nullifiers + length + actionData) to avoid a static RPC call.
+    let mut adapt_params = [0u8; 32];
+    let mut tx_results = Vec::new();
+    const MAX_ADAPT_CONVERGENCE_ITERS: usize = 4;
+    for _ in 0..MAX_ADAPT_CONVERGENCE_ITERS {
+        tx_results = create_transactions(
+            prover,
+            utxo_trees,
+            operations,
+            chain,
+            min_gas_price,
+            relay,
+            &adapt_params,
+            rng,
+        )
+        .await?;
+
+        let transactions: Vec<_> = tx_results.iter().map(|(_, tx)| tx.clone()).collect();
+        let onchain: FixedBytes<32> = eth_call_sol(
+            eth_rpc,
+            relay,
+            RelayAdapt::getAdaptParamsCall {
+                _transactions: transactions,
+                _actionData: action_data.clone(),
+            },
+        )
+        .await?;
+        let next_adapt: [u8; 32] = onchain.into();
+        if next_adapt == adapt_params {
+            break;
+        }
+        adapt_params = next_adapt;
+    }
+
+    let proved_operations: Vec<ProvedOperation<N>> = operations
+        .iter()
+        .zip(tx_results)
+        .map(|(op, (ci, tx))| ProvedOperation {
+            operation: op.clone(),
+            circuit_inputs: ci,
+            transaction: tx,
+        })
+        .collect();
+
+    let transactions: Vec<_> = proved_operations
+        .iter()
+        .map(|po| po.transaction.clone())
+        .collect();
+
+    let calldata = RelayAdapt::relayCall {
+        _transactions: transactions,
+        _actionData: action_data,
+    }
+    .abi_encode();
+    let tx_data = TxData::new(relay, calldata.into(), U256::ZERO);
 
     Ok(ProvedTx {
         proved_operations,
