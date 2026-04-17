@@ -19,9 +19,9 @@ use std::{
     sync::Arc,
 };
 
-use alloy_primitives::{Address, FixedBytes, U256 as AlloyU256, keccak256};
-use alloy_sol_types::{SolCall, SolValue};
-use eth_rpc::TxData;
+use alloy_primitives::{Address, FixedBytes};
+use alloy_sol_types::SolCall;
+use eth_rpc::{EthRpcClientError, TxData, eth_call_sol};
 use prover::{Prover, ProverError};
 use rand::Rng;
 use ruint::aliases::U256;
@@ -111,6 +111,10 @@ pub enum TransactionBuilderError {
     InvalidNativeUnshieldConfiguration,
     #[error("Native unshield operation not found in built operations")]
     MissingNativeUnshieldOperation,
+    #[error("Missing Ethereum RPC client for native unshield")]
+    MissingEthRpcClient,
+    #[error("Ethereum RPC error: {0}")]
+    Rpc(#[from] EthRpcClientError),
 }
 
 impl TransactionBuilder {
@@ -236,6 +240,9 @@ impl TransactionBuilder {
         let ops = build_operations(draft, in_notes, rng)?;
         let proved = match &self.native_unshield {
             Some(native) => {
+                let eth_rpc = indexer
+                    .eth_rpc()
+                    .ok_or(TransactionBuilderError::MissingEthRpcClient)?;
                 prove_native_unshield_operations(
                     prover,
                     &indexer.utxo_trees,
@@ -243,6 +250,7 @@ impl TransactionBuilder {
                     chain,
                     native.to,
                     0,
+                    eth_rpc,
                     rng,
                 )
                 .await?
@@ -388,6 +396,7 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
     chain: ChainConfig,
     native_receiver: Address,
     min_gas_price: u128,
+    eth_rpc: &dyn eth_rpc::EthRpcClient,
     rng: &mut R,
 ) -> Result<ProvedTx<N>, TransactionBuilderError> {
     let relay = chain.relay_adapt_contract;
@@ -438,8 +447,8 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
         return Err(TransactionBuilderError::MissingNativeUnshieldOperation);
     }
 
-    // Build until adapt params converges for the exact transactions being encoded.
-    // This guarantees parity with RelayAdapt.getAdaptParams(_transactions, _actionData).
+    // TODO: Compute AdaptID locally with ABI encoding matching RelayAdapt.getAdaptParams
+    // (keccak256 over nullifiers + length + actionData) to avoid a static RPC call.
     let mut adapt_params = [0u8; 32];
     let mut tx_results = Vec::new();
     const MAX_ADAPT_CONVERGENCE_ITERS: usize = 4;
@@ -456,11 +465,17 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
         )
         .await?;
 
-        let nullifiers_2d: Vec<Vec<FixedBytes<32>>> = tx_results
-            .iter()
-            .map(|(_, tx)| tx.nullifiers.clone())
-            .collect();
-        let next_adapt = adapt_params_hash(nullifiers_2d, &action_data);
+        let transactions: Vec<_> = tx_results.iter().map(|(_, tx)| tx.clone()).collect();
+        let onchain: FixedBytes<32> = eth_call_sol(
+            eth_rpc,
+            relay,
+            RelayAdapt::getAdaptParamsCall {
+                _transactions: transactions,
+                _actionData: action_data.clone(),
+            },
+        )
+        .await?;
+        let next_adapt: [u8; 32] = onchain.into();
         if next_adapt == adapt_params {
             break;
         }
@@ -494,20 +509,6 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
         tx_data,
         min_gas_price,
     })
-}
-
-fn adapt_params_hash(
-    nullifiers_2d: Vec<Vec<FixedBytes<32>>>,
-    action_data: &RelayAdapt::ActionData,
-) -> [u8; 32] {
-    let trees_len = AlloyU256::from(nullifiers_2d.len());
-    let encoded = (
-        nullifiers_2d,
-        trees_len,
-        action_data.clone(),
-    )
-        .abi_encode();
-    keccak256(encoded).into()
 }
 
 /// Selects input notes for an operation.
