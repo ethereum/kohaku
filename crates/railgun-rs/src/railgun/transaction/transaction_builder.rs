@@ -401,6 +401,19 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
 ) -> Result<ProvedTx<N>, TransactionBuilderError> {
     let relay = chain.relay_adapt_contract;
 
+    let native_ops: Vec<&Operation<N>> = operations
+        .iter()
+        .filter(|op| {
+            op.unshield_note()
+                .map(|n| n.receiver == relay && n.asset == AssetId::Erc20(chain.wrapped_base_token))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if native_ops.is_empty() {
+        return Err(TransactionBuilderError::MissingNativeUnshieldOperation);
+    }
+
     let unwrap_call = RelayAdapt::unwrapBaseCall {
         _amount: U256::ZERO,
     };
@@ -433,19 +446,6 @@ pub async fn prove_native_unshield_operations<N: IncludedNote + SignableNote + C
             },
         ],
     };
-
-    let native_ops: Vec<&Operation<N>> = operations
-        .iter()
-        .filter(|op| {
-            op.unshield_note()
-                .map(|n| n.receiver == relay && n.asset == AssetId::Erc20(chain.wrapped_base_token))
-                .unwrap_or(false)
-        })
-        .collect();
-
-    if native_ops.is_empty() {
-        return Err(TransactionBuilderError::MissingNativeUnshieldOperation);
-    }
 
     // TODO: Compute AdaptID locally with ABI encoding matching RelayAdapt.getAdaptParams
     // (keccak256 over nullifiers + length + actionData) to avoid a static RPC call.

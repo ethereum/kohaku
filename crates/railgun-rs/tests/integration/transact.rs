@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy::{
     network::Ethereum,
-    primitives::{Address, U256, address},
+    primitives::{Address, address},
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
     sol_types::SolCall,
@@ -166,6 +166,7 @@ async fn test_transact() {
     let native_receiver = address!("0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199");
     let native_unshield_value: u128 = 10_000;
     let pre_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
+    let pre_relay_balance = provider.get_balance(CHAIN.relay_adapt_contract).await.unwrap();
     let pre_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
 
     let tx = TransactionBuilder::new().set_unshield_native(
@@ -181,18 +182,39 @@ async fn test_transact() {
         native_unshield_tx.tx_data.data[..4],
         RelayAdapt::relayCall::SELECTOR
     );
+    let relay_call = RelayAdapt::relayCall::abi_decode(&native_unshield_tx.tx_data.data).unwrap();
+    eprintln!(
+        "Native unshield actionData: calls={} requireSuccess={} minGasLimit={}",
+        relay_call._actionData.calls.len(),
+        relay_call._actionData.requireSuccess,
+        relay_call._actionData.minGasLimit
+    );
+    for (i, call) in relay_call._actionData.calls.iter().enumerate() {
+        eprintln!(
+            "  call[{i}]: to={:?} value={} data_len={}",
+            call.to,
+            call.value,
+            call.data.len()
+        );
+    }
 
-    provider
+    let native_receipt = provider
         .send_transaction(native_unshield_tx.tx_data.into())
         .await
         .unwrap()
         .get_receipt()
         .await
         .unwrap();
+    eprintln!("Native unshield receipt: {:?}", native_receipt);
 
     railgun.sync().await.unwrap();
     let post_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
     let post_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
+    let post_relay_balance = provider.get_balance(CHAIN.relay_adapt_contract).await.unwrap();
+    eprintln!(
+        "Native balances: receiver {} -> {}, relay {} -> {}",
+        pre_native_balance_eoa, post_native_balance_eoa, pre_relay_balance, post_relay_balance
+    );
 
     // Wrapped base-token notes are spent by the unshield amount.
     assert_eq!(
