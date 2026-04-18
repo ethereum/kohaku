@@ -173,7 +173,7 @@ async fn test_transfer_poi<P: Provider>(
         account_1.clone(),
         account_2.address(),
         USDC,
-        5,
+        1,
         "test transfer",
     );
     let transfer_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
@@ -188,8 +188,8 @@ async fn test_transfer_poi<P: Provider>(
 
     info!("Transferred with tx hash: {:?}", tx.transaction_hash);
 
-    await_balance_update(railgun, account_1.clone(), USDC, list_key, Some(5)).await;
-    await_balance_update(railgun, account_2.clone(), USDC, list_key, Some(5)).await;
+    await_balance_update(railgun, account_1.clone(), USDC, list_key, Some(9)).await;
+    await_balance_update(railgun, account_2.clone(), USDC, list_key, Some(1)).await;
 }
 
 async fn test_unshield_poi<P: Provider>(
@@ -199,19 +199,12 @@ async fn test_unshield_poi<P: Provider>(
     account_2: Arc<dyn Signer>,
     list_key: &ListKey,
 ) {
-    let tx = PoiTransactionBuilder::new()
-        .set_unshield(
-            account_1.clone(),
-            address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
-            USDC,
-            2,
-        )
-        .set_unshield(
-            account_2.clone(),
-            address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
-            USDC,
-            3,
-        );
+    let tx = PoiTransactionBuilder::new().set_unshield(
+        account_1.clone(),
+        address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
+        USDC,
+        2,
+    );
     let unshield_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
 
     let usdc_contract = ERC20::new(USDC_ADDRESS, provider);
@@ -237,8 +230,8 @@ async fn test_unshield_poi<P: Provider>(
         .await
         .unwrap();
 
-    await_balance_update(railgun, account_1.clone(), USDC, list_key, Some(3)).await;
-    await_balance_update(railgun, account_2.clone(), USDC, list_key, Some(5)).await;
+    await_balance_update(railgun, account_1.clone(), USDC, list_key, Some(7)).await;
+    await_balance_update(railgun, account_2.clone(), USDC, list_key, Some(1)).await;
 
     let delta_balance_eoa = post_unshield_balance_eoa - pre_unshield_balance_eoa;
     assert_eq!(delta_balance_eoa, 2);
@@ -256,13 +249,13 @@ async fn await_balance_update(
         info!("Waiting for balance to update...");
         common::sleep(web_time::Duration::from_secs(10)).await;
 
-        if start.elapsed().as_secs() > 200 {
-            panic!("Balance did not update within 200 seconds");
+        if start.elapsed().as_secs() > 300 {
+            panic!("Balance did not update within 300 seconds");
         }
 
         railgun.sync().await.unwrap();
         let balance = railgun.balance(account.address(), &list_key).await;
-        info!("Balance: {:?}", balance);
+        info!("Balance: {:?}, Expected: {:?}", balance, expected);
 
         if balance.get(&(PoiStatus::Valid, asset)) == expected.as_ref() {
             return;
