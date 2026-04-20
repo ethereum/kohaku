@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+mod snapshot;
 #[cfg(all(not(target_arch = "wasm32"), feature = "poi"))]
 mod sync_txid;
 #[cfg(not(target_arch = "wasm32"))]

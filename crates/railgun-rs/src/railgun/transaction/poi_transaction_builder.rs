@@ -222,7 +222,7 @@ impl PoiTransactionBuilder {
                     .map(|op| op.from.address() == fee_payer.address() && op.asset == fee_asset)
                     .unwrap_or(false)
             );
-
+ 
             let proved = prove_operations(prover, utxo_trees, &operations, chain, 0, rng).await?;
             let gas = estimator
                 .estimate_gas(proved.tx_data.to, proved.tx_data.data.clone(), None)
