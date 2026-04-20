@@ -12,6 +12,8 @@ const CHAIN_ID = 1n;
 const INTEGRATION = process.env.INTEGRATION === "1";
 const RPC_URL = "http://localhost:8545";
 const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+const NATIVE_ASSET_RECEIVER = checksumAddress("0x1d60C34f508BbBd7f1cb50b375c4CdD25e718D1c");
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 
 const erc20Abi = parseAbi([
@@ -37,6 +39,7 @@ test("transact-utxo", async () => {
   initLogging();
 
   const USDC = erc20(USDC_ADDRESS);
+  const WETH = erc20(WETH_ADDRESS);
 
   console.log("Setup viem");
   const publicClient = createPublicClient({
@@ -71,24 +74,36 @@ test("transact-utxo", async () => {
 
   console.log("Testing Shield");
   {
-    const txs = railgun.shield().shield(account1.address, USDC, 1_000_000n).build();
-    const tx = txs[0];
-    if (!tx) {
-      throw new Error("Expected at least one shield transaction");
+    const shieldTxs = railgun.shield().shield(account1.address, USDC, 1_000_000n).build();
+    const shieldTx = shieldTxs[0];
+    if (!shieldTx) {
+      throw new Error("Expected at least one ERC20 shield transaction");
     }
     const shieldHash = await walletClient.sendTransaction({
-      to: tx.to,
-      data: tx.data,
-      value: BigInt(tx.value),
+      to: shieldTx.to,
+      data: shieldTx.data,
+      value: BigInt(shieldTx.value),
     });
-
     await publicClient.waitForTransactionReceipt({ hash: shieldHash });
+
+    const shieldNativeTxs = railgun.shield().shieldNative(account1.address, 100_000n).build();
+    const shieldNativeTx = shieldNativeTxs[0];
+    if (!shieldNativeTx) {
+      throw new Error("Expected at least one native shield transaction");
+    }
+    const shieldNativeHash = await walletClient.sendTransaction({
+      to: shieldNativeTx.to,
+      data: shieldNativeTx.data,
+      value: BigInt(shieldNativeTx.value),
+    });
+    await publicClient.waitForTransactionReceipt({ hash: shieldNativeHash });
 
     await railgun.sync();
     const balance1 = railgun.balance(account1.address);
     const balance2 = railgun.balance(account2.address);
 
     expect(balance1.find((entry) => JSON.stringify(entry.assetId) === JSON.stringify(USDC))?.balance).toBe(997500n);
+    expect(balance1.find((entry) => JSON.stringify(entry.assetId) === JSON.stringify(WETH))?.balance).toBe(99750n);
     expect(balance2.find((entry) => JSON.stringify(entry.assetId) === JSON.stringify(USDC))?.balance).toBeUndefined();
   }
 
@@ -140,5 +155,33 @@ test("transact-utxo", async () => {
     });
 
     expect(eoaBalance).toBe(998n);
+  }
+
+  console.log("Testing Native Unshield");
+  {
+    const nativeUnshieldValue = 10_000n;
+    const preNativeBalance = await publicClient.getBalance({ address: NATIVE_ASSET_RECEIVER });
+    await railgun.sync();
+    const preWeth = railgun.balance(account1.address)
+      .find((entry) => JSON.stringify(entry.assetId) === JSON.stringify(WETH))?.balance;
+    if (preWeth == null) throw new Error("Expected WETH balance before native unshield");
+
+    const builder = railgun.transact().unshieldNative(account1, NATIVE_ASSET_RECEIVER, nativeUnshieldValue);
+    const tx = await railgun.build(builder);
+    const hash = await walletClient.sendTransaction({
+      to: tx.to,
+      data: tx.data,
+      value: BigInt(tx.value),
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+
+    await railgun.sync();
+    const postWeth = railgun.balance(account1.address)
+      .find((entry) => JSON.stringify(entry.assetId) === JSON.stringify(WETH))?.balance;
+    if (postWeth == null) throw new Error("Expected WETH balance after native unshield");
+    const postNativeBalance = await publicClient.getBalance({ address: NATIVE_ASSET_RECEIVER });
+
+    expect(preWeth - postWeth).toBe(nativeUnshieldValue);
+    expect(postNativeBalance > preNativeBalance).toBe(true);
   }
 }, 300 * 1000);
