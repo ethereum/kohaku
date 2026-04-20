@@ -17,6 +17,9 @@ Utilities in this list should be applicable to all wallets. More advanced or wal
 
 - Drainers
   - [ ] DNS freshess - check if the DNS record was recently changed.
+  - [ ] Block sites with obfuscated JS
+  - [ ] Check known drainer paths (ie `/assets/secure.php`)
+    - Consider reporting potential drainer paths to SEAL phishnet or something?  Opt-in, privacy-preserving.  But could be quite helpful to protect others.
 
 - Tokens
   - [ ] Approval Management - 
