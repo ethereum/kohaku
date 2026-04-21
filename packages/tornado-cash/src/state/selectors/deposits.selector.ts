@@ -1,123 +1,35 @@
-import { TxData } from '@kohaku-eth/provider';
 import { createSelector } from '@reduxjs/toolkit';
-
-import { ISecretManager } from '../../account/keys';
-import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield';
 import { IIndexedDepositEvent } from '../../data/interfaces/events.interface';
-import { Address, Commitment } from '../../interfaces/types.interface';
-import { addressToHex } from '../../utils';
-import { BaseSelectorParams } from '../interfaces/selectors.interface';
-import { RootState } from '../store';
-import { depositsSelector, instanceRegistryInfoSelector, poolsSelector } from './slices.selectors';
+import { Commitment } from '../../interfaces/types.interface';
+import { depositsSelector, userSecretsSelector } from './slices.selectors';
+import { UserSecretRecord } from '../slices/userSecretsSlice';
 
 /**
- * Returns a Map with every deposit we own. We also check approved status.
+ * Returns a Map of every deposit owned by this user, keyed by commitment.
+ * Ownership is determined by the userSecrets slice (populated by discoverUserEventsThunk).
  */
-export const createMyDepositsSelector = ({
-  secretManager,
-}: Pick<BaseSelectorParams, 'secretManager'>) => {
-  return createSelector(
-    [
-      depositsSelector,
-      poolsSelector,
-      instanceRegistryInfoSelector,
-    ],
-    // TODO: do we need the instanceRegistryAddress to calculate secrets?
-    (depositsMap, pools, { chainId }): Map<Commitment, IIndexedDepositEvent> => {
-      const myDeposits: IIndexedDepositEvent[] = [];
+export const myDepositsSelector = createSelector(
+  [depositsSelector, userSecretsSelector],
+  (deposits, userSecrets): Map<Commitment, IIndexedDepositEvent> => {
+    const result = new Map<Commitment, IIndexedDepositEvent>();
 
-      for (const [poolAddress] of pools) {
-        for (let depositIndex = 0; ; depositIndex++) {
-          const { commitment } = secretManager.getDepositSecrets({
-            poolAddress,
-            chainId,
-            depositIndex,
-          });
-  
-          const deposit = depositsMap.get(poolAddress)?.get(commitment);
+    for (const [poolKey, records] of Object.entries(userSecrets) as [string, UserSecretRecord[]][]) {
+      const poolAddress = BigInt(poolKey) as Commitment;
+      const poolDeposits = deposits.get(poolAddress);
 
-          if (!deposit) {
-            break;
-          }
-  
-          myDeposits.push({
-            ...deposit,
-            index: depositIndex,
-          });
+      if (!poolDeposits) continue;
+
+      for (const r of records) {
+        const commitment = BigInt(r.commitment) as Commitment;
+        const deposit = poolDeposits.get(commitment);
+
+        if (deposit) {
+          result.set(commitment, { ...deposit, index: r.depositIndex });
         }
       }
-
-      return new Map(myDeposits.map((deposit) => [deposit.commitment, deposit] as const));
     }
-  );
-};
 
-const filterMyDepositsByPool = (myDeposits: Map<Commitment, IIndexedDepositEvent>, poolAddress: Address) => 
-  Array.from(myDeposits.values()).filter((d) => d.pool === poolAddress).length;
+    return result;
+  },
+);
 
-export const createGetNextDepositsPayloadSelector = ({
-  myDepositsSelector,
-  secretsManager,
-}: {
-  myDepositsSelector: ReturnType<typeof createMyDepositsSelector>;
-  secretsManager: ISecretManager
-}) => {
-  return createSelector(
-    [
-      myDepositsSelector,
-      (_state: RootState, assetAddress: Address) => assetAddress,
-      (_state: RootState, _assetAddress: Address, amount: bigint) => amount,
-      poolsSelector,
-      instanceRegistryInfoSelector
-    ],
-    (myDeposits, assetAddress, amount, pools, { chainId }): TxData[] => {
-      const pool = Array.from(pools.values()).find((p) => p.asset === assetAddress);
-
-      if (!pool) {
-        throw new Error('Pool for asset not found');
-      }
-
-      const isNative = !pool.isERC20;
-      const poolAddressHex = addressToHex(pool.address);
-
-      const poolDepositsCount = filterMyDepositsByPool(myDeposits, pool.address);
-      const depositsToGenerate = amount / pool.denomination;
-
-      const newSecretsIndexes = new Array(Number(depositsToGenerate))
-        .fill(0).map((_ , index) => poolDepositsCount + index);
-
-      if (isNative) {
-        return newSecretsIndexes.map((depositIndex) => {
-          const { commitment } = secretsManager.getDepositSecrets({
-            chainId,
-            depositIndex,
-            poolAddress: pool.address
-          });
-
-          return prepareNativeShield({
-            commitment,
-            poolAddress: poolAddressHex,
-            poolDenomination: pool.denomination,
-          });
-        });
-      } else {
-        const assetHex = addressToHex(pool.asset);
-
-        return newSecretsIndexes.flatMap((depositIndex) => {
-          const { commitment } = secretsManager.getDepositSecrets({
-            chainId,
-            depositIndex,
-            poolAddress: pool.address
-          });
-
-          return prepareErc20Shield({
-            commitment,
-            tokenAddress: assetHex,
-            poolAddress: poolAddressHex,
-            denomination: pool.denomination,
-          });
-        });
-      }
-    }
-  );
-};

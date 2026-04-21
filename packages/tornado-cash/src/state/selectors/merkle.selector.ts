@@ -21,7 +21,13 @@ export const stateMerkleProofSelector = createSelector(
     stateLeavesSelector,
     (_state: RootState, _poolAddress: bigint, commitment: Commitment) => commitment,
   ],
-  (stateLeaves, commitment: Commitment) => {
-    return generateMerkleProof(stateLeaves, commitment);
+  async (stateLeaves, commitment: Commitment) => {
+    const start = new Date();
+    const proof = await generateMerkleProof(stateLeaves, commitment);
+    const end = new Date();
+  
+    console.log(`Merkle tree for ${stateLeaves.length} leaves took ${ +end - +start }ms`);
+
+    return proof;
   }
 );

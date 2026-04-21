@@ -50,8 +50,13 @@ export const syncEventsThunk = createAsyncThunk<
       const { Deposited, Withdrawn, toBlock, pool } =
         result.value;
 
-      allDeposits.push(...Deposited.map((e) => ({ ...e, pool })));
-      allWithdrawals.push(...Withdrawn.map((e) => ({ ...e, pool })));
+      for (let dIndex = 0; dIndex < Deposited.length; dIndex++) {
+        allDeposits.push({...Deposited[dIndex]!, pool});
+      }
+
+      for (let wIndex = 0; wIndex < Deposited.length; wIndex++) {
+        allWithdrawals.push({...Withdrawn[wIndex]!, pool});
+      }
 
       if (toBlock > maxBlock) {
         maxBlock = toBlock;

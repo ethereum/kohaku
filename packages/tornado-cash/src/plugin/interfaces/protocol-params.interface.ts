@@ -102,5 +102,5 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
-  dumpState: () => Record<StoreStorageKey, RootState>;
+  dumpState: () => Record<StoreStorageKey, Omit<RootState, 'userSecrets'>>;
 }

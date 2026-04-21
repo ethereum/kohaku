@@ -53,13 +53,19 @@ export const poolCommitmentsSelector = createSelector(
 export const poolMerkleTreeRootSelector = createSelector(
   [poolCommitmentsSelector],
   async (commitments): Promise<bigint> => {
+    const start = new Date();
     const leaves = Array.from(commitments);
 
     if (leaves.length === 0) {
       return 0n;
     }
 
-    return computeMerkleTreeRoot(leaves);
+    const root = await computeMerkleTreeRoot(leaves);
+    const end = new Date();
+
+    console.log(`Merkle tree for ${leaves.length} leaves took ${ +end - +start }ms`);
+
+    return root;
   },
 );
 

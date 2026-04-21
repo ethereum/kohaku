@@ -1,23 +1,17 @@
- 
 import {
   AccountId,
   AssetAmount,
   ERC20AssetId,
   Host,
 } from "@kohaku-eth/plugins";
+import { wrap, proxy, transfer } from 'comlink';
 
-import { SecretManager } from "../account/keys";
-import { DataService } from "../data/data.service";
-import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
-import { RelayerClient } from "../relayer/relayer-client";
-import { storeStateManager } from "../state/state-manager";
 import { addressToHex, } from "../utils.js";
 import {
   TCAssetAmount,
   TCAssetBalance,
   TCInstance,
 } from "../v1/interfaces.js";
-import { downloadArtifactsAndCreateProver } from "../utils/tornado-prover";
 import {
   IStateManager,
   TCPrivateOperation,
@@ -25,36 +19,67 @@ import {
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT } from "../config";
+import type { WorkerApi } from '../state/state-manager.worker';
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
 export class TornadoCashProtocol implements TCInstance {
   private stateManager: Promise<IStateManager>;
-  private relayerClient: IRelayerClient;
 
   constructor(
     readonly host: Host,
     {
       accountIndex = 0,
       initialState = async () => ({}),
-      secretManagerFactory = SecretManager,
-      stateManager: stateManagerFactory = storeStateManager,
       instanceRegistry,
       artifacts,
-      relayerClientFactory = () => new RelayerClient({ network: host.network }),
-      proverFactory = () => downloadArtifactsAndCreateProver(host, artifacts.wasmUrl, artifacts.zkeyUrl),
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry' | 'artifacts'>,
   ) {
-    this.relayerClient = relayerClientFactory();
-    this.stateManager = initialState().then((initialState) => stateManagerFactory({
-      initialState: { ...initialState },
-      secretManagerFactory: () => secretManagerFactory({ accountIndex, host }),
-      dataService: new DataService({ provider: host.provider }),
-      relayerClient: this.relayerClient,
-      proverFactory,
-      storageToSyncTo: host.storage,
-      instanceRegistry,
-    }));
+    this.stateManager = (async () => {
+      const [state, wasmRes, zkeyRes] = await Promise.all([
+        initialState(),
+        host.network.fetch(artifacts.wasmUrl),
+        host.network.fetch(artifacts.zkeyUrl),
+      ]);
+      const [proverWasm, proverZkey] = await Promise.all([
+        wasmRes.arrayBuffer(),
+        zkeyRes.arrayBuffer(),
+      ]);
+
+      const worker = new Worker('./state-manager.worker.js', { type: 'module' });
+
+      const workerReady = new Promise<void>((_resolve, reject) => {
+        worker.addEventListener('error', (e) => {
+          console.error('[worker crash]', { message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno, error: e.error });
+          reject(e.error ?? new Error(e.message));
+        });
+      });
+
+      const remote = wrap<WorkerApi>(worker);
+
+      await Promise.race([
+        remote.init(
+          proxy(host.provider),
+          proxy(host.network),
+          proxy(host.keystore),
+          proxy(host.storage),
+          instanceRegistry,
+          accountIndex,
+          state,
+          transfer(proverWasm, [proverWasm]),
+          transfer(proverZkey, [proverZkey]),
+        ),
+        workerReady,
+      ]);
+
+      return {
+        sync: () => remote.sync(),
+        getBalances: ((assets: bigint[] | undefined) => remote.getBalances(assets)) as unknown as IStateManager['getBalances'],
+        getDepositPayload: (params) => remote.getDepositPayload(params),
+        getWithdrawalPayloads: (params) => remote.getWithdrawalPayloads(params),
+        dumpState: (() => remote.dumpState()) as unknown as IStateManager['dumpState'],
+      } as IStateManager;
+    })();
   }
 
   instanceId = () => Promise.resolve("0x1" as const);

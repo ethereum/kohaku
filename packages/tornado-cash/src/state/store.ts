@@ -17,6 +17,7 @@ import { poolsReducer } from "./slices/poolsSlice";
 import { relayersReducer } from "./slices/relayersSlice";
 import { syncReducer } from "./slices/syncSlice";
 import { withdrawalsReducer } from "./slices/withdrawalsSlice";
+import { userSecretsReducer } from "./slices/userSecretsSlice";
 
 const reducers = {
   deposits: depositsReducer,
@@ -26,7 +27,8 @@ const reducers = {
   relayers: relayersReducer,
   instanceRegistryInfo: instanceRegistryInfoReducer,
   sync: syncReducer,
- } as const;
+  userSecrets: userSecretsReducer,
+} as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
 type LogLevel = 'error' | 'verbose' | 'off';
@@ -82,10 +84,8 @@ export const storeFactory = ({
     reducer: reducers,
     middleware: (getDefaultMiddleware) => {
       const defaultMiddleware = getDefaultMiddleware({
-        serializableCheck: {
-          ignoreActions: true,
-          immutableCheck: false,
-        },
+        immutableCheck: false,
+        serializableCheck: false,
       });
 
       if (logLevel !== 'off') {

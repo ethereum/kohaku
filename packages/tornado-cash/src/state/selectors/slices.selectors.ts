@@ -16,6 +16,7 @@ import {
 import { createSelector } from "@reduxjs/toolkit";
 import { InstanceRegistryInfoState } from "../slices/instanceRegistryInfoSlice";
 import { IRelayerInfo } from "../slices/relayersSlice";
+import { UserSecretRecord } from "../slices/userSecretsSlice";
 
 export const depositsSelector = createSelector(
   [(s: RootState) => s.deposits.depositsTuples],
@@ -68,3 +69,8 @@ export const relayersSelector = createSelector(
 );
 
 export const relayerFeeConfigSelector = (state: RootState) => state.relayers.feeConfig;
+
+export const userSecretsSelector = selectEntityMap(
+  (s) => s.userSecrets.byPool,
+  deserialize as () => [Address, UserSecretRecord[]]
+);
