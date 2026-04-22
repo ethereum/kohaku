@@ -181,7 +181,7 @@ export async function createCurvyPlugin(host: Host, params: CurvyPluginParams): 
         signature,
         curvyId,
         apiBaseUrl,
-        environment = "mainnet",
+        environment = "testnet",
         keyIndex = 0,
         wasmUrl,
     } = params;
