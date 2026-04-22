@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Display,
-};
+use std::{collections::HashMap, fmt::Display};
 
 use eth_rpc::TxData;
 use prover::{Prover, ProverError};
@@ -16,7 +13,7 @@ use crate::{
     },
     crypto::railgun_txid::Txid,
     railgun::{
-        merkle_tree::{TxidLeafHash, UtxoMerkleTree},
+        merkle_tree::TxidLeafHash,
         note::operation::Operation,
         poi::{BlindedCommitment, ListKey, PoiNote, PreTransactionPoi},
     },
@@ -62,12 +59,7 @@ impl PoiProvedOperation {
         &mut self,
         prover: &dyn Prover,
         list_keys: &[ListKey],
-        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     ) -> Result<(), PoiProvedOperationError> {
-        let utxo_merkle_tree = utxo_trees.get(&self.operation.utxo_tree_number).ok_or(
-            PoiProvedOperationError::MissingTree(self.operation.utxo_tree_number),
-        )?;
-
         // Generate a POI proof for each list key and add it to the pois map.
         for list_key in list_keys {
             if self.pois.contains_key(list_key) {
@@ -96,7 +88,6 @@ impl PoiProvedOperation {
             let inputs = PoiCircuitInputs::from_inputs(
                 self.operation.from.spending_key().public_key(),
                 self.operation.from.viewing_key().nullifying_key(),
-                utxo_merkle_tree,
                 self.operation.utxo_tree_number,
                 self.circuit_inputs.bound_params_hash,
                 &self.operation.in_notes,

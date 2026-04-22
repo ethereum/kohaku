@@ -16,7 +16,7 @@ use crate::{
         railgun_txid::Txid,
     },
     railgun::{
-        indexer::{TxidIndexer, UtxoIndexer},
+        indexer::TxidIndexer,
         merkle_tree::{TOTAL_LEAVES, UtxoTreeIndex},
         note::utxo::UtxoNote,
         poi::{BlindedCommitment, ListKey, PoiClient, PoiClientError, types::TransactProofData},
@@ -136,7 +136,6 @@ impl PendingPoiSubmitter {
     pub async fn process(
         &mut self,
         txid_indexer: &TxidIndexer,
-        utxo_indexer: &UtxoIndexer,
         poi_client: &PoiClient,
         prover: &dyn Prover,
     ) -> Result<Vec<Txid>, PendingPoiError> {
@@ -166,11 +165,6 @@ impl PendingPoiSubmitter {
                 .tree(txid_tree_number)
                 .ok_or(PendingPoiError::MissingTxidTree(txid_tree_number))?;
 
-            let utxo_tree = utxo_indexer
-                .utxo_trees
-                .get(&entry.utxo_tree_in)
-                .ok_or(PendingPoiError::MissingUtxoTree(entry.utxo_tree_in))?;
-
             let included = UtxoTreeIndex::included(utxo_tree_number, utxo_leaf_index);
 
             // Re-fetch fresh POI merkle proofs from the aggregator.
@@ -192,7 +186,6 @@ impl PendingPoiSubmitter {
                 let inputs = PoiCircuitInputs::from_inputs_included(
                     entry.spending_pubkey,
                     entry.nullifying_key,
-                    utxo_tree,
                     entry.utxo_tree_in,
                     entry.bound_params_hash,
                     &poi_notes,

@@ -11,7 +11,7 @@ use crate::{
     railgun::{
         merkle_tree::{
             MerkleProof, MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash,
-            TxidMerkleTree, UtxoMerkleTree, UtxoTreeIndex, merkle_proof::new_pre_inclusion,
+            TxidMerkleTree, UtxoTreeIndex, merkle_proof::new_pre_inclusion,
         },
         note::{IncludedNote, Note},
         poi::{ListKey, PoiNote},
@@ -137,7 +137,6 @@ impl PoiCircuitInputs {
     pub fn from_inputs(
         spending_pubkey: SpendingPublicKey,
         nullifying_key: NullifyingKey,
-        utxo_merkle_tree: &UtxoMerkleTree,
         utxo_tree_in: u32,
         bound_params_hash: U256,
         in_notes: &[PoiNote],
@@ -148,7 +147,7 @@ impl PoiCircuitInputs {
         has_unshield: bool,
         list_key: ListKey,
     ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers = Self::compute_nullifiers(utxo_merkle_tree, in_notes)?;
+        let nullifiers = Self::compute_nullifiers(in_notes)?;
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
         let tree_index = UtxoTreeIndex::PreInclusion;
         let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, tree_index);
@@ -179,7 +178,6 @@ impl PoiCircuitInputs {
     pub fn from_inputs_included<S>(
         spending_pubkey: SpendingPublicKey,
         nullifying_key: NullifyingKey,
-        utxo_merkle_tree: &UtxoMerkleTree,
         utxo_tree_in: u32,
         bound_params_hash: U256,
         in_notes: &[PoiNote<S>],
@@ -192,7 +190,7 @@ impl PoiCircuitInputs {
         included_index: UtxoTreeIndex,
         txid_tree: &TxidMerkleTree,
     ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers = Self::compute_nullifiers(utxo_merkle_tree, in_notes)?;
+        let nullifiers = Self::compute_nullifiers(in_notes)?;
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
         let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, included_index);
         let txid_proof = txid_tree.generate_proof(txid_leaf_hash)?;
@@ -216,22 +214,9 @@ impl PoiCircuitInputs {
         )
     }
 
-    fn compute_nullifiers<S>(
-        utxo_merkle_tree: &UtxoMerkleTree,
-        in_notes: &[PoiNote<S>],
-    ) -> Result<Vec<U256>, PoiCircuitInputsError> {
-        info!("UTXO proofs");
-        let utxo_proofs: Vec<_> = in_notes
-            .iter()
-            .map(|note| utxo_merkle_tree.generate_proof(note.hash()))
-            .collect::<Result<_, _>>()?;
-
+    fn compute_nullifiers<S>(in_notes: &[PoiNote<S>]) -> Result<Vec<U256>, PoiCircuitInputsError> {
         info!("Computing nullifiers");
-        Ok(in_notes
-            .iter()
-            .zip(utxo_proofs.iter())
-            .map(|(note, proof)| note.nullifier(proof.indices))
-            .collect())
+        Ok(in_notes.iter().map(|note| note.nullifier()).collect())
     }
 
     #[allow(clippy::too_many_arguments)]

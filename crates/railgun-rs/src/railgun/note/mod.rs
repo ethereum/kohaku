@@ -26,7 +26,7 @@ pub trait IncludedNote: Note {
     fn spending_pubkey(&self) -> [U256; 2];
     fn viewing_pubkey(&self) -> ViewingPublicKey;
     fn nullifying_key(&self) -> U256;
-    fn nullifier(&self, leaf_index: U256) -> U256;
+    fn nullifier(&self) -> U256;
     fn random(&self) -> [u8; 16];
     fn blinded_commitment(&self) -> U256;
 }

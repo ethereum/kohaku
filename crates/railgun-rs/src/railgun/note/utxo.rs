@@ -253,8 +253,8 @@ impl<S> IncludedNote for UtxoNote<S> {
     /// Returns the note's nullifier for a given leaf index
     ///
     /// Hash of (nullifying_key, leaf_index)
-    fn nullifier(&self, leaf_index: U256) -> U256 {
-        poseidon_hash(&[self.nullifying_key, leaf_index]).unwrap()
+    fn nullifier(&self) -> U256 {
+        poseidon_hash(&[self.nullifying_key, U256::from(self.leaf_index)]).unwrap()
     }
 
     fn random(&self) -> [u8; 16] {
@@ -433,9 +433,9 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_note_nullifier() {
-        let note = test_note();
-        let leaf_index = U256::from(5u32);
-        let nullifier = note.nullifier(leaf_index);
+        let mut note = test_note();
+        note.leaf_index = 5;
+        let nullifier = note.nullifier();
 
         insta::assert_debug_snapshot!(nullifier);
     }

@@ -73,8 +73,8 @@ impl<S> IncludedNote for PoiNote<S> {
     fn viewing_pubkey(&self) -> ViewingPublicKey {
         self.inner.viewing_pubkey()
     }
-    fn nullifier(&self, leaf_index: U256) -> U256 {
-        self.inner.nullifier(leaf_index)
+    fn nullifier(&self) -> U256 {
+        self.inner.nullifier()
     }
     fn nullifying_key(&self) -> U256 {
         self.inner.nullifying_key()

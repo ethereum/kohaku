@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::Address;
 use eth_rpc::EthRpcClientError;
@@ -18,7 +15,7 @@ use crate::{
         Signer,
         address::RailgunAddress,
         indexer::UtxoIndexer,
-        merkle_tree::{MerkleRoot, UtxoMerkleTree},
+        merkle_tree::MerkleRoot,
         note::utxo::UtxoNote,
         poi::{ListKey, PoiClient, PoiClientError, PoiNote},
         transaction::{
@@ -108,8 +105,7 @@ impl PoiTransactionBuilder {
         let proved = prove_operations(prover, &indexer.utxo_trees, &ops, chain, 0, rng).await?;
 
         info!("Attaching POI proofs");
-        self.prove_poi(prover, proved, &indexer.utxo_trees, &list_keys)
-            .await
+        self.prove_poi(prover, proved, &list_keys).await
     }
 
     /// Attach POI proofs to a proved transaction.
@@ -117,7 +113,6 @@ impl PoiTransactionBuilder {
         &self,
         prover: &dyn Prover,
         proved: ProvedTx<PoiNote>,
-        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
         list_keys: &[ListKey],
     ) -> Result<PoiProvedTx, PoiTransactionBuilderError> {
         let mut poi_operations = Vec::new();
@@ -134,7 +129,7 @@ impl PoiTransactionBuilder {
 
         // Attach POI proofs to each operation
         for poi_op in poi_operations.iter_mut() {
-            poi_op.add_pois(prover, list_keys, utxo_trees).await?;
+            poi_op.add_pois(prover, list_keys).await?;
         }
 
         Ok(PoiProvedTx {

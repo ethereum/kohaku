@@ -167,12 +167,7 @@ impl PoiProvider {
         self.inner.sync().await?;
         self.txid_indexer.sync().await?;
         self.pending_submitter
-            .process(
-                &self.txid_indexer,
-                &self.inner.utxo_indexer,
-                &self.poi_client,
-                self.prover.as_ref(),
-            )
+            .process(&self.txid_indexer, &self.poi_client, self.prover.as_ref())
             .await?;
         Ok(())
     }
@@ -181,12 +176,7 @@ impl PoiProvider {
         self.inner.sync_to(block_number).await?;
         self.txid_indexer.sync_to(block_number).await?;
         self.pending_submitter
-            .process(
-                &self.txid_indexer,
-                &self.inner.utxo_indexer,
-                &self.poi_client,
-                self.prover.as_ref(),
-            )
+            .process(&self.txid_indexer, &self.poi_client, self.prover.as_ref())
             .await?;
         Ok(())
     }

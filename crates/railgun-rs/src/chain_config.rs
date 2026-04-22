@@ -15,7 +15,8 @@ pub struct ChainConfig {
     /// Sourced from
     /// https://github.com/Railgun-Community/shared-models/blob/main/src/models/network-config.ts
     pub relay_adapt_contract: Address,
-    /// Wrapped base token (e.g. WETH on Ethereum) used in shield note preimages when shielding native ETH
+    /// Wrapped base token (e.g. WETH on Ethereum) used in shield note preimages when shielding
+    /// native ETH
     pub wrapped_base_token: Address,
     /// Block number the railgun smart wallet was deployed at
     pub deployment_block: u64,
