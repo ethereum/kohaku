@@ -7,26 +7,18 @@ use thiserror::Error;
 use crate::{merkle::TornadoMerkleTree, note::Note};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WithdrawCircuitInputs {
-    #[serde(rename = "root", with = "common::serde::u256_decimal")]
+    #[serde(rename = "root")]
     pub merkle_root: U256,
-    #[serde(rename = "nullifierHash", with = "common::serde::u256_decimal")]
     pub nullifier_hash: U256,
-    #[serde(rename = "recipient", with = "common::serde::u256_decimal")]
     pub recipient: U256,
-    #[serde(rename = "relayer", with = "common::serde::u256_decimal")]
     pub relayer: U256,
-    #[serde(rename = "fee", with = "common::serde::u256_decimal")]
     pub fee: U256,
-    #[serde(rename = "refund", with = "common::serde::u256_decimal")]
     pub refund: U256,
-    #[serde(rename = "nullifier", with = "common::serde::u256_decimal")]
     pub nullifier: U256,
-    #[serde(rename = "secret", with = "common::serde::u256_decimal")]
     pub secret: U256,
-    #[serde(rename = "pathElements", with = "common::serde::vec_u256_decimal")]
     pub path_elements: Vec<U256>,
-    #[serde(rename = "pathIndices", with = "common::serde::vec_u256_decimal")]
     pub path_indices: Vec<U256>,
 }
 

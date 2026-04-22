@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy_primitives::Address;
-use eth_rpc::{EthRpcClient, EthRpcClientError};
+use eth_rpc::EthRpcClientError;
 use prover::Prover;
 use rand::Rng;
 use thiserror::Error;
@@ -17,10 +17,9 @@ use crate::{
     railgun::{
         Signer,
         address::RailgunAddress,
-        broadcaster::broadcaster::Fee,
         indexer::UtxoIndexer,
         merkle_tree::{MerkleRoot, UtxoMerkleTree},
-        note::{IncludedNote, Note, SignableNote, utxo::UtxoNote},
+        note::utxo::UtxoNote,
         poi::{ListKey, PoiClient, PoiClientError, PoiNote},
         transaction::{
             PoiProvedOperation, PoiProvedOperationError, PoiProvedTx, ProvedTx, TransactionBuilder,
@@ -31,8 +30,7 @@ use crate::{
 };
 
 /// Builder for constructing transactions with POI proofs. This builder extends
-/// the basic TransactionBuilder with support for attaching POI proofs to transactions
-/// and calculating broadcaster fees for broadcasted transactions.
+/// the basic TransactionBuilder with support for attaching POI proofs to transactions.
 pub struct PoiTransactionBuilder {
     inner: TransactionBuilder,
 }
@@ -52,8 +50,6 @@ pub enum PoiTransactionBuilderError {
     #[error("Build error: {0}")]
     Build(#[from] TransactionBuilderError),
 }
-
-const FEE_BUFFER: f64 = 1.3;
 
 impl PoiTransactionBuilder {
     pub fn new() -> Self {
@@ -112,144 +108,8 @@ impl PoiTransactionBuilder {
         let proved = prove_operations(prover, &indexer.utxo_trees, &ops, chain, 0, rng).await?;
 
         info!("Attaching POI proofs");
-        self.prove_poi(prover, proved, &indexer.utxo_trees, &list_keys, None)
+        self.prove_poi(prover, proved, &indexer.utxo_trees, &list_keys)
             .await
-    }
-
-    /// Builds a transaction with fee calculation and POI proofs for broadcasting.
-    ///
-    /// The resulting transaction includes POI proof data and a broadcaster fee, and is
-    /// ready for broadcasting with the provided broadcaster.
-    ///
-    /// WARNING: Self-broadcasting transactions built with this method will still
-    /// incur broadcaster fees. Only use this method if you intend to broadcast
-    /// with a broadcaster.
-    pub async fn build_broadcast<R: Rng>(
-        self,
-        chain: ChainConfig,
-        indexer: &UtxoIndexer,
-        prover: &dyn Prover,
-        poi_client: &PoiClient,
-        estimator: &dyn EthRpcClient,
-        fee_payer: Arc<dyn Signer>,
-        fee: &Fee,
-        rng: &mut R,
-    ) -> Result<PoiProvedTx, PoiTransactionBuilderError> {
-        info!("Building broadcast transaction");
-        let in_notes = indexer.all_unspent();
-        let poi_in_notes = notes_to_poi_notes(poi_client, &fee.list_keys, in_notes).await;
-
-        info!("Creating proved TX");
-        let proved = self
-            .calculate_fee_to_convergence(
-                &poi_in_notes,
-                prover,
-                &indexer.utxo_trees,
-                estimator,
-                fee_payer.clone(),
-                &fee,
-                chain,
-                rng,
-            )
-            .await?;
-
-        info!("Attaching POI proofs");
-        let tx = self
-            .prove_poi(
-                prover,
-                proved,
-                &indexer.utxo_trees,
-                &fee.list_keys,
-                Some(fee.clone()),
-            )
-            .await?;
-
-        Ok(tx)
-    }
-
-    /// Calculate fee iteratively until convergence. It iteratively builds and proves
-    /// transactions until the fee converges to a stable value.
-    async fn calculate_fee_to_convergence<N: SignableNote + IncludedNote + Note + Clone, R: Rng>(
-        &self,
-        in_notes: &[N],
-        prover: &dyn Prover,
-        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
-        estimator: &dyn EthRpcClient,
-        fee_payer: Arc<dyn Signer>,
-        fee: &Fee,
-        chain: ChainConfig,
-        rng: &mut R,
-    ) -> Result<ProvedTx<N>, PoiTransactionBuilderError> {
-        const MAX_ITERS: usize = 5;
-
-        let gas_price_wei = estimator.get_gas_price().await?;
-
-        let fee_builder = self.inner.clone();
-        let mut last_fee: u128 = calculate_fee(1000000, gas_price_wei, fee.per_unit_gas);
-
-        //? Create draft fee note as the last transfer, so we know where to edit
-        //? when iterating
-        let fee_asset = AssetId::Erc20(fee.token);
-        let mut fee_builder = fee_builder.transfer(
-            fee_payer.clone(),
-            fee.recipient.clone(),
-            fee_asset,
-            last_fee,
-            "fee",
-        );
-
-        let mut proved_tx: Option<ProvedTx<N>> = None;
-        for _ in 0..MAX_ITERS {
-            let draft = fee_builder.draft_operations(rng);
-            let mut operations = build_operations(draft, in_notes.to_vec(), rng)?;
-
-            // Sort operations so the fee operation is first
-            operations.sort_by_key(|op| {
-                !(op.from.address() == fee_payer.address() && op.asset == fee_asset)
-            });
-
-            // Sort the out notes of the fee operation so the fee note is first
-            operations.first_mut().map(|op| {
-                op.out_notes.sort_by_key(|n| {
-                    !(n.from_key == fee_payer.viewing_key() && n.asset == fee_asset)
-                });
-            });
-
-            //? Sanity check that the fee operation is first and has the correct asset
-            debug_assert!(
-                operations
-                    .first()
-                    .map(|op| op.from.address() == fee_payer.address() && op.asset == fee_asset)
-                    .unwrap_or(false)
-            );
- 
-            let proved = prove_operations(prover, utxo_trees, &operations, chain, 0, rng).await?;
-            let gas = estimator
-                .estimate_gas(proved.tx_data.to, proved.tx_data.data.clone(), None)
-                .await?;
-
-            proved_tx = Some(proved);
-            let new_fee = calculate_fee(gas as u128, gas_price_wei, fee.per_unit_gas);
-
-            info!(
-                "Estimated gas: {}, gas price (wei): {}, fee: {}",
-                gas, gas_price_wei, new_fee
-            );
-            if new_fee <= (last_fee * 100) / 99 {
-                info!("Fee converged at {} after iterations", new_fee);
-                break;
-            }
-
-            //? Safe since we know the fee transfer is always the last transfer
-            //? in the builder
-            fee_builder.transfers.last_mut().unwrap().value = new_fee;
-            last_fee = new_fee;
-        }
-
-        //? Safe since we're always assigning proved_tx in the above loop
-        let mut proved = proved_tx.unwrap();
-        proved.min_gas_price = gas_price_wei;
-        Ok(proved)
     }
 
     /// Attach POI proofs to a proved transaction.
@@ -259,7 +119,6 @@ impl PoiTransactionBuilder {
         proved: ProvedTx<PoiNote>,
         utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
         list_keys: &[ListKey],
-        fee: Option<Fee>,
     ) -> Result<PoiProvedTx, PoiTransactionBuilderError> {
         let mut poi_operations = Vec::new();
         for proved_op in proved.proved_operations {
@@ -282,7 +141,6 @@ impl PoiTransactionBuilder {
             tx_data: proved.tx_data,
             operations: poi_operations,
             min_gas_price: proved.min_gas_price,
-            fee,
         })
     }
 }
@@ -304,11 +162,4 @@ async fn notes_to_poi_notes(
         }
     }
     poi_in_notes
-}
-
-/// Calculate the broadcaster's fee based on the estimated gas cost, gas price in wei,
-/// broadcaster's fee rate, and a buffer.
-fn calculate_fee(gas_cost: u128, gas_price_wei: u128, fee_rate: u128) -> u128 {
-    let raw = (gas_cost * gas_price_wei * fee_rate) / 10_u128.pow(18);
-    ((raw as f64) * FEE_BUFFER).ceil() as u128
 }

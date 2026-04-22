@@ -5,9 +5,6 @@ pub mod merkle;
 pub mod note;
 mod provider;
 
-#[cfg(feature = "relay")]
-pub mod relayers;
-
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 

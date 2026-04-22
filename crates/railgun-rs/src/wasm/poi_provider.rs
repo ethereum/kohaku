@@ -8,13 +8,12 @@ use crate::{
     railgun::{
         PoiProvider, PoiProviderState,
         address::RailgunAddress,
-        broadcaster::broadcaster::Fee,
         indexer::SubsquidSyncer,
         poi::{ListKey, PoiClient},
     },
     wasm::{
-        JsBroadcaster, JsPoiProvedTx, JsPoiTransactionBuilder, JsShieldBuilder, JsSigner,
-        JsSyncer, chain::try_get_chain, poi_balance::JsPoiBalance,
+        JsPoiProvedTx, JsPoiTransactionBuilder, JsShieldBuilder, JsSigner, JsSyncer,
+        chain::try_get_chain, poi_balance::JsPoiBalance,
     },
 };
 
@@ -127,39 +126,6 @@ impl JsPoiProvider {
             .map_err(|e| JsError::new(&format!("Build error: {}", e)))?;
 
         Ok(proved_tx.into())
-    }
-
-    /// Build a broadcastable transaction from a POI transaction builder and
-    /// register it in the POI proving queue.
-    #[wasm_bindgen(js_name = "buildBroadcast")]
-    pub async fn build_broadcast(
-        &mut self,
-        builder: JsPoiTransactionBuilder,
-        fee_payer: &JsSigner,
-        fee: Fee,
-    ) -> Result<JsPoiProvedTx, JsError> {
-        let mut rng = rand::rng();
-        let proved_tx = self
-            .inner
-            .build_broadcast(builder.inner, fee_payer.inner(), &fee, &mut rng)
-            .await
-            .map_err(|e| JsError::new(&format!("Build/broadcast error: {}", e)))?;
-
-        Ok(proved_tx.into())
-    }
-
-    /// Broadcast a proved transaction using the given broadcaster, awaiting confirmation
-    /// via either the broadcaster's response or if the transaction's commitments
-    /// are indexed on-chain.
-    pub async fn broadcast(
-        &mut self,
-        broadcaster: &JsBroadcaster,
-        proved_tx: &JsPoiProvedTx,
-    ) -> Result<(), JsError> {
-        self.inner
-            .broadcast(&broadcaster.inner, &proved_tx.inner)
-            .await
-            .map_err(|e| JsError::new(&format!("Broadcast error: {}", e)))
     }
 
     pub async fn sync(&mut self) -> Result<(), JsValue> {

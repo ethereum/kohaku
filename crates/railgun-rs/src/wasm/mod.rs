@@ -8,14 +8,14 @@ mod provider;
 mod signer;
 mod transaction;
 
-pub use caip::{erc20, erc1155, erc721};
+pub use caip::{erc20, erc721, erc1155};
 pub use indexer::JsSyncer;
 pub use provider::JsRailgunProvider;
+use serde::{Deserialize, Serialize};
 pub use signer::JsSigner;
 pub use transaction::{
     JsPoiProvedTx, JsPoiTransactionBuilder, JsShieldBuilder, JsTransactionBuilder,
 };
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, tsify::Tsify)]
@@ -41,12 +41,8 @@ impl From<LogLevel> for tracing::Level {
 }
 
 #[cfg(feature = "poi")]
-mod broadcaster;
-#[cfg(feature = "poi")]
 mod poi_provider;
 
-#[cfg(feature = "poi")]
-pub use broadcaster::{JsBroadcaster, JsBroadcasterManager, JsWakuAdapter};
 #[cfg(feature = "poi")]
 pub use poi_provider::JsPoiProvider;
 

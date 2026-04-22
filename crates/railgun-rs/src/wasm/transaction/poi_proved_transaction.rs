@@ -1,7 +1,7 @@
 use eth_rpc::TxData;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::railgun::{broadcaster::broadcaster::Fee, transaction::PoiProvedTx};
+use crate::railgun::transaction::PoiProvedTx;
 
 /// POI proved transaction
 #[wasm_bindgen]
@@ -15,13 +15,6 @@ impl JsPoiProvedTx {
     #[wasm_bindgen(getter, js_name = "tx")]
     pub fn tx(&self) -> TxData {
         self.inner.tx_data.clone()
-    }
-
-    /// Fee information for this operation, if available. Only broadcaster transactions
-    /// will have fees.
-    #[wasm_bindgen(getter, js_name = "fee")]
-    pub fn fee(&self) -> Option<Fee> {
-        self.inner.fee.clone()
     }
 
     /// Minimum gas price for this transaction, in gwei.

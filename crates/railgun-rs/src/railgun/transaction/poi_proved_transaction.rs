@@ -16,7 +16,6 @@ use crate::{
     },
     crypto::railgun_txid::Txid,
     railgun::{
-        broadcaster::broadcaster::Fee,
         merkle_tree::{TxidLeafHash, UtxoMerkleTree},
         note::operation::Operation,
         poi::{BlindedCommitment, ListKey, PoiNote, PreTransactionPoi},
@@ -31,8 +30,6 @@ pub struct PoiProvedTx {
     /// The operations with their POI proofs.
     pub operations: Vec<PoiProvedOperation>,
     pub min_gas_price: u128,
-    /// Optional fee information if this transaction is being sent through a broadcaster.
-    pub fee: Option<Fee>,
 }
 
 /// A proved operation with POI proofs attached for each list key.

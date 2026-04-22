@@ -10,8 +10,6 @@ pub use provider::{RailgunProvider, RailgunProviderError, RailgunProviderState};
 pub use signer::{PrivateKeySigner, Signer, derivation_paths};
 
 #[cfg(feature = "poi")]
-pub mod broadcaster;
-#[cfg(feature = "poi")]
 pub mod poi;
 #[cfg(feature = "poi")]
 mod poi_provider;

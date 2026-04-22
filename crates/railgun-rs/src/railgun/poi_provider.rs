@@ -1,23 +1,17 @@
-use std::{collections::HashMap, pin::pin, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use eth_rpc::EthRpcClient;
-use futures::future::Either;
 use prover::Prover;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::info;
 
 use crate::{
     caip::AssetId,
     chain_config::ChainConfig,
     railgun::{
         address::RailgunAddress,
-        broadcaster::broadcaster::{BroadcastError, Broadcaster, Fee},
-        indexer::{
-            NoteSyncer, TransactionSyncer, TxidIndexer, TxidIndexerError, TxidIndexerState,
-            UtxoIndexerError,
-        },
+        indexer::{NoteSyncer, TransactionSyncer, TxidIndexer, TxidIndexerError, TxidIndexerState},
         note::Note,
         poi::{
             ListKey, PendingPoiError, PendingPoiSubmitter, PoiClient, PoiStatus,
@@ -34,7 +28,6 @@ use crate::{
 pub struct PoiProvider {
     inner: RailgunProvider,
 
-    provider: Arc<dyn EthRpcClient>,
     txid_indexer: TxidIndexer,
     poi_client: PoiClient,
     prover: Arc<dyn Prover>,
@@ -58,8 +51,6 @@ pub enum PoiProviderError {
     PoiClient(#[from] PendingPoiError),
     #[error("Build error: {0}")]
     Build(#[from] PoiTransactionBuilderError),
-    #[error("Broadcast error: {0}")]
-    Broadcast(#[from] BroadcastError),
     #[error("Timed out waiting for operation to land on-chain")]
     Timeout,
 }
@@ -75,7 +66,6 @@ impl PoiProvider {
     ) -> Self {
         Self {
             inner: RailgunProvider::new(chain, provider.clone(), utxo_syncer, prover.clone()),
-            provider,
             txid_indexer: TxidIndexer::new(txid_syncer, poi_client.clone()),
             poi_client,
             prover,
@@ -171,80 +161,6 @@ impl PoiProvider {
         }
 
         Ok(tx)
-    }
-
-    /// Build a broadcastable transaction from a POI transaction builder and
-    /// register it in the POI proving queue.
-    pub async fn build_broadcast<R: Rng>(
-        &mut self,
-        builder: PoiTransactionBuilder,
-        fee_payer: Arc<dyn Signer>,
-        fee: &Fee,
-        rng: &mut R,
-    ) -> Result<PoiProvedTx, PoiProviderError> {
-        let tx = builder
-            .build_broadcast(
-                self.inner.chain.clone(),
-                &self.inner.utxo_indexer,
-                self.inner.prover.as_ref(),
-                &self.poi_client,
-                self.provider.as_ref(),
-                fee_payer,
-                fee,
-                rng,
-            )
-            .await?;
-
-        for op in &tx.operations {
-            self.pending_submitter.register(op);
-        }
-
-        Ok(tx)
-    }
-
-    /// Broadcast a proved transaction using the given broadcaster, awaiting confirmation
-    /// via either the broadcaster's response or if the transaction's commitments
-    /// are indexed on-chain.
-    pub async fn broadcast(
-        &mut self,
-        broadcaster: &Broadcaster,
-        tx: &PoiProvedTx,
-    ) -> Result<(), PoiProviderError> {
-        let commitments: Vec<_> = tx
-            .operations
-            .iter()
-            .flat_map(|op| &op.circuit_inputs.commitments_out)
-            .copied()
-            .collect();
-
-        {
-            let mut rng = rand::rng();
-            let broadcast_fut = pin!(broadcaster.broadcast(tx, &mut rng));
-            let await_fut = pin!(self.inner.utxo_indexer.await_commitments(
-                &commitments,
-                web_time::Duration::from_secs(5),
-                web_time::Duration::from_secs(120),
-            ));
-
-            match futures::future::select(broadcast_fut, await_fut).await {
-                Either::Left((Ok(tx_hash), _)) => {
-                    info!("Confirmed via broadcaster response: {tx_hash}");
-                }
-                Either::Left((Err(e), _)) => return Err(e.into()),
-                Either::Right((Ok(()), _)) => {
-                    info!("Confirmed via indexer (commitment found on-chain)");
-                }
-                Either::Right((Err(e), _)) => {
-                    return Err(match e {
-                        UtxoIndexerError::Timeout => PoiProviderError::Timeout,
-                        other => PoiProviderError::RailgunProvider(other.into()),
-                    });
-                }
-            }
-        }
-
-        self.sync().await?;
-        Ok(())
     }
 
     pub async fn sync(&mut self) -> Result<(), PoiProviderError> {

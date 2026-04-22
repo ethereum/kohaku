@@ -6,8 +6,8 @@ mod syncer;
 
 pub use pool::JsPool;
 pub use provider::{JsDepositResult, JsTornadoProvider};
-pub use syncer::JsSyncer;
 use serde::{Deserialize, Serialize};
+pub use syncer::JsSyncer;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, tsify::Tsify)]
@@ -31,14 +31,6 @@ impl From<LogLevel> for tracing::Level {
         }
     }
 }
-
-#[cfg(feature = "relay")]
-mod prepared_broadcast;
-#[cfg(feature = "relay")]
-mod relayer;
-
-#[cfg(feature = "relay")]
-pub use relayer::JsRelayerProvider;
 
 #[wasm_bindgen(start, skip_typescript)]
 pub fn wasm_start() {
