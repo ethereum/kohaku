@@ -158,8 +158,8 @@ export type CurvyPluginParams = {
     curvyId?: CurvyId;
     /** Curvy backend API endpoint. Defaults to the SDK's built-in URL. */
     apiBaseUrl?: string;
-    /** Network environment. Defaults to 'mainnet'. */
-    environment?: "mainnet" | "testnet";
+    /** Network environment. Defaults to 'testnet'. */
+    environment?: "testnet";
     /** Index for BIP-44 key derivation. Defaults to 0. */
     keyIndex?: number;
     /** URL for the Curvy Core WASM module. The SDK's default is used when omitted. */
