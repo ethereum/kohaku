@@ -35,7 +35,6 @@ num-bigint = { workspace = true, features = ["serde"] }
 prover = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-request = { workspace = true }
 ruint = { workspace = true, features = ["num-bigint", "serde", "ark-ff-05"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -52,8 +51,10 @@ ark-groth16 = { workspace = true }
 ark-relations = { workspace = true }
 tokio = { workspace = true }
 wasmer = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+reqwest = { workspace = true, features = ["json"] }
 console_error_panic_hook = { workspace = true }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }

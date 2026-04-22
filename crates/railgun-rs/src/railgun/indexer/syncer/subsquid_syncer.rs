@@ -2,7 +2,6 @@
 //! Subsquid graphql endpoint. Railgun maintains an official indexer for each
 //! supported chain.
 
-use request::{ResponseExt, http::StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::{info, warn};
@@ -15,7 +14,7 @@ use crate::railgun::indexer::{
 };
 
 pub struct SubsquidSyncer {
-    client: request::HttpClient,
+    client: reqwest::Client,
     url: String,
     batch_size: u64,
     max_retries: usize,
@@ -27,9 +26,9 @@ pub enum SubsquidSyncerError {
     #[error("Serde error: {0}")]
     Serde(#[from] serde_json::Error),
     #[error("HTTP error: {0}")]
-    Http(#[from] request::HttpError),
+    Http(#[from] reqwest::Error),
     #[error("Request failed with status {0}: {1}")]
-    Request(StatusCode, String),
+    Request(reqwest::StatusCode, String),
     #[error("GraphQL error: {0}")]
     GraphQL(String),
 }
@@ -43,7 +42,7 @@ const BLOCK_NUMBER_QUERY: &str = include_str!("./subsquid_graphql/block_number.g
 impl SubsquidSyncer {
     pub fn new(url: &str) -> Self {
         Self {
-            client: request::HttpClient::new(None),
+            client: reqwest::Client::new(),
             url: url.to_string(),
             batch_size: 20000,
             max_retries: 3,
@@ -268,15 +267,15 @@ impl SubsquidSyncer {
         &self,
         body: &GraphqlRequest<V>,
     ) -> Result<R, SubsquidSyncerError> {
-        let resp = self.client.post_json(&self.url, &body).await?;
+        let resp = self.client.post(&self.url).json(&body).send().await?;
         if !resp.status().is_success() {
             return Err(SubsquidSyncerError::Request(
                 resp.status(),
-                resp.text().unwrap_or_default(),
+                resp.text().await.unwrap_or_default(),
             ));
         }
 
-        let value: serde_json::Value = resp.json()?;
+        let value: serde_json::Value = resp.json().await?;
         // info!("Deserializing: {}", &value);
         let graphql_resp: GraphqlResponse<R> = serde_json::from_value(value)?;
         if let Some(errors) = graphql_resp.errors {
