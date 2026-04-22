@@ -41,7 +41,7 @@ export interface ISecretManager {
 }
 
 export interface SecretManagerParams {
-  host: Host,
+  host: Pick<Host, 'keystore'>,
   accountIndex?: number;
 }
 

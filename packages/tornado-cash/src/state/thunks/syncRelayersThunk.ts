@@ -5,6 +5,7 @@ import { IDataService } from '../../data/interfaces/data.service.interface';
 import { RootState } from '../store';
 import { instanceRegistryInfoSelector } from '../selectors/slices.selectors';
 import { IRelayerInfo, registerRelayers } from '../slices/relayersSlice';
+import { selectLastSyncedBlock } from '../selectors/last-synced-block.selector';
 
 export interface SyncRelayersThunkParams {
   dataService: IDataService;
@@ -24,10 +25,12 @@ export const syncRelayersThunk = createAsyncThunk<void, SyncRelayersThunkParams,
       ensSubdomainKey,
     } = instanceRegistryInfoSelector(state);
 
+    const lastSyncedBlock = selectLastSyncedBlock(state);
+
     const { RelayerRegistered: events } = await dataService.getRelayerRegistryEvents({
       events: 'RelayerRegistered',
       address: relayerRegistryAddress,
-      fromBlock: relayerRegistryDeploymentBlock,
+      fromBlock: lastSyncedBlock || relayerRegistryDeploymentBlock,
     });
 
     if (events.length === 0) {

@@ -2,10 +2,10 @@
 import * as Comlink from 'comlink';
 
 import { EthereumProvider, TxData } from '@kohaku-eth/provider';
-import type { Network, Storage, Keystore } from '@kohaku-eth/plugins';
+import type { Storage, Keystore } from '@kohaku-eth/plugins';
 import { SecretManager } from '../account/keys';
 import { DataService } from '../data/data.service';
-import { RelayerClient } from '../relayer/relayer-client';
+import { IRelayerClient } from '../relayer/interfaces/relayer-client.interface';
 import { createTornadoProver } from '../utils/tornado-prover';
 import { storeStateManager } from './state-manager';
 import {
@@ -40,21 +40,21 @@ const workerApi = {
   // bypass the handler and fail structured clone).
   async init(
     provider: EthereumProvider,
-    network: Network,
+    relayerClient: IRelayerClient,
     keystore: Keystore,
     rawStorage: Omit<Storage, '_brand'>,
     instanceRegistry: IInstanceRegistry,
     accountIndex: number,
-    initialState: Record<string, RootState>,
+    initialState: () => Promise<Record<string, RootState>>,
     proverWasm: ArrayBuffer,
     proverZkey: ArrayBuffer,
   ): Promise<void> {
     const storage = rawStorage as Storage;
 
     _stateManager = await storeStateManager({
-      secretManagerFactory: () => SecretManager({ host: { keystore, provider, network, storage }, accountIndex }),
+      secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
       dataService: new DataService({ provider }),
-      relayerClient: new RelayerClient({ network }),
+      relayerClient,
       proverFactory: () => Promise.resolve(createTornadoProver(new Uint8Array(proverWasm), new Uint8Array(proverZkey))),
       storageToSyncTo: storage,
       instanceRegistry,

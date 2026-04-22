@@ -35,10 +35,10 @@ export interface StoreFactoryParams {
   storageToSyncTo?: Storage;
   instanceRegistry: IInstanceRegistry;
   proverFactory: () => Promise<ITornadoProver>;
-  initialState?: Record<
+  initialState?: () => Promise<Record<
     string,
     Parameters<typeof storeFactory>[0]["initialState"]
-  >;
+  >>;
 }
 
 interface GetChainStoreParams {
@@ -75,8 +75,22 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
 
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
-  initialState: initialStateByChainAndEntrypoint = {},
+  initialState: initialStateCallback,
 }: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState'>) => {
+
+  // The callback returns the full record for all chains at once.
+  // Cache it so multiple chains lacking stored state only trigger one fetch.
+  let cachedInitialState: Awaited<ReturnType<NonNullable<StoreFactoryParams['initialState']>>> | undefined;
+
+  const resolveInitialState = initialStateCallback
+    ? async () => {
+        if (!cachedInitialState) {
+          cachedInitialState = await initialStateCallback();
+        }
+
+        return cachedInitialState;
+      }
+    : undefined;
 
   const chainStoreMap = new Map<
     StoreKey,
@@ -96,7 +110,9 @@ const storeByChainAndEntrypoint = ({
         const storageKey = getStoreStorageKey(getChainStoreParams);
         const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : undefined;
         const storedState: RootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
-        const snapshotInitialState = initialStateByChainAndEntrypoint[storageKey];
+        const snapshotInitialState = storedState || !resolveInitialState
+          ? undefined
+          : (await resolveInitialState())[storageKey];
         const initialState: RootState | undefined = storedState || snapshotInitialState;
         const store = storeFactory({
           instanceRegsitryInfo: {

@@ -66,7 +66,7 @@ export const getWithdrawableDepositsSelector = createSelector(
     // Build a fast lookup: commitmentHex → full secret record
     const secretByCommitment = new Map<Commitment, UserSecretRecord>();
 
-    for (const records of Object.values(userSecrets) as UserSecretRecord[][]) {
+    for (const records of userSecrets.values()) {
       for (const r of records) {
         secretByCommitment.set(r.commitment, r);
       }

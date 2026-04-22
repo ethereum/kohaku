@@ -4,7 +4,6 @@ import { ISecretManager } from '../../account/keys';
 import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield';
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
-import { serialize } from '../utils/serialize.utils';
 import { RootState } from '../store';
 import { instanceRegistryInfoSelector, poolsSelector, userSecretsSelector } from '../selectors/slices.selectors';
 

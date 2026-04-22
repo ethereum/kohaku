@@ -2,7 +2,6 @@ import { createSelector } from '@reduxjs/toolkit';
 import { IIndexedDepositEvent } from '../../data/interfaces/events.interface';
 import { Commitment } from '../../interfaces/types.interface';
 import { depositsSelector, userSecretsSelector } from './slices.selectors';
-import { UserSecretRecord } from '../slices/userSecretsSlice';
 
 /**
  * Returns a Map of every deposit owned by this user, keyed by commitment.
@@ -13,8 +12,7 @@ export const myDepositsSelector = createSelector(
   (deposits, userSecrets): Map<Commitment, IIndexedDepositEvent> => {
     const result = new Map<Commitment, IIndexedDepositEvent>();
 
-    for (const [poolKey, records] of Object.entries(userSecrets) as [string, UserSecretRecord[]][]) {
-      const poolAddress = BigInt(poolKey) as Commitment;
+    for (const [poolAddress, records] of userSecrets) {
       const poolDeposits = deposits.get(poolAddress);
 
       if (!poolDeposits) continue;

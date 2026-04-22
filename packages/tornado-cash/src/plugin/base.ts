@@ -5,6 +5,7 @@ import {
   Host,
 } from "@kohaku-eth/plugins";
 import { wrap, proxy, transfer } from 'comlink';
+import { RelayerClient } from '../relayer/relayer-client';
 
 import { addressToHex, } from "../utils.js";
 import {
@@ -36,8 +37,7 @@ export class TornadoCashProtocol implements TCInstance {
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry' | 'artifacts'>,
   ) {
     this.stateManager = (async () => {
-      const [state, wasmRes, zkeyRes] = await Promise.all([
-        initialState(),
+      const [wasmRes, zkeyRes] = await Promise.all([
         host.network.fetch(artifacts.wasmUrl),
         host.network.fetch(artifacts.zkeyUrl),
       ]);
@@ -60,12 +60,12 @@ export class TornadoCashProtocol implements TCInstance {
       await Promise.race([
         remote.init(
           proxy(host.provider),
-          proxy(host.network),
+          proxy(new RelayerClient({ network: host.network })),
           proxy(host.keystore),
           proxy(host.storage),
           instanceRegistry,
           accountIndex,
-          state,
+          proxy(initialState),
           transfer(proverWasm, [proverWasm]),
           transfer(proverZkey, [proverZkey]),
         ),

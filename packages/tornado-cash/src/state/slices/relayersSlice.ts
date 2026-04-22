@@ -16,7 +16,7 @@ export interface IRelayerFeeConfig {
   maxFee: number;
 }
 
-export const DEFAULT_MAINNET_FEE_CONFIG: IRelayerFeeConfig = { minFee: 0.33, maxFee: 0.53 };
+export const DEFAULT_MAINNET_FEE_CONFIG: IRelayerFeeConfig = { minFee: 0.01, maxFee: 0.30 };
 export const DEFAULT_OTHER_FEE_CONFIG: IRelayerFeeConfig = { minFee: 0.01, maxFee: 0.30 };
 
 export interface RelayersState {
@@ -36,7 +36,7 @@ export const relayersSlice = createSlice({
   initialState,
   reducers: {
     registerRelayers: (state, { payload: relayers }: PayloadAction<IRelayerInfo[]>) => {
-      const map = new Map<string, Serializable<IRelayerInfo>>();
+      const map = new Map<string, Serializable<IRelayerInfo>>(state.relayersTuples);
 
       relayers.forEach((relayer) => {
         map.set(relayer.ensName, serialize(relayer));
