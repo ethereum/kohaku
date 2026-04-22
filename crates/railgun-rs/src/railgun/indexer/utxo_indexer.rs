@@ -15,7 +15,7 @@ use crate::{
     railgun::{
         address::RailgunAddress,
         indexer::{
-            indexed_account::IndexedAccount,
+            indexed_account::{IndexedAccount, IndexedAccountState},
             syncer::{self, NoteSyncer, SyncEvent, SyncerError},
         },
         merkle_tree::{
@@ -28,10 +28,6 @@ use crate::{
 
 /// Utxo indexer that maintains the set of UTXO merkle trees and tracks accounts
 /// and account notes / balances.
-///
-/// While accounts are not persisted, matched events are. This allows the indexer
-/// to rebuild account state for previously synced accounts when they are re-added
-/// after a restart.
 pub struct UtxoIndexer {
     pub utxo_trees: BTreeMap<u32, UtxoMerkleTree>,
     pub synced_block: u64,
@@ -39,16 +35,26 @@ pub struct UtxoIndexer {
     utxo_syncer: Arc<dyn NoteSyncer>,
     utxo_verifier: Arc<dyn MerkleTreeVerifier>,
 
+    // Accounts being actively tracked by the indexer.
     accounts: Vec<IndexedAccount>,
-    matched_events: Vec<SyncEvent>,
+
+    // Accounts that have been tracked by the indexer, but have not been registered
+    // since the last restart. If a signer is later registered we can restore its
+    // state and continue tracking without re-syncing.
+    pending_accounts: HashMap<RailgunAddress, IndexedAccountState>,
     seen_commitments: HashSet<U256>,
 }
 
+/// State struct for the Utxo indexer.
+///
+/// This state does NOT include the signer for any accounts. After restoring
+/// from state, to continue tracking accounts, you must re-register each account's
+/// signer.
 #[derive(Serialize, Deserialize)]
 pub struct UtxoIndexerState {
     pub utxo_trees: BTreeMap<u32, MerkleTreeState>,
     pub synced_block: u64,
-    pub matched_events: Vec<SyncEvent>,
+    pub accounts: HashMap<RailgunAddress, IndexedAccountState>,
 }
 
 #[derive(Debug, Error)]
@@ -74,11 +80,14 @@ impl UtxoIndexer {
             utxo_syncer,
             utxo_verifier,
             accounts: vec![],
-            matched_events: vec![],
+            pending_accounts: HashMap::new(),
             seen_commitments: HashSet::new(),
         }
     }
 
+    /// Restores the indexer state from a saved state. This will restore the synced
+    /// UTXO trees and notes. To continue tracking accounts, you must also re-register
+    /// each account's signer.
     pub fn set_state(&mut self, state: UtxoIndexerState) {
         let mut utxo_trees = BTreeMap::new();
         for (number, tree_state) in state.utxo_trees {
@@ -90,52 +99,63 @@ impl UtxoIndexer {
 
         self.utxo_trees = utxo_trees;
         self.synced_block = state.synced_block;
-        self.matched_events = state.matched_events;
+        self.pending_accounts = state.accounts;
     }
 
+    /// Returns the current state of the indexer, which can be saved and later
+    /// used to restore the indexer state.
+    ///
+    /// While state does include the synced notes (sensitive data), it does NOT
+    /// include the signer. After restoring from state, you must also re-register
+    /// each signer to continue tracking their notes.
     pub fn state(&self) -> UtxoIndexerState {
         let utxo_trees = self
             .utxo_trees
             .iter()
             .map(|(k, v)| (*k, v.state()))
             .collect();
+        let mut accounts: HashMap<RailgunAddress, IndexedAccountState> = self
+            .accounts
+            .iter()
+            .map(|a| (a.address(), a.state()))
+            .collect();
+
+        accounts.extend(self.pending_accounts.clone());
 
         UtxoIndexerState {
             utxo_trees,
             synced_block: self.synced_block,
-            matched_events: self.matched_events.clone(),
+            accounts,
         }
     }
 
     pub fn synced_block(&self) -> u64 {
-        self.synced_block
+        let mut min_synced = self.synced_block;
+        for account in self.accounts.iter() {
+            min_synced = min_synced.min(account.synced_block);
+        }
+        min_synced
     }
 
     /// Adds an account to the indexer. The indexer will track the balance and
     /// transactions for this account as it syncs.
+    ///
+    /// Registering an account does NOT automatically trigger a sync, so the account
+    /// will not be indexed until the next call to `sync()`.
     pub fn register(&mut self, signer: Arc<dyn Signer>) {
+        let address = signer.address();
+        if let Some(state) = self.pending_accounts.remove(&address) {
+            let account = IndexedAccount::from_state(state, signer.clone());
+            self.accounts.push(account);
+            return;
+        }
+
         let account = IndexedAccount::new(signer.clone());
         self.accounts.push(account);
-
-        //? Replay matched events to populate account state
-        for event in self.matched_events.clone() {
-            if let Err(e) = self.handle_event(&event) {
-                tracing::error!("Error handling event for new account: {}", e);
-            }
-        }
     }
 
-    /// Adds an account to the indexer and immediately resync to populate its state.
-    ///
-    /// Resyncing is necessary to initially populate an account's state. Resyncing
-    /// can be skipped if an account is being added after a restart, since matched
-    /// events are persisted and will be replayed to populate the account's state.
-    pub async fn register_resync(
-        &mut self,
-        _signer: Arc<dyn Signer>,
-        _from_block: u64,
-    ) -> Result<(), UtxoIndexerError> {
-        todo!()
+    pub fn deregister_pending(&mut self) {
+        self.pending_accounts.clear();
     }
 
     /// Returns a list of unspent notes for a given address
@@ -177,7 +197,7 @@ impl UtxoIndexer {
 
     #[tracing::instrument(name = "utxo_sync", skip_all)]
     pub async fn sync_to(&mut self, to_block: u64) -> Result<(), UtxoIndexerError> {
-        let from_block = self.synced_block + 1;
+        let from_block = self.synced_block() + 1;
 
         let syncer = self.utxo_syncer.clone();
         let latest_block = syncer.latest_block().await?;
@@ -191,10 +211,7 @@ impl UtxoIndexer {
         let events = syncer.sync(from_block, to_block).await?;
         info!("Fetched {} events from syncer", events.len());
         for event in events {
-            let matched = self.handle_event(&event)?;
-            if matched {
-                self.matched_events.push(event);
-            }
+            self.handle_event(&event)?;
         }
 
         // Rebuild
@@ -208,6 +225,9 @@ impl UtxoIndexer {
         self.verify().await?;
 
         self.synced_block = to_block;
+        for account in self.accounts.iter_mut() {
+            account.synced_block = to_block;
+        }
         Ok(())
     }
 
@@ -216,7 +236,7 @@ impl UtxoIndexer {
         self.utxo_trees.clear();
         self.synced_block = 0;
         self.accounts.clear();
-        self.matched_events.clear();
+        self.pending_accounts.clear();
         self.seen_commitments.clear();
     }
 
@@ -252,62 +272,55 @@ impl UtxoIndexer {
         }
     }
 
-    /// Handles a sync event. Returns true if the event was matched to any account.
-    fn handle_event(&mut self, event: &SyncEvent) -> Result<bool, UtxoIndexerError> {
-        let matched = match event {
+    /// Handles a sync event.
+    fn handle_event(&mut self, event: &SyncEvent) -> Result<(), UtxoIndexerError> {
+        match event {
             SyncEvent::Shield(shield, _) => self.handle_shield(shield)?,
             SyncEvent::Transact(transact, _) => self.handle_transact(transact)?,
             SyncEvent::Nullified(nullified, ts) => self.handle_nullified(nullified, *ts),
             SyncEvent::Legacy(legacy, _) => self.handle_legacy(legacy),
         };
 
-        Ok(matched)
+        Ok(())
     }
 
     /// Handles a shield event. Returns true if the event was matched to any account.
-    fn handle_shield(&mut self, event: &syncer::Shield) -> Result<bool, UtxoIndexerError> {
+    fn handle_shield(&mut self, event: &syncer::Shield) -> Result<(), UtxoIndexerError> {
         let leaf: UtxoLeafHash =
             poseidon_hash(&[event.npk, event.token.hash(), U256::from(event.value)])
                 .unwrap()
                 .into();
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, leaf);
 
-        let mut matched = false;
         for account in self.accounts.iter_mut() {
-            matched |= account.handle_shield_event(event)?;
+            account.handle_shield_event(event)?;
         }
 
-        Ok(matched)
+        Ok(())
     }
 
     /// Handles a transact event. Returns true if the event was matched to any account.
-    fn handle_transact(&mut self, event: &syncer::Transact) -> Result<bool, UtxoIndexerError> {
+    fn handle_transact(&mut self, event: &syncer::Transact) -> Result<(), UtxoIndexerError> {
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
         self.seen_commitments.insert(event.hash);
 
-        let mut matched = false;
         for account in self.accounts.iter_mut() {
-            matched |= account.handle_transact_event(event)?;
+            account.handle_transact_event(event)?;
         }
 
-        Ok(matched)
+        Ok(())
     }
 
     /// Handles a nullified event. Returns true if the event was matched to any account.
-    fn handle_nullified(&mut self, event: &syncer::Nullified, timestamp: u64) -> bool {
-        let mut matched = false;
+    fn handle_nullified(&mut self, event: &syncer::Nullified, timestamp: u64) {
         for account in self.accounts.iter_mut() {
-            matched |= account.handle_nullified_event(event, timestamp);
+            account.handle_nullified_event(event, timestamp);
         }
-        matched
     }
 
     /// Handles a legacy commitment event. Returns true if the event was matched to any account.
-    fn handle_legacy(&mut self, event: &syncer::LegacyCommitment) -> bool {
+    fn handle_legacy(&mut self, event: &syncer::LegacyCommitment) {
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
-
-        // TODO: Handle legacy events for accounts.
-        false
     }
 
     async fn verify(&self) -> Result<(), VerificationError> {

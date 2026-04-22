@@ -1,5 +1,4 @@
 mod indexed_account;
-mod notebook;
 mod syncer;
 mod utxo_indexer;
 

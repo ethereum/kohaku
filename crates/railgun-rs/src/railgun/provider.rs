@@ -85,25 +85,10 @@ impl RailgunProvider {
     /// Register an account with the provider. The provider will index the account's
     /// transactions and balance as it syncs.
     ///
-    /// Providers will NOT retroactively index transactions for an account.
     /// Providers will NOT save registered accounts in their state. Accounts
     /// must be re-registered each time a provider is created.
     pub fn register(&mut self, account: Arc<dyn Signer>) {
         self.utxo_indexer.register(account);
-    }
-
-    /// Register an account with the provider and trigger a provider re-sync
-    /// starting from the provided block number. The provider will index the
-    /// account's transactions and balance as it syncs.
-    pub async fn register_resync(
-        &mut self,
-        account: Arc<dyn Signer>,
-        from_block: u64,
-    ) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer
-            .register_resync(account, from_block)
-            .await?;
-        Ok(())
     }
 
     /// Returns the raw balance for the given address
