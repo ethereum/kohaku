@@ -107,6 +107,10 @@ impl UtxoIndexer {
         }
     }
 
+    pub fn eth_rpc(&self) -> Option<&dyn eth_rpc::EthRpcClient> {
+        self.utxo_verifier.eth_rpc()
+    }
+
     pub fn synced_block(&self) -> u64 {
         self.synced_block
     }

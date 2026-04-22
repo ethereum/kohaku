@@ -5,9 +5,11 @@ use alloy::{
     primitives::{Address, address},
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
+    sol_types::SolCall,
 };
 use railgun_rs::{
     abis::erc20::ERC20,
+    abis::railgun::RelayAdapt,
     caip::AssetId,
     chain_config::{ChainConfig, MAINNET_CONFIG},
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
@@ -158,4 +160,84 @@ async fn test_transact() {
     assert_eq!(balance_1.get(&USDC), Some(&991500));
     assert_eq!(balance_2.get(&USDC), Some(&5000));
     assert_eq!(balance_eoa, 998);
+
+    // Test Native Unshielding (WETH notes -> ETH via RelayAdapt)
+    info!("Testing native unshielding");
+    let native_receiver = address!("0x1d60C34f508BbBd7f1cb50b375c4CdD25e718D1c");
+    let native_unshield_value: u128 = 10_000;
+    let pre_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
+    let pre_relay_balance = provider.get_balance(CHAIN.relay_adapt_contract).await.unwrap();
+    let pre_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
+
+    let tx = TransactionBuilder::new().set_unshield_native(
+        account_1.clone(),
+        native_receiver,
+        native_unshield_value,
+    );
+    let native_unshield_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
+
+    // Native unshield must execute through RelayAdapt.relay(...)
+    assert_eq!(native_unshield_tx.tx_data.to, CHAIN.relay_adapt_contract);
+    assert_eq!(
+        native_unshield_tx.tx_data.data[..4],
+        RelayAdapt::relayCall::SELECTOR
+    );
+    let relay_call = RelayAdapt::relayCall::abi_decode(&native_unshield_tx.tx_data.data).unwrap();
+    eprintln!(
+        "Native unshield actionData: calls={} requireSuccess={} minGasLimit={}",
+        relay_call._actionData.calls.len(),
+        relay_call._actionData.requireSuccess,
+        relay_call._actionData.minGasLimit
+    );
+    for (i, call) in relay_call._actionData.calls.iter().enumerate() {
+        eprintln!(
+            "  call[{i}]: to={:?} value={} data_len={}",
+            call.to,
+            call.value,
+            call.data.len()
+        );
+    }
+
+    let native_receipt = provider
+        .send_transaction(native_unshield_tx.tx_data.into())
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    eprintln!("Native unshield receipt: {:?}", native_receipt);
+    let receipt_debug = format!("{:?}", native_receipt);
+    let weth_withdrawal_topic =
+        "0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65";
+    let relay_topic = format!("0x000000000000000000000000{}", hex::encode(CHAIN.relay_adapt_contract));
+    assert!(
+        receipt_debug.contains(weth_withdrawal_topic),
+        "expected WETH Withdrawal log in receipt"
+    );
+    assert!(
+        receipt_debug.contains(&relay_topic),
+        "expected WETH Withdrawal indexed src to be RelayAdapt"
+    );
+    let withdrawal_data_marker = "data: 0x0000000000000000000000000000000000000000000000000000000000000000";
+    assert!(
+        !receipt_debug.contains(withdrawal_data_marker),
+        "expected non-zero WETH Withdrawal amount"
+    );
+
+    railgun.sync().await.unwrap();
+    let post_weth_balance = railgun.balance(account_1.address()).get(&WETH).copied();
+    let post_native_balance_eoa = provider.get_balance(native_receiver).await.unwrap();
+    let post_relay_balance = provider.get_balance(CHAIN.relay_adapt_contract).await.unwrap();
+    eprintln!(
+        "Native balances: receiver {} -> {}, relay {} -> {}",
+        pre_native_balance_eoa, post_native_balance_eoa, pre_relay_balance, post_relay_balance
+    );
+
+    // Wrapped base-token notes are spent by the unshield amount.
+    assert_eq!(
+        pre_weth_balance.unwrap() - post_weth_balance.unwrap(),
+        native_unshield_value
+    );
+    // With transfer subcall enabled, ETH should reach the receiver.
+    assert!(post_native_balance_eoa > pre_native_balance_eoa);
 }
