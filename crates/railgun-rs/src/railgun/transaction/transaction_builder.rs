@@ -42,7 +42,7 @@ use crate::{
         indexer::UtxoIndexer,
         merkle_tree::UtxoMerkleTree,
         note::{
-            IncludedNote, Note, SignableNote,
+            IncludedNote, Note,
             encrypt::EncryptError,
             operation::{Operation, OperationVerificationError},
             transfer::TransferNote,
@@ -258,7 +258,7 @@ pub fn build_operations<N: IncludedNote + Clone, R: Rng>(
 
 /// Proves the operations and returns a proved transaction that can be
 /// executed in railgun on-chain.
-pub async fn prove_operations<N: IncludedNote + SignableNote + Clone, R: Rng>(
+pub async fn prove_operations<N: IncludedNote + Clone, R: Rng>(
     prover: &dyn Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     operations: &[Operation<N>],
@@ -382,7 +382,7 @@ fn add_change_note<R: Rng, N: IncludedNote + Clone>(
 }
 
 /// Creates a list of railgun transactions for a list of operations.
-pub async fn create_transactions<N: IncludedNote + SignableNote, R: Rng>(
+pub async fn create_transactions<N: IncludedNote, R: Rng>(
     prover: &dyn Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     operations: &[Operation<N>],
@@ -420,7 +420,7 @@ pub async fn create_transactions<N: IncludedNote + SignableNote, R: Rng>(
 }
 
 /// Creates a railgun transaction for a single operation.
-async fn create_transaction<N: IncludedNote + SignableNote, R: Rng>(
+async fn create_transaction<N: IncludedNote, R: Rng>(
     prover: &dyn Prover,
     utxo_tree: &UtxoMerkleTree,
     operation: &Operation<N>,
@@ -455,8 +455,14 @@ async fn create_transaction<N: IncludedNote + SignableNote, R: Rng>(
         commitment_ciphertexts,
     );
 
-    let inputs =
-        TransactCircuitInputs::from_inputs(utxo_tree, bound_params.hash(), notes_in, &notes_out)?;
+    let inputs = TransactCircuitInputs::from_inputs(
+        utxo_tree,
+        bound_params.hash(),
+        operation.from.clone(),
+        operation.asset,
+        notes_in,
+        &notes_out,
+    )?;
 
     info!("Proving transaction");
     let (proof, _) = prove_transact(prover, &inputs).await?;

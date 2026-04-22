@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug};
 
 use ruint::aliases::U256;
 
@@ -7,15 +7,14 @@ use crate::{
     crypto::keys::ViewingPublicKey,
     railgun::{
         merkle_tree::{MerkleProof, UtxoLeafHash},
-        note::{IncludedNote, Note, SignableNote, utxo::UtxoNote},
+        note::{IncludedNote, Note, utxo::UtxoNote},
         poi::types::ListKey,
-        signer::Signer,
     },
 };
 
 #[derive(Clone)]
-pub struct PoiNote<S = Arc<dyn Signer>> {
-    inner: UtxoNote<S>,
+pub struct PoiNote {
+    inner: UtxoNote,
 
     /// This note's POI Merkle proofs, keyed by ListKey
     ///
@@ -24,15 +23,15 @@ pub struct PoiNote<S = Arc<dyn Signer>> {
     poi_merkle_proofs: HashMap<ListKey, MerkleProof>,
 }
 
-impl<S> PoiNote<S> {
-    pub fn new(inner: UtxoNote<S>, poi_merkle_proofs: HashMap<ListKey, MerkleProof>) -> Self {
+impl PoiNote {
+    pub fn new(inner: UtxoNote, poi_merkle_proofs: HashMap<ListKey, MerkleProof>) -> Self {
         Self {
             inner,
             poi_merkle_proofs,
         }
     }
 
-    pub fn inner(&self) -> &UtxoNote<S> {
+    pub fn inner(&self) -> &UtxoNote {
         &self.inner
     }
 
@@ -45,7 +44,7 @@ impl<S> PoiNote<S> {
     }
 }
 
-impl<S> Note for PoiNote<S> {
+impl Note for PoiNote {
     fn asset(&self) -> AssetId {
         self.inner.asset()
     }
@@ -63,7 +62,7 @@ impl<S> Note for PoiNote<S> {
     }
 }
 
-impl<S> IncludedNote for PoiNote<S> {
+impl IncludedNote for PoiNote {
     fn tree_number(&self) -> u32 {
         self.inner.tree_number()
     }
@@ -90,21 +89,7 @@ impl<S> IncludedNote for PoiNote<S> {
     }
 }
 
-impl SignableNote for PoiNote {
-    fn sign(&self, inputs: &[U256]) -> [U256; 3] {
-        self.inner.sign(inputs)
-    }
-}
-
 impl Debug for PoiNote {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PoiNote")
-            .field("note", &self.inner)
-            .finish()
-    }
-}
-
-impl Debug for PoiNote<()> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PoiNote")
             .field("note", &self.inner)

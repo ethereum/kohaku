@@ -50,7 +50,7 @@ pub struct PendingPoiEntry {
     pub utxo_tree_in: u32,
     pub bound_params_hash: U256,
     /// Input UTXO notes. Fresh POI proofs are re-fetched at process time.
-    pub in_notes: Vec<UtxoNote<()>>,
+    pub in_notes: Vec<UtxoNote>,
     /// Hashes of all output notes (fee + transfer + unshield, unpadded).
     pub out_commitments: Vec<U256>,
     /// Note public keys of encryptable (non-unshield) output notes.
@@ -109,10 +109,7 @@ impl PendingPoiSubmitter {
             nullifying_key: op.operation.from.viewing_key().nullifying_key(),
             utxo_tree_in: op.operation.utxo_tree_number,
             bound_params_hash: op.circuit_inputs.bound_params_hash,
-            in_notes: in_notes
-                .iter()
-                .map(|n| n.inner().without_signer().clone())
-                .collect(),
+            in_notes: in_notes.iter().map(|n| n.inner().clone()).collect(),
             out_commitments: out_notes.iter().map(|n| n.hash().into()).collect(),
             out_npks: encryptable_notes
                 .iter()

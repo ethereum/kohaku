@@ -175,12 +175,12 @@ impl PoiCircuitInputs {
     /// Builds POI circuit inputs for the post-transaction re-proof using the
     /// actual on-chain TXID position. Used when submitting to the POI aggregator.
     #[allow(clippy::too_many_arguments)]
-    pub fn from_inputs_included<S>(
+    pub fn from_inputs_included(
         spending_pubkey: SpendingPublicKey,
         nullifying_key: NullifyingKey,
         utxo_tree_in: u32,
         bound_params_hash: U256,
-        in_notes: &[PoiNote<S>],
+        in_notes: &[PoiNote],
         out_commitments: &[U256],
         out_npks: &[U256],
         out_values: &[U256],
@@ -214,18 +214,18 @@ impl PoiCircuitInputs {
         )
     }
 
-    fn compute_nullifiers<S>(in_notes: &[PoiNote<S>]) -> Result<Vec<U256>, PoiCircuitInputsError> {
+    fn compute_nullifiers(in_notes: &[PoiNote]) -> Result<Vec<U256>, PoiCircuitInputsError> {
         info!("Computing nullifiers");
         Ok(in_notes.iter().map(|note| note.nullifier()).collect())
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn assemble<S>(
+    fn assemble(
         spending_pubkey: SpendingPublicKey,
         nullifying_pubkey: NullifyingKey,
         bound_params_hash: U256,
         utxo_tree_in: u32,
-        in_notes: &[PoiNote<S>],
+        in_notes: &[PoiNote],
         out_commitments: &[U256],
         out_npks: &[U256],
         out_values: &[U256],

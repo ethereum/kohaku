@@ -14,10 +14,6 @@ pub mod transfer;
 pub mod unshield;
 pub mod utxo;
 
-pub trait SignableNote {
-    fn sign(&self, inputs: &[U256]) -> [U256; 3];
-}
-
 /// Included notes are notes that have been included in a transaction and are
 /// on-chain in railgun's merkle tree.
 pub trait IncludedNote: Note {

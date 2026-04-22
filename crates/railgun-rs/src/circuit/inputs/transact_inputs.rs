@@ -1,10 +1,18 @@
+use std::sync::Arc;
+
+use crypto::poseidon_hash;
 use prover::circuit_inputs;
 use ruint::aliases::U256;
 use thiserror::Error;
 
-use crate::railgun::{
-    merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
-    note::{IncludedNote, Note, SignableNote},
+use crate::{
+    caip::AssetId,
+    crypto::keys::U256Key,
+    railgun::{
+        Signer,
+        merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
+        note::{IncludedNote, Note},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -37,9 +45,11 @@ pub enum TransactCircuitInputsError {
 }
 
 impl TransactCircuitInputs {
-    pub fn from_inputs<N: IncludedNote + SignableNote>(
+    pub fn from_inputs<N: IncludedNote>(
         merkle_tree: &UtxoMerkleTree,
         bound_params_hash: U256,
+        signer: Arc<dyn Signer>,
+        asset: AssetId,
         notes_in: &[N],
         notes_out: &[Box<dyn Note>],
     ) -> Result<Self, TransactCircuitInputsError> {
@@ -56,15 +66,16 @@ impl TransactCircuitInputs {
         let nullifiers: Vec<U256> = notes_in.iter().map(|note| note.nullifier()).collect();
         let commitments: Vec<U256> = notes_out.iter().map(|note| note.hash().into()).collect();
 
-        let note_zero = &notes_in[0];
-        let token = note_zero.asset().hash();
-        let public_key = note_zero.spending_pubkey();
-        let public_key = [public_key[0], public_key[1]];
+        let token = asset.hash();
+        let public_key = signer.spending_key().public_key();
+        let public_key = [public_key.x_u256(), public_key.y_u256()];
 
         let mut unsigned = vec![merkleroot.into(), bound_params_hash];
         unsigned.extend_from_slice(&nullifiers);
         unsigned.extend_from_slice(&commitments);
-        let signature = note_zero.sign(&unsigned);
+        let unsigned_hash = poseidon_hash(&unsigned).unwrap();
+        let signature = signer.sign(unsigned_hash);
+        let signature = [signature.r8_x, signature.r8_y, signature.s];
 
         let random_in = notes_in
             .iter()
@@ -83,7 +94,7 @@ impl TransactCircuitInputs {
             .map(|p| U256::from(p.indices))
             .collect();
 
-        let nullifying_key = note_zero.nullifying_key();
+        let nullifying_key = signer.viewing_key().nullifying_key().to_u256();
         let npk_out = notes_out
             .iter()
             .map(|note| note.note_public_key())

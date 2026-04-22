@@ -18,14 +18,14 @@ use crate::{
     railgun::{
         indexer,
         merkle_tree::UtxoLeafHash,
-        note::{IncludedNote, Note, SignableNote},
+        note::{IncludedNote, Note},
         signer::{Signer, SpendingKeyProvider, ViewingKeyProvider},
     },
 };
 
 /// Railgun UTXO note
 #[derive(Clone, Serialize, Deserialize)]
-pub struct UtxoNote<S = Arc<dyn Signer>> {
+pub struct UtxoNote {
     tree_number: u32,
     leaf_index: u32,
     spending_pubkey: SpendingPublicKey,
@@ -41,9 +41,6 @@ pub struct UtxoNote<S = Arc<dyn Signer>> {
     npk: U256,
     nullifying_key: U256,
     blinded_commitment: U256,
-
-    #[serde(skip)]
-    signer: S,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,7 +59,7 @@ pub enum NoteError {
     Key(#[from] KeyError),
 }
 
-impl UtxoNote<Arc<dyn Signer>> {
+impl UtxoNote {
     pub fn new(
         tree_number: u32,
         leaf_index: u32,
@@ -75,7 +72,7 @@ impl UtxoNote<Arc<dyn Signer>> {
     ) -> Self {
         let note_hash = note_hash(signer.as_ref(), signer.as_ref(), asset, value, &random);
         let npk = note_public_key(signer.as_ref(), signer.as_ref(), &random);
-        let nullifying_key = nullifying_key(signer.as_ref());
+        let nullifying_key = signer.viewing_key().nullifying_key().to_u256();
         let blinded_commitment = blinded_commitment(note_hash.into(), npk, tree_number, leaf_index);
         UtxoNote {
             tree_number,
@@ -91,7 +88,6 @@ impl UtxoNote<Arc<dyn Signer>> {
             npk,
             nullifying_key,
             blinded_commitment,
-            signer,
         }
     }
 
@@ -194,28 +190,9 @@ impl UtxoNote<Arc<dyn Signer>> {
             },
         )
     }
-
-    pub fn without_signer(&self) -> UtxoNote<()> {
-        UtxoNote {
-            tree_number: self.tree_number,
-            leaf_index: self.leaf_index,
-            spending_pubkey: self.spending_pubkey,
-            viewing_pubkey: self.viewing_pubkey,
-            asset: self.asset,
-            value: self.value,
-            random: self.random,
-            memo: self.memo.clone(),
-            utxo_type: self.utxo_type,
-            hash: self.hash,
-            npk: self.npk,
-            nullifying_key: self.nullifying_key,
-            blinded_commitment: self.blinded_commitment,
-            signer: (),
-        }
-    }
 }
 
-impl<S> Note for UtxoNote<S> {
+impl Note for UtxoNote {
     fn asset(&self) -> AssetId {
         self.asset
     }
@@ -237,7 +214,7 @@ impl<S> Note for UtxoNote<S> {
     }
 }
 
-impl<S> IncludedNote for UtxoNote<S> {
+impl IncludedNote for UtxoNote {
     fn tree_number(&self) -> u32 {
         self.tree_number
     }
@@ -274,21 +251,13 @@ impl<S> IncludedNote for UtxoNote<S> {
     }
 }
 
-impl<S> UtxoNote<S> {
+impl UtxoNote {
     pub fn utxo_type(&self) -> UtxoType {
         self.utxo_type
     }
 }
 
-impl SignableNote for UtxoNote<Arc<dyn Signer>> {
-    fn sign(&self, inputs: &[U256]) -> [U256; 3] {
-        let sig_hash = poseidon_hash(inputs).unwrap();
-        let signature = self.signer.sign(sig_hash);
-        [signature.r8_x, signature.r8_y, signature.s]
-    }
-}
-
-impl<S> Debug for UtxoNote<S> {
+impl Debug for UtxoNote {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UtxoNote")
             .field("tree_number", &self.tree_number)
@@ -305,28 +274,6 @@ impl<S> Debug for UtxoNote<S> {
             .finish()
     }
 }
-
-impl PartialEq for UtxoNote<()> {
-    fn eq(&self, other: &Self) -> bool {
-        self.tree_number == other.tree_number
-            && self.leaf_index == other.leaf_index
-            && self.hash == other.hash
-    }
-}
-
-impl Eq for UtxoNote<()> {}
-
-impl PartialEq for UtxoNote<Arc<dyn Signer>> {
-    fn eq(&self, other: &Self) -> bool {
-        self.tree_number == other.tree_number
-            && self.leaf_index == other.leaf_index
-            && self.hash == other.hash
-            && self.signer.viewing_key() == other.signer.viewing_key()
-            && self.signer.spending_key() == other.signer.spending_key()
-    }
-}
-
-impl Eq for UtxoNote<Arc<dyn Signer>> {}
 
 fn note_hash(
     sk: &dyn SpendingKeyProvider,
@@ -357,10 +304,6 @@ fn note_public_key(
     poseidon_hash(&[master_key.to_u256(), U256::from_be_slice(random)]).unwrap()
 }
 
-fn nullifying_key(vk: &dyn ViewingKeyProvider) -> U256 {
-    poseidon_hash(&[vk.viewing_key().to_u256()]).unwrap()
-}
-
 fn blinded_commitment(hash: U256, npk: U256, tree_number: u32, leaf_index: u32) -> U256 {
     poseidon_hash(&[
         hash,
@@ -371,7 +314,7 @@ fn blinded_commitment(hash: U256, npk: U256, tree_number: u32, leaf_index: u32) 
 }
 
 #[cfg(test)]
-pub fn test_note() -> UtxoNote<Arc<dyn Signer>> {
+pub fn test_note() -> UtxoNote {
     use crate::{
         crypto::keys::{SpendingKey, ViewingKey},
         railgun::signer::PrivateKeySigner,
@@ -409,16 +352,6 @@ mod tests {
         let hash: U256 = note.hash().into();
 
         insta::assert_debug_snapshot!(hash);
-    }
-
-    #[test]
-    #[traced_test]
-    fn test_note_sign() {
-        let note = test_note();
-        let msg = U256::from_be_slice(&[4u8; 32]);
-        let signature = note.sign(&[msg]);
-
-        insta::assert_debug_snapshot!(signature);
     }
 
     #[test]

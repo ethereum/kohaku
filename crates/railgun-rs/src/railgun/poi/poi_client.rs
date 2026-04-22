@@ -137,9 +137,9 @@ impl PoiClient {
     }
 
     /// Returns the POI status for a given note across the given list keys.
-    pub async fn note_pois<S>(
+    pub async fn note_pois(
         &self,
-        note: &UtxoNote<S>,
+        note: &UtxoNote,
         list_keys: &[ListKey],
     ) -> Result<HashMap<ListKey, PoiStatus>, PoiClientError> {
         let blinded_commitment_data = BlindedCommitmentData {
@@ -156,11 +156,11 @@ impl PoiClient {
     }
 
     /// Converts a UTXO note into a POI note
-    pub async fn note_to_poi_note<S>(
+    pub async fn note_to_poi_note(
         &self,
-        note: UtxoNote<S>,
+        note: UtxoNote,
         list_keys: &[ListKey],
-    ) -> Result<PoiNote<S>, PoiClientError> {
+    ) -> Result<PoiNote, PoiClientError> {
         let blinded_commitment = note.blinded_commitment();
 
         let mut proofs = self
