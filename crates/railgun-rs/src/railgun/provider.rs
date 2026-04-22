@@ -91,6 +91,11 @@ impl RailgunProvider {
         self.utxo_indexer.register(account);
     }
 
+    /// Registers an account starting from a specific block.
+    pub fn register_from(&mut self, account: Arc<dyn Signer>, from_block: u64) {
+        self.utxo_indexer.register_from(account, from_block);
+    }
+
     /// Returns the raw balance for the given address
     pub fn balance(&self, address: RailgunAddress) -> HashMap<AssetId, u128> {
         self.utxo_indexer.balance(address)

@@ -137,12 +137,17 @@ impl UtxoIndexer {
         min_synced
     }
 
-    /// Adds an account to the indexer. The indexer will track the balance and
-    /// transactions for this account as it syncs.
+    /// Register an account with the indexer. The indexer will track the account's
+    /// notes and balance as it syncs.
     ///
-    /// Registering an account does NOT automatically trigger a sync, so the account
-    /// will not be indexed until the next call to `sync()`.
+    /// Registering an account does NOT trigger a re-sync. After registering, call
+    /// `sync()` to sync the account's notes and balance.
     pub fn register(&mut self, signer: Arc<dyn Signer>) {
+        self.register_from(signer, self.synced_block);
+    }
+
+    /// Registers an account starting from a specific block.
+    pub fn register_from(&mut self, signer: Arc<dyn Signer>, from_block: u64) {
         let address = signer.address();
         if let Some(state) = self.pending_accounts.remove(&address) {
             let account = IndexedAccount::from_state(state, signer.clone());
@@ -150,7 +155,7 @@ impl UtxoIndexer {
             return;
         }
 
-        let account = IndexedAccount::new(signer.clone());
+        let account = IndexedAccount::new(signer.clone(), from_block);
         self.accounts.push(account);
     }
 

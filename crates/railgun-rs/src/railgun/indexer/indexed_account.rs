@@ -34,11 +34,11 @@ pub struct IndexedAccountState {
 }
 
 impl IndexedAccount {
-    pub fn new(signer: Arc<dyn Signer>) -> Self {
+    pub fn new(signer: Arc<dyn Signer>, synced_block: u64) -> Self {
         IndexedAccount {
             signer,
             notes: HashMap::new(),
-            synced_block: 0,
+            synced_block,
         }
     }
 
