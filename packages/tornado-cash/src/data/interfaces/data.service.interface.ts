@@ -85,6 +85,7 @@ export interface IDataService {
   getPoolAsset(poolAddress: Address): Promise<Address>;
   getPoolConfig(registryAddress: Address, poolAddress: Address): Promise<IPoolConfig>;
   getChainId(): Promise<ChainId>;
+  getGasPrice(): Promise<bigint>;
 
   getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint>;
   getPoolStateRoot(poolAddress: Address): Promise<bigint>;

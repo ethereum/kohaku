@@ -20,6 +20,10 @@ export type TCAddress = Address;
 export type TCAssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
 export type TCAssetBalance = TCAssetAmount;
 
+export interface TCPrepareUnshieldOptions {
+    preferredRelayersEns?: string[];
+}
+
 export type TCInstance = PluginInstance<
     TCAddress,
     {
@@ -35,9 +39,9 @@ export type TCInstance = PluginInstance<
         },
         extras: {
             sync(): Promise<void>,
+            prepareUnshield(asset: TCAssetAmount, to: Address, options: TCPrepareUnshieldOptions): Promise<TCPrivateOperation>,
         },
         publicOp: TCPublicOperation,
         privateOp: TCPrivateOperation,
     }
 >;
-

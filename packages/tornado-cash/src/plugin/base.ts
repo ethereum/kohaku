@@ -12,6 +12,7 @@ import {
   TCAssetAmount,
   TCAssetBalance,
   TCInstance,
+  TCPrepareUnshieldOptions,
 } from "../v1/interfaces.js";
 import {
   IStateManager,
@@ -139,7 +140,11 @@ export class TornadoCashProtocol implements TCInstance {
     return { txns: tx } as TCPublicOperation;
   }
 
-  async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<TCPrivateOperation> {
+  async prepareUnshield(
+    assets: AssetAmount,
+    to: AccountId,
+    { preferredRelayersEns }: TCPrepareUnshieldOptions = {}
+  ): Promise<TCPrivateOperation> {
     const { asset, amount } = assets;
     const parsedAsset = BigInt(asset.contract);
     const stateManager = await this.stateManager;
@@ -150,6 +155,7 @@ export class TornadoCashProtocol implements TCInstance {
       asset: parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset,
       amount,
       recipient: BigInt(to),
+      preferredRelayersEns
     });
 
     return {

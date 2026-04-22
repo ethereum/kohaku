@@ -61,7 +61,7 @@ export class DataService implements IDataService {
     toBlock,
   }) => {
 
-    const logs = await this.ethClient.getLogs({
+    const { logs, toBlock: resultingToBlock, fromBlock: resultingFromBlock } = await this.ethClient.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
       ...(toBlock ? { toBlock } : {}),
@@ -81,8 +81,8 @@ export class DataService implements IDataService {
         ),
       }),
       {
-        fromBlock: fromBlock,
-        toBlock: BigInt(logs.at(-1)?.blockNumber || 0n) || fromBlock,
+        fromBlock: resultingFromBlock,
+        toBlock: resultingToBlock,
       } satisfies Pick<
         Awaited<ReturnType<GenericGetEvents>>,
         "fromBlock" | "toBlock"
@@ -210,6 +210,15 @@ export class DataService implements IDataService {
       isRegistered,
       records: Array.from(records),
     }));
+  }
+
+  async getGasPrice(): Promise<bigint> {
+    const hex = await this.ethClient.request({
+      method: 'eth_gasPrice',
+      params: [],
+    }) as string;
+
+    return BigInt(hex);
   }
 
   async getLatestBlockTimestamp(): Promise<bigint> {

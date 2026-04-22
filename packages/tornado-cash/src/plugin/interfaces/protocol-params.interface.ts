@@ -70,6 +70,7 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
 export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
   amount?: bigint;
   recipient: Address;
+  preferredRelayersEns?: string[]
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {

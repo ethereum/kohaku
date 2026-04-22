@@ -8,10 +8,13 @@ export interface QuoteResult {
   relayerUrl: string;
   rewardAccount: string;
   tornadoServiceFee: number;
+  ethPrices: Record<string, string>;
 }
 
 export interface QuoteThunkParams {
   relayerClient: IRelayerClient;
+  preferredRelayersEns?: Set<string>;
+  isERC20?: boolean;
 }
 
 export const quoteThunk = createAsyncThunk<
@@ -20,7 +23,7 @@ export const quoteThunk = createAsyncThunk<
   { state: RootState }
 >(
   'quote/getBestQuote',
-  async ({ relayerClient }, { getState }) => {
+  async ({ relayerClient, preferredRelayersEns, isERC20 }, { getState }) => {
     const state = getState();
     const { chainId } = instanceRegistryInfoSelector(state);
     const relayers = relayersSelector(state);
@@ -30,7 +33,11 @@ export const quoteThunk = createAsyncThunk<
       throw new Error('No relayers available');
     }
 
-    const quotePromises = relayers.map(async (relayer): Promise<QuoteResult | null> => {
+    const relayersToUse = preferredRelayersEns ?
+      relayers.filter(({ ensName }) => preferredRelayersEns.has(ensName)) :
+      relayers;
+
+    const quotePromises = relayersToUse.map(async (relayer): Promise<QuoteResult | null> => {
       const { ensName, hostname } = relayer;
       const relayerUrl = `https://${hostname}/`;
 
@@ -41,7 +48,8 @@ export const quoteThunk = createAsyncThunk<
           status.netId !== Number(chainId) ||
           status.currentQueue > 5 ||
           status.tornadoServiceFee < minFee ||
-          status.tornadoServiceFee >= maxFee
+          status.tornadoServiceFee >= maxFee ||
+          (isERC20 && !status.ethPrices)
         ) {
           return null;
         }
@@ -51,6 +59,7 @@ export const quoteThunk = createAsyncThunk<
           relayerUrl,
           rewardAccount: status.rewardAccount,
           tornadoServiceFee: status.tornadoServiceFee,
+          ethPrices: status.ethPrices,
         };
       } catch {
         return null;

@@ -19,6 +19,12 @@ const abis = {
     aggregator: aggregatorAbi,
 } as const;
 
+interface IGetLogsResult {
+    logs: TxLog[];
+    fromBlock: bigint;
+    toBlock: bigint;
+}
+
 export class EthClient {
     constructor(
         private provider: EthereumProvider
@@ -35,7 +41,7 @@ export class EthClient {
     async getLogs({
         maxQuerySize = 5000n,
         ...params
-    }: GetLogsParams): Promise<TxLog[]> {
+    }: GetLogsParams): Promise<IGetLogsResult> {
         const fromBlock = params.fromBlock;
         const toBlock = params.toBlock ?? await this.provider.getBlockNumber();
 
@@ -53,7 +59,11 @@ export class EthClient {
             logs.push(...result);
         }
 
-        return logs;
+        return {
+            logs,
+            fromBlock,
+            toBlock
+        };
     }
 
     async getCode(address: string): Promise<string> {

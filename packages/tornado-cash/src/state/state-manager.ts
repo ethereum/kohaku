@@ -214,6 +214,7 @@ export const storeStateManager = async ({
       asset,
       amount,
       recipient,
+      preferredRelayersEns
     }: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
       const store = await getChainStore(await getChainInfo());
 
@@ -224,8 +225,10 @@ export const storeStateManager = async ({
             recipient,
             getWithdrawableDeposits: store.selectors.getWithdrawableDeposits,
             relayerClient,
+            dataService,
             assetAddress: asset,
             amount,
+            preferredRelayersEns: preferredRelayersEns ? new Set(preferredRelayersEns) : undefined
           }),
         ),
       );
