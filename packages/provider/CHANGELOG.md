@@ -1,5 +1,11 @@
 # @kohaku-eth/provider
 
+## 0.1.0-alpha.8
+
+### Patch Changes
+
+- 506bb2f: railgun native withdrawal, bump colibri
+
 ## 0.1.0-alpha.7
 
 ### Patch Changes
