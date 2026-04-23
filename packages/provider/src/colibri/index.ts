@@ -1,15 +1,13 @@
 import { raw } from '../raw';
 import type { EthereumProvider } from '../provider';
-import type { C4Config, default as Colibri } from '@corpus-core/colibri-stateless';
+import type { Config, default as Colibri } from '@corpus-core/colibri-stateless';
 import { Provider } from 'ox/Provider';
 
-export type ColibriConfig = Partial<C4Config>;
+export type ColibriConfig = Partial<Config>;
 
 type ColibriConstructor = new (config?: ColibriConfig) => Colibri;
 
 async function importColibri(): Promise<ColibriConstructor> {
-    // Colibri-Stateless exports the client as default export (ESM):
-    // `export default class C4Client { ... }`
     const mod = (await import('@corpus-core/colibri-stateless')) as unknown as {
         default?: ColibriConstructor;
     };
@@ -30,7 +28,11 @@ async function importColibri(): Promise<ColibriConstructor> {
   */
 export const colibri = async (config: ColibriConfig): Promise<EthereumProvider<Colibri>> => {
     const createColibri = await importColibri();
-    const client = new createColibri(config);
+    const client = new createColibri({
+        verifyTransactions: config.fallback_provider ? true : false,
+        zk_proof: true,
+        ...config,
+    });
 
     return {
         ...raw(client as unknown as Provider),
