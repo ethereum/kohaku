@@ -148,10 +148,12 @@ impl PoiProvider {
     ) -> Result<PoiProvedTx, PoiProviderError> {
         let tx = builder
             .build_poi(
-                self.inner.chain.clone(),
-                &self.inner.utxo_indexer,
                 self.inner.prover.as_ref(),
                 &self.poi_client,
+                self.inner.chain.id,
+                self.inner.chain.railgun_smart_wallet,
+                &self.inner.utxo_indexer.all_unspent(),
+                &self.inner.utxo_indexer.utxo_trees,
                 rng,
             )
             .await?;

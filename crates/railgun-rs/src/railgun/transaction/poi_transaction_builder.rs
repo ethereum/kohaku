@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use alloy_primitives::Address;
 use eth_rpc::EthRpcClientError;
@@ -15,7 +18,7 @@ use crate::{
         Signer,
         address::RailgunAddress,
         indexer::UtxoIndexer,
-        merkle_tree::MerkleRoot,
+        merkle_tree::{MerkleRoot, UtxoMerkleTree},
         note::utxo::UtxoNote,
         poi::{ListKey, PoiClient, PoiClientError, PoiNote},
         transaction::{
@@ -87,24 +90,25 @@ impl PoiTransactionBuilder {
     /// data.
     pub async fn build_poi<R: Rng>(
         self,
-        chain: ChainConfig,
-        indexer: &UtxoIndexer,
         prover: &dyn Prover,
         poi_client: &PoiClient,
+        chain_id: u64,
+        railgun_smart_wallet: Address,
+        in_notes: &[UtxoNote],
+        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
         rng: &mut R,
     ) -> Result<PoiProvedTx, PoiTransactionBuilderError> {
         info!("Building POI Transaction");
         let list_keys = poi_client.list_keys();
-        let in_notes = indexer.all_unspent();
-        let poi_in_notes = notes_to_poi_notes(poi_client, &list_keys, in_notes).await;
+        let poi_in_notes = notes_to_poi_notes(poi_client, &list_keys, in_notes.to_vec()).await;
         let proved = self
             .inner
             .build_transaction(
                 prover,
-                chain.id,
-                chain.railgun_smart_wallet,
+                chain_id,
+                railgun_smart_wallet,
                 &poi_in_notes,
-                &indexer.utxo_trees,
+                utxo_trees,
                 rng,
             )
             .await?;
