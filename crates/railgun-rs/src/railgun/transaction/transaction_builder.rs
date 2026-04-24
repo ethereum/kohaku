@@ -358,7 +358,11 @@ fn insert_operation<N: IncludedNote, R: Rng>(
 }
 
 /// TODO: Improve selection algorithm to minimize the number of notes used while
-/// avoiding creating many dust notes
+/// avoiding creating many dust notes.
+///
+/// Probably best is some target # of notes to use, then selecting the smallest
+/// notes that meet the target value.  This way dust notes are gradually consolidated
+/// while avoiding wasting gas.
 fn select_notes<'a, N: IncludedNote>(notes: &'a [&N], value: u128) -> Vec<&'a N> {
     let mut selected: Vec<&N> = Vec::new();
     let mut total = 0;
