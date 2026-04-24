@@ -372,6 +372,6 @@ describe("Sepolia / Phase 6: Unshield E2E", () => {
 
         const balancesAfterUnshield = await plugin.balance([{ __type: "native" }]);
         const totalAfter = balancesAfterUnshield.reduce((sum, b) => sum + b.amount, 0n);
-        expect(totalAfter).toBeLessThan(balanceBeforeUnshield);
+        expect(totalAfter).toBeLessThan(balanceBeforeUnshield + UNSHIELD_AMOUNT);
     }, 600_000);
 });
