@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 
 use eth_rpc::TxData;
 use prover::{Prover, ProverError};
@@ -119,16 +119,5 @@ impl PoiProvedOperation {
         }
 
         Ok(())
-    }
-}
-
-impl Display for PoiProvedOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "PoiProvedOperation({}, pois: {:?})",
-            self.operation,
-            self.pois.keys()
-        )
     }
 }

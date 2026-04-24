@@ -50,24 +50,13 @@ use crate::{
 /// Basic builder for constructing railgun transactions. Transactions are sets
 /// of shielded operations (transfers and unshield) that are proved together
 /// and can be executed in a single on-chain transaction.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TransactionBuilder {
     intents: Vec<Intent>,
+
+    //? Used to track unshield intents to ensure we don't have multiple unshields
+    //? for the same from / asset.
     unshields: HashSet<(RailgunAddress, AssetId)>,
-}
-
-#[derive(Clone)]
-struct Intent {
-    pub from: Arc<dyn Signer>,
-    pub asset: AssetId,
-    pub value: u128,
-    pub kind: IntentKind,
-}
-
-#[derive(Clone)]
-enum IntentKind {
-    Transfer { to: RailgunAddress, memo: String },
-    Unshield { to: Address },
 }
 
 #[derive(Debug, Error)]
@@ -97,6 +86,20 @@ pub enum TransactionBuilderError {
     TransactCircuitInput(#[from] TransactCircuitInputsError),
     #[error("Operation verification error: {0}")]
     OperationVerification(#[from] OperationVerificationError),
+}
+
+#[derive(Clone)]
+struct Intent {
+    pub from: Arc<dyn Signer>,
+    pub asset: AssetId,
+    pub value: u128,
+    pub kind: IntentKind,
+}
+
+#[derive(Clone)]
+enum IntentKind {
+    Transfer { to: RailgunAddress, memo: String },
+    Unshield { to: Address },
 }
 
 impl TransactionBuilder {
