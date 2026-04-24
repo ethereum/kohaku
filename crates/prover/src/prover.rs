@@ -17,6 +17,9 @@ pub enum ProverError {
     Other(String),
 }
 
+/// Prover trait for generating zk proofs.
+///
+/// Returns a tuple of (proof, public_inputs).
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait Prover: common::MaybeSend {

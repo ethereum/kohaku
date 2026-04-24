@@ -98,7 +98,7 @@ impl PendingPoiSubmitter {
         let Some(txid) = op.txid else { return };
         let spending_pubkey = op.operation.from.spending_key().public_key();
 
-        let in_notes = &op.operation.in_notes;
+        let in_notes = op.operation.in_notes();
         let out_notes = op.operation.out_notes();
         let encryptable_notes = op.operation.out_encryptable_notes();
 
@@ -120,7 +120,7 @@ impl PendingPoiSubmitter {
                 .map(|n| U256::from(n.value()))
                 .collect(),
             token: op.operation.asset.hash(),
-            has_unshield: op.operation.unshield_note.is_some(),
+            has_unshield: op.operation.unshield_note().is_some(),
             list_keys: op.pois.keys().cloned().collect(),
         });
     }

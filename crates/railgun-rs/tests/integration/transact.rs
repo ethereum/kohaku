@@ -130,12 +130,14 @@ async fn test_transact() {
 
     // Test Unshielding
     info!("Testing unshielding");
-    let tx = TransactionBuilder::new().set_unshield(
-        account_1.clone(),
-        address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
-        USDC,
-        1_000,
-    );
+    let tx = TransactionBuilder::new()
+        .unshield(
+            account_1.clone(),
+            address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
+            USDC,
+            1_000,
+        )
+        .unwrap();
     let unshield_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
 
     provider

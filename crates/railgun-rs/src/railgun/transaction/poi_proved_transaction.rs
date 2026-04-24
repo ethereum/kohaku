@@ -6,7 +6,6 @@ use ruint::aliases::U256;
 use thiserror::Error;
 
 use crate::{
-    abis,
     circuit::{
         inputs::{PoiCircuitInputs, PoiCircuitInputsError, TransactCircuitInputs},
         prover::prove_poi,
@@ -26,7 +25,6 @@ pub struct PoiProvedTx {
     pub tx_data: TxData,
     /// The operations with their POI proofs.
     pub operations: Vec<PoiProvedOperation>,
-    pub min_gas_price: u128,
 }
 
 /// A proved operation with POI proofs attached for each list key.
@@ -34,7 +32,6 @@ pub struct PoiProvedTx {
 pub struct PoiProvedOperation {
     pub operation: Operation<PoiNote>,
     pub circuit_inputs: TransactCircuitInputs,
-    pub transaction: abis::railgun::Transaction,
     /// POI proofs keyed by list key.
     pub pois: HashMap<ListKey, PreTransactionPoi>,
     /// The txid for this operation. Computed on first `add_pois` call.
@@ -90,12 +87,12 @@ impl PoiProvedOperation {
                 self.operation.from.viewing_key().nullifying_key(),
                 self.operation.utxo_tree_number,
                 self.circuit_inputs.bound_params_hash,
-                &self.operation.in_notes,
+                self.operation.in_notes(),
                 &out_commitments,
                 &out_npks,
                 &out_values,
                 self.operation.asset.hash(),
-                self.operation.unshield_note.is_some(),
+                self.operation.unshield_note().is_some(),
                 list_key.clone(),
             )?;
 

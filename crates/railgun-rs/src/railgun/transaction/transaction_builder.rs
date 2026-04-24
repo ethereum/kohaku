@@ -15,34 +15,28 @@
 //!  - A transaction can have many operations across many trees and addresses.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashSet},
     sync::Arc,
 };
 
-use alloy_primitives::Address;
-use alloy_sol_types::SolCall;
-use eth_rpc::TxData;
+use alloy_primitives::{Address, U256};
 use prover::{Prover, ProverError};
 use rand::Rng;
-use ruint::aliases::U256;
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
-    abis::{self, railgun::RailgunSmartWallet},
+    abis,
     caip::AssetId,
-    chain_config::ChainConfig,
     circuit::{
         inputs::{TransactCircuitInputs, TransactCircuitInputsError},
         prover::prove_transact,
     },
-    crypto::keys::ViewingPublicKey,
     railgun::{
         address::RailgunAddress,
-        indexer::UtxoIndexer,
         merkle_tree::UtxoMerkleTree,
         note::{
-            IncludedNote, Note,
+            IncludedNote,
             encrypt::EncryptError,
             operation::{Operation, OperationVerificationError},
             transfer::TransferNote,
@@ -58,32 +52,42 @@ use crate::{
 /// and can be executed in a single on-chain transaction.
 #[derive(Clone)]
 pub struct TransactionBuilder {
-    pub(crate) transfers: Vec<TransferData>,
-    pub(crate) unshields: HashMap<AssetId, UnshieldData>,
-    pub(crate) signers: HashMap<ViewingPublicKey, Arc<dyn Signer>>,
+    intents: Vec<Intent>,
+    unshields: HashSet<(RailgunAddress, AssetId)>,
 }
 
 #[derive(Clone)]
-pub struct TransferData {
-    pub from: Arc<dyn Signer>,
-    pub to: RailgunAddress,
-    pub asset: AssetId,
-    pub value: u128,
-    pub memo: String,
-}
-
-#[derive(Clone)]
-pub struct UnshieldData {
-    pub from: Arc<dyn Signer>,
-    pub to: Address,
-    pub asset: AssetId,
-    pub value: u128,
+enum Intent {
+    Transfer {
+        from: Arc<dyn Signer>,
+        to: RailgunAddress,
+        asset: AssetId,
+        value: u128,
+        memo: String,
+    },
+    Unshield {
+        from: Arc<dyn Signer>,
+        to: Address,
+        asset: AssetId,
+        value: u128,
+    },
 }
 
 #[derive(Debug, Error)]
 pub enum TransactionBuilderError {
-    #[error("Multiple unshield operations are not supported")]
-    MultipleUnshields,
+    #[error(
+        "Multiple unshield operations from the same address and asset are not supported: from {from}, asset {asset}"
+    )]
+    MultipleUnshields {
+        from: RailgunAddress,
+        asset: AssetId,
+    },
+    #[error("Insufficient balance for intent with from {from}, asset {asset}, value {value}")]
+    InsufficientBalance {
+        from: RailgunAddress,
+        asset: AssetId,
+        value: u128,
+    },
     #[error("Encryption error: {0}")]
     Encryption(#[from] EncryptError),
     #[error("Prover error: {0}")]
@@ -101,9 +105,8 @@ pub enum TransactionBuilderError {
 impl TransactionBuilder {
     pub fn new() -> Self {
         Self {
-            transfers: Vec::new(),
-            unshields: HashMap::new(),
-            signers: HashMap::new(),
+            intents: Vec::new(),
+            unshields: HashSet::new(),
         }
     }
 }
@@ -118,326 +121,315 @@ impl TransactionBuilder {
         value: u128,
         memo: &str,
     ) -> Self {
-        self.signers
-            .insert(from.viewing_key().public_key(), from.clone());
-
-        let transfer_data = TransferData {
+        self.intents.push(Intent::Transfer {
             from,
             to,
             asset,
             value,
             memo: memo.to_string(),
-        };
-        self.transfers.push(transfer_data);
+        });
         self
     }
 
-    /// Sets an unshield operation for this transaction. Only one unshield operation
-    /// is permitted per transaction per asset, due to limitations in the RAILGUN protocol.
-    pub fn set_unshield(
+    /// Adds an unshield operation to this transaction.
+    pub fn unshield(
         mut self,
         from: Arc<dyn Signer>,
         to: Address,
         asset: AssetId,
         value: u128,
-    ) -> Self {
-        self.signers
-            .insert(from.viewing_key().public_key(), from.clone());
+    ) -> Result<Self, TransactionBuilderError> {
+        if self.unshields.contains(&(from.address(), asset)) {
+            return Err(TransactionBuilderError::MultipleUnshields {
+                from: from.address(),
+                asset,
+            });
+        }
+        self.unshields.insert((from.address(), asset));
 
-        let unshield_data = UnshieldData {
+        self.intents.push(Intent::Unshield {
             from,
             to,
             asset,
             value,
-        };
-        let old = self.unshields.insert(asset, unshield_data);
-        if old.is_some() {
-            warn!(
-                "Overwriting existing unshield data for {}",
-                old.unwrap().asset
-            );
-        }
-        self
+        });
+        Ok(self)
     }
 
     /// Builds and proves a transaction for railgun.
-    ///
-    /// The resulting transaction can be self-broadcasted, but does not include
-    /// any POI proofs.
-    pub async fn build<R: Rng>(
-        self,
-        chain: ChainConfig,
-        indexer: &UtxoIndexer,
+    pub async fn build_transaction<N: IncludedNote, R: Rng>(
+        &self,
         prover: &dyn Prover,
+        chain_id: u64,
+        railgun_smart_wallet: Address,
+        in_notes: &[N],
+        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
         rng: &mut R,
-    ) -> Result<ProvedTx, TransactionBuilderError> {
-        let in_notes = indexer.all_unspent();
-        let draft = self.draft_operations(rng);
-        let ops = build_operations(draft, in_notes, rng)?;
-        let proved = prove_operations(prover, &indexer.utxo_trees, &ops, chain, 0, rng).await?;
+    ) -> Result<ProvedTx<N>, TransactionBuilderError> {
+        let operations = self
+            .build(prover, chain_id, in_notes, utxo_trees, rng)
+            .await?;
+        Ok(ProvedTx::new(railgun_smart_wallet, operations))
+    }
 
+    /// Builds and proves a set of operations for railgun, without packaging into a transaction.
+    pub async fn build<N: IncludedNote, R: Rng>(
+        &self,
+        prover: &dyn Prover,
+        chain_id: u64,
+        in_notes: &[N],
+        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
+        rng: &mut R,
+    ) -> Result<Vec<ProvedOperation<N>>, TransactionBuilderError> {
+        let groups = self.group_intents();
+        let operations = build_groups(in_notes, groups, rng)?;
+
+        for op in &operations {
+            op.verify()?;
+        }
+
+        let proved = prove_operations(prover, utxo_trees, chain_id, &operations, rng).await?;
         Ok(proved)
     }
 
-    /// Drafts the operations by grouping output notes by (from_address, asset_id)
-    pub(crate) fn draft_operations<N: Note, R: Rng>(
-        &self,
-        rng: &mut R,
-    ) -> HashMap<(RailgunAddress, AssetId), Operation<N>> {
-        let mut draft_operations: HashMap<(RailgunAddress, AssetId), Operation<N>> = HashMap::new();
-        for transfer in &self.transfers {
-            draft_operations
-                .entry((transfer.from.address(), transfer.asset))
-                .or_insert(Operation::new_empty(
-                    0,
-                    transfer.from.clone(),
-                    transfer.asset,
-                ))
-                .out_notes
-                .push(TransferNote::new(
-                    transfer.from.viewing_key(),
-                    transfer.to,
-                    transfer.asset,
-                    transfer.value,
-                    rng.random(),
-                    &transfer.memo,
-                ));
+    /// Group intents with the following rules:
+    ///
+    /// 1. Each group has a single asset.
+    /// 2. Each group has a single signer.
+    /// 3. Each group has at most one unshield.
+    fn group_intents(&self) -> BTreeMap<(RailgunAddress, AssetId), Vec<Intent>> {
+        let mut groups = BTreeMap::new();
+        for intent in &self.intents {
+            groups
+                .entry((intent.signer().address(), intent.asset()))
+                .or_insert_with(Vec::new)
+                .push(intent.clone());
         }
 
-        for unshield in self.unshields.values() {
-            draft_operations
-                .entry((unshield.from.address(), unshield.asset))
-                .or_insert(Operation::new_empty(
-                    0,
-                    unshield.from.clone(),
-                    unshield.asset,
-                ))
-                .unshield_note = Some(UnshieldNote::new(
-                unshield.to,
-                unshield.asset,
-                unshield.value,
-            ));
-        }
-
-        draft_operations
+        groups
     }
 }
 
-/// Builds operations from a draft by populating input notes, splitting by tree number, and adding
-/// change notes if necessary.
-pub fn build_operations<N: IncludedNote + Clone, R: Rng>(
-    mut draft: HashMap<(RailgunAddress, AssetId), Operation<N>>,
-    in_notes: Vec<N>,
+/// Build the operations for each group of intents.
+fn build_groups<N: IncludedNote, R: Rng>(
+    in_notes: &[N],
+    groups: BTreeMap<(RailgunAddress, AssetId), Vec<Intent>>,
     rng: &mut R,
 ) -> Result<Vec<Operation<N>>, TransactionBuilderError> {
-    //? Collect input notes to satisfy each operation's output value.
-    draft.values_mut().for_each(|o| {
-        o.in_notes = select_in_notes(o.from.address(), o.asset, o.out_value(), &in_notes)
-    });
-
-    //? Split operations by tree number
     let mut operations = Vec::new();
-    for draft_op in draft.into_values() {
-        let split_ops = split_trees(draft_op)?;
-        operations.extend(split_ops);
+    for ((from, asset), intents) in groups {
+        let ops = build_group(in_notes, from, asset, intents, rng)?;
+        operations.extend(ops);
     }
-
-    //? Add change notes
-    let operations: Vec<_> = operations
-        .into_iter()
-        .map(|o| add_change_note(o, rng))
-        .collect();
-
-    //? Verify operations
-    for op in &operations {
-        op.verify()?;
-    }
-
     Ok(operations)
 }
 
-/// Proves the operations and returns a proved transaction that can be
-/// executed in railgun on-chain.
-pub async fn prove_operations<N: IncludedNote + Clone, R: Rng>(
-    prover: &dyn Prover,
-    utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
-    operations: &[Operation<N>],
-    chain: ChainConfig,
-    min_gas_price: u128,
+/// Build the operations for a single group of intents.
+fn build_group<N: IncludedNote, R: Rng>(
+    in_notes: &[N],
+    from: RailgunAddress,
+    asset: AssetId,
+    mut intents: Vec<Intent>,
     rng: &mut R,
-) -> Result<ProvedTx<N>, TransactionBuilderError> {
-    let tx_results = create_transactions(
-        prover,
-        utxo_trees,
-        operations,
-        chain,
-        min_gas_price,
-        Address::ZERO,
-        &[0u8; 32],
-        rng,
-    )
-    .await?;
+) -> Result<Vec<Operation<N>>, TransactionBuilderError> {
+    // Sort intents smallest to largest. Helps to ensure small intents don't
+    // ever need to span across multiple trees.
+    intents.sort_by(|a, b| a.value().cmp(&b.value()));
 
-    let proved_operations: Vec<ProvedOperation<N>> = operations
+    // Filter notes for this asset and signer, and group by tree number.
+    let tree_number: BTreeMap<u32, Vec<&N>> = in_notes
         .iter()
-        .zip(tx_results)
-        .map(|(op, (ci, tx))| ProvedOperation {
-            operation: op.clone(),
-            circuit_inputs: ci,
-            transaction: tx,
+        .filter(|n| n.asset() == asset && n.viewing_pubkey() == from.viewing_pubkey())
+        .fold(BTreeMap::new(), |mut acc, n| {
+            acc.entry(n.tree_number()).or_insert_with(Vec::new).push(n);
+            acc
+        });
+
+    let mut balances: BTreeMap<u32, u128> = tree_number
+        .iter()
+        .map(|(tree_number, notes)| {
+            let balance = notes.iter().map(|n| n.value()).sum();
+            (*tree_number, balance)
         })
         .collect();
 
-    let transactions: Vec<_> = proved_operations
-        .iter()
-        .map(|po| po.transaction.clone())
-        .collect();
+    // Fit intents to trees.
+    let mut operations: BTreeMap<u32, Operation<N>> = BTreeMap::new();
+    for intent in intents {
+        //? Try single tree first (oldest sufficient).
+        let single = balances
+            .iter()
+            .find(|&(_, bal)| bal >= &intent.value())
+            .map(|(&t, _)| t);
 
-    let calldata = RailgunSmartWallet::transactCall {
-        _transactions: transactions,
+        if let Some(tree) = single {
+            *balances.get_mut(&tree).unwrap() -= intent.value();
+            insert_operation(&mut operations, tree, intent, rng);
+            continue;
+        }
+
+        split_intent(from, asset, intent, &mut balances, &mut operations, rng)?;
     }
-    .abi_encode();
-    let tx_data = TxData::new(chain.railgun_smart_wallet, calldata.into(), U256::ZERO);
 
-    Ok(ProvedTx {
-        proved_operations,
-        tx_data,
-        min_gas_price,
-    })
+    // Add in notes to operations
+    for (tree, op) in operations.iter_mut() {
+        let Some(notes) = tree_number.get(tree) else {
+            debug_assert!(false, "Tree {} should exist in tree_number", tree);
+            continue;
+        };
+
+        let selected = select_notes(notes, op.out_value());
+        for note in selected {
+            op.add_in_note(note.clone());
+        }
+        add_change_note(op, asset, rng);
+    }
+
+    Ok(operations.into_values().collect())
 }
 
-/// Selects input notes for an operation.
-fn select_in_notes<N: IncludedNote + Clone>(
+/// Helper for fitting an intent to multiple trees when it can't fit on a single tree.
+fn split_intent<N: IncludedNote, R: Rng>(
     from: RailgunAddress,
     asset: AssetId,
-    value: u128,
-    in_notes: &[N],
-) -> Vec<N> {
-    //? Naive implementation: just takes notes until we have enough value.
-    let mut selected = Vec::new();
-    let mut total = 0;
-    for note in in_notes {
-        if note.viewing_pubkey() == from.viewing_pubkey() && note.asset() == asset {
-            selected.push(note.clone());
-            total += note.value();
-            if total >= value {
-                break;
-            }
+    intent: Intent,
+    balances: &mut BTreeMap<u32, u128>,
+    operations: &mut BTreeMap<u32, Operation<N>>,
+    rng: &mut R,
+) -> Result<(), TransactionBuilderError> {
+    let mut remaining = intent.value();
+    let trees: Vec<u32> = balances.keys().copied().collect();
+    for tree in trees {
+        if remaining == 0 {
+            break;
         }
+
+        let available = *balances.get(&tree).unwrap();
+        if available == 0 {
+            continue;
+        }
+
+        let take = remaining.min(available);
+        *balances.get_mut(&tree).unwrap() -= take;
+
+        let mut partial = intent.clone();
+        partial.set_value(take);
+        insert_operation(operations, tree, partial, rng);
+
+        remaining -= take;
     }
 
+    if remaining > 0 {
+        return Err(TransactionBuilderError::InsufficientBalance {
+            from,
+            asset,
+            value: intent.value(),
+        });
+    }
+    Ok(())
+}
+
+/// Helper to insert an intent into an operation, creating the operation if it
+/// doesn't exist.
+fn insert_operation<N: IncludedNote, R: Rng>(
+    operations: &mut BTreeMap<u32, Operation<N>>,
+    tree: u32,
+    intent: Intent,
+    rng: &mut R,
+) {
+    let from = intent.signer().clone();
+    let asset = intent.asset();
+    let op = operations
+        .entry(tree)
+        .or_insert(Operation::new_empty(tree, from, asset));
+
+    match intent {
+        Intent::Transfer {
+            from,
+            to,
+            asset,
+            value,
+            memo,
+        } => op.add_out_note(TransferNote::new(
+            from.viewing_key(),
+            to,
+            asset,
+            value,
+            rng.random(),
+            &memo,
+        )),
+        Intent::Unshield {
+            to, asset, value, ..
+        } => op.set_unshield_note(UnshieldNote::new(to, asset, value)),
+    }
+}
+
+/// TODO: Improve selection algorithm to minimize the number of notes used while
+/// avoiding creating many dust notes
+fn select_notes<'a, N: IncludedNote>(notes: &'a [&N], value: u128) -> Vec<&'a N> {
+    let mut selected: Vec<&N> = Vec::new();
+    let mut total = 0;
+    for note in notes {
+        selected.push(note);
+        total += note.value();
+        if total >= value {
+            break;
+        }
+    }
     selected
 }
 
-/// Splits an operation into multiple operations by tree number if the input notes
-/// are from different trees. The outputs are also split accordingly.
-fn split_trees<N: IncludedNote>(
-    operation: Operation<N>,
-) -> Result<Vec<Operation<N>>, TransactionBuilderError> {
-    //? Naive impl: Assumes that all in notes are from the same tree, so no need to
-    //? split.
-    let tree_number = operation
-        .in_notes
-        .first()
-        .map(|n| n.tree_number())
-        .ok_or(TransactionBuilderError::NoInputNotes)?;
-
-    for note in operation.in_notes.iter() {
-        if note.tree_number() != tree_number {
-            todo!("Implement operation splitting for notes from different trees");
-        }
-    }
-
-    Ok(vec![Operation {
-        utxo_tree_number: tree_number,
-        ..operation
-    }])
-}
-
-/// Adds a change note to the operation if required. The change note sends any
-/// excess consumed value back to the sender's address.
-fn add_change_note<R: Rng, N: IncludedNote + Clone>(
-    operation: Operation<N>,
+/// Helper to add a change note to an operation if there is excess value.
+fn add_change_note<N: IncludedNote, R: Rng>(
+    operation: &mut Operation<N>,
+    asset: AssetId,
     rng: &mut R,
-) -> Operation<N> {
-    let in_value = operation.in_value();
-    let out_value = operation.out_value();
-    let change_value = in_value.saturating_sub(out_value);
-
-    if change_value > 0 {
+) {
+    let signer = operation.from.clone();
+    let change = operation.in_value().saturating_sub(operation.out_value());
+    if change > 0 {
         let change_note = TransferNote::new(
-            operation.from.viewing_key(),
-            operation.from.address(),
-            operation.asset,
-            change_value,
+            signer.viewing_key(),
+            signer.address(),
+            asset,
+            change,
             rng.random(),
             "change",
         );
-        let mut new_operation = operation.clone();
-        new_operation.out_notes.push(change_note);
-        new_operation
-    } else {
-        operation
+        operation.add_out_note(change_note);
     }
 }
 
-/// Creates a list of railgun transactions for a list of operations.
-pub async fn create_transactions<N: IncludedNote, R: Rng>(
+async fn prove_operations<N: IncludedNote, R: Rng>(
     prover: &dyn Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
+    chain_id: u64,
     operations: &[Operation<N>],
-    chain: ChainConfig,
-    min_gas_price: u128,
-    adapt_contract: Address,
-    adapt_input: &[u8; 32],
     rng: &mut R,
-) -> Result<Vec<(TransactCircuitInputs, abis::railgun::Transaction)>, TransactionBuilderError> {
-    let mut transactions = Vec::new();
-    for operation in operations {
-        operation.verify()?;
-
-        let tree_number = operation.utxo_tree_number();
-        let tree = utxo_trees
-            .get(&tree_number)
-            .ok_or(TransactionBuilderError::MissingTree(tree_number))?;
-
-        let tx = create_transaction(
-            prover,
-            tree,
-            operation,
-            chain,
-            min_gas_price,
-            adapt_contract,
-            adapt_input,
-            rng,
-        )
-        .await?;
-
-        transactions.push(tx);
+) -> Result<Vec<ProvedOperation<N>>, TransactionBuilderError> {
+    let mut proved = Vec::new();
+    for op in operations {
+        let tree = op.utxo_tree_number;
+        let Some(utxo_tree) = utxo_trees.get(&tree) else {
+            return Err(TransactionBuilderError::MissingTree(tree));
+        };
+        let proved_op = prove_operation(prover, utxo_tree, chain_id, op, rng).await?;
+        proved.push(proved_op);
     }
-
-    Ok(transactions)
+    Ok(proved)
 }
 
-/// Creates a railgun transaction for a single operation.
-async fn create_transaction<N: IncludedNote, R: Rng>(
+async fn prove_operation<N: IncludedNote, R: Rng>(
     prover: &dyn Prover,
     utxo_tree: &UtxoMerkleTree,
+    chain_id: u64,
     operation: &Operation<N>,
-    chain: ChainConfig,
-    min_gas_price: u128,
-    adapt_contract: Address,
-    adapt_input: &[u8; 32],
     rng: &mut R,
-) -> Result<(TransactCircuitInputs, abis::railgun::Transaction), TransactionBuilderError> {
-    let notes_in = operation.in_notes();
-    let notes_out = operation.out_notes();
-
+) -> Result<ProvedOperation<N>, TransactionBuilderError> {
     info!("Constructing circuit inputs");
-    let unshield_type = operation
-        .unshield_note()
-        .map(|n| n.unshield_type())
-        .unwrap_or_default();
+    let unshield_note = operation.unshield_note();
+    let unshield_type = unshield_note.map(|n| n.unshield_type()).unwrap_or_default();
+    let unshield_preimage = unshield_note.map(|n| n.preimage()).unwrap_or_default();
 
     let commitment_ciphertexts: Vec<abis::railgun::CommitmentCiphertext> = operation
         .out_encryptable_notes()
@@ -445,13 +437,15 @@ async fn create_transaction<N: IncludedNote, R: Rng>(
         .map(|n| n.encrypt(rng))
         .collect::<Result<_, _>>()?;
 
+    //? min_gas_price, adapt_contract, and adapt_input are all vestigial fields for
+    //? railgun relayers.
     let bound_params = abis::railgun::BoundParams::new(
         utxo_tree.number() as u16,
-        min_gas_price,
+        0,
         unshield_type,
-        chain.id,
-        adapt_contract,
-        adapt_input,
+        chain_id,
+        Address::ZERO,
+        &[0u8; 32],
         commitment_ciphertexts,
     );
 
@@ -460,29 +454,54 @@ async fn create_transaction<N: IncludedNote, R: Rng>(
         bound_params.hash(),
         operation.from.clone(),
         operation.asset,
-        notes_in,
-        &notes_out,
+        operation.in_notes(),
+        &operation.out_notes(),
     )?;
-
-    info!("Proving transaction");
     let (proof, _) = prove_transact(prover, &inputs).await?;
 
-    let merkle_root: U256 = inputs.merkleroot.into();
-    let transaction = abis::railgun::Transaction {
-        proof: proof.into(),
-        merkleRoot: merkle_root.into(),
-        nullifiers: inputs.nullifiers.iter().map(|n| n.clone().into()).collect(),
-        commitments: inputs
+    let merkleroot: U256 = inputs.merkleroot.into();
+    let transaction = abis::railgun::Transaction::new(
+        proof.into(),
+        merkleroot.into(),
+        inputs.nullifiers.iter().map(|n| n.clone().into()).collect(),
+        inputs
             .commitments_out
             .iter()
             .map(|c| c.clone().into())
             .collect(),
-        boundParams: bound_params,
-        unshieldPreimage: operation
-            .unshield_note()
-            .map(|n| n.preimage())
-            .unwrap_or_default(),
-    };
+        bound_params,
+        unshield_preimage,
+    );
 
-    Ok((inputs, transaction))
+    Ok(ProvedOperation::new(operation.clone(), inputs, transaction))
+}
+
+impl Intent {
+    fn signer(&self) -> &Arc<dyn Signer> {
+        match self {
+            Intent::Transfer { from, .. } => from,
+            Intent::Unshield { from, .. } => from,
+        }
+    }
+
+    fn asset(&self) -> AssetId {
+        match self {
+            Intent::Transfer { asset, .. } => *asset,
+            Intent::Unshield { asset, .. } => *asset,
+        }
+    }
+
+    fn value(&self) -> u128 {
+        match self {
+            Intent::Transfer { value, .. } => *value,
+            Intent::Unshield { value, .. } => *value,
+        }
+    }
+
+    fn set_value(&mut self, new_value: u128) {
+        match self {
+            Intent::Transfer { value, .. } => *value = new_value,
+            Intent::Unshield { value, .. } => *value = new_value,
+        }
+    }
 }

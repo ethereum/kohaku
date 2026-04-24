@@ -118,10 +118,12 @@ impl RailgunProvider {
         rng: &mut R,
     ) -> Result<ProvedTx, RailgunProviderError> {
         Ok(builder
-            .build(
-                self.chain.clone(),
-                &self.utxo_indexer,
+            .build_transaction(
                 self.prover.as_ref(),
+                self.chain.id,
+                self.chain.railgun_smart_wallet,
+                &self.utxo_indexer.all_unspent(),
+                &self.utxo_indexer.utxo_trees,
                 rng,
             )
             .await?)

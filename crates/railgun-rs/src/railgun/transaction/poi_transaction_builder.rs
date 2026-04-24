@@ -21,7 +21,6 @@ use crate::{
         transaction::{
             PoiProvedOperation, PoiProvedOperationError, PoiProvedTx, ProvedTx, TransactionBuilder,
             TransactionBuilderError,
-            transaction_builder::{build_operations, prove_operations},
         },
     },
 };
@@ -70,16 +69,16 @@ impl PoiTransactionBuilder {
     }
 
     /// See [TransactionBuilder::set_unshield]
-    pub fn set_unshield(
+    pub fn unshield(
         self,
         from: Arc<dyn Signer>,
         to: Address,
         asset: AssetId,
         value: u128,
-    ) -> Self {
-        Self {
-            inner: self.inner.set_unshield(from, to, asset, value),
-        }
+    ) -> Result<Self, PoiTransactionBuilderError> {
+        Ok(Self {
+            inner: self.inner.unshield(from, to, asset, value)?,
+        })
     }
 
     /// Builds and proves a transaction for railgun.
@@ -98,11 +97,17 @@ impl PoiTransactionBuilder {
         let list_keys = poi_client.list_keys();
         let in_notes = indexer.all_unspent();
         let poi_in_notes = notes_to_poi_notes(poi_client, &list_keys, in_notes).await;
-
-        info!("Creating proved TX");
-        let draft = self.inner.draft_operations(rng);
-        let ops = build_operations(draft, poi_in_notes, rng)?;
-        let proved = prove_operations(prover, &indexer.utxo_trees, &ops, chain, 0, rng).await?;
+        let proved = self
+            .inner
+            .build_transaction(
+                prover,
+                chain.id,
+                chain.railgun_smart_wallet,
+                &poi_in_notes,
+                &indexer.utxo_trees,
+                rng,
+            )
+            .await?;
 
         info!("Attaching POI proofs");
         self.prove_poi(prover, proved, &list_keys).await
@@ -120,7 +125,6 @@ impl PoiTransactionBuilder {
             poi_operations.push(PoiProvedOperation {
                 operation: proved_op.operation,
                 circuit_inputs: proved_op.circuit_inputs,
-                transaction: proved_op.transaction,
                 pois: HashMap::new(),
                 txid_leaf_hash: None,
                 txid: None,
@@ -135,7 +139,6 @@ impl PoiTransactionBuilder {
         Ok(PoiProvedTx {
             tx_data: proved.tx_data,
             operations: poi_operations,
-            min_gas_price: proved.min_gas_price,
         })
     }
 }

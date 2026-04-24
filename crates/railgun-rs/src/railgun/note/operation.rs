@@ -41,9 +41,9 @@ pub struct Operation<N> {
     /// The asset this operation is spending.
     pub asset: AssetId,
 
-    pub in_notes: Vec<N>,
-    pub out_notes: Vec<TransferNote>,
-    pub unshield_note: Option<UnshieldNote>,
+    in_notes: Vec<N>,
+    out_notes: Vec<TransferNote>,
+    unshield_note: Option<UnshieldNote>,
 }
 
 #[derive(Debug, Error)]
@@ -92,6 +92,18 @@ impl<N: Note> Operation<N> {
             out_notes: Vec::new(),
             unshield_note: None,
         }
+    }
+
+    pub fn add_in_note(&mut self, note: N) {
+        self.in_notes.push(note);
+    }
+
+    pub fn add_out_note(&mut self, note: TransferNote) {
+        self.out_notes.push(note);
+    }
+
+    pub fn set_unshield_note(&mut self, note: UnshieldNote) {
+        self.unshield_note = Some(note);
     }
 
     pub fn verify(&self) -> Result<(), OperationVerificationError> {

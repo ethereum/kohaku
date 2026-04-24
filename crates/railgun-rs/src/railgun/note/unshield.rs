@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Unshield notes represent value exiting the Railgun system to an external address.
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct UnshieldNote {
     pub receiver: Address,
     pub asset: AssetId,

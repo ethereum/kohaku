@@ -199,12 +199,14 @@ async fn test_unshield_poi<P: Provider>(
     account_2: Arc<dyn Signer>,
     list_key: &ListKey,
 ) {
-    let tx = PoiTransactionBuilder::new().set_unshield(
-        account_1.clone(),
-        address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
-        USDC,
-        2,
-    );
+    let tx = PoiTransactionBuilder::new()
+        .unshield(
+            account_1.clone(),
+            address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
+            USDC,
+            2,
+        )
+        .unwrap();
     let unshield_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
 
     let usdc_contract = ERC20::new(USDC_ADDRESS, provider);
