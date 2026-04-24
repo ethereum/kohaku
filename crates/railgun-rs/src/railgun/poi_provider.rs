@@ -147,7 +147,7 @@ impl PoiProvider {
         rng: &mut R,
     ) -> Result<PoiProvedTx, PoiProviderError> {
         let tx = builder
-            .build_poi(
+            .build_transaction(
                 self.inner.prover.as_ref(),
                 &self.poi_client,
                 self.inner.chain.id,

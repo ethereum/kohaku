@@ -12,12 +12,10 @@ use tracing::info;
 
 use crate::{
     caip::AssetId,
-    chain_config::ChainConfig,
     circuit::inputs::PoiCircuitInputsError,
     railgun::{
         Signer,
         address::RailgunAddress,
-        indexer::UtxoIndexer,
         merkle_tree::{MerkleRoot, UtxoMerkleTree},
         note::utxo::UtxoNote,
         poi::{ListKey, PoiClient, PoiClientError, PoiNote},
@@ -88,7 +86,7 @@ impl PoiTransactionBuilder {
     ///
     /// The resulting transaction can be self-broadcasted and includes POI Proof
     /// data.
-    pub async fn build_poi<R: Rng>(
+    pub async fn build_transaction<R: Rng>(
         self,
         prover: &dyn Prover,
         poi_client: &PoiClient,
