@@ -33,6 +33,8 @@
     "build": "tsc",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
+    "test:localnet": "vitest run tests/plugin.test.ts",
+    "test:sepolia": "node --env-file=.env ./node_modules/vitest/vitest.mjs run tests/plugin.sepolia.test.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

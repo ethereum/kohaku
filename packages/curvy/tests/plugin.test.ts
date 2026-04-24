@@ -178,7 +178,6 @@ describe("Phase 1: Plugin creation, key derivation, and auth", () => {
                 signature: makeSignature(signingAddress),
                 curvyId,
                 apiBaseUrl: API_BASE_URL,
-                environment: ENVIRONMENT,
             });
         }, 30_000);
 
@@ -205,14 +204,12 @@ describe("Phase 1: Plugin creation, key derivation, and auth", () => {
                 signature: makeSignature(signingAddress),
                 curvyId,
                 apiBaseUrl: API_BASE_URL,
-                environment: ENVIRONMENT,
             });
 
             // Login: omit curvyId to trigger the login path.
             loginPlugin = await createCurvyPlugin(makeTestHost(), {
                 signature: makeSignature(signingAddress),
                 apiBaseUrl: API_BASE_URL,
-                environment: ENVIRONMENT,
             });
         }, 30_000);
 
@@ -237,7 +234,6 @@ describe("Phase 4: Shield flow", () => {
             signature: makeSignature(signingAddress),
             curvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
     }, 30_000);
 
@@ -280,7 +276,6 @@ describe("Phase 3: Balance queries", () => {
             signature: makeSignature(signingAddress),
             curvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
     }, 30_000);
 
@@ -329,7 +324,6 @@ describe("Phase 5: Transfer flow", () => {
             signature: makeSignature(signingAddress),
             curvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
     }, 30_000);
 
@@ -352,7 +346,6 @@ describe("Phase 5: Transfer flow", () => {
             signature: makeSignature(r2),
             curvyId: recipientId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
 
         await expect(
@@ -372,7 +365,6 @@ describe("Phase 5: Transfer flow", () => {
             signature: makeSignature(recipientSigner),
             curvyId: recipientId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
 
         // Fresh wallet with no balance — any non-zero transfer should fail
@@ -395,7 +387,6 @@ describe("Phase 6: Unshield flow (prepareUnshield + broadcast)", () => {
             signature: makeSignature(signingAddress),
             curvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
     }, 30_000);
 
@@ -506,7 +497,6 @@ describe("Phase 6: Unshield end-to-end (requires Anvil + backend)", () => {
             signature: makeSignature(signingAddress),
             curvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
 
         // Shield ETH: get portal address, then fund it via Anvil.
@@ -566,7 +556,6 @@ describe("Phase 4: Shield E2E (requires Anvil + backend)", () => {
             signature: makeSignature(signingAddress),
             curvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
     }, 30_000);
 
@@ -614,7 +603,6 @@ describe("Phase 5: Transfer E2E (requires Anvil + backend)", () => {
             signature: makeSignature(senderSigner),
             curvyId: senderCurvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
 
         // Register recipient (keys: TEST_S2 / TEST_V2 — separate vault)
@@ -622,7 +610,6 @@ describe("Phase 5: Transfer E2E (requires Anvil + backend)", () => {
             signature: makeSignature(recipientSigner),
             curvyId: recipientCurvyId,
             apiBaseUrl: API_BASE_URL,
-            environment: ENVIRONMENT,
         });
 
         // Shield ETH into sender
@@ -675,7 +662,6 @@ describe("Phase 7: Error mapping", () => {
                     signature: makeSignature(signingAddress),
                     curvyId,
                     apiBaseUrl: API_BASE_URL,
-                    environment: ENVIRONMENT,
                 }),
             ).rejects.toBeInstanceOf(UnsupportedChainError);
         }, 30_000);
@@ -688,7 +674,6 @@ describe("Phase 7: Error mapping", () => {
                     signature: makeSignature(signingAddress),
                     curvyId,
                     apiBaseUrl: API_BASE_URL,
-                    environment: ENVIRONMENT,
                 });
             } catch (err) {
                 caught = err;
@@ -708,7 +693,6 @@ describe("Phase 7: Error mapping", () => {
                     signature: makeSignature(signingAddress),
                     // No curvyId → login path
                     apiBaseUrl: API_BASE_URL,
-                    environment: ENVIRONMENT,
                 });
             } catch (err) {
                 caught = err;
@@ -727,7 +711,6 @@ describe("Phase 7: Error mapping", () => {
                 signature: makeSignature(signingAddress),
                 curvyId,
                 apiBaseUrl: API_BASE_URL,
-                environment: ENVIRONMENT,
             });
 
             // Second registration with the same handle should fail descriptively.
@@ -738,7 +721,6 @@ describe("Phase 7: Error mapping", () => {
                     signature: makeSignature(s2),
                     curvyId, // same handle
                     apiBaseUrl: API_BASE_URL,
-                    environment: ENVIRONMENT,
                 });
             } catch (err) {
                 caught = err;

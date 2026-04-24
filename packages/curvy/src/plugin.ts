@@ -38,11 +38,8 @@ function wrapSdkError(err: unknown, ctx: string): never {
         if (err.statusCode === 404 || /not found/i.test(msg)) {
             throw new InvalidAddressError(msg);
         }
-        if (err.statusCode === 409) {
-            throw new Error(`[Curvy] ${ctx}: handle already registered — ${msg}`);
-        }
         throw new Error(
-            `[Curvy] ${ctx}: API request failed (HTTP ${err.statusCode ?? "unknown"}): ${msg}`,
+            `[Curvy] ${ctx}: API request failed (HTTP ${err.statusCode ?? "unknown"}): ${err.responseBody ?? msg}`,
         );
     }
 
@@ -158,8 +155,6 @@ export type CurvyPluginParams = {
     curvyId?: CurvyId;
     /** Curvy backend API endpoint. Defaults to the SDK's built-in URL. */
     apiBaseUrl?: string;
-    /** Network environment. Defaults to 'testnet'. */
-    environment?: "testnet";
     /** Index for BIP-44 key derivation. Defaults to 0. */
     keyIndex?: number;
     /** URL for the Curvy Core WASM module. The SDK's default is used when omitted. */
@@ -181,7 +176,6 @@ export async function createCurvyPlugin(host: Host, params: CurvyPluginParams): 
         signature,
         curvyId,
         apiBaseUrl,
-        environment = "testnet",
         keyIndex = 0,
         wasmUrl,
     } = params;
@@ -195,7 +189,7 @@ export async function createCurvyPlugin(host: Host, params: CurvyPluginParams): 
 
     const storage = new HostStorageAdapter(host.storage);
     const customFetch = host.network.fetch.bind(host.network);
-    const sdk = await CurvySDK.init(environment, apiBaseUrl, storage, wasmUrl, undefined, false, customFetch);
+    const sdk = await CurvySDK.init("testnet", apiBaseUrl, storage, wasmUrl, undefined, false, customFetch);
 
     // Validate that the host's connected chain is supported by Curvy.
     const hostChainId = await host.provider.getChainId();
@@ -251,7 +245,7 @@ export class CurvyPlugin implements CurvyInstance {
     constructor(private readonly sdk: CurvySDK, private readonly hostChainId: bigint) {}
 
     private findCurrencyAndNetwork(assetId: AssetId): { currency: Currency; network: Network } | undefined {
-        for (const network of this.sdk.getNetworks()) {
+        for (const network of this.sdk.activeNetworks) {
             // Only match currencies on the host's connected chain.
             if (BigInt(network.chainId) !== this.hostChainId) continue;
             for (const currency of network.currencies) {
@@ -308,21 +302,15 @@ export class CurvyPlugin implements CurvyInstance {
     }
 
     async prepareShield(asset: AssetAmount): Promise<CurvyPublicOperation> {
-        const curvyId = await this.instanceId();
-
-        const found = this.findCurrencyAndNetwork(asset.asset);
-        if (found === undefined) {
+        if (asset.asset.__type !== "native" && this.findCurrencyAndNetwork(asset.asset) === undefined) {
             throw new UnsupportedAssetError(asset.asset);
         }
-        const foundCurrencyId = found.currency.id;
+
+        const curvyId = await this.instanceId();
 
         let portalAddress: string;
         try {
-            portalAddress = await this.sdk.generateEntryPortal({
-                curvyId,
-                currencyId: foundCurrencyId,
-                coinType: String(found.network.slip0044),
-            });
+            portalAddress = await this.sdk.generateEntryPortal({curvyId});
         } catch (err) {
             wrapSdkError(err, "prepareShield");
         }
