@@ -6,3 +6,4 @@ packages:
   - "packages/plugins"
   - "examples/pq-account"
   - "docs"
+  - "packages/security"
