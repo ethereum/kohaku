@@ -57,20 +57,17 @@ pub struct TransactionBuilder {
 }
 
 #[derive(Clone)]
-enum Intent {
-    Transfer {
-        from: Arc<dyn Signer>,
-        to: RailgunAddress,
-        asset: AssetId,
-        value: u128,
-        memo: String,
-    },
-    Unshield {
-        from: Arc<dyn Signer>,
-        to: Address,
-        asset: AssetId,
-        value: u128,
-    },
+struct Intent {
+    pub from: Arc<dyn Signer>,
+    pub asset: AssetId,
+    pub value: u128,
+    pub kind: IntentKind,
+}
+
+#[derive(Clone)]
+enum IntentKind {
+    Transfer { to: RailgunAddress, memo: String },
+    Unshield { to: Address },
 }
 
 #[derive(Debug, Error)]
@@ -121,12 +118,14 @@ impl TransactionBuilder {
         value: u128,
         memo: &str,
     ) -> Self {
-        self.intents.push(Intent::Transfer {
+        self.intents.push(Intent {
             from,
-            to,
             asset,
             value,
-            memo: memo.to_string(),
+            kind: IntentKind::Transfer {
+                to,
+                memo: memo.to_string(),
+            },
         });
         self
     }
@@ -147,11 +146,11 @@ impl TransactionBuilder {
         }
         self.unshields.insert((from.address(), asset));
 
-        self.intents.push(Intent::Unshield {
+        self.intents.push(Intent {
             from,
-            to,
             asset,
             value,
+            kind: IntentKind::Unshield { to },
         });
         Ok(self)
     }
@@ -201,7 +200,7 @@ impl TransactionBuilder {
         let mut groups = BTreeMap::new();
         for intent in &self.intents {
             groups
-                .entry((intent.signer().address(), intent.asset()))
+                .entry((intent.from.address(), intent.asset))
                 .or_insert_with(Vec::new)
                 .push(intent.clone());
         }
@@ -234,7 +233,7 @@ fn build_group<N: IncludedNote, R: Rng>(
 ) -> Result<Vec<Operation<N>>, TransactionBuilderError> {
     // Sort intents smallest to largest. Helps to ensure small intents don't
     // ever need to span across multiple trees.
-    intents.sort_by(|a, b| a.value().cmp(&b.value()));
+    intents.sort_by(|a, b| a.value.cmp(&b.value));
 
     // Filter notes for this asset and signer, and group by tree number.
     let tree_number: BTreeMap<u32, Vec<&N>> = in_notes
@@ -259,11 +258,11 @@ fn build_group<N: IncludedNote, R: Rng>(
         //? Try single tree first (oldest sufficient).
         let single = balances
             .iter()
-            .find(|&(_, bal)| bal >= &intent.value())
+            .find(|&(_, bal)| bal >= &intent.value)
             .map(|(&t, _)| t);
 
         if let Some(tree) = single {
-            *balances.get_mut(&tree).unwrap() -= intent.value();
+            *balances.get_mut(&tree).unwrap() -= intent.value;
             insert_operation(&mut operations, tree, intent, rng);
             continue;
         }
@@ -297,7 +296,7 @@ fn split_intent<N: IncludedNote, R: Rng>(
     operations: &mut BTreeMap<u32, Operation<N>>,
     rng: &mut R,
 ) -> Result<(), TransactionBuilderError> {
-    let mut remaining = intent.value();
+    let mut remaining = intent.value;
     let trees: Vec<u32> = balances.keys().copied().collect();
     for tree in trees {
         if remaining == 0 {
@@ -313,7 +312,7 @@ fn split_intent<N: IncludedNote, R: Rng>(
         *balances.get_mut(&tree).unwrap() -= take;
 
         let mut partial = intent.clone();
-        partial.set_value(take);
+        partial.value = take;
         insert_operation(operations, tree, partial, rng);
 
         remaining -= take;
@@ -323,7 +322,7 @@ fn split_intent<N: IncludedNote, R: Rng>(
         return Err(TransactionBuilderError::InsufficientBalance {
             from,
             asset,
-            value: intent.value(),
+            value: intent.value,
         });
     }
     Ok(())
@@ -337,30 +336,24 @@ fn insert_operation<N: IncludedNote, R: Rng>(
     intent: Intent,
     rng: &mut R,
 ) {
-    let from = intent.signer().clone();
-    let asset = intent.asset();
+    let from = intent.from.clone();
+    let asset = intent.asset;
     let op = operations
         .entry(tree)
         .or_insert(Operation::new_empty(tree, from, asset));
 
-    match intent {
-        Intent::Transfer {
-            from,
+    match intent.kind {
+        IntentKind::Transfer { to, memo } => op.add_out_note(TransferNote::new(
+            intent.from.viewing_key(),
             to,
-            asset,
-            value,
-            memo,
-        } => op.add_out_note(TransferNote::new(
-            from.viewing_key(),
-            to,
-            asset,
-            value,
+            intent.asset,
+            intent.value,
             rng.random(),
             &memo,
         )),
-        Intent::Unshield {
-            to, asset, value, ..
-        } => op.set_unshield_note(UnshieldNote::new(to, asset, value)),
+        IntentKind::Unshield { to } => {
+            op.set_unshield_note(UnshieldNote::new(to, intent.asset, intent.value))
+        }
     }
 }
 
@@ -474,34 +467,4 @@ async fn prove_operation<N: IncludedNote, R: Rng>(
     );
 
     Ok(ProvedOperation::new(operation.clone(), inputs, transaction))
-}
-
-impl Intent {
-    fn signer(&self) -> &Arc<dyn Signer> {
-        match self {
-            Intent::Transfer { from, .. } => from,
-            Intent::Unshield { from, .. } => from,
-        }
-    }
-
-    fn asset(&self) -> AssetId {
-        match self {
-            Intent::Transfer { asset, .. } => *asset,
-            Intent::Unshield { asset, .. } => *asset,
-        }
-    }
-
-    fn value(&self) -> u128 {
-        match self {
-            Intent::Transfer { value, .. } => *value,
-            Intent::Unshield { value, .. } => *value,
-        }
-    }
-
-    fn set_value(&mut self, new_value: u128) {
-        match self {
-            Intent::Transfer { value, .. } => *value = new_value,
-            Intent::Unshield { value, .. } => *value = new_value,
-        }
-    }
 }
