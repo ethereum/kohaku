@@ -103,7 +103,6 @@ impl PoiProvedOperation {
             }
 
             let (proof, public_inputs) = prove_poi(prover, &inputs).await?;
-
             let pre_transaction_poi = PreTransactionPoi {
                 proof,
                 txid_merkleroot: inputs.railgun_txid_merkleroot_after_transaction,

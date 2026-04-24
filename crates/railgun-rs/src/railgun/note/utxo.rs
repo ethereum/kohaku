@@ -6,25 +6,25 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    abis::railgun::{ShieldRequest, TokenData, TokenDataError},
+    abis::railgun::{TokenData, TokenDataError},
     caip::AssetId,
     crypto::{
-        aes::{AesError, Ciphertext},
+        aes::AesError,
         keys::{
-            BlindedKey, ByteKey, KeyError, MasterPublicKey, SpendingPublicKey, U256Key,
-            ViewingPublicKey,
+            BlindedKey, ByteKey, KeyError, MasterPublicKey, NullifyingKey, SpendingPublicKey,
+            U256Key, ViewingPublicKey,
         },
     },
     railgun::{
         indexer,
         merkle_tree::UtxoLeafHash,
         note::{IncludedNote, Note},
-        signer::{Signer, SpendingKeyProvider, ViewingKeyProvider},
+        signer::Signer,
     },
 };
 
 /// Railgun UTXO note
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct UtxoNote {
     tree_number: u32,
     leaf_index: u32,
@@ -68,25 +68,26 @@ impl UtxoNote {
         value: u128,
         random: [u8; 16],
         memo: &str,
-        type_: UtxoType,
+        utxo_type: UtxoType,
     ) -> Self {
-        let note_hash = note_hash(signer.as_ref(), signer.as_ref(), asset, value, &random);
-        let npk = note_public_key(signer.as_ref(), signer.as_ref(), &random);
-        let nullifying_key = signer.viewing_key().nullifying_key().to_u256();
-        let blinded_commitment = blinded_commitment(note_hash.into(), npk, tree_number, leaf_index);
+        let spending_pubkey = signer.as_ref().spending_key().public_key();
+        let nullifying_key = signer.viewing_key().nullifying_key();
+        let npk = note_public_key(spending_pubkey, nullifying_key, &random);
+        let hash = note_hash(npk, asset, value);
+        let blinded_commitment = blinded_commitment(hash.into(), npk, tree_number, leaf_index);
         UtxoNote {
             tree_number,
             leaf_index,
-            spending_pubkey: signer.as_ref().spending_key().public_key(),
+            spending_pubkey,
             viewing_pubkey: signer.as_ref().viewing_key().public_key(),
             asset,
             value,
             random,
             memo: memo.to_string(),
-            utxo_type: type_,
-            hash: note_hash,
+            utxo_type,
+            hash,
             npk,
-            nullifying_key,
+            nullifying_key: nullifying_key.to_u256(),
             blinded_commitment,
         }
     }
@@ -160,36 +161,6 @@ impl UtxoNote {
             UtxoType::Shield,
         ))
     }
-
-    /// Decrypts a shield note into a Note
-    pub fn decrypt_shield_request(
-        signer: Arc<dyn Signer>,
-        tree_number: u32,
-        leaf_index: u32,
-        req: ShieldRequest,
-    ) -> Result<Self, NoteError> {
-        let mut iv = [0u8; 16];
-        let mut tag = [0u8; 16];
-        iv.copy_from_slice(&req.ciphertext.encryptedBundle[0][..16]);
-        tag.copy_from_slice(&req.ciphertext.encryptedBundle[0][16..]);
-
-        Self::decrypt_shield(
-            signer,
-            &indexer::Shield {
-                tree_number,
-                leaf_index,
-                npk: req.preimage.npk.into(),
-                token: req.preimage.token.into(),
-                value: req.preimage.value.saturating_to(),
-                ciphertext: Ciphertext {
-                    iv,
-                    tag,
-                    data: vec![req.ciphertext.encryptedBundle[1][..16].to_vec()],
-                },
-                shield_key: req.ciphertext.shieldKey.into(),
-            },
-        )
-    }
 }
 
 impl Note for UtxoNote {
@@ -257,49 +228,18 @@ impl UtxoNote {
     }
 }
 
-impl Debug for UtxoNote {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("UtxoNote")
-            .field("tree_number", &self.tree_number)
-            .field("leaf_index", &self.leaf_index)
-            .field("asset", &self.asset)
-            .field("value", &self.value)
-            .field("random", &self.random)
-            .field("memo", &self.memo)
-            .field("type", &self.utxo_type)
-            .field("hash", &self.hash)
-            .field("npk", &self.npk)
-            .field("nullifying_key", &self.nullifying_key)
-            .field("blinded_commitment", &self.blinded_commitment)
-            .finish()
-    }
-}
-
-fn note_hash(
-    sk: &dyn SpendingKeyProvider,
-    vk: &dyn ViewingKeyProvider,
-    asset: AssetId,
-    value: u128,
-    random: &[u8; 16],
-) -> UtxoLeafHash {
-    poseidon_hash(&[
-        note_public_key(sk, vk, random),
-        asset.hash(),
-        U256::from(value),
-    ])
-    .unwrap()
-    .into()
+fn note_hash(note_public_key: U256, asset: AssetId, value: u128) -> UtxoLeafHash {
+    poseidon_hash(&[note_public_key, asset.hash(), U256::from(value)])
+        .unwrap()
+        .into()
 }
 
 fn note_public_key(
-    sk: &dyn SpendingKeyProvider,
-    vk: &dyn ViewingKeyProvider,
+    spending_pubkey: SpendingPublicKey,
+    nullifying_key: NullifyingKey,
     random: &[u8; 16],
 ) -> U256 {
-    let master_key = MasterPublicKey::new(
-        sk.spending_key().public_key(),
-        vk.viewing_key().nullifying_key(),
-    );
+    let master_key = MasterPublicKey::new(spending_pubkey, nullifying_key);
 
     poseidon_hash(&[master_key.to_u256(), U256::from_be_slice(random)]).unwrap()
 }

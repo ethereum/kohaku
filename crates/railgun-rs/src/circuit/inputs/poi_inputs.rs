@@ -37,7 +37,7 @@ pub struct PoiCircuitInputs {
     bound_params_hash: U256,
 
     //? Public so the prover can calculate input / output sizes for circuit
-    //? selection.
+    //? selection. Not actual public circuit inputs.
     pub nullifiers: Vec<U256>,
     pub commitments: Vec<U256>,
 
