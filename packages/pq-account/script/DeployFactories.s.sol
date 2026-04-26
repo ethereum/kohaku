@@ -26,6 +26,8 @@ abstract contract FactoryDeployer is BaseScript {
             network = "mainnet";
         } else if (block.chainid == 421614) {
             network = "arbitrumSepolia";
+        } else if (block.chainid == 84532) {
+            network = "baseSepolia";
         } else {
             revert("Unsupported chain");
         }
@@ -85,7 +87,7 @@ abstract contract FactoryDeployer is BaseScript {
 // Default factory: ECDSA K1 + MLDSA
 contract MLDSA_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSA_K1_FACTORY_V0_0_7";
+        saltLabel = "ZKNOX_MLDSA_K1_FACTORY_V0_0_10";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "mldsa";
         factoryName = "mldsa_k1";
@@ -95,7 +97,7 @@ contract MLDSA_ECDSAk1_Factory is FactoryDeployer {
 // Factory: ECDSA K1 + MLDSAETH
 contract MLDSAETH_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSAETH_K1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_MLDSAETH_K1_FACTORY_V0_0_2";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "mldsaeth";
         factoryName = "mldsaeth_k1";
@@ -105,7 +107,7 @@ contract MLDSAETH_ECDSAk1_Factory is FactoryDeployer {
 // Factory: ECDSA R1 + MLDSA
 contract MLDSA_ECDSAr1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSA_R1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_MLDSA_R1_FACTORY_V0_0_2";
         preQuantumKey = "ecdsa_r1";
         postQuantumKey = "mldsa";
         factoryName = "mldsa_r1";
@@ -115,7 +117,7 @@ contract MLDSA_ECDSAr1_Factory is FactoryDeployer {
 // Factory: ECDSA R1 + MLDSAETH
 contract MLDSAETH_ECDSAr1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_MLDSAETH_R1_FACTORY_V0_0_2";
         preQuantumKey = "ecdsa_r1";
         postQuantumKey = "mldsaeth";
         factoryName = "mldsaeth_r1";
@@ -125,7 +127,7 @@ contract MLDSAETH_ECDSAr1_Factory is FactoryDeployer {
 // Factory: ECDSA K1 + FALCON
 contract FALCON_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_FALCON_K1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_FALCON_K1_FACTORY_V0_0_4";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "falcon";
         factoryName = "falcon_k1";
@@ -135,7 +137,7 @@ contract FALCON_ECDSAk1_Factory is FactoryDeployer {
 // Factory: ECDSA R1 + FALCON
 contract FALCON_ECDSAr1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_FALCON_R1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_FALCON_R1_FACTORY_V0_0_2";
         preQuantumKey = "ecdsa_r1";
         postQuantumKey = "falcon";
         factoryName = "falcon_r1";
@@ -145,7 +147,7 @@ contract FALCON_ECDSAr1_Factory is FactoryDeployer {
 // Factory: ECDSA K1 + ETHFALCON
 contract ETHFALCON_ECDSAk1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_ETHFALCON_K1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_ETHFALCON_K1_FACTORY_V0_0_2";
         preQuantumKey = "ecdsa_k1";
         postQuantumKey = "ethfalcon";
         factoryName = "ethfalcon_k1";
@@ -155,7 +157,7 @@ contract ETHFALCON_ECDSAk1_Factory is FactoryDeployer {
 // Factory: ECDSA R1 + ETHFALCON
 contract ETHFALCON_ECDSAr1_Factory is FactoryDeployer {
     constructor() {
-        saltLabel = "ZKNOX_ETHFALCON_R1_FACTORY_V0_0_1";
+        saltLabel = "ZKNOX_ETHFALCON_R1_FACTORY_V0_0_2";
         preQuantumKey = "ecdsa_r1";
         postQuantumKey = "ethfalcon";
         factoryName = "ethfalcon_r1";
