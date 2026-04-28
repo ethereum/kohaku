@@ -1,5 +1,4 @@
 mod chained_syncer;
-mod decimal_bigint;
 mod normalize_tree_position;
 mod rpc_syncer;
 mod subsquid_syncer;
