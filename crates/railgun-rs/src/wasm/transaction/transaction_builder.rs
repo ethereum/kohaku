@@ -43,10 +43,7 @@ impl JsTransactionBuilder {
             .parse()
             .map_err(|e| JsError::new(&format!("Invalid to address: {}", e)))?;
 
-        Ok(self
-            .inner
-            .set_unshield(from.inner(), to, asset, value)
-            .into())
+        Ok(self.inner.unshield(from.inner(), to, asset, value)?.into())
     }
 }
 

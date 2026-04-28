@@ -66,9 +66,10 @@ impl JsRailgunProvider {
     }
 
     /// Returns the raw balance for the given address
-    pub fn balance(&mut self, address: RailgunAddress) -> Vec<JsBalanceEntry> {
+    pub async fn balance(&mut self, address: RailgunAddress) -> Vec<JsBalanceEntry> {
         self.inner
             .balance(address)
+            .await
             .into_iter()
             .map(|(asset_id, balance)| JsBalanceEntry { asset_id, balance })
             .collect()
@@ -85,7 +86,7 @@ impl JsRailgunProvider {
     }
 
     /// Build a executable transaction from a transaction builder
-    pub async fn build(&self, builder: JsTransactionBuilder) -> Result<TxData, JsValue> {
+    pub async fn build(&mut self, builder: JsTransactionBuilder) -> Result<TxData, JsValue> {
         let mut rng = rand::rng();
         let proved_tx = self.inner.build(builder.into(), &mut rng).await?;
         Ok(proved_tx.tx_data)

@@ -2,7 +2,7 @@ use wasm_bindgen::{JsError, JsValue};
 
 use crate::{
     crypto::keys::KeyError,
-    railgun::{PoiProviderError, RailgunProviderError, address::RailgunAddressError},
+    railgun::{RailgunProviderError, address::RailgunAddressError},
 };
 
 impl From<KeyError> for JsValue {
@@ -14,12 +14,6 @@ impl From<KeyError> for JsValue {
 impl From<RailgunProviderError> for JsValue {
     fn from(e: RailgunProviderError) -> Self {
         JsError::new(&format!("Railgun Provider Error: {}", e)).into()
-    }
-}
-
-impl From<PoiProviderError> for JsValue {
-    fn from(e: PoiProviderError) -> Self {
-        JsError::new(&format!("POI Provider Error: {}", e)).into()
     }
 }
 

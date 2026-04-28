@@ -4,20 +4,16 @@ mod chain;
 mod error;
 mod indexer;
 mod poi_balance;
-mod poi_provider;
 mod provider;
 mod signer;
 mod transaction;
 
 pub use caip::{erc20, erc721, erc1155};
 pub use indexer::JsSyncer;
-pub use poi_provider::JsPoiProvider;
 pub use provider::JsRailgunProvider;
 use serde::{Deserialize, Serialize};
 pub use signer::JsSigner;
-pub use transaction::{
-    JsPoiProvedTx, JsPoiTransactionBuilder, JsShieldBuilder, JsTransactionBuilder,
-};
+pub use transaction::{JsShieldBuilder, JsTransactionBuilder};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, tsify::Tsify)]
