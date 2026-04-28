@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/tongo",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.1-alpha.3",
   "description": "TONGO",
   "type": "module",
   "private": false,
@@ -47,8 +47,8 @@
   },
   "dependencies": {
     "@fatsolutions/tongo-evm": "^1.5.0",
-    "@kohaku-eth/plugins": "workspace:*",
-    "@kohaku-eth/provider": "workspace:*",
+    "@kohaku-eth/plugins": "0.0.1-alpha.5",
+    "@kohaku-eth/provider": "0.1.0-alpha.5",
     "@reduxjs/toolkit": "^2.11.2",
     "maci-crypto": "2.5.0",
     "redux-logger": "^3.0.6"

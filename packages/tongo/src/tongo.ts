@@ -105,18 +105,8 @@ export class TongoPlugin implements TongoInstance {
 
         if (asset.amount > balance) { throw new InsufficientBalanceError(asset.asset, asset.amount, balance); }
 
-        const { pending } = state;
-        const txns = [];
-
-        const withdraw = pending > 0n
-            ? await tongoAccount.rolloverWithdraw({ amount: asset.amount, to, sender: from })
-            : await tongoAccount.withdraw({ amount: asset.amount, to, sender: from });
-
-        txns.push(withdraw.toCalldata());
-
-        const op = { __type: "privateOperation" as const, txns };
-
-        return op;
+        const withdraw = await tongoAccount.rolloverWithdraw({ amount: asset.amount, to, sender: from });
+        return { __type: "privateOperation" as const, txns: [withdraw.toCalldata()] };
     }
 
     async prepareTransfer(asset: TongoAssetAmount, to: TongoAddress, from: TongoAddress): Promise<TongoPrivateOperation> {
@@ -128,16 +118,10 @@ export class TongoPlugin implements TongoInstance {
         if (asset.amount > balance) { throw new InsufficientBalanceError(asset.asset, asset.amount, balance); }
 
         const { pending } = state;
-        const txns = [];
-
         const transfer = pending > 0n
             ? await tongoAccount.rolloverTransfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from })
             : await tongoAccount.transfer({ amount: asset.amount, to: pubKeyBase58ToAffine(to), sender: from });
-
-        txns.push(transfer.toCalldata());
-
-        const op = { __type: "privateOperation" as const, txns };
-        return op;
+        return { __type: "privateOperation" as const, txns: [transfer.toCalldata()] };
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
