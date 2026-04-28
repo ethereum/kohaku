@@ -1,15 +1,13 @@
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 
-#[cfg(feature = "poi")]
-use ruint::aliases::U256;
 use thiserror::Error;
 
-#[cfg(feature = "poi")]
-use crate::railgun::poi::PoiNote;
 use crate::{
     caip::AssetId,
     railgun::{
-        note::{EncryptableNote, Note, transfer::TransferNote, unshield::UnshieldNote},
+        note::{
+            EncryptableNote, Note, transfer::TransferNote, unshield::UnshieldNote, utxo::UtxoNote,
+        },
         signer::Signer,
     },
 };
@@ -31,7 +29,7 @@ use crate::{
 ///     `RailgunSmartWallet::Transaction` struct only supports defining a single token/value pair
 ///     for unshielding.
 #[derive(Debug, Clone)]
-pub struct Operation<N> {
+pub struct Operation {
     /// The UTXO tree number that the in_notes being spent are from
     pub utxo_tree_number: u32,
 
@@ -41,7 +39,7 @@ pub struct Operation<N> {
     /// The asset this operation is spending.
     pub asset: AssetId,
 
-    in_notes: Vec<N>,
+    in_notes: Vec<UtxoNote>,
     out_notes: Vec<TransferNote>,
     unshield_note: Option<UnshieldNote>,
 }
@@ -56,7 +54,7 @@ pub enum OperationVerificationError {
     TooManyInputNotes(usize),
 }
 
-impl<N: Note> Operation<N> {
+impl Operation {
     /// TODO: Add error checking to ensure that the operation is valid.
     ///
     /// - Spending and viewing keys are the same for all notes in
@@ -69,7 +67,7 @@ impl<N: Note> Operation<N> {
         tree_number: u32,
         from: Arc<dyn Signer>,
         asset: AssetId,
-        in_notes: Vec<N>,
+        in_notes: Vec<UtxoNote>,
         out_notes: Vec<TransferNote>,
         unshield: Option<UnshieldNote>,
     ) -> Self {
@@ -94,7 +92,7 @@ impl<N: Note> Operation<N> {
         }
     }
 
-    pub fn add_in_note(&mut self, note: N) {
+    pub fn add_in_note(&mut self, note: UtxoNote) {
         self.in_notes.push(note);
     }
 
@@ -135,7 +133,7 @@ impl<N: Note> Operation<N> {
     }
 }
 
-impl<N: Note> Operation<N> {
+impl Operation {
     /// UTXO tree number for these in_notes
     pub fn utxo_tree_number(&self) -> u32 {
         self.utxo_tree_number
@@ -152,7 +150,7 @@ impl<N: Note> Operation<N> {
         out_notes_value + unshield_value
     }
 
-    pub fn in_notes(&self) -> &[N] {
+    pub fn in_notes(&self) -> &[UtxoNote] {
         &self.in_notes
     }
 
@@ -182,89 +180,5 @@ impl<N: Note> Operation<N> {
         }
 
         notes.into_iter().filter(|n| n.value() > 0).collect()
-    }
-}
-
-#[cfg(feature = "poi")]
-impl Operation<PoiNote> {
-    pub fn blinded_commitments(&self) -> Vec<U256> {
-        self.in_notes
-            .iter()
-            .map(|n| n.blinded_commitment())
-            .collect()
-    }
-}
-
-impl<N: Note> Display for Operation<N> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Operation(tree: {}, from: {}, asset: {}, in_notes: {}, out_notes: {}, unshield: {})",
-            self.utxo_tree_number,
-            self.from.address(),
-            self.asset,
-            self.in_notes.len(),
-            self.out_notes.len(),
-            self.unshield_note.is_some(),
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloy_primitives::address;
-    use tracing_test::traced_test;
-
-    use crate::{
-        caip::AssetId,
-        crypto::keys::{ByteKey, SpendingKey, ViewingKey},
-        railgun::{
-            note::{
-                Note,
-                operation::{self},
-                transfer::TransferNote,
-                unshield::UnshieldNote,
-                utxo::test_note,
-            },
-            signer::{PrivateKeySigner, Signer},
-        },
-    };
-
-    /// Test that the ordering of out_notes is fee note, then transfer notes, then unshield note.
-    #[test]
-    #[traced_test]
-    fn test_operation_ordering() {
-        let from_account = PrivateKeySigner::new_evm(
-            SpendingKey::from_bytes([1u8; 32]),
-            ViewingKey::from_bytes([2u8; 32]),
-            1,
-        );
-
-        let in_note = test_note();
-        let transfer_note = TransferNote::new(
-            ViewingKey::from_bytes([3u8; 32]),
-            from_account.address(),
-            AssetId::Erc20(address!("0x1234567890123456789012345678901234567890")),
-            90,
-            [2u8; 16],
-            "memo",
-        );
-        let unshield_note = UnshieldNote::new(
-            address!("0x1234567890123456789012345678901234567890"),
-            AssetId::Erc20(address!("0x1234567890123456789012345678901234567890")),
-            10,
-        );
-
-        let operation = operation::Operation::new(
-            1,
-            from_account,
-            AssetId::Erc20(address!("0x1234567890123456789012345678901234567890")),
-            vec![in_note],
-            vec![transfer_note],
-            Some(unshield_note.clone()),
-        );
-
-        let notes_out = operation.out_notes();
-        assert_eq!(notes_out.last().unwrap().hash(), unshield_note.hash());
     }
 }

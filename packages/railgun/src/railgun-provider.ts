@@ -4,7 +4,6 @@ import { RailgunPluginState, STATE_KEY } from "./state";
 import { JsPoiProvider, JsSigner, JsSyncer } from "./pkg/railgun_rs";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { GrothProverAdapter, RemoteArtifactLoader } from "./prover-adapter";
-import { createBroadcaster } from "./waku-adapter";
 import { SignerPool } from "./signer-pool";
 
 export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
@@ -36,9 +35,7 @@ export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
         pool.add(new JsSigner(signer.spendingKey, signer.viewingKey, chainId));
     }
 
-    const broadcastManager = await createBroadcaster(chainId);
-
-    const plugin = new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
+    const plugin = new RailgunPlugin(chainId, provider, pool, host.storage);
 
     for (const signer of internalSigners) {
         plugin.addInternalSigner(signer.spendingKey, signer.viewingKey);

@@ -15,12 +15,7 @@ use crate::{
             U256Key, ViewingPublicKey,
         },
     },
-    railgun::{
-        indexer,
-        merkle_tree::UtxoLeafHash,
-        note::{IncludedNote, Note},
-        signer::Signer,
-    },
+    railgun::{indexer, merkle_tree::UtxoLeafHash, note::Note, signer::Signer},
 };
 
 /// Railgun UTXO note
@@ -161,6 +156,41 @@ impl UtxoNote {
             UtxoType::Shield,
         ))
     }
+
+    pub fn tree_number(&self) -> u32 {
+        self.tree_number
+    }
+
+    pub fn leaf_index(&self) -> u32 {
+        self.leaf_index
+    }
+
+    pub fn viewing_pubkey(&self) -> ViewingPublicKey {
+        self.viewing_pubkey
+    }
+
+    /// Returns the note's nullifier for a given leaf index
+    ///
+    /// Hash of (nullifying_key, leaf_index)
+    pub fn nullifier(&self) -> U256 {
+        poseidon_hash(&[self.nullifying_key, U256::from(self.leaf_index)]).unwrap()
+    }
+
+    pub fn random(&self) -> [u8; 16] {
+        self.random
+    }
+
+    pub fn spending_pubkey(&self) -> [U256; 2] {
+        [self.spending_pubkey.x_u256(), self.spending_pubkey.y_u256()]
+    }
+
+    pub fn nullifying_key(&self) -> U256 {
+        self.nullifying_key
+    }
+
+    pub fn blinded_commitment(&self) -> U256 {
+        self.blinded_commitment
+    }
 }
 
 impl Note for UtxoNote {
@@ -182,43 +212,6 @@ impl Note for UtxoNote {
 
     fn note_public_key(&self) -> U256 {
         self.npk
-    }
-}
-
-impl IncludedNote for UtxoNote {
-    fn tree_number(&self) -> u32 {
-        self.tree_number
-    }
-
-    fn leaf_index(&self) -> u32 {
-        self.leaf_index
-    }
-
-    fn viewing_pubkey(&self) -> ViewingPublicKey {
-        self.viewing_pubkey
-    }
-
-    /// Returns the note's nullifier for a given leaf index
-    ///
-    /// Hash of (nullifying_key, leaf_index)
-    fn nullifier(&self) -> U256 {
-        poseidon_hash(&[self.nullifying_key, U256::from(self.leaf_index)]).unwrap()
-    }
-
-    fn random(&self) -> [u8; 16] {
-        self.random
-    }
-
-    fn spending_pubkey(&self) -> [U256; 2] {
-        [self.spending_pubkey.x_u256(), self.spending_pubkey.y_u256()]
-    }
-
-    fn nullifying_key(&self) -> U256 {
-        self.nullifying_key
-    }
-
-    fn blinded_commitment(&self) -> U256 {
-        self.blinded_commitment
     }
 }
 

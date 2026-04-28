@@ -4,7 +4,7 @@ use railgun_rs::{
     chain_config::{ChainConfig, MAINNET_CONFIG},
     railgun::{
         indexer::{SubsquidSyncer, TxidIndexer},
-        poi::PoiClient,
+        poi::client::PoiClient,
     },
 };
 use tracing::info;
@@ -27,8 +27,7 @@ async fn test_sync_txid() {
         .ok();
 
     info!("Setting up POI client");
-    let poi_client = PoiClient::new(CHAIN.poi_endpoint, CHAIN.id).await.unwrap();
-
+    let poi_client = PoiClient::new(CHAIN.id, CHAIN.poi_endpoint, CHAIN.list_keys());
     let subsquid_syncer = Arc::new(SubsquidSyncer::new(CHAIN.subsquid_endpoint));
     let mut indexer = TxidIndexer::new(subsquid_syncer, poi_client);
 

@@ -77,7 +77,6 @@ pub trait NoteSyncer: common::MaybeSend {
 }
 
 /// Syncers that fetch full operation data (nullifiers + commitments + tree positions).
-#[cfg(feature = "poi")]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 pub trait TransactionSyncer: common::MaybeSend {

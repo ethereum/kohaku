@@ -11,7 +11,7 @@ use crate::{
     railgun::{
         Signer,
         merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
-        note::{IncludedNote, Note},
+        note::{Note, utxo::UtxoNote},
     },
 };
 
@@ -45,12 +45,12 @@ pub enum TransactCircuitInputsError {
 }
 
 impl TransactCircuitInputs {
-    pub fn from_inputs<N: IncludedNote>(
+    pub fn from_inputs(
         merkle_tree: &UtxoMerkleTree,
         bound_params_hash: U256,
         signer: Arc<dyn Signer>,
         asset: AssetId,
-        notes_in: &[N],
+        notes_in: &[UtxoNote],
         notes_out: &[Box<dyn Note>],
     ) -> Result<Self, TransactCircuitInputsError> {
         if notes_in.is_empty() || notes_out.is_empty() {

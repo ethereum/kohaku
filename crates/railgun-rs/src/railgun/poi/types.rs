@@ -18,7 +18,7 @@ use crate::{
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct ListKey(String);
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Deserialize, Eq, Hash)]
 pub struct BlindedCommitment(U256);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -308,5 +308,13 @@ impl FromStr for PoiStatus {
             "missing" => Ok(PoiStatus::Missing),
             _ => Err(()),
         }
+    }
+}
+
+impl FromStr for ListKey {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(ListKey(s.to_string()))
     }
 }

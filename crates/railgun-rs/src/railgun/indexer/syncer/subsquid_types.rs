@@ -133,14 +133,12 @@ pub struct Nullified {
     pub block_number: u64,
 }
 
-#[cfg(feature = "poi")]
 #[derive(Deserialize)]
 pub struct OperationsResponse {
     #[serde(rename = "transactions")]
     pub operations: Vec<Operation>,
 }
 
-#[cfg(feature = "poi")]
 #[derive(Deserialize)]
 pub struct Operation {
     pub id: String,
@@ -268,7 +266,6 @@ impl From<Nullified> for syncer::SyncEvent {
     }
 }
 
-#[cfg(feature = "poi")]
 impl From<Operation> for syncer::Operation {
     fn from(value: Operation) -> Self {
         let (utxo_tree_out, utxo_out_start_index) =

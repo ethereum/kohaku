@@ -14,7 +14,6 @@ pub async fn prove_transact(
     Ok(proof)
 }
 
-#[cfg(feature = "poi")]
 #[tracing::instrument(name = "prove_poi", skip_all)]
 pub async fn prove_poi(
     prover: &dyn Prover,

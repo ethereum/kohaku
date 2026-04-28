@@ -94,8 +94,8 @@ async fn test_transact() {
     }
 
     railgun.sync().await.unwrap();
-    let balance_1 = railgun.balance(account_1.address());
-    let balance_2 = railgun.balance(account_2.address());
+    let balance_1 = railgun.balance(account_1.address()).await;
+    let balance_2 = railgun.balance(account_2.address()).await;
 
     assert_eq!(balance_1.get(&USDC), Some(&997_500));
     assert_eq!(balance_1.get(&WETH), Some(&99_750));
@@ -122,8 +122,8 @@ async fn test_transact() {
         .unwrap();
 
     railgun.sync().await.unwrap();
-    let balance_1 = railgun.balance(account_1.address());
-    let balance_2 = railgun.balance(account_2.address());
+    let balance_1 = railgun.balance(account_1.address()).await;
+    let balance_2 = railgun.balance(account_2.address()).await;
 
     assert_eq!(balance_1.get(&USDC), Some(&992500));
     assert_eq!(balance_2.get(&USDC), Some(&5000));
@@ -149,8 +149,8 @@ async fn test_transact() {
         .unwrap();
 
     railgun.sync().await.unwrap();
-    let balance_1 = railgun.balance(account_1.address());
-    let balance_2 = railgun.balance(account_2.address());
+    let balance_1 = railgun.balance(account_1.address()).await;
+    let balance_2 = railgun.balance(account_2.address()).await;
     let balance_eoa = usdc_contract
         .balanceOf(address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"))
         .call()

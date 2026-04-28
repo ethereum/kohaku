@@ -36,14 +36,15 @@ use crate::{
         address::RailgunAddress,
         merkle_tree::UtxoMerkleTree,
         note::{
-            IncludedNote,
+            Note,
             encrypt::EncryptError,
             operation::{Operation, OperationVerificationError},
             transfer::TransferNote,
             unshield::UnshieldNote,
+            utxo::UtxoNote,
         },
         signer::Signer,
-        transaction::{ProvedOperation, ProvedTx},
+        transaction::ProvedOperation,
     },
 };
 
@@ -158,31 +159,15 @@ impl TransactionBuilder {
         Ok(self)
     }
 
-    /// Builds and proves a transaction for railgun.
-    pub async fn build_transaction<N: IncludedNote, R: Rng>(
-        &self,
-        prover: &dyn Prover,
-        chain_id: u64,
-        railgun_smart_wallet: Address,
-        in_notes: &[N],
-        utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
-        rng: &mut R,
-    ) -> Result<ProvedTx<N>, TransactionBuilderError> {
-        let operations = self
-            .build(prover, chain_id, in_notes, utxo_trees, rng)
-            .await?;
-        Ok(ProvedTx::new(railgun_smart_wallet, operations))
-    }
-
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
-    pub async fn build<N: IncludedNote, R: Rng>(
+    pub async fn build<R: Rng>(
         &self,
         prover: &dyn Prover,
         chain_id: u64,
-        in_notes: &[N],
+        in_notes: &[UtxoNote],
         utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
         rng: &mut R,
-    ) -> Result<Vec<ProvedOperation<N>>, TransactionBuilderError> {
+    ) -> Result<Vec<ProvedOperation>, TransactionBuilderError> {
         let groups = self.group_intents();
         let operations = build_groups(in_notes, groups, rng)?;
 
@@ -213,11 +198,11 @@ impl TransactionBuilder {
 }
 
 /// Build the operations for each group of intents.
-fn build_groups<N: IncludedNote, R: Rng>(
-    in_notes: &[N],
+fn build_groups<R: Rng>(
+    in_notes: &[UtxoNote],
     groups: BTreeMap<(RailgunAddress, AssetId), Vec<Intent>>,
     rng: &mut R,
-) -> Result<Vec<Operation<N>>, TransactionBuilderError> {
+) -> Result<Vec<Operation>, TransactionBuilderError> {
     let mut operations = Vec::new();
     for ((from, asset), intents) in groups {
         let ops = build_group(in_notes, from, asset, intents, rng)?;
@@ -227,19 +212,19 @@ fn build_groups<N: IncludedNote, R: Rng>(
 }
 
 /// Build the operations for a single group of intents.
-fn build_group<N: IncludedNote, R: Rng>(
-    in_notes: &[N],
+fn build_group<R: Rng>(
+    in_notes: &[UtxoNote],
     from: RailgunAddress,
     asset: AssetId,
     mut intents: Vec<Intent>,
     rng: &mut R,
-) -> Result<Vec<Operation<N>>, TransactionBuilderError> {
+) -> Result<Vec<Operation>, TransactionBuilderError> {
     // Sort intents smallest to largest. Helps to ensure small intents don't
     // ever need to span across multiple trees.
     intents.sort_by(|a, b| a.value.cmp(&b.value));
 
     // Filter notes for this asset and signer, and group by tree number.
-    let tree_number: BTreeMap<u32, Vec<&N>> = in_notes
+    let tree_number = in_notes
         .iter()
         .filter(|n| n.asset() == asset && n.viewing_pubkey() == from.viewing_pubkey())
         .fold(BTreeMap::new(), |mut acc, n| {
@@ -256,7 +241,7 @@ fn build_group<N: IncludedNote, R: Rng>(
         .collect();
 
     // Fit intents to trees.
-    let mut operations: BTreeMap<u32, Operation<N>> = BTreeMap::new();
+    let mut operations = BTreeMap::new();
     for intent in intents {
         //? Try single tree first (oldest sufficient).
         let single = balances
@@ -291,12 +276,12 @@ fn build_group<N: IncludedNote, R: Rng>(
 }
 
 /// Helper for fitting an intent to multiple trees when it can't fit on a single tree.
-fn split_intent<N: IncludedNote, R: Rng>(
+fn split_intent<R: Rng>(
     from: RailgunAddress,
     asset: AssetId,
     intent: Intent,
     balances: &mut BTreeMap<u32, u128>,
-    operations: &mut BTreeMap<u32, Operation<N>>,
+    operations: &mut BTreeMap<u32, Operation>,
     rng: &mut R,
 ) -> Result<(), TransactionBuilderError> {
     let mut remaining = intent.value;
@@ -333,8 +318,8 @@ fn split_intent<N: IncludedNote, R: Rng>(
 
 /// Helper to insert an intent into an operation, creating the operation if it
 /// doesn't exist.
-fn insert_operation<N: IncludedNote, R: Rng>(
-    operations: &mut BTreeMap<u32, Operation<N>>,
+fn insert_operation<R: Rng>(
+    operations: &mut BTreeMap<u32, Operation>,
     tree: u32,
     intent: Intent,
     rng: &mut R,
@@ -366,8 +351,8 @@ fn insert_operation<N: IncludedNote, R: Rng>(
 /// Probably best is some target # of notes to use, then selecting the smallest
 /// notes that meet the target value.  This way dust notes are gradually consolidated
 /// while avoiding wasting gas.
-fn select_notes<'a, N: IncludedNote>(notes: &'a [&N], value: u128) -> Vec<&'a N> {
-    let mut selected: Vec<&N> = Vec::new();
+fn select_notes<'a>(notes: &'a [&UtxoNote], value: u128) -> Vec<&'a UtxoNote> {
+    let mut selected: Vec<&UtxoNote> = Vec::new();
     let mut total = 0;
     for note in notes {
         selected.push(note);
@@ -380,11 +365,7 @@ fn select_notes<'a, N: IncludedNote>(notes: &'a [&N], value: u128) -> Vec<&'a N>
 }
 
 /// Helper to add a change note to an operation if there is excess value.
-fn add_change_note<N: IncludedNote, R: Rng>(
-    operation: &mut Operation<N>,
-    asset: AssetId,
-    rng: &mut R,
-) {
+fn add_change_note<R: Rng>(operation: &mut Operation, asset: AssetId, rng: &mut R) {
     let signer = operation.from.clone();
     let change = operation.in_value().saturating_sub(operation.out_value());
     if change > 0 {
@@ -400,13 +381,13 @@ fn add_change_note<N: IncludedNote, R: Rng>(
     }
 }
 
-async fn prove_operations<N: IncludedNote, R: Rng>(
+async fn prove_operations<R: Rng>(
     prover: &dyn Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     chain_id: u64,
-    operations: &[Operation<N>],
+    operations: &[Operation],
     rng: &mut R,
-) -> Result<Vec<ProvedOperation<N>>, TransactionBuilderError> {
+) -> Result<Vec<ProvedOperation>, TransactionBuilderError> {
     let mut proved = Vec::new();
     for op in operations {
         let tree = op.utxo_tree_number;
@@ -419,13 +400,13 @@ async fn prove_operations<N: IncludedNote, R: Rng>(
     Ok(proved)
 }
 
-async fn prove_operation<N: IncludedNote, R: Rng>(
+async fn prove_operation<R: Rng>(
     prover: &dyn Prover,
     utxo_tree: &UtxoMerkleTree,
     chain_id: u64,
-    operation: &Operation<N>,
+    operation: &Operation,
     rng: &mut R,
-) -> Result<ProvedOperation<N>, TransactionBuilderError> {
+) -> Result<ProvedOperation, TransactionBuilderError> {
     info!("Constructing circuit inputs");
     let unshield_note = operation.unshield_note();
     let unshield_type = unshield_note.map(|n| n.unshield_type()).unwrap_or_default();

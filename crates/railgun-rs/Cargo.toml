@@ -9,10 +9,6 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[features]
-default = ["poi"]
-poi = []
-
 [dependencies]
 aes = { workspace = true }
 aes-gcm = { workspace = true }

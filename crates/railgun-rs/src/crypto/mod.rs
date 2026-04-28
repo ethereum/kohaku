@@ -1,7 +1,6 @@
 pub mod aes;
 pub mod keys;
 pub mod railgun_base_37;
-#[cfg(feature = "poi")]
 pub mod railgun_txid;
 pub mod railgun_zero;
 

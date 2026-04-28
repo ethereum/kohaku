@@ -10,7 +10,6 @@ pub use chained_syncer::ChainedSyncer;
 pub use rpc_syncer::RpcSyncer;
 pub use subsquid_syncer::SubsquidSyncer;
 pub use syncer::{
-    LegacyCommitment, NoteSyncer, Nullified, Shield, SyncEvent, SyncerError, Transact,
+    LegacyCommitment, NoteSyncer, Nullified, Operation, Shield, SyncEvent, SyncerError, Transact,
+    TransactionSyncer,
 };
-#[cfg(feature = "poi")]
-pub use syncer::{Operation, TransactionSyncer};

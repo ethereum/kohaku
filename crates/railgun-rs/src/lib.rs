@@ -8,6 +8,4 @@ pub mod railgun;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-#[cfg(feature = "poi")]
-pub use railgun::PoiProvider;
 pub use railgun::RailgunProvider;

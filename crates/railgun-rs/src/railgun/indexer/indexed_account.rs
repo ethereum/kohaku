@@ -4,17 +4,11 @@ use alloy_primitives::U256;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-use crate::{
-    caip::AssetId,
-    railgun::{
-        address::RailgunAddress,
-        indexer::{self, syncer},
-        note::{
-            IncludedNote, Note,
-            utxo::{NoteError, UtxoNote},
-        },
-        signer::Signer,
-    },
+use crate::railgun::{
+    address::RailgunAddress,
+    indexer::{self, syncer},
+    note::utxo::{NoteError, UtxoNote},
+    signer::Signer,
 };
 
 /// IndexerAccount represents a Railgun account being tracked by the indexer.
@@ -63,25 +57,6 @@ impl IndexedAccount {
 
     pub fn unspent(&self) -> Vec<UtxoNote> {
         self.notes.values().cloned().collect()
-    }
-
-    /// Calculates the balance of the account by summing up the values of all its notes.
-    pub fn balance(&self) -> HashMap<AssetId, u128> {
-        let mut balances: HashMap<AssetId, u128> = HashMap::new();
-
-        for (_, note) in self.notes.iter() {
-            match note.asset() {
-                AssetId::Erc20(address) => {
-                    balances
-                        .entry(AssetId::Erc20(address))
-                        .and_modify(|e| *e += note.value())
-                        .or_insert(note.value());
-                }
-                _ => todo!(),
-            }
-        }
-
-        balances
     }
 
     /// Handles a Shield event for this account.

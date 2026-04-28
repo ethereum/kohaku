@@ -2,7 +2,7 @@ use crypto::poseidon_hash;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::railgun::merkle_tree::MerkleTree;
+use crate::railgun::{merkle_tree::MerkleTree, transaction::ProvedOperation};
 
 /// TxID uniquely identifies a Railgun Operation (`RailgunSmartWallet::Transaction`).
 /// Each TxID corresponds to a set of UTXO notes from a single Operation.
@@ -31,6 +31,28 @@ impl Txid {
         poseidon_hash(&[nullifiers_hash, commitments_hash, bound_params_hash])
             .unwrap()
             .into()
+    }
+
+    pub fn from_operation(op: &ProvedOperation) -> Self {
+        let nullifiers: Vec<_> = op
+            .inner
+            .in_notes()
+            .iter()
+            .map(|n| n.nullifier().into())
+            .collect();
+
+        let commitments: Vec<_> = op
+            .inner
+            .out_notes()
+            .iter()
+            .map(|n| n.hash().into())
+            .collect();
+
+        Self::new(
+            &nullifiers,
+            &commitments,
+            op.circuit_inputs.bound_params_hash,
+        )
     }
 }
 

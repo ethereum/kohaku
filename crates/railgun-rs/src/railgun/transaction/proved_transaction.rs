@@ -5,26 +5,26 @@ use eth_rpc::TxData;
 use crate::{
     abis::{self, railgun::RailgunSmartWallet},
     circuit::inputs::TransactCircuitInputs,
-    railgun::note::{operation::Operation, utxo::UtxoNote},
+    railgun::note::operation::Operation,
 };
 
 /// A transaction that has been proven for railgun.
-pub struct ProvedTx<N = UtxoNote> {
+pub struct ProvedTx {
     /// Transaction data to execute this transaction on-chain in railgun.
     pub tx_data: TxData,
     /// The operations included in this transaction alongside their proof data.
-    pub proved_operations: Vec<ProvedOperation<N>>,
+    pub proved_operations: Vec<ProvedOperation>,
 }
 
 /// A single proved operation.
-pub struct ProvedOperation<N = UtxoNote> {
-    pub operation: Operation<N>,
+pub struct ProvedOperation {
+    pub inner: Operation,
     pub circuit_inputs: TransactCircuitInputs,
     pub transaction: abis::railgun::Transaction,
 }
 
-impl<N> ProvedTx<N> {
-    pub fn new(railgun_smart_wallet: Address, operations: Vec<ProvedOperation<N>>) -> Self {
+impl ProvedTx {
+    pub fn new(railgun_smart_wallet: Address, operations: Vec<ProvedOperation>) -> Self {
         let transactions = operations.iter().map(|op| op.transaction.clone()).collect();
         let calldata = RailgunSmartWallet::transactCall {
             _transactions: transactions,
@@ -38,14 +38,14 @@ impl<N> ProvedTx<N> {
     }
 }
 
-impl<N> ProvedOperation<N> {
+impl ProvedOperation {
     pub fn new(
-        operation: Operation<N>,
+        operation: Operation,
         circuit_inputs: TransactCircuitInputs,
         transaction: abis::railgun::Transaction,
     ) -> Self {
         Self {
-            operation,
+            inner: operation,
             circuit_inputs,
             transaction,
         }

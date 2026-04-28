@@ -9,7 +9,7 @@ use crate::{
     railgun::{
         indexer::syncer::Operation,
         merkle_tree::{MerkleTreeState, TOTAL_LEAVES, TxidLeafHash, TxidMerkleTree, UtxoTreeIndex},
-        poi::{PoiClient, PoiClientError},
+        poi::client::{PoiClient, PoiClientError},
     },
 };
 

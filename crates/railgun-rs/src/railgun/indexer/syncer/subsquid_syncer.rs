@@ -6,10 +6,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::{info, warn};
 
-#[cfg(feature = "poi")]
-use crate::railgun::indexer::TransactionSyncer;
 use crate::railgun::indexer::{
-    NoteSyncer,
+    NoteSyncer, TransactionSyncer,
     syncer::{self, subsquid_types::*, syncer::SyncerError},
 };
 
@@ -35,7 +33,6 @@ pub enum SubsquidSyncerError {
 
 const COMMITMENTS_QUERY: &str = include_str!("./subsquid_graphql/commitments.graphql");
 const NULLIFIERS_QUERY: &str = include_str!("./subsquid_graphql/nullifiers.graphql");
-#[cfg(feature = "poi")]
 const OPERATIONS_QUERY: &str = include_str!("./subsquid_graphql/operations.graphql");
 const BLOCK_NUMBER_QUERY: &str = include_str!("./subsquid_graphql/block_number.graphql");
 
@@ -92,7 +89,6 @@ impl NoteSyncer for SubsquidSyncer {
     }
 }
 
-#[cfg(feature = "poi")]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl TransactionSyncer for SubsquidSyncer {
@@ -171,7 +167,6 @@ impl SubsquidSyncer {
         .await
     }
 
-    #[cfg(feature = "poi")]
     async fn operations(
         &self,
         from: u64,

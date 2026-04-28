@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     sync::Arc,
     u64,
 };
@@ -10,20 +10,17 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
 
-use crate::{
-    caip::AssetId,
-    railgun::{
-        address::RailgunAddress,
-        indexer::{
-            indexed_account::{IndexedAccount, IndexedAccountState},
-            syncer::{self, NoteSyncer, SyncEvent, SyncerError},
-        },
-        merkle_tree::{
-            MerkleTreeState, MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree, VerificationError,
-        },
-        note::utxo::{NoteError, UtxoNote},
-        signer::Signer,
+use crate::railgun::{
+    address::RailgunAddress,
+    indexer::{
+        indexed_account::{IndexedAccount, IndexedAccountState},
+        syncer::{self, NoteSyncer, SyncEvent, SyncerError},
     },
+    merkle_tree::{
+        MerkleTreeState, MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree, VerificationError,
+    },
+    note::utxo::{NoteError, UtxoNote},
+    signer::Signer,
 };
 
 /// Utxo indexer that maintains the set of UTXO merkle trees and tracks accounts
@@ -42,7 +39,6 @@ pub struct UtxoIndexer {
     // since the last restart. If a signer is later registered we can restore its
     // state and continue tracking without re-syncing.
     pending_accounts: HashMap<RailgunAddress, IndexedAccountState>,
-    seen_commitments: HashSet<U256>,
 }
 
 /// State struct for the Utxo indexer.
@@ -81,7 +77,6 @@ impl UtxoIndexer {
             utxo_verifier,
             accounts: vec![],
             pending_accounts: HashMap::new(),
-            seen_commitments: HashSet::new(),
         }
     }
 
@@ -159,6 +154,10 @@ impl UtxoIndexer {
         self.accounts.push(account);
     }
 
+    pub fn registered(&self) -> Vec<RailgunAddress> {
+        self.accounts.iter().map(|a| a.address()).collect()
+    }
+
     pub fn deregister_pending(&mut self) {
         self.pending_accounts.clear();
     }
@@ -182,18 +181,6 @@ impl UtxoIndexer {
         }
 
         notes
-    }
-
-    /// Returns the balance of a given address by summing the values of all
-    /// unspent notes for that address.
-    pub fn balance(&self, address: RailgunAddress) -> HashMap<AssetId, u128> {
-        for account in self.accounts.iter() {
-            if account.address() == address {
-                return account.balance();
-            }
-        }
-
-        HashMap::new()
     }
 
     pub async fn sync(&mut self) -> Result<(), UtxoIndexerError> {
@@ -242,39 +229,6 @@ impl UtxoIndexer {
         self.synced_block = 0;
         self.accounts.clear();
         self.pending_accounts.clear();
-        self.seen_commitments.clear();
-    }
-
-    /// Returns true if all the given commitments have been seen in Transact events.
-    pub fn has_commitments(&self, commitments: &[U256]) -> bool {
-        commitments
-            .iter()
-            .all(|c| self.seen_commitments.contains(c))
-    }
-
-    /// Polls `sync()` until all given commitments appear in Transact events,
-    /// or returns `Err(Timeout)` if the timeout is exceeded.
-    pub async fn await_commitments(
-        &mut self,
-        commitments: &[U256],
-        poll_interval: web_time::Duration,
-        timeout: web_time::Duration,
-    ) -> Result<(), UtxoIndexerError> {
-        let start = web_time::Instant::now();
-
-        loop {
-            self.sync().await?;
-
-            if self.has_commitments(commitments) {
-                return Ok(());
-            }
-
-            if start.elapsed() >= timeout {
-                return Err(UtxoIndexerError::Timeout);
-            }
-
-            common::sleep(poll_interval).await;
-        }
     }
 
     /// Handles a sync event.
@@ -307,7 +261,6 @@ impl UtxoIndexer {
     /// Handles a transact event. Returns true if the event was matched to any account.
     fn handle_transact(&mut self, event: &syncer::Transact) -> Result<(), UtxoIndexerError> {
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
-        self.seen_commitments.insert(event.hash);
 
         for account in self.accounts.iter_mut() {
             account.handle_transact_event(event)?;

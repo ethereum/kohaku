@@ -13,7 +13,7 @@ use crate::{
             MerkleProof, MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash,
             TxidMerkleTree, UtxoTreeIndex, merkle_proof::new_pre_inclusion,
         },
-        note::{IncludedNote, Note},
+        note::Note,
         poi::{ListKey, PoiNote},
     },
 };
@@ -147,7 +147,7 @@ impl PoiCircuitInputs {
         has_unshield: bool,
         list_key: ListKey,
     ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers = Self::compute_nullifiers(in_notes)?;
+        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier()).collect();
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
         let tree_index = UtxoTreeIndex::PreInclusion;
         let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, tree_index);
@@ -190,7 +190,7 @@ impl PoiCircuitInputs {
         included_index: UtxoTreeIndex,
         txid_tree: &TxidMerkleTree,
     ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers = Self::compute_nullifiers(in_notes)?;
+        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier()).collect();
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
         let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, included_index);
         let txid_proof = txid_tree.generate_proof(txid_leaf_hash)?;
@@ -212,11 +212,6 @@ impl PoiCircuitInputs {
             included_index,
             txid_proof,
         )
-    }
-
-    fn compute_nullifiers(in_notes: &[PoiNote]) -> Result<Vec<U256>, PoiCircuitInputsError> {
-        info!("Computing nullifiers");
-        Ok(in_notes.iter().map(|note| note.nullifier()).collect())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -243,7 +238,7 @@ impl PoiCircuitInputs {
         let poi_proofs = in_notes
             .iter()
             .map(|n| {
-                n.poi_merkle_proofs()
+                n.pois
                     .get(&list_key)
                     .ok_or(PoiCircuitInputsError::MissingPoiProofs(list_key.clone()))
             })
@@ -258,12 +253,15 @@ impl PoiCircuitInputs {
 
         let randoms_in = in_notes
             .iter()
-            .map(|n| U256::from_be_slice(&n.random()))
+            .map(|n| U256::from_be_slice(&n.inner.random()))
             .collect();
-        let values_in = in_notes.iter().map(|n| U256::from(n.value())).collect();
+        let values_in = in_notes
+            .iter()
+            .map(|n| U256::from(n.inner.value()))
+            .collect();
         let utxo_positions_in = in_notes
             .iter()
-            .map(|n| U256::from(n.leaf_index()))
+            .map(|n| U256::from(n.inner.leaf_index()))
             .collect();
 
         let txid_if_has_unshield = if has_unshield {

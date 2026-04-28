@@ -40,8 +40,7 @@
  */
 
 import { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { derivationPaths, JsBroadcaster, JsBroadcasterManager, JsPoiProvedTx, JsPoiProvider, JsShieldBuilder, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
-import { createBroadcaster } from "./waku-adapter";
+import { derivationPaths, JsPoiProvedTx, JsPoiProvider, JsShieldBuilder, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { loadRailgunProvider, newRailgunProvider } from "./railgun-provider";
@@ -50,11 +49,9 @@ import { SignerPool } from "./signer-pool";
 
 /**
  * A proved private transaction ready for relay.
- * Consumed on `broadcast()` — rebuild via `prepare*` if retrying.
  */
 export type RGPrivateOperation = PrivateOperation & {
     provedTx: JsPoiProvedTx,
-    broadcaster: JsBroadcaster,
 };
 
 /**
@@ -106,9 +103,8 @@ export async function createRailgunPlugin(host: Host, keyIndex: number = 0, chai
     const provider = await newRailgunProvider(host, resolvedChainId);
     const signer = new JsSigner(spendingKey, viewingKey, resolvedChainId);
     const pool = new SignerPool(signer);
-    const broadcastManager = await createBroadcaster(resolvedChainId);
 
-    return new RailgunPlugin(resolvedChainId, provider, pool, broadcastManager, host.storage);
+    return new RailgunPlugin(resolvedChainId, provider, pool, host.storage);
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
@@ -116,7 +112,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         private chainId: bigint,
         private provider: JsPoiProvider,
         private pool: SignerPool,
-        private broadcasterManager: JsBroadcasterManager,
         private storage: Storage
     ) {
         this.pool.registerAll(provider)

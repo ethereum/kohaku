@@ -4,12 +4,14 @@ mod chain;
 mod error;
 mod indexer;
 mod poi_balance;
+mod poi_provider;
 mod provider;
 mod signer;
 mod transaction;
 
 pub use caip::{erc20, erc721, erc1155};
 pub use indexer::JsSyncer;
+pub use poi_provider::JsPoiProvider;
 pub use provider::JsRailgunProvider;
 use serde::{Deserialize, Serialize};
 pub use signer::JsSigner;
@@ -39,12 +41,6 @@ impl From<LogLevel> for tracing::Level {
         }
     }
 }
-
-#[cfg(feature = "poi")]
-mod poi_provider;
-
-#[cfg(feature = "poi")]
-pub use poi_provider::JsPoiProvider;
 
 #[wasm_bindgen(start, skip_typescript)]
 pub fn wasm_start() {

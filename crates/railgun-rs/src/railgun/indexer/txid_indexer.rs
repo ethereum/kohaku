@@ -12,7 +12,7 @@ use crate::{
             txid_tree_set::{TxidTreeError, TxidTreeSet, TxidTreeSetState},
         },
         merkle_tree::TxidMerkleTree,
-        poi::PoiClient,
+        poi::client::PoiClient,
     },
 };
 

@@ -1,5 +1,7 @@
 use alloy_primitives::{Address, ChainId, address};
 
+use crate::railgun::poi::ListKey;
+
 /// Eip155 Chain Configurations
 #[derive(Copy, Clone, Debug)]
 pub struct ChainConfig {
@@ -30,9 +32,15 @@ pub struct ChainConfig {
     /// Sourced from
     /// https://github.com/Railgun-Community/wallet/blob/3ee3364648d416aa055bb1d5f5a2c4961be00ed6/src/services/railgun/railgun-txids/graphql/index.ts#L3187
     pub subsquid_endpoint: &'static str,
-
-    /// Optional POI endpoint for this chain,
+    /// Optional POI endpoint for this chain.
+    ///
+    /// Originally sourced from the RAILGUN docs. It's since disappeared from
+    /// the docs, but the current value seems to be valid so ¯\_(ツ)_/¯
+    ///
+    /// Railgun's POI is confusing
     pub poi_endpoint: &'static str,
+    /// Optional list keys for POI
+    pub list_keys: &'static [&'static str],
 }
 
 pub const CHAIN_CONFIGS: &[ChainConfig] = &[MAINNET_CONFIG, SEPOLIA_CONFIG];
@@ -46,6 +54,7 @@ pub const MAINNET_CONFIG: ChainConfig = ChainConfig {
     poi_start_block: 18514200,
     subsquid_endpoint: "https://rail-squid.squids.live/squid-railgun-ethereum-v2/v/v1/graphql",
     poi_endpoint: "https://ppoi-agg.horsewithsixlegs.xyz/",
+    list_keys: &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
 };
 
 pub const SEPOLIA_CONFIG: ChainConfig = ChainConfig {
@@ -57,9 +66,11 @@ pub const SEPOLIA_CONFIG: ChainConfig = ChainConfig {
     poi_start_block: 5944700,
     subsquid_endpoint: "https://rail-squid.squids.live/squid-railgun-eth-sepolia-v2/v/v1/graphql",
     poi_endpoint: "https://ppoi-agg.horsewithsixlegs.xyz/",
+    list_keys: &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
 };
 
 pub const fn get_chain_config(chain_id: ChainId) -> Option<ChainConfig> {
+    //? Need to use a while loop since `get_chain_config` is a const fn
     let mut i = 0;
     while i < CHAIN_CONFIGS.len() {
         if CHAIN_CONFIGS[i].id == chain_id {
@@ -68,4 +79,10 @@ pub const fn get_chain_config(chain_id: ChainId) -> Option<ChainConfig> {
         i += 1;
     }
     None
+}
+
+impl ChainConfig {
+    pub fn list_keys(&self) -> Vec<ListKey> {
+        self.list_keys.iter().map(|s| s.parse().unwrap()).collect()
+    }
 }

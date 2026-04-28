@@ -6,25 +6,29 @@ use prover::Prover;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::error;
 
 use crate::{
     caip::AssetId,
     chain_config::{ChainConfig, get_chain_config},
     railgun::{
         address::RailgunAddress,
-        indexer::{NoteSyncer, UtxoIndexer, UtxoIndexerError, UtxoIndexerState},
+        indexer::{NoteSyncer, TransactionSyncer, UtxoIndexer, UtxoIndexerError, UtxoIndexerState},
         merkle_tree::SmartWalletUtxoVerifier,
+        note::{Note, utxo::UtxoNote},
+        poi::{PoiProvider, PoiProviderError},
         signer::Signer,
         transaction::{ProvedTx, ShieldBuilder, TransactionBuilder, TransactionBuilderError},
     },
 };
 
-/// Interfaces with the RAILGUN protocol. Handles UTXO syncing,
-/// transaction building, and proving. Does NOT handle transaction submission.
+/// Interfaces with the RAILGUN protocol.
 pub struct RailgunProvider {
-    pub chain: ChainConfig,
-    pub(crate) utxo_indexer: UtxoIndexer,
-    pub(crate) prover: Arc<dyn Prover>,
+    chain: ChainConfig,
+    utxo_indexer: UtxoIndexer,
+    prover: Arc<dyn Prover>,
+
+    poi_provider: Option<PoiProvider>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -41,6 +45,8 @@ pub enum RailgunProviderError {
     UtxoIndexer(#[from] UtxoIndexerError),
     #[error("Build error: {0}")]
     Build(#[from] TransactionBuilderError),
+    #[error("POI provider error: {0}")]
+    PoiProvider(#[from] PoiProviderError),
 }
 
 /// General provider functions
@@ -60,7 +66,19 @@ impl RailgunProvider {
             chain,
             utxo_indexer: UtxoIndexer::new(utxo_syncer, utxo_verifier),
             prover,
+            poi_provider: None,
         }
+    }
+
+    pub fn with_poi(&mut self, txid_syncer: Arc<dyn TransactionSyncer>) {
+        let poi_provider = PoiProvider::new(
+            self.chain.id,
+            self.chain.poi_endpoint,
+            self.chain.list_keys(),
+            self.prover.clone(),
+            txid_syncer,
+        );
+        self.poi_provider = Some(poi_provider);
     }
 
     pub fn set_state(&mut self, state: RailgunProviderState) -> Result<(), RailgunProviderError> {
@@ -96,9 +114,21 @@ impl RailgunProvider {
         self.utxo_indexer.register_from(account, from_block);
     }
 
-    /// Returns the raw balance for the given address
-    pub fn balance(&self, address: RailgunAddress) -> HashMap<AssetId, u128> {
-        self.utxo_indexer.balance(address)
+    /// Returns the balance for the given address.
+    ///
+    /// If a POI provider is configured, only returns the spendable balance
+    /// according to the POI provider.
+    pub async fn balance(&mut self, address: RailgunAddress) -> HashMap<AssetId, u128> {
+        let unspent = self.unspent(address).await;
+
+        let mut balance_map = HashMap::new();
+        for note in unspent {
+            let asset = note.asset();
+            let value = note.value();
+            *balance_map.entry(asset).or_insert(0) += value;
+        }
+
+        balance_map
     }
 
     /// Helper to create a shield builder
@@ -113,33 +143,100 @@ impl RailgunProvider {
 
     /// Build a executable transaction from a transaction builder
     pub async fn build<R: Rng>(
-        &self,
+        &mut self,
         builder: TransactionBuilder,
         rng: &mut R,
     ) -> Result<ProvedTx, RailgunProviderError> {
-        Ok(builder
-            .build_transaction(
+        let in_notes = self.all_unspent().await;
+        let operations = builder
+            .build(
                 self.prover.as_ref(),
                 self.chain.id,
-                self.chain.railgun_smart_wallet,
-                &self.utxo_indexer.all_unspent(),
+                &in_notes,
                 &self.utxo_indexer.utxo_trees,
                 rng,
             )
-            .await?)
+            .await?;
+
+        if let Some(poi_provider) = &mut self.poi_provider {
+            poi_provider.register_ops(&operations).await;
+        }
+
+        let proved_tx = ProvedTx::new(self.chain.railgun_smart_wallet, operations);
+        Ok(proved_tx)
+    }
+
+    /// Build a transaction from a transaction builder into a broadcastable 4337 UserOp.
+    pub async fn broadcast<R: Rng>(
+        &mut self,
+        builder: TransactionBuilder,
+        rng: &mut R,
+    ) -> Result<(), RailgunProviderError> {
+        todo!()
     }
 
     pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {
         self.utxo_indexer.sync_to(block_number).await?;
+
+        if let Some(poi_provider) = &mut self.poi_provider {
+            poi_provider.sync_to(block_number).await?;
+        }
+
         Ok(())
     }
 
     pub async fn sync(&mut self) -> Result<(), RailgunProviderError> {
         self.utxo_indexer.sync().await?;
+
+        if let Some(poi_provider) = &mut self.poi_provider {
+            poi_provider.sync().await?;
+        }
+
         Ok(())
     }
 
     pub fn reset_indexer(&mut self) {
         self.utxo_indexer.reset();
+
+        if let Some(poi_provider) = &mut self.poi_provider {
+            poi_provider.reset();
+        }
+    }
+
+    async fn all_unspent(&mut self) -> Vec<UtxoNote> {
+        let addresses = self.utxo_indexer.registered();
+        let mut all_notes = Vec::new();
+
+        for address in addresses {
+            let mut notes = self.unspent(address).await;
+            all_notes.append(&mut notes);
+        }
+        all_notes
+    }
+
+    async fn unspent(&mut self, address: RailgunAddress) -> Vec<UtxoNote> {
+        let notes = self.utxo_indexer.unspent(address);
+
+        let Some(poi_provider) = &mut self.poi_provider else {
+            return notes;
+        };
+
+        let mut spendable_notes = Vec::new();
+        for note in notes {
+            let spendable = poi_provider
+                .spendable(note.blinded_commitment().into())
+                .await;
+            match spendable {
+                Ok(true) => spendable_notes.push(note),
+                Ok(false) => continue, //? Not spendable, skip
+                Err(e) => {
+                    //? If there's an error checking POI, log it and skip the note
+                    error!("Error checking POI for note {:?}: {}", note, e);
+                    continue;
+                }
+            }
+        }
+
+        spendable_notes
     }
 }
