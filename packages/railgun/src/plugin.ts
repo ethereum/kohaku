@@ -81,6 +81,10 @@ export type RGInstance = PluginInstance<
 export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
 const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88";
+const WRAPPED_BASE_BY_CHAIN: Record<string, `0x${string}`> = {
+    "1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "11155111": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+};
 
 /**
  * Creates or loads a Railgun plugin instance. If persisted state exists, it will
@@ -201,11 +205,21 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
-        tokenGuard(token);
-
-        //? Safe because of above tokenGuard
-        const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
         let builder = this.provider.transact();
+        if (isNativeAsset(token.asset as AssetId)) {
+            const wrapped = this.wrappedBaseToken();
+            const entries = await this.pool.drain(this.provider, LIST_KEY, [{
+                asset: { __type: "erc20", contract: wrapped },
+                amount: token.amount,
+            }]);
+            for (const e of entries) {
+                builder = builder.unshieldNative(e.signer, to, e.amount);
+            }
+            return this.buildWithBroadcaster(builder);
+        }
+
+        erc20TokenGuard(token);
+        const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
 
         for (const e of entries) {
             builder = builder.unshield(e.signer, to, e.asset, e.amount);
@@ -215,13 +229,15 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
-        for (const token of tokens) {
-            tokenGuard(token);
-        }
-
-        //? Safe because of above tokenGuard
-        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens as AssetAmount<ERC20AssetId>[]);
         let builder = this.provider.transact();
+
+        for (const token of tokens) {
+            if (isNativeAsset(token.asset as AssetId)) {
+                throw new Error("Native unshield is only supported in prepareUnshield (single asset)");
+            }
+            erc20TokenGuard(token);
+        }
+        const entries = await this.pool.drain(this.provider, LIST_KEY, tokens as AssetAmount<ERC20AssetId>[]);
 
         for (const e of entries) {
             builder = builder.unshield(e.signer, to, e.asset, e.amount);
@@ -231,7 +247,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
-        tokenGuard(token);
+        erc20TokenGuard(token);
 
         //? Safe because of above tokenGuard
         const entries = await this.pool.drain(this.provider, LIST_KEY, [token as AssetAmount<ERC20AssetId>]);
@@ -247,7 +263,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     async prepareTransferMulti(tokens: AssetAmount[], to: RailgunAddress): Promise<RGPrivateOperation> {
         for (const token of tokens) {
-            tokenGuard(token);
+            erc20TokenGuard(token);
         }
 
         //? Safe because of above tokenGuard
@@ -328,12 +344,24 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
         this.storage.set(STATE_KEY, JSON.stringify(state));
     }
+
+    private wrappedBaseToken(): `0x${string}` {
+        const wrapped = WRAPPED_BASE_BY_CHAIN[this.chainId.toString()];
+        if (!wrapped) {
+            throw new Error(`Unsupported chain for native unshield: ${this.chainId}`);
+        }
+        return wrapped;
+    }
 };
 
-function tokenGuard(token: AssetAmount) {
+function erc20TokenGuard(token: AssetAmount) {
     const asset = token.asset;
 
     if (asset.__type !== 'erc20') {
-        throw new Error("Only ERC20 tokens are supported for shielding");
+        throw new Error("Only ERC20 tokens are supported for this operation");
     }
+}
+
+function isNativeAsset(asset: AssetId): asset is Extract<AssetId, { __type: "native" }> {
+    return (asset as { __type?: string }).__type === "native";
 }

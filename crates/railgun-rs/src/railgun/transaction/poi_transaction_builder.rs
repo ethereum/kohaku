@@ -89,6 +89,18 @@ impl PoiTransactionBuilder {
         }
     }
 
+    /// See [TransactionBuilder::set_unshield_native]
+    pub fn set_unshield_native(
+        self,
+        from: Arc<dyn Signer>,
+        to: Address,
+        value: u128,
+    ) -> Self {
+        Self {
+            inner: self.inner.set_unshield_native(from, to, value),
+        }
+    }
+
     /// Builds and proves a transaction for railgun.
     ///
     /// The resulting transaction can be self-broadcasted and includes POI Proof

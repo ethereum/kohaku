@@ -48,6 +48,23 @@ impl JsTransactionBuilder {
             .set_unshield(from.inner(), to, asset, value)
             .into())
     }
+
+    /// Add a native unshield operation (unwrap + ETH transfer via RelayAdapt).
+    ///
+    /// @param to: The EVM address to receive native ETH (0x1234...)
+    #[wasm_bindgen(js_name = unshieldNative)]
+    pub fn unshield_native(
+        self,
+        from: &JsSigner,
+        to: String,
+        value: u128,
+    ) -> Result<Self, JsError> {
+        let to: Address = to
+            .parse()
+            .map_err(|e| JsError::new(&format!("Invalid to address: {}", e)))?;
+
+        Ok(self.inner.set_unshield_native(from.inner(), to, value).into())
+    }
 }
 
 impl From<TransactionBuilder> for JsTransactionBuilder {

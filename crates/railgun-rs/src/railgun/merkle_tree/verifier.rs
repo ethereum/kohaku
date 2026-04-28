@@ -1,4 +1,5 @@
 use thiserror::Error;
+use eth_rpc::EthRpcClient;
 
 use crate::railgun::merkle_tree::MerkleRoot;
 
@@ -12,6 +13,10 @@ pub trait MerkleTreeVerifier: common::MaybeSend {
         tree_index: u64,
         root: MerkleRoot,
     ) -> Result<bool, Box<dyn std::error::Error>>;
+
+    fn eth_rpc(&self) -> Option<&dyn EthRpcClient> {
+        None
+    }
 }
 
 /// Error returned when a Merkle tree fails remote verification.
