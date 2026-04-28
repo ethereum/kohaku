@@ -32,7 +32,7 @@ const CHAIN: ChainConfig = MAINNET_CONFIG;
 #[tokio::test]
 #[serial_test::serial]
 #[ignore]
-async fn test_transact() {
+async fn test_transact_utxo() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .with_test_writer()

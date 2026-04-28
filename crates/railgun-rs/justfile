@@ -43,7 +43,7 @@ integration-transact:
     # Wait for anvil to be ready
     sleep 2
 
-    RUST_LOG=info cargo test --profile release-test -- test_transact --ignored --nocapture
+    RUST_LOG=info cargo test --profile release-test -- test_transact_utxo --ignored --nocapture
 
 integration-sync-txid:
     RUST_LOG=info cargo test --profile release-test -- test_sync_txid --ignored --nocapture
