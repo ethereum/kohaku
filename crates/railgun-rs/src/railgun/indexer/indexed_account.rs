@@ -115,7 +115,7 @@ impl IndexedAccount {
             if *tree_number != event.tree_number {
                 return true; // Keep notes from other trees
             }
-            note.nullifier() != nullifier // Keep notes that don't match the nullifier
+            note.nullifier != nullifier // Keep notes that don't match the nullifier
         });
     }
 }

@@ -21,21 +21,22 @@ use crate::{
 /// Railgun UTXO note
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct UtxoNote {
-    tree_number: u32,
-    leaf_index: u32,
-    spending_pubkey: SpendingPublicKey,
-    viewing_pubkey: ViewingPublicKey,
+    pub tree_number: u32,
+    pub leaf_index: u32,
+    pub spending_pubkey: SpendingPublicKey,
+    pub viewing_pubkey: ViewingPublicKey,
 
-    random: [u8; 16],
-    value: u128,
-    asset: AssetId,
-    memo: String,
-    utxo_type: UtxoType,
+    pub random: [u8; 16],
+    pub value: u128,
+    pub asset: AssetId,
+    pub memo: String,
+    pub utxo_type: UtxoType,
 
-    hash: UtxoLeafHash,
-    npk: U256,
-    nullifying_key: U256,
-    blinded_commitment: U256,
+    pub hash: UtxoLeafHash,
+    pub nullifier: U256,
+    pub note_public_key: U256,
+    pub nullifying_key: NullifyingKey,
+    pub blinded_commitment: U256,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,9 +68,11 @@ impl UtxoNote {
     ) -> Self {
         let spending_pubkey = signer.as_ref().spending_key().public_key();
         let nullifying_key = signer.viewing_key().nullifying_key();
+        let nullifier = poseidon_hash(&[nullifying_key.to_u256(), U256::from(leaf_index)]).unwrap();
         let npk = note_public_key(spending_pubkey, nullifying_key, &random);
         let hash = note_hash(npk, asset, value);
         let blinded_commitment = blinded_commitment(hash.into(), npk, tree_number, leaf_index);
+
         UtxoNote {
             tree_number,
             leaf_index,
@@ -81,8 +84,9 @@ impl UtxoNote {
             memo: memo.to_string(),
             utxo_type,
             hash,
-            npk,
-            nullifying_key: nullifying_key.to_u256(),
+            note_public_key: npk,
+            nullifying_key,
+            nullifier,
             blinded_commitment,
         }
     }
@@ -156,41 +160,6 @@ impl UtxoNote {
             UtxoType::Shield,
         ))
     }
-
-    pub fn tree_number(&self) -> u32 {
-        self.tree_number
-    }
-
-    pub fn leaf_index(&self) -> u32 {
-        self.leaf_index
-    }
-
-    pub fn viewing_pubkey(&self) -> ViewingPublicKey {
-        self.viewing_pubkey
-    }
-
-    /// Returns the note's nullifier for a given leaf index
-    ///
-    /// Hash of (nullifying_key, leaf_index)
-    pub fn nullifier(&self) -> U256 {
-        poseidon_hash(&[self.nullifying_key, U256::from(self.leaf_index)]).unwrap()
-    }
-
-    pub fn random(&self) -> [u8; 16] {
-        self.random
-    }
-
-    pub fn spending_pubkey(&self) -> [U256; 2] {
-        [self.spending_pubkey.x_u256(), self.spending_pubkey.y_u256()]
-    }
-
-    pub fn nullifying_key(&self) -> U256 {
-        self.nullifying_key
-    }
-
-    pub fn blinded_commitment(&self) -> U256 {
-        self.blinded_commitment
-    }
 }
 
 impl Note for UtxoNote {
@@ -211,7 +180,7 @@ impl Note for UtxoNote {
     }
 
     fn note_public_key(&self) -> U256 {
-        self.npk
+        self.note_public_key
     }
 }
 
@@ -291,7 +260,7 @@ mod tests {
     #[traced_test]
     fn test_note_spending_pubkey() {
         let note = test_note();
-        let pub_key = note.spending_pubkey();
+        let pub_key = note.spending_pubkey;
 
         insta::assert_debug_snapshot!(pub_key);
     }
@@ -299,9 +268,8 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_note_nullifier() {
-        let mut note = test_note();
-        note.leaf_index = 5;
-        let nullifier = note.nullifier();
+        let note = test_note();
+        let nullifier = note.nullifier;
 
         insta::assert_debug_snapshot!(nullifier);
     }
@@ -310,7 +278,7 @@ mod tests {
     #[traced_test]
     fn test_note_nullifying_key() {
         let note = test_note();
-        let nullifying_key = note.nullifying_key();
+        let nullifying_key = note.nullifying_key;
 
         insta::assert_debug_snapshot!(nullifying_key);
     }
@@ -319,7 +287,7 @@ mod tests {
     #[traced_test]
     fn test_note_public_key() {
         let note = test_note();
-        let pub_key = note.note_public_key();
+        let pub_key = note.note_public_key;
 
         insta::assert_debug_snapshot!(pub_key);
     }

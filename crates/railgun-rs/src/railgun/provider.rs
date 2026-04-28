@@ -223,9 +223,7 @@ impl RailgunProvider {
 
         let mut spendable_notes = Vec::new();
         for note in notes {
-            let spendable = poi_provider
-                .spendable(note.blinded_commitment().into())
-                .await;
+            let spendable = poi_provider.spendable(note.blinded_commitment.into()).await;
             match spendable {
                 Ok(true) => spendable_notes.push(note),
                 Ok(false) => continue, //? Not spendable, skip

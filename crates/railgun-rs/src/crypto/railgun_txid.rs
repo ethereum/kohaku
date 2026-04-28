@@ -38,7 +38,7 @@ impl Txid {
             .inner
             .in_notes()
             .iter()
-            .map(|n| n.nullifier().into())
+            .map(|n| n.nullifier.into())
             .collect();
 
         let commitments: Vec<_> = op

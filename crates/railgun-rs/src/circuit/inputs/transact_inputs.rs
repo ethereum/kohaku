@@ -63,7 +63,7 @@ impl TransactCircuitInputs {
             .map(|note| merkle_tree.generate_proof(note.hash()))
             .collect::<Result<_, _>>()?;
 
-        let nullifiers: Vec<U256> = notes_in.iter().map(|note| note.nullifier()).collect();
+        let nullifiers: Vec<U256> = notes_in.iter().map(|note| note.nullifier).collect();
         let commitments: Vec<U256> = notes_out.iter().map(|note| note.hash().into()).collect();
 
         let token = asset.hash();
@@ -79,7 +79,7 @@ impl TransactCircuitInputs {
 
         let random_in = notes_in
             .iter()
-            .map(|note| U256::from_be_slice(&note.random()))
+            .map(|note| U256::from_be_slice(&note.random))
             .collect();
 
         let value_in = notes_in

@@ -147,7 +147,7 @@ impl PoiCircuitInputs {
         has_unshield: bool,
         list_key: ListKey,
     ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier()).collect();
+        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier).collect();
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
         let tree_index = UtxoTreeIndex::PreInclusion;
         let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, tree_index);
@@ -190,7 +190,7 @@ impl PoiCircuitInputs {
         included_index: UtxoTreeIndex,
         txid_tree: &TxidMerkleTree,
     ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier()).collect();
+        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier).collect();
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
         let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, included_index);
         let txid_proof = txid_tree.generate_proof(txid_leaf_hash)?;
@@ -253,7 +253,7 @@ impl PoiCircuitInputs {
 
         let randoms_in = in_notes
             .iter()
-            .map(|n| U256::from_be_slice(&n.inner.random()))
+            .map(|n| U256::from_be_slice(&n.inner.random))
             .collect();
         let values_in = in_notes
             .iter()
@@ -261,7 +261,7 @@ impl PoiCircuitInputs {
             .collect();
         let utxo_positions_in = in_notes
             .iter()
-            .map(|n| U256::from(n.inner.leaf_index()))
+            .map(|n| U256::from(n.inner.leaf_index))
             .collect();
 
         let txid_if_has_unshield = if has_unshield {

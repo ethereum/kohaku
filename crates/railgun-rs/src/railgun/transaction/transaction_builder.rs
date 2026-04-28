@@ -226,9 +226,9 @@ fn build_group<R: Rng>(
     // Filter notes for this asset and signer, and group by tree number.
     let tree_number = in_notes
         .iter()
-        .filter(|n| n.asset() == asset && n.viewing_pubkey() == from.viewing_pubkey())
+        .filter(|n| n.asset == asset && n.viewing_pubkey == from.viewing_pubkey())
         .fold(BTreeMap::new(), |mut acc, n| {
-            acc.entry(n.tree_number()).or_insert_with(Vec::new).push(n);
+            acc.entry(n.tree_number).or_insert_with(Vec::new).push(n);
             acc
         });
 

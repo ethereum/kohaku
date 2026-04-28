@@ -193,7 +193,7 @@ impl PoiSubmitter {
             let mut poi_notes = Vec::new();
             for note in entry.in_notes.clone() {
                 let proof = poi_client
-                    .merkle_proof(list_key, note.blinded_commitment().into())
+                    .merkle_proof(list_key, note.blinded_commitment.into())
                     .await?;
 
                 let pois = HashMap::from([(list_key.clone(), proof)]);
