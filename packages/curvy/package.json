@@ -39,7 +39,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@0xcurvy/curvy-sdk": "/Users/mihailoradojevic/curvy/kohaku-tarballs/0xcurvy-curvy-sdk-0.0.6.tgz",
+    "@0xcurvy/curvy-sdk": "^0.0.7",
     "@kohaku-eth/plugins": "workspace:*",
     "ox": "^0.12.0"
   },
