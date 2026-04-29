@@ -1,6 +1,5 @@
 pub mod verifier;
 
-pub mod merkle_proof;
 mod merkle_tree;
 mod smart_wallet_verifier;
 mod txid_tree;

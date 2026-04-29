@@ -10,10 +10,9 @@ use crate::{
     },
     railgun::{
         merkle_tree::{
-            MerkleProof, MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash,
-            TxidMerkleTree, UtxoTreeIndex, merkle_proof::new_pre_inclusion,
+            MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash, TxidMerkleTree,
+            UtxoTreeIndex,
         },
-        note::Note,
         poi::{ListKey, PoiNote},
     },
 };
