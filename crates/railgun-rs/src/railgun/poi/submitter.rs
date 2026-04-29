@@ -200,7 +200,7 @@ impl PoiSubmitter {
                 poi_notes.push(PoiNote::new(note, pois));
             }
 
-            let inputs = PoiCircuitInputs::from_inputs_included(
+            let inputs = PoiCircuitInputs::new(
                 entry.spending_pubkey,
                 entry.nullifying_key,
                 entry.utxo_tree_in,

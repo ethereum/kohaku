@@ -131,95 +131,13 @@ where
 }
 
 impl PoiCircuitInputs {
-    /// Builds POI circuit inputs for the pre-transaction proof using dummy
-    /// pre-inclusion TXID values. Used when submitting to the broadcaster.
+    /// Builds POI circuit inputs on-chain TXID position.
     #[allow(clippy::too_many_arguments)]
-    pub fn from_inputs(
-        spending_pubkey: SpendingPublicKey,
-        nullifying_key: NullifyingKey,
-        utxo_tree_in: u32,
-        bound_params_hash: U256,
-        in_notes: &[PoiNote],
-        out_commitments: &[U256],
-        out_npks: &[U256],
-        out_values: &[U256],
-        token: U256,
-        has_unshield: bool,
-        list_key: ListKey,
-    ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier).collect();
-        let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
-        let tree_index = UtxoTreeIndex::PreInclusion;
-        let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, tree_index);
-        let txid_proof = new_pre_inclusion(txid_leaf_hash.into());
-        Self::assemble(
-            spending_pubkey,
-            nullifying_key,
-            bound_params_hash,
-            utxo_tree_in,
-            in_notes,
-            out_commitments,
-            out_npks,
-            out_values,
-            token,
-            has_unshield,
-            list_key,
-            nullifiers,
-            txid,
-            txid_leaf_hash,
-            tree_index,
-            txid_proof,
-        )
-    }
-
-    /// Builds POI circuit inputs for the post-transaction re-proof using the
-    /// actual on-chain TXID position. Used when submitting to the POI aggregator.
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_inputs_included(
-        spending_pubkey: SpendingPublicKey,
-        nullifying_key: NullifyingKey,
-        utxo_tree_in: u32,
-        bound_params_hash: U256,
-        in_notes: &[PoiNote],
-        out_commitments: &[U256],
-        out_npks: &[U256],
-        out_values: &[U256],
-        token: U256,
-        has_unshield: bool,
-        list_key: ListKey,
-        included_index: UtxoTreeIndex,
-        txid_tree: &TxidMerkleTree,
-    ) -> Result<Self, PoiCircuitInputsError> {
-        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier).collect();
-        let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
-        let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, included_index);
-        let txid_proof = txid_tree.generate_proof(txid_leaf_hash)?;
-        Self::assemble(
-            spending_pubkey,
-            nullifying_key,
-            bound_params_hash,
-            utxo_tree_in,
-            in_notes,
-            out_commitments,
-            out_npks,
-            out_values,
-            token,
-            has_unshield,
-            list_key,
-            nullifiers,
-            txid,
-            txid_leaf_hash,
-            included_index,
-            txid_proof,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn assemble(
+    pub fn new(
         spending_pubkey: SpendingPublicKey,
         nullifying_pubkey: NullifyingKey,
-        bound_params_hash: U256,
         utxo_tree_in: u32,
+        bound_params_hash: U256,
         in_notes: &[PoiNote],
         out_commitments: &[U256],
         out_npks: &[U256],
@@ -227,14 +145,15 @@ impl PoiCircuitInputs {
         token: U256,
         has_unshield: bool,
         list_key: ListKey,
-        nullifiers: Vec<U256>,
-        txid: Txid,
-        txid_leaf_hash: TxidLeafHash,
         tree_index: UtxoTreeIndex,
-        txid_proof: MerkleProof,
+        txid_tree: &TxidMerkleTree,
     ) -> Result<Self, PoiCircuitInputsError> {
-        // Per-note POI proofs
-        info!("Generating POI proofs");
+        info!("Generating POI inputs");
+        let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier).collect();
+        let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
+        let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, tree_index);
+        let txid_proof = txid_tree.generate_proof(txid_leaf_hash)?;
+
         let poi_proofs = in_notes
             .iter()
             .map(|n| {
@@ -244,7 +163,6 @@ impl PoiCircuitInputs {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        info!("Assembling circuit inputs");
         let poi_merkleroots: Vec<MerkleRoot> = poi_proofs.iter().map(|p| p.root).collect();
         let poi_in_merkle_proof_indices =
             poi_proofs.iter().map(|p| U256::from(p.indices)).collect();
@@ -255,10 +173,7 @@ impl PoiCircuitInputs {
             .iter()
             .map(|n| U256::from_be_slice(&n.inner.random))
             .collect();
-        let values_in = in_notes
-            .iter()
-            .map(|n| U256::from(n.inner.value()))
-            .collect();
+        let values_in = in_notes.iter().map(|n| U256::from(n.inner.value)).collect();
         let utxo_positions_in = in_notes
             .iter()
             .map(|n| U256::from(n.inner.leaf_index))
