@@ -40,8 +40,8 @@ export interface IInstanceRegistry {
 }
 
 export interface ITornadoArtifacts {
-  wasmUrl: string;
-  zkeyUrl: string;
+  circuitUrl: string;
+  provingKeyUrl: string;
 }
 
 export interface PrivacyPoolsV1ProtocolParams {

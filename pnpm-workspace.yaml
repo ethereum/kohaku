@@ -1,6 +1,7 @@
 allowBuilds:
   blake-hash: set this to true or false
   esbuild: set this to true or false
+  keccak: set this to true or false
   msgpackr-extract: set this to true or false
   protobufjs: set this to true or false
 autoInstallPeers: false
@@ -12,3 +13,6 @@ packages:
   - "examples/pq-account"
   - "docs"
   - "crates/railgun-ts"
+
+patchedDependencies:
+  snarkjs@0.1.20: patches/snarkjs@0.1.20.patch

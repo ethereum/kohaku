@@ -54,7 +54,7 @@ export const syncEventsThunk = createAsyncThunk<
         allDeposits.push({...Deposited[dIndex]!, pool});
       }
 
-      for (let wIndex = 0; wIndex < Deposited.length; wIndex++) {
+      for (let wIndex = 0; wIndex < Withdrawn.length; wIndex++) {
         allWithdrawals.push({...Withdrawn[wIndex]!, pool});
       }
 

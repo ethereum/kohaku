@@ -6,7 +6,7 @@ import type { Storage, Keystore } from '@kohaku-eth/plugins';
 import { SecretManager } from '../account/keys';
 import { DataService } from '../data/data.service';
 import { IRelayerClient } from '../relayer/interfaces/relayer-client.interface';
-import { createTornadoProver } from '../utils/tornado-prover';
+import { makeLazyProverFactory } from '../utils/prover-factory';
 import { storeStateManager } from './state-manager';
 import {
   IInstanceRegistry,
@@ -46,8 +46,8 @@ const workerApi = {
     instanceRegistry: IInstanceRegistry,
     accountIndex: number,
     initialState: () => Promise<Record<string, RootState>>,
-    proverWasm: ArrayBuffer,
-    proverZkey: ArrayBuffer,
+    circuitUrl: string,
+    provingKeyUrl: string,
   ): Promise<void> {
     const storage = rawStorage as Storage;
 
@@ -55,7 +55,7 @@ const workerApi = {
       secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
       dataService: new DataService({ provider }),
       relayerClient,
-      proverFactory: () => Promise.resolve(createTornadoProver(new Uint8Array(proverWasm), new Uint8Array(proverZkey))),
+      proverFactory: makeLazyProverFactory(circuitUrl, provingKeyUrl),
       storageToSyncTo: storage,
       instanceRegistry,
       initialState,

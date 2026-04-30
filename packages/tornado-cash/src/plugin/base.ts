@@ -4,7 +4,7 @@ import {
   ERC20AssetId,
   Host,
 } from "@kohaku-eth/plugins";
-import { wrap, proxy, transfer } from 'comlink';
+import { wrap, proxy } from 'comlink';
 import { RelayerClient } from '../relayer/relayer-client';
 
 import { addressToHex, } from "../utils.js";
@@ -38,15 +38,6 @@ export class TornadoCashProtocol implements TCInstance {
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry' | 'artifacts'>,
   ) {
     this.stateManager = (async () => {
-      const [wasmRes, zkeyRes] = await Promise.all([
-        host.network.fetch(artifacts.wasmUrl),
-        host.network.fetch(artifacts.zkeyUrl),
-      ]);
-      const [proverWasm, proverZkey] = await Promise.all([
-        wasmRes.arrayBuffer(),
-        zkeyRes.arrayBuffer(),
-      ]);
-
       const worker = new Worker('./state-manager.worker.js', { type: 'module' });
 
       const workerReady = new Promise<void>((_resolve, reject) => {
@@ -67,8 +58,8 @@ export class TornadoCashProtocol implements TCInstance {
           instanceRegistry,
           accountIndex,
           proxy(initialState),
-          transfer(proverWasm, [proverWasm]),
-          transfer(proverZkey, [proverZkey]),
+          artifacts.circuitUrl,
+          artifacts.provingKeyUrl,
         ),
         workerReady,
       ]);

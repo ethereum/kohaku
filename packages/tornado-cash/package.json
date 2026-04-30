@@ -66,6 +66,7 @@
   },
   "dependencies": {
     "@kohaku-eth/plugins": "workspace:*",
+    "buffer": "^6.0.3",
     "@kohaku-eth/provider": "workspace:*",
     "@reduxjs/toolkit": "^2.11.2",
     "@zk-kit/baby-jubjub": "^1.0.3",
@@ -74,12 +75,12 @@
     "fixed-merkle-tree": "^0.7.3",
     "maci-crypto": "2.5.0",
     "ox": "^0.12.0",
-    "snarkjs": "^0.7.5",
+    "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
+    "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d",
     "viem": "^2.37.9"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",
-    "@types/snarkjs": "^0.7.9",
     "dotenv": "^17.2.1",
     "ethers": "^6.16.0",
     "get-port": "^7.1.0",

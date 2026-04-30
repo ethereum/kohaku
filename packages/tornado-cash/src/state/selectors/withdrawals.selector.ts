@@ -22,7 +22,7 @@ export const myWithdrawalsSelector = createSelector(
   (myDeposits, withdrawalsMap, userSecrets): DepositsWithdrawals => {
     const nullifierHashByCommitment = new Map<Commitment, NullifierHash>();
 
-    for (const records of Object.values(userSecrets) as UserSecretRecord[][]) {
+    for (const records of userSecrets.values()) {
       for (const r of records) {
         nullifierHashByCommitment.set(r.commitment, r.nullifierHash);
       }

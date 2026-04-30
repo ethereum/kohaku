@@ -1,0 +1,77 @@
+diff --git a/src/calculateWitness.js b/src/calculateWitness.js
+index 25044d044202b3d3fbf4aecffca1cbb6f6b343ee..76dbf59339edcaba5c0bba1f92a0851ebf141213 100644
+--- a/src/calculateWitness.js
++++ b/src/calculateWitness.js
+@@ -40,8 +40,9 @@ function calculateWitness(circuit, inputSignals, options) {
+     ctx.setSignal("one", [], bigInt(1));
+ 
+     for (let c in ctx.notInitSignals) {
+-        if (ctx.notInitSignals[c] == 0) ctx.triggerComponent(c);
++        if (ctx.notInitSignals[c] == 0) ctx.pendingComponents.push(c);
+     }
++    ctx.drainPendingComponents();
+ 
+     for (let s in inputSignals) {
+         ctx.currentComponent = "main";
+@@ -50,6 +51,7 @@ function calculateWitness(circuit, inputSignals, options) {
+             ctx.setSignal(s, selector, bigInt(value));
+         });
+     }
++    ctx.drainPendingComponents();
+ 
+     for (let i=0; i<circuit.nInputs; i++) {
+         const idx = circuit.inputIdx(i);
+@@ -79,6 +81,20 @@ class RTCtx {
+         for (let c in this.circuit.components) {
+             this.notInitSignals[c] = this.circuit.components[c].inputSignals;
+         }
++        this.pendingComponents = [];
++        this.triggerDepth = 0;
++    }
++
++    drainPendingComponents() {
++        while (this.pendingComponents.length > 0) {
++            const c = this.pendingComponents.shift();
++            // Guard against duplicates: notInitSignals is decremented to -1
++            // inside triggerComponent, so a component already triggered has
++            // notInitSignals < 0.
++            if (this.notInitSignals[c] >= 0) {
++                this.triggerComponent(c);
++            }
++        }
+     }
+ 
+     _sels2str(sels) {
+@@ -123,7 +139,9 @@ class RTCtx {
+ 
+         // TODO set params.
+ 
++        this.triggerDepth++;
+         this.circuit.templates[template](this);
++        this.triggerDepth--;
+         this.scopes = oldScope;
+         this.currentComponent = oldComponent;
+ 
+@@ -164,7 +182,21 @@ class RTCtx {
+             callComponents.push(idCmp);
+         }
+         callComponents.map( (c) => {
+-            if (this.notInitSignals[c] == 0) this.triggerComponent(c);
++            if (this.notInitSignals[c] == 0) {
++                const triggeredName = this.circuit.components[c].name;
++                // Trigger synchronously only if we are inside a template execution
++                // AND the triggered component is a direct descendant of the current
++                // component. This preserves the setPin→getPin sub-component pattern
++                // while deferring the long inter-template chains (e.g. MontgomeryAdd)
++                // that cause call stack overflow.
++                const isSubcomponent = this.triggerDepth > 0 &&
++                    triggeredName.startsWith(this.currentComponent + ".");
++                if (isSubcomponent) {
++                    this.triggerComponent(c);
++                } else {
++                    this.pendingComponents.push(c);
++                }
++            }
+         });
+         return this.witness[sId];
+     }
