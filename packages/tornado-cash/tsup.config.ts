@@ -42,9 +42,16 @@ export default defineConfig([
       // to hoist the require() to a module-level ESM import, which runs before the try/catch
       // and throws "Dynamic require is not supported". Using alias instead bundles empty stubs
       // so the require() stays inline and the catch block handles browser detection correctly.
+      // websnark/src/utils.js requires snarkjs internal paths that are blocked by
+      // the exports field of the modern snarkjs versions hoisted by pnpm. Alias
+      // them to the tornadocash snarkjs fork (v0.1.20, no exports restrictions)
+      // installed locally, which is the version websnark was written against.
       options.alias = {
         ...options.alias,
         assert: './src/polyfills/assert-polyfill.cjs',
+        'snarkjs/src/circuit': './node_modules/snarkjs/src/circuit.js',
+        'snarkjs/src/bigint': './node_modules/snarkjs/src/bigint.js',
+        'snarkjs/src/stringifybigint': './node_modules/snarkjs/src/stringifybigint.js',
       };
     },
   },
