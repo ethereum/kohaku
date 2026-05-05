@@ -1,7 +1,7 @@
 import { Host } from "@kohaku-eth/plugins";
 import { RailgunPlugin } from "./plugin";
 import { RailgunPluginState, STATE_KEY } from "./state";
-import { JsPoiProvider, JsSigner, JsSyncer } from "./pkg/railgun_rs";
+import { derivationPaths, JsPoiProvider, JsSigner, JsSyncer } from "./pkg/railgun_rs";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { GrothProverAdapter, RemoteArtifactLoader } from "./prover-adapter";
 import { createBroadcaster } from "./waku-adapter";
@@ -14,7 +14,7 @@ export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
         throw new Error("No saved state found for Railgun plugin");
     }
 
-    const { providerState, internalSigners, chainId }: RailgunPluginState = JSON.parse(savedState);
+    const { providerState, internalSigners, keyIndex, chainId }: RailgunPluginState = JSON.parse(savedState);
     const remoteChainId = await host.provider.getChainId();
 
     if (remoteChainId !== chainId) {
@@ -23,13 +23,13 @@ export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
 
     const provider = await newRailgunProvider(host, chainId);
 
-    provider.setState(providerState);
+    const providerStateBytes = Buffer.from(providerState, 'base64');
+    provider.setState(providerStateBytes);
 
-    if (internalSigners.length === 0) {
-        throw new Error("No internal signers found in saved state");
-    }
-
-    const primary = new JsSigner(internalSigners[0]!.spendingKey, internalSigners[0]!.viewingKey, chainId);
+    const { spendingPath, viewingPath } = derivationPaths(keyIndex);
+    const spendingKey = host.keystore.deriveAt(spendingPath);
+    const viewingKey = host.keystore.deriveAt(viewingPath);
+    const primary = new JsSigner(spendingKey, viewingKey, chainId);
     const pool = new SignerPool(primary);
 
     for (const signer of internalSigners.slice(1)) {
@@ -38,7 +38,7 @@ export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
 
     const broadcastManager = await createBroadcaster(chainId);
 
-    const plugin = new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage);
+    const plugin = new RailgunPlugin(chainId, provider, pool, broadcastManager, host.storage, keyIndex);
 
     for (const signer of internalSigners) {
         plugin.addInternalSigner(signer.spendingKey, signer.viewingKey);
