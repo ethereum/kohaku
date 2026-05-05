@@ -175,6 +175,10 @@ impl Note for UtxoNote {
         self.memo.clone()
     }
 
+    fn random(&self) -> [u8; 16] {
+        self.random
+    }
+
     fn hash(&self) -> UtxoLeafHash {
         self.hash
     }

@@ -24,6 +24,10 @@ pub enum AssetId {
 }
 
 impl AssetId {
+    pub const fn erc20(addr: Address) -> Self {
+        AssetId::Erc20(addr)
+    }
+
     pub fn hash(&self) -> U256 {
         let token_data: TokenData = (*self).into();
         token_data.hash()

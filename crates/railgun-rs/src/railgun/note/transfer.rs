@@ -75,6 +75,10 @@ impl Note for TransferNote {
         self.memo.clone()
     }
 
+    fn random(&self) -> [u8; 16] {
+        self.random
+    }
+
     fn hash(&self) -> UtxoLeafHash {
         poseidon_hash(&[
             self.note_public_key(),

@@ -51,6 +51,10 @@ impl Note for UnshieldNote {
         String::new()
     }
 
+    fn random(&self) -> [u8; 16] {
+        [0u8; 16]
+    }
+
     fn hash(&self) -> UtxoLeafHash {
         poseidon_hash(&[
             self.note_public_key(),

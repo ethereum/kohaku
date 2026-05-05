@@ -358,6 +358,10 @@ impl MasterPublicKey {
             .unwrap(),
         )
     }
+
+    pub const fn from_bytes_const(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
 impl NullifyingKey {

@@ -1,6 +1,12 @@
-use alloy_primitives::{Address, ChainId, address};
+use std::str::FromStr;
 
-use crate::railgun::poi::ListKey;
+use alloy_primitives::{Address, ChainId, address, hex};
+
+use crate::{
+    caip::AssetId,
+    crypto::keys::MasterPublicKey,
+    railgun::{address::RailgunAddress, poi::ListKey},
+};
 
 /// Eip155 Chain Configurations
 #[derive(Copy, Clone, Debug)]
@@ -32,6 +38,7 @@ pub struct ChainConfig {
     /// Sourced from
     /// https://github.com/Railgun-Community/wallet/blob/3ee3364648d416aa055bb1d5f5a2c4961be00ed6/src/services/railgun/railgun-txids/graphql/index.ts#L3187
     pub subsquid_endpoint: &'static str,
+
     /// Optional POI endpoint for this chain.
     ///
     /// Originally sourced from the RAILGUN docs. It's since disappeared from

@@ -22,6 +22,8 @@ pub trait Note {
     fn value(&self) -> u128;
     fn memo(&self) -> String;
 
+    fn random(&self) -> [u8; 16];
+
     /// Commitment Hash
     fn hash(&self) -> UtxoLeafHash;
 

@@ -1,14 +1,20 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::ChainId;
+use alloy_primitives::{Address, Bytes, ChainId, U256, address};
+use alloy_rpc_types::Authorization;
+use alloy_sol_types::{SolCall, SolValue};
 use eth_rpc::EthRpcClient;
 use prover::Prover;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::error;
+use tracing::{error, info};
+use userop_kit::{
+    BundlerProvider, UserOperation, UserOperationBuilder, railgun::sign_railgun_authorization,
+};
 
 use crate::{
+    abis::railgun::RailgunSmartWallet,
     caip::AssetId,
     chain_config::{ChainConfig, get_chain_config},
     railgun::{
@@ -18,7 +24,9 @@ use crate::{
         note::{Note, utxo::UtxoNote},
         poi::{PoiProvider, PoiProviderError},
         signer::Signer,
-        transaction::{ProvedTx, ShieldBuilder, TransactionBuilder, TransactionBuilderError},
+        transaction::{
+            ProvedOperation, ProvedTx, ShieldBuilder, TransactionBuilder, TransactionBuilderError,
+        },
     },
 };
 
@@ -47,6 +55,12 @@ pub enum RailgunProviderError {
     Build(#[from] TransactionBuilderError),
     #[error("POI provider error: {0}")]
     PoiProvider(#[from] PoiProviderError),
+    #[error("Unable to construct valid note configuration for fee payment")]
+    FeeNoteNotFound,
+    #[error("Signer Error: {0}")]
+    Signer(#[from] alloy_signer::Error),
+    #[error("Bundler error: {0}")]
+    Bundler(Box<dyn std::error::Error>),
 }
 
 /// General provider functions
@@ -147,17 +161,7 @@ impl RailgunProvider {
         builder: TransactionBuilder,
         rng: &mut R,
     ) -> Result<ProvedTx, RailgunProviderError> {
-        let in_notes = self.all_unspent().await;
-        let operations = builder
-            .build(
-                self.prover.as_ref(),
-                self.chain.id,
-                &in_notes,
-                &self.utxo_indexer.utxo_trees,
-                rng,
-            )
-            .await?;
-
+        let operations = self.build_operation(builder, rng).await?;
         if let Some(poi_provider) = &mut self.poi_provider {
             poi_provider.register_ops(&operations).await;
         }
@@ -167,12 +171,87 @@ impl RailgunProvider {
     }
 
     /// Build a transaction from a transaction builder into a broadcastable 4337 UserOp.
-    pub async fn broadcast<R: Rng>(
+    pub async fn prepare_broadcast<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
+        sender: &impl alloy_signer::Signer,
+        bundler: &impl BundlerProvider,
+        fee_payer: Arc<dyn Signer>,
+        fee_recipient: RailgunAddress,
+        fee_asset: AssetId,
         rng: &mut R,
-    ) -> Result<(), RailgunProviderError> {
-        todo!()
+    ) -> Result<UserOperation, RailgunProviderError> {
+        // 7702 authorization
+        let auth = sign_railgun_authorization(sender, self.chain.id, 0).await?;
+
+        //? Initial arbitrary estimation of fee note value.
+        let mut fee_value = 100;
+
+        let max_fee_per_gas = bundler
+            .suggest_max_fee_per_gas()
+            .await
+            .map_err(|e| RailgunProviderError::Bundler(Box::new(e)))?;
+
+        let mut userop_builder = UserOperationBuilder::new_railgun(Bytes::new());
+        for _ in 0..5 {
+            let broadcast_builder = builder.clone().transfer(
+                fee_payer.clone(),
+                fee_recipient,
+                fee_asset,
+                fee_value,
+                "fee",
+            );
+            let mut operations = self.build_operation(broadcast_builder, rng).await?;
+
+            // Remove the fee note from the operations
+            let fee_note = get_fee_note(&mut operations, fee_asset, fee_value)?;
+
+            // Construct UserOp Calldata
+            let fee_calldata: Bytes = fee_note.transaction.abi_encode().into();
+
+            let tail_call = userop_kit::abis::privacy_account::IPrivacyAccount::Call {
+                target: self.chain.railgun_smart_wallet,
+                data: RailgunSmartWallet::transactCall {
+                    _transactions: operations.into_iter().map(|op| op.transaction).collect(),
+                }
+                .abi_encode()
+                .into(),
+            };
+
+            // Construct UserOperation
+            userop_builder = UserOperationBuilder::new_railgun(fee_calldata)
+                .with_tail_calls(vec![tail_call])
+                .with_authorization(auth.clone());
+
+            // Estimate gas
+            //
+            // Does need a signed 7702 authorization to set account code.
+            // Doesn't need a 4337 signature since the bundler ignores `SIG_VALIDATION_FAILED` errs
+            let estimate = bundler
+                .estimate_gas(&userop_builder.op)
+                .await
+                .map_err(|e| RailgunProviderError::Bundler(Box::new(e)))?;
+            let total_gas: u128 = estimate.sum().saturating_to();
+            let new_fee = total_gas * max_fee_per_gas;
+            let new_fee = (new_fee * 12) / 10;
+
+            let delta = new_fee.abs_diff(fee_value);
+            fee_value = new_fee;
+
+            if delta <= new_fee / 100 {
+                // 1% tolerance
+                info!("Fee converged at {}", new_fee);
+                break;
+            }
+            info!("Fee updated to {}, delta: {}", new_fee, delta);
+        }
+
+        let op = userop_builder
+            .build(sender, bundler)
+            .await
+            .map_err(|e| RailgunProviderError::Bundler(Box::new(e)))?;
+
+        Ok(op)
     }
 
     pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {
@@ -236,5 +315,42 @@ impl RailgunProvider {
         }
 
         spendable_notes
+    }
+}
+
+fn get_fee_note(
+    operations: &mut Vec<ProvedOperation>,
+    fee_asset: AssetId,
+    fee_value: u128,
+) -> Result<ProvedOperation, RailgunProviderError> {
+    let Some(fee_note_pos) = operations.iter().position(|o| {
+        o.inner
+            .out_notes()
+            .iter()
+            .any(|n| n.asset() == fee_asset && n.value() == fee_value && n.memo() == "fee")
+    }) else {
+        return Err(RailgunProviderError::FeeNoteNotFound);
+    };
+    Ok(operations.remove(fee_note_pos))
+}
+
+impl RailgunProvider {
+    async fn build_operation<R: Rng>(
+        &mut self,
+        builder: TransactionBuilder,
+        rng: &mut R,
+    ) -> Result<Vec<ProvedOperation>, RailgunProviderError> {
+        let in_notes = self.all_unspent().await;
+        let operations = builder
+            .build(
+                self.prover.as_ref(),
+                self.chain.id,
+                &in_notes,
+                &self.utxo_indexer.utxo_trees,
+                rng,
+            )
+            .await?;
+
+        Ok(operations)
     }
 }
