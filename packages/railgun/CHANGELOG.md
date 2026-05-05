@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.14
+
+### Patch Changes
+
+- b159774: fix: invalid string length
+
 ## 0.0.1-alpha.13
 
 ### Patch Changes
