@@ -21,7 +21,8 @@ runs:
 
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
-      version: v1.4.4
+      with:
+        version: v1.4.4
 
     # wasm-pack 0.14 still bundles Binaryen 117, which cannot parse current Rust +
     # wasm-bindgen wasm. Nix devShell puts newer binaryen on PATH; CI needs the same.
