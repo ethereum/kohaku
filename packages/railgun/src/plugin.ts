@@ -336,7 +336,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     private async saveState() {
         const state: RailgunPluginState = {
-            providerState: this.provider.state(),
+            providerState: Buffer.from(this.provider.state()).toString('base64'),
             internalSigners: this.pool.internalKeys(),
             chainId: this.chainId,
             version: '0.1.0',
