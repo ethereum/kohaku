@@ -112,7 +112,7 @@ export async function createRailgunPlugin(host: Host, keyIndex: number = 0, chai
     const pool = new SignerPool(signer);
     const broadcastManager = await createBroadcaster(resolvedChainId);
 
-    return new RailgunPlugin(resolvedChainId, provider, pool, broadcastManager, host.storage);
+    return new RailgunPlugin(resolvedChainId, provider, pool, broadcastManager, host.storage, keyIndex);
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
@@ -121,7 +121,8 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         private provider: JsPoiProvider,
         private pool: SignerPool,
         private broadcasterManager: JsBroadcasterManager,
-        private storage: Storage
+        private storage: Storage,
+        private keyIndex: number,
     ) {
         this.pool.registerAll(provider)
     }
@@ -339,9 +340,9 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             providerState: Buffer.from(this.provider.state()).toString('base64'),
             internalSigners: this.pool.internalKeys(),
             chainId: this.chainId,
+            keyIndex: this.keyIndex,
             version: '0.1.0',
         };
-
         this.storage.set(STATE_KEY, JSON.stringify(state));
     }
 
