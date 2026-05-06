@@ -1,16 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::{Address, Bytes, ChainId, U256, address};
-use alloy_rpc_types::Authorization;
-use alloy_sol_types::{SolCall, SolValue};
-use eth_rpc::EthRpcClient;
+use alloy_primitives::{Address, B128, Bytes, ChainId, U256};
+use alloy_sol_types::SolCall;
+use eth_rpc::{EthRpcClient, EthRpcClientError};
 use prover::Prover;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{error, info};
 use userop_kit::{
-    BundlerProvider, UserOperation, UserOperationBuilder, railgun::sign_railgun_authorization,
+    BundlerError, BundlerProvider, UserOperation, UserOperationBuilder,
+    railgun::sign_railgun_authorization,
 };
 
 use crate::{
@@ -60,7 +60,9 @@ pub enum RailgunProviderError {
     #[error("Signer Error: {0}")]
     Signer(#[from] alloy_signer::Error),
     #[error("Bundler error: {0}")]
-    Bundler(Box<dyn std::error::Error>),
+    Bundler(#[from] BundlerError),
+    #[error("RPC error: {0}")]
+    Rpc(#[from] EthRpcClientError),
 }
 
 /// General provider functions
@@ -174,25 +176,41 @@ impl RailgunProvider {
     pub async fn prepare_broadcast<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
+        provider: &impl EthRpcClient,
         sender: &impl alloy_signer::Signer,
         bundler: &impl BundlerProvider,
         fee_payer: Arc<dyn Signer>,
         fee_recipient: RailgunAddress,
-        fee_asset: AssetId,
+        fee_token: Address,
         rng: &mut R,
     ) -> Result<UserOperation, RailgunProviderError> {
+        let fee_asset = AssetId::Erc20(fee_token);
+
         // 7702 authorization
-        let auth = sign_railgun_authorization(sender, self.chain.id, 0).await?;
+        let nonce = provider
+            .get_transaction_count(sender.address(), None)
+            .await?;
+        info!(
+            "Signing 7702 authorization for sender: {:?}, nonce: {}",
+            sender.address(),
+            nonce
+        );
+        let auth = sign_railgun_authorization(sender, self.chain.id, nonce).await?;
 
         //? Initial arbitrary estimation of fee note value.
-        let mut fee_value = 100;
+        //? IMPORTANT: Needs to be high enough to not cause a revert. Most
+        //? bundlers seem to use a fixed maxCost value for estimation (IE 27_000_000
+        //? for pimlico). Setting this too low causes an unrecoverable estimation
+        //? failure.
+        let mut fee_value = 100_000_000;
 
-        let max_fee_per_gas = bundler
-            .suggest_max_fee_per_gas()
-            .await
-            .map_err(|e| RailgunProviderError::Bundler(Box::new(e)))?;
+        info!("Fetching max fee per gas from bundler");
+        let max_fee_per_gas = bundler.suggest_max_fee_per_gas().await?;
 
-        let mut userop_builder = UserOperationBuilder::new_railgun(Bytes::new());
+        info!("Iteratively building UserOperation to converge on accurate fee estimate");
+        let mut userop_builder =
+            UserOperationBuilder::new_railgun(Bytes::new(), B128::ZERO, Address::ZERO, 0);
+
         for _ in 0..5 {
             let broadcast_builder = builder.clone().transfer(
                 fee_payer.clone(),
@@ -201,14 +219,24 @@ impl RailgunProvider {
                 fee_value,
                 "fee",
             );
+            info!(
+                "Building broadcast transaction with fee value: {}",
+                fee_value
+            );
             let mut operations = self.build_operation(broadcast_builder, rng).await?;
 
             // Remove the fee note from the operations
-            let fee_note = get_fee_note(&mut operations, fee_asset, fee_value)?;
+            let fee_operation = take_fee_operation(&mut operations, fee_asset, fee_value)?;
+            let fee_note = get_fee_note(&fee_operation, fee_asset, fee_value)?;
 
             // Construct UserOp Calldata
-            let fee_calldata: Bytes = fee_note.transaction.abi_encode().into();
+            let fee_calldata: Bytes = RailgunSmartWallet::transactCall {
+                _transactions: vec![fee_operation.transaction],
+            }
+            .abi_encode()
+            .into();
 
+            // TODO: Consider removing tail calls if there are no additional operations.
             let tail_call = userop_kit::abis::privacy_account::IPrivacyAccount::Call {
                 target: self.chain.railgun_smart_wallet,
                 data: RailgunSmartWallet::transactCall {
@@ -219,18 +247,23 @@ impl RailgunProvider {
             };
 
             // Construct UserOperation
-            userop_builder = UserOperationBuilder::new_railgun(fee_calldata)
-                .with_tail_calls(vec![tail_call])
-                .with_authorization(auth.clone());
+            userop_builder = UserOperationBuilder::new_railgun(
+                fee_calldata.clone(),
+                fee_note.random().into(),
+                fee_token,
+                fee_value,
+            )
+            .with_sender(sender.address())
+            .with_nonce(U256::from(nonce))
+            .with_tail_calls(vec![tail_call])
+            .with_authorization(auth.clone());
 
             // Estimate gas
             //
             // Does need a signed 7702 authorization to set account code.
-            // Doesn't need a 4337 signature since the bundler ignores `SIG_VALIDATION_FAILED` errs
-            let estimate = bundler
-                .estimate_gas(&userop_builder.op)
-                .await
-                .map_err(|e| RailgunProviderError::Bundler(Box::new(e)))?;
+            // Doesn't need a 4337 signature since the bundler ignores `SIG_VALIDATION_FAILED`
+            info!("Estimating gas for UserOperation");
+            let estimate = bundler.estimate_gas(&userop_builder.op).await?;
             let total_gas: u128 = estimate.sum().saturating_to();
             let new_fee = total_gas * max_fee_per_gas;
             let new_fee = (new_fee * 12) / 10;
@@ -246,11 +279,7 @@ impl RailgunProvider {
             info!("Fee updated to {}, delta: {}", new_fee, delta);
         }
 
-        let op = userop_builder
-            .build(sender, bundler)
-            .await
-            .map_err(|e| RailgunProviderError::Bundler(Box::new(e)))?;
-
+        let op = userop_builder.build(sender, bundler).await?;
         Ok(op)
     }
 
@@ -318,7 +347,8 @@ impl RailgunProvider {
     }
 }
 
-fn get_fee_note(
+/// Takes the operation containing the fee note, removing it from the provided operations vector.
+fn take_fee_operation(
     operations: &mut Vec<ProvedOperation>,
     fee_asset: AssetId,
     fee_value: u128,
@@ -327,11 +357,29 @@ fn get_fee_note(
         o.inner
             .out_notes()
             .iter()
-            .any(|n| n.asset() == fee_asset && n.value() == fee_value && n.memo() == "fee")
+            .any(|n| is_fee_note(n, fee_asset, fee_value))
     }) else {
         return Err(RailgunProviderError::FeeNoteNotFound);
     };
     Ok(operations.remove(fee_note_pos))
+}
+
+/// Gets the fee note from the operation
+fn get_fee_note(
+    operation: &ProvedOperation,
+    fee_asset: AssetId,
+    fee_value: u128,
+) -> Result<Box<dyn Note>, RailgunProviderError> {
+    operation
+        .inner
+        .out_notes()
+        .into_iter()
+        .find(|n| is_fee_note(n, fee_asset, fee_value))
+        .ok_or(RailgunProviderError::FeeNoteNotFound)
+}
+
+fn is_fee_note(note: &Box<dyn Note>, fee_asset: AssetId, fee_value: u128) -> bool {
+    note.asset() == fee_asset && note.value() == fee_value && note.memo() == "fee"
 }
 
 impl RailgunProvider {

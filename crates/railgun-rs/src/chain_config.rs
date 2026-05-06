@@ -1,12 +1,6 @@
-use std::str::FromStr;
+use alloy_primitives::{Address, ChainId, address};
 
-use alloy_primitives::{Address, ChainId, address, hex};
-
-use crate::{
-    caip::AssetId,
-    crypto::keys::MasterPublicKey,
-    railgun::{address::RailgunAddress, poi::ListKey},
-};
+use crate::railgun::poi::ListKey;
 
 /// Eip155 Chain Configurations
 #[derive(Copy, Clone, Debug)]

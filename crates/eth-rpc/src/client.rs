@@ -29,6 +29,12 @@ pub trait EthRpcClient: MaybeSend {
     ) -> Result<u64, EthRpcClientError>;
 
     async fn get_gas_price(&self) -> Result<u128, EthRpcClientError>;
+
+    async fn get_transaction_count(
+        &self,
+        address: Address,
+        block: Option<u64>,
+    ) -> Result<u64, EthRpcClientError>;
 }
 
 #[derive(Debug, Error)]

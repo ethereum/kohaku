@@ -347,6 +347,12 @@ impl SharedKey {
     }
 }
 
+impl ViewingPublicKey {
+    pub const fn from_bytes_const(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
 impl MasterPublicKey {
     pub fn new(spending_pubkey: SpendingPublicKey, nullifying_key: NullifyingKey) -> Self {
         MasterPublicKey::from_u256(

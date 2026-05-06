@@ -1,4 +1,5 @@
 use alloy::{
+    eips::BlockId,
     network::TransactionBuilder,
     providers::Provider,
     rpc::types::{Filter, TransactionRequest},
@@ -72,6 +73,22 @@ impl<P: Provider> EthRpcClient for P {
 
     async fn get_gas_price(&self) -> Result<u128, EthRpcClientError> {
         Ok(self.get_gas_price().await?)
+    }
+
+    async fn get_transaction_count(
+        &self,
+        address: Address,
+        block: Option<u64>,
+    ) -> Result<u64, EthRpcClientError> {
+        let block_id = match block {
+            Some(b) => BlockId::number(b),
+            None => BlockId::latest(),
+        };
+
+        Ok(self
+            .get_transaction_count(address)
+            .block_id(block_id)
+            .await?)
     }
 }
 

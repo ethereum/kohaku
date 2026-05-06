@@ -26,41 +26,41 @@ snapshot:
 
 # Release enabled for integration tests since the txid syncing is *very* slow in 
 # debug mode.
-integration: integration-sync-utxo integration-transact integration-sync-txid integration-transact-poi
+integration: integration-sync-utxo integration-transact-utxo integration-sync-txid integration-transact-poi
 
 integration-sync-utxo:
     RUST_LOG=info cargo test --profile release-test --no-default-features -- test_sync_utxo --ignored --nocapture
 
-integration-transact:
-    #!/usr/bin/env bash
-    set -euo pipefail
+integration-transact-utxo:
+    # #!/usr/bin/env bash
+    # set -euo pipefail
 
-    # Start anvil in background
-    anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --load-state ./tests/fixtures/state.json &
-    ANVIL_PID=$!
-    trap "kill $ANVIL_PID" EXIT
+    # # Start anvil in background
+    # anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --load-state ./tests/fixtures/state.json &
+    # ANVIL_PID=$!
+    # trap "kill $ANVIL_PID" EXIT
 
-    # Wait for anvil to be ready
-    sleep 2
+    # # Wait for anvil to be ready
+    # sleep 2
 
     RUST_LOG=info cargo test --profile release-test -- test_transact_utxo --ignored --nocapture
+
+integration-broadcast-utxo:
+    # #!/usr/bin/env bash
+    # set -euo pipefail
+
+    # # Start anvil in background
+    # anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --load-state ./tests/fixtures/state.json &
+    # ANVIL_PID=$!
+    # trap "kill $ANVIL_PID" EXIT
+
+    # # Wait for anvil to be ready
+    # sleep 2
+
+    RUST_LOG=info cargo test --profile release-test -- test_broadcast_utxo --ignored --nocapture
 
 integration-sync-txid:
     RUST_LOG=info cargo test --profile release-test -- test_sync_txid --ignored --nocapture
 
 integration-transact-poi:
     RUST_LOG=info cargo test --profile release-test -- test_transact_poi --ignored --nocapture
-
-integration-snapshot:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    # Start anvil in background
-    anvil --fork-url {{fork_url_sepolia}} --fork-block-number 10682300 --port 8545 &
-    ANVIL_PID=$!
-    trap "kill $ANVIL_PID" EXIT
-
-    # Wait for anvil to be ready
-    sleep 2
-
-    RUST_LOG=info cargo test --profile release-test -- snapshot --ignored --nocapture
