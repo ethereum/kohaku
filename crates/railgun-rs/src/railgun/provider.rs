@@ -263,7 +263,7 @@ impl RailgunProvider {
             // Does need a signed 7702 authorization to set account code.
             // Doesn't need a 4337 signature since the bundler ignores `SIG_VALIDATION_FAILED`
             info!("Estimating gas for UserOperation");
-            let estimate = bundler.estimate_gas(&userop_builder.op).await?;
+            let (estimate, _, _) = userop_builder.estimate_gas(bundler).await?;
             let total_gas: u128 = estimate.sum().saturating_to();
             let new_fee = total_gas * max_fee_per_gas;
             let new_fee = (new_fee * 12) / 10;
