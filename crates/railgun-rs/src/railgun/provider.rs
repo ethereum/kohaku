@@ -279,6 +279,12 @@ impl RailgunProvider {
             info!("Fee updated to {}, delta: {}", new_fee, delta);
         }
 
+        // The bundler binary-searches to the exact minimum call_gas_limit with
+        // no margin. The Railgun smart wallet is a proxy, so the execution
+        // path has an extra CALL level subject to the 63/64 EVM stipend rule.
+        // Add 20% headroom so the implementation doesn't sporadically OOG.
+        userop_builder.op.call_gas_limit = userop_builder.op.call_gas_limit * 12 / 10;
+
         let op = userop_builder.build(sender, bundler).await?;
         Ok(op)
     }

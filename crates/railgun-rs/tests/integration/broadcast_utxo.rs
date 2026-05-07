@@ -100,7 +100,7 @@ async fn test_broadcast_utxo() {
 
     for tx in shield_tx {
         info!("Sending shielding transaction");
-        info!(" Calldata: 0x{}", tx.data);
+        // info!(" Calldata: 0x{}", tx.data);
         provider
             .send_transaction(tx.into())
             .await
