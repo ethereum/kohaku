@@ -2,8 +2,11 @@
 //!
 //! https://github.com/Railgun-Privacy/contract/blob/9ec09123eb140fdaaf3a5ff1f29d634c353630cd/contracts/logic/Globals.sol
 
-use alloy_primitives::{Address, ChainId, FixedBytes, aliases::U72, utils::keccak256_cached};
-use alloy_sol_types::{SolValue, sol};
+use alloy::{
+    primitives::{Address, ChainId, FixedBytes, aliases::U72, utils::keccak256_cached},
+    sol,
+    sol_types::SolValue,
+};
 use prover::Proof;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
@@ -298,7 +301,7 @@ sol! {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{Bytes, FixedBytes, address};
+    use alloy::primitives::{Bytes, FixedBytes, address};
     use ruint::uint;
     use tracing_test::traced_test;
 

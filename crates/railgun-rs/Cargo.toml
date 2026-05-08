@@ -7,18 +7,15 @@ edition = "2024"
 wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 aes = { workspace = true }
 aes-gcm = { workspace = true }
-alloy-primitives = { workspace = true }
-alloy-rpc-types = { workspace = true }
-alloy-serde = { workspace = true }
-alloy-sol-types = { workspace = true }
-alloy-signer = { workspace = true }
+alloy = { workspace = true }
 ark-bn254 = { workspace = true }
 ark-ff = { workspace = true }
+ark-serialize = { workspace = true }
 ark-std = { workspace = true }
 async-trait = { workspace = true }
 bech32 = { workspace = true }
@@ -45,13 +42,14 @@ web-time = { workspace = true }
 userop_kit = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-alloy = { workspace = true }
 ark-circom = { workspace = true }
 ark-groth16 = { workspace = true }
 ark-relations = { workspace = true }
 tokio = { workspace = true }
 wasmer = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls"] }
+clap = { version = "4", features = ["derive"] }
+tracing-subscriber = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 reqwest = { workspace = true, features = ["json"] }
@@ -69,8 +67,16 @@ wasm-bindgen-futures = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 serial_test = { workspace = true }
-tracing-subscriber = { workspace = true }
 tracing-test = { workspace = true }
+alloy = { workspace = true, default-features = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-criterion = { workspace = true }
+criterion = { workspace = true, features = ["async_tokio"] }
+
+[[bench]]
+name = "groth16"
+harness = false
+
+[[bin]]
+name = "main"
+path = "bin/main.rs"

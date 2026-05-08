@@ -1,5 +1,7 @@
-use alloy_primitives::{Address, Bytes, FixedBytes, Log};
-use alloy_sol_types::SolCall;
+use alloy::{
+    primitives::{Address, Bytes, FixedBytes, Log},
+    sol_types::SolCall,
+};
 use common::MaybeSend;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, FixedBytes};
+use alloy::primitives::{Address, Bytes, FixedBytes};
 use js_sys::BigInt;
 use wasm_bindgen::prelude::*;
 
@@ -132,6 +132,14 @@ impl EthRpcClient for JsEthRpcAdapter {
             .await
             .map_err(|e| EthRpcClientError::Rpc(format!("{:?}", e)))?;
         js_bigint_to_u128(result)
+    }
+
+    async fn get_transaction_count(
+        &self,
+        _address: Address,
+        _block: Option<u64>,
+    ) -> Result<u64, EthRpcClientError> {
+        unimplemented!("get_transaction_count is not implemented in the WASM RPC client");
     }
 }
 

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use alloy_primitives::{Address, address};
+use alloy::primitives::{Address, address};
 use serde::{Deserialize, Serialize};
 
 use crate::note::Note;

@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::{Address, B128, Bytes, ChainId, U256};
-use alloy_sol_types::SolCall;
+use alloy::{
+    primitives::{Address, B128, Bytes, ChainId, U256},
+    sol_types::SolCall,
+};
 use eth_rpc::{EthRpcClient, EthRpcClientError};
 use prover::Prover;
 use rand::Rng;
@@ -58,7 +60,7 @@ pub enum RailgunProviderError {
     #[error("Unable to construct valid note configuration for fee payment")]
     FeeNoteNotFound,
     #[error("Signer Error: {0}")]
-    Signer(#[from] alloy_signer::Error),
+    Signer(#[from] alloy::signers::Error),
     #[error("Bundler error: {0}")]
     Bundler(#[from] BundlerError),
     #[error("RPC error: {0}")]
@@ -177,7 +179,7 @@ impl RailgunProvider {
         &mut self,
         builder: TransactionBuilder,
         provider: &impl EthRpcClient,
-        sender: &impl alloy_signer::Signer,
+        sender: &impl alloy::signers::Signer,
         bundler: &impl BundlerProvider,
         fee_payer: Arc<dyn Signer>,
         fee_recipient: RailgunAddress,

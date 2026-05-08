@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use request::{HttpClient, HttpError, ResponseExt};
 use thiserror::Error;
 

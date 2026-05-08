@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::U256;
+use alloy::primitives::U256;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 

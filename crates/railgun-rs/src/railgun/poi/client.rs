@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use alloy_primitives::ChainId;
+use alloy::primitives::ChainId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ark_bn254::{Bn254, Fr};
 use ark_circom::CircomReduction;
-use ark_ff::BigInt;
+use ark_ff::{BigInt, PrimeField};
 use ark_groth16::{Groth16, prepare_verifying_key};
 use ark_std::rand::random;
 use prover::{Prover, ProverError};
@@ -66,7 +66,7 @@ impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
             &pk,
             random(),
             random(),
-            &matrices,
+            &[matrices.a, matrices.b],
             matrices.num_instance_variables,
             matrices.num_constraints,
             &witnesses,
@@ -88,7 +88,7 @@ impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
 
         let public_inputs = public_inputs
             .iter()
-            .map(|x| BigInt::from(*x).into())
+            .map(|x| x.into_bigint().into())
             .collect();
 
         info!("Proof verified successfully");

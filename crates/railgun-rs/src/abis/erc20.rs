@@ -1,7 +1,4 @@
-#[cfg(not(target_arch = "wasm32"))]
 use alloy::sol;
-#[cfg(target_arch = "wasm32")]
-use alloy_sol_types::sol;
 
 #[cfg(not(target_arch = "wasm32"))]
 sol! {

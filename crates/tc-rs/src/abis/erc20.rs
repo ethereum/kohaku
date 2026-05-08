@@ -1,4 +1,4 @@
-use alloy_sol_types::sol;
+use alloy::sol;
 
 sol! {
     // ERC20 interface

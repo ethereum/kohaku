@@ -15,24 +15,25 @@ resolver = "3"
 pedantic = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
-aes = "0.8.4"
-aes-gcm = "0.10.3"
-alloy = "1.5"
-alloy-primitives = { version = "1.5", default-features = false, features = [
-    "std",
+aes = "0.8"
+aes-gcm = "0.10"
+alloy = { version = "1.8", default-features = false, features = [
     "serde",
+    "eips",
+    "signers",
+    "signer-local",
+    "sol-types",
+    "rpc-types",
+    "contract",
+    "providers",
 ] }
-alloy-rpc-types = "1.5"
-alloy-sol-types = "1.5"
-alloy-serde = "1.5"
-alloy-signer = "1.5"
-ark-bn254 = "0.5.0"
-ark-circom = "0.5.0"
-ark-ff = "0.5.0"
-ark-groth16 = "0.5.0"
-ark-relations = "0.5.1"
-ark-serialize = "0.5.0"
-ark-std = "0.5.0"
+ark-bn254 = "0.6"
+ark-circom = "0.6"
+ark-ff = "0.6"
+ark-groth16 = "0.6"
+ark-relations = "0.6"
+ark-serialize = "0.6"
+ark-std = { version = "0.6", features = ["getrandom"] }
 async-trait = "0.1.89"
 bech32 = "0.11.1"
 blake-hash = { version = "0.2.0", default-features = false }
@@ -61,8 +62,8 @@ rand = "0.9.2"
 rand_chacha = "0.9.0"
 request = { path = "./crates/request" }
 reqwest = { version = "0.13", default-features = false }
-ruint = "1.17.2"
-serde = "1"
+ruint = { version = "1", features = ["serde", "num-bigint", "ark-ff-06"] }
+serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 serde_json = "1.0.149"
 serde_with = "3.16.1"
@@ -77,18 +78,16 @@ tracing-wasm = "0.2"
 tsify = "0.5"
 wasm-bindgen = "0.2.108"
 wasm-bindgen-futures = "0.4"
-wasmer = "4.4.0"
-web-time = "1.1.0"
+wasmer = "6.1"
+web-time = { version = "1.1", features = ["serde"] }
 # userop_kit = { git = "https://github.com/Robert-MacWha/privacy-paymaster" }
 userop_kit = { path = "../privacy-paymaster/crates/userop_kit" }
+
+[patch.crates-io]
+ruint = { git = "https://github.com/Robert-MacWha/ruint" } # Adds ark-fr-06 support
 
 [profile.release]
 opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
-
-[profile.release-test]
-inherits = "test"
-opt-level = 2
-codegen-units = 12

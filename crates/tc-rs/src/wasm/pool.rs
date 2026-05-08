@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 

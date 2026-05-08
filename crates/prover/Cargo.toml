@@ -11,7 +11,7 @@ ark-ff = { workspace = true }
 async-trait = { workspace = true }
 common = { workspace = true }
 ruint = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 
 thiserror = { workspace = true }

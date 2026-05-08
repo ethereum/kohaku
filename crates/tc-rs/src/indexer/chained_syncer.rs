@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 
 use crate::indexer::{Commitment, Nullifier, Syncer, SyncerError};
 

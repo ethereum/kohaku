@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy_sol_types::SolEvent;
+use alloy::sol_types::SolEvent;
 use eth_rpc::{EthRpcClient, EthRpcClientError, RawLog};
 use tracing::{info, warn};
 
@@ -25,7 +25,7 @@ pub struct RpcSyncer {
 #[derive(Debug, thiserror::Error)]
 pub enum RpcSyncerError {
     #[error("Error decoding log: {0}")]
-    LogDecodeError(#[from] alloy_sol_types::Error),
+    LogDecodeError(#[from] alloy::sol_types::Error),
     #[error("Error parsing log: {0}")]
     LogParseError(String),
     #[error("RPC error: {0}")]

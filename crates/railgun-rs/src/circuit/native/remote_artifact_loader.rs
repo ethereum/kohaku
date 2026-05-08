@@ -1,11 +1,14 @@
 use std::io::Cursor;
 
 use ark_bn254::{Bn254, Fr};
-use ark_circom::read_zkey;
+use ark_circom::index::NPIndex;
 use ark_groth16::ProvingKey;
-use ark_relations::r1cs::ConstraintMatrices;
+use ark_serialize::CanonicalDeserialize;
+use tracing::info;
 
-use crate::circuit::artifact_loader::ArtifactLoader;
+use crate::{
+    circuit::artifact_loader::ArtifactLoader, crypto::serializable_np_index::SerializableNpIndex,
+};
 
 #[derive(Clone)]
 pub struct RemoteArtifactLoader {
@@ -20,28 +23,12 @@ impl RemoteArtifactLoader {
             client: reqwest::Client::new(),
         }
     }
-
-    async fn fetch_zkey(
-        &self,
-        circuit_name: &str,
-    ) -> Result<(ProvingKey<Bn254>, ConstraintMatrices<Fr>), String> {
-        let url = format!("{}/{}.zkey", self.base_url, circuit_name);
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-        let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
-        let mut cursor = Cursor::new(bytes);
-        let (pk, matrices) = read_zkey(&mut cursor).map_err(|e| e.to_string())?;
-        Ok((pk, matrices))
-    }
 }
 
 #[async_trait::async_trait]
 impl ArtifactLoader for RemoteArtifactLoader {
     async fn load_wasm(&self, circuit_name: &str) -> Result<Vec<u8>, String> {
+        info!("Downloading WASM");
         let url = format!("{}/{}.wasm", self.base_url, circuit_name);
         let resp = self
             .client
@@ -54,12 +41,36 @@ impl ArtifactLoader for RemoteArtifactLoader {
     }
 
     async fn load_proving_key(&self, circuit_name: &str) -> Result<ProvingKey<Bn254>, String> {
-        let (pk, _) = self.fetch_zkey(circuit_name).await?;
+        info!("Downloading proving key");
+        let url = format!("{}/{}_proving_key.bin", self.base_url, circuit_name);
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+        let pk = ProvingKey::<Bn254>::deserialize_uncompressed_unchecked(Cursor::new(bytes))
+            .map_err(|e| e.to_string())?;
+
         Ok(pk)
     }
 
-    async fn load_matrices(&self, circuit_name: &str) -> Result<ConstraintMatrices<Fr>, String> {
-        let (_, matrices) = self.fetch_zkey(circuit_name).await?;
-        Ok(matrices)
+    async fn load_matrices(&self, circuit_name: &str) -> Result<NPIndex<Fr>, String> {
+        info!("Downloading matrices");
+        let url = format!("{}/{}_matrices.bin", self.base_url, circuit_name);
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+
+        let matrices =
+            SerializableNpIndex::<Fr>::deserialize_uncompressed_unchecked(Cursor::new(bytes))
+                .map_err(|e| e.to_string())?;
+
+        Ok(matrices.into())
     }
 }

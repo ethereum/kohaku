@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy_primitives::{Address, U256};
+use alloy::primitives::{Address, U256};
 use eth_rpc::{EthRpcClient, eth_call_sol};
 
 use crate::{

@@ -1,5 +1,5 @@
-use alloy_primitives::{Address, FixedBytes, TxHash};
-use alloy_sol_types::SolEvent;
+use alloy::primitives::{Address, FixedBytes, TxHash};
+use alloy::sol_types::SolEvent;
 use eth_rpc::RawLog;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

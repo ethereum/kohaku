@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use alloy_primitives::{Address, Bytes};
-use alloy_sol_types::SolCall;
+use alloy::primitives::{Address, Bytes};
+use alloy::sol_types::SolCall;
 use eth_rpc::TxData;
 use prover::{Proof, Prover};
 use rand::RngCore;

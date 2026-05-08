@@ -2,9 +2,9 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy::{
     network::Ethereum,
+    primitives::fixed_bytes,
     providers::{Provider, ProviderBuilder},
 };
-use alloy_primitives::fixed_bytes;
 use railgun_rs::{
     RailgunProvider,
     caip::AssetId,
@@ -71,7 +71,7 @@ async fn test_broadcast_utxo() {
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
     )));
 
-    let provider_state = std::fs::read("./tests/fixtures/provider_state.json").unwrap();
+    let provider_state = std::fs::read("./tests/fixtures/broadcast_state.json").unwrap();
     let railgun_state = serde_json::from_slice(&provider_state).unwrap();
     let rpc_syncer = Arc::new(RpcSyncer::new(provider.clone(), CHAIN).with_batch_size(100000));
     let mut railgun = RailgunProvider::new(CHAIN, provider.clone(), rpc_syncer, prover);

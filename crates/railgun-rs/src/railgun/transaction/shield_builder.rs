@@ -1,7 +1,6 @@
-use alloy_sol_types::SolCall;
+use alloy::{primitives::U256, sol_types::SolCall};
 use eth_rpc::TxData;
 use rand::Rng;
-use ruint::aliases::U256;
 use thiserror::Error;
 
 use crate::{
@@ -132,7 +131,7 @@ impl ShieldBuilder {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::Address;
+    use alloy::primitives::Address;
     use rand::SeedableRng;
     use rand_chacha::ChaChaRng;
 

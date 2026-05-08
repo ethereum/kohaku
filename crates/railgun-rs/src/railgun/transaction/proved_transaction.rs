@@ -1,5 +1,7 @@
-use alloy_primitives::{Address, U256};
-use alloy_sol_types::SolCall;
+use alloy::{
+    primitives::{Address, U256},
+    sol_types::SolCall,
+};
 use eth_rpc::TxData;
 
 use crate::{

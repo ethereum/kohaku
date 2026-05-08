@@ -3,6 +3,8 @@ pub mod keys;
 pub mod railgun_base_37;
 pub mod railgun_txid;
 pub mod railgun_zero;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod serializable_np_index;
 
 pub fn concat_arrays<const A: usize, const B: usize, const C: usize>(
     a: &[u8; A],

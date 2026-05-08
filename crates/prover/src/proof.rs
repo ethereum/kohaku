@@ -41,24 +41,26 @@ pub struct G2Affine {
 #[cfg(not(target_arch = "wasm32"))]
 impl From<ark_groth16::Proof<ark_bn254::Bn254>> for Proof {
     fn from(proof: ark_groth16::Proof<ark_bn254::Bn254>) -> Self {
+        use ark_ff::PrimeField;
+
         Proof {
             a: G1Affine {
-                x: ark_ff::BigInt::from(proof.a.x).into(),
-                y: ark_ff::BigInt::from(proof.a.y).into(),
+                x: proof.a.x.into_bigint().into(),
+                y: proof.a.y.into_bigint().into(),
             },
             b: G2Affine {
                 x: [
-                    ark_ff::BigInt::from(proof.b.x.c0).into(),
-                    ark_ff::BigInt::from(proof.b.x.c1).into(),
+                    proof.b.x.c0.into_bigint().into(),
+                    proof.b.x.c1.into_bigint().into(),
                 ],
                 y: [
-                    ark_ff::BigInt::from(proof.b.y.c0).into(),
-                    ark_ff::BigInt::from(proof.b.y.c1).into(),
+                    proof.b.y.c0.into_bigint().into(),
+                    proof.b.y.c1.into_bigint().into(),
                 ],
             },
             c: G1Affine {
-                x: ark_ff::BigInt::from(proof.c.x).into(),
-                y: ark_ff::BigInt::from(proof.c.y).into(),
+                x: proof.c.x.into_bigint().into(),
+                y: proof.c.y.into_bigint().into(),
             },
         }
     }

@@ -1,4 +1,4 @@
-use alloy_primitives::FixedBytes;
+use alloy::primitives::FixedBytes;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

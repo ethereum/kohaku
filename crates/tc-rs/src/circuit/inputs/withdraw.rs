@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use crypto::merkle_tree::MerkleTreeError;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};

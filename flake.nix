@@ -25,7 +25,7 @@
           overlays = [ rust-overlay.overlays.default ];
         };
 
-        rustToolchain = pkgs.rust-bin.stable."1.88.0".default.override {
+        rustToolchain = pkgs.rust-bin.stable."1.93.0".default.override {
           extensions = [
             "rust-src"
             "llvm-tools"
@@ -62,6 +62,7 @@
               # pkgs.cargo-insta
               # pkgs.cargo-sort
               # pkgs.cargo-llvm-cov
+              # pkgs.cargo-flamegraph
 
               pkgs.sops
             ];

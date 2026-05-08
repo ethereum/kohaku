@@ -1,11 +1,11 @@
 use alloy::{
     eips::BlockId,
     network::TransactionBuilder,
+    primitives::{Address, Bytes, FixedBytes},
     providers::Provider,
     rpc::types::{Filter, TransactionRequest},
     transports::{RpcError, TransportErrorKind},
 };
-use alloy_primitives::{Address, Bytes, FixedBytes};
 
 use crate::{EthRpcClient, EthRpcClientError, RawLog};
 

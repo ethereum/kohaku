@@ -4,15 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
-alloy-primitives = { workspace = true }
-alloy-sol-types = { workspace = true }
+alloy = { workspace = true, features = ["network", "providers"] }
 async-trait = { workspace = true }
 common = { workspace = true }
 hex = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true }
 thiserror = { workspace = true }
 tsify = { workspace = true }
 

@@ -1,6 +1,6 @@
 use std::{fmt::Display, str::FromStr};
 
-use alloy_primitives::{Address, U256, Uint};
+use alloy::primitives::{Address, U256, Uint};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

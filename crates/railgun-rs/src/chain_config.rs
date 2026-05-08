@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, ChainId, address};
+use alloy::primitives::{Address, ChainId, address};
 
 use crate::railgun::poi::ListKey;
 

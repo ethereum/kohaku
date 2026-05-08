@@ -19,7 +19,7 @@ use std::{
     sync::Arc,
 };
 
-use alloy_primitives::{Address, U256};
+use alloy::primitives::{Address, U256};
 use prover::{Prover, ProverError};
 use rand::Rng;
 use thiserror::Error;

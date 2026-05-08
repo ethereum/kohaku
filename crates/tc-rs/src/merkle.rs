@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use alloy_primitives::utils::keccak256_cached;
+use alloy::primitives::utils::keccak256_cached;
 use ark_bn254::Fr;
 use ark_ff::{BigInt, PrimeField};
 use crypto::{merkle_tree::MerkleConfig, mimc_sponge_hash};

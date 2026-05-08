@@ -235,7 +235,7 @@ pub fn test_note() -> UtxoNote {
         1,
         0,
         signer,
-        AssetId::Erc20(alloy_primitives::address!(
+        AssetId::Erc20(alloy::primitives::address!(
             "0x1234567890123456789012345678901234567890"
         )),
         100u128,

@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use crypto::merkle_tree::MerkleRoot;
 use thiserror::Error;
 

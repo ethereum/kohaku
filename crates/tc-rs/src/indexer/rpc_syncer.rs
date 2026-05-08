@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use alloy_primitives::Address;
-use alloy_sol_types::SolEvent;
+use alloy::primitives::Address;
+use alloy::sol_types::SolEvent;
 use eth_rpc::{EthRpcClient, eth_call_sol};
 use ruint::aliases::U256;
 use tracing::{info, warn};

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::ChainId;
+use alloy::primitives::ChainId;
 use prover::Prover;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

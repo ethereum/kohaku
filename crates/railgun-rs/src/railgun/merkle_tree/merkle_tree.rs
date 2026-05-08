@@ -1,4 +1,4 @@
-use alloy_primitives::utils::keccak256_cached;
+use alloy::primitives::utils::keccak256_cached;
 use crypto::{merkle_tree::MerkleConfig, poseidon_hash};
 use ruint::aliases::U256;
 

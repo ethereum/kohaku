@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, FixedBytes};
+use alloy::primitives::{Address, Bytes, FixedBytes};
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 

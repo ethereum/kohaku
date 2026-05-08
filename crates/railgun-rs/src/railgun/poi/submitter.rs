@@ -4,7 +4,7 @@ use prover::{Prover, ProverError};
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::{
     circuit::{

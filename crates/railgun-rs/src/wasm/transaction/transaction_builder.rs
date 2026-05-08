@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::{
