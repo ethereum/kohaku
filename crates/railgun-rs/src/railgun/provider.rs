@@ -345,7 +345,7 @@ impl RailgunProvider {
                 Ok(false) => continue, //? Not spendable, skip
                 Err(e) => {
                     //? If there's an error checking POI, log it and skip the note
-                    error!("Error checking POI for note {:?}: {}", note, e);
+                    error!("Error checking POI for note {}: {}", note, e);
                     continue;
                 }
             }

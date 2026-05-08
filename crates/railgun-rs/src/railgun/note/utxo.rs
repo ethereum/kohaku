@@ -1,4 +1,7 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use crypto::poseidon_hash;
 use ruint::aliases::U256;
@@ -191,6 +194,16 @@ impl Note for UtxoNote {
 impl UtxoNote {
     pub fn utxo_type(&self) -> UtxoType {
         self.utxo_type
+    }
+}
+
+impl Display for UtxoNote {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "UtxoNote {{ tree_number: {}, leaf_index: {}, asset: {}, value: {}, memo: {}, utxo_type: {:?} }}",
+            self.tree_number, self.leaf_index, self.asset, self.value, self.memo, self.utxo_type
+        )
     }
 }
 

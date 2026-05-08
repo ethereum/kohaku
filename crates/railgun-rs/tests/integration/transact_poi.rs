@@ -163,6 +163,7 @@ async fn test_transfer_poi<P: Provider>(
     );
     let transfer_tx = railgun.build(tx, &mut rand::rng()).await.unwrap();
 
+    info!("Sending transfer transaction");
     let tx = provider
         .send_transaction(transfer_tx.tx_data.into())
         .await
