@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy::{
     network::Ethereum,
-    primitives::fixed_bytes,
+    primitives::{U256, fixed_bytes},
     providers::{Provider, ProviderBuilder},
 };
 use railgun_rs::{
@@ -14,7 +14,7 @@ use railgun_rs::{
     railgun::{
         Signer,
         address::{ChainId, RailgunAddress},
-        indexer::RpcSyncer,
+        indexer::{ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer},
         transaction::TransactionBuilder,
     },
 };
@@ -22,6 +22,8 @@ use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use userop_kit::{BundlerProvider, ENTRY_POINT_08, PimlicoBundler};
+
+use crate::{alto::AltoBuilder, anvil::AnvilBuilder};
 
 const WETH: AssetId = AssetId::Erc20(SEPOLIA_CONFIG.wrapped_base_token);
 const CHAIN: ChainConfig = SEPOLIA_CONFIG;
@@ -51,11 +53,21 @@ async fn test_broadcast_utxo() {
         .try_init()
         .ok();
 
-    info!("Setting up alloy provider");
     let signer = alloy::signers::local::PrivateKeySigner::from_str(
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     )
     .unwrap();
+
+    let fork_block = 10822990;
+    let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
+
+    info!("Setting up alloy provider");
+    let _anvil = AnvilBuilder::new()
+        .fork_url(&fork_url)
+        .fork_block(fork_block)
+        // .log()
+        .spawn()
+        .await;
 
     let provider = Arc::new(
         ProviderBuilder::new()
@@ -66,16 +78,38 @@ async fn test_broadcast_utxo() {
             .unwrap(),
     );
 
+    let alto_executor_pk = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
+    let alto_utility_pk = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
+    crate::utils::set_pk_balances(
+        &provider,
+        &[alto_executor_pk, alto_utility_pk],
+        U256::from(1000000000000000000000u128),
+    )
+    .await;
+
+    let _alto = AltoBuilder::new()
+        .entrypoint(ENTRY_POINT_08.to_string())
+        .executor_private_key(alto_executor_pk)
+        .utility_private_key(alto_utility_pk)
+        .rpc_url("http://localhost:8545")
+        // .log()
+        .spawn()
+        .await;
+
     info!("Setting up railgun");
     let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
     )));
+    let rpc_syncer = RpcSyncer::new(provider.clone(), CHAIN)
+        .with_batch_size(10)
+        .erased();
+    let subsquid_syncer = SubsquidSyncer::new(CHAIN.subsquid_endpoint)
+        .with_latest_block(fork_block)
+        .erased();
 
-    let provider_state = std::fs::read("./tests/fixtures/broadcast_state.json").unwrap();
-    let railgun_state = serde_json::from_slice(&provider_state).unwrap();
-    let rpc_syncer = Arc::new(RpcSyncer::new(provider.clone(), CHAIN).with_batch_size(100000));
-    let mut railgun = RailgunProvider::new(CHAIN, provider.clone(), rpc_syncer, prover);
-    railgun.set_state(railgun_state).unwrap();
+    let syncer = ChainedSyncer::new(vec![subsquid_syncer, rpc_syncer]).erased();
+    let mut railgun = RailgunProvider::new(CHAIN, provider.clone(), syncer, prover);
+    railgun.sync().await.unwrap();
 
     info!("Setting up accounts");
     let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
@@ -100,7 +134,6 @@ async fn test_broadcast_utxo() {
 
     for tx in shield_tx {
         info!("Sending shielding transaction");
-        // info!(" Calldata: 0x{}", tx.data);
         provider
             .send_transaction(tx.into())
             .await

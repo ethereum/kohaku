@@ -1,5 +1,4 @@
 fork_url := env_var("RPC_URL_MAINNET")
-fork_url_sepolia := env_var("RPC_URL_SEPOLIA")
 fork_block := "24379760"
 rpc_url := "http://127.0.0.1:8545"
 whale_address := "0x3b4d794a66304f130a4db8f2551b0070dfcf5ca7"
@@ -29,7 +28,7 @@ snapshot:
 integration: integration-sync-utxo integration-transact-utxo integration-sync-txid integration-transact-poi
 
 integration-sync-utxo:
-    RUST_LOG=info cargo test --release --no-default-features -- test_sync_utxo --ignored --nocapture
+    RUST_LOG=info cargo test --release -- test_sync_utxo --ignored --nocapture
 
 integration-transact-utxo:
     #!/usr/bin/env bash
@@ -46,17 +45,6 @@ integration-transact-utxo:
     RUST_LOG=info cargo test --release -- test_transact_utxo --ignored --nocapture
 
 integration-broadcast-utxo:
-    # #!/usr/bin/env bash
-    # set -euo pipefail
-
-    # # Start anvil in background
-    # anvil --fork-url {{fork_url}} --fork-block-number {{fork_block}} --port 8545 --load-state ./tests/fixtures/state.json &
-    # ANVIL_PID=$!
-    # trap "kill $ANVIL_PID" EXIT
-
-    # # Wait for anvil to be ready
-    # sleep 2
-
     RUST_LOG=info cargo test --release -- test_broadcast_utxo --ignored --nocapture
 
 integration-sync-txid:

@@ -8,3 +8,10 @@ mod sync_utxo;
 mod transact_poi;
 #[cfg(not(target_arch = "wasm32"))]
 mod transact_utxo;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod alto;
+#[cfg(not(target_arch = "wasm32"))]
+mod anvil;
+#[cfg(not(target_arch = "wasm32"))]
+mod utils;

@@ -65,10 +65,13 @@ wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 
 [dev-dependencies]
+alloy = { workspace = true, default-features = true, features = [
+    "provider-anvil-api",
+] }
 insta = { workspace = true }
 serial_test = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 tracing-test = { workspace = true }
-alloy = { workspace = true, default-features = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }

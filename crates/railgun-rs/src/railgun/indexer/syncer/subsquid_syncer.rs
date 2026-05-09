@@ -17,6 +17,9 @@ pub struct SubsquidSyncer {
     batch_size: u64,
     max_retries: usize,
     retry_delay: web_time::Duration,
+
+    /// Override for latest block, used for testing to sync to a specific block.
+    latest_block_override: Option<u64>,
 }
 
 #[derive(Debug, Error)]
@@ -44,6 +47,7 @@ impl SubsquidSyncer {
             batch_size: 20000,
             max_retries: 3,
             retry_delay: web_time::Duration::from_secs(1),
+            latest_block_override: None,
         }
     }
 
@@ -61,6 +65,11 @@ impl SubsquidSyncer {
         self.retry_delay = retry_delay;
         self
     }
+
+    pub fn with_latest_block(mut self, latest_block: u64) -> Self {
+        self.latest_block_override = Some(latest_block);
+        self
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -75,7 +84,11 @@ impl NoteSyncer for SubsquidSyncer {
         from_block: u64,
         to_block: u64,
     ) -> Result<Vec<syncer::SyncEvent>, SyncerError> {
-        info!("Starting Subsquid sync {}-{}", from_block, to_block);
+        let from_block = from_block.min(self.latest_block().await?);
+        if from_block > to_block {
+            return Ok(vec![]);
+        }
+        info!("Starting Subsquid note sync {}-{}", from_block, to_block);
 
         let mut events = Vec::new();
 
@@ -84,7 +97,6 @@ impl NoteSyncer for SubsquidSyncer {
 
         let mut nullifiers = self.nullifiers(from_block, to_block).await?;
         events.append(&mut nullifiers);
-
         Ok(events)
     }
 }
@@ -101,6 +113,15 @@ impl TransactionSyncer for SubsquidSyncer {
         from_block: u64,
         to_block: u64,
     ) -> Result<Vec<syncer::Operation>, SyncerError> {
+        let from_block = from_block.min(self.latest_block().await?);
+        if from_block > to_block {
+            return Ok(vec![]);
+        }
+        info!(
+            "Starting Subsquid operation sync {}-{}",
+            from_block, to_block
+        );
+
         let operations = self.operations(from_block, to_block).await?;
         Ok(operations)
     }
@@ -108,6 +129,10 @@ impl TransactionSyncer for SubsquidSyncer {
 
 impl SubsquidSyncer {
     async fn latest_block(&self) -> Result<u64, SubsquidSyncerError> {
+        if let Some(override_block) = self.latest_block_override {
+            return Ok(override_block);
+        }
+
         let data: BlockNumberResponsese = self.post_retry(BLOCK_NUMBER_QUERY, ()).await?;
         let latest_block = data
             .transactions
