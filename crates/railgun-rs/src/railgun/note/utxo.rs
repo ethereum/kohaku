@@ -233,7 +233,7 @@ fn blinded_commitment(hash: U256, npk: U256, tree_number: u32, leaf_index: u32) 
     .unwrap()
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 pub fn test_note() -> UtxoNote {
     use crate::{
         crypto::keys::{SpendingKey, ViewingKey},
@@ -259,7 +259,7 @@ pub fn test_note() -> UtxoNote {
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use tracing_test::traced_test;
 

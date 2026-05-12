@@ -2,7 +2,7 @@ use alloy::{
     primitives::{Address, U256},
     sol_types::SolCall,
 };
-use eth_rpc::TxData;
+use eip_1193_provider::TxData;
 
 use crate::{
     abis::{self, railgun::RailgunSmartWallet},

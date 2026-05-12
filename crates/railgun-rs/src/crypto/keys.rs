@@ -412,7 +412,7 @@ pub fn hex_to_u256(hex_str: &str) -> U256 {
     U256::from_be_slice(&bytes)
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use ruint::uint;
     use tracing_test::traced_test;

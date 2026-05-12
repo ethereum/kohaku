@@ -29,7 +29,7 @@ impl MerkleConfig for RailgunMerkleConfig {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use ruint::uint;
     use tracing_test::traced_test;

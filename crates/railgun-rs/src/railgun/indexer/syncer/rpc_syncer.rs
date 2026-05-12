@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::sol_types::SolEvent;
-use eth_rpc::{EthRpcClient, EthRpcClientError, RawLog};
+use eip_1193_provider::{Eip1193Error, Eip1193Provider, RawLog};
 use tracing::{info, warn};
 
 use crate::{
@@ -16,10 +16,10 @@ use crate::{
 };
 
 pub struct RpcSyncer {
-    provider: Arc<dyn EthRpcClient>,
+    chain: ChainConfig,
+    provider: Arc<dyn Eip1193Provider>,
     batch_size: u64,
     timeout: web_time::Duration,
-    chain: ChainConfig,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -29,16 +29,16 @@ pub enum RpcSyncerError {
     #[error("Error parsing log: {0}")]
     LogParseError(String),
     #[error("RPC error: {0}")]
-    RpcError(#[from] EthRpcClientError),
+    RpcError(#[from] Eip1193Error),
 }
 
 impl RpcSyncer {
-    pub fn new(provider: Arc<dyn EthRpcClient>, chain: ChainConfig) -> Self {
+    pub fn new(chain: ChainConfig, provider: Arc<dyn Eip1193Provider>) -> Self {
         Self {
+            chain,
             provider,
             batch_size: 10000,
             timeout: web_time::Duration::from_millis(100),
-            chain,
         }
     }
 
@@ -67,7 +67,7 @@ impl NoteSyncer for RpcSyncer {
 
 impl RpcSyncer {
     async fn latest_block(&self) -> Result<u64, RpcSyncerError> {
-        Ok(self.provider.get_block_number().await?)
+        Ok(self.provider.block_number().await?)
     }
 
     async fn events(
@@ -87,7 +87,7 @@ impl RpcSyncer {
 
             let logs = self
                 .provider
-                .get_logs(
+                .logs(
                     self.chain.railgun_smart_wallet,
                     None,
                     Some(batch_start),

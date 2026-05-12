@@ -299,7 +299,7 @@ sol! {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use alloy::primitives::{Bytes, FixedBytes, address};
     use ruint::uint;

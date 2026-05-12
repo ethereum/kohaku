@@ -147,7 +147,7 @@ pub fn xor_network_id(network_id: &str) -> String {
     hex::encode(xored)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use tracing_test::traced_test;
 

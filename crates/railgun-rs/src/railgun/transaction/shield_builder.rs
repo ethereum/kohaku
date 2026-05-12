@@ -1,5 +1,5 @@
 use alloy::{primitives::U256, sol_types::SolCall};
-use eth_rpc::TxData;
+use eip_1193_provider::TxData;
 use rand::Rng;
 use thiserror::Error;
 
@@ -129,7 +129,7 @@ impl ShieldBuilder {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use alloy::primitives::Address;
     use rand::SeedableRng;

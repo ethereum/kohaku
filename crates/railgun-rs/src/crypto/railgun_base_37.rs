@@ -47,7 +47,7 @@ pub fn decode(bytes: &[u8; 16]) -> String {
     String::from_utf8(result).unwrap()
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use tracing_test::traced_test;
 

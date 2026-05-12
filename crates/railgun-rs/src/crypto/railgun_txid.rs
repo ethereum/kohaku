@@ -95,7 +95,7 @@ impl<'de> Deserialize<'de> for Txid {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use ruint::uint;
 

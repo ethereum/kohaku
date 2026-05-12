@@ -146,7 +146,7 @@ pub fn decrypt_ctr(ciphertext: &CiphertextCtr, key: &[u8; 32]) -> Vec<Vec<u8>> {
     data
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaChaRng;

@@ -76,6 +76,9 @@ tracing-test = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
 
+[build-dependencies]
+cfg_aliases = { workspace = true }
+
 [[bench]]
 name = "groth16"
 harness = false

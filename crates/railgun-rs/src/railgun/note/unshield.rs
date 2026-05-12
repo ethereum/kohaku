@@ -72,7 +72,7 @@ impl Note for UnshieldNote {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use alloy::primitives::address;
     use ruint::uint;

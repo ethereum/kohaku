@@ -141,7 +141,7 @@ pub fn encrypt_shield<R: Rng>(
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use alloy::primitives::{Address, address};
     use rand_chacha::{ChaChaRng, rand_core::SeedableRng};
