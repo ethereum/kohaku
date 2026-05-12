@@ -20,7 +20,7 @@ use crate::railgun::{
         MerkleTreeState, MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree, VerificationError,
     },
     note::utxo::{NoteError, UtxoNote},
-    signer::Signer,
+    signer::RailgunSigner,
 };
 
 /// Utxo indexer that maintains the set of UTXO merkle trees and tracks accounts
@@ -137,12 +137,12 @@ impl UtxoIndexer {
     ///
     /// Registering an account does NOT trigger a re-sync. After registering, call
     /// `sync()` to sync the account's notes and balance.
-    pub fn register(&mut self, signer: Arc<dyn Signer>) {
+    pub fn register(&mut self, signer: Arc<dyn RailgunSigner>) {
         self.register_from(signer, self.synced_block);
     }
 
     /// Registers an account starting from a specific block.
-    pub fn register_from(&mut self, signer: Arc<dyn Signer>, from_block: u64) {
+    pub fn register_from(&mut self, signer: Arc<dyn RailgunSigner>, from_block: u64) {
         let address = signer.address();
         if let Some(state) = self.pending_accounts.remove(&address) {
             let account = IndexedAccount::from_state(state, signer.clone());

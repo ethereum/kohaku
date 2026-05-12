@@ -7,7 +7,8 @@ use crate::{
     railgun::address::{ChainId, RailgunAddress},
 };
 
-pub trait Signer: SpendingKeyProvider + ViewingKeyProvider {
+/// A railgun signer which can sign transactions and provide the associated 0xzk address.
+pub trait RailgunSigner: SpendingKeyProvider + ViewingKeyProvider {
     fn sign(&self, inputs: U256) -> SpendingSignature;
     fn address(&self) -> RailgunAddress;
 }
@@ -58,7 +59,7 @@ impl ViewingKeyProvider for PrivateKeySigner {
     }
 }
 
-impl Signer for PrivateKeySigner {
+impl RailgunSigner for PrivateKeySigner {
     fn sign(&self, inputs: U256) -> SpendingSignature {
         self.spending_key.sign(inputs)
     }
@@ -68,7 +69,7 @@ impl Signer for PrivateKeySigner {
     }
 }
 
-impl Debug for dyn Signer {
+impl Debug for dyn RailgunSigner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Signer(address: {})", self.address())
     }

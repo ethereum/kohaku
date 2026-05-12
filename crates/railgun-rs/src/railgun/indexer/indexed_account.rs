@@ -8,7 +8,7 @@ use crate::railgun::{
     address::RailgunAddress,
     indexer::{self, syncer},
     note::utxo::{NoteError, UtxoNote},
-    signer::Signer,
+    signer::RailgunSigner,
 };
 
 /// IndexerAccount represents a Railgun account being tracked by the indexer.
@@ -16,7 +16,7 @@ use crate::railgun::{
 /// The indexer will use the contained signer to decrypt notes and track the
 /// account's balance and UTXOs.
 pub struct IndexedAccount {
-    signer: Arc<dyn Signer>,
+    signer: Arc<dyn RailgunSigner>,
     notes: HashMap<(u32, u32), UtxoNote>, // Map of (tree_number, leaf_index) to UtxoNote
     pub synced_block: u64,
 }
@@ -28,7 +28,7 @@ pub struct IndexedAccountState {
 }
 
 impl IndexedAccount {
-    pub fn new(signer: Arc<dyn Signer>, synced_block: u64) -> Self {
+    pub fn new(signer: Arc<dyn RailgunSigner>, synced_block: u64) -> Self {
         IndexedAccount {
             signer,
             notes: HashMap::new(),
@@ -36,7 +36,7 @@ impl IndexedAccount {
         }
     }
 
-    pub fn from_state(state: IndexedAccountState, signer: Arc<dyn Signer>) -> Self {
+    pub fn from_state(state: IndexedAccountState, signer: Arc<dyn RailgunSigner>) -> Self {
         IndexedAccount {
             signer,
             notes: state.notes,

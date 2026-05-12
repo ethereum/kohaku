@@ -26,7 +26,7 @@ use crate::{
         merkle_tree::SmartWalletUtxoVerifier,
         note::{Note, utxo::UtxoNote},
         poi::{PoiProvider, PoiProviderError},
-        signer::Signer,
+        signer::RailgunSigner,
         transaction::{
             ProvedOperation, ProvedTx, ShieldBuilder, TransactionBuilder, TransactionBuilderError,
         },
@@ -124,12 +124,12 @@ impl RailgunProvider {
     ///
     /// Providers will NOT save registered accounts in their state. Accounts
     /// must be re-registered each time a provider is created.
-    pub fn register(&mut self, account: Arc<dyn Signer>) {
+    pub fn register(&mut self, account: Arc<dyn RailgunSigner>) {
         self.utxo_indexer.register(account);
     }
 
     /// Registers an account starting from a specific block.
-    pub fn register_from(&mut self, account: Arc<dyn Signer>, from_block: u64) {
+    pub fn register_from(&mut self, account: Arc<dyn RailgunSigner>, from_block: u64) {
         self.utxo_indexer.register_from(account, from_block);
     }
 
@@ -182,7 +182,7 @@ impl RailgunProvider {
         provider: &impl EthRpcClient,
         sender: Address,
         bundler: &impl BundlerProvider,
-        fee_payer: Arc<dyn Signer>,
+        fee_payer: Arc<dyn RailgunSigner>,
         fee_recipient: RailgunAddress,
         fee_token: Address,
         rng: &mut R,

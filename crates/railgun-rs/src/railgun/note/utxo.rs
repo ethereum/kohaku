@@ -18,7 +18,7 @@ use crate::{
             U256Key, ViewingPublicKey,
         },
     },
-    railgun::{indexer, merkle_tree::UtxoLeafHash, note::Note, signer::Signer},
+    railgun::{indexer, merkle_tree::UtxoLeafHash, note::Note, signer::RailgunSigner},
 };
 
 /// Railgun UTXO note
@@ -62,14 +62,15 @@ impl UtxoNote {
     pub fn new(
         tree_number: u32,
         leaf_index: u32,
-        signer: Arc<dyn Signer>,
+        signer: Arc<dyn RailgunSigner>,
         asset: AssetId,
         value: u128,
         random: [u8; 16],
         memo: &str,
         utxo_type: UtxoType,
     ) -> Self {
-        let spending_pubkey = signer.as_ref().spending_key().public_key();
+        let spending_pubkey = signer.spending_key().public_key();
+        let viewing_pubkey = signer.viewing_key().public_key();
         let nullifying_key = signer.viewing_key().nullifying_key();
         let nullifier = poseidon_hash(&[nullifying_key.to_u256(), U256::from(leaf_index)]).unwrap();
         let npk = note_public_key(spending_pubkey, nullifying_key, &random);
@@ -80,7 +81,7 @@ impl UtxoNote {
             tree_number,
             leaf_index,
             spending_pubkey,
-            viewing_pubkey: signer.as_ref().viewing_key().public_key(),
+            viewing_pubkey,
             asset,
             value,
             random,
@@ -96,7 +97,7 @@ impl UtxoNote {
 
     /// Decrypt a transact note into a Note
     pub fn decrypt_transact(
-        signer: Arc<dyn Signer>,
+        signer: Arc<dyn RailgunSigner>,
         transact: &indexer::Transact,
     ) -> Result<Self, NoteError> {
         let blinded_sender = BlindedKey::from_bytes(transact.blinded_sender_viewing_key);
@@ -139,7 +140,7 @@ impl UtxoNote {
 
     /// Decrypts a shield note into a Note
     pub fn decrypt_shield(
-        signer: Arc<dyn Signer>,
+        signer: Arc<dyn RailgunSigner>,
         shield: &indexer::Shield,
     ) -> Result<Self, NoteError> {
         let shield_key = ViewingPublicKey::from_bytes(shield.shield_key);

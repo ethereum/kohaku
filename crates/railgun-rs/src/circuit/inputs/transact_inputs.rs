@@ -9,7 +9,7 @@ use crate::{
     caip::AssetId,
     crypto::keys::U256Key,
     railgun::{
-        Signer,
+        RailgunSigner,
         merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
         note::{Note, utxo::UtxoNote},
     },
@@ -48,7 +48,7 @@ impl TransactCircuitInputs {
     pub fn from_inputs(
         merkle_tree: &UtxoMerkleTree,
         bound_params_hash: U256,
-        signer: Arc<dyn Signer>,
+        signer: Arc<dyn RailgunSigner>,
         asset: AssetId,
         notes_in: &[UtxoNote],
         notes_out: &[Box<dyn Note>],

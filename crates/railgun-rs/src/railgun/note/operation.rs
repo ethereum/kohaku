@@ -8,7 +8,7 @@ use crate::{
         note::{
             EncryptableNote, Note, transfer::TransferNote, unshield::UnshieldNote, utxo::UtxoNote,
         },
-        signer::Signer,
+        signer::RailgunSigner,
     },
 };
 
@@ -34,7 +34,7 @@ pub struct Operation {
     pub utxo_tree_number: u32,
 
     /// The holder of the assets being spent.
-    pub from: Arc<dyn Signer>,
+    pub from: Arc<dyn RailgunSigner>,
 
     /// The asset this operation is spending.
     pub asset: AssetId,
@@ -65,7 +65,7 @@ impl Operation {
     /// - notes_out.len() + unshield_note.is_some() <= 13
     pub fn new(
         tree_number: u32,
-        from: Arc<dyn Signer>,
+        from: Arc<dyn RailgunSigner>,
         asset: AssetId,
         in_notes: Vec<UtxoNote>,
         out_notes: Vec<TransferNote>,
@@ -81,7 +81,7 @@ impl Operation {
         }
     }
 
-    pub fn new_empty(tree_number: u32, from: Arc<dyn Signer>, asset: AssetId) -> Self {
+    pub fn new_empty(tree_number: u32, from: Arc<dyn RailgunSigner>, asset: AssetId) -> Self {
         Operation {
             utxo_tree_number: tree_number,
             from,

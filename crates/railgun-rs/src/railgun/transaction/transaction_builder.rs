@@ -43,7 +43,7 @@ use crate::{
             unshield::UnshieldNote,
             utxo::UtxoNote,
         },
-        signer::Signer,
+        signer::RailgunSigner,
         transaction::ProvedOperation,
     },
 };
@@ -91,7 +91,7 @@ pub enum TransactionBuilderError {
 
 #[derive(Clone)]
 struct Intent {
-    pub from: Arc<dyn Signer>,
+    pub from: Arc<dyn RailgunSigner>,
     pub asset: AssetId,
     pub value: u128,
     pub kind: IntentKind,
@@ -116,7 +116,7 @@ impl TransactionBuilder {
     /// Adds a transfer operation to this transaction.
     pub fn transfer(
         mut self,
-        from: Arc<dyn Signer>,
+        from: Arc<dyn RailgunSigner>,
         to: RailgunAddress,
         asset: AssetId,
         value: u128,
@@ -137,7 +137,7 @@ impl TransactionBuilder {
     /// Adds an unshield operation to this transaction.
     pub fn unshield(
         mut self,
-        from: Arc<dyn Signer>,
+        from: Arc<dyn RailgunSigner>,
         to: Address,
         asset: AssetId,
         value: u128,

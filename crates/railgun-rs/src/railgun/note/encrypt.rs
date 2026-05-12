@@ -152,7 +152,7 @@ mod tests {
         crypto::keys::SpendingKey,
         railgun::{
             address::ChainId,
-            signer::{PrivateKeySigner, Signer},
+            signer::{PrivateKeySigner, RailgunSigner},
         },
     };
 
