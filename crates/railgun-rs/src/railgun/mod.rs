@@ -8,4 +8,6 @@ mod signer;
 pub mod transaction;
 
 pub use provider::{RailgunProvider, RailgunProviderError, RailgunProviderState};
-pub use signer::{PrivateKeySigner, RailgunSigner, derivation_paths};
+pub use signer::{
+    PrivateKeySigner, RailgunSigner, SpendingKeyProvider, ViewingKeyProvider, derivation_paths,
+};
