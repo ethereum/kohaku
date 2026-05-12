@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use alloy::primitives::Address;
-use alloy::sol_types::SolEvent;
-use eth_rpc::{EthRpcClient, eth_call_sol};
+use alloy::{primitives::Address, sol_types::SolEvent};
+use eip_1193_provider::{Eip1193Provider, eth_call_sol};
 use ruint::aliases::U256;
 use tracing::{info, warn};
 
@@ -17,12 +16,12 @@ use crate::{
 
 /// A syncer and verifier that reads from an Ethereum JSON-RPC provider
 pub struct RpcSyncer {
-    provider: Arc<dyn EthRpcClient>,
+    provider: Arc<dyn Eip1193Provider>,
     batch_size: u64,
 }
 
 impl RpcSyncer {
-    pub fn new(provider: Arc<dyn EthRpcClient>) -> Self {
+    pub fn new(provider: Arc<dyn Eip1193Provider>) -> Self {
         Self {
             provider,
             batch_size: 2000,
@@ -40,7 +39,7 @@ impl RpcSyncer {
 impl Syncer for RpcSyncer {
     async fn latest_block(&self, _contract: Address) -> Result<u64, SyncerError> {
         self.provider
-            .get_block_number()
+            .block_number()
             .await
             .map_err(|e| SyncerError::Syncer(Box::new(e)))
     }
@@ -67,7 +66,7 @@ impl Syncer for RpcSyncer {
             current_block = batch_end + 1;
 
             let logs = match provider
-                .get_logs(
+                .logs(
                     contract_address,
                     Some(Tornado::Deposit::SIGNATURE_HASH),
                     Some(batch_start),
@@ -130,7 +129,7 @@ impl Syncer for RpcSyncer {
             current_block = batch_end + 1;
 
             let logs = match provider
-                .get_logs(
+                .logs(
                     contract_address,
                     Some(Tornado::Withdrawal::SIGNATURE_HASH),
                     Some(batch_start),

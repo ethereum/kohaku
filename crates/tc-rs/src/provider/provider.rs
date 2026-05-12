@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::primitives::Address;
-use eth_rpc::{EthRpcClient, TxData};
+use eip_1193_provider::{Eip1193Provider, TxData};
 use prover::Prover;
 use rand::Rng;
 use ruint::aliases::U256;
@@ -45,7 +45,7 @@ pub enum TornadoProviderError {
 
 impl TornadoProvider {
     pub fn new(
-        rpc: Arc<dyn EthRpcClient>,
+        rpc: Arc<dyn Eip1193Provider>,
         syncer: Arc<dyn Syncer>,
         prover: Arc<dyn Prover>,
     ) -> Self {
@@ -59,7 +59,7 @@ impl TornadoProvider {
     }
 
     pub fn from_state(
-        rpc: Arc<dyn EthRpcClient>,
+        rpc: Arc<dyn Eip1193Provider>,
         syncer: Arc<dyn Syncer>,
         prover: Arc<dyn Prover>,
         state: TornadoProviderState,

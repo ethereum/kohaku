@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::primitives::Address;
-use eth_rpc::{JsEthRpcAdapter, TxData};
+use eip_1193_provider::{TxData, js::JsEip1193Provider};
 use prover::JsProverAdapter;
 use rand::rng;
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
@@ -45,7 +45,7 @@ impl JsTornadoProvider {
     /// @param syncer Syncer used to index deposits/withdrawals
     /// @param prover Prover used to generate proofs
     pub fn new(
-        provider: JsEthRpcAdapter,
+        provider: JsEip1193Provider,
         syncer: JsSyncer,
         prover: JsProverAdapter,
     ) -> JsTornadoProvider {

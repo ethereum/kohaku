@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use eth_rpc::JsEthRpcAdapter;
+use eip_1193_provider::js::JsEip1193Provider;
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 use crate::indexer::{ChainedSyncer, RemoteSyncer, RpcSyncer, Syncer};
@@ -13,7 +13,10 @@ pub struct JsSyncer {
 #[wasm_bindgen]
 impl JsSyncer {
     #[wasm_bindgen(js_name = "newRpc")]
-    pub async fn new_rpc(provider: JsEthRpcAdapter, batch_size: u64) -> Result<JsSyncer, JsValue> {
+    pub async fn new_rpc(
+        provider: JsEip1193Provider,
+        batch_size: u64,
+    ) -> Result<JsSyncer, JsValue> {
         Ok(RpcSyncer::new(Arc::new(provider))
             .with_batch_size(batch_size)
             .into())

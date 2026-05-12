@@ -14,7 +14,7 @@ ark-relations = { workspace = true }
 async-trait = { workspace = true }
 common = { workspace = true }
 crypto = { workspace = true }
-eth-rpc = { workspace = true }
+eip-1193-provider = { workspace = true, features = ["js"] }
 hex = { workspace = true }
 prover = { workspace = true }
 rand = { workspace = true }

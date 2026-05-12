@@ -1,6 +1,8 @@
-use alloy::primitives::{Address, FixedBytes, TxHash};
-use alloy::sol_types::SolEvent;
-use eth_rpc::RawLog;
+use alloy::{
+    primitives::{Address, FixedBytes, TxHash},
+    sol_types::SolEvent,
+};
+use eip_1193_provider::RawLog;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

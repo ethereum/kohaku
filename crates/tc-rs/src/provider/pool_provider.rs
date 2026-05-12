@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
-use alloy::primitives::{Address, Bytes};
-use alloy::sol_types::SolCall;
-use eth_rpc::TxData;
+use alloy::{
+    primitives::{Address, Bytes},
+    sol_types::SolCall,
+};
+use eip_1193_provider::TxData;
 use prover::{Proof, Prover};
 use rand::RngCore;
 use ruint::aliases::U256;
