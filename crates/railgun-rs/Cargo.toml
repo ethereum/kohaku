@@ -24,7 +24,7 @@ crypto = { workspace = true }
 ctr = { workspace = true }
 curve25519-dalek = { workspace = true }
 ed25519-dalek = { workspace = true }
-eth-rpc = { workspace = true }
+eip-1193-provider = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 num-bigint = { workspace = true, features = ["serde"] }

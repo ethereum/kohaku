@@ -7,25 +7,26 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 
-use crate::{EthRpcClient, EthRpcClientError, RawLog};
+use crate::{Eip1193Error, Eip1193Provider, RawLog};
 
-#[async_trait::async_trait]
-impl<P: Provider> EthRpcClient for P {
-    async fn get_chain_id(&self) -> Result<u64, EthRpcClientError> {
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
+impl<P: Provider> Eip1193Provider for P {
+    async fn chain_id(&self) -> Result<u64, Eip1193Error> {
         Ok(self.get_chain_id().await?)
     }
 
-    async fn get_block_number(&self) -> Result<u64, EthRpcClientError> {
+    async fn block_number(&self) -> Result<u64, Eip1193Error> {
         Ok(self.get_block_number().await?)
     }
 
-    async fn get_logs(
+    async fn logs(
         &self,
         address: Address,
         event_signature: Option<FixedBytes<32>>,
         from_block: Option<u64>,
         to_block: Option<u64>,
-    ) -> Result<Vec<RawLog>, EthRpcClientError> {
+    ) -> Result<Vec<RawLog>, Eip1193Error> {
         let mut filter = Filter::new().address(address);
         if let Some(event_signature) = event_signature {
             filter = filter.event_signature(event_signature);
@@ -53,7 +54,7 @@ impl<P: Provider> EthRpcClient for P {
         Ok(logs)
     }
 
-    async fn eth_call(&self, to: Address, data: Bytes) -> Result<Bytes, EthRpcClientError> {
+    async fn eth_call(&self, to: Address, data: Bytes) -> Result<Bytes, Eip1193Error> {
         let request = TransactionRequest::default().to(to).with_input(data);
         Ok(self.call(request).await?.into())
     }
@@ -63,7 +64,7 @@ impl<P: Provider> EthRpcClient for P {
         to: Address,
         data: Bytes,
         from: Option<Address>,
-    ) -> Result<u64, EthRpcClientError> {
+    ) -> Result<u64, Eip1193Error> {
         let mut request = TransactionRequest::default().to(to).with_input(data);
         if let Some(f) = from {
             request = request.from(f);
@@ -71,15 +72,15 @@ impl<P: Provider> EthRpcClient for P {
         Ok(self.estimate_gas(request).await?)
     }
 
-    async fn get_gas_price(&self) -> Result<u128, EthRpcClientError> {
+    async fn gas_price(&self) -> Result<u128, Eip1193Error> {
         Ok(self.get_gas_price().await?)
     }
 
-    async fn get_transaction_count(
+    async fn transaction_count(
         &self,
         address: Address,
         block: Option<u64>,
-    ) -> Result<u64, EthRpcClientError> {
+    ) -> Result<u64, Eip1193Error> {
         let block_id = match block {
             Some(b) => BlockId::number(b),
             None => BlockId::latest(),
@@ -92,8 +93,8 @@ impl<P: Provider> EthRpcClient for P {
     }
 }
 
-impl From<RpcError<TransportErrorKind>> for EthRpcClientError {
+impl From<RpcError<TransportErrorKind>> for Eip1193Error {
     fn from(e: RpcError<TransportErrorKind>) -> Self {
-        EthRpcClientError::Rpc(e.to_string())
+        Eip1193Error::Rpc(e.to_string())
     }
 }

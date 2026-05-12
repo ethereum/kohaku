@@ -65,14 +65,14 @@ pub enum RailgunProviderError {
     #[error("Bundler error: {0}")]
     Bundler(#[from] BundlerError),
     #[error("RPC error: {0}")]
-    Rpc(#[from] EthRpcClientError),
+    Rpc(#[from] Eip1193Error),
 }
 
 /// General provider functions
 impl RailgunProvider {
     pub fn new(
         chain: ChainConfig,
-        provider: Arc<dyn EthRpcClient>,
+        provider: Arc<dyn Eip1193Provider>,
         utxo_syncer: Arc<dyn NoteSyncer>,
         prover: Arc<dyn Prover>,
     ) -> Self {
