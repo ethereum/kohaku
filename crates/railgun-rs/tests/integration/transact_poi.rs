@@ -124,8 +124,8 @@ async fn test_transact_poi() {
 async fn test_shield_poi<P: Provider>(
     railgun: &mut RailgunProvider,
     provider: &P,
-    account_1: Arc<dyn Signer>,
-    account_2: Arc<dyn Signer>,
+    account_1: Arc<dyn RailgunSigner>,
+    account_2: Arc<dyn RailgunSigner>,
 ) {
     let shield_tx = railgun
         .shield()
@@ -151,8 +151,8 @@ async fn test_shield_poi<P: Provider>(
 async fn test_transfer_poi<P: Provider>(
     railgun: &mut RailgunProvider,
     provider: &P,
-    account_1: Arc<dyn Signer>,
-    account_2: Arc<dyn Signer>,
+    account_1: Arc<dyn RailgunSigner>,
+    account_2: Arc<dyn RailgunSigner>,
 ) {
     let tx = railgun.transact().transfer(
         account_1.clone(),
@@ -181,8 +181,8 @@ async fn test_transfer_poi<P: Provider>(
 async fn test_unshield_poi<P: Provider>(
     railgun: &mut RailgunProvider,
     provider: &P,
-    account_1: Arc<dyn Signer>,
-    account_2: Arc<dyn Signer>,
+    account_1: Arc<dyn RailgunSigner>,
+    account_2: Arc<dyn RailgunSigner>,
 ) {
     let tx = railgun
         .transact()
@@ -227,7 +227,7 @@ async fn test_unshield_poi<P: Provider>(
 
 async fn await_balance_update(
     railgun: &mut RailgunProvider,
-    account: Arc<dyn Signer>,
+    account: Arc<dyn RailgunSigner>,
     asset: AssetId,
     expected: Option<u128>,
 ) {
