@@ -11,7 +11,9 @@ use railgun_rs::{
     caip::AssetId,
     chain_config::{ChainConfig, MAINNET_CONFIG},
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
-    railgun::{RailgunProvider, Signer, indexer::RpcSyncer, transaction::TransactionBuilder},
+    railgun::{
+        RailgunProvider, RailgunSigner, indexer::RpcSyncer, transaction::TransactionBuilder,
+    },
 };
 use rand::random;
 use tracing::info;

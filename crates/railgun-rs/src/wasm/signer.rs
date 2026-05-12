@@ -6,7 +6,7 @@ use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 use crate::{
     crypto::keys::{HexKey, SpendingKey, ViewingKey},
-    railgun::{self, PrivateKeySigner, Signer, address::RailgunAddress},
+    railgun::{self, PrivateKeySigner, RailgunSigner, address::RailgunAddress},
 };
 
 #[wasm_bindgen]

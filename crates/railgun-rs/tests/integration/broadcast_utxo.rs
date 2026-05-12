@@ -12,7 +12,7 @@ use railgun_rs::{
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     crypto::keys::{MasterPublicKey, ViewingPublicKey},
     railgun::{
-        Signer,
+        RailgunSigner,
         address::{ChainId, RailgunAddress},
         indexer::{ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer},
         transaction::TransactionBuilder,

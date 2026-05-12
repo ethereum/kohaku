@@ -13,7 +13,7 @@ use railgun_rs::{
     chain_config::{ChainConfig, SEPOLIA_CONFIG},
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     railgun::{
-        Signer,
+        RailgunSigner,
         indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
     },
 };

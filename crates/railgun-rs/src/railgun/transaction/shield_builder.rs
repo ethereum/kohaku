@@ -139,7 +139,7 @@ mod tests {
     use crate::{
         chain_config::MAINNET_CONFIG,
         crypto::keys::{SpendingKey, ViewingKey},
-        railgun::{PrivateKeySigner, Signer},
+        railgun::{PrivateKeySigner, RailgunSigner},
     };
 
     #[test]
