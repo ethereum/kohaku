@@ -36,6 +36,7 @@ pub enum BlindedCommitmentType {
     Unshield,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PoiEventType {
     Shield,
@@ -63,6 +64,7 @@ pub struct ChainParams {
     pub txid_version: TxidVersion,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeStatusAllNetworks {
@@ -70,6 +72,7 @@ pub struct NodeStatusAllNetworks {
     pub for_network: HashMap<String, NodeStatusForNetwork>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeStatusForNetwork {
@@ -79,6 +82,7 @@ pub struct NodeStatusForNetwork {
     pub legacy_transact_proofs: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RailgunTxidStatus {
@@ -88,6 +92,7 @@ pub struct RailgunTxidStatus {
     pub validated_merkleroot: MerkleRoot,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PoiListStatus {
@@ -99,8 +104,10 @@ pub struct PoiListStatus {
     pub latest_historical_merkleroot: MerkleRoot,
 }
 
+#[allow(dead_code)]
 pub type PoiEventLengths = HashMap<PoiEventType, u64>;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShieldQueueStatus {
@@ -157,6 +164,7 @@ pub struct ValidateTxidMerklerootParams {
     pub merkleroot: MerkleRoot,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidatePoiMerklerootsParams {
