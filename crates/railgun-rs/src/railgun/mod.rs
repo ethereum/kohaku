@@ -1,4 +1,5 @@
 pub mod address;
+pub mod chain;
 pub mod indexer;
 pub mod merkle_tree;
 pub mod note;
@@ -9,5 +10,6 @@ pub mod transaction;
 
 pub use provider::{RailgunProvider, RailgunProviderError, RailgunProviderState};
 pub use signer::{
-    PrivateKeySigner, RailgunSigner, SpendingKeyProvider, ViewingKeyProvider, derivation_paths,
+    PrivateKeySigner, RailgunSigner, RailgunSignerError, SpendingKeyProvider, ViewingKeyProvider,
+    derivation_paths,
 };

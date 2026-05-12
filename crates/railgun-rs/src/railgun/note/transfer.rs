@@ -108,7 +108,8 @@ mod tests {
         caip::AssetId,
         crypto::keys::{ByteKey, SpendingKey, ViewingKey},
         railgun::{
-            address::{ChainId, RailgunAddress},
+            address::RailgunAddress,
+            chain::ChainId,
             merkle_tree::UtxoLeafHash,
             note::{Note, transfer::TransferNote},
         },
@@ -122,7 +123,7 @@ mod tests {
             RailgunAddress::from_private_keys(
                 SpendingKey::from_bytes([1u8; 32]),
                 ViewingKey::from_bytes([2u8; 32]),
-                ChainId::EVM(1),
+                ChainId::evm(1),
             ),
             AssetId::Erc20(address!("0x1234567890123456789012345678901234567890")),
             90,

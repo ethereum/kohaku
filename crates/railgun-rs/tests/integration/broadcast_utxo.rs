@@ -13,7 +13,8 @@ use railgun_rs::{
     crypto::keys::{MasterPublicKey, ViewingPublicKey},
     railgun::{
         RailgunSigner,
-        address::{ChainId, RailgunAddress},
+        address::RailgunAddress,
+        chain::ChainId,
         indexer::{ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer},
         transaction::TransactionBuilder,
     },
@@ -178,7 +179,7 @@ async fn test_broadcast_utxo() {
             RailgunAddress::new(
                 RAILGUN_PAYMASTER_RECEIVER_MPK,
                 RAILGUN_PAYMASTER_RECEIVER_VPK,
-                ChainId::EVM(CHAIN.id),
+                ChainId::evm(CHAIN.id),
             ),
             SEPOLIA_CONFIG.wrapped_base_token,
             &mut rand::rng(),
@@ -217,7 +218,7 @@ async fn test_broadcast_utxo() {
             RailgunAddress::new(
                 RAILGUN_PAYMASTER_RECEIVER_MPK,
                 RAILGUN_PAYMASTER_RECEIVER_VPK,
-                ChainId::EVM(CHAIN.id),
+                ChainId::evm(CHAIN.id),
             ),
             SEPOLIA_CONFIG.wrapped_base_token,
             &mut rand::rng(),

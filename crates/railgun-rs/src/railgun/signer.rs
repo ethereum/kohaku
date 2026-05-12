@@ -1,15 +1,22 @@
 use std::{fmt::Debug, sync::Arc};
 
 use ruint::aliases::U256;
+use thiserror::Error;
 
 use crate::{
     crypto::keys::{SpendingKey, SpendingSignature, ViewingKey},
-    railgun::address::{ChainId, RailgunAddress},
+    railgun::{address::RailgunAddress, chain::ChainId},
 };
+
+#[derive(Debug, Error)]
+pub enum RailgunSignerError {
+    #[error("Signing error: {0}")]
+    SigningError(#[source] Box<dyn std::error::Error + Send + Sync>),
+}
 
 /// A railgun signer which can sign transactions and provide the associated 0xzk address.
 pub trait RailgunSigner: SpendingKeyProvider + ViewingKeyProvider {
-    fn sign(&self, inputs: U256) -> SpendingSignature;
+    fn sign(&self, inputs: U256) -> Result<SpendingSignature, RailgunSignerError>;
     fn chain_id(&self) -> ChainId;
 
     fn address(&self) -> RailgunAddress {
@@ -47,7 +54,7 @@ impl PrivateKeySigner {
     }
 
     pub fn new_evm(spending_key: SpendingKey, viewing_key: ViewingKey, chain_id: u64) -> Arc<Self> {
-        Self::new(spending_key, viewing_key, ChainId::EVM(chain_id))
+        Self::new(spending_key, viewing_key, ChainId::evm(chain_id))
     }
 }
 
@@ -64,8 +71,8 @@ impl ViewingKeyProvider for PrivateKeySigner {
 }
 
 impl RailgunSigner for PrivateKeySigner {
-    fn sign(&self, inputs: U256) -> SpendingSignature {
-        self.spending_key.sign(inputs)
+    fn sign(&self, inputs: U256) -> Result<SpendingSignature, RailgunSignerError> {
+        Ok(self.spending_key.sign(inputs))
     }
 
     fn chain_id(&self) -> ChainId {

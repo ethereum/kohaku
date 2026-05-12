@@ -22,6 +22,7 @@ pub struct SpendingPublicKey {
     y: [u8; 32],
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SpendingSignature {
     pub r8_x: U256,
     pub r8_y: U256,

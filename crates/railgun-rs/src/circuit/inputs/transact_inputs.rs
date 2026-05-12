@@ -9,7 +9,7 @@ use crate::{
     caip::AssetId,
     crypto::keys::U256Key,
     railgun::{
-        RailgunSigner,
+        RailgunSigner, RailgunSignerError,
         merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
         note::{Note, utxo::UtxoNote},
     },
@@ -42,6 +42,8 @@ pub enum TransactCircuitInputsError {
     EmptyInputNotes,
     #[error("Merkle tree error: {0}")]
     MerkleTree(#[from] MerkleTreeError),
+    #[error("Signing error: {0}")]
+    Signing(#[from] RailgunSignerError),
 }
 
 impl TransactCircuitInputs {
@@ -74,7 +76,7 @@ impl TransactCircuitInputs {
         unsigned.extend_from_slice(&nullifiers);
         unsigned.extend_from_slice(&commitments);
         let unsigned_hash = poseidon_hash(&unsigned).unwrap();
-        let signature = signer.sign(unsigned_hash);
+        let signature = signer.sign(unsigned_hash)?;
         let signature = [signature.r8_x, signature.r8_y, signature.s];
 
         let random_in = notes_in

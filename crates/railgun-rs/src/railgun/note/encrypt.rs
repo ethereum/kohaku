@@ -151,7 +151,7 @@ mod tests {
     use crate::{
         crypto::keys::SpendingKey,
         railgun::{
-            address::ChainId,
+            chain::ChainId,
             signer::{PrivateKeySigner, RailgunSigner},
         },
     };
@@ -200,7 +200,7 @@ mod tests {
         let viewing_key: ViewingKey = rng.random();
 
         let recipient =
-            RailgunAddress::from_private_keys(spending_key, viewing_key, ChainId::EVM(1));
+            RailgunAddress::from_private_keys(spending_key, viewing_key, ChainId::evm(1));
         let asset: AssetId = AssetId::Erc20(Address::from([0u8; 20]));
         let value: u128 = 1_000_000;
 
