@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{error, info};
 use userop_kit::{
-    BundlerError, BundlerProvider, UserOperation, UserOperationBuilder,
-    railgun::sign_railgun_authorization,
+    UserOperation, UserOperationBuilder,
+    bundler::{BundlerError, BundlerProvider},
+    railgun::railgun_authorization,
 };
 
 use crate::{
@@ -179,7 +180,7 @@ impl RailgunProvider {
         &mut self,
         builder: TransactionBuilder,
         provider: &impl EthRpcClient,
-        sender: &impl alloy::signers::Signer,
+        sender: Address,
         bundler: &impl BundlerProvider,
         fee_payer: Arc<dyn Signer>,
         fee_recipient: RailgunAddress,
@@ -189,15 +190,12 @@ impl RailgunProvider {
         let fee_asset = AssetId::Erc20(fee_token);
 
         // 7702 authorization
-        let nonce = provider
-            .get_transaction_count(sender.address(), None)
-            .await?;
+        let nonce = provider.get_transaction_count(sender, None).await?;
         info!(
             "Signing 7702 authorization for sender: {:?}, nonce: {}",
-            sender.address(),
-            nonce
+            sender, nonce
         );
-        let auth = sign_railgun_authorization(sender, self.chain.id, nonce).await?;
+        let auth = railgun_authorization(self.chain.id, nonce);
 
         //? Initial arbitrary estimation of fee note value.
         //? IMPORTANT: Needs to be high enough to not cause a revert. Most
@@ -211,7 +209,7 @@ impl RailgunProvider {
 
         info!("Iteratively building UserOperation to converge on accurate fee estimate");
         let mut userop_builder =
-            UserOperationBuilder::new_railgun(Bytes::new(), B128::ZERO, Address::ZERO, 0);
+            UserOperationBuilder::new_railgun(sender, Bytes::new(), B128::ZERO, Address::ZERO, 0);
 
         for _ in 0..5 {
             let broadcast_builder = builder.clone().transfer(
@@ -250,25 +248,31 @@ impl RailgunProvider {
 
             // Construct UserOperation
             userop_builder = UserOperationBuilder::new_railgun(
+                sender,
                 fee_calldata.clone(),
                 fee_note.random().into(),
                 fee_token,
                 fee_value,
             )
-            .with_sender(sender.address())
             .with_nonce(U256::from(nonce))
             .with_tail_calls(vec![tail_call])
-            .with_authorization(auth.clone());
+            .with_authorization(auth.clone())
+            .with_gas_estimate(bundler)
+            .await?;
 
-            // Estimate gas
+            // TODO: See if we can unify these two buffers into a single safety
+            // margin
             //
-            // Does need a signed 7702 authorization to set account code.
-            // Doesn't need a 4337 signature since the bundler ignores `SIG_VALIDATION_FAILED`
-            info!("Estimating gas for UserOperation");
-            let (estimate, _, _) = userop_builder.estimate_gas(bundler).await?;
-            let total_gas: u128 = estimate.sum().saturating_to();
+            // The bundler seems to find the exact minimum call_gas_limit with
+            // no margin.
+            // Add 10% headroom so the implementation doesn't sporadically OOG.
+            userop_builder.op.call_gas_limit = userop_builder.op.call_gas_limit * 11 / 10;
+            let total_gas = userop_builder.total_gas_limit();
+
+            // Add a 10% headroom to the fee estimate to ensure buffer if prices change
+            // slightly between estimation and execution
             let new_fee = total_gas * max_fee_per_gas;
-            let new_fee = (new_fee * 12) / 10;
+            let new_fee = (new_fee * 11) / 10;
 
             let delta = new_fee.abs_diff(fee_value);
             fee_value = new_fee;
@@ -281,14 +285,7 @@ impl RailgunProvider {
             info!("Fee updated to {}, delta: {}", new_fee, delta);
         }
 
-        // The bundler binary-searches to the exact minimum call_gas_limit with
-        // no margin. The Railgun smart wallet is a proxy, so the execution
-        // path has an extra CALL level subject to the 63/64 EVM stipend rule.
-        // Add 20% headroom so the implementation doesn't sporadically OOG.
-        userop_builder.op.call_gas_limit = userop_builder.op.call_gas_limit * 12 / 10;
-
-        let op = userop_builder.build(sender, bundler).await?;
-        Ok(op)
+        Ok(userop_builder.build())
     }
 
     pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {

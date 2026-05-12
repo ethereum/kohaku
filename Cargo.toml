@@ -80,8 +80,8 @@ wasm-bindgen = "0.2.108"
 wasm-bindgen-futures = "0.4"
 wasmer = "6.1"
 web-time = { version = "1.1", features = ["serde"] }
-userop_kit = { git = "https://github.com/Robert-MacWha/privacy-paymaster" }
-# userop_kit = { path = "../privacy-paymaster/crates/userop_kit" }
+# userop_kit = { git = "https://github.com/Robert-MacWha/privacy-paymaster" }
+userop_kit = { path = "../privacy-paymaster/crates/userop_kit" }
 
 [patch.crates-io]
 ruint = { git = "https://github.com/Robert-MacWha/ruint" } # Adds ark-fr-06 support

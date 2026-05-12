@@ -21,7 +21,10 @@ use railgun_rs::{
 use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-use userop_kit::{BundlerProvider, ENTRY_POINT_08, PimlicoBundler};
+use userop_kit::{
+    ENTRY_POINT_08, ENTRY_POINT_08_DOMAIN,
+    bundler::{BundlerProvider, pimlico::PimlicoBundler},
+};
 
 use crate::{alto::AltoBuilder, anvil::AnvilBuilder};
 
@@ -169,7 +172,7 @@ async fn test_broadcast_utxo() {
         .prepare_broadcast(
             tx,
             &provider,
-            &broadcast_signer,
+            broadcast_signer.address(),
             &bundler,
             account_1.clone(),
             RailgunAddress::new(
@@ -182,8 +185,13 @@ async fn test_broadcast_utxo() {
         )
         .await
         .unwrap();
+
+    let signed = prepared
+        .signed(&broadcast_signer, &ENTRY_POINT_08_DOMAIN)
+        .await
+        .unwrap();
     info!("Prepared broadcast transaction: {:?}", prepared);
-    let hash = bundler.send_user_operation(&prepared).await.unwrap();
+    let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
         receipt.success,
@@ -203,7 +211,7 @@ async fn test_broadcast_utxo() {
         .prepare_broadcast(
             tx,
             &provider,
-            &broadcast_signer,
+            broadcast_signer.address(),
             &bundler,
             account_1.clone(),
             RailgunAddress::new(
@@ -217,8 +225,12 @@ async fn test_broadcast_utxo() {
         .await
         .unwrap();
 
+    let signed = prepared
+        .signed(&broadcast_signer, &ENTRY_POINT_08_DOMAIN)
+        .await
+        .unwrap();
     info!("Prepared broadcast transaction: {:?}", prepared);
-    let hash = bundler.send_user_operation(&prepared).await.unwrap();
+    let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
         receipt.success,
