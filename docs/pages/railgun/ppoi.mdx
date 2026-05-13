@@ -1,7 +1,32 @@
-# Private Proof of Innocence
+# Private Proofs of Innocence
 
-:::info
-TODO
-:::
+Private Proofs of Innocence (PPOI) is Railgun's zero-knowledge assurance system.
+It sits alongside the Railgun smart contracts and uses public on-chain data plus zero-knowledge proofs to show that shielded funds are not part of a configured list of known malicious activity, without exposing a user's 0zk address, balances, or private transaction history.
+Within Kohaku, PPOI affects the lifecycle that starts in [Shielding](/railgun/shielding), continues through [Transacting](/railgun/txs), and matters again when [Unshielding](/railgun/unshielding) funds back to an EOA.
 
-For more information see [Railgun documentation](https://docs.railgun.org/wiki/assurance/private-proofs-of-innocence).
+## What PPOI changes for users
+
+- PPOI begins at the shield step. The assurance proof is anchored to the funds entering Railgun, rather than being generated only when a user later unshields.
+- Freshly shielded funds may remain pending PPOI validation before they are ready for normal private transfers and unshields. In the current Kohaku plugin, only balances whose `poiStatus` is `Valid` are treated as usable for those flows.
+- Once funds have a valid PPOI proof, that assurance can be carried forward through later private transfers inside Railgun. Recipients inherit the assurance on the funds without learning the sender's private history.
+- When funds eventually leave Railgun, recipients or exchanges can verify that the tokens have valid PPOI coverage without gaining visibility into the user's private balance graph.
+
+## What Kohaku exposes today
+
+Kohaku currently exposes PPOI through balance availability and transaction preparation behavior rather than through a dedicated PPOI management flow.
+
+- The current Kohaku implementation only aggregates ERC20 balances whose `poiStatus` is `Valid`.
+- The same `Valid` requirement is applied when Kohaku prepares private transfers and unshields.
+- Broadcaster selection also depends on a fee asset with valid PPOI status, which means PPOI directly affects whether a private operation can be prepared and relayed.
+- Kohaku currently uses a fixed PPOI configuration rather than exposing PPOI settings in its higher-level flow.
+- Kohaku does not currently expose PPOI list or POI node selection controls, and its higher-level balance and prepare flows surface only the usable `Valid` subset.
+
+## Canonical references
+
+These links are protocol and integration references for background on PPOI. They are the right place to look for richer POI state categories, list and provider setup, and operational PPOI controls that are not exposed in the current Kohaku implementation.
+
+- [Railgun wiki: Private Proofs of Innocence](https://docs.railgun.org/wiki/assurance/private-proofs-of-innocence)
+- [Railgun wiki: RAILGUN Assurance Suite](https://docs.railgun.org/wiki/assurance/railgun-assurance-suite)
+- [Railgun developer guide: Balance and Sync Callbacks](https://docs.railgun.org/developer-guide/wallet/private-balances/balance-and-sync-callbacks)
+- [Railgun developer guide: Start the RAILGUN Privacy Engine](https://docs.railgun.org/developer-guide/wallet/getting-started/5.-start-the-railgun-privacy-engine)
+- [ppoi.info](https://ppoi.info)
