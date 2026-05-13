@@ -18,9 +18,9 @@ use crate::{
     railgun::{
         indexer::TxidIndexer,
         merkle_tree::{TOTAL_LEAVES, UtxoTreeIndex},
-        note::utxo::UtxoNote,
+        note::utxo::{self, UtxoNote},
         poi::{
-            BlindedCommitment, ListKey, PoiNote,
+            ListKey, PoiNote,
             client::{PoiClient, PoiClientError},
             types::TransactProofData,
         },
@@ -218,12 +218,33 @@ impl PoiSubmitter {
                 txid_tree,
             )?;
 
-            let (proof, public_inputs) = prove_poi(prover, &inputs).await?;
-            let blinded_commitments_out = public_inputs[0..inputs.commitments.len()]
+            let proof = prove_poi(prover, &inputs).await?;
+
+            let mut blinded_commitments_out = Vec::new();
+            for (i, (commitment, npk)) in entry
+                .out_commitments
                 .iter()
-                .copied()
-                .map(BlindedCommitment::from)
-                .collect();
+                .zip(entry.out_npks.iter())
+                .enumerate()
+            {
+                let tree_number = utxo_tree_number;
+                let leaf_index = utxo_leaf_index + i as u32;
+                let blinded_commitment = utxo::blinded_commitment(
+                    commitment.clone(),
+                    npk.clone(),
+                    tree_number,
+                    leaf_index,
+                )
+                .into();
+
+                blinded_commitments_out.push(blinded_commitment);
+            }
+
+            //? If there's an unshield output, the last blinded commitment is not
+            //? required when uploading the proof.
+            if entry.has_unshield {
+                blinded_commitments_out.pop();
+            }
 
             let txid_merkleroot_index =
                 txid_tree_number as u64 * TOTAL_LEAVES as u64 + (txid_tree.leaves_len() as u64 - 1);

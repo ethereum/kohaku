@@ -33,37 +33,28 @@ extern "C" {
     ) -> Result<JsValue, JsValue>;
 }
 
-/// Generated proof and public inputs
-#[derive(Deserialize, Tsify)]
-#[serde(rename_all = "camelCase")]
-struct JsProof {
-    proof: Proof,
-    #[tsify(type = "`0x${string}`[]")]
-    public_inputs: Vec<U256>,
-}
-
 #[async_trait::async_trait(?Send)]
 impl Prover for JsProverAdapter {
     async fn prove(
         &self,
         circuit_name: &str,
         inputs: HashMap<String, Vec<U256>>,
-    ) -> Result<(Proof, Vec<U256>), ProverError> {
+    ) -> Result<Proof, ProverError> {
         println!("Proving circuit: {:?}", inputs);
         let serializer = serde_wasm_bindgen::Serializer::json_compatible();
         let js_inputs = inputs
             .serialize(&serializer)
             .map_err(|e| ProverError::Other(format!("Failed to serialize inputs: {:?}", e)))?;
 
-        let result = self
+        let proof = self
             .prove(circuit_name, js_inputs)
             .await
             .map_err(|e| ProverError::Other(format!("JS error: {:?}", e)))?;
 
-        let result: JsProof = serde_wasm_bindgen::from_value(result).map_err(|e| {
+        let proof: Proof = serde_wasm_bindgen::from_value(proof).map_err(|e| {
             ProverError::Other(format!("Failed to deserialize proof response: {:?}", e))
         })?;
 
-        Ok((result.proof, result.public_inputs))
+        Ok(proof)
     }
 }

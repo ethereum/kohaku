@@ -27,5 +27,5 @@ pub trait Prover: common::MaybeSend {
         &self,
         circuit_name: &str,
         inputs: HashMap<String, Vec<U256>>,
-    ) -> Result<(Proof, Vec<U256>), ProverError>;
+    ) -> Result<Proof, ProverError>;
 }

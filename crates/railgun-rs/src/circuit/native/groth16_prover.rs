@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ark_bn254::{Bn254, Fr};
 use ark_circom::CircomReduction;
-use ark_ff::{BigInt, PrimeField};
+use ark_ff::BigInt;
 use ark_groth16::{Groth16, prepare_verifying_key};
 use ark_std::rand::random;
 use prover::{Prover, ProverError};
@@ -36,7 +36,7 @@ impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
         &self,
         circuit_name: &str,
         inputs: HashMap<String, Vec<U256>>,
-    ) -> Result<(prover::Proof, Vec<U256>), ProverError> {
+    ) -> Result<prover::Proof, ProverError> {
         info!("Loading artifacts");
         let pk = self
             .artifact_loader
@@ -86,12 +86,7 @@ impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
             ));
         }
 
-        let public_inputs = public_inputs
-            .iter()
-            .map(|x| x.into_bigint().into())
-            .collect();
-
         info!("Proof verified successfully");
-        Ok((proof.into(), public_inputs))
+        Ok(proof.into())
     }
 }

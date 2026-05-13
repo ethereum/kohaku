@@ -438,7 +438,7 @@ async fn prove_operation<R: Rng>(
         operation.in_notes(),
         &operation.out_notes(),
     )?;
-    let (proof, _) = prove_transact(prover, &inputs).await?;
+    let proof = prove_transact(prover, &inputs).await?;
 
     let merkleroot: U256 = inputs.merkleroot.into();
     let transaction = abis::railgun::Transaction::new(

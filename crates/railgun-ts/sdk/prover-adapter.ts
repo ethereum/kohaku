@@ -42,8 +42,6 @@ export class GrothProverAdapter implements ProverAdapter {
     }
 
     const { wasm, zkey } = await this.loadArtifacts(circuitName);
-
-    // console.log(`Generating proof for ${circuitName}`);
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
       bigintInputs,
       wasm,
@@ -54,28 +52,22 @@ export class GrothProverAdapter implements ProverAdapter {
     );
 
     if (this.verify) {
-      // console.log(`Verifying proof for ${circuitName}`);
       const vkey = await snarkjs.zKey.exportVerificationKey(zkey);
       const valid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
 
       if (!valid) {
         throw new Error(`Proof verification failed for ${circuitName}`);
       }
-
-      // console.log("Proof verified");
     }
 
     return {
-      proof: {
-        pi_a: [proof.pi_a[0]! as `0x${string}`, proof.pi_a[1]! as `0x${string}`],
-        pi_b: [
-          [proof.pi_b[0]![0]! as `0x${string}`, proof.pi_b[0]![1]! as `0x${string}`],
-          [proof.pi_b[1]![0]! as `0x${string}`, proof.pi_b[1]![1]! as `0x${string}`],
-        ],
-        pi_c: [proof.pi_c[0]! as `0x${string}`, proof.pi_c[1]! as `0x${string}`],
-      },
-      publicInputs: publicSignals.map((s: string) => `0x${BigInt(s).toString(16)}` as `0x${string}`),
-    };
+      pi_a: [proof.pi_a[0]! as `0x${string}`, proof.pi_a[1]! as `0x${string}`],
+      pi_b: [
+        [proof.pi_b[0]![0]! as `0x${string}`, proof.pi_b[0]![1]! as `0x${string}`],
+        [proof.pi_b[1]![0]! as `0x${string}`, proof.pi_b[1]![1]! as `0x${string}`],
+      ],
+      pi_c: [proof.pi_c[0]! as `0x${string}`, proof.pi_c[1]! as `0x${string}`],
+    } as Proof;
   }
 
   private async loadArtifacts(

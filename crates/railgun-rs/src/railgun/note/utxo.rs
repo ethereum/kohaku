@@ -224,7 +224,7 @@ fn note_public_key(
     poseidon_hash(&[master_key.to_u256(), U256::from_be_slice(random)]).unwrap()
 }
 
-fn blinded_commitment(hash: U256, npk: U256, tree_number: u32, leaf_index: u32) -> U256 {
+pub fn blinded_commitment(hash: U256, npk: U256, tree_number: u32, leaf_index: u32) -> U256 {
     poseidon_hash(&[
         hash,
         npk,
