@@ -4,5 +4,6 @@ packages:
   - "packages/railgun"
   - "packages/privacy-pools"
   - "packages/plugins"
+  - "packages/curvy"
   - "examples/pq-account"
   - "docs"
