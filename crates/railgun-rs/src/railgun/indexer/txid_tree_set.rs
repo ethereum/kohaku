@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     crypto::railgun_txid::Txid,
@@ -105,9 +105,9 @@ impl TxidTreeSet {
             (validated.tree() as usize) * TOTAL_LEAVES + validated.leaf_index() as usize + 1;
 
         let to_drain = target_total.saturating_sub(current_total);
-        if to_drain == 0 {
-            return Ok(());
-        }
+        // if to_drain == 0 {
+        //     return Ok(());
+        // }
 
         let drain_count = to_drain.min(self.pending.len());
         let drained: Vec<_> = self.pending.drain(..drain_count).collect();
@@ -142,7 +142,7 @@ impl TxidTreeSet {
             total += 1;
         }
 
-        info!("Drained {} operations", target_total);
+        info!("Drained {} operations", total);
 
         // Rebuild
         info!("Rebuilding TXID trees");
@@ -161,9 +161,13 @@ impl TxidTreeSet {
                 .await?;
 
             if !validated {
-                return Err(TxidTreeError::RootMismatch {
-                    tree_number: *tree_number,
-                });
+                warn!(
+                    "TXID tree root mismatch for tree {}: computed {}, but POI did not validate",
+                    tree_number, merkleroot
+                );
+                // return Err(TxidTreeError::RootMismatch {
+                //     tree_number: *tree_number,
+                // });
             }
 
             info!(

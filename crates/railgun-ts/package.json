@@ -1,0 +1,29 @@
+{
+  "name": "railgun-ts",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "pnpm run build:wasm && pnpm run build:js",
+    "build:wasm": "wasm-pack build --target web --out-name index --out-dir pkg",
+    "build:js": "tsc",
+    "test:e2e": "vitest run -t transact-utxo"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0",
+  "dependencies": {
+    "@kohaku-eth/provider": "workspace:*",
+    "snarkjs": "^0.7.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/snarkjs": "^0.7.6",
+    "typescript": "^5.9.2",
+    "viem": "^2.0.0",
+    "vite": "^8.0.2",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^4.1.1"
+  }
+}

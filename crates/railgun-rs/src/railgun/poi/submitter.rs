@@ -148,16 +148,19 @@ impl PoiSubmitter {
         prover: &dyn Prover,
     ) {
         for i in (0..self.pending.len()).rev() {
-            match self.submit_poi(txid_indexer, poi_client, prover, i).await {
+            let entry = &self.pending[i];
+            match self
+                .submit_poi(txid_indexer, poi_client, prover, entry)
+                .await
+            {
                 Ok(_) => {
-                    let entry = &self.pending[i];
                     info!("Submitted POI for {:?}", entry.txid);
                     self.pending.remove(i);
                 }
                 Err(e) => {
                     warn!(
-                        "Failed to submit POI for pending entry at index {}: {:?}",
-                        i, e
+                        "Failed to submit POI for pending entry {:?} at index {}: {:?}",
+                        entry.txid, i, e
                     );
                     continue;
                 }
@@ -166,13 +169,12 @@ impl PoiSubmitter {
     }
 
     async fn submit_poi(
-        &mut self,
+        &self,
         txid_indexer: &TxidIndexer,
         poi_client: &PoiClient,
         prover: &dyn Prover,
-        i: usize,
+        entry: &PendingPoiEntry,
     ) -> Result<(), PendingPoiError> {
-        let entry = &self.pending[i];
         let Some((txid_tree_number, _)) = txid_indexer.txid_position(&entry.txid) else {
             return Err(PendingPoiError::MissingTxidTree(entry.utxo_tree_in));
         };
@@ -185,7 +187,7 @@ impl PoiSubmitter {
         let txid_tree = txid_indexer
             .tree(txid_tree_number)
             .ok_or(PendingPoiError::MissingTxidTree(txid_tree_number))?;
-        let included = UtxoTreeIndex::included(utxo_tree_number, utxo_leaf_index);
+        let utxo_tree_out = UtxoTreeIndex::included(utxo_tree_number, utxo_leaf_index);
 
         let mut proof_data = HashMap::new();
         for list_key in &entry.list_keys {
@@ -212,7 +214,7 @@ impl PoiSubmitter {
                 entry.token,
                 entry.has_unshield,
                 list_key.clone(),
-                included,
+                utxo_tree_out,
                 txid_tree,
             )?;
 

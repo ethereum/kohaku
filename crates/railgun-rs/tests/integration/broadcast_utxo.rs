@@ -5,10 +5,11 @@ use alloy::{
     primitives::{U256, fixed_bytes},
     providers::{Provider, ProviderBuilder},
 };
+use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     RailgunProvider,
     caip::AssetId,
-    chain_config::{ChainConfig, SEPOLIA_CONFIG},
+    chain_config::ChainConfig,
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     crypto::keys::{MasterPublicKey, ViewingPublicKey},
     railgun::{
@@ -28,9 +29,6 @@ use userop_kit::{
 };
 
 use crate::{alto::AltoBuilder, anvil::AnvilBuilder};
-
-const WETH: AssetId = AssetId::Erc20(SEPOLIA_CONFIG.wrapped_base_token);
-const CHAIN: ChainConfig = SEPOLIA_CONFIG;
 
 const RAILGUN_PAYMASTER_RECEIVER_MPK: MasterPublicKey = MasterPublicKey::from_bytes_const(
     fixed_bytes!("0x19acdde26147205d58fd7768be7c011f08a147ef86e6b70968d09c81cef74b13").0,
@@ -57,6 +55,9 @@ async fn test_broadcast_utxo() {
         .try_init()
         .ok();
 
+    let chain = ChainConfig::sepolia();
+    let weth = AssetId::Erc20(chain.wrapped_base_token);
+
     let signer = alloy::signers::local::PrivateKeySigner::from_str(
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
     )
@@ -73,14 +74,13 @@ async fn test_broadcast_utxo() {
         .spawn()
         .await;
 
-    let provider = Arc::new(
-        ProviderBuilder::new()
-            .network::<Ethereum>()
-            .wallet(signer)
-            .connect("http://localhost:8545")
-            .await
-            .unwrap(),
-    );
+    let provider = ProviderBuilder::new()
+        .network::<Ethereum>()
+        .wallet(signer)
+        .connect("http://localhost:8545")
+        .await
+        .unwrap()
+        .erased();
 
     let alto_executor_pk = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
     let alto_utility_pk = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
@@ -104,27 +104,32 @@ async fn test_broadcast_utxo() {
     let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
     )));
-    let rpc_syncer = RpcSyncer::new(provider.clone(), CHAIN)
+    let rpc_syncer = RpcSyncer::new(chain.clone(), provider.clone().into_eip1193())
         .with_batch_size(10)
         .erased();
-    let subsquid_syncer = SubsquidSyncer::new(CHAIN.subsquid_endpoint)
+    let subsquid_syncer = SubsquidSyncer::new(&chain.subsquid_endpoint)
         .with_latest_block(fork_block)
         .erased();
 
     let syncer = ChainedSyncer::new(vec![subsquid_syncer, rpc_syncer]).erased();
-    let mut railgun = RailgunProvider::new(CHAIN, provider.clone(), syncer, prover);
+    let mut railgun = RailgunProvider::new(
+        chain.clone(),
+        provider.clone().into_eip1193(),
+        syncer,
+        prover,
+    );
     railgun.sync().await.unwrap();
 
     info!("Setting up accounts");
-    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
-    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
     railgun.register(account_1.clone());
     railgun.register(account_2.clone());
 
     info!("Setting up broadcaster");
     let bundler = PimlicoBundler::new(
         "http://localhost:3000".parse().unwrap(),
-        CHAIN.id,
+        chain.id,
         ENTRY_POINT_08,
     );
 
@@ -151,8 +156,8 @@ async fn test_broadcast_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&WETH), Some(&997_500_000_000_000_000));
-    assert_eq!(balance_2.get(&WETH), None);
+    assert_eq!(balance_1.get(&weth), Some(&997_500_000_000_000_000));
+    assert_eq!(balance_2.get(&weth), None);
 
     // Test Transfer
     let broadcast_signer = alloy::signers::local::PrivateKeySigner::from_str(
@@ -164,7 +169,7 @@ async fn test_broadcast_utxo() {
     let tx = TransactionBuilder::new().transfer(
         account_1.clone(),
         account_2.address(),
-        WETH,
+        weth,
         5_000,
         "test transfer",
     );
@@ -172,16 +177,15 @@ async fn test_broadcast_utxo() {
     let prepared = railgun
         .prepare_broadcast(
             tx,
-            &provider,
             broadcast_signer.address(),
             &bundler,
             account_1.clone(),
             RailgunAddress::new(
                 RAILGUN_PAYMASTER_RECEIVER_MPK,
                 RAILGUN_PAYMASTER_RECEIVER_VPK,
-                ChainId::evm(CHAIN.id),
+                ChainId::evm(chain.id),
             ),
-            SEPOLIA_CONFIG.wrapped_base_token,
+            chain.wrapped_base_token,
             &mut rand::rng(),
         )
         .await
@@ -205,22 +209,21 @@ async fn test_broadcast_utxo() {
 
     info!("Testing unshielding");
     let tx = TransactionBuilder::new()
-        .unshield(account_1.clone(), broadcast_signer.address(), WETH, 5_000)
+        .unshield(account_1.clone(), broadcast_signer.address(), weth, 5_000)
         .unwrap();
 
     let prepared = railgun
         .prepare_broadcast(
             tx,
-            &provider,
             broadcast_signer.address(),
             &bundler,
             account_1.clone(),
             RailgunAddress::new(
                 RAILGUN_PAYMASTER_RECEIVER_MPK,
                 RAILGUN_PAYMASTER_RECEIVER_VPK,
-                ChainId::evm(CHAIN.id),
+                ChainId::evm(chain.id),
             ),
-            SEPOLIA_CONFIG.wrapped_base_token,
+            chain.wrapped_base_token,
             &mut rand::rng(),
         )
         .await

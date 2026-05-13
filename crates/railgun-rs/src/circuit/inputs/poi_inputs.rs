@@ -144,13 +144,13 @@ impl PoiCircuitInputs {
         token: U256,
         has_unshield: bool,
         list_key: ListKey,
-        tree_index: UtxoTreeIndex,
+        utxo_tree_out: UtxoTreeIndex,
         txid_tree: &TxidMerkleTree,
     ) -> Result<Self, PoiCircuitInputsError> {
         info!("Generating POI inputs");
         let nullifiers: Vec<U256> = in_notes.iter().map(|note| note.inner.nullifier).collect();
         let txid = Txid::new(&nullifiers, out_commitments, bound_params_hash);
-        let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, tree_index);
+        let txid_leaf_hash = TxidLeafHash::new(txid, utxo_tree_in, utxo_tree_out);
         let txid_proof = txid_tree.generate_proof(txid_leaf_hash)?;
 
         let poi_proofs = in_notes
@@ -202,7 +202,7 @@ impl PoiCircuitInputs {
             utxo_tree_in: U256::from(utxo_tree_in),
             npks_out: pad_with_zero_value(out_npks.to_vec(), max_size),
             values_out: pad_with_zero(out_values.to_vec(), max_size),
-            utxo_batch_global_start_position_out: U256::from(tree_index.global_index()),
+            utxo_batch_global_start_position_out: U256::from(utxo_tree_out.global_index()),
             railgun_txid_if_has_unshield: txid_if_has_unshield,
             railgun_txid_merkle_proof_indices: U256::from(txid_proof.indices),
             railgun_txid_merkle_proof_path_elements: txid_proof.elements,

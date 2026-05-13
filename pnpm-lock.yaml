@@ -39,6 +39,37 @@ importers:
         specifier: ^8.3.0
         version: 8.39.0(eslint@9.32.0(jiti@2.6.1))(typescript@5.9.3)
 
+  crates/railgun-ts:
+    dependencies:
+      '@kohaku-eth/provider':
+        specifier: workspace:*
+        version: link:../../packages/provider
+      snarkjs:
+        specifier: ^0.7.6
+        version: 0.7.6
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      '@types/snarkjs':
+        specifier: ^0.7.6
+        version: 0.7.9
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      viem:
+        specifier: ^2.0.0
+        version: 2.45.1(typescript@5.9.3)(zod@4.3.6)
+      vite:
+        specifier: ^8.0.2
+        version: 8.0.2(@types/node@25.5.0)(esbuild@0.27.2)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.1)
+      vite-plugin-wasm:
+        specifier: ^3.6.0
+        version: 3.6.0(vite@8.0.2(@types/node@25.5.0)(esbuild@0.27.2)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.1))
+      vitest:
+        specifier: ^4.1.1
+        version: 4.1.1(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(vite@8.0.2(@types/node@25.5.0)(esbuild@0.27.2)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.1))
+
   docs:
     dependencies:
       '@kohaku-eth/privacy-pools':

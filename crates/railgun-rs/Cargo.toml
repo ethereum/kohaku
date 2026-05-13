@@ -3,11 +3,17 @@ name = "railgun-rs"
 version = "0.1.0"
 edition = "2024"
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
-
 [lib]
 crate-type = ["rlib"]
+
+[features]
+default = []
+js = [
+    "dep:tsify",
+    "dep:wasm-bindgen",
+    "dep:serde-wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+]
 
 [dependencies]
 aes = { workspace = true }
@@ -40,6 +46,10 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }
 userop_kit = { workspace = true }
+tsify = { workspace = true, features = ["js"], optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+serde-wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ark-circom = { workspace = true }
@@ -58,13 +68,9 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 gloo-timers = { workspace = true, features = ["futures"] }
 js-sys = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
 tracing-wasm = { workspace = true }
-tsify = { workspace = true, features = ["js"] }
-wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
 
-[dev-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 alloy = { workspace = true, default-features = true, features = [
     "provider-anvil-api",
 ] }
@@ -72,8 +78,6 @@ insta = { workspace = true }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing-test = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
 
 [build-dependencies]

@@ -1,0 +1,24 @@
+[package]
+name = "railgun-ts"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+railgun-rs = { workspace = true, features = ["js"] }
+alloy = { workspace = true }
+async-trait = { workspace = true }
+eip-1193-provider = { workspace = true, features = ["js"] }
+prover = { workspace = true }
+userop_kit = { workspace = true, features = ["js"] }
+serde = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+tsify = { workspace = true, features = ["js"] }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+rand = { workspace = true }

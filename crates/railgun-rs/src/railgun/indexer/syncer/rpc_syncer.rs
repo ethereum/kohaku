@@ -67,7 +67,7 @@ impl NoteSyncer for RpcSyncer {
 
 impl RpcSyncer {
     async fn latest_block(&self) -> Result<u64, RpcSyncerError> {
-        Ok(self.provider.block_number().await?)
+        Ok(self.provider.get_block_number().await?)
     }
 
     async fn events(

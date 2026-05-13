@@ -1,8 +1,8 @@
 mod indexed_account;
-mod syncer;
-mod txid_indexer;
+pub mod syncer;
+pub mod txid_indexer;
 mod txid_tree_set;
-mod utxo_indexer;
+pub mod utxo_indexer;
 
 pub use syncer::{
     ChainedSyncer, NoteSyncer, RpcSyncer, Shield, SubsquidSyncer, Transact, TransactionSyncer,

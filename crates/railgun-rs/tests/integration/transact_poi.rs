@@ -6,11 +6,12 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
 };
+use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     RailgunProvider,
     abis::erc20::ERC20,
     caip::AssetId,
-    chain_config::{ChainConfig, SEPOLIA_CONFIG},
+    chain_config::ChainConfig,
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     railgun::{
         RailgunSigner,
@@ -23,7 +24,6 @@ use tracing_subscriber::EnvFilter;
 
 const USDC_ADDRESS: Address = address!("0x1c7d4b196cb0c7b01d743fbc6116a902379c7238");
 const USDC: AssetId = AssetId::Erc20(USDC_ADDRESS);
-const CHAIN: ChainConfig = SEPOLIA_CONFIG;
 
 /// Tests a full POI transact flow including shielding, transferring, and unshielding.
 ///
@@ -52,6 +52,8 @@ async fn test_transact_poi() {
         .try_init()
         .ok();
 
+    let chain = ChainConfig::sepolia();
+
     info!("Setting up prover");
     let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
@@ -71,19 +73,26 @@ async fn test_transact_poi() {
     );
 
     info!("Setting up railgun");
-    let subsquid_syncer = Arc::new(SubsquidSyncer::new(CHAIN.subsquid_endpoint));
-    let rpc_syncer = Arc::new(RpcSyncer::new(provider.clone(), CHAIN).with_batch_size(1000));
+    let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
+    let rpc_syncer = Arc::new(
+        RpcSyncer::new(chain.clone(), provider.clone().into_eip1193()).with_batch_size(1000),
+    );
     let syncer = Arc::new(ChainedSyncer::new(vec![
         subsquid_syncer.clone(),
         rpc_syncer,
     ]));
 
-    let mut railgun = RailgunProvider::new(CHAIN, provider.clone(), syncer, prover);
+    let mut railgun = RailgunProvider::new(
+        chain.clone(),
+        provider.clone().into_eip1193(),
+        syncer,
+        prover,
+    );
     railgun.with_poi(subsquid_syncer);
 
     info!("Setting up accounts");
-    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
-    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
 
     info!("Syncing to latest block");
     railgun.sync().await.unwrap();

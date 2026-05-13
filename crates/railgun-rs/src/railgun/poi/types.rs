@@ -1,4 +1,6 @@
 //! Types for the POI client
+//!
+//! https://github.com/Railgun-Community/private-proof-of-innocence/blob/4b1eaf6ef19099dbfd6b43b1ca78d2ce0132a752/packages/node/src/api/README.md
 
 use std::{collections::HashMap, fmt::Display, str::FromStr};
 
@@ -14,8 +16,8 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
+#[cfg_attr(js, derive(tsify::Tsify))]
+#[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi, type = "string"))]
 pub struct ListKey(String);
 
 #[derive(Debug, Copy, Clone, PartialEq, Deserialize, Eq, Hash)]
@@ -36,18 +38,9 @@ pub enum BlindedCommitmentType {
     Unshield,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PoiEventType {
-    Shield,
-    Transact,
-    Unshield,
-    LegacyTransact,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
+#[cfg_attr(js, derive(tsify::Tsify))]
+#[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
 pub enum PoiStatus {
     Valid,
     ShieldBlocked,
@@ -62,62 +55,6 @@ pub struct ChainParams {
     #[serde(rename = "chainID")]
     pub chain_id: String,
     pub txid_version: TxidVersion,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NodeStatusAllNetworks {
-    pub list_keys: Vec<ListKey>,
-    pub for_network: HashMap<String, NodeStatusForNetwork>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NodeStatusForNetwork {
-    pub txid_status: RailgunTxidStatus,
-    pub shield_queue_status: ShieldQueueStatus,
-    pub list_statuses: HashMap<String, PoiListStatus>,
-    pub legacy_transact_proofs: u64,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RailgunTxidStatus {
-    pub current_txid_index: u64,
-    pub current_merkleroot: MerkleRoot,
-    pub validated_txid_index: u64,
-    pub validated_merkleroot: MerkleRoot,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PoiListStatus {
-    pub poi_event_lengths: PoiEventLengths,
-    pub list_provider_poi_event_queue_length: Option<u64>,
-    pub pending_transact_proofs: u64,
-    pub blocked_shields: u64,
-    pub historical_merkleroots_length: u64,
-    pub latest_historical_merkleroot: MerkleRoot,
-}
-
-#[allow(dead_code)]
-pub type PoiEventLengths = HashMap<PoiEventType, u64>;
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ShieldQueueStatus {
-    pub unknown: u64,
-    pub pending: u64,
-    pub allowed: u64,
-    pub blocked: u64,
-    #[serde(rename = "addedPOI")]
-    pub added_poi: u64,
-    pub latest_shield: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,16 +99,6 @@ pub struct ValidateTxidMerklerootParams {
     pub tree: u32,
     pub index: u64,
     pub merkleroot: MerkleRoot,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ValidatePoiMerklerootsParams {
-    #[serde(flatten)]
-    pub chain: ChainParams,
-    pub list_key: ListKey,
-    pub poi_merkleroots: Vec<MerkleRoot>,
 }
 
 pub type PreTransactionPoisPerTxidLeafPerList =

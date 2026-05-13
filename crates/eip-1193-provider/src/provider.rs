@@ -6,12 +6,16 @@ use common::MaybeSend;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+// TODO: Split me up into multiple per-domain traits (logs, receipts, gas,
+// transactions, caller, etc)
+//
+// TODO: Ensure I'm a fully compliant EIP-1193 provider
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait Eip1193Provider: MaybeSend {
-    async fn chain_id(&self) -> Result<u64, Eip1193Error>;
+    async fn get_chain_id(&self) -> Result<u64, Eip1193Error>;
 
-    async fn block_number(&self) -> Result<u64, Eip1193Error>;
+    async fn get_block_number(&self) -> Result<u64, Eip1193Error>;
 
     async fn logs(
         &self,

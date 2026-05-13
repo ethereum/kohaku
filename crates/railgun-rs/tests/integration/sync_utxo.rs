@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
 use alloy::{network::Ethereum, providers::ProviderBuilder};
+use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
-    chain_config::{ChainConfig, MAINNET_CONFIG},
+    chain_config::ChainConfig,
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     railgun::{RailgunProvider, indexer::SubsquidSyncer},
 };
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-const CHAIN: ChainConfig = MAINNET_CONFIG;
 const FORK_BLOCK: u64 = 24379760;
 
 /// Tests syncing the UTXO state to a specific block. This integration test ensures that
@@ -25,6 +25,8 @@ async fn test_sync_utxo() {
         .try_init()
         .ok();
 
+    let chain = ChainConfig::mainnet();
+
     info!("Setting up chain client");
     let fork_url = std::env::var("RPC_URL_MAINNET").expect("Fork URL Must be set");
     let provider = Arc::new(
@@ -36,15 +38,19 @@ async fn test_sync_utxo() {
     );
 
     info!("Setting up indexer");
-    let subsquid_syncer = Arc::new(SubsquidSyncer::new(CHAIN.subsquid_endpoint));
+    let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
     let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts",
     )));
     //? We use the RailgunProvider here instead of a UtxoIndexer so that we can write
     //? the provider state to a file after syncing. This snapshot can be used in subsequent
     //? tests to avoid re-syncing from scratch, which currently takes ~1 minute.
-    let mut railgun =
-        RailgunProvider::new(CHAIN, provider.clone(), subsquid_syncer.clone(), prover);
+    let mut railgun = RailgunProvider::new(
+        chain.clone(),
+        provider.clone().into_eip1193(),
+        subsquid_syncer.clone(),
+        prover,
+    );
 
     info!("Syncing indexer");
     railgun.sync_to(FORK_BLOCK).await.unwrap();

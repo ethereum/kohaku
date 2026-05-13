@@ -6,10 +6,11 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
 };
+use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     abis::erc20::ERC20,
     caip::AssetId,
-    chain_config::{ChainConfig, MAINNET_CONFIG},
+    chain_config::ChainConfig,
     circuit::native::{Groth16Prover, RemoteArtifactLoader},
     railgun::{
         RailgunProvider, RailgunSigner, indexer::RpcSyncer, transaction::TransactionBuilder,
@@ -20,9 +21,6 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 const USDC_ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-const USDC: AssetId = AssetId::Erc20(USDC_ADDRESS);
-const WETH: AssetId = AssetId::Erc20(MAINNET_CONFIG.wrapped_base_token);
-const CHAIN: ChainConfig = MAINNET_CONFIG;
 
 /// Tests a full transact flow, including shielding, transferring, and unshielding.
 ///
@@ -40,6 +38,10 @@ async fn test_transact_utxo() {
         .with_test_writer()
         .try_init()
         .ok();
+
+    let chain = ChainConfig::mainnet();
+    let weth = AssetId::Erc20(chain.wrapped_base_token);
+    let usdc = AssetId::Erc20(USDC_ADDRESS);
 
     info!("Setting up prover");
     let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
@@ -64,15 +66,22 @@ async fn test_transact_utxo() {
     let usdc_contract = ERC20::new(USDC_ADDRESS, provider.clone());
 
     info!("Setting up railgun");
-    let rpc_syncer = Arc::new(RpcSyncer::new(provider.clone(), CHAIN).with_batch_size(10));
+    let rpc_syncer = Arc::new(
+        RpcSyncer::new(chain.clone(), provider.clone().into_eip1193()).with_batch_size(10),
+    );
     let provider_state = std::fs::read("./tests/fixtures/provider_state.json").unwrap();
     let railgun_state = serde_json::from_slice(&provider_state).unwrap();
-    let mut railgun = RailgunProvider::new(CHAIN, provider.clone(), rpc_syncer, prover);
+    let mut railgun = RailgunProvider::new(
+        chain.clone(),
+        provider.clone().into_eip1193(),
+        rpc_syncer,
+        prover,
+    );
     railgun.set_state(railgun_state).unwrap();
 
     info!("Setting up accounts");
-    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
-    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), CHAIN.id);
+    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
     railgun.register(account_1.clone());
     railgun.register(account_2.clone());
 
@@ -80,7 +89,7 @@ async fn test_transact_utxo() {
     info!("Testing shielding");
     let shield_tx = railgun
         .shield()
-        .shield(account_1.address(), USDC, 1_000_000)
+        .shield(account_1.address(), usdc, 1_000_000)
         .shield_native(account_1.address(), 100_000)
         .build(&mut rand::rng())
         .unwrap();
@@ -99,17 +108,17 @@ async fn test_transact_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&USDC), Some(&997_500));
-    assert_eq!(balance_1.get(&WETH), Some(&99_750));
-    assert_eq!(balance_2.get(&USDC), None);
-    assert_eq!(balance_2.get(&WETH), None);
+    assert_eq!(balance_1.get(&usdc), Some(&997_500));
+    assert_eq!(balance_1.get(&weth), Some(&99_750));
+    assert_eq!(balance_2.get(&usdc), None);
+    assert_eq!(balance_2.get(&weth), None);
 
     // Test Transfer
     info!("Testing transfer");
     let tx = TransactionBuilder::new().transfer(
         account_1.clone(),
         account_2.address(),
-        USDC,
+        usdc,
         5_000,
         "test transfer",
     );
@@ -127,8 +136,8 @@ async fn test_transact_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&USDC), Some(&992500));
-    assert_eq!(balance_2.get(&USDC), Some(&5000));
+    assert_eq!(balance_1.get(&usdc), Some(&992500));
+    assert_eq!(balance_2.get(&usdc), Some(&5000));
 
     // Test Unshielding
     info!("Testing unshielding");
@@ -136,7 +145,7 @@ async fn test_transact_utxo() {
         .unshield(
             account_1.clone(),
             address!("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86"),
-            USDC,
+            usdc,
             1_000,
         )
         .unwrap();
@@ -159,7 +168,7 @@ async fn test_transact_utxo() {
         .await
         .unwrap();
 
-    assert_eq!(balance_1.get(&USDC), Some(&991500));
-    assert_eq!(balance_2.get(&USDC), Some(&5000));
+    assert_eq!(balance_1.get(&usdc), Some(&991500));
+    assert_eq!(balance_2.get(&usdc), Some(&5000));
     assert_eq!(balance_eoa, 998);
 }

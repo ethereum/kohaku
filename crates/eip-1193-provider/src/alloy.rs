@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use alloy::{
     eips::BlockId,
     network::TransactionBuilder,
@@ -7,17 +9,29 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 
-use crate::{Eip1193Error, Eip1193Provider, RawLog};
+use crate::{Eip1193Error, Eip1193Provider, RawLog, TxData};
+
+pub struct Alloy {
+    inner: Arc<dyn Provider>,
+}
+
+impl Alloy {
+    pub fn new<P: Provider + 'static>(inner: P) -> Self {
+        Self {
+            inner: Arc::new(inner),
+        }
+    }
+}
 
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl<P: Provider> Eip1193Provider for P {
-    async fn chain_id(&self) -> Result<u64, Eip1193Error> {
-        Ok(self.get_chain_id().await?)
+impl Eip1193Provider for Alloy {
+    async fn get_chain_id(&self) -> Result<u64, Eip1193Error> {
+        Ok(self.inner.get_chain_id().await?)
     }
 
-    async fn block_number(&self) -> Result<u64, Eip1193Error> {
-        Ok(self.get_block_number().await?)
+    async fn get_block_number(&self) -> Result<u64, Eip1193Error> {
+        Ok(self.inner.get_block_number().await?)
     }
 
     async fn logs(
@@ -38,7 +52,7 @@ impl<P: Provider> Eip1193Provider for P {
             filter = filter.to_block(to_block);
         }
 
-        let logs = self.get_logs(&filter).await?;
+        let logs = self.inner.get_logs(&filter).await?;
         let logs = logs
             .into_iter()
             .map(|log| RawLog {
@@ -56,7 +70,7 @@ impl<P: Provider> Eip1193Provider for P {
 
     async fn eth_call(&self, to: Address, data: Bytes) -> Result<Bytes, Eip1193Error> {
         let request = TransactionRequest::default().to(to).with_input(data);
-        Ok(self.call(request).await?.into())
+        Ok(self.inner.call(request).await?)
     }
 
     async fn estimate_gas(
@@ -69,11 +83,11 @@ impl<P: Provider> Eip1193Provider for P {
         if let Some(f) = from {
             request = request.from(f);
         }
-        Ok(self.estimate_gas(request).await?)
+        Ok(self.inner.estimate_gas(request).await?)
     }
 
     async fn gas_price(&self) -> Result<u128, Eip1193Error> {
-        Ok(self.get_gas_price().await?)
+        Ok(self.inner.get_gas_price().await?)
     }
 
     async fn transaction_count(
@@ -87,14 +101,32 @@ impl<P: Provider> Eip1193Provider for P {
         };
 
         Ok(self
+            .inner
             .get_transaction_count(address)
             .block_id(block_id)
             .await?)
     }
 }
 
+pub trait ProviderExt: Provider + Sized + 'static {
+    fn into_eip1193(self) -> Arc<dyn Eip1193Provider> {
+        Arc::new(Alloy::new(self))
+    }
+}
+
+impl<P: Provider + 'static> ProviderExt for P {}
+
 impl From<RpcError<TransportErrorKind>> for Eip1193Error {
     fn from(e: RpcError<TransportErrorKind>) -> Self {
         Eip1193Error::Rpc(e.to_string())
+    }
+}
+
+impl From<TxData> for TransactionRequest {
+    fn from(tx_data: TxData) -> Self {
+        TransactionRequest::default()
+            .to(tx_data.to)
+            .input(tx_data.data.into())
+            .value(tx_data.value)
     }
 }

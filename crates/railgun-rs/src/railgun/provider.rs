@@ -4,12 +4,12 @@ use alloy::{
     primitives::{Address, B128, Bytes, ChainId, U256},
     sol_types::SolCall,
 };
-use eth_rpc::{EthRpcClient, EthRpcClientError};
+use eip_1193_provider::{Eip1193Error, Eip1193Provider};
 use prover::Prover;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{info, warn};
 use userop_kit::{
     UserOperation, UserOperationBuilder,
     bundler::{BundlerError, BundlerProvider},
@@ -19,7 +19,7 @@ use userop_kit::{
 use crate::{
     abis::railgun::RailgunSmartWallet,
     caip::AssetId,
-    chain_config::{ChainConfig, get_chain_config},
+    chain_config::ChainConfig,
     railgun::{
         address::RailgunAddress,
         indexer::{NoteSyncer, TransactionSyncer, UtxoIndexer, UtxoIndexerError, UtxoIndexerState},
@@ -36,6 +36,7 @@ use crate::{
 /// Interfaces with the RAILGUN protocol.
 pub struct RailgunProvider {
     chain: ChainConfig,
+    provider: Arc<dyn Eip1193Provider>,
     utxo_indexer: UtxoIndexer,
     prover: Arc<dyn Prover>,
 
@@ -83,6 +84,7 @@ impl RailgunProvider {
 
         Self {
             chain,
+            provider,
             utxo_indexer: UtxoIndexer::new(utxo_syncer, utxo_verifier),
             prover,
             poi_provider: None,
@@ -92,8 +94,8 @@ impl RailgunProvider {
     pub fn with_poi(&mut self, txid_syncer: Arc<dyn TransactionSyncer>) {
         let poi_provider = PoiProvider::new(
             self.chain.id,
-            self.chain.poi_endpoint,
-            self.chain.list_keys(),
+            self.chain.poi_endpoint.clone(),
+            self.chain.list_keys.clone(),
             self.prover.clone(),
             txid_syncer,
         );
@@ -101,7 +103,7 @@ impl RailgunProvider {
     }
 
     pub fn set_state(&mut self, state: RailgunProviderState) -> Result<(), RailgunProviderError> {
-        self.chain = get_chain_config(state.chain_id)
+        self.chain = ChainConfig::from_chain_id(state.chain_id)
             .ok_or(RailgunProviderError::UnsupportedChainId(state.chain_id))?;
         self.utxo_indexer.set_state(state.indexer);
         Ok(())
@@ -152,7 +154,7 @@ impl RailgunProvider {
 
     /// Helper to create a shield builder
     pub fn shield(&self) -> ShieldBuilder {
-        ShieldBuilder::new(self.chain)
+        ShieldBuilder::new(self.chain.clone())
     }
 
     /// Helper to create a transaction builder
@@ -179,9 +181,8 @@ impl RailgunProvider {
     pub async fn prepare_broadcast<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
-        provider: &impl EthRpcClient,
         sender: Address,
-        bundler: &impl BundlerProvider,
+        bundler: &dyn BundlerProvider,
         fee_payer: Arc<dyn RailgunSigner>,
         fee_recipient: RailgunAddress,
         fee_token: Address,
@@ -190,7 +191,7 @@ impl RailgunProvider {
         let fee_asset = AssetId::Erc20(fee_token);
 
         // 7702 authorization
-        let nonce = provider.get_transaction_count(sender, None).await?;
+        let nonce = self.provider.transaction_count(sender, None).await?;
         info!(
             "Signing 7702 authorization for sender: {:?}, nonce: {}",
             sender, nonce
@@ -342,7 +343,7 @@ impl RailgunProvider {
                 Ok(false) => continue, //? Not spendable, skip
                 Err(e) => {
                     //? If there's an error checking POI, log it and skip the note
-                    error!("Error checking POI for note {}: {}", note, e);
+                    warn!("Error checking POI for note {}: {}", note, e);
                     continue;
                 }
             }

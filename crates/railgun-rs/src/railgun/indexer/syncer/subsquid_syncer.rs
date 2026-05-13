@@ -40,10 +40,10 @@ const OPERATIONS_QUERY: &str = include_str!("./subsquid_graphql/operations.graph
 const BLOCK_NUMBER_QUERY: &str = include_str!("./subsquid_graphql/block_number.graphql");
 
 impl SubsquidSyncer {
-    pub fn new(url: &str) -> Self {
+    pub fn new(url: impl Into<String>) -> Self {
         Self {
             client: reqwest::Client::new(),
-            url: url.to_string(),
+            url: url.into(),
             batch_size: 20000,
             max_retries: 3,
             retry_delay: web_time::Duration::from_secs(1),

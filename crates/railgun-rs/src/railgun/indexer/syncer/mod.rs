@@ -1,9 +1,9 @@
-mod chained_syncer;
+pub mod chained_syncer;
 mod normalize_tree_position;
-mod rpc_syncer;
-mod subsquid_syncer;
+pub mod rpc_syncer;
+pub mod subsquid_syncer;
 mod subsquid_types;
-mod syncer;
+pub mod syncer;
 
 pub use chained_syncer::ChainedSyncer;
 pub use rpc_syncer::RpcSyncer;

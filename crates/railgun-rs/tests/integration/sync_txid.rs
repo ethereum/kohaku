@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use railgun_rs::{
-    chain_config::{ChainConfig, MAINNET_CONFIG},
+    chain_config::ChainConfig,
     railgun::{
         indexer::{SubsquidSyncer, TxidIndexer},
         poi::client::PoiClient,
@@ -10,7 +10,6 @@ use railgun_rs::{
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-const CHAIN: ChainConfig = MAINNET_CONFIG;
 const FORK_BLOCK: u64 = 24379760;
 
 /// Tests syncing the TxidIndexer to a specific block. This integration test ensures that
@@ -26,9 +25,11 @@ async fn test_sync_txid() {
         .try_init()
         .ok();
 
+    let chain = ChainConfig::mainnet();
+
     info!("Setting up POI client");
-    let poi_client = PoiClient::new(CHAIN.id, CHAIN.poi_endpoint, CHAIN.list_keys());
-    let subsquid_syncer = Arc::new(SubsquidSyncer::new(CHAIN.subsquid_endpoint));
+    let poi_client = PoiClient::new(chain.id, chain.poi_endpoint, chain.list_keys);
+    let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
     let mut indexer = TxidIndexer::new(subsquid_syncer, poi_client);
 
     info!("Syncing indexer");

@@ -137,7 +137,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        chain_config::MAINNET_CONFIG,
         crypto::keys::{SpendingKey, ViewingKey},
         railgun::{PrivateKeySigner, RailgunSigner},
     };
@@ -153,7 +152,7 @@ mod tests {
         let asset: AssetId = AssetId::Erc20(Address::from([0u8; 20]));
         let value: u128 = 1_000_000;
 
-        let shield_request = ShieldBuilder::new(MAINNET_CONFIG)
+        let shield_request = ShieldBuilder::new(ChainConfig::mainnet())
             .shield(recipient, asset, value)
             .build(&mut rng)
             .unwrap();
@@ -169,7 +168,7 @@ mod tests {
         let signer = PrivateKeySigner::new_evm(spending_key, viewing_key, 1);
         let recipient = signer.address();
 
-        let tx = ShieldBuilder::new(MAINNET_CONFIG)
+        let tx = ShieldBuilder::new(ChainConfig::mainnet())
             .shield_native(recipient, 1_000_000)
             .build(&mut rng)
             .unwrap();

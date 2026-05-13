@@ -9,17 +9,17 @@ use crate::abis::railgun::{TokenData, TokenType};
 /// CAIP-10 style Asset ID.  ERC721 and ERC1155 sub-id represented as hex strings.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
+#[cfg_attr(js, derive(tsify::Tsify))]
+#[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
 pub enum AssetId {
-    Erc20(#[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))] Address),
+    Erc20(#[cfg_attr(js, tsify(type = "`0x${string}`"))] Address),
     Erc721(
-        #[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))] Address,
-        #[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))] U256,
+        #[cfg_attr(js, tsify(type = "`0x${string}`"))] Address,
+        #[cfg_attr(js, tsify(type = "`0x${string}`"))] U256,
     ),
     Erc1155(
-        #[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))] Address,
-        #[cfg_attr(target_arch = "wasm32", tsify(type = "`0x${string}`"))] U256,
+        #[cfg_attr(js, tsify(type = "`0x${string}`"))] Address,
+        #[cfg_attr(js, tsify(type = "`0x${string}`"))] U256,
     ),
 }
 
@@ -137,7 +137,7 @@ impl FromStr for AssetId {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
 

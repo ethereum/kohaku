@@ -35,7 +35,6 @@ extern "C" {
 
 /// Generated proof and public inputs
 #[derive(Deserialize, Tsify)]
-#[tsify(from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 struct JsProof {
     proof: Proof,

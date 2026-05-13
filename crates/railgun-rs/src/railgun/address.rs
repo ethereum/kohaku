@@ -10,12 +10,9 @@ use crate::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
 #[serde(try_from = "String", into = "String")]
-#[cfg_attr(
-    target_arch = "wasm32",
-    tsify(from_wasm_abi, into_wasm_abi, type = "`0zk${string}`")
-)]
+#[cfg_attr(js, derive(tsify::Tsify))]
+#[cfg_attr(js, tsify(from_wasm_abi, into_wasm_abi, type = "`0zk${string}`"))]
 pub struct RailgunAddress {
     master_key: MasterPublicKey,
     viewing_pubkey: ViewingPublicKey,

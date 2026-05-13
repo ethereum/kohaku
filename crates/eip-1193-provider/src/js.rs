@@ -2,7 +2,7 @@ use alloy::primitives::{Address, Bytes, FixedBytes};
 use js_sys::BigInt;
 use wasm_bindgen::prelude::*;
 
-use crate::client::{Eip1193Error, Eip1193Provider, RawLog};
+use crate::provider::{Eip1193Error, Eip1193Provider, RawLog};
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_INTERFACE: &str = r#"
@@ -62,7 +62,7 @@ extern "C" {
 
 #[async_trait::async_trait(?Send)]
 impl Eip1193Provider for JsEip1193Provider {
-    async fn chain_id(&self) -> Result<u64, Eip1193Error> {
+    async fn get_chain_id(&self) -> Result<u64, Eip1193Error> {
         let result = self
             .get_chain_id()
             .await
@@ -70,7 +70,7 @@ impl Eip1193Provider for JsEip1193Provider {
         js_bigint_to_u64(result)
     }
 
-    async fn block_number(&self) -> Result<u64, Eip1193Error> {
+    async fn get_block_number(&self) -> Result<u64, Eip1193Error> {
         let result = self
             .get_block_number()
             .await
