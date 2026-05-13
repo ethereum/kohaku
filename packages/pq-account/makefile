@@ -1,7 +1,7 @@
 CORES := $(shell nproc)
 install: 
 	foundryup
-	git submodule update --init --recursive
+	git submodule update --init --recursive --remote
 	if [ -d lib/ETHDILITHIUM/pythonref ]; then cd lib/ETHDILITHIUM/pythonref && make install; fi
 	if [ -d lib/ETHFALCON/pythonref ]; then cd lib/ETHFALCON/pythonref && make install; fi
 test_opt:
