@@ -1,18 +1,14 @@
-use std::sync::Arc;
-
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 
 use crate::railgun::merkle_tree::{
-    MerkleProof, MerkleRoot, MerkleTree, MerkleTreeError, MerkleTreeState, MerkleTreeVerifier,
-    VerificationError,
+    MerkleProof, MerkleRoot, MerkleTree, MerkleTreeError, MerkleTreeState,
 };
 
 /// UTXO trees track the state of all notes in Railgun. New UTXOs are added as
 /// leaves whenever new commitments are observed from the Railgun smart contracts.
 pub struct UtxoMerkleTree {
     inner: MerkleTree,
-    verifier: Option<Arc<dyn MerkleTreeVerifier>>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
@@ -22,20 +18,13 @@ impl UtxoMerkleTree {
     pub fn new(number: u32) -> Self {
         UtxoMerkleTree {
             inner: MerkleTree::new(number),
-            verifier: None,
         }
     }
 
     pub fn from_state(state: MerkleTreeState) -> Self {
         UtxoMerkleTree {
             inner: MerkleTree::from_state(state),
-            verifier: None,
         }
-    }
-
-    pub fn with_verifier(mut self, verifier: Arc<dyn MerkleTreeVerifier>) -> Self {
-        self.verifier = Some(verifier);
-        self
     }
 
     pub fn number(&self) -> u32 {
@@ -75,35 +64,6 @@ impl UtxoMerkleTree {
 
     pub fn rebuild(&mut self) {
         self.inner.rebuild();
-    }
-
-    /// Validates this tree's root against the embedded verifier, if any.
-    /// Returns `Ok(())` immediately if no verifier is set or the tree is empty.
-    pub async fn verify(&self) -> Result<(), VerificationError> {
-        let Some(verifier) = &self.verifier else {
-            return Ok(());
-        };
-
-        let leaves_len = self.inner.leaves_len();
-        if leaves_len == 0 {
-            return Ok(());
-        }
-
-        let tree_number = self.inner.number();
-        let tree_index = leaves_len as u64 - 1;
-        let root = self.inner.root();
-
-        verifier
-            .verify_root(tree_number, tree_index, root)
-            .await
-            .map_err(VerificationError::VerifierError)
-            .and_then(|valid| {
-                if valid {
-                    Ok(())
-                } else {
-                    Err(VerificationError::InvalidRoot { tree_number, root })
-                }
-            })
     }
 }
 

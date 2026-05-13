@@ -220,6 +220,10 @@ impl PoiSubmitter {
 
             let proof = prove_poi(prover, &inputs).await?;
 
+            //? npks only exist for encryptable outputs, so we only generate
+            //? blinded commitments for those. This is explicitly intentional
+            //? since the POI endpoint doesn't accept blinded commitments for
+            //? unshield notes.
             let mut blinded_commitments_out = Vec::new();
             for (i, (commitment, npk)) in entry
                 .out_commitments
@@ -242,9 +246,9 @@ impl PoiSubmitter {
 
             //? If there's an unshield output, the last blinded commitment is not
             //? required when uploading the proof.
-            if entry.has_unshield {
-                blinded_commitments_out.pop();
-            }
+            // if entry.has_unshield {
+            //     blinded_commitments_out.pop();
+            // }
 
             let txid_merkleroot_index =
                 txid_tree_number as u64 * TOTAL_LEAVES as u64 + (txid_tree.leaves_len() as u64 - 1);

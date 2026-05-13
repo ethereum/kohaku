@@ -11,4 +11,4 @@ pub use merkle_tree::{
 pub use smart_wallet_verifier::SmartWalletUtxoVerifier;
 pub use txid_tree::{TxidLeafHash, TxidMerkleTree, UtxoTreeIndex};
 pub use utxo_tree::{UtxoLeafHash, UtxoMerkleTree};
-pub use verifier::{MerkleTreeVerifier, VerificationError};
+pub use verifier::MerkleTreeVerifier;

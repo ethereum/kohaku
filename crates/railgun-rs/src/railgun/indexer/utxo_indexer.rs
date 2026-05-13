@@ -16,9 +16,7 @@ use crate::railgun::{
         indexed_account::{IndexedAccount, IndexedAccountState},
         syncer::{self, NoteSyncer, SyncEvent, SyncerError},
     },
-    merkle_tree::{
-        MerkleTreeState, MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree, VerificationError,
-    },
+    merkle_tree::{MerkleTreeState, MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree},
     note::utxo::{NoteError, UtxoNote},
     signer::RailgunSigner,
 };
@@ -58,7 +56,7 @@ pub enum UtxoIndexerError {
     #[error("Syncer error: {0}")]
     SyncerError(#[from] SyncerError),
     #[error("Verification error: {0}")]
-    VerificationError(#[from] VerificationError),
+    VerificationError(#[source] Box<dyn std::error::Error + 'static>),
     #[error("Note error: {0}")]
     NoteError(#[from] NoteError),
     #[error("Timed out waiting for commitments")]
@@ -86,10 +84,7 @@ impl UtxoIndexer {
     pub fn set_state(&mut self, state: UtxoIndexerState) {
         let mut utxo_trees = BTreeMap::new();
         for (number, tree_state) in state.utxo_trees {
-            utxo_trees.insert(
-                number,
-                UtxoMerkleTree::from_state(tree_state).with_verifier(self.utxo_verifier.clone()),
-            );
+            utxo_trees.insert(number, UtxoMerkleTree::from_state(tree_state));
         }
 
         self.utxo_trees = utxo_trees;
@@ -191,8 +186,7 @@ impl UtxoIndexer {
     pub async fn sync_to(&mut self, to_block: u64) -> Result<(), UtxoIndexerError> {
         let from_block = self.synced_block() + 1;
 
-        let syncer = self.utxo_syncer.clone();
-        let latest_block = syncer.latest_block().await?;
+        let latest_block = self.utxo_syncer.latest_block().await?;
         let to_block = to_block.min(latest_block);
 
         if from_block > to_block {
@@ -200,7 +194,7 @@ impl UtxoIndexer {
         }
 
         // Sync
-        let events = syncer.sync(from_block, to_block).await?;
+        let events = self.utxo_syncer.sync(from_block, to_block).await?;
         info!("Fetched {} events from syncer", events.len());
         for event in events {
             self.handle_event(&event)?;
@@ -281,20 +275,27 @@ impl UtxoIndexer {
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
     }
 
-    async fn verify(&self) -> Result<(), VerificationError> {
+    async fn verify(&self) -> Result<(), UtxoIndexerError> {
         for tree in self.utxo_trees.values() {
-            tree.verify().await?;
+            if tree.leaves_len() == 0 {
+                continue;
+            }
+
+            self.utxo_verifier
+                .verify_root(tree.number(), tree.leaves_len() as u64 - 1, tree.root())
+                .await
+                .map_err(|e| UtxoIndexerError::VerificationError(e))?;
         }
         Ok(())
     }
 
     /// Insert a leaf into the appropriate UTXO tree, creating the tree if necessary
     fn insert_utxo_leaf(&mut self, tree_number: u32, leaf_index: u32, leaf: UtxoLeafHash) {
-        self.utxo_trees
+        let tree = self
+            .utxo_trees
             .entry(tree_number)
-            .or_insert_with(|| {
-                UtxoMerkleTree::new(tree_number).with_verifier(self.utxo_verifier.clone())
-            })
-            .insert_leaves_raw(&[leaf], leaf_index as usize);
+            .or_insert(UtxoMerkleTree::new(tree_number));
+
+        tree.insert_leaves_raw(&[leaf], leaf_index as usize);
     }
 }
