@@ -12,7 +12,7 @@ use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::crypto::railgun_zero::SNARK_PRIME;
+use crate::crypto::{aes::Ciphertext, railgun_zero::SNARK_PRIME};
 
 #[derive(Debug, Error)]
 pub enum TokenDataError {
@@ -299,13 +299,40 @@ sol! {
     }
 }
 
+impl From<ShieldCiphertext> for Ciphertext {
+    fn from(c: ShieldCiphertext) -> Self {
+        let iv = c.encryptedBundle[0][..16].try_into().unwrap();
+        let tag = c.encryptedBundle[0][16..].try_into().unwrap();
+        let data = vec![c.encryptedBundle[1][..16].to_vec()];
+        Ciphertext { iv, tag, data }
+    }
+}
+
+impl From<CommitmentCiphertext> for Ciphertext {
+    fn from(c: CommitmentCiphertext) -> Self {
+        let iv = c.ciphertext[0][..16].try_into().unwrap();
+        let tag = c.ciphertext[0][16..32].try_into().unwrap();
+
+        let mut data: Vec<Vec<u8>> = c.ciphertext[1..]
+            .iter()
+            .map(|chunk| chunk.to_vec())
+            .collect();
+        data.push(c.memo.to_vec());
+
+        Ciphertext { iv, tag, data }
+    }
+}
+
 #[cfg(all(test, native))]
 mod tests {
-    use alloy::primitives::{Bytes, FixedBytes, address};
+    use alloy::primitives::{Bytes, FixedBytes, address, b256, bytes};
     use ruint::uint;
     use tracing_test::traced_test;
 
-    use crate::abis::railgun::{BoundParams, CommitmentCiphertext, UnshieldType};
+    use crate::{
+        abis::railgun::{BoundParams, CommitmentCiphertext, ShieldCiphertext, UnshieldType},
+        crypto::aes::Ciphertext,
+    };
 
     #[test]
     #[traced_test]
@@ -336,5 +363,45 @@ mod tests {
             uint!(653354349844558206886319240777917397850034746873378410801880094244109558523_U256);
 
         assert_eq!(hash, expected);
+    }
+
+    #[test]
+    fn test_from_shield_ciphertext() {
+        let shield_ciphertext = ShieldCiphertext {
+            encryptedBundle: [
+                b256!("0xcdc40d1a484d0b9534fb430fd772ee441a0a60310f7e4f45e44f3e1a28927c66"),
+                b256!("0xf64f89eb30021e320701bac590c1b86222b54ae203d9a4e884eb6184cbc81e3d"),
+                b256!("0x1ea6ad31817027dc894fe811886dcfbbbce303fd9e3a30bd3da8d3af715d10d3"),
+            ],
+            shieldKey: b256!("0x6a87f04482a545ace6434f50ccc10d718d252a230d17ca6ab577b1d1e44b3967"),
+        };
+
+        let ciphertext: Ciphertext = shield_ciphertext.into();
+        insta::assert_debug_snapshot!(ciphertext);
+    }
+
+    #[test]
+    fn test_from_commitment_ciphertext() {
+        let commitment_ciphertext = CommitmentCiphertext {
+            ciphertext: [
+                b256!("0x0701392e79e3b100c865c253aba4758643080ea8a88c70911ce4521fed8e2983"),
+                b256!("0x9a47f32a2f239b13f1817f5fabfb35a0ade4c0cff6fb55c9be421875566c63d9"),
+                b256!("0x3eb4c3dcae2803efad8434eadca4002ecea8bfb9fefb4dcc7a21d079f978a210"),
+                b256!("0xeb817de68266906f3ebb22b714bc0be33c865212ea9804586adbf0dd2d333ec2"),
+            ],
+            blindedReceiverViewingKey: b256!(
+                "0x046dab3ac0f2656b9e9aebd0bc0b886ff5e88026f017089277502e83e32f5547"
+            ),
+            blindedSenderViewingKey: b256!(
+                "0xc936445356cc951b8aedb75ce5c7d59b2ad43f8b68a53ceae2569b0721506ae0"
+            ),
+            annotationData: bytes!(
+                "0x5f627757a9ebf5dd7ca759eebd0dac8ac843f6e4a1f4e298ee7bb0345775f11f11ff05a7a67eb77276766931a9799e5e19fa18c51f14a5772fe0de6019bef864"
+            ),
+            memo: bytes!("0x3ceb1ca1f1ef0bdf61df88596d"),
+        };
+
+        let ciphertext: Ciphertext = commitment_ciphertext.into();
+        insta::assert_debug_snapshot!(ciphertext);
     }
 }

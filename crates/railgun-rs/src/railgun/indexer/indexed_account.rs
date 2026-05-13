@@ -119,3 +119,124 @@ impl IndexedAccount {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy::primitives::address;
+    use rand::random;
+
+    use super::*;
+    use crate::{
+        caip::AssetId,
+        railgun::{
+            PrivateKeySigner,
+            note::{EncryptableNote, Note, encrypt::encrypt_shield, transfer::TransferNote},
+        },
+    };
+
+    #[test]
+    fn test_event_handling() {
+        let sender = PrivateKeySigner::new_evm(random(), random(), 1);
+        let recipient = PrivateKeySigner::new_evm(random(), random(), 1);
+        let other_recipient = PrivateKeySigner::new_evm(random(), random(), 1);
+        let asset = AssetId::erc20(address!("0xDEADDEADDEADDEADDEADDEADDEADDEADDEADDEAD"));
+        let value = 100;
+        let rng = &mut rand::rng();
+        let mut account = IndexedAccount::new(recipient.clone(), 0);
+
+        // Ingest a shield note
+        let shield = encrypt_shield(recipient.address(), asset, value, rng).unwrap();
+        let event = syncer::Shield {
+            tree_number: 1,
+            leaf_index: 0,
+            npk: shield.preimage.npk.into(),
+            token: shield.preimage.token.try_into().unwrap(),
+            value: U256::from(shield.preimage.value),
+            ciphertext: shield.ciphertext.clone().into(),
+            shield_key: *shield.ciphertext.shieldKey,
+        };
+
+        account.handle_shield_event(&event).unwrap();
+        let notes = account.unspent();
+        assert_eq!(notes.len(), 1);
+
+        let note = &notes[0];
+        assert_eq!(note.tree_number, 1);
+        assert_eq!(note.leaf_index, 0);
+        assert_eq!(note.asset, asset);
+        assert_eq!(note.value, value);
+
+        // Ingest a shield note for a different recipient
+        let other_shield = encrypt_shield(other_recipient.address(), asset, value, rng).unwrap();
+        let other_event = syncer::Shield {
+            tree_number: 1,
+            leaf_index: 1,
+            npk: other_shield.preimage.npk.into(),
+            token: other_shield.preimage.token.try_into().unwrap(),
+            value: U256::from(other_shield.preimage.value),
+            ciphertext: other_shield.ciphertext.clone().into(),
+            shield_key: *other_shield.ciphertext.shieldKey,
+        };
+
+        account.handle_shield_event(&other_event).unwrap();
+        let notes = account.unspent();
+        assert_eq!(notes.len(), 1); // Should still only have the first note
+
+        // Ingest a transact note
+        let memo = "Test transfer";
+        let transact = TransferNote::new(
+            sender.viewing_key,
+            recipient.address(),
+            asset,
+            value,
+            random(),
+            memo,
+        );
+
+        let ciphertext = transact.encrypt(rng).unwrap();
+        let event = syncer::Transact {
+            tree_number: 1,
+            leaf_index: 2,
+            hash: transact.hash().into(),
+            ciphertext: ciphertext.clone().into(),
+            blinded_sender_viewing_key: *ciphertext.blindedSenderViewingKey,
+            blinded_receiver_viewing_key: *ciphertext.blindedReceiverViewingKey,
+            annotation_data: ciphertext.annotationData.to_vec(),
+        };
+
+        account.handle_transact_event(&event).unwrap();
+        let notes = account.unspent();
+        assert_eq!(notes.len(), 2);
+
+        let note = notes.iter().find(|n| n.leaf_index == 2).unwrap();
+        assert_eq!(note.tree_number, 1);
+        assert_eq!(note.leaf_index, 2);
+        assert_eq!(note.asset, asset);
+        assert_eq!(note.value, value);
+        assert_eq!(note.memo, memo.to_string());
+
+        // Ingest a nullifier for the transact
+        let nullified_event = syncer::Nullified {
+            tree_number: 1,
+            nullifier: note.nullifier.into(),
+        };
+
+        account.handle_nullified_event(&nullified_event, 0);
+        let notes = account.unspent();
+        assert_eq!(notes.len(), 1);
+
+        let remaining_note = &notes[0];
+        assert_eq!(remaining_note.tree_number, 1);
+        assert_eq!(remaining_note.leaf_index, 0);
+
+        // Ingest a nullifier for an unrelated note
+        let unrelated_nullified_event = syncer::Nullified {
+            tree_number: 1,
+            nullifier: U256::from(1234567890).into(),
+        };
+
+        account.handle_nullified_event(&unrelated_nullified_event, 0);
+        let notes = account.unspent();
+        assert_eq!(notes.len(), 1); // Should still have the original note
+    }
+}

@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use alloy::primitives::U256;
 use crypto::poseidon_hash;
-use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

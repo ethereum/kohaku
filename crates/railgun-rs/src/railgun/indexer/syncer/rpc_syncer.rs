@@ -7,7 +7,6 @@ use tracing::{info, warn};
 use crate::{
     abis::railgun::RailgunSmartWallet,
     chain_config::ChainConfig,
-    crypto::aes::Ciphertext,
     railgun::indexer::syncer::{
         self,
         normalize_tree_position::normalize_tree_position,
@@ -161,15 +160,7 @@ fn decode_shield_event(log: &RawLog, block_number: u64) -> Result<Vec<SyncEvent>
                 npk: commitment.npk.into(),
                 token: commitment.token.into(),
                 value: commitment.value.saturating_to(),
-                ciphertext: Ciphertext {
-                    iv: shield_ciphertext.encryptedBundle[0][..16]
-                        .try_into()
-                        .unwrap(),
-                    tag: shield_ciphertext.encryptedBundle[0][16..]
-                        .try_into()
-                        .unwrap(),
-                    data: vec![shield_ciphertext.encryptedBundle[1][..16].to_vec()],
-                },
+                ciphertext: shield_ciphertext.clone().into(),
                 shield_key: shield_ciphertext.shieldKey.into(),
             },
             block_number,
@@ -194,21 +185,12 @@ fn handle_transact_event(
         let (tree_number, leaf_index) =
             normalize_tree_position(tree_number, start_position + i as u32);
 
-        let mut data: Vec<Vec<u8>> = ciphertext.ciphertext[1..]
-            .iter()
-            .map(|chunk| chunk.to_vec())
-            .collect();
-        data.push(ciphertext.memo.to_vec());
         events.push(SyncEvent::Transact(
             syncer::Transact {
                 tree_number,
                 leaf_index,
                 hash: hash.into(),
-                ciphertext: Ciphertext {
-                    iv: ciphertext.ciphertext[0][0..16].try_into().unwrap(),
-                    tag: ciphertext.ciphertext[0][16..32].try_into().unwrap(),
-                    data,
-                },
+                ciphertext: ciphertext.clone().into(),
                 blinded_receiver_viewing_key: ciphertext.blindedReceiverViewingKey.into(),
                 blinded_sender_viewing_key: ciphertext.blindedSenderViewingKey.into(),
                 annotation_data: ciphertext.annotationData.into(),
