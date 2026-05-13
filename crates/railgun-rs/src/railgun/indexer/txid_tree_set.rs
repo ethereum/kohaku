@@ -105,9 +105,9 @@ impl TxidTreeSet {
             (validated.tree() as usize) * TOTAL_LEAVES + validated.leaf_index() as usize + 1;
 
         let to_drain = target_total.saturating_sub(current_total);
-        // if to_drain == 0 {
-        //     return Ok(());
-        // }
+        if to_drain == 0 {
+            return Ok(());
+        }
 
         let drain_count = to_drain.min(self.pending.len());
         let drained: Vec<_> = self.pending.drain(..drain_count).collect();
@@ -115,6 +115,15 @@ impl TxidTreeSet {
         let mut total = current_total;
         for op in drained {
             let txid = Txid::new(&op.nullifiers, &op.commitment_hashes, op.bound_params_hash);
+
+            if let Some(&existing_pos) = self.txid_to_txid_pos.get(&txid) {
+                warn!(
+                    "Skipping duplicate operation: txid {:?} already at tree {}, leaf {}",
+                    txid, existing_pos.0, existing_pos.1
+                );
+                continue;
+            }
+
             let included = UtxoTreeIndex::included(op.utxo_tree_out, op.utxo_out_start_index);
             let leaf = TxidLeafHash::new(txid, op.utxo_tree_in, included);
 
@@ -142,7 +151,7 @@ impl TxidTreeSet {
             total += 1;
         }
 
-        info!("Drained {} operations", total);
+        info!("Drained {} operations", drain_count);
 
         // Rebuild
         info!("Rebuilding TXID trees");
@@ -161,18 +170,16 @@ impl TxidTreeSet {
                 .await?;
 
             if !validated {
-                warn!(
-                    "TXID tree root mismatch for tree {}: computed {}, but POI did not validate",
-                    tree_number, merkleroot
-                );
-                // return Err(TxidTreeError::RootMismatch {
-                //     tree_number: *tree_number,
-                // });
+                return Err(TxidTreeError::RootMismatch {
+                    tree_number: *tree_number,
+                });
             }
 
             info!(
                 "Validated TXID tree up to tree {}, leaf {} (total {})",
-                tree_number, index, total
+                tree_number,
+                index,
+                total - 1
             );
         }
 

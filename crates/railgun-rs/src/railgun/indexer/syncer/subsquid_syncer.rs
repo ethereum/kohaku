@@ -84,7 +84,6 @@ impl NoteSyncer for SubsquidSyncer {
         from_block: u64,
         to_block: u64,
     ) -> Result<Vec<syncer::SyncEvent>, SyncerError> {
-        let from_block = from_block.min(self.latest_block().await?);
         if from_block > to_block {
             return Ok(vec![]);
         }
@@ -113,7 +112,6 @@ impl TransactionSyncer for SubsquidSyncer {
         from_block: u64,
         to_block: u64,
     ) -> Result<Vec<syncer::Operation>, SyncerError> {
-        let from_block = from_block.min(self.latest_block().await?);
         if from_block > to_block {
             return Ok(vec![]);
         }
