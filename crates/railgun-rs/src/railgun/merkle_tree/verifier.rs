@@ -7,7 +7,7 @@ pub trait MerkleTreeVerifier: common::MaybeSend {
     async fn verify_root(
         &self,
         tree_number: u32,
-        tree_index: u64,
+        tree_index: u32,
         root: MerkleRoot,
     ) -> Result<bool, Box<dyn std::error::Error>>;
 }

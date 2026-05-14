@@ -282,7 +282,7 @@ impl UtxoIndexer {
             }
 
             self.utxo_verifier
-                .verify_root(tree.number(), tree.leaves_len() as u64 - 1, tree.root())
+                .verify_root(tree.number(), tree.leaves_len() as u32 - 1, tree.root())
                 .await
                 .map_err(|e| UtxoIndexerError::VerificationError(e))?;
         }

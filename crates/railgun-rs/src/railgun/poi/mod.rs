@@ -1,7 +1,6 @@
 pub mod client;
 mod note;
 mod provider;
-mod submitter;
 mod types;
 
 pub use note::PoiNote;

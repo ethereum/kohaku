@@ -30,8 +30,8 @@ async fn test_sync_txid() {
     info!("Setting up POI client");
     let poi_client = PoiClient::new(chain.id, chain.poi_endpoint, chain.list_keys);
     let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
-    let mut indexer = TxidIndexer::new(subsquid_syncer, poi_client);
+    let mut indexer = TxidIndexer::new(subsquid_syncer);
 
     info!("Syncing indexer");
-    indexer.sync_to(FORK_BLOCK).await.unwrap();
+    indexer.sync_to(FORK_BLOCK, &poi_client).await.unwrap();
 }

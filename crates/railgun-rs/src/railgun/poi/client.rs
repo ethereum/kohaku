@@ -23,6 +23,34 @@ use crate::railgun::{
     },
 };
 
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+pub trait PoiNodeClient {
+    fn list_keys(&self) -> Vec<ListKey>;
+    async fn poi_status(
+        &self,
+        list_key: &ListKey,
+        blinded_commitment: BlindedCommitment,
+        commitment_type: BlindedCommitmentType,
+    ) -> Result<PoiStatus, PoiClientError>;
+    async fn merkle_proof(
+        &self,
+        list_key: &ListKey,
+        blinded_commitment: BlindedCommitment,
+    ) -> Result<MerkleProof, PoiClientError>;
+    async fn submit_proof(
+        &self,
+        proof_data: HashMap<ListKey, TransactProofData>,
+    ) -> Result<(), PoiClientError>;
+    async fn validated_txid(&self) -> Result<ValidatedRailgunTxidStatus, PoiClientError>;
+    async fn validate_txid_merkleroot(
+        &self,
+        tree: u32,
+        index: u32,
+        merkleroot: MerkleRoot,
+    ) -> Result<bool, PoiClientError>;
+}
+
 #[derive(Clone)]
 pub struct PoiClient {
     inner: Arc<PoiClientInner>,
@@ -209,7 +237,7 @@ impl PoiClient {
     pub async fn validate_txid_merkleroot(
         &self,
         tree: u32,
-        index: u64,
+        index: u32,
         merkleroot: MerkleRoot,
     ) -> Result<bool, PoiClientError> {
         self.call(
@@ -239,7 +267,7 @@ impl MerkleTreeVerifier for PoiClient {
     async fn verify_root(
         &self,
         tree_number: u32,
-        tree_index: u64,
+        tree_index: u32,
         root: MerkleRoot,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         Ok(self
@@ -294,3 +322,49 @@ impl std::fmt::Display for JsonRpcError {
 }
 
 impl std::error::Error for JsonRpcError {}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+impl PoiNodeClient for PoiClient {
+    fn list_keys(&self) -> Vec<ListKey> {
+        self.list_keys.clone()
+    }
+
+    async fn poi_status(
+        &self,
+        list_key: &ListKey,
+        blinded_commitment: BlindedCommitment,
+        commitment_type: BlindedCommitmentType,
+    ) -> Result<PoiStatus, PoiClientError> {
+        self.poi_status(list_key, blinded_commitment, commitment_type)
+            .await
+    }
+
+    async fn merkle_proof(
+        &self,
+        list_key: &ListKey,
+        blinded_commitment: BlindedCommitment,
+    ) -> Result<MerkleProof, PoiClientError> {
+        self.merkle_proof(list_key, blinded_commitment).await
+    }
+
+    async fn submit_proof(
+        &self,
+        proof_data: HashMap<ListKey, TransactProofData>,
+    ) -> Result<(), PoiClientError> {
+        self.submit_proof(proof_data).await
+    }
+
+    async fn validated_txid(&self) -> Result<ValidatedRailgunTxidStatus, PoiClientError> {
+        self.validated_txid().await
+    }
+
+    async fn validate_txid_merkleroot(
+        &self,
+        tree: u32,
+        index: u32,
+        merkleroot: MerkleRoot,
+    ) -> Result<bool, PoiClientError> {
+        self.validate_txid_merkleroot(tree, index, merkleroot).await
+    }
+}

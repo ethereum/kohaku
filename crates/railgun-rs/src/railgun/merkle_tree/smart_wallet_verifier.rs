@@ -26,7 +26,7 @@ impl MerkleTreeVerifier for SmartWalletUtxoVerifier {
     async fn verify_root(
         &self,
         tree_number: u32,
-        _tree_index: u64,
+        _tree_index: u32,
         root: MerkleRoot,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         let root: U256 = root.into();

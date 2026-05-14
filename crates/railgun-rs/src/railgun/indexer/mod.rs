@@ -1,7 +1,6 @@
 mod indexed_account;
 pub mod syncer;
 pub mod txid_indexer;
-mod txid_tree_set;
 pub mod utxo_indexer;
 
 pub use syncer::{

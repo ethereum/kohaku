@@ -86,7 +86,7 @@ pub struct GetMerkleProofsParams {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ValidatedRailgunTxidStatus {
     #[serde(rename = "validatedTxidIndex")]
-    pub index: u64,
+    pub index: u32,
     #[serde(rename = "validatedMerkleroot")]
     pub merkleroot: MerkleRoot,
 }
@@ -97,7 +97,7 @@ pub struct ValidateTxidMerklerootParams {
     #[serde(flatten)]
     pub chain: ChainParams,
     pub tree: u32,
-    pub index: u64,
+    pub index: u32,
     pub merkleroot: MerkleRoot,
 }
 
@@ -154,7 +154,7 @@ impl ValidatedRailgunTxidStatus {
         (self.index >> 16) as u32
     }
 
-    pub fn leaf_index(&self) -> u64 {
+    pub fn leaf_index(&self) -> u32 {
         self.index & 0xFFFF
     }
 }

@@ -5,7 +5,7 @@ use ruint::aliases::U256;
 use crate::crypto::railgun_zero::SNARK_PRIME;
 
 pub const TREE_DEPTH: usize = 16;
-pub const TOTAL_LEAVES: usize = 1 << TREE_DEPTH;
+pub const TOTAL_LEAVES: u32 = 1 << TREE_DEPTH;
 
 pub type MerkleTree = crypto::merkle_tree::MerkleTree<RailgunMerkleConfig>;
 pub type MerkleTreeState = crypto::merkle_tree::MerkleTreeState<RailgunMerkleConfig>;

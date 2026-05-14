@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use ruint::aliases::U256;
-use serde::{Deserialize, Serialize};
-use tsify::Tsify;
+use serde::Serialize;
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 use crate::{Proof, Prover, ProverError};
