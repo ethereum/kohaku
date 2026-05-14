@@ -1,11 +1,22 @@
 import initWasm from "./pkg";
-export * from './pkg/index'
+export * from './pkg/index';
+export { ArtifactLoader, GrothProverAdapter, RemoteArtifactLoader } from "./sdk/prover-adapter.js";
+export { EthereumProviderAdapter } from "./sdk/ethereum-provider.js";
 
-let initPromise: Promise<any> | null = null;
+let initPromise: Promise<void> | null = null;
 
-async function ensureInitialized() {
-    if (!initPromise) {
-        initPromise = initWasm();
+export function ensureInitialized(wasmInput?: BufferSource | Response): Promise<void> {
+    if (!initPromise) initPromise = _init(wasmInput);
+    return initPromise;
+}
+
+async function _init(wasmInput?: BufferSource | Response): Promise<void> {
+    if (!wasmInput && typeof process !== 'undefined') {
+        const { readFile } = await import('node:fs/promises');
+        const { fileURLToPath } = await import('node:url');
+        const { dirname, join } = await import('node:path');
+        const dir = dirname(fileURLToPath(import.meta.url));
+        wasmInput = new Uint8Array(await readFile(join(dir, 'pkg/index_bg.wasm')));
     }
-    await initPromise;
+    await initWasm(wasmInput !== undefined ? { module_or_path: wasmInput } : undefined);
 }
