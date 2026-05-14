@@ -18,7 +18,7 @@ use crate::{
     },
     railgun::{
         indexer::{TransactionSyncer, TxidIndexer, TxidIndexerError, TxidIndexerState},
-        merkle_tree::{MerkleProof, TOTAL_LEAVES, UtxoTreeIndex},
+        merkle_tree::{MerkleProof, TOTAL_LEAVES, TxidMerkleTree, UtxoTreeIndex},
         note::utxo::{self, UtxoNote},
         poi::{
             BlindedCommitment, BlindedCommitmentType, ListKey, PoiNote, PoiStatus,
@@ -272,31 +272,58 @@ impl PoiProvider {
     }
 
     async fn submit_poi(&self, entry: &PendingPoiEntry) -> Result<(), PendingPoiError> {
-        let Some((txid_tree_number, _)) = self.txid_indexer.txid_position(&entry.txid) else {
-            return Err(PendingPoiError::MissingTxidTree(entry.utxo_tree_in));
+        let txid_tree_number = match self.txid_indexer.txid_position(&entry.txid) {
+            Some((tree_number, _)) => tree_number,
+            None => return Err(PendingPoiError::MissingTxidTree(entry.utxo_tree_in)),
         };
 
-        let Some((utxo_tree_number, utxo_leaf_index)) =
-            self.txid_indexer.utxo_position(&entry.txid)
-        else {
-            return Err(PendingPoiError::MissingUtxoTree(entry.utxo_tree_in));
+        let (utxo_tree_number, utxo_leaf_index) = match self.txid_indexer.utxo_position(&entry.txid)
+        {
+            Some((tree_number, leaf_index)) => (tree_number, leaf_index),
+            None => return Err(PendingPoiError::MissingUtxoTree(entry.utxo_tree_in)),
         };
 
-        let txid_tree = self
-            .txid_indexer
-            .tree(txid_tree_number)
-            .ok_or(PendingPoiError::MissingTxidTree(txid_tree_number))?;
+        let txid_tree = match self.txid_indexer.tree(txid_tree_number) {
+            Some(tree) => tree,
+            None => return Err(PendingPoiError::MissingTxidTree(txid_tree_number)),
+        };
+
         let utxo_tree_out = UtxoTreeIndex::included(utxo_tree_number, utxo_leaf_index);
 
+        let proof_data = self
+            .create_proof(
+                entry,
+                txid_tree_number,
+                utxo_tree_number,
+                utxo_leaf_index,
+                txid_tree,
+                utxo_tree_out,
+            )
+            .await?;
+
+        self.poi_client.submit_proof(proof_data).await?;
+        Ok(())
+    }
+
+    async fn create_proof(
+        &self,
+        entry: &PendingPoiEntry,
+        txid_tree_number: u32,
+        utxo_tree_number: u32,
+        utxo_leaf_index: u32,
+        txid_tree: &TxidMerkleTree,
+        utxo_tree_out: UtxoTreeIndex,
+    ) -> Result<HashMap<ListKey, TransactProofData>, PendingPoiError> {
         let mut proof_data = HashMap::new();
+
         for list_key in &entry.list_keys {
-            let mut poi_notes = Vec::new();
+            let mut in_notes = Vec::new();
             for note in entry.in_notes.clone() {
                 let proof = self
                     .poi_client
                     .merkle_proof(list_key, note.blinded_commitment.into())
                     .await?;
-                poi_notes.push(PoiNote::new(
+                in_notes.push(PoiNote::new(
                     note,
                     HashMap::from([(list_key.clone(), proof)]),
                 ));
@@ -307,7 +334,7 @@ impl PoiProvider {
                 entry.nullifying_key,
                 entry.utxo_tree_in,
                 entry.bound_params_hash,
-                &poi_notes,
+                &in_notes,
                 &entry.out_commitments,
                 &entry.out_npks,
                 &entry.out_values,
@@ -320,22 +347,8 @@ impl PoiProvider {
 
             let proof = prove_poi(self.prover.as_ref(), &inputs).await?;
 
-            let mut blinded_commitments_out = Vec::new();
-            for (i, (commitment, npk)) in entry
-                .out_commitments
-                .iter()
-                .zip(entry.out_npks.iter())
-                .enumerate()
-            {
-                let blinded_commitment = utxo::blinded_commitment(
-                    commitment.clone(),
-                    npk.clone(),
-                    utxo_tree_number,
-                    utxo_leaf_index + i as u32,
-                )
-                .into();
-                blinded_commitments_out.push(blinded_commitment);
-            }
+            let blinded_commitments_out =
+                blinded_commitments(entry, utxo_tree_number, utxo_leaf_index);
 
             let txid_merkleroot_index =
                 txid_tree_number as u64 * TOTAL_LEAVES as u64 + (txid_tree.leaves_len() as u64 - 1);
@@ -352,8 +365,30 @@ impl PoiProvider {
                 },
             );
         }
-
-        self.poi_client.submit_proof(proof_data).await?;
-        Ok(())
+        Ok(proof_data)
     }
+}
+
+fn blinded_commitments(
+    entry: &PendingPoiEntry,
+    utxo_tree_number: u32,
+    utxo_leaf_index: u32,
+) -> Vec<BlindedCommitment> {
+    let mut blinded_commitments_out = Vec::new();
+    for (i, (commitment, npk)) in entry
+        .out_commitments
+        .iter()
+        .zip(entry.out_npks.iter())
+        .enumerate()
+    {
+        let blinded_commitment = utxo::blinded_commitment(
+            commitment.clone(),
+            npk.clone(),
+            utxo_tree_number,
+            utxo_leaf_index + i as u32,
+        )
+        .into();
+        blinded_commitments_out.push(blinded_commitment);
+    }
+    blinded_commitments_out
 }
