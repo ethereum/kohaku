@@ -14,22 +14,22 @@ pub struct JsShieldBuilder {
 #[wasm_bindgen]
 impl JsShieldBuilder {
     #[wasm_bindgen(constructor)]
-    pub fn new(chain: ChainConfig) -> Self {
+    pub fn new(chain: &ChainConfig) -> Self {
         Self {
-            inner: ShieldBuilder::new(chain),
+            inner: ShieldBuilder::new(chain.clone()),
         }
     }
 
-    pub fn shield(self, recipient: RailgunAddress, asset: AssetId, value: u128) -> Self {
+    pub fn shield(self, recipient: &RailgunAddress, asset: &AssetId, value: u128) -> Self {
         Self {
-            inner: self.inner.shield(recipient, asset, value),
+            inner: self.inner.shield(recipient.clone(), asset.clone(), value),
         }
     }
 
     #[wasm_bindgen(js_name = "shieldNative")]
-    pub fn shield_native(self, recipient: RailgunAddress, value: u128) -> Self {
+    pub fn shield_native(self, recipient: &RailgunAddress, value: u128) -> Self {
         Self {
-            inner: self.inner.shield_native(recipient, value),
+            inner: self.inner.shield_native(recipient.clone(), value),
         }
     }
 

@@ -15,16 +15,16 @@ pub struct JsNoteSyncer {
 #[wasm_bindgen]
 impl JsNoteSyncer {
     #[wasm_bindgen(js_name = "subsquid")]
-    pub fn new_subsquid(chain: ChainConfig) -> Self {
+    pub fn new_subsquid(chain: &ChainConfig) -> Self {
         Self {
-            inner: SubsquidSyncer::new(chain.subsquid_endpoint).erased(),
+            inner: SubsquidSyncer::new(chain.subsquid_endpoint.clone()).erased(),
         }
     }
 
     #[wasm_bindgen(js_name = "rpc")]
-    pub fn new_rpc(chain: ChainConfig, provider: JsEip1193Provider, batch_size: u64) -> Self {
+    pub fn new_rpc(chain: &ChainConfig, provider: JsEip1193Provider, batch_size: u64) -> Self {
         Self {
-            inner: RpcSyncer::new(chain, Arc::new(provider))
+            inner: RpcSyncer::new(chain.clone(), Arc::new(provider))
                 .with_batch_size(batch_size)
                 .erased(),
         }

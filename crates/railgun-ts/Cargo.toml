@@ -22,3 +22,5 @@ tsify = { workspace = true, features = ["js"] }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 rand = { workspace = true }
+tracing-wasm = { workspace = true }
+tracing = { workspace = true }

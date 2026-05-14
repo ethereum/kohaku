@@ -23,22 +23,24 @@ impl JsTransactionBuilder {
 
     pub fn transfer(
         self,
-        from: JsRailgunSigner,
-        to: RailgunAddress,
-        asset: AssetId,
+        from: &JsRailgunSigner,
+        to: &RailgunAddress,
+        asset: &AssetId,
         value: u128,
         memo: String,
     ) -> Self {
         Self {
-            inner: self.inner.transfer(from.inner(), to, asset, value, &memo),
+            inner: self
+                .inner
+                .transfer(from.inner(), to.clone(), asset.clone(), value, &memo),
         }
     }
 
     pub fn unshield(
         self,
-        from: JsRailgunSigner,
-        to: String,
-        asset: AssetId,
+        from: &JsRailgunSigner,
+        #[wasm_bindgen(unchecked_param_type = "`0x${string}`")] to: String,
+        asset: &AssetId,
         value: u128,
     ) -> Result<Self, JsError> {
         let to = to
@@ -47,7 +49,7 @@ impl JsTransactionBuilder {
 
         let inner = self
             .inner
-            .unshield(from.inner(), to, asset, value)
+            .unshield(from.inner(), to, asset.clone(), value)
             .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(Self { inner })
     }

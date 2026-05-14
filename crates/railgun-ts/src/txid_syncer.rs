@@ -14,9 +14,9 @@ pub struct JsTxidSyncer {
 #[wasm_bindgen]
 impl JsTxidSyncer {
     #[wasm_bindgen(js_name = "subsquid")]
-    pub fn new_subsquid(chain: ChainConfig) -> Self {
+    pub fn new_subsquid(chain: &ChainConfig) -> Self {
         Self {
-            inner: SubsquidSyncer::new(chain.subsquid_endpoint).erased(),
+            inner: SubsquidSyncer::new(chain.subsquid_endpoint.clone()).erased(),
         }
     }
 }

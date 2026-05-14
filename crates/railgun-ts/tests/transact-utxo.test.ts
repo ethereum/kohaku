@@ -1,15 +1,16 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { chainConfigMainnet, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../lib.js";
-import { mainnet } from "viem/chains";
+import { chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../lib.js";
+import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { GrothProverAdapter, RemoteArtifactLoader } from "../sdk/prover-adapter.js";
+import { ensureInitialized, initLogging, GrothProverAdapter, RemoteArtifactLoader, EthereumProviderAdapter } from "../lib.js";
 import { viem } from "@kohaku-eth/provider/viem";
 
-const CHAIN = chainConfigMainnet();
+await ensureInitialized();
+initLogging("Info");
+const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
 const RPC_URL = "http://localhost:8545";
-const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 
 const erc20Abi = parseAbi([
@@ -28,23 +29,22 @@ const erc20Abi = parseAbi([
 test("transact-utxo", async () => {
     if (!INTEGRATION) {
         console.warn("Skipping integration test. Set INTEGRATION=1 to run.");
-
         return;
     }
 
-    const USDC = erc20(USDC_ADDRESS);
+    const WETH = erc20(CHAIN.wrapped_base_token);
 
     console.log("Setup viem");
     const publicClient = createPublicClient({
-        chain: mainnet,
+        chain: sepolia,
         transport: http(RPC_URL),
     });
-    const viemClient = viem(publicClient);
+    const viemClient = new EthereumProviderAdapter(viem(publicClient));
 
     const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
     const walletClient = createWalletClient({
         account,
-        chain: mainnet,
+        chain: sepolia,
         transport: http(RPC_URL),
     });
 
@@ -63,7 +63,7 @@ test("transact-utxo", async () => {
 
     console.log("Testing Shield");
     {
-        const txs = railgun.shield().shield(account1.address, USDC, 1_000_000n).build();
+        const txs = railgun.shield().shieldNative(account1.address, 1_000_000n).build();
         const tx = txs[0];
         if (!tx) {
             throw new Error("Expected at least one shield transaction");
@@ -80,13 +80,13 @@ test("transact-utxo", async () => {
         const balance1 = await railgun.balance(account1.address);
         const balance2 = await railgun.balance(account2.address);
 
-        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(USDC))?.[1]).toBe(997500n);
-        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(USDC))?.[1]).toBeUndefined();
+        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(997500n);
+        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBeUndefined();
     }
 
     console.log("Testing Transfer");
     {
-        const builder = railgun.transact().transfer(account1, account2.address, USDC, 5000n, "test transfer");
+        const builder = railgun.transact().transfer(account1, account2.address, WETH, 5000n, "test transfer");
         const tx = await railgun.build(builder);
         const transferHash = await walletClient.sendTransaction({
             to: tx.to,
@@ -100,14 +100,14 @@ test("transact-utxo", async () => {
         const balance1 = await railgun.balance(account1.address);
         const balance2 = await railgun.balance(account2.address);
 
-        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(USDC))?.[1]).toBe(992500n);
-        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(USDC))?.[1]).toBe(5000n);
+        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(992500n);
+        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(5000n);
     }
 
     console.log("Testing Unshield");
     {
         const unshieldRecipient = checksumAddress("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86");
-        const builder = railgun.transact().unshield(account1, unshieldRecipient, USDC, 1000n);
+        const builder = railgun.transact().unshield(account1, unshieldRecipient, WETH, 1000n);
         const tx = await railgun.build(builder);
         const unshieldHash = await walletClient.sendTransaction({
             to: tx.to,
@@ -121,10 +121,10 @@ test("transact-utxo", async () => {
         const balance1 = await railgun.balance(account1.address);
         const balance2 = await railgun.balance(account2.address);
 
-        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(USDC))?.[1]).toBe(991500n);
-        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(USDC))?.[1]).toBe(5000n);
+        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(991500n);
+        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(5000n);
         const eoaBalance = await publicClient.readContract({
-            address: USDC_ADDRESS as `0x${string}`,
+            address: CHAIN.wrapped_base_token as `0x${string}`,
             abi: erc20Abi,
             functionName: "balanceOf",
             args: [unshieldRecipient as `0x${string}`],

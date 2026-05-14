@@ -51,7 +51,7 @@ impl JsRailgunProvider {
         self.inner.with_poi(txid_syncer.inner.clone());
     }
 
-    pub fn register(&mut self, account: JsRailgunSigner, from_block: Option<u64>) {
+    pub fn register(&mut self, account: &JsRailgunSigner, from_block: Option<u64>) {
         match from_block {
             Some(from_block) => self.inner.register_from(account.inner(), from_block),
             None => self.inner.register(account.inner()),
@@ -59,7 +59,7 @@ impl JsRailgunProvider {
     }
 
     pub async fn balance(&mut self, address: RailgunAddress) -> Balances {
-        let balances = self.inner.balance(address).await;
+        let balances = self.inner.balance(address.clone()).await;
         Balances(balances.into_iter().collect())
     }
 
@@ -89,8 +89,8 @@ impl JsRailgunProvider {
         &mut self,
         builder: JsTransactionBuilder,
         #[wasm_bindgen(unchecked_param_type = "`0x${string}`")] sender: String,
-        bundler: JsBundler,
-        fee_payer: JsRailgunSigner,
+        bundler: &JsBundler,
+        fee_payer: &JsRailgunSigner,
         fee_recipient: RailgunAddress,
         #[wasm_bindgen(unchecked_param_type = "`0x${string}`")] fee_token: String,
     ) -> Result<UserOperation, JsError> {
