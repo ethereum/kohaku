@@ -1,5 +1,5 @@
-- [ ] Make RailgunProvider builder pattern
 - [x] Convert state into tabular state
+- [ ] Make RailgunProvider builder pattern
 - [ ] Add sensible defaults for prover, artifact loader, utxo indexer, utxo verifier, txid indexer, txid verifier, and bundler.
   - To do this will need an RPC URL and a bundler URL.  Can probably have::new add the RPC provider, ::with_poi add the txid stuff, and ::with_bundler add the bundler.
 - [ ] Audit public API for consistency and minimalism

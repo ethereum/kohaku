@@ -1,9 +1,13 @@
 pub mod abis;
+pub mod account;
 pub mod caip;
 pub mod chain_config;
 pub mod circuit;
 pub mod crypto;
 pub mod database;
-pub mod railgun;
-
-pub use railgun::RailgunProvider;
+pub mod indexer;
+pub mod merkle_tree;
+pub mod note;
+pub mod poi;
+pub mod provider;
+pub mod transaction;

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 
-use crate::railgun::{
-    address::RailgunAddress,
+use crate::{
+    account::address::RailgunAddress,
     indexer::{
         indexed_account::IndexedAccountState, txid_indexer::TxidIndexerState,
         utxo_indexer::UtxoIndexerState,

@@ -9,13 +9,11 @@ use crate::{
         keys::{NullifyingKey, SpendingPublicKey, U256Key},
         railgun_txid::Txid,
     },
-    railgun::{
-        merkle_tree::{
-            MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash, TxidMerkleTree,
-            UtxoTreeIndex,
-        },
-        poi::{ListKey, PoiNote},
+    merkle_tree::{
+        MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash, TxidMerkleTree,
+        UtxoTreeIndex,
     },
+    poi::{ListKey, PoiNote},
 };
 
 // TODO: Consider making me into an enum with two variants on a generic Inner, so

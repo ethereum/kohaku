@@ -6,7 +6,8 @@ use railgun_rs::{
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
     database::InMemoryDatabase,
-    railgun::{RailgunProvider, indexer::SubsquidSyncer},
+    indexer::SubsquidSyncer,
+    provider::RailgunProvider,
 };
 use tracing::info;
 use tracing_subscriber::EnvFilter;

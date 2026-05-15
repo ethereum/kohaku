@@ -2,7 +2,7 @@ use crypto::poseidon_hash;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::railgun::{merkle_tree::MerkleTree, transaction::ProvedOperation};
+use crate::{merkle_tree::MerkleTree, transaction::ProvedOperation};
 
 /// TxID uniquely identifies a Railgun Operation (`RailgunSmartWallet::Transaction`).
 /// Each TxID corresponds to a set of UTXO notes from a single Operation.

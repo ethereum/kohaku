@@ -8,16 +8,14 @@ use alloy::{
 };
 use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
-    RailgunProvider,
     abis::erc20::ERC20,
+    account::signer::RailgunSigner,
     caip::AssetId,
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
     database::InMemoryDatabase,
-    railgun::{
-        RailgunSigner,
-        indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
-    },
+    indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
+    provider::RailgunProvider,
 };
 use rand::random;
 use tracing::info;
@@ -95,8 +93,10 @@ async fn test_transact_poi() {
     railgun.set_poi(subsquid_syncer).await.unwrap();
 
     info!("Setting up accounts");
-    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
-    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_1 =
+        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_2 =
+        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
 
     info!("Syncing to latest block");
     railgun.sync().await.unwrap();

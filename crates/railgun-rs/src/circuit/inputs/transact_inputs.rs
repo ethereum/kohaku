@@ -5,13 +5,11 @@ use ruint::aliases::U256;
 use thiserror::Error;
 
 use crate::{
+    account::signer::{RailgunSigner, RailgunSignerError},
     caip::AssetId,
     crypto::keys::U256Key,
-    railgun::{
-        RailgunSigner, RailgunSignerError,
-        merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
-        note::{Note, utxo::UtxoNote},
-    },
+    merkle_tree::{MerkleRoot, MerkleTreeError, UtxoMerkleTree},
+    note::{Note, utxo::UtxoNote},
 };
 
 #[derive(Debug, Clone)]

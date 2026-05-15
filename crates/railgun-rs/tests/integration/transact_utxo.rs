@@ -9,13 +9,14 @@ use alloy::{
 use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     abis::erc20::ERC20,
+    account::signer::RailgunSigner,
     caip::AssetId,
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
     database::InMemoryDatabase,
-    railgun::{
-        RailgunProvider, RailgunSigner, indexer::RpcSyncer, transaction::TransactionBuilder,
-    },
+    indexer::RpcSyncer,
+    provider::RailgunProvider,
+    transaction::TransactionBuilder,
 };
 use rand::random;
 use tracing::info;
@@ -81,8 +82,10 @@ async fn test_transact_utxo() {
     .unwrap();
 
     info!("Setting up accounts");
-    let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
-    let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_1 =
+        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
+    let account_2 =
+        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
     railgun.register(account_1.clone()).await.unwrap();
     railgun.register(account_2.clone()).await.unwrap();
 

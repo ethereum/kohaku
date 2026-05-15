@@ -1,7 +1,7 @@
 use alloy::primitives::{Address, ChainId, address};
 use serde::{Deserialize, Serialize};
 
-use crate::railgun::poi::ListKey;
+use crate::poi::ListKey;
 
 /// Eip155 Chain Configurations
 #[derive(Clone, Debug, Serialize, Deserialize)]

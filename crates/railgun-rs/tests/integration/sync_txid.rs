@@ -3,10 +3,8 @@ use std::sync::Arc;
 use railgun_rs::{
     chain_config::ChainConfig,
     database::InMemoryDatabase,
-    railgun::{
-        indexer::{SubsquidSyncer, TxidIndexer},
-        poi::client::PoiClient,
-    },
+    indexer::{SubsquidSyncer, TxidIndexer},
+    poi::client::PoiClient,
 };
 use tracing::info;
 use tracing_subscriber::EnvFilter;
