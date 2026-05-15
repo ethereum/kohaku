@@ -3,14 +3,13 @@ use ark_ff::{BigInteger, PrimeField};
 use crypto::poseidon_hash;
 use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY};
 use ed25519_dalek::SigningKey;
-use rand::Rng;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha512};
 use thiserror::Error;
 
 use crate::crypto::aes::{
-    AesError, Ciphertext, CiphertextCtr, decrypt_ctr, decrypt_gcm, encrypt_ctr, encrypt_gcm,
+    AesError, Ciphertext, CiphertextCtr, decrypt_gcm, encrypt_ctr, encrypt_gcm,
 };
 
 /// Private key for signing transactions (BabyJubJub curve).
@@ -269,8 +268,6 @@ impl ViewingKey {
     }
 
     /// Generate a shared secret compatible with @noble/ed25519's `ed.getSharedSecret`
-    ///
-    /// TODO: Make me my own type
     pub fn derive_shared_secret(
         &self,
         their_public: ViewingPublicKey,
@@ -285,24 +282,8 @@ impl ViewingKey {
         Ok(SharedKey(shared_secret.to_bytes()))
     }
 
-    pub fn encrypt_gcm<R: Rng>(
-        &self,
-        plaintext: &[&[u8]],
-        rng: &mut R,
-    ) -> Result<Ciphertext, AesError> {
-        encrypt_gcm(plaintext, &self.0, rng)
-    }
-
-    pub fn decrypt_gcm(&self, ciphertext: &Ciphertext) -> Result<Vec<Vec<u8>>, AesError> {
-        decrypt_gcm(ciphertext, &self.0)
-    }
-
-    pub fn encrypt_ctr<R: Rng>(&self, plaintext: &[&[u8]], rng: &mut R) -> CiphertextCtr {
-        encrypt_ctr(plaintext, &self.0, rng)
-    }
-
-    pub fn decrypt_ctr(&self, ciphertext: &CiphertextCtr) -> Vec<Vec<u8>> {
-        decrypt_ctr(ciphertext, &self.0)
+    pub fn encrypt_ctr(&self, plaintext: &[&[u8]], iv: &[u8; 16]) -> CiphertextCtr {
+        encrypt_ctr(plaintext, &self.0, iv)
     }
 
     fn to_curve25519_scalar(&self) -> Scalar {
@@ -327,24 +308,12 @@ impl SharedKey {
         SharedKey(digest.into())
     }
 
-    pub fn encrypt_gcm<R: Rng + ?Sized>(
-        &self,
-        plaintext: &[&[u8]],
-        rng: &mut R,
-    ) -> Result<Ciphertext, AesError> {
-        encrypt_gcm(plaintext, &self.0, rng)
+    pub fn encrypt_gcm(&self, plaintext: &[&[u8]], iv: &[u8; 16]) -> Result<Ciphertext, AesError> {
+        encrypt_gcm(plaintext, &self.0, iv)
     }
 
     pub fn decrypt_gcm(&self, ciphertext: &Ciphertext) -> Result<Vec<Vec<u8>>, AesError> {
         decrypt_gcm(ciphertext, &self.0)
-    }
-
-    pub fn encrypt_ctr<R: Rng>(&self, plaintext: &[&[u8]], rng: &mut R) -> CiphertextCtr {
-        encrypt_ctr(plaintext, &self.0, rng)
-    }
-
-    pub fn decrypt_ctr(&self, ciphertext: &CiphertextCtr) -> Vec<Vec<u8>> {
-        decrypt_ctr(ciphertext, &self.0)
     }
 }
 

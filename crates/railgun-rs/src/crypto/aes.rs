@@ -8,7 +8,6 @@ use aes_gcm::{
     AesGcm, KeyInit, Nonce,
     aead::{Aead, Payload, consts::U16},
 };
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,13 +36,11 @@ pub enum AesError {
 type Aes256GcmU16 = AesGcm<Aes256, U16>;
 type Aes256Ctr = ctr::Ctr128BE<aes::Aes256>;
 
-pub fn encrypt_gcm<R: Rng + ?Sized>(
+pub fn encrypt_gcm(
     plaintext: &[&[u8]],
     key: &[u8; 32],
-    rand: &mut R,
+    iv: &[u8; 16],
 ) -> Result<Ciphertext, AesError> {
-    let iv: &[u8; 16] = &rand.random();
-
     //? Safe to unwrap as key length is fixed
     let cipher = Aes256GcmU16::new_from_slice(key).unwrap();
     let nonce = Nonce::<U16>::from_slice(iv);
@@ -115,13 +112,8 @@ pub fn decrypt_gcm(ciphertext: &Ciphertext, key: &[u8; 32]) -> Result<Vec<Vec<u8
     Ok(data)
 }
 
-pub fn encrypt_ctr<R: Rng + ?Sized>(
-    plaintext: &[&[u8]],
-    key: &[u8; 32],
-    rand: &mut R,
-) -> CiphertextCtr {
-    let iv: [u8; 16] = rand.random();
-    let mut cipher = Aes256Ctr::new(key.into(), &iv.into());
+pub fn encrypt_ctr(plaintext: &[&[u8]], key: &[u8; 32], iv: &[u8; 16]) -> CiphertextCtr {
+    let mut cipher = Aes256Ctr::new(key.into(), iv.into());
     let mut data = Vec::with_capacity(plaintext.len());
 
     for block in plaintext {
@@ -130,7 +122,7 @@ pub fn encrypt_ctr<R: Rng + ?Sized>(
         data.push(buffer);
     }
 
-    CiphertextCtr { iv, data }
+    CiphertextCtr { iv: *iv, data }
 }
 
 pub fn decrypt_ctr(ciphertext: &CiphertextCtr, key: &[u8; 32]) -> Vec<Vec<u8>> {
@@ -148,7 +140,7 @@ pub fn decrypt_ctr(ciphertext: &CiphertextCtr, key: &[u8; 32]) -> Vec<Vec<u8>> {
 
 #[cfg(all(test, native))]
 mod tests {
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
     use rand_chacha::ChaChaRng;
     use tracing_test::traced_test;
 
@@ -160,7 +152,7 @@ mod tests {
         let key = [1u8; 32];
         let plaintext: &[&[u8]] = &[b"Hello, world! 1"];
 
-        let ciphertext = super::encrypt_gcm(plaintext, &key, &mut rand).unwrap();
+        let ciphertext = super::encrypt_gcm(plaintext, &key, &rand.random()).unwrap();
         let decrypted = super::decrypt_gcm(&ciphertext, &key).unwrap();
 
         for i in 0..plaintext.len() {
@@ -176,7 +168,7 @@ mod tests {
         let key = [1u8; 32];
         let plaintext: &[&[u8]] = &[b"Hello, world! 1", b"Hello, world! 2"];
 
-        let ciphertext = super::encrypt_gcm(plaintext, &key, &mut rand).unwrap();
+        let ciphertext = super::encrypt_gcm(plaintext, &key, &rand.random()).unwrap();
         insta::assert_debug_snapshot!(ciphertext);
     }
 
@@ -189,7 +181,7 @@ mod tests {
 
         let plaintext: [&[u8]; 3] = [b"Hello, world! 1", b"Hello, world! 2", b"Hello, world! 3"];
 
-        let ciphertext = super::encrypt_ctr(&plaintext, &key, &mut rand);
+        let ciphertext = super::encrypt_ctr(&plaintext, &key, &rand.random());
         let decrypted = super::decrypt_ctr(&ciphertext, &key);
         for i in 0..plaintext.len() {
             assert_eq!(plaintext[i], &decrypted[i][..]);
@@ -204,7 +196,7 @@ mod tests {
         let key = [1u8; 32];
         let plaintext: [&[u8]; 3] = [b"Hello, world! 1", b"Hello, world! 2", b"Hello, world! 3"];
 
-        let ciphertext = super::encrypt_ctr(&plaintext, &key, &mut rand);
+        let ciphertext = super::encrypt_ctr(&plaintext, &key, &rand.random());
         insta::assert_debug_snapshot!(ciphertext);
     }
 }

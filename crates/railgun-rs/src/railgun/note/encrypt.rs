@@ -1,5 +1,5 @@
 use crypto::poseidon_hash;
-use rand::Rng;
+use rand::{Rng, RngCore};
 use ruint::{Uint, aliases::U256};
 use thiserror::Error;
 
@@ -7,7 +7,7 @@ use crate::{
     abis::railgun::{CommitmentCiphertext, CommitmentPreimage, ShieldCiphertext, ShieldRequest},
     caip::AssetId,
     crypto::{
-        aes::{AesError, encrypt_ctr},
+        aes::AesError,
         concat_arrays,
         keys::{ByteKey, KeyError, U256Key, ViewingKey, blind_viewing_keys},
         railgun_base_37,
@@ -28,7 +28,7 @@ pub enum EncryptError {
 /// Encrypts a note into a CommitmentCiphertext
 ///
 /// TODO: Add details on blind
-pub fn encrypt_note<R: Rng + ?Sized>(
+pub fn encrypt_note<R: RngCore + ?Sized>(
     receiver: &RailgunAddress,
     shared_random: &[u8; 16],
     value: u128,
@@ -57,17 +57,13 @@ pub fn encrypt_note<R: Rng + ?Sized>(
             &concat_arrays::<16, 16, 32>(shared_random, &value.to_be_bytes()),
             memo.as_bytes(),
         ],
-        rng,
+        &rng.random(),
     )?;
 
     let ctr0: [u8; 16] = concat_arrays(&[output_type], &sender_random);
     let ctr1 = [0u8; 16];
     let ctr2 = application_identifier;
-    let ctr = encrypt_ctr(
-        &[&ctr0, &ctr1, &ctr2],
-        viewing_key.public_key().as_bytes(),
-        rng,
-    );
+    let ctr = viewing_key.encrypt_ctr(&[&ctr0, &ctr1, &ctr2], &rng.random());
 
     let bundle_1: [u8; 32] = gcm.data[0].clone().try_into().unwrap();
     let bundle_2: [u8; 32] = gcm.data[1].clone().try_into().unwrap();
@@ -115,8 +111,11 @@ pub fn encrypt_shield<R: Rng>(
     .to_le_bytes();
     npk.reverse();
 
-    let gcm = shared_key.encrypt_gcm(&[&random_seed], rng).unwrap();
-    let ctr = shield_private_key.encrypt_ctr(&[recipient.viewing_pubkey().as_bytes()], rng);
+    let gcm = shared_key
+        .encrypt_gcm(&[&random_seed], &rng.random())
+        .unwrap();
+    let ctr =
+        shield_private_key.encrypt_ctr(&[recipient.viewing_pubkey().as_bytes()], &rng.random());
 
     let gcm_random: [u8; 16] = gcm.data[0].clone().try_into().unwrap();
     let ctr_key: [u8; 32] = ctr.data[0].clone().try_into().unwrap();

@@ -76,7 +76,6 @@ impl ChainConfig {
         }
     }
 
-    // TODO: Remove me in favor of directly using chain-specific constructors
     pub fn from_chain_id(chain_id: ChainId) -> Option<Self> {
         match chain_id {
             c if c == Self::mainnet().id => Some(Self::mainnet()),
