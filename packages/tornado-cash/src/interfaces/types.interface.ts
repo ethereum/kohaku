@@ -3,3 +3,11 @@ export type Nullifier = bigint & {};
 export type NullifierHash = bigint & {};
 export type Address = bigint & {};
 export type Commitment = bigint & {};
+
+export interface IContract {
+    address: Address;
+}
+
+export interface IScrapeableContract extends IContract {
+    deploymentBlock: bigint;
+}

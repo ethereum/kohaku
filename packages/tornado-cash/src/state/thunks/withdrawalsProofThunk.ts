@@ -8,44 +8,42 @@ import { RootState } from '../store';
 
 export interface WithdrawalProofsThunkParams {
   proverFactory: () => Promise<ITornadoProver>;
-  deposits: IIndexedDepositWithSecrets[];
+  deposit: IIndexedDepositWithSecrets;
   recipient: Address;
   relayerAddress: Address;
   fee: bigint;
 }
 
 export const withdrawalsProofThunk = createAsyncThunk<
-  TornadoProveOutput[],
+  TornadoProveOutput,
   WithdrawalProofsThunkParams,
   { state: RootState }
 >(
   'withdraw/generateProofs',
-  async ({ proverFactory, deposits, recipient, relayerAddress, fee }, { getState }) => {
+  async ({ proverFactory, deposit, recipient, relayerAddress, fee }, { getState }) => {
     const state = getState();
 
     const prover = await proverFactory();
 
-    return Promise.all(deposits.map(async (deposit) => {
-      const { nullifier, salt, nullifierHash } = deposit
-  
-      const { root, siblings, pathIndices } = await stateMerkleProofSelector(
-        state,
-        deposit.pool,
-        deposit.commitment,
-      );
-  
-      return prover.prove({
-        nullifier,
-        secret: salt,
-        pathElements: siblings,
-        pathIndices,
-        root,
-        nullifierHash,
-        recipient: BigInt(recipient),
-        relayer: BigInt(relayerAddress),
-        fee,
-        refund: 0n,
-      });
-    }));
+    const { nullifier, salt, nullifierHash } = deposit
+
+    const { root, siblings, pathIndices } = await stateMerkleProofSelector(
+      state,
+      deposit.pool,
+      deposit.commitment,
+    );
+
+    return prover.prove({
+      nullifier,
+      secret: salt,
+      pathElements: siblings,
+      pathIndices,
+      root,
+      nullifierHash,
+      recipient: BigInt(recipient),
+      relayer: BigInt(relayerAddress),
+      fee,
+      refund: 0n,
+    });
   },
 );

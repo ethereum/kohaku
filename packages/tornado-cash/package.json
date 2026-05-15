@@ -12,12 +12,33 @@
     "url": "https://github.com/ethereum/kohaku.git",
     "directory": "packages/tornado-cash"
   },
+  "imports": {
+    "#worker-loader": {
+      "node": "./dist/worker-loader.node.js",
+      "browser": "./src/plugin/worker-loader.browser.ts",
+      "default": "./src/plugin/worker-loader.browser.ts"
+    },
+    "#circuit-loader": {
+      "node": "./dist/circuit-loader.node.cjs",
+      "browser": "./dist/circuit-loader.browser.js",
+      "default": "./dist/circuit-loader.browser.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./state-manager.worker.js": "./dist/state-manager.worker.js",
+    "./state-manager.worker.node.cjs": "./dist/state-manager.worker.node.cjs",
+    "./worker-loader": {
+      "node": "./dist/worker-loader.node.js",
+      "browser": "./dist/worker-loader.browser.js",
+      "default": "./dist/worker-loader.browser.js"
+    },
+    "./worker-loader.browser": "./dist/worker-loader.browser.js",
+    "./worker-loader.node": "./dist/worker-loader.node.js",
+    "./circuits/*": "./circuits/*",
     "./package.json": "./package.json"
   },
   "engines": {
@@ -31,9 +52,8 @@
     "test:unit": "vitest run --project=unit",
     "test:e2e:mainnet": ". ./.env.e2e.tests && vitest run --project=e2e-mainnet",
     "test:e2e:sepolia": ". ./.env.e2e.tests && vitest run --project=e2e-sepolia",
-    "test:e2e:wl": ". ./.env.e2e.tests && vitest run --project=withdraw-live",
-    "test:e2e:wm": ". ./.env.e2e.tests && vitest run --project=withdraw-mocked",
-    "test:e2e:sh": ". ./.env.e2e.tests && vitest run --project=shield",
+    "test:e2e:wl": ". ./.env.e2e.tests && vitest run --project=withdraw-mainnet",
+    "test:e2e:sh": ". ./.env.e2e.tests && vitest run --project=shield-mainnet --allowOnly",
     "test:e2e:sh:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=shield",
     "test:e2e:rq": ". ./.env.e2e.tests && vitest run --project=ragequit",
     "test:e2e:asp": "vitest run --project=asp-integration",

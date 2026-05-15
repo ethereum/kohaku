@@ -15,7 +15,7 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     dataService
   }, { dispatch, getState }) => {
     const state = getState();
-    const { instanceRegistryAddress } = instanceRegistryInfoSelector(state);
+    const { instanceRegistry: { address: instanceRegistryAddress } } = instanceRegistryInfoSelector(state);
     const existingPools = poolsSelector(state);
 
     const poolsAddressses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);

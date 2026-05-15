@@ -4,14 +4,17 @@ import {
   ERC20AssetId,
   Host,
 } from "@kohaku-eth/plugins";
-import { wrap, proxy } from 'comlink';
+import { proxy } from 'comlink';
+import { loadStateManagerWorker } from '#worker-loader';
 import { RelayerClient } from '../relayer/relayer-client';
 
 import { addressToHex, } from "../utils.js";
 import {
+  DepositStrategy,
   TCAssetAmount,
   TCAssetBalance,
   TCInstance,
+  TCPrepareShieldOptions,
   TCPrepareUnshieldOptions,
 } from "../v1/interfaces.js";
 import {
@@ -21,7 +24,6 @@ import {
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT } from "../config";
-import type { WorkerApi } from '../state/state-manager.worker';
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
@@ -33,33 +35,31 @@ export class TornadoCashProtocol implements TCInstance {
     {
       accountIndex = 0,
       initialState = async () => ({}),
-      instanceRegistry,
+      protocolConfig,
       artifacts,
-    }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'instanceRegistry' | 'artifacts'>,
+      stateManagerWorkerUrl,
+      relayerConfig,
+      relayerClientFactory = () => new RelayerClient(host)
+    }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'protocolConfig'>,
   ) {
     this.stateManager = (async () => {
-      const worker = new Worker('./state-manager.worker.js', { type: 'module' });
+      const { remote, onError } = loadStateManagerWorker(stateManagerWorkerUrl);
 
       const workerReady = new Promise<void>((_resolve, reject) => {
-        worker.addEventListener('error', (e) => {
-          console.error('[worker crash]', { message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno, error: e.error });
-          reject(e.error ?? new Error(e.message));
+        onError((err: Error) => {
+          console.error('[worker crash]', err);
+          reject(err);
         });
       });
-
-      const remote = wrap<WorkerApi>(worker);
 
       await Promise.race([
         remote.init(
           proxy(host.provider),
-          proxy(new RelayerClient({ network: host.network })),
+          proxy(relayerClientFactory()),
           proxy(host.keystore),
           proxy(host.storage),
-          instanceRegistry,
-          accountIndex,
           proxy(initialState),
-          artifacts.circuitUrl,
-          artifacts.provingKeyUrl,
+          { protocolConfig, accountIndex, circuitUrl: artifacts?.circuitUrl, provingKeyUrl: artifacts?.provingKeyUrl, relayerConfig },
         ),
         workerReady,
       ]);
@@ -115,8 +115,10 @@ export class TornadoCashProtocol implements TCInstance {
 
   async prepareShield(
     assets: TCAssetAmount,
+    options?: TCPrepareShieldOptions | `0x${string}`
   ): Promise<TCPublicOperation> {
     const { asset, amount } = assets;
+    const strategy = typeof options === 'string' ? DepositStrategy.MinFee : options?.strategy || DepositStrategy.MinFee;
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
@@ -126,6 +128,7 @@ export class TornadoCashProtocol implements TCInstance {
     const tx = await stateManager.getDepositPayload({
       asset: parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset,
       amount,
+      strategy,
     });
 
     return { txns: tx } as TCPublicOperation;

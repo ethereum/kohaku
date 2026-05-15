@@ -2,8 +2,7 @@ import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { RootState } from "../store";
 import { quoteThunk } from "./quoteThunk";
 import { IRelayerClient } from "../../relayer/interfaces/relayer-client.interface";
-import { poolFromAssetSelector } from "../selectors/pools.selector";
-import { assetSelector } from "../selectors/slices.selectors";
+import { assetSelector, poolsSelector } from "../selectors/slices.selectors";
 import { Address } from "../../interfaces/types.interface";
 import { IIndexedDepositWithSecrets } from "../../data/interfaces/events.interface";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
@@ -11,7 +10,7 @@ import { IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.inte
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 
-export interface WithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposits' | 'fee' | 'relayerAddress'> {
+export interface WithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
     getWithdrawableDeposits: (asset: Address, amount?: bigint) => IIndexedDepositWithSecrets[];
     relayerClient: IRelayerClient;
     dataService: IDataService;
@@ -35,73 +34,88 @@ export const withdrawThunk = createAsyncThunk<
 }, { getState, dispatch }) => {
     const state = getState();
     const deposits = getWithdrawableDeposits(assetAddress, amount);
-    const poolInfo = poolFromAssetSelector(state, assetAddress);
+
+    if (!deposits.length) throw new Error(`No deposits found for asset ${assetAddress}`);
+
+    const pools = poolsSelector(state);
+    const poolInfo = pools.get(deposits[0]!.pool);
 
     if (!poolInfo) throw new Error(`No pool found for asset ${assetAddress}`);
+
+    const uniqueDepositPools = [...new Set(deposits.map((d) => d.pool))];
 
     unwrapResult(
       await dispatch(verifyRootsThunk({
         dataService,
-        onlyThesePools: [poolInfo.address]
+        onlyThesePools: uniqueDepositPools,
       }))
     )
 
-      // Get best relayer quote
-      const quoteResultAction = await dispatch(
-        quoteThunk({
-          relayerClient: relayerClient,
-          preferredRelayersEns,
-          isERC20: poolInfo.isERC20,
-        }),
-      );
+    // Get best relayer quote
+    const quoteResultAction = await dispatch(
+      quoteThunk({
+        relayerClient: relayerClient,
+        preferredRelayersEns,
+        isERC20: poolInfo.isERC20,
+      }),
+    );
 
-      const { relayerUrl, rewardAccount, tornadoServiceFee, ethPrices } = unwrapResult(quoteResultAction);
+    const { relayerUrl, rewardAccount, tornadoServiceFee, ethPrices } = unwrapResult(quoteResultAction);
 
-      const WITHDRAW_GAS = 550_000n;
-      const gasPrice = await dataService.getGasPrice();
-      const networkFee = gasPrice * WITHDRAW_GAS;
-      const serviceFee = poolInfo.denomination * BigInt(Math.round(tornadoServiceFee * 100)) / 10_000n;
+    const WITHDRAW_GAS = 550_000n;
+    const gasPrice = await dataService.getGasPrice();
+    const networkFee = gasPrice * WITHDRAW_GAS;
 
+    return Promise.all(deposits.map(async (deposit) => {
+      const pool = pools.get(deposit.pool);
+
+      if (!pool) {
+        throw new Error('Pool not found');
+      }
+
+      const serviceFee = pool.denomination * BigInt(Math.round(tornadoServiceFee * 100)) / 10_000n;
+  
       let fee: bigint;
-
+  
       if (poolInfo.isERC20) {
         const asset = assetSelector(state).get(assetAddress as Address);
-
+  
         if (!asset) throw new Error(`Asset info not found for ${assetAddress}`);
-
+  
         const tokenPriceStr =
           ethPrices[asset.symbol.toLowerCase()] ??
           ethPrices[asset.symbol.toUpperCase()] ??
           ethPrices[asset.symbol];
-
+  
         if (!tokenPriceStr) throw new Error(`No ETH price found for token ${asset.symbol}`);
-
+  
         const tokenPrice = BigInt(tokenPriceStr);
-
+  
         if (tokenPrice === 0n) throw new Error(`Token price is zero for ${asset.symbol}`);
-
+  
         const ethFeeInToken = networkFee * (10n ** BigInt(asset.decimals)) / tokenPrice;
-
+  
         fee = ethFeeInToken + serviceFee;
       } else {
         fee = networkFee + serviceFee;
       }
-
+  
       // Generate proofs for each deposit
       const withdrawResultAction = await dispatch(
-            withdrawalsProofThunk({
-                ...rest,
-                deposits,
-                relayerAddress: BigInt(rewardAccount) as Address,
-                fee,
-            }),
+        withdrawalsProofThunk({
+            ...rest,
+            deposit,
+            relayerAddress: BigInt(rewardAccount) as Address,
+            fee,
+        }),
       );
 
-      const proofOutputs = unwrapResult(withdrawResultAction);
+      const proof = unwrapResult(withdrawResultAction);
 
-      return proofOutputs.map((proof) => ({
-          proof,
-          poolAddress: poolInfo.address,
-          relayerUrl,
-      })) satisfies IWithdrawalPayload[];
+      return {
+        proof,
+        poolAddress: deposit.pool,
+        relayerUrl,
+      }
+    }));
 });

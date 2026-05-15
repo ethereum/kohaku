@@ -1,11 +1,12 @@
 import { ERC20AssetId, Host } from '@kohaku-eth/plugins';
-import { AbiCoder, CallExceptionError, Contract, ContractTransactionResponse, getAddress, JsonRpcProvider, keccak256, SigningKey, toBeHex, Wallet } from "ethers";
+import { AbiCoder, CallExceptionError, Contract, getAddress, JsonRpcProvider, keccak256, SigningKey, toBeHex, TransactionRequest, Wallet } from "ethers";
 
-import { PrivacyPoolsV1Protocol } from '../../src';
-import { IEntrypoint } from '../../src/plugin/interfaces/protocol-params.interface';
+import { TornadoCashConfigs, TornadoCashProtocol, createTCBroadcaster } from '@kohaku-eth/tornado-cash';
 import { type AnvilPool } from './anvil';
 import { InitialState } from './common';
-import { createMockAspService, IMockAspService } from './mock-asp-service';
+import { IRelayerClient } from '../../src/relayer/interfaces/relayer-client.interface';
+import { createMockRelayerClient } from './mock-relayer';
+import { poolAbi } from '../../src/data/abis/pool.abi';
 /**
  * Fund an account with ETH using anvil pool's setBalance
  */
@@ -101,51 +102,6 @@ export async function transferERC20FromWhale(
   return r;
 }
 
-interface Callback<T> {
-  (): Promise<T>;
-}
-async function impersonate<T>(provider: JsonRpcProvider, address: string, f: Callback<T>): Promise<T> {
-  await provider.send('anvil_impersonateAccount', [address]);
-  const r = await f();
-
-  await provider.send('anvil_stopImpersonatingAccount', [address]);
-
-  return r;
-}
-
-export async function pushNewAspRoot(
-  rpcUrl: string,
-  entrypointAddress: string,
-  postmanAddress: string,
-  { _root, _ipfsCID }: { _root: bigint, _ipfsCID: string; }
-) {
-  const provider = new JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
-  // Normalize addresses
-  const normalizedPostman = getAddress(postmanAddress.toLowerCase());
-  const postmanAbi = [{
-    "type": "function",
-    "name": "updateRoot",
-    "inputs": [
-      { "name": "_root", "type": "uint256", "internalType": "uint256" },
-      { "name": "_ipfsCID", "type": "string", "internalType": "string" }
-    ],
-    "outputs": [
-      { "name": "_index", "type": "uint256", "internalType": "uint256" }
-    ],
-    "stateMutability": "nonpayable"
-  }] as const;
-
-  // Impersonate the postman
-  const { hash, data, to } = await impersonate(provider, normalizedPostman, async () => {
-    const impersonatedSigner = await provider.getSigner(normalizedPostman);
-    const entrypoint = new Contract(getAddress(entrypointAddress), postmanAbi, impersonatedSigner);
-
-    return (await entrypoint.updateRoot(_root, _ipfsCID)) as ContractTransactionResponse;
-  });
-
-  return { hash, txData: { data, to, from: normalizedPostman } };
-}
-
 interface GetAssetConfigParams {
   provider: JsonRpcProvider;
   entrypointAddress: bigint;
@@ -194,82 +150,45 @@ export async function assetVettingFee({ provider, entrypointAddress, asset }: Ge
 }
 
 export async function getPoolStateRoot(pool: AnvilPool, poolAddress: bigint) {
-  const poolRootAbi = [{
-    "type": "function",
-    "name": "currentRoot",
-    "inputs": [],
-    "outputs": [{ "name": "root", "type": "uint256", "internalType": "uint256" }],
-    "stateMutability": "view"
-  }] as const;
+  const poolRootAbi = [poolAbi[0]];
   const provider = await pool.getProvider();
   const padd = toBeHex(poolAddress);
   const poolSC = new Contract(padd, poolRootAbi, provider);
-  const root = await poolSC.currentRoot();
+  const root = await poolSC.getLastRoot();
 
-  return root as bigint;
+  return BigInt(root);
 }
-
-export const MOCK_IPFS_CID = 'bafybeihrecrgyfkzyzli2oxnpfos5z2fgjt7zs52cbjyppigu64hva4z3i';
 
 interface SimplifiedProtocolParams {
-  entrypoint: IEntrypoint,
   host: Host,
-  initialState?: InitialState;
-  aspServiceFactory?: () => IMockAspService;
+  initialState?: () => Promise<InitialState>;
   rpcUrl: string;
-  postman: string;
+  chainId: 1 | 11155111;
+  relayerClientFactory?: () => IRelayerClient
 }
+
 export const getProtocolWithState = async ({
-  entrypoint,
   host,
-  initialState,
-  aspServiceFactory = createMockAspService,
-  rpcUrl,
-  postman,
+  chainId,
+  relayerClientFactory = () => createMockRelayerClient(),
+  ...rest
 }: SimplifiedProtocolParams) => {
-  const aspService = aspServiceFactory();
-
-  aspService.setLeaves([0n, 1n, 2n]);
-
-  await pushNewAspRoot(
-    rpcUrl,
-    "0x" + entrypoint.address.toString(16),
-    "0x" + BigInt(postman).toString(16),
-    { _root: aspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
-  );
-
-  const protocol = new PrivacyPoolsV1Protocol(host, {
-    aspServiceFactory: () => aspService,
-    initialState,
-    entrypoint,
+  const protocolConfig = TornadoCashConfigs[chainId];
+  const broadcaster = createTCBroadcaster(host, { relayerClientFactory });
+  const protocol = new TornadoCashProtocol(host, {
+    protocolConfig,
+    relayerClientFactory,
+    ...rest,
   });
 
-  return { aspService, protocol };
+  return {protocol, broadcaster};
 };
 
-export async function setupMockAspForTest(
-  rpcUrl: string,
-  entrypointAddress: bigint,
-  postman: string,
-  initialLabels: bigint[] = [0n, 1n, 2n],
-): Promise<IMockAspService> {
-  const mockAspService = createMockAspService();
-
-  mockAspService.addLabels(initialLabels);
-  await pushNewAspRoot(
-    rpcUrl,
-    "0x" + entrypointAddress.toString(16),
-    "0x" + BigInt(postman).toString(16),
-    { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
-  );
-  return mockAspService;
-}
-
-export async function sendTx(signer: Wallet, { to, data, value }: { to: string; data: string; value: bigint; }) {
+export async function sendTx(signer: Wallet, { to, data, value }: TransactionRequest) {
   return signer.sendTransaction({ to, data, value, gasLimit: 6000000n });
 }
 
-export async function sendTxAndWait(signer: Wallet, { to, data, value }: { to: string; data: string; value: bigint; }) {
+export async function sendTxAndWait(signer: Wallet, { to, data, value }: TransactionRequest) {
   return signer.sendTransaction({ to, data, value, gasLimit: 6000000n })
     .then(tx => tx.wait())
     .catch(e => {
@@ -283,6 +202,16 @@ export async function sendTxAndWait(signer: Wallet, { to, data, value }: { to: s
     });
 }
 
+export async function sendMultipleTxsAndWait(signer: Wallet, txs: TransactionRequest[]) {
+  const responses: Awaited<ReturnType<typeof sendTxAndWait>>[] = [];
+
+  for (const tx of txs) {
+    responses.push(await sendTxAndWait(signer, tx));
+  }
+
+  return responses;
+}
+
 export async function setupWallet(pool: AnvilPool, pk: string | SigningKey): Promise<Wallet> {
   const jsonRpcProvider = await pool.getProvider();
   const signer = new Wallet(pk, jsonRpcProvider);
@@ -292,11 +221,3 @@ export async function setupWallet(pool: AnvilPool, pk: string | SigningKey): Pro
 
   return signer;
 }
-
-
-export function deductVettingFees(amount: bigint, vettingFeeBPS: bigint) {
-  const vettingFees = amount * vettingFeeBPS / 10000n;
-
-  return amount - vettingFees;
-}
-

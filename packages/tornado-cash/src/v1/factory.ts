@@ -4,7 +4,7 @@ import { TCBroadcaster, TCBroadcasterParameters, TCInstance, TCPluginParameters 
 
 export const createTCBroadcaster = (
   host: Host,
-  params: TCBroadcasterParameters,
+  params?: TCBroadcasterParameters,
 ): TCBroadcaster => {
   return new TornadoCashBroadcaster({ host, ...params });
 };

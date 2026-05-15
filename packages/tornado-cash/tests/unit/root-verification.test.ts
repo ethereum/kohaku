@@ -19,54 +19,6 @@ describe('root verification', () => {
     vi.restoreAllMocks();
   });
 
-  describe('verifyAspRootOnChain', () => {
-    it('rejects an empty expected root before making any RPC calls', async () => {
-      const dataService = {
-        getEntrypointLatestRoot: vi.fn(),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyAspRootOnChain(dataService, entrypointAddress, 0n),
-      ).rejects.toThrow('ASP root verification called with empty root (0n)');
-
-      expect(dataService.getEntrypointLatestRoot).not.toHaveBeenCalled();
-    });
-
-    it('accepts the latest entrypoint root', async () => {
-      const dataService = {
-        getEntrypointLatestRoot: vi.fn().mockResolvedValue(123n),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyAspRootOnChain(dataService, entrypointAddress, 123n),
-      ).resolves.toBeUndefined();
-
-      expect(dataService.getEntrypointLatestRoot).toHaveBeenCalledWith(entrypointAddress);
-    });
-
-    it('throws when the expected ASP root is not the latest on-chain root', async () => {
-      const dataService = {
-        getEntrypointLatestRoot: vi.fn().mockResolvedValue(321n),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyAspRootOnChain(dataService, entrypointAddress, 123n),
-      ).rejects.toThrow(
-        'ASP root verification failed: expected root does not match Entrypoint latestRoot',
-      );
-    });
-
-    it('propagates RPC errors from the data service', async () => {
-      const dataService = {
-        getEntrypointLatestRoot: vi.fn().mockRejectedValue(new Error('RPC timeout')),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyAspRootOnChain(dataService, entrypointAddress, 123n),
-      ).rejects.toThrow('RPC timeout');
-    });
-  });
-
   describe('verifyStateRootOnChain', () => {
     it('rejects an empty expected root before making any RPC calls', async () => {
       const dataService = {
@@ -76,7 +28,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 0n),
+        verifyStateRootOnChain({ dataService, poolAddress, expectedRoot: 0n }),
       ).rejects.toThrow('State root verification called with empty root (0n)');
 
       expect(dataService.getPoolStateRoot).not.toHaveBeenCalled();
@@ -92,7 +44,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 555n),
+        verifyStateRootOnChain({ dataService, poolAddress, expectedRoot: 555n }),
       ).resolves.toBeUndefined();
 
       expect(dataService.getPoolStateRoot).toHaveBeenCalledWith(poolAddress);
@@ -114,7 +66,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, expectedRoot),
+        verifyStateRootOnChain({dataService, poolAddress, expectedRoot}),
       ).resolves.toBeUndefined();
 
       expect(requestedIndices).toEqual([39]);
@@ -134,7 +86,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, expectedRoot),
+        verifyStateRootOnChain({dataService, poolAddress, expectedRoot}),
       ).resolves.toBeUndefined();
 
       expect(requestedIndices).toEqual([63]);
@@ -154,7 +106,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, expectedRoot),
+        verifyStateRootOnChain({dataService, poolAddress, expectedRoot}),
       ).resolves.toBeUndefined();
 
       expect(requestedIndices).toHaveLength(63);
@@ -169,7 +121,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 999n),
+        verifyStateRootOnChain({dataService, poolAddress, expectedRoot: 999n}),
       ).rejects.toThrow(
         'State root verification failed: root not found in Pool recent history',
       );
@@ -185,7 +137,7 @@ describe('root verification', () => {
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 123n),
+        verifyStateRootOnChain({ dataService, poolAddress, expectedRoot: 123n }),
       ).rejects.toThrow('connection refused');
 
       expect(dataService.getPoolCurrentRootIndex).not.toHaveBeenCalled();

@@ -19,9 +19,13 @@ export const syncRelayersThunk = createAsyncThunk<void, SyncRelayersThunkParams,
   async ({ dataService }, { dispatch, getState }) => {
     const state = getState();
     const {
-      relayerRegistryAddress,
-      relayerRegistryDeploymentBlock,
-      aggregatorAddress,
+      relayerRegistry: {
+        address: relayerRegistryAddress,
+        deploymentBlock: relayerRegistryDeploymentBlock,
+      },
+      aggregator: {
+        address: aggregatorAddress,
+      },
       ensSubdomainKey,
     } = instanceRegistryInfoSelector(state);
 

@@ -1,14 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 import type { Address } from '../../src/interfaces/types.interface';
-import { registerAspTree } from '../../src/state/slices/aspSlice';
-import { registerPoolLeaves } from '../../src/state/slices/poolLeavesSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { verifyRootsThunk } from '../../src/state/thunks/verifyRootsThunk';
 import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
 import {
-  verifyAspRootOnChain,
   verifyStateRootOnChain,
 } from '../../src/verification/root-verification.js';
 
@@ -297,7 +294,6 @@ describe('verifyRootsThunk', () => {
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyAspRootOnChain).not.toHaveBeenCalled();
     expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,

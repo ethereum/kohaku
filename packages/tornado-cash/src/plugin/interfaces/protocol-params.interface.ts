@@ -3,12 +3,15 @@ import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { Address } from "../../interfaces/types.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
-import { RootState } from "../../state";
+import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover";
 import { ITornadoProver } from "../../utils/tornado-prover";
 import { TxData } from '@kohaku-eth/provider';
+import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
+import { PublicRootState } from '../../state/store';
+import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 
 export interface IWithdrawalPayload {
   proof: TornadoProveOutput;
@@ -24,35 +27,24 @@ export interface TCPublicOperation extends PublicOperation {
   txns: TxData[];
 }
 
-export interface IInstanceRegistry {
-  address: Address;
-  deploymentBlock: bigint;
-  relayerRegistry: {
-    address: Address;
-    deploymentBlock: bigint;
-    aggregatorAddress: Address;
-    ensSubdomainKey: string;
-    feeConfig?: {
-      minFee: number;
-      maxFee: number;
-    };
-  };
-}
-
 export interface ITornadoArtifacts {
   circuitUrl: string;
   provingKeyUrl: string;
 }
+
+export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
 
 export interface PrivacyPoolsV1ProtocolParams {
   accountIndex?: number;
   secretManagerFactory: (params: SecretManagerParams) => Promise<ISecretManager>;
   stateManager: (params: StoreFactoryParams) => Promise<IStateManager>;
   relayerClientFactory: () => IRelayerClient;
-  instanceRegistry: IInstanceRegistry;
+  protocolConfig: TCProtocolConfig;
+  relayerConfig?: IRelayerFeeConfig;
   artifacts: ITornadoArtifacts;
   proverFactory?: () => Promise<ITornadoProver>;
-  initialState?: () => Promise<Record<string, RootState>>;
+  initialState?: () => Promise<Record<string, PublicRootState>>;
+  stateManagerWorkerUrl?: string;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -60,6 +52,7 @@ interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no
 export interface IDepositOperationParams extends IBaseOperationParams {
   asset: Address;
   amount: bigint;
+  strategy: DepositStrategy;
 }
 
 export interface IGetBalancesOperationParams extends IBaseOperationParams {
@@ -67,7 +60,7 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
   balanceType?: 'approved' | 'unapproved';
 }
 
-export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
+export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount' | 'strategy'> {
   amount?: bigint;
   recipient: Address;
   preferredRelayersEns?: string[]
@@ -103,5 +96,5 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
-  dumpState: () => Record<StoreStorageKey, Omit<RootState, 'userSecrets'>>;
+  dumpState: () => Record<StoreStorageKey, PublicRootState>;
 }

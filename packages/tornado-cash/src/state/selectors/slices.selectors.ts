@@ -14,7 +14,7 @@ import {
   IWithdrawalEvent,
 } from "../../data/interfaces/events.interface";
 import { createSelector } from "@reduxjs/toolkit";
-import { InstanceRegistryInfoState } from "../slices/instanceRegistryInfoSlice";
+import { ProtocolConfigState } from "../slices/protocolConfigSlice";
 import { IRelayerInfo } from "../slices/relayersSlice";
 import { UserSecretRecord } from "../slices/userSecretsSlice";
 
@@ -34,7 +34,7 @@ export const depositsSelector = createSelector(
 
 export const instanceRegistryInfoSelector = createSelector(
   [(state: RootState) => state.instanceRegistryInfo],
-  (poolInfo) => deserialize(poolInfo, { ensSubdomainKey: true }) as InstanceRegistryInfoState,
+  (poolInfo) => deserialize(poolInfo, { ensSubdomainKey: true }) as ProtocolConfigState,
 );
 
 /**

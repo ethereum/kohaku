@@ -1,5 +1,5 @@
-/// <reference types="node" />
 /* eslint-disable import/no-default-export */
+/// <reference types="node" />
 
 import { defineConfig } from 'tsup';
 
@@ -8,26 +8,64 @@ export default defineConfig([
     entry: { index: 'src/index.ts' },
     format: ['esm'],
     dts: true,
-    sourcemap: true,
+    sourcemap: false,
     clean: true,
     target: 'es2022',
+    platform: 'browser',
     treeshake: true,
     splitting: true,
-    external: ['viem'],
+    external: ['viem', '#worker-loader', '#circuit-loader'],
+  },
+  {
+    entry: { 'worker-loader.browser': 'src/plugin/worker-loader.browser.ts' },
+    outDir: 'dist',
+    format: ['esm'],
+    dts: true,
+    clean: false,
+    target: 'es2022',
+    platform: 'browser',
+    external: ['comlink'],
+  },
+  {
+    entry: { 'worker-loader.node': 'src/plugin/worker-loader.node.ts' },
+    outDir: 'dist',
+    format: ['esm'],
+    dts: true,
+    clean: false,
+    target: 'es2022',
+    platform: 'node',
+    external: ['comlink', 'worker_threads', 'url', 'path'],
+  },
+  {
+    entry: { 'circuit-loader.browser': 'src/utils/circuit-loader.browser.ts' },
+    outDir: 'dist',
+    format: ['esm'],
+    dts: true,
+    clean: false,
+    target: 'es2022',
+    platform: 'browser',
+  },
+  {
+    entry: { 'circuit-loader.node': 'src/utils/circuit-loader.node.ts' },
+    outDir: 'dist',
+    format: ['cjs'],
+    dts: true,
+    clean: false,
+    target: 'es2022',
+    platform: 'node',
   },
   {
     entry: { 'state-manager.worker': 'src/state/state-manager.worker.ts' },
-    outDir: 'dist/worker',
+    outDir: 'dist',
     format: ['esm'],
     dts: false,
-    sourcemap: 'inline',
     clean: false,
     target: 'es2022',
     platform: 'browser',
     treeshake: false,
+    splitting: false,
     noExternal: [/^(?!(crypto|worker_threads)$)/],
-    external: ['crypto', 'worker_threads'],
-    splitting: true,
+    external: ['crypto', 'worker_threads', '#circuit-loader'],
     // websnark's groth16.js uses `typeof window !== 'undefined'` to detect browser vs Node.
     // Web Workers don't have `window`, so it falls into the Node path and attempts worker_threads.
     // An empty object makes the detection pass while leaving window.document / localStorage etc.
@@ -49,6 +87,28 @@ export default defineConfig([
       options.alias = {
         ...options.alias,
         assert: './src/polyfills/assert-polyfill.cjs',
+        'snarkjs/src/circuit': './node_modules/snarkjs/src/circuit.js',
+        'snarkjs/src/bigint': './node_modules/snarkjs/src/bigint.js',
+        'snarkjs/src/stringifybigint': './node_modules/snarkjs/src/stringifybigint.js',
+      };
+    },
+  },
+  {
+    entry: { 'state-manager.worker.node': 'src/state/state-manager.worker.node.ts' },
+    outDir: 'dist',
+    format: ['cjs'],
+    dts: false,
+    clean: false,
+    target: 'es2022',
+    platform: 'node',
+    treeshake: false,
+    sourcemap: 'inline',
+    splitting: false,
+    noExternal: [/^(?!(crypto|worker_threads|path|url|fs|buffer|events|util|os|stream|#worker-loader|#circuit-loader)$)/],
+    external: ['crypto', 'worker_threads', '#worker-loader', '#circuit-loader'],
+    esbuildOptions(options) {
+      options.alias = {
+        ...options.alias,
         'snarkjs/src/circuit': './node_modules/snarkjs/src/circuit.js',
         'snarkjs/src/bigint': './node_modules/snarkjs/src/bigint.js',
         'snarkjs/src/stringifybigint': './node_modules/snarkjs/src/stringifybigint.js',

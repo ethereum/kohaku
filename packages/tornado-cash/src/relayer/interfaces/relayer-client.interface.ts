@@ -18,6 +18,7 @@ export interface ITornadoWithdrawRequest {
 }
 
 export interface ITornadoWithdrawResponse {
+  // eslint-disable-next-line no-restricted-syntax
   id: string;
 }
 

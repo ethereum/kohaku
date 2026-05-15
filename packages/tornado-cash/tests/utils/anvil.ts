@@ -15,6 +15,7 @@ export interface AnvilPool {
   getProvider(): Promise<JsonRpcProvider>;
   mine(blocks?: number): Promise<void>;
   getBlockNumber(): Promise<number>;
+  getBalance(address: string): Promise<bigint>;
   setBalance(address: string, balance: string): Promise<void>;
 }
 
@@ -52,6 +53,10 @@ function createPool(baseUrl: string, poolId: number): AnvilPool {
 
     async mine(blocks?: number) {
       await provider.send('anvil_mine', [`0x${(blocks || 1).toString(16)}`]);
+    },
+
+    async getBalance(address: string): Promise<bigint> {
+      return provider.getBalance(address);
     },
 
     async setBalance(address: string, balance: string) {
@@ -128,6 +133,10 @@ export async function defineAnvil(params: DefineAnvilParameters): Promise<AnvilI
 
         async mine(blocks?: number) {
           await provider.send('anvil_mine', [`0x${(blocks || 1).toString(16)}`]);
+        },
+
+        getBalance(address: string): Promise<bigint> {
+          return provider.getBalance(address);
         },
 
         setBalance(address: string, balance: string) {

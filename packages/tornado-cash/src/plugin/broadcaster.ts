@@ -6,7 +6,6 @@ import { TCPrivateOperation } from "./interfaces/protocol-params.interface";
 import { addressToHex } from "../utils";
 
 export interface TCRelayerConstructorParams extends TCBroadcasterParameters {
-  relayerClientFactory?: () => IRelayerClient;
   host: Host;
 }
 
@@ -22,20 +21,28 @@ export class TornadoCashBroadcaster implements TCBroadcaster {
   async broadcast({
     withdrawals
   }: TCPrivateOperation): Promise<ITornadoWithdrawResponse[]> {
-    const withdrawalsResults = await Promise.allSettled(withdrawals.map(async ({ proof: { args, proof }, poolAddress, relayerUrl }) => {
-      return this.relayerClient.withdraw(relayerUrl, {
-        proof,
-        args,
-        contract: addressToHex(poolAddress)
-      })
-    }));
-    
-    const failedWithdrawals = withdrawalsResults.filter((w) => w.status === 'rejected');
 
-    if (failedWithdrawals.length > 0) {
-      console.warn(`Some withdrawals failed.`, failedWithdrawals.map((e) => e.reason).join('\n'))
+    const successes: ITornadoWithdrawResponse[] = [];
+    const failures: Error[] = []
+
+    for (const { proof: { args, proof }, poolAddress, relayerUrl } of withdrawals) {
+
+      try {
+        successes.push(await this.relayerClient.withdraw(relayerUrl, {
+          proof,
+          args,
+          contract: addressToHex(poolAddress)
+        }));
+      } catch (error) {
+        failures.push(error as Error);
+      }
+
     }
 
-    return withdrawalsResults.filter((w) => w.status === 'fulfilled').map((w) => w.value);
+    if (failures.length > 0) {
+      console.warn(`Some withdrawals failed.`, failures.map((e) => e.message).join('\n'))
+    }
+
+    return successes;
   }
 }

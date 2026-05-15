@@ -1,96 +1,75 @@
-import { encodeAbiParameters, getAddress } from 'viem';
+import { Contract, Wallet } from 'ethers';
 
-import {
-  IQuoteRequest,
-  IQuoteResponse,
-  IRelayerClient,
-  IRelayerFeeResponse,
-  IRelayFeesRequest,
-  IRelayRequest,
-  ISuccessfullRelayResponse,
-} from '../../src/relayer/interfaces/relayer-client.interface';
+import { poolAbi } from '../../src/data/abis/pool.abi';
+import { IRelayerClient, IRelayerStatusResponse, ITornadoWithdrawRequest, ITornadoWithdrawResponse } from '../../src/relayer/interfaces/relayer-client.interface';
 
 export interface MockRelayerOptions {
-  feeBPS?: string;
-  baseFeeBPS?: string;
-  gasPrice?: string;
-  shouldFail?: boolean;
+  chainId: 1 | 1155511;
+  fees: {
+    cheap: number;
+    expensive: number;
+  };
+  signer?: Wallet;
 }
 
-export const createMockRelayerClient = (options: MockRelayerOptions = {}): IRelayerClient => {
+const relayersHostnames = new Set<keyof MockRelayerOptions['fees']>(['cheap', 'expensive']);
+
+export const createMockRelayerClient = (options: Partial<MockRelayerOptions> = {}) => {
   const {
-    feeBPS = '100',        // 1%
-    baseFeeBPS = '50',     // 0.5%
-    gasPrice = '1000000000', // 1 gwei
-    shouldFail = false,
+    chainId = 1,
+    fees = {
+      cheap: 0.03,
+      expensive: 0.04
+    },
+    signer,
   } = options;
 
-  const feeRecipient = getAddress("0x976EA74026E726554dB657fA54763abd0C3a0aa9"); // junk[6]
-  const RelayDataAbi = [
-    {
-      name: "RelayData",
-      type: "tuple",
-      components: [
-        { name: "recipient", type: "address" },
-        { name: "feeRecipient", type: "address" },
-        { name: "relayFeeBPS", type: "uint256" },
-      ],
+  let alwaysFail = false;
+  const setAlwaysFail = (bool: boolean) => {
+    alwaysFail = bool;
+  }
+
+  const relayer: IRelayerClient = {
+    getStatus: async (hostname: keyof MockRelayerOptions['fees']): Promise<IRelayerStatusResponse> => {
+      if (alwaysFail) {
+        throw new Error('Set to always fail');
+      }
+
+      if (!relayersHostnames.has(hostname)) {
+        throw new Error('Invalid hostname, must be either \'cheap\' or \'expensive\'');
+      }
+  
+      return {
+        currentQueue: 0,
+        ethPrices: {},
+        netId: chainId,
+        rewardAccount: '0x0000000000000000000000000000000000000001',
+        tornadoServiceFee: fees[hostname],
+        version: '1'
+      }
     },
-  ] as const;
+    withdraw: async (_relayerUrl: string, body: ITornadoWithdrawRequest): Promise<ITornadoWithdrawResponse> => {
+      if (!signer) {
+        // eslint-disable-next-line no-restricted-syntax
+        return { id: '1' };
+      }
+
+      const { proof, args, contract } = body;
+      const [root, nullifierHash, recipient, relayer, fee, refund] = args;
+
+      const pool = new Contract(contract, poolAbi, signer);
+      const tx = await pool.withdraw(proof, root, nullifierHash, recipient, relayer, fee, refund, {
+        value: BigInt(refund),
+      });
+      const receipt = await tx.wait();
+
+      // eslint-disable-next-line no-restricted-syntax
+      return { id: receipt.hash };
+    }
+  };
 
   return {
-
-    async getQuote(body: IQuoteRequest): Promise<IQuoteResponse> {
-      if (shouldFail) {
-        throw new Error('Mock relayer failed');
-      }
-
-      const RelayData = {
-        recipient: getAddress("0x" + BigInt(body.recipient).toString(16)),
-        feeRecipient,
-        relayFeeBPS: BigInt(feeBPS)
-      };
-      const withdrawalData = encodeAbiParameters(RelayDataAbi, [RelayData]);
-
-      return {
-        baseFeeBPS,
-        feeBPS,
-        gasPrice,
-        feeCommitment: {
-          expiration: Date.now() + 3600000, // 1 hour from now
-          withdrawalData,
-          signedRelayerCommitment: '0xmocksignature',
-          extraGas: body.extraGas,
-        },
-        detail: {
-          relayTxCost: { gas: '100000', eth: '100000000000000' },
-        },
-      };
-    },
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async relay(body: IRelayRequest): Promise<ISuccessfullRelayResponse> {
-      if (shouldFail) {
-        throw new Error('Mock relay failed');
-      }
-
-      return {
-        success: true,
-        timestamp: Date.now(),
-        requestId: 'mock-request-id',
-        txHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-      };
-    },
-
-    async getFees(body: IRelayFeesRequest): Promise<IRelayerFeeResponse> {
-      return {
-        feeBPS,
-        feeReceiverAddress: '0x0000000000000000000000000000000000000001',
-        chainId: Number(body.chainId),
-        assetAddress: String(body.assetAddress),
-        minWithdrawAmount: '1000000000000000', // 0.001 ETH
-        maxGasPrice: '100000000000', // 100 gwei
-      };
-    },
+    ...relayer,
+    setAlwaysFail,
   };
 };

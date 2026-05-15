@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { getAddress } from 'viem';
-import { PPv1AssetBalance } from "../../src";
-import type { RootState } from "../../src/state/store";
+import { TCAssetBalance } from "../../src";
+import { PublicRootState } from '../../src/state/store';
 
 // Helper to get environment variable with fallback
 export function getEnv(key: string, fallback?: string): string {
@@ -17,7 +17,7 @@ export function getEnv(key: string, fallback?: string): string {
   throw new Error(`Env var ${key} is required and no fallback was provided`);
 }
 
-export type InitialState = Record<string, RootState>;
+export type InitialState = Record<string, PublicRootState>;
 
 const PPV1_E2E_STATE_PATH_ENV = 'PPV1_E2E_STATE_PATH';
 
@@ -69,15 +69,5 @@ export function ERC20Asset(address: string): ERC20AssetId {
 }
 
 
-export type PPv1AssetBalancePending = PPv1AssetBalance & { tag: "pending"; };
-export type PPv1AssetBalanceApproved = Omit<PPv1AssetBalance, "tag">;
-
-export function unwrapBalance(
-  preDepositBalance: PPv1AssetBalance[],
-  nativeAsset: ERC20AssetId
-): { pending?: PPv1AssetBalancePending; approved?: PPv1AssetBalanceApproved; } {
-  const pending = preDepositBalance.find(b => (b.asset.contract === nativeAsset.contract) && b.tag && b.tag === "pending") as PPv1AssetBalancePending | undefined;
-  const approved = preDepositBalance.find(b => (b.asset.contract === nativeAsset.contract) && b.tag === undefined);
-
-  return { pending, approved };
-}
+export type TCBalancePending = TCAssetBalance & { tag: "pending"; };
+export type TCBalanceApproved = Omit<TCAssetBalance, "tag">;

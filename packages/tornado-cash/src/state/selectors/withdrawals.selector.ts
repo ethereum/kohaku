@@ -49,21 +49,16 @@ export const myWithdrawalsSelector = createSelector(
   },
 );
 
-/**
- * Returns unspent deposits with their full secrets, ready for proof generation.
- * Reads secrets directly from the userSecrets slice — no secretManager call needed.
- */
-export const getWithdrawableDepositsSelector = createSelector(
+const getUnspentDepositsByPool = createSelector(
   [
     myDepositsSelector,
     withdrawalsSelector,
     poolsSelector,
     userSecretsSelector,
-    (_state: RootState, assetAddress: Address) => assetAddress,
-    (_state: RootState, _assetAddress: Address, amount?: bigint) => amount,
   ],
-  (myDeposits, withdrawals, pools, userSecrets, assetAddress, amount): IIndexedDepositWithSecrets[] => {
+  (deposits, withdrawals, pools, userSecrets) => {
     // Build a fast lookup: commitmentHex → full secret record
+    const unspentDepositsByPool = new Map<Address, IIndexedDepositWithSecrets[]>([...pools.keys()].map((address) => [address, []]));
     const secretByCommitment = new Map<Commitment, UserSecretRecord>();
 
     for (const records of userSecrets.values()) {
@@ -72,10 +67,38 @@ export const getWithdrawableDepositsSelector = createSelector(
       }
     }
 
-    // Pools sorted from lowest to biggest denomination
+    for (const [commitment, deposit] of deposits) {
+      const depositSecrets = secretByCommitment.get(commitment)!;
+
+      // If the deposit is already withdrawn skip it
+      if (withdrawals.get(depositSecrets.nullifierHash)) continue;
+      
+      unspentDepositsByPool.get(deposit.pool)!.push({
+        ...deposit,
+        ...depositSecrets
+      });
+    }
+
+    return unspentDepositsByPool;
+  }
+)
+
+/**
+ * Returns unspent deposits with their full secrets, ready for proof generation.
+ * Reads secrets directly from the userSecrets slice — no secretManager call needed.
+ */
+export const getWithdrawableDepositsSelector = createSelector(
+  [
+    getUnspentDepositsByPool,
+    poolsSelector,
+    (_state: RootState, assetAddress: Address) => assetAddress,
+    (_state: RootState, _assetAddress: Address, amount?: bigint) => amount,
+  ],
+  (unspentDepositsByPool, pools, assetAddress, amount): IIndexedDepositWithSecrets[] => {
+    // Pools sorted from biggest to lowest denomination
     const poolsToWithdrawFrom = Array.from(pools.values())
       .filter((p) => p.asset === assetAddress)
-      .sort((a, b) => Number(a.denomination - b.denomination));
+      .sort((a, b) => Number(b.denomination - a.denomination));
 
     if (!poolsToWithdrawFrom[0]) {
       throw new Error(`Pool for asset ${addressToHex(assetAddress)} not found.`);
@@ -84,30 +107,24 @@ export const getWithdrawableDepositsSelector = createSelector(
     let amountToWithdraw = 0n;
     const result: IIndexedDepositWithSecrets[] = [];
 
-    for (const deposit of myDeposits.values()) {
-      const pool = pools.get(deposit.pool);
+    for (const pool of poolsToWithdrawFrom) {
+      // If we would withdraw over the request amount we skip the pool
+      if (amount && amountToWithdraw + pool.denomination > amount) {
+        continue;
+      }
 
-      if (!pool) continue;
+      const poolDeposits = unspentDepositsByPool.get(pool.address)!;
 
-      const secretRecord = secretByCommitment.get(deposit.commitment);
+      for (const deposit of poolDeposits) {
+        // If we would withdraw over the requested amount we skip this pool
+        if (amount && amountToWithdraw + pool.denomination > amount) {
+          break;
+        }
 
-      if (!secretRecord) continue;
-
-      const nullifierHash = BigInt(secretRecord.nullifierHash) as Commitment;
-
-      if (withdrawals.has(nullifierHash)) continue;
-
-      result.push({
-        ...deposit,
-        nullifier: BigInt(secretRecord.nullifier),
-        salt: BigInt(secretRecord.salt),
-        commitment: deposit.commitment,
-        nullifierHash,
-      });
-
-      amountToWithdraw += pool.denomination;
-
-      if (amount && amountToWithdraw >= amount) break;
+        result.push(deposit);
+        
+        amountToWithdraw += pool.denomination;
+      }
     }
 
     if (amount && amountToWithdraw < amount) {

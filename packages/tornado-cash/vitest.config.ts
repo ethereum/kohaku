@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 const CHAINS = [
@@ -9,11 +10,8 @@ const E2E_SUITES = [
   { suiteName: 'all',             include: ['tests/unit/**/*.test.ts', 'tests/e2e/**/*.test.ts'], timeout: 600_000 },
   { suiteName: 'e2e',             include: ['tests/e2e/**/*.test.ts'],                    timeout: 600_000 },
   { suiteName: 'shield',          include: ['tests/e2e/**/shield.test.ts'],               timeout: 600_000 },
-  { suiteName: 'withdraw-mocked', include: ['tests/e2e/**/withdraw.test.ts'],             timeout: 600_000 },
-  { suiteName: 'withdraw-live',   include: ['tests/e2e/**/withdraw-real-prover.test.ts'], timeout: 600_000 },
-  { suiteName: 'ragequit',        include: ['tests/e2e/**/ragequit.test.ts'],             timeout: 600_000 },
+  { suiteName: 'withdraw',        include: ['tests/e2e/**/withdraw.test.ts'],             timeout: 600_000 },
   { suiteName: 'sync',            include: ['tests/sync.test.ts'],                        timeout: 1_200_000 },
-  { suiteName: 'asp-integration', include: ['tests/e2e/asp-services.test.ts'],            timeout: 60_000 },
 ];
 
 const chainProjects = CHAINS.flatMap(chain =>
@@ -34,6 +32,7 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     exclude: ['*'],
+    alias: { '@kohaku-eth/tornado-cash': resolve(__dirname, 'dist/index.js') },
     projects: [
       {
         extends: true,
@@ -43,7 +42,7 @@ export default defineConfig({
           testTimeout: 5_000,
         }
       },
-...chainProjects,
+      ...chainProjects,
     ]
   },
 });

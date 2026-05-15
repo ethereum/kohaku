@@ -1,18 +1,25 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IInstanceRegistry, TCPrivateOperation, TCPublicOperation, PrivacyPoolsV1ProtocolParams, ITornadoArtifacts } from '../plugin/interfaces/protocol-params.interface.js';
+import { TCPrivateOperation, TCPublicOperation, PrivacyPoolsV1ProtocolParams, ITornadoArtifacts, TCProtocolConfig } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
-import { ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
+import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
+import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
+import { IRelayerFeeConfig } from "../state/slices/relayersSlice.js";
+export { DepositStrategy };
 
-export type TCBroadcasterParameters = {};
+export type TCBroadcasterParameters = {
+    relayerClientFactory?: () => IRelayerClient;
+};
 export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResponse[]>;
 interface TCBaseCredential {
     accountIndex: number;
 }
 export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential {
-    instanceRegistry: IInstanceRegistry;
+    protocolConfig: TCProtocolConfig;
+    relayerConfig?: IRelayerFeeConfig;
     initialState?: PrivacyPoolsV1ProtocolParams['initialState'];
     artifacts: ITornadoArtifacts;
+    stateManagerWorkerUrl?: string;
 };
 
 export type TCAddress = Address;
@@ -22,6 +29,10 @@ export type TCAssetBalance = TCAssetAmount;
 
 export interface TCPrepareUnshieldOptions {
     preferredRelayersEns?: string[];
+}
+
+export interface TCPrepareShieldOptions {
+    strategy: DepositStrategy;
 }
 
 export type TCInstance = PluginInstance<
@@ -39,6 +50,7 @@ export type TCInstance = PluginInstance<
         },
         extras: {
             sync(): Promise<void>,
+            prepareShield(asset: TCAssetAmount, options: TCPrepareShieldOptions): Promise<TCPublicOperation>;
             prepareUnshield(asset: TCAssetAmount, to: Address, options: TCPrepareUnshieldOptions): Promise<TCPrivateOperation>,
         },
         publicOp: TCPublicOperation,

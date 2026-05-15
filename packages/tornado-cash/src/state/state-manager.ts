@@ -5,12 +5,12 @@ import { Store, unwrapResult } from "@reduxjs/toolkit";
 import { Address } from "../interfaces/types.interface";
 import {
   IDepositOperationParams,
-  IInstanceRegistry,
   IStateManager,
   IWithdrawapOperationParams,
   StoreKey,
   StoreStorageKey,
   IWithdrawalPayload,
+  TCProtocolConfig,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { ITornadoProver } from "../utils/tornado-prover";
@@ -21,34 +21,37 @@ import {
 } from "./selectors/balance.selector";
 import { poolFromAssetSelector } from "./selectors/pools.selector";
 import { getWithdrawableDepositsSelector } from "./selectors/withdrawals.selector";
-import { RootState, storeFactory } from "./store";
+import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
-import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, setRelayerFeeConfig } from "./slices/relayersSlice";
+import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
+import { ProtocolConfigState } from "./slices/protocolConfigSlice";
 
 export interface StoreFactoryParams {
   secretManagerFactory: () => Promise<ISecretManager>;
   dataService: IDataService;
   relayerClient: IRelayerClient;
   storageToSyncTo?: Storage;
-  instanceRegistry: IInstanceRegistry;
+  protocolConfig: TCProtocolConfig;
+  relayerConfig?: IRelayerFeeConfig;
   proverFactory: () => Promise<ITornadoProver>;
   initialState?: () => Promise<Record<
     string,
-    Parameters<typeof storeFactory>[0]["initialState"]
+    PublicRootState
   >>;
 }
 
 interface GetChainStoreParams {
   chainId: ChainId;
-  instanceRegistry: IInstanceRegistry;
+  protocolConfig: ProtocolConfigState;
+  relayerConfig: IRelayerFeeConfig;
 }
 
 const getStoreKey = ({
   chainId,
-  instanceRegistry: { address },
+  protocolConfig: { instanceRegistry: { address } },
 }: GetChainStoreParams): StoreKey => `${chainId.toString()}-${address}`;
 
 const getStoreStorageKey = (
@@ -100,8 +103,8 @@ const storeByChainAndEntrypoint = ({
   return {
     getChainStore: async (getChainStoreParams: GetChainStoreParams) => {
       const {
-        chainId,
-        instanceRegistry: { address, deploymentBlock, relayerRegistry },
+        protocolConfig,
+        relayerConfig
       } = getChainStoreParams;
       const computedChainKey = getStoreKey(getChainStoreParams);
       let storeWithSelectors = chainStoreMap.get(computedChainKey);
@@ -109,28 +112,17 @@ const storeByChainAndEntrypoint = ({
       if (!storeWithSelectors) {
         const storageKey = getStoreStorageKey(getChainStoreParams);
         const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : undefined;
-        const storedState: RootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+        const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
         const snapshotInitialState = storedState || !resolveInitialState
           ? undefined
           : (await resolveInitialState())[storageKey];
-        const initialState: RootState | undefined = storedState || snapshotInitialState;
+        const initialState: PublicRootState | undefined = storedState || snapshotInitialState;
         const store = storeFactory({
-          instanceRegsitryInfo: {
-            chainId,
-            instanceRegistryAddress: address,
-            deploymentBlock,
-            relayerRegistryAddress: relayerRegistry.address,
-            relayerRegistryDeploymentBlock: relayerRegistry.deploymentBlock,
-            aggregatorAddress: relayerRegistry.aggregatorAddress,
-            ensSubdomainKey: relayerRegistry.ensSubdomainKey,
-          },
+          protocolConfig,
           initialState,
         });
 
-        const feeConfig = relayerRegistry.feeConfig
-          ?? (chainId === 1n ? DEFAULT_MAINNET_FEE_CONFIG : DEFAULT_OTHER_FEE_CONFIG);
-
-        store.dispatch(setRelayerFeeConfig(feeConfig));
+        store.dispatch(setRelayerFeeConfig(relayerConfig));
 
         storeWithSelectors = initializeSelectors(store);
         chainStoreMap.set(computedChainKey, storeWithSelectors);
@@ -158,8 +150,9 @@ export const storeStateManager = async ({
   relayerClient,
   proverFactory,
   storageToSyncTo,
-  instanceRegistry,
   initialState,
+  protocolConfig,
+  relayerConfig,
 }: StoreFactoryParams): Promise<IStateManager> => {
   const secretManager = await secretManagerFactory();
   const { getChainStore, getAllStores } = storeByChainAndEntrypoint({
@@ -167,10 +160,19 @@ export const storeStateManager = async ({
     initialState,
   });
 
-  const getChainInfo = async () => ({
-    chainId: await dataService.getChainId(),
-    instanceRegistry,
-  });
+  const getChainInfo = async () => {
+    const chainId = await dataService.getChainId();
+    const actualRelayerConfig = relayerConfig ?? chainId === 1n ? DEFAULT_MAINNET_FEE_CONFIG : DEFAULT_OTHER_FEE_CONFIG;
+
+    return {
+      chainId,
+      relayerConfig: actualRelayerConfig,
+      protocolConfig: {
+        ...protocolConfig,
+        chainId,
+      },
+    };
+  }
 
   return {
     sync: async (): Promise<void> => {
@@ -201,12 +203,12 @@ export const storeStateManager = async ({
 
       return specificAssetsBalanceSelector(assets);
     },
-    getDepositPayload: async ({ asset, amount }: IDepositOperationParams) => {
+    getDepositPayload: async ({ asset, amount, strategy }: IDepositOperationParams) => {
       const store = await getChainStore(await getChainInfo());
 
       return unwrapResult(
         await store.dispatch(
-          getDepositPayloadThunk({ secretManager, asset, amount }),
+          getDepositPayloadThunk({ secretManager, asset, amount, strategy }),
         ),
       );
     },

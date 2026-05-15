@@ -8,4 +8,4 @@ export type { SecretManagerParams, ISecretManager } from './account/keys';
 export type { Commitment, Nullifier } from './account/types';
 
 // Configs
-export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';
+export { TornadoCashConfigs, E_ADDRESS } from './config.js';

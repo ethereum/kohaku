@@ -9,10 +9,10 @@ import {
 import { assetsReducer } from "./slices/assetsSlice";
 import { depositsReducer } from "./slices/depositsSlice";
 import {
-  instanceRegistryInfoReducer,
-  InstanceRegistryInfoState,
-  setInstanceregistryInfo,
-} from "./slices/instanceRegistryInfoSlice";
+  protocolConfigReducer,
+  ProtocolConfigState,
+  setProtocolConfig,
+} from "./slices/protocolConfigSlice";
 import { poolsReducer } from "./slices/poolsSlice";
 import { relayersReducer } from "./slices/relayersSlice";
 import { syncReducer } from "./slices/syncSlice";
@@ -25,12 +25,14 @@ const reducers = {
   assets: assetsReducer,
   pools: poolsReducer,
   relayers: relayersReducer,
-  instanceRegistryInfo: instanceRegistryInfoReducer,
+  instanceRegistryInfo: protocolConfigReducer,
   sync: syncReducer,
   userSecrets: userSecretsReducer,
 } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
+export type PublicRootState = Omit<RootState, 'userSecrets'>;
+
 type LogLevel = 'error' | 'verbose' | 'off';
 
 const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (logLevel) => (api) => (next) => (action) => {
@@ -69,13 +71,13 @@ const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (lo
 type StoreShape = typeof reducers extends ReducersMapObject<infer StateType> ? StateType : never;
 
 interface StoreFactoryParams {
-  instanceRegsitryInfo: InstanceRegistryInfoState;
-  initialState?: StoreShape;
+  protocolConfig: ProtocolConfigState;
+  initialState?: Omit<StoreShape, 'userSecrets'>;
   logLevel?: 'verbose' | 'error' | 'off';
 }
 
 export const storeFactory = ({
-  instanceRegsitryInfo,
+  protocolConfig,
   initialState,
   logLevel = 'error',
 }: StoreFactoryParams) => {
@@ -96,7 +98,7 @@ export const storeFactory = ({
     }
   });
 
-  store.dispatch(setInstanceregistryInfo(instanceRegsitryInfo));
+  store.dispatch(setProtocolConfig(protocolConfig));
 
   return store;
 };
