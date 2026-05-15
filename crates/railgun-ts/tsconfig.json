@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["sdk"],
+  "exclude": ["tests", "pkg", "node_modules", "dist"]
+}

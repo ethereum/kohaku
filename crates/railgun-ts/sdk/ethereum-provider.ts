@@ -1,5 +1,5 @@
-import { EthereumProvider } from '@kohaku-eth/provider';
-import { Eip1193Provider, RawLog } from '../lib';
+import type { EthereumProvider } from '@kohaku-eth/provider';
+import type { Eip1193Provider, RawLog } from './lib';
 
 /**
  * Adapter that wraps an EthereumProvider and exposes the Eip1193Provider interface

@@ -1,9 +1,9 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../lib.js";
+import { chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { ensureInitialized, initLogging, GrothProverAdapter, RemoteArtifactLoader, EthereumProviderAdapter } from "../lib.js";
+import { ensureInitialized, initLogging, EthereumProviderAdapter } from "../sdk/lib.js";
 import { viem } from "@kohaku-eth/provider/viem";
 
 await ensureInitialized();
@@ -11,7 +11,6 @@ initLogging("Info");
 const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
 const RPC_URL = "http://localhost:8545";
-const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 
 const erc20Abi = parseAbi([
     "function balanceOf(address) view returns (uint256)",

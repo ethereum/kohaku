@@ -1,9 +1,9 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { Bundler, chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../lib.js";
+import { Bundler, chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { ensureInitialized, initLogging, GrothProverAdapter, RemoteArtifactLoader, EthereumProviderAdapter } from "../lib.js";
+import { ensureInitialized, initLogging, EthereumProviderAdapter } from "../sdk/lib.js";
 import { viem } from "@kohaku-eth/provider/viem";
 
 await ensureInitialized();
@@ -11,20 +11,13 @@ initLogging("Info");
 const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
 const RPC_URL = "http://localhost:8545";
-const ARTIFACTS_URL = "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/";
 
 const erc20Abi = parseAbi([
     "function balanceOf(address) view returns (uint256)",
 ]);
 
 /**
- * Tests a full transact flow, including shielding, transferring, and unshielding.
- * 
- * This integration test ensures that the entire transact flow works correctly using
- * the public RailgunProvider interface. Includes internal syncing, tx building, UTXO
- * management, and UTXO proof generation.
- * 
- * This integration test DOES NOT verify any TXID or POI functionality.
+ * Tests a full broadcast flow of transfering and unshielding UTXOs.
  */
 test("broadcast-utxo", async () => {
     if (!INTEGRATION) {
@@ -49,9 +42,8 @@ test("broadcast-utxo", async () => {
     });
 
     console.log("Setup Railgun");
-    const prover = new GrothProverAdapter(new RemoteArtifactLoader(ARTIFACTS_URL));
     const syncer = NoteSyncer.chained([NoteSyncer.subsquid(CHAIN), NoteSyncer.rpc(CHAIN, viemClient, 1000n)]);
-    const railgun = new RailgunProvider(CHAIN, viemClient, syncer, prover);
+    const railgun = new RailgunProvider(CHAIN, viemClient, syncer);
     const bundler = Bundler.pimlico("");
 
     const account1 = RailgunSigner.random(BigInt(CHAIN.id));

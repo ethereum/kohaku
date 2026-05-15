@@ -1,6 +1,6 @@
-import initWasm from "./pkg";
-export * from './pkg/index';
-export { EthereumProviderAdapter } from "./sdk/ethereum-provider.js";
+import initWasm from "../pkg";
+export * from '../pkg/index';
+export { EthereumProviderAdapter } from "./ethereum-provider.js";
 
 let initPromise: Promise<void> | null = null;
 
@@ -15,7 +15,7 @@ async function _init(wasmInput?: BufferSource | Response): Promise<void> {
         const { fileURLToPath } = await import('node:url');
         const { dirname, join } = await import('node:path');
         const dir = dirname(fileURLToPath(import.meta.url));
-        wasmInput = new Uint8Array(await readFile(join(dir, 'pkg/index_bg.wasm')));
+        wasmInput = new Uint8Array(await readFile(join(dir, '../pkg/index_bg.wasm')));
     }
     await initWasm(wasmInput !== undefined ? { module_or_path: wasmInput } : undefined);
 }

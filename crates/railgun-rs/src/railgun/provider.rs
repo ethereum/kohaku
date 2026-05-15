@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy::{
-    primitives::{Address, B128, Bytes, ChainId},
+    primitives::{Address, Bytes, ChainId},
     sol_types::SolCall,
 };
 use eip_1193_provider::{Eip1193Error, Eip1193Provider};
@@ -223,15 +223,7 @@ impl<P: Prover> RailgunProvider<P> {
         let max_fee_per_gas = bundler.suggest_max_fee_per_gas().await?;
 
         info!("Iteratively building UserOperation to converge on accurate fee estimate");
-        let mut userop_builder = UserOperationBuilder::new_railgun(
-            self.chain.id,
-            sender,
-            sender_nonce,
-            Bytes::new(),
-            B128::ZERO,
-            Address::ZERO,
-            0,
-        );
+        let mut userop = UserOperation::default();
 
         for _ in 0..5 {
             let broadcast_builder = builder.clone().transfer(
@@ -273,7 +265,7 @@ impl<P: Prover> RailgunProvider<P> {
             };
 
             // Construct UserOperation
-            userop_builder = UserOperationBuilder::new_railgun(
+            let userop_builder = UserOperationBuilder::new_railgun(
                 self.chain.id,
                 sender,
                 sender_nonce,
@@ -285,6 +277,7 @@ impl<P: Prover> RailgunProvider<P> {
             .with_tail_calls(vec![tail_call])
             .with_gas_estimate(bundler.as_ref())
             .await?;
+            userop = userop_builder.build();
 
             // TODO: See if we can unify these two buffers into a single safety
             // margin
@@ -292,11 +285,11 @@ impl<P: Prover> RailgunProvider<P> {
             // The bundler seems to find the exact minimum call_gas_limit with
             // no margin.
             // Add 10% headroom so the implementation doesn't sporadically OOG.
-            userop_builder.op.call_gas_limit = userop_builder.op.call_gas_limit * 11 / 10;
-            let total_gas = userop_builder.total_gas_limit();
+            userop.call_gas_limit = userop.call_gas_limit * 11 / 10;
 
             // Add a 10% headroom to the fee estimate to ensure buffer if prices change
             // slightly between estimation and execution
+            let total_gas = userop.total_gas_limit();
             let new_fee = total_gas * max_fee_per_gas;
             let new_fee = (new_fee * 11) / 10;
 
@@ -311,7 +304,7 @@ impl<P: Prover> RailgunProvider<P> {
             info!("Fee updated to {}, delta: {}", new_fee, delta);
         }
 
-        Ok(userop_builder.build())
+        Ok(userop)
     }
 
     pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {
