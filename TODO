@@ -1,4 +1,5 @@
 - [ ] Make RailgunProvider builder pattern
+- [x] Convert state into tabular state
 - [ ] Add sensible defaults for prover, artifact loader, utxo indexer, utxo verifier, txid indexer, txid verifier, and bundler.
   - To do this will need an RPC URL and a bundler URL.  Can probably have::new add the RPC provider, ::with_poi add the txid stuff, and ::with_bundler add the bundler.
 - [ ] Audit public API for consistency and minimalism
@@ -9,4 +10,3 @@
 - [ ] Add docstrings to public API
 - [ ] Clean up integration tests to all use the `anvil` / `alto` rust fixtures
 - [ ] Add integration test for plugin interface.
-- [ ] Convert state into tabular state

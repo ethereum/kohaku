@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use railgun_rs::{
     chain_config::ChainConfig,
+    database::InMemoryDatabase,
     railgun::{
         indexer::{SubsquidSyncer, TxidIndexer},
         poi::client::PoiClient,
@@ -30,7 +31,9 @@ async fn test_sync_txid() {
     info!("Setting up POI client");
     let poi_client = PoiClient::new(chain.id, chain.poi_endpoint, chain.list_keys);
     let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
-    let mut indexer = TxidIndexer::new(subsquid_syncer);
+    let mut indexer = TxidIndexer::new(Arc::new(InMemoryDatabase::new()), subsquid_syncer)
+        .await
+        .unwrap();
 
     info!("Syncing indexer");
     indexer.sync_to(FORK_BLOCK, &poi_client).await.unwrap();

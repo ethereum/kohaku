@@ -11,6 +11,7 @@ use railgun_rs::{
     caip::AssetId,
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
+    database::InMemoryDatabase,
     railgun::{
         RailgunSigner,
         indexer::{ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer},
@@ -108,18 +109,21 @@ async fn test_broadcast_utxo() {
     ));
     let mut railgun = RailgunProvider::new(
         chain.clone(),
+        Arc::new(InMemoryDatabase::new()),
         provider.clone().into_eip1193(),
         syncer,
         prover,
-    );
+    )
+    .await
+    .unwrap();
     railgun.set_bundler(bundler.clone());
     railgun.sync().await.unwrap();
 
     info!("Setting up accounts");
     let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
     let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
-    railgun.register(account_1.clone());
-    railgun.register(account_2.clone());
+    railgun.register(account_1.clone()).await.unwrap();
+    railgun.register(account_2.clone()).await.unwrap();
 
     // Test Shielding
     info!("Testing shielding");

@@ -12,6 +12,7 @@ use railgun_rs::{
     caip::AssetId,
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
+    database::InMemoryDatabase,
     railgun::{
         RailgunProvider, RailgunSigner, indexer::RpcSyncer, transaction::TransactionBuilder,
     },
@@ -69,21 +70,21 @@ async fn test_transact_utxo() {
     let rpc_syncer = Arc::new(
         RpcSyncer::new(chain.clone(), provider.clone().into_eip1193()).with_batch_size(10),
     );
-    let provider_state = std::fs::read("./tests/fixtures/provider_state.json").unwrap();
-    let railgun_state = serde_json::from_slice(&provider_state).unwrap();
     let mut railgun = RailgunProvider::new(
         chain.clone(),
+        Arc::new(InMemoryDatabase::new()),
         provider.clone().into_eip1193(),
         rpc_syncer,
         prover,
-    );
-    railgun.set_state(railgun_state).unwrap();
+    )
+    .await
+    .unwrap();
 
     info!("Setting up accounts");
     let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
     let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
-    railgun.register(account_1.clone());
-    railgun.register(account_2.clone());
+    railgun.register(account_1.clone()).await.unwrap();
+    railgun.register(account_2.clone()).await.unwrap();
 
     // Test Shielding
     info!("Testing shielding");

@@ -5,6 +5,7 @@ use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
+    database::InMemoryDatabase,
     railgun::{RailgunProvider, indexer::SubsquidSyncer},
 };
 use tracing::info;
@@ -47,14 +48,14 @@ async fn test_sync_utxo() {
     //? tests to avoid re-syncing from scratch, which currently takes ~1 minute.
     let mut railgun = RailgunProvider::new(
         chain.clone(),
+        Arc::new(InMemoryDatabase::new()),
         provider.clone().into_eip1193(),
         subsquid_syncer.clone(),
         prover,
-    );
+    )
+    .await
+    .unwrap();
 
     info!("Syncing indexer");
     railgun.sync_to(FORK_BLOCK).await.unwrap();
-
-    let state = serde_json::to_string(&railgun.state()).unwrap();
-    std::fs::write("./tests/fixtures/provider_state.json", state).unwrap();
 }

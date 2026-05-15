@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    u64,
-};
+use std::{collections::BTreeMap, sync::Arc, u64};
 
 use crypto::poseidon_hash;
 use ruint::aliases::U256;
@@ -10,45 +6,36 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
 
-use crate::railgun::{
-    address::RailgunAddress,
-    indexer::{
-        indexed_account::{IndexedAccount, IndexedAccountState},
-        syncer::{self, NoteSyncer, SyncEvent, SyncerError},
+use crate::{
+    database::{Database, DatabaseError, RailgunDB},
+    railgun::{
+        address::RailgunAddress,
+        indexer::{
+            indexed_account::IndexedAccount,
+            syncer::{self, NoteSyncer, SyncEvent, SyncerError},
+        },
+        merkle_tree::{MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree},
+        note::utxo::{NoteError, UtxoNote},
+        signer::RailgunSigner,
     },
-    merkle_tree::{MerkleTreeState, MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree},
-    note::utxo::{NoteError, UtxoNote},
-    signer::RailgunSigner,
 };
 
 /// Utxo indexer that maintains the set of UTXO merkle trees and tracks accounts
 /// and account notes / balances.
 pub struct UtxoIndexer {
+    synced_block: u64,
     pub utxo_trees: BTreeMap<u32, UtxoMerkleTree>,
-    pub synced_block: u64,
-
-    utxo_syncer: Arc<dyn NoteSyncer>,
-    utxo_verifier: Arc<dyn MerkleTreeVerifier>,
-
-    // Accounts being actively tracked by the indexer.
     accounts: Vec<IndexedAccount>,
 
-    // Accounts that have been tracked by the indexer, but have not been registered
-    // since the last restart. If a signer is later registered we can restore its
-    // state and continue tracking without re-syncing.
-    pending_accounts: HashMap<RailgunAddress, IndexedAccountState>,
+    db: Arc<dyn Database>,
+    utxo_syncer: Arc<dyn NoteSyncer>,
+    utxo_verifier: Arc<dyn MerkleTreeVerifier>,
 }
 
-/// State struct for the Utxo indexer.
-///
-/// This state does NOT include the signer for any accounts. After restoring
-/// from state, to continue tracking accounts, you must re-register each account's
-/// signer.
-#[derive(Serialize, Deserialize)]
-pub struct UtxoIndexerState {
-    pub utxo_trees: BTreeMap<u32, MerkleTreeState>,
+#[derive(Serialize, Deserialize, Default)]
+pub(crate) struct UtxoIndexerState {
     pub synced_block: u64,
-    pub accounts: HashMap<RailgunAddress, IndexedAccountState>,
+    pub trees: Vec<u32>,
 }
 
 #[derive(Debug, Error)]
@@ -59,105 +46,67 @@ pub enum UtxoIndexerError {
     VerificationError(#[source] Box<dyn std::error::Error + 'static>),
     #[error("Note error: {0}")]
     NoteError(#[from] NoteError),
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] DatabaseError),
     #[error("Timed out waiting for commitments")]
     Timeout,
 }
 
 impl UtxoIndexer {
-    pub fn new(
+    pub async fn new(
+        db: Arc<dyn Database>,
         utxo_syncer: Arc<dyn NoteSyncer>,
         utxo_verifier: Arc<dyn MerkleTreeVerifier>,
-    ) -> Self {
-        UtxoIndexer {
-            utxo_trees: BTreeMap::new(),
-            synced_block: 0,
+    ) -> Result<Self, UtxoIndexerError> {
+        let state = db.get_utxo_indexer().await?;
+
+        let mut utxo_trees = BTreeMap::new();
+        for number in state.trees {
+            let tree_state = db.get_utxo_tree(number).await?;
+            if let Some(tree_state) = tree_state {
+                utxo_trees.insert(number, UtxoMerkleTree::from_state(tree_state));
+            }
+        }
+
+        Ok(UtxoIndexer {
+            synced_block: state.synced_block,
+            utxo_trees,
+            accounts: vec![],
+            db,
             utxo_syncer,
             utxo_verifier,
-            accounts: vec![],
-            pending_accounts: HashMap::new(),
-        }
+        })
     }
 
-    /// Restores the indexer state from a saved state. This will restore the synced
-    /// UTXO trees and notes. To continue tracking accounts, you must also re-register
-    /// each account's signer.
-    pub fn set_state(&mut self, state: UtxoIndexerState) {
-        let mut utxo_trees = BTreeMap::new();
-        for (number, tree_state) in state.utxo_trees {
-            utxo_trees.insert(number, UtxoMerkleTree::from_state(tree_state));
-        }
-
-        self.utxo_trees = utxo_trees;
-        self.synced_block = state.synced_block;
-        self.pending_accounts = state.accounts;
-    }
-
-    /// Returns the current state of the indexer, which can be saved and later
-    /// used to restore the indexer state.
-    ///
-    /// While state does include the synced notes (sensitive data), it does NOT
-    /// include the signer. After restoring from state, you must also re-register
-    /// each signer to continue tracking their notes.
-    pub fn state(&self) -> UtxoIndexerState {
-        let utxo_trees = self
-            .utxo_trees
-            .iter()
-            .map(|(k, v)| (*k, v.state()))
-            .collect();
-        let mut accounts: HashMap<RailgunAddress, IndexedAccountState> = self
-            .accounts
-            .iter()
-            .map(|a| (a.address(), a.state()))
-            .collect();
-
-        accounts.extend(self.pending_accounts.clone());
-
-        UtxoIndexerState {
-            utxo_trees,
-            synced_block: self.synced_block,
-            accounts,
-        }
-    }
-
+    /// Returns the latest synced block
     pub fn synced_block(&self) -> u64 {
         let mut min_synced = self.synced_block;
         for account in self.accounts.iter() {
-            min_synced = min_synced.min(account.synced_block);
+            min_synced = min_synced.min(account.synced_block());
         }
         min_synced
     }
 
-    /// Register an account with the indexer. The indexer will track the account's
-    /// notes and balance as it syncs.
-    ///
-    /// Registering an account does NOT trigger a re-sync. After registering, call
-    /// `sync()` to sync the account's notes and balance.
-    pub fn register(&mut self, signer: Arc<dyn RailgunSigner>) {
-        self.register_from(signer, self.synced_block);
-    }
+    /// Registers an account with the indexer.
+    pub async fn register(
+        &mut self,
+        signer: Arc<dyn RailgunSigner>,
+    ) -> Result<(), UtxoIndexerError> {
+        let addr = signer.address();
+        let state = self.db.get_account(&addr).await?;
 
-    /// Registers an account starting from a specific block.
-    pub fn register_from(&mut self, signer: Arc<dyn RailgunSigner>, from_block: u64) {
-        let address = signer.address();
-        if let Some(state) = self.pending_accounts.remove(&address) {
-            let account = IndexedAccount::from_state(state, signer.clone());
-            self.accounts.push(account);
-            return;
-        }
-
-        let account = IndexedAccount::new(signer.clone(), from_block);
+        let account = IndexedAccount::from_state(signer, state);
         self.accounts.push(account);
+        Ok(())
     }
 
+    /// Lists all registered accounts
     pub fn registered(&self) -> Vec<RailgunAddress> {
         self.accounts.iter().map(|a| a.address()).collect()
     }
 
-    pub fn deregister_pending(&mut self) {
-        self.pending_accounts.clear();
-    }
-
-    /// Returns a list of unspent notes for a given address
+    /// Lists all unspent notes for a given address. Returns an empty list if the address is not
+    /// registered.
     pub fn unspent(&self, address: RailgunAddress) -> Vec<UtxoNote> {
         for account in self.accounts.iter() {
             if account.address() == address {
@@ -168,7 +117,7 @@ impl UtxoIndexer {
         vec![]
     }
 
-    /// Returns a list of all unspent notes across all accounts
+    /// Lists all unspent notes for all registered accounts.
     pub fn all_unspent(&self) -> Vec<UtxoNote> {
         let mut notes = Vec::new();
         for account in self.accounts.iter() {
@@ -178,10 +127,13 @@ impl UtxoIndexer {
         notes
     }
 
+    /// Syncs the indexer to the latest block.
     pub async fn sync(&mut self) -> Result<(), UtxoIndexerError> {
         self.sync_to(u64::MAX).await
     }
 
+    /// Syncs the indexer to a specific block. If the indexer is already synced past that block,
+    /// this is a no-op.
     #[tracing::instrument(name = "utxo_sync", skip_all)]
     pub async fn sync_to(&mut self, to_block: u64) -> Result<(), UtxoIndexerError> {
         let from_block = self.synced_block() + 1;
@@ -212,20 +164,15 @@ impl UtxoIndexer {
 
         self.synced_block = to_block;
         for account in self.accounts.iter_mut() {
-            account.synced_block = to_block;
+            account.set_synced_block(to_block);
         }
+
+        // Save
+        self.save().await?;
+
         Ok(())
     }
 
-    /// Resets the indexer state
-    pub fn reset(&mut self) {
-        self.utxo_trees.clear();
-        self.synced_block = 0;
-        self.accounts.clear();
-        self.pending_accounts.clear();
-    }
-
-    /// Handles a sync event.
     fn handle_event(&mut self, event: &SyncEvent) -> Result<(), UtxoIndexerError> {
         match event {
             SyncEvent::Shield(shield, _) => self.handle_shield(shield)?,
@@ -237,7 +184,6 @@ impl UtxoIndexer {
         Ok(())
     }
 
-    /// Handles a shield event. Returns true if the event was matched to any account.
     fn handle_shield(&mut self, event: &syncer::Shield) -> Result<(), UtxoIndexerError> {
         let leaf: UtxoLeafHash =
             poseidon_hash(&[event.npk, event.token.hash(), U256::from(event.value)])
@@ -252,7 +198,6 @@ impl UtxoIndexer {
         Ok(())
     }
 
-    /// Handles a transact event. Returns true if the event was matched to any account.
     fn handle_transact(&mut self, event: &syncer::Transact) -> Result<(), UtxoIndexerError> {
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
 
@@ -263,14 +208,12 @@ impl UtxoIndexer {
         Ok(())
     }
 
-    /// Handles a nullified event. Returns true if the event was matched to any account.
     fn handle_nullified(&mut self, event: &syncer::Nullified, timestamp: u64) {
         for account in self.accounts.iter_mut() {
             account.handle_nullified_event(event, timestamp);
         }
     }
 
-    /// Handles a legacy commitment event. Returns true if the event was matched to any account.
     fn handle_legacy(&mut self, event: &syncer::LegacyCommitment) {
         self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
     }
@@ -297,5 +240,26 @@ impl UtxoIndexer {
             .or_insert(UtxoMerkleTree::new(tree_number));
 
         tree.insert_leaves_raw(&[leaf], leaf_index as usize);
+    }
+
+    /// Saves the current state of the indexer to the database.
+    async fn save(&self) -> Result<(), DatabaseError> {
+        let state = UtxoIndexerState {
+            synced_block: self.synced_block,
+            trees: self.utxo_trees.keys().cloned().collect(),
+        };
+        self.db.set_utxo_indexer(&state).await?;
+
+        for (tree_number, tree) in self.utxo_trees.iter() {
+            self.db.set_utxo_tree(*tree_number, tree.state()).await?;
+        }
+
+        for account in self.accounts.iter() {
+            self.db
+                .set_account(&account.address(), &account.state())
+                .await?;
+        }
+
+        Ok(())
     }
 }

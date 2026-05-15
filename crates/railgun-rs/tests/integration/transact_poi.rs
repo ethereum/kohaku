@@ -13,6 +13,7 @@ use railgun_rs::{
     caip::AssetId,
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
+    database::InMemoryDatabase,
     railgun::{
         RailgunSigner,
         indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
@@ -84,11 +85,14 @@ async fn test_transact_poi() {
 
     let mut railgun = RailgunProvider::new(
         chain.clone(),
+        Arc::new(InMemoryDatabase::new()),
         provider.clone().into_eip1193(),
         syncer,
         prover,
-    );
-    railgun.set_poi(subsquid_syncer);
+    )
+    .await
+    .unwrap();
+    railgun.set_poi(subsquid_syncer).await.unwrap();
 
     info!("Setting up accounts");
     let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
@@ -96,8 +100,8 @@ async fn test_transact_poi() {
 
     info!("Syncing to latest block");
     railgun.sync().await.unwrap();
-    railgun.register(account_1.clone());
-    railgun.register(account_2.clone());
+    railgun.register(account_1.clone()).await.unwrap();
+    railgun.register(account_2.clone()).await.unwrap();
 
     // Test Shielding
     info!("Testing shield");

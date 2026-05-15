@@ -1,12 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy::{
-    primitives::{Address, Bytes, ChainId},
+    primitives::{Address, Bytes},
     sol_types::SolCall,
 };
 use eip_1193_provider::{Eip1193Error, Eip1193Provider};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{info, warn};
 use userop_kit::{
@@ -21,9 +20,10 @@ use crate::{
     chain_config::ChainConfig,
     circuit::{groth16_prover::Groth16Prover, prover::Prover},
     crypto::keys::{ByteKey, MasterPublicKey, ViewingPublicKey},
+    database::{Database, DatabaseError},
     railgun::{
         address::RailgunAddress,
-        indexer::{NoteSyncer, TransactionSyncer, UtxoIndexer, UtxoIndexerError, UtxoIndexerState},
+        indexer::{NoteSyncer, TransactionSyncer, UtxoIndexer, UtxoIndexerError},
         merkle_tree::SmartWalletUtxoVerifier,
         note::{Note, utxo::UtxoNote},
         poi::{PoiProvider, PoiProviderError},
@@ -37,6 +37,7 @@ use crate::{
 /// Interfaces with the RAILGUN protocol.
 pub struct RailgunProvider<P: Prover = Groth16Prover> {
     chain: ChainConfig,
+    db: Arc<dyn Database>,
     provider: Arc<dyn Eip1193Provider>,
     utxo_indexer: UtxoIndexer,
     prover: P,
@@ -44,16 +45,8 @@ pub struct RailgunProvider<P: Prover = Groth16Prover> {
     bundler: Option<Arc<dyn BundlerProvider>>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct RailgunProviderState {
-    pub chain_id: ChainId,
-    pub indexer: UtxoIndexerState,
-}
-
 #[derive(Debug, Error)]
 pub enum RailgunProviderError {
-    #[error("Unsupported chain ID: {0}")]
-    UnsupportedChainId(ChainId),
     #[error("Utxo indexer error: {0}")]
     UtxoIndexer(#[from] UtxoIndexerError),
     #[error("Build error: {0}")]
@@ -70,76 +63,65 @@ pub enum RailgunProviderError {
     Bundler(#[from] BundlerError),
     #[error("RPC error: {0}")]
     Rpc(#[from] Eip1193Error),
+    #[error("Database error: {0}")]
+    Database(#[from] DatabaseError),
 }
 
 /// General provider functions
 impl<P: Prover> RailgunProvider<P> {
-    pub fn new(
+    pub async fn new(
         chain: ChainConfig,
+        db: Arc<dyn Database>,
         provider: Arc<dyn Eip1193Provider>,
         utxo_syncer: Arc<dyn NoteSyncer>,
         prover: P,
-    ) -> Self {
+    ) -> Result<Self, RailgunProviderError> {
         let utxo_verifier = Arc::new(SmartWalletUtxoVerifier::new(
             chain.railgun_smart_wallet,
             provider.clone(),
         ));
 
-        Self {
+        let utxo_indexer = UtxoIndexer::new(db.clone(), utxo_syncer, utxo_verifier).await?;
+
+        Ok(Self {
             chain,
+            db,
             provider,
-            utxo_indexer: UtxoIndexer::new(utxo_syncer, utxo_verifier),
+            utxo_indexer,
             prover,
             poi_provider: None,
             bundler: None,
-        }
+        })
     }
 
-    pub fn set_poi(&mut self, txid_syncer: Arc<dyn TransactionSyncer>) {
+    pub async fn set_poi(
+        &mut self,
+        txid_syncer: Arc<dyn TransactionSyncer>,
+    ) -> Result<(), RailgunProviderError> {
         let poi_provider = PoiProvider::new(
             self.chain.id,
+            self.db.clone(),
             self.chain.poi_endpoint.clone(),
             self.chain.list_keys.clone(),
             txid_syncer,
-        );
+        )
+        .await?;
         self.poi_provider = Some(poi_provider);
+        Ok(())
     }
 
     pub fn set_bundler(&mut self, bundler: Arc<dyn BundlerProvider>) {
         self.bundler = Some(bundler);
     }
 
-    pub fn set_state(&mut self, state: RailgunProviderState) -> Result<(), RailgunProviderError> {
-        self.chain = ChainConfig::from_chain_id(state.chain_id)
-            .ok_or(RailgunProviderError::UnsupportedChainId(state.chain_id))?;
-        self.utxo_indexer.set_state(state.indexer);
-        Ok(())
-    }
-
-    /// Returns the provider's state as a serialized state object. Used to save state for
-    /// future restoration.
-    ///
-    /// State does NOT include registered accounts. Accounts must be re-registered
-    /// each time a provider is created.
-    pub fn state(&self) -> RailgunProviderState {
-        RailgunProviderState {
-            chain_id: self.chain.id,
-            indexer: self.utxo_indexer.state(),
-        }
-    }
-
     /// Register an account with the provider. The provider will index the account's
     /// transactions and balance as it syncs.
-    ///
-    /// Providers will NOT save registered accounts in their state. Accounts
-    /// must be re-registered each time a provider is created.
-    pub fn register(&mut self, account: Arc<dyn RailgunSigner>) {
-        self.utxo_indexer.register(account);
-    }
-
-    /// Registers an account starting from a specific block.
-    pub fn register_from(&mut self, account: Arc<dyn RailgunSigner>, from_block: u64) {
-        self.utxo_indexer.register_from(account, from_block);
+    pub async fn register(
+        &mut self,
+        account: Arc<dyn RailgunSigner>,
+    ) -> Result<(), RailgunProviderError> {
+        self.utxo_indexer.register(account).await?;
+        Ok(())
     }
 
     /// Returns the balance for the given address.
@@ -325,14 +307,6 @@ impl<P: Prover> RailgunProvider<P> {
         }
 
         Ok(())
-    }
-
-    pub fn reset_indexer(&mut self) {
-        self.utxo_indexer.reset();
-
-        if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.reset();
-        }
     }
 
     async fn all_unspent(&mut self) -> Vec<UtxoNote> {

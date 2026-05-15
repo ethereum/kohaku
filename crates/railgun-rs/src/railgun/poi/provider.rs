@@ -15,12 +15,13 @@ use crate::{
         keys::{NullifyingKey, SpendingPublicKey},
         railgun_txid::Txid,
     },
+    database::{Database, DatabaseError, RailgunDB},
     railgun::{
-        indexer::{TransactionSyncer, TxidIndexer, TxidIndexerError, TxidIndexerState},
+        indexer::{TransactionSyncer, TxidIndexer, TxidIndexerError},
         merkle_tree::{MerkleProof, TOTAL_LEAVES, TxidMerkleTree, UtxoTreeIndex},
         note::utxo::{self, UtxoNote},
         poi::{
-            BlindedCommitment, BlindedCommitmentType, ListKey, PoiNote, PoiStatus,
+            BlindedCommitment, ListKey, PoiNote, PoiStatus,
             client::{PoiClient, PoiClientError, PoiNodeClient},
             types::TransactProofData,
         },
@@ -29,15 +30,14 @@ use crate::{
 };
 
 pub struct PoiProvider {
-    txid_indexer: TxidIndexer,
+    inner: PoiProviderState,
+    db: Arc<dyn Database>,
     poi_client: PoiClient,
-    pending: Vec<PendingPoiEntry>,
-    pois: HashMap<BlindedCommitment, HashMap<ListKey, PoiInfo>>,
+    txid_indexer: TxidIndexer,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct PoiProviderState {
-    pub txid_indexer: TxidIndexerState,
+#[derive(Serialize, Deserialize, Default)]
+pub(crate) struct PoiProviderState {
     pub pending: Vec<PendingPoiEntry>,
     pub pois: HashMap<BlindedCommitment, HashMap<ListKey, PoiInfo>>,
 }
@@ -50,6 +50,8 @@ pub enum PoiProviderError {
     PoiClient(#[from] PoiClientError),
     #[error("Merkle proof not found for blinded commitment {0} and list key {1}")]
     ProofNotFound(BlindedCommitment, ListKey),
+    #[error("Database error: {0}")]
+    Database(#[from] DatabaseError),
 }
 
 #[derive(Clone, Serialize, Deserialize, Default)]
@@ -94,33 +96,23 @@ enum PendingPoiError {
 }
 
 impl PoiProvider {
-    pub fn new(
+    pub async fn new(
         chain_id: ChainId,
+        db: Arc<dyn Database>,
         poi_endpoint: impl Into<String>,
         list_keys: Vec<ListKey>,
         txid_syncer: Arc<dyn TransactionSyncer>,
-    ) -> Self {
-        Self {
-            txid_indexer: TxidIndexer::new(txid_syncer),
-            poi_client: PoiClient::new(chain_id, poi_endpoint, list_keys),
-            pending: Vec::new(),
-            pois: HashMap::new(),
-        }
-    }
+    ) -> Result<Self, PoiProviderError> {
+        let inner = db.get_poi_provider().await?;
+        let poi_client = PoiClient::new(chain_id, poi_endpoint, list_keys);
+        let txid_indexer = TxidIndexer::new(db.clone(), txid_syncer).await?;
 
-    pub fn set_state(&mut self, state: PoiProviderState) -> Result<(), PoiProviderError> {
-        self.txid_indexer.set_state(state.txid_indexer);
-        self.pending = state.pending;
-        self.pois = state.pois;
-        Ok(())
-    }
-
-    pub fn state(&self) -> PoiProviderState {
-        PoiProviderState {
-            txid_indexer: self.txid_indexer.state(),
-            pending: self.pending.clone(),
-            pois: self.pois.clone(),
-        }
+        Ok(Self {
+            inner,
+            db,
+            poi_client,
+            txid_indexer,
+        })
     }
 
     pub async fn sync<P: Prover>(&mut self, prover: &P) -> Result<(), PoiProviderError> {
@@ -135,6 +127,7 @@ impl PoiProvider {
         let poi_client = self.poi_client.clone();
         self.txid_indexer.sync_to(block_number, &poi_client).await?;
         self.submit_pending(prover).await;
+        self.save().await?;
         Ok(())
     }
 
@@ -157,32 +150,8 @@ impl PoiProvider {
         Ok(true)
     }
 
-    pub async fn poi_status(
-        &mut self,
-        list_key: &ListKey,
-        blinded_commitment: BlindedCommitment,
-        commitment_type: BlindedCommitmentType,
-    ) -> Result<PoiStatus, PoiProviderError> {
-        if let Some(list_key_map) = self.pois.get(&blinded_commitment) {
-            if let Some(info) = list_key_map.get(list_key) {
-                if let Some(status) = &info.status {
-                    return Ok(status.clone());
-                }
-            }
-        }
-
-        let status = self
-            .poi_client
-            .poi_status(list_key, blinded_commitment, commitment_type)
-            .await?;
-
-        self.pois
-            .entry(blinded_commitment)
-            .or_default()
-            .entry(list_key.clone())
-            .or_default()
-            .status = Some(status.clone());
-        Ok(status)
+    pub fn list_keys(&self) -> Vec<ListKey> {
+        self.poi_client.list_keys()
     }
 
     pub async fn poi_proof(
@@ -190,7 +159,7 @@ impl PoiProvider {
         list_key: &ListKey,
         blinded_commitment: BlindedCommitment,
     ) -> Result<MerkleProof, PoiProviderError> {
-        if let Some(list_key_map) = self.pois.get(&blinded_commitment) {
+        if let Some(list_key_map) = self.inner.pois.get(&blinded_commitment) {
             if let Some(info) = list_key_map.get(list_key) {
                 if let Some(proof) = &info.proof {
                     return Ok(proof.clone());
@@ -203,21 +172,14 @@ impl PoiProvider {
             .merkle_proof(list_key, blinded_commitment)
             .await?;
 
-        self.pois
+        self.inner
+            .pois
             .entry(blinded_commitment)
             .or_default()
             .entry(list_key.clone())
             .or_default()
             .proof = Some(proof.clone());
         Ok(proof)
-    }
-
-    pub fn list_keys(&self) -> Vec<ListKey> {
-        self.poi_client.list_keys()
-    }
-
-    pub fn reset(&mut self) {
-        self.txid_indexer.reset();
     }
 
     fn register(&mut self, op: &ProvedOperation, list_keys: Vec<ListKey>) {
@@ -231,7 +193,7 @@ impl PoiProvider {
             "Registered POI for {:?}",
             op.circuit_inputs.bound_params_hash
         );
-        self.pending.push(PendingPoiEntry {
+        self.inner.pending.push(PendingPoiEntry {
             txid,
             spending_pubkey,
             nullifying_key: op.inner.from.viewing_key().nullifying_key(),
@@ -254,12 +216,12 @@ impl PoiProvider {
     }
 
     async fn submit_pending<P: Prover>(&mut self, prover: &P) {
-        for i in (0..self.pending.len()).rev() {
-            let entry = self.pending[i].clone();
+        for i in (0..self.inner.pending.len()).rev() {
+            let entry = self.inner.pending[i].clone();
             match self.submit_poi(prover, &entry).await {
                 Ok(_) => {
                     info!("Submitted POI for {:?}", entry.txid);
-                    self.pending.remove(i);
+                    self.inner.pending.remove(i);
                 }
                 Err(e) => {
                     warn!(
@@ -374,6 +336,11 @@ impl PoiProvider {
             );
         }
         Ok(proof_data)
+    }
+
+    async fn save(&self) -> Result<(), PoiProviderError> {
+        self.db.set_poi_provider(&self.inner).await?;
+        Ok(())
     }
 }
 
