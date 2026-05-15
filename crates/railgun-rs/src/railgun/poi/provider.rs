@@ -21,7 +21,7 @@ use crate::{
         note::utxo::{self, UtxoNote},
         poi::{
             BlindedCommitment, BlindedCommitmentType, ListKey, PoiNote, PoiStatus,
-            client::{PoiClient, PoiClientError},
+            client::{PoiClient, PoiClientError, PoiNodeClient},
             types::TransactProofData,
         },
         transaction::ProvedOperation,

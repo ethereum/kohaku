@@ -68,12 +68,6 @@ impl Into<U256> for Txid {
     }
 }
 
-// impl prover::IntoU256 for Txid {
-//     fn into_u256(self) -> U256 {
-//         self.0
-//     }
-// }
-
 impl Serialize for Txid {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

@@ -10,10 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     circuit::proof::Proof,
     crypto::railgun_txid::Txid,
-    railgun::{
-        merkle_tree::{MerkleRoot, TxidLeafHash},
-        note::utxo::UtxoType,
-    },
+    railgun::{merkle_tree::MerkleRoot, note::utxo::UtxoType},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -102,25 +99,7 @@ pub struct ValidateTxidMerklerootParams {
     pub merkleroot: MerkleRoot,
 }
 
-pub type PreTransactionPoisPerTxidLeafPerList =
-    HashMap<ListKey, HashMap<TxidLeafHash, PreTransactionPoi>>;
-
 pub type PoisPerListMap = HashMap<BlindedCommitment, HashMap<ListKey, PoiStatus>>;
-
-/// POI proof for a single operation, proving that the input notes have valid POI.
-#[derive(Debug, Clone, Serialize)]
-pub struct PreTransactionPoi {
-    #[serde(rename = "snarkProof")]
-    pub proof: Proof,
-    #[serde(rename = "txidMerkleroot")]
-    pub txid_merkleroot: MerkleRoot,
-    #[serde(rename = "poiMerkleroots")]
-    pub poi_merkleroots: Vec<MerkleRoot>,
-    #[serde(rename = "blindedCommitmentsOut")]
-    pub blinded_commitments_out: Vec<BlindedCommitment>,
-    #[serde(rename = "railgunTxidIfHasUnshield")]
-    pub railgun_txid_if_has_unshield: Txid,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -82,18 +82,6 @@ impl From<MerkleRoot> for U256 {
     }
 }
 
-// impl prover::IntoU256 for MerkleRoot {
-//     fn into_u256(self) -> U256 {
-//         self.0
-//     }
-// }
-
-// impl prover::FromU256 for MerkleRoot {
-//     fn from_u256(value: U256) -> Self {
-//         MerkleRoot(value)
-//     }
-// }
-
 impl Display for MerkleRoot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:064x}", self.0)

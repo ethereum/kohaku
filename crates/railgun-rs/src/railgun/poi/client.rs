@@ -123,11 +123,6 @@ impl PoiClient {
         }
     }
 
-    /// Returns the list keys that the POI node is tracking
-    pub fn list_keys(&self) -> Vec<ListKey> {
-        self.list_keys.clone()
-    }
-
     /// Checks the health of the POI node
     pub async fn health(&self) -> bool {
         let resp = self.call::<Vec<()>, String>("ppoi_health", vec![]).await;
@@ -137,11 +132,27 @@ impl PoiClient {
         }
     }
 
+    fn chain(&self) -> ChainParams {
+        ChainParams {
+            chain_type: 0.to_string(), // EVM
+            chain_id: self.inner.chain.to_string(),
+            txid_version: TxidVersion::V2PoseidonMerkle,
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+impl PoiNodeClient for PoiClient {
+    fn list_keys(&self) -> Vec<ListKey> {
+        self.list_keys.clone()
+    }
+
     /// Returns the POI status for a given list key and blinded commitment.
     ///  
     /// NOTE: Fetches a single status rather than batching many blinded commitments
     /// because I don't know how the POI node handles partial failures in a batch.
-    pub async fn poi_status(
+    async fn poi_status(
         &self,
         list_key: &ListKey,
         blinded_commitment: BlindedCommitment,
@@ -175,7 +186,7 @@ impl PoiClient {
     ///
     /// NOTE: Fetches a single proof rather than batching many blinded commitments
     /// because I don't know how the POI node handles partial failures in a batch.
-    pub async fn merkle_proof(
+    async fn merkle_proof(
         &self,
         list_key: &ListKey,
         blinded_commitment: BlindedCommitment,
@@ -200,7 +211,7 @@ impl PoiClient {
     }
 
     /// Submits a proved transaction to the POI node.
-    pub async fn submit_proof(
+    async fn submit_proof(
         &self,
         proof_data: HashMap<ListKey, TransactProofData>,
     ) -> Result<(), PoiClientError> {
@@ -229,12 +240,12 @@ impl PoiClient {
     }
 
     /// Returns the current validated txid status from the POI node.
-    pub async fn validated_txid(&self) -> Result<ValidatedRailgunTxidStatus, PoiClientError> {
+    async fn validated_txid(&self) -> Result<ValidatedRailgunTxidStatus, PoiClientError> {
         self.call("ppoi_validated_txid", self.chain()).await
     }
 
     /// Validates a txid merkle root against the POI node.
-    pub async fn validate_txid_merkleroot(
+    async fn validate_txid_merkleroot(
         &self,
         tree: u32,
         index: u32,
@@ -250,14 +261,6 @@ impl PoiClient {
             },
         )
         .await
-    }
-
-    fn chain(&self) -> ChainParams {
-        ChainParams {
-            chain_type: 0.to_string(), // EVM
-            chain_id: self.inner.chain.to_string(),
-            txid_version: TxidVersion::V2PoseidonMerkle,
-        }
     }
 }
 
@@ -322,49 +325,3 @@ impl std::fmt::Display for JsonRpcError {
 }
 
 impl std::error::Error for JsonRpcError {}
-
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-impl PoiNodeClient for PoiClient {
-    fn list_keys(&self) -> Vec<ListKey> {
-        self.list_keys.clone()
-    }
-
-    async fn poi_status(
-        &self,
-        list_key: &ListKey,
-        blinded_commitment: BlindedCommitment,
-        commitment_type: BlindedCommitmentType,
-    ) -> Result<PoiStatus, PoiClientError> {
-        self.poi_status(list_key, blinded_commitment, commitment_type)
-            .await
-    }
-
-    async fn merkle_proof(
-        &self,
-        list_key: &ListKey,
-        blinded_commitment: BlindedCommitment,
-    ) -> Result<MerkleProof, PoiClientError> {
-        self.merkle_proof(list_key, blinded_commitment).await
-    }
-
-    async fn submit_proof(
-        &self,
-        proof_data: HashMap<ListKey, TransactProofData>,
-    ) -> Result<(), PoiClientError> {
-        self.submit_proof(proof_data).await
-    }
-
-    async fn validated_txid(&self) -> Result<ValidatedRailgunTxidStatus, PoiClientError> {
-        self.validated_txid().await
-    }
-
-    async fn validate_txid_merkleroot(
-        &self,
-        tree: u32,
-        index: u32,
-        merkleroot: MerkleRoot,
-    ) -> Result<bool, PoiClientError> {
-        self.validate_txid_merkleroot(tree, index, merkleroot).await
-    }
-}
