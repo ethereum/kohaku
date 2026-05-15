@@ -4,7 +4,7 @@ use alloy::{network::Ethereum, providers::ProviderBuilder};
 use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     chain_config::ChainConfig,
-    circuit::native::{Groth16Prover, RemoteArtifactLoader},
+    circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
     railgun::{RailgunProvider, indexer::SubsquidSyncer},
 };
 use tracing::info;
@@ -39,9 +39,9 @@ async fn test_sync_utxo() {
 
     info!("Setting up indexer");
     let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
-    let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
+    let prover = Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts",
-    )));
+    ));
     //? We use the RailgunProvider here instead of a UtxoIndexer so that we can write
     //? the provider state to a file after syncing. This snapshot can be used in subsequent
     //? tests to avoid re-syncing from scratch, which currently takes ~1 minute.

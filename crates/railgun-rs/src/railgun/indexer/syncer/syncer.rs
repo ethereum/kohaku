@@ -67,7 +67,7 @@ pub struct LegacyCommitment {
 #[derive(Debug, Error)]
 pub enum SyncerError {
     #[error("Syncer error: {0}")]
-    Syncer(#[from] Box<dyn std::error::Error>),
+    Syncer(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// Syncers that emit note-level events (Shield, Transact, Nullified).

@@ -12,7 +12,7 @@ pub struct JsRailgunSigner {
     inner: Arc<dyn RailgunSigner>,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_class = "RailgunSigner")]
 impl JsRailgunSigner {
     #[wasm_bindgen(js_name = "privateKey")]
     pub fn new_private_key(
@@ -46,10 +46,7 @@ impl JsRailgunSigner {
             inner: PrivateKeySigner::new(random(), random(), chain_id),
         }
     }
-}
 
-#[wasm_bindgen]
-impl JsRailgunSigner {
     #[wasm_bindgen(getter)]
     pub fn address(&self) -> RailgunAddress {
         self.inner.address()

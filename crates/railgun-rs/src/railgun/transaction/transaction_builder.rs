@@ -20,7 +20,6 @@ use std::{
 };
 
 use alloy::primitives::{Address, U256};
-use prover::{Prover, ProverError};
 use rand::Rng;
 use thiserror::Error;
 use tracing::info;
@@ -30,7 +29,7 @@ use crate::{
     caip::AssetId,
     circuit::{
         inputs::{TransactCircuitInputs, TransactCircuitInputsError},
-        prover::prove_transact,
+        prover::Prover,
     },
     railgun::{
         address::RailgunAddress,
@@ -78,7 +77,7 @@ pub enum TransactionBuilderError {
     #[error("Encryption error: {0}")]
     Encryption(#[from] EncryptError),
     #[error("Prover error: {0}")]
-    Prover(#[from] ProverError),
+    Prover(Box<dyn std::error::Error + Send + Sync>),
     #[error("Missing tree for number {0}")]
     MissingTree(u32),
     #[error("No input notes")]
@@ -160,9 +159,9 @@ impl TransactionBuilder {
     }
 
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
-    pub async fn build<R: Rng>(
+    pub async fn build<R: Rng, P: Prover>(
         &self,
-        prover: &dyn Prover,
+        prover: &P,
         chain_id: u64,
         in_notes: &[UtxoNote],
         utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
@@ -381,12 +380,12 @@ fn add_change_note<R: Rng>(operation: &mut Operation, asset: AssetId, rng: &mut 
     }
 }
 
-async fn prove_operations<R: Rng>(
-    prover: &dyn Prover,
+async fn prove_operations(
+    prover: &impl Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     chain_id: u64,
     operations: &[Operation],
-    rng: &mut R,
+    rng: &mut impl Rng,
 ) -> Result<Vec<ProvedOperation>, TransactionBuilderError> {
     let mut proved = Vec::new();
     for op in operations {
@@ -400,12 +399,12 @@ async fn prove_operations<R: Rng>(
     Ok(proved)
 }
 
-async fn prove_operation<R: Rng>(
-    prover: &dyn Prover,
+async fn prove_operation(
+    prover: &impl Prover,
     utxo_tree: &UtxoMerkleTree,
     chain_id: u64,
     operation: &Operation,
-    rng: &mut R,
+    rng: &mut impl Rng,
 ) -> Result<ProvedOperation, TransactionBuilderError> {
     info!("Constructing circuit inputs");
     let unshield_note = operation.unshield_note();
@@ -438,7 +437,10 @@ async fn prove_operation<R: Rng>(
         operation.in_notes(),
         &operation.out_notes(),
     )?;
-    let proof = prove_transact(prover, &inputs).await?;
+    let proof = prover
+        .prove_transact(&inputs)
+        .await
+        .map_err(|e| TransactionBuilderError::Prover(Box::new(e)))?;
 
     let merkleroot: U256 = inputs.merkleroot.into();
     let transaction = abis::railgun::Transaction::new(

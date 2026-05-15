@@ -1,6 +1,5 @@
 import initWasm from "./pkg";
 export * from './pkg/index';
-export { ArtifactLoader, GrothProverAdapter, RemoteArtifactLoader } from "./sdk/prover-adapter.js";
 export { EthereumProviderAdapter } from "./sdk/ethereum-provider.js";
 
 let initPromise: Promise<void> | null = null;

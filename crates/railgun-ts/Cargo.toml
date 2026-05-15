@@ -14,7 +14,6 @@ railgun-rs = { workspace = true, features = ["js"] }
 alloy = { workspace = true }
 async-trait = { workspace = true }
 eip-1193-provider = { workspace = true, features = ["js"] }
-prover = { workspace = true }
 userop_kit = { workspace = true, features = ["js"] }
 serde = { workspace = true }
 serde-wasm-bindgen = { workspace = true }

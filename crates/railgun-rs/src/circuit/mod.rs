@@ -1,7 +1,7 @@
-pub mod inputs;
-pub mod prover;
-
-#[cfg(not(target_arch = "wasm32"))]
 pub mod artifact_loader;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod native;
+pub mod groth16_prover;
+pub mod inputs;
+pub mod proof;
+pub mod prover;
+pub mod remote_artifact_loader;
+pub mod witness_calculator;

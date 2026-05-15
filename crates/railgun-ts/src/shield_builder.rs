@@ -11,7 +11,7 @@ pub struct JsShieldBuilder {
     pub(crate) inner: ShieldBuilder,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_class = "ShieldBuilder")]
 impl JsShieldBuilder {
     #[wasm_bindgen(constructor)]
     pub fn new(chain: &ChainConfig) -> Self {

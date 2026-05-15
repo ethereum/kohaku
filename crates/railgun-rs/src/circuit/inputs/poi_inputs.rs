@@ -1,4 +1,5 @@
-use prover::{circuit_input::FromU256, circuit_inputs};
+use std::collections::HashMap;
+
 use ruint::aliases::U256;
 use thiserror::Error;
 use tracing::info;
@@ -93,33 +94,33 @@ fn circuit_size(nullifiers_len: usize, commitments_len: usize) -> usize {
 /// Pads a vector with the railgun merkle tree zero value.
 fn pad_with_zero_value<T>(vec: Vec<T>, target_len: usize) -> Vec<T>
 where
-    T: FromU256,
+    T: From<U256>,
 {
     pad_with_value(vec, target_len, MerkleTree::zero())
 }
 
 fn pad_with_zero<T>(vec: Vec<T>, target_len: usize) -> Vec<T>
 where
-    T: FromU256,
+    T: From<U256>,
 {
     pad_with_value(vec, target_len, U256::from(0))
 }
 
 fn pad_with_value<T>(mut vec: Vec<T>, target_len: usize, value: U256) -> Vec<T>
 where
-    T: FromU256,
+    T: From<U256>,
 {
     while vec.len() < target_len {
-        vec.push(T::from_u256(value));
+        vec.push(T::from(value));
     }
     vec
 }
 
 fn pad_merkle_proof_paths<T>(mut vec: Vec<Vec<T>>, target_len: usize) -> Vec<Vec<T>>
 where
-    T: FromU256 + Clone,
+    T: From<U256> + Clone,
 {
-    let zero = T::from_u256(MerkleTree::zero());
+    let zero = T::from(MerkleTree::zero());
     let empty_path: Vec<T> = vec![zero; TREE_DEPTH];
 
     while vec.len() < target_len {
@@ -132,7 +133,7 @@ where
 impl PoiCircuitInputs {
     /// Builds POI circuit inputs on-chain TXID position.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn from_inputs(
         spending_pubkey: SpendingPublicKey,
         nullifying_key: NullifyingKey,
         utxo_tree_in: u32,
@@ -216,26 +217,88 @@ impl PoiCircuitInputs {
         })
     }
 
-    circuit_inputs!(
-        railgun_txid_merkleroot_after_transaction => "anyRailgunTxidMerklerootAfterTransaction",
-        bound_params_hash => "boundParamsHash",
-        nullifiers => "nullifiers",
-        commitments => "commitmentsOut",
-        spending_public_key => "spendingPublicKey",
-        nullifying_key => "nullifyingKey",
-        token => "token",
-        randoms_in => "randomsIn",
-        values_in => "valuesIn",
-        utxo_positions_in => "utxoPositionsIn",
-        utxo_tree_in => "utxoTreeIn",
-        npks_out => "npksOut",
-        values_out => "valuesOut",
-        utxo_batch_global_start_position_out => "utxoBatchGlobalStartPositionOut",
-        railgun_txid_if_has_unshield => "railgunTxidIfHasUnshield",
-        railgun_txid_merkle_proof_indices => "railgunTxidMerkleProofIndices",
-        railgun_txid_merkle_proof_path_elements => "railgunTxidMerkleProofPathElements",
-        poi_merkleroots_padded => "poiMerkleroots",
-        poi_in_merkle_proof_indices => "poiInMerkleProofIndices",
-        poi_in_merkle_proof_path_elements => "poiInMerkleProofPathElements"
-    );
+    // circuit_inputs!(
+    //     railgun_txid_merkleroot_after_transaction => "anyRailgunTxidMerklerootAfterTransaction",
+    //     bound_params_hash => "boundParamsHash",
+    //     nullifiers => "nullifiers",
+    //     commitments => "commitmentsOut",
+    //     spending_public_key => "spendingPublicKey",
+    //     nullifying_key => "nullifyingKey",
+    //     token => "token",
+    //     randoms_in => "randomsIn",
+    //     values_in => "valuesIn",
+    //     utxo_positions_in => "utxoPositionsIn",
+    //     utxo_tree_in => "utxoTreeIn",
+    //     npks_out => "npksOut",
+    //     values_out => "valuesOut",
+    //     utxo_batch_global_start_position_out => "utxoBatchGlobalStartPositionOut",
+    //     railgun_txid_if_has_unshield => "railgunTxidIfHasUnshield",
+    //     railgun_txid_merkle_proof_indices => "railgunTxidMerkleProofIndices",
+    //     railgun_txid_merkle_proof_path_elements => "railgunTxidMerkleProofPathElements",
+    //     poi_merkleroots_padded => "poiMerkleroots",
+    //     poi_in_merkle_proof_indices => "poiInMerkleProofIndices",
+    //     poi_in_merkle_proof_path_elements => "poiInMerkleProofPathElements"
+    // );
+
+    pub fn to_circuit_signals(&self) -> HashMap<String, Vec<U256>> {
+        let mut m = HashMap::with_capacity(20);
+        m.insert(
+            "anyRailgunTxidMerklerootAfterTransaction".into(),
+            vec![self.railgun_txid_merkleroot_after_transaction.into()],
+        );
+        m.insert("boundParamsHash".into(), vec![self.bound_params_hash]);
+        m.insert("nullifiers".into(), self.nullifiers.clone());
+        m.insert("commitmentsOut".into(), self.commitments.clone());
+        m.insert(
+            "spendingPublicKey".into(),
+            vec![self.spending_public_key[0], self.spending_public_key[1]],
+        );
+        m.insert("nullifyingKey".into(), vec![self.nullifying_key]);
+        m.insert("token".into(), vec![self.token]);
+        m.insert("randomsIn".into(), self.randoms_in.clone());
+        m.insert("valuesIn".into(), self.values_in.clone());
+        m.insert("utxoPositionsIn".into(), self.utxo_positions_in.clone());
+        m.insert("utxoTreeIn".into(), vec![self.utxo_tree_in]);
+        m.insert("npksOut".into(), self.npks_out.clone());
+        m.insert("valuesOut".into(), self.values_out.clone());
+        m.insert(
+            "utxoBatchGlobalStartPositionOut".into(),
+            vec![self.utxo_batch_global_start_position_out],
+        );
+        m.insert(
+            "railgunTxidIfHasUnshield".into(),
+            vec![self.railgun_txid_if_has_unshield.into()],
+        );
+        m.insert(
+            "railgunTxidMerkleProofIndices".into(),
+            vec![self.railgun_txid_merkle_proof_indices],
+        );
+        m.insert(
+            "railgunTxidMerkleProofPathElements".into(),
+            self.railgun_txid_merkle_proof_path_elements.clone(),
+        );
+        m.insert(
+            "poiMerkleroots".into(),
+            self.poi_merkleroots_padded
+                .iter()
+                .cloned()
+                .map(|r| r.into())
+                .collect(),
+        );
+        m.insert(
+            "poiInMerkleProofIndices".into(),
+            self.poi_in_merkle_proof_indices.clone(),
+        );
+        // Flatten the 2D vector of path elements into a 1D vector for circuit inputs
+        m.insert(
+            "poiInMerkleProofPathElements".into(),
+            self.poi_in_merkle_proof_path_elements
+                .iter()
+                .flatten()
+                .cloned()
+                .collect(),
+        );
+
+        m
+    }
 }

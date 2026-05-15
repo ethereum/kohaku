@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crypto::poseidon_hash;
-use prover::circuit_inputs;
 use ruint::aliases::U256;
 use thiserror::Error;
 
@@ -124,20 +123,25 @@ impl TransactCircuitInputs {
         })
     }
 
-    circuit_inputs!(
-        merkleroot => "merkleRoot",
-        bound_params_hash => "boundParamsHash",
-        nullifiers => "nullifiers",
-        commitments_out => "commitmentsOut",
-        token => "token",
-        public_key => "publicKey",
-        signature => "signature",
-        random_in => "randomIn",
-        value_in => "valueIn",
-        path_elements => "pathElements",
-        leaves_indices => "leavesIndices",
-        nullifying_key => "nullifyingKey",
-        npk_out => "npkOut",
-        value_out => "valueOut"
-    );
+    pub fn to_circuit_signals(&self) -> HashMap<String, Vec<U256>> {
+        let mut m = HashMap::with_capacity(14);
+        m.insert("merkleRoot".into(), vec![self.merkleroot.into()]);
+        m.insert("boundParamsHash".into(), vec![self.bound_params_hash]);
+        m.insert("nullifiers".into(), self.nullifiers.clone());
+        m.insert("commitmentsOut".into(), self.commitments_out.clone());
+        m.insert("token".into(), vec![self.token]);
+        m.insert("publicKey".into(), self.public_key.to_vec());
+        m.insert("signature".into(), self.signature.to_vec());
+        m.insert("randomIn".into(), self.random_in.clone());
+        m.insert("valueIn".into(), self.value_in.clone());
+        m.insert(
+            "pathElements".into(),
+            self.path_elements.iter().flatten().copied().collect(),
+        );
+        m.insert("leavesIndices".into(), self.leaves_indices.clone());
+        m.insert("nullifyingKey".into(), vec![self.nullifying_key]);
+        m.insert("npkOut".into(), self.npk_out.clone());
+        m.insert("valueOut".into(), self.value_out.clone());
+        m
+    }
 }

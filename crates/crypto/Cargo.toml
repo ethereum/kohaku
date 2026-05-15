@@ -10,7 +10,6 @@ blake-hash = { workspace = true }
 num-bigint = { workspace = true }
 num-traits = { workspace = true }
 poseidon-rust = { workspace = true }
-prover = { workspace = true }
 ruint = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

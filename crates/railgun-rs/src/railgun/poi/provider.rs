@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy::primitives::ChainId;
-use prover::{Prover, ProverError};
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -10,7 +9,7 @@ use tracing::{info, warn};
 use crate::{
     circuit::{
         inputs::poi_inputs::{PoiCircuitInputs, PoiCircuitInputsError},
-        prover::prove_poi,
+        prover::Prover,
     },
     crypto::{
         keys::{NullifyingKey, SpendingPublicKey},
@@ -32,7 +31,6 @@ use crate::{
 pub struct PoiProvider {
     txid_indexer: TxidIndexer,
     poi_client: PoiClient,
-    prover: Arc<dyn Prover>,
     pending: Vec<PendingPoiEntry>,
     pois: HashMap<BlindedCommitment, HashMap<ListKey, PoiInfo>>,
 }
@@ -88,7 +86,7 @@ enum PendingPoiError {
     #[error("Circuit inputs error: {0}")]
     CircuitInputs(#[from] PoiCircuitInputsError),
     #[error("Prover error: {0}")]
-    Prover(#[from] ProverError),
+    Prover(Box<dyn std::error::Error + Send + Sync>),
     #[error("Missing UTXO tree {0}")]
     MissingUtxoTree(u32),
     #[error("Missing TXID tree {0}")]
@@ -100,13 +98,11 @@ impl PoiProvider {
         chain_id: ChainId,
         poi_endpoint: impl Into<String>,
         list_keys: Vec<ListKey>,
-        prover: Arc<dyn Prover>,
         txid_syncer: Arc<dyn TransactionSyncer>,
     ) -> Self {
         Self {
             txid_indexer: TxidIndexer::new(txid_syncer),
             poi_client: PoiClient::new(chain_id, poi_endpoint, list_keys),
-            prover,
             pending: Vec::new(),
             pois: HashMap::new(),
         }
@@ -127,14 +123,18 @@ impl PoiProvider {
         }
     }
 
-    pub async fn sync(&mut self) -> Result<(), PoiProviderError> {
-        self.sync_to(u64::MAX).await
+    pub async fn sync<P: Prover>(&mut self, prover: &P) -> Result<(), PoiProviderError> {
+        self.sync_to(prover, u64::MAX).await
     }
 
-    pub async fn sync_to(&mut self, block_number: u64) -> Result<(), PoiProviderError> {
+    pub async fn sync_to<P: Prover>(
+        &mut self,
+        prover: &P,
+        block_number: u64,
+    ) -> Result<(), PoiProviderError> {
         let poi_client = self.poi_client.clone();
         self.txid_indexer.sync_to(block_number, &poi_client).await?;
-        self.submit_pending().await;
+        self.submit_pending(prover).await;
         Ok(())
     }
 
@@ -253,10 +253,10 @@ impl PoiProvider {
         });
     }
 
-    async fn submit_pending(&mut self) {
+    async fn submit_pending<P: Prover>(&mut self, prover: &P) {
         for i in (0..self.pending.len()).rev() {
             let entry = self.pending[i].clone();
-            match self.submit_poi(&entry).await {
+            match self.submit_poi(prover, &entry).await {
                 Ok(_) => {
                     info!("Submitted POI for {:?}", entry.txid);
                     self.pending.remove(i);
@@ -271,7 +271,11 @@ impl PoiProvider {
         }
     }
 
-    async fn submit_poi(&self, entry: &PendingPoiEntry) -> Result<(), PendingPoiError> {
+    async fn submit_poi<P: Prover>(
+        &self,
+        prover: &P,
+        entry: &PendingPoiEntry,
+    ) -> Result<(), PendingPoiError> {
         let txid_tree_number = match self.txid_indexer.txid_position(&entry.txid) {
             Some((tree_number, _)) => tree_number,
             None => return Err(PendingPoiError::MissingTxidTree(entry.utxo_tree_in)),
@@ -292,6 +296,7 @@ impl PoiProvider {
 
         let proof_data = self
             .create_proof(
+                prover,
                 entry,
                 txid_tree_number,
                 utxo_tree_number,
@@ -305,8 +310,9 @@ impl PoiProvider {
         Ok(())
     }
 
-    async fn create_proof(
+    async fn create_proof<P: Prover>(
         &self,
+        prover: &P,
         entry: &PendingPoiEntry,
         txid_tree_number: u32,
         utxo_tree_number: u32,
@@ -329,7 +335,7 @@ impl PoiProvider {
                 ));
             }
 
-            let inputs = PoiCircuitInputs::new(
+            let inputs = PoiCircuitInputs::from_inputs(
                 entry.spending_pubkey,
                 entry.nullifying_key,
                 entry.utxo_tree_in,
@@ -345,8 +351,10 @@ impl PoiProvider {
                 txid_tree,
             )?;
 
-            let proof = prove_poi(self.prover.as_ref(), &inputs).await?;
-
+            let proof = prover
+                .prove_poi(&inputs)
+                .await
+                .map_err(|e| PendingPoiError::Prover(Box::new(e)))?;
             let blinded_commitments_out =
                 blinded_commitments(entry, utxo_tree_number, utxo_leaf_index);
 

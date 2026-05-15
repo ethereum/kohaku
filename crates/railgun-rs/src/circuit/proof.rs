@@ -6,8 +6,6 @@ use serde::{Deserialize, Serialize};
 /// Serializes into a SnarkJS-compatible format, with decimal strings for all
 /// field elements and arrays for the g1 / g2 points.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(from_wasm_abi))]
 pub struct Proof {
     #[serde(rename = "pi_a")]
     pub a: G1Affine,
@@ -18,27 +16,17 @@ pub struct Proof {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(type = "[`0x${string}`, `0x${string}`]"))]
-#[serde(into = "[String; 2]", try_from = "[String; 2]")]
 pub struct G1Affine {
     pub x: U256,
     pub y: U256,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(target_arch = "wasm32", derive(tsify::Tsify))]
-#[cfg_attr(
-    target_arch = "wasm32",
-    tsify(type = "[[`0x${string}`, `0x${string}`], [`0x${string}`, `0x${string}`]]")
-)]
-#[serde(into = "[[String; 2]; 2]", try_from = "[[String; 2]; 2]")]
 pub struct G2Affine {
     pub x: [U256; 2],
     pub y: [U256; 2],
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<ark_groth16::Proof<ark_bn254::Bn254>> for Proof {
     fn from(proof: ark_groth16::Proof<ark_bn254::Bn254>) -> Self {
         use ark_ff::PrimeField;
@@ -72,19 +60,19 @@ impl From<G1Affine> for [String; 2] {
     }
 }
 
-impl TryFrom<[String; 2]> for G1Affine {
-    type Error = String;
+// impl TryFrom<[String; 2]> for G1Affine {
+//     type Error = String;
 
-    fn try_from(value: [String; 2]) -> Result<Self, Self::Error> {
-        let x = value[0]
-            .parse::<U256>()
-            .map_err(|e| format!("Failed to parse G1 x coordinate: {}", e))?;
-        let y = value[1]
-            .parse::<U256>()
-            .map_err(|e| format!("Failed to parse G1 y coordinate: {}", e))?;
-        Ok(G1Affine { x, y })
-    }
-}
+//     fn try_from(value: [String; 2]) -> Result<Self, Self::Error> {
+//         let x = value[0]
+//             .parse::<U256>()
+//             .map_err(|e| format!("Failed to parse G1 x coordinate: {}", e))?;
+//         let y = value[1]
+//             .parse::<U256>()
+//             .map_err(|e| format!("Failed to parse G1 y coordinate: {}", e))?;
+//         Ok(G1Affine { x, y })
+//     }
+// }
 
 impl From<G2Affine> for [[String; 2]; 2] {
     fn from(point: G2Affine) -> Self {
@@ -95,30 +83,30 @@ impl From<G2Affine> for [[String; 2]; 2] {
     }
 }
 
-impl TryFrom<[[String; 2]; 2]> for G2Affine {
-    type Error = String;
+// impl TryFrom<[[String; 2]; 2]> for G2Affine {
+//     type Error = String;
 
-    fn try_from(value: [[String; 2]; 2]) -> Result<Self, Self::Error> {
-        let x0 = value[0][0]
-            .parse::<U256>()
-            .map_err(|e| format!("Failed to parse G2 x[0] coordinate: {}", e))?;
-        let x1 = value[0][1]
-            .parse::<U256>()
-            .map_err(|e| format!("Failed to parse G2 x[1] coordinate: {}", e))?;
-        let y0 = value[1][0]
-            .parse::<U256>()
-            .map_err(|e| format!("Failed to parse G2 y[0] coordinate: {}", e))?;
-        let y1 = value[1][1]
-            .parse::<U256>()
-            .map_err(|e| format!("Failed to parse G2 y[1] coordinate: {}", e))?;
-        Ok(G2Affine {
-            x: [x0, x1],
-            y: [y0, y1],
-        })
-    }
-}
+//     fn try_from(value: [[String; 2]; 2]) -> Result<Self, Self::Error> {
+//         let x0 = value[0][0]
+//             .parse::<U256>()
+//             .map_err(|e| format!("Failed to parse G2 x[0] coordinate: {}", e))?;
+//         let x1 = value[0][1]
+//             .parse::<U256>()
+//             .map_err(|e| format!("Failed to parse G2 x[1] coordinate: {}", e))?;
+//         let y0 = value[1][0]
+//             .parse::<U256>()
+//             .map_err(|e| format!("Failed to parse G2 y[0] coordinate: {}", e))?;
+//         let y1 = value[1][1]
+//             .parse::<U256>()
+//             .map_err(|e| format!("Failed to parse G2 y[1] coordinate: {}", e))?;
+//         Ok(G2Affine {
+//             x: [x0, x1],
+//             y: [y0, y1],
+//         })
+//     }
+// }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use ruint::uint;
 

@@ -34,10 +34,9 @@ eip-1193-provider = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 num-bigint = { workspace = true, features = ["serde"] }
-prover = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-ruint = { workspace = true, features = ["num-bigint", "serde", "ark-ff-05"] }
+ruint = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
@@ -50,16 +49,17 @@ tsify = { workspace = true, features = ["js"], optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 serde-wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
+ark-circom = { workspace = true }
+ark-relations = { workspace = true }
+ark-groth16 = { workspace = true }
+rayon = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ark-circom = { workspace = true }
-ark-groth16 = { workspace = true }
-ark-relations = { workspace = true }
 tokio = { workspace = true }
-wasmer = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls"] }
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { workspace = true }
+wasmer = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 reqwest = { workspace = true, features = ["json"] }
@@ -69,6 +69,7 @@ getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 gloo-timers = { workspace = true, features = ["futures"] }
 js-sys = { workspace = true }
 tracing-wasm = { workspace = true }
+wasmer = { workspace = true, features = ["js-default"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 alloy = { workspace = true, default-features = true, features = [
@@ -78,14 +79,9 @@ insta = { workspace = true }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing-test = { workspace = true }
-criterion = { workspace = true, features = ["async_tokio"] }
 
 [build-dependencies]
 cfg_aliases = { workspace = true }
-
-[[bench]]
-name = "groth16"
-harness = false
 
 [[bin]]
 name = "main"

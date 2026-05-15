@@ -12,7 +12,7 @@ pub struct JsTransactionBuilder {
     pub(crate) inner: TransactionBuilder,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_class = "TransactionBuilder")]
 impl JsTransactionBuilder {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {

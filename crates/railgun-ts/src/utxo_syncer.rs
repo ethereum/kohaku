@@ -12,7 +12,7 @@ pub struct JsNoteSyncer {
     pub(crate) inner: Arc<dyn NoteSyncer>,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_class = "NoteSyncer")]
 impl JsNoteSyncer {
     #[wasm_bindgen(js_name = "subsquid")]
     pub fn new_subsquid(chain: &ChainConfig) -> Self {

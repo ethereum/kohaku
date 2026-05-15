@@ -12,7 +12,7 @@ use railgun_rs::{
     abis::erc20::ERC20,
     caip::AssetId,
     chain_config::ChainConfig,
-    circuit::native::{Groth16Prover, RemoteArtifactLoader},
+    circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
     railgun::{
         RailgunSigner,
         indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
@@ -55,9 +55,9 @@ async fn test_transact_poi() {
     let chain = ChainConfig::sepolia();
 
     info!("Setting up prover");
-    let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
+    let prover = Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
-    )));
+    ));
 
     info!("Setting up alloy provider");
     let signer_key = std::env::var("DEV_KEY").expect("DEV_KEY must be set");
@@ -88,7 +88,7 @@ async fn test_transact_poi() {
         syncer,
         prover,
     );
-    railgun.with_poi(subsquid_syncer);
+    railgun.set_poi(subsquid_syncer);
 
     info!("Setting up accounts");
     let account_1 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
@@ -130,9 +130,9 @@ async fn test_transact_poi() {
     .await;
 }
 
-async fn test_shield_poi<P: Provider>(
+async fn test_shield_poi(
     railgun: &mut RailgunProvider,
-    provider: &P,
+    provider: &impl Provider,
     account_1: Arc<dyn RailgunSigner>,
     account_2: Arc<dyn RailgunSigner>,
 ) {

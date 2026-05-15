@@ -7,12 +7,14 @@ use alloy::{
     sol,
     sol_types::SolValue,
 };
-use prover::Proof;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::crypto::{aes::Ciphertext, railgun_zero::SNARK_PRIME};
+use crate::{
+    circuit::proof::Proof,
+    crypto::{aes::Ciphertext, railgun_zero::SNARK_PRIME},
+};
 
 #[derive(Debug, Error)]
 pub enum TokenDataError {

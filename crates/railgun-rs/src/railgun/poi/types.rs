@@ -8,6 +8,7 @@ use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    circuit::proof::Proof,
     crypto::railgun_txid::Txid,
     railgun::{
         merkle_tree::{MerkleRoot, TxidLeafHash},
@@ -110,7 +111,7 @@ pub type PoisPerListMap = HashMap<BlindedCommitment, HashMap<ListKey, PoiStatus>
 #[derive(Debug, Clone, Serialize)]
 pub struct PreTransactionPoi {
     #[serde(rename = "snarkProof")]
-    pub proof: prover::Proof,
+    pub proof: Proof,
     #[serde(rename = "txidMerkleroot")]
     pub txid_merkleroot: MerkleRoot,
     #[serde(rename = "poiMerkleroots")]
@@ -134,7 +135,7 @@ pub struct SubmitTransactProofParams {
 #[serde(rename_all = "camelCase")]
 pub struct TransactProofData {
     #[serde(rename = "snarkProof")]
-    pub proof: prover::Proof,
+    pub proof: Proof,
     pub poi_merkleroots: Vec<MerkleRoot>,
     /// Merkle root of the txid tree the inclusion proof was generated with
     pub txid_merkleroot: MerkleRoot,

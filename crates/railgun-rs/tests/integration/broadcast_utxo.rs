@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy::{
     network::Ethereum,
-    primitives::{U256, fixed_bytes},
+    primitives::U256,
     providers::{Provider, ProviderBuilder},
 };
 use eip_1193_provider::alloy::ProviderExt;
@@ -10,12 +10,9 @@ use railgun_rs::{
     RailgunProvider,
     caip::AssetId,
     chain_config::ChainConfig,
-    circuit::native::{Groth16Prover, RemoteArtifactLoader},
-    crypto::keys::{MasterPublicKey, ViewingPublicKey},
+    circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
     railgun::{
         RailgunSigner,
-        address::RailgunAddress,
-        chain::ChainId,
         indexer::{ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer},
         transaction::TransactionBuilder,
     },
@@ -24,18 +21,11 @@ use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use userop_kit::{
-    ENTRY_POINT_08, ENTRY_POINT_08_DOMAIN,
+    ENTRY_POINT_08,
     bundler::{BundlerProvider, pimlico::PimlicoBundler},
 };
 
 use crate::{alto::AltoBuilder, anvil::AnvilBuilder};
-
-const RAILGUN_PAYMASTER_RECEIVER_MPK: MasterPublicKey = MasterPublicKey::from_bytes_const(
-    fixed_bytes!("0x19acdde26147205d58fd7768be7c011f08a147ef86e6b70968d09c81cef74b13").0,
-);
-const RAILGUN_PAYMASTER_RECEIVER_VPK: ViewingPublicKey = ViewingPublicKey::from_bytes_const(
-    fixed_bytes!("0x63ec4d326fc49c1c71064c982fb0bcbca2ba593b44ff7e8c7e4e75b401ae1d9c").0,
-);
 
 /// Tests a full broadcast flow, transfering and unshielding a UTXO note
 /// via a 4337-style broadcast.
@@ -101,9 +91,9 @@ async fn test_broadcast_utxo() {
         .await;
 
     info!("Setting up railgun");
-    let prover = Arc::new(Groth16Prover::new(RemoteArtifactLoader::new(
+    let prover = Groth16Prover::new(RemoteArtifactLoader::new(
         "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
-    )));
+    ));
     let rpc_syncer = RpcSyncer::new(chain.clone(), provider.clone().into_eip1193())
         .with_batch_size(10)
         .erased();
@@ -112,12 +102,17 @@ async fn test_broadcast_utxo() {
         .erased();
 
     let syncer = ChainedSyncer::new(vec![subsquid_syncer, rpc_syncer]).erased();
+
+    let bundler = Arc::new(PimlicoBundler::new(
+        "http://localhost:3000".parse().unwrap(),
+    ));
     let mut railgun = RailgunProvider::new(
         chain.clone(),
         provider.clone().into_eip1193(),
         syncer,
         prover,
     );
+    railgun.set_bundler(bundler.clone());
     railgun.sync().await.unwrap();
 
     info!("Setting up accounts");
@@ -125,13 +120,6 @@ async fn test_broadcast_utxo() {
     let account_2 = railgun_rs::railgun::PrivateKeySigner::new_evm(random(), random(), chain.id);
     railgun.register(account_1.clone());
     railgun.register(account_2.clone());
-
-    info!("Setting up broadcaster");
-    let bundler = PimlicoBundler::new(
-        "http://localhost:3000".parse().unwrap(),
-        chain.id,
-        ENTRY_POINT_08,
-    );
 
     // Test Shielding
     info!("Testing shielding");
@@ -178,24 +166,15 @@ async fn test_broadcast_utxo() {
         .prepare_broadcast(
             tx,
             broadcast_signer.address(),
-            &bundler,
             account_1.clone(),
-            RailgunAddress::new(
-                RAILGUN_PAYMASTER_RECEIVER_MPK,
-                RAILGUN_PAYMASTER_RECEIVER_VPK,
-                ChainId::evm(chain.id),
-            ),
             chain.wrapped_base_token,
             &mut rand::rng(),
         )
         .await
         .unwrap();
 
-    let signed = prepared
-        .signed(&broadcast_signer, &ENTRY_POINT_08_DOMAIN)
-        .await
-        .unwrap();
     info!("Prepared broadcast transaction: {:?}", prepared);
+    let signed = prepared.sign(&broadcast_signer).await.unwrap();
     let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
@@ -216,24 +195,15 @@ async fn test_broadcast_utxo() {
         .prepare_broadcast(
             tx,
             broadcast_signer.address(),
-            &bundler,
             account_1.clone(),
-            RailgunAddress::new(
-                RAILGUN_PAYMASTER_RECEIVER_MPK,
-                RAILGUN_PAYMASTER_RECEIVER_VPK,
-                ChainId::evm(chain.id),
-            ),
             chain.wrapped_base_token,
             &mut rand::rng(),
         )
         .await
         .unwrap();
 
-    let signed = prepared
-        .signed(&broadcast_signer, &ENTRY_POINT_08_DOMAIN)
-        .await
-        .unwrap();
     info!("Prepared broadcast transaction: {:?}", prepared);
+    let signed = prepared.sign(&broadcast_signer).await.unwrap();
     let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
