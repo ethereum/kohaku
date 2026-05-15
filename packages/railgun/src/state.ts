@@ -6,6 +6,6 @@ export interface RailgunPluginState {
         spendingKey: `0x${string}`,
         viewingKey: `0x${string}`,
     }[],
-    chainId: bigint,
+    chainId: number,
     version: '0.1.0',
 }

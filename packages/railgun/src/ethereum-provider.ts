@@ -1,11 +1,11 @@
 import { EthereumProvider } from '@kohaku-eth/provider';
-import { EthRpcAdapter, RawLog } from './pkg/railgun_rs';
+import { Eip1193Provider, RawLog } from '@kohaku-eth/railgun-ts';
 
 /**
  * Adapter that wraps an EthereumProvider and exposes the EthRpcAdapter interface
  * for the Rust WASM transport to bind against.
  */
-export class EthereumProviderAdapter implements EthRpcAdapter {
+export class EthereumProviderAdapter implements Eip1193Provider {
     constructor(private provider: EthereumProvider) { }
 
     async getChainId(): Promise<bigint> {
