@@ -5,23 +5,20 @@ use alloy::{
     primitives::U256,
     providers::{Provider, ProviderBuilder},
 };
-use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
     account::signer::RailgunSigner,
+    builder::RailgunBuilder,
     caip::AssetId,
     chain_config::ChainConfig,
-    circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
-    database::InMemoryDatabase,
-    indexer::{ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer},
-    provider::RailgunProvider,
+    indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
     transaction::TransactionBuilder,
 };
 use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use userop_kit::{
-    ENTRY_POINT_08,
     bundler::{BundlerProvider, pimlico::PimlicoBundler},
+    entry_point::ENTRY_POINT_08,
 };
 
 use crate::{alto::AltoBuilder, anvil::AnvilBuilder};
@@ -59,7 +56,6 @@ async fn test_broadcast_utxo() {
     let _anvil = AnvilBuilder::new()
         .fork_url(&fork_url)
         .fork_block(fork_block)
-        // .log()
         .spawn()
         .await;
 
@@ -85,36 +81,25 @@ async fn test_broadcast_utxo() {
         .executor_private_key(alto_executor_pk)
         .utility_private_key(alto_utility_pk)
         .rpc_url("http://localhost:8545")
-        // .log()
         .spawn()
         .await;
 
     info!("Setting up railgun");
-    let prover = Groth16Prover::new(RemoteArtifactLoader::new(
-        "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
-    ));
-    let rpc_syncer = RpcSyncer::new(chain.clone(), provider.clone().into_eip1193())
-        .with_batch_size(10)
-        .erased();
-    let subsquid_syncer = SubsquidSyncer::new(&chain.subsquid_endpoint)
-        .with_latest_block(fork_block)
-        .erased();
-
-    let syncer = ChainedSyncer::new(vec![subsquid_syncer, rpc_syncer]).erased();
+    let syncer = Arc::new(
+        ChainedSyncer::new()
+            .then(SubsquidSyncer::new(&chain.subsquid_endpoint).with_latest_block(fork_block))
+            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(10)),
+    );
+    let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
+        .with_utxo_syncer(syncer)
+        .build()
+        .await
+        .unwrap();
 
     let bundler = Arc::new(PimlicoBundler::new(
         "http://localhost:3000".parse().unwrap(),
     ));
-    let mut railgun = RailgunProvider::new(
-        chain.clone(),
-        Arc::new(InMemoryDatabase::new()),
-        provider.clone().into_eip1193(),
-        syncer,
-        prover,
-    )
-    .await
-    .unwrap();
-    railgun.set_bundler(bundler.clone());
+
     railgun.sync().await.unwrap();
 
     info!("Setting up accounts");
@@ -167,8 +152,9 @@ async fn test_broadcast_utxo() {
     );
 
     let prepared = railgun
-        .prepare_broadcast(
+        .prepare_userop(
             tx,
+            bundler.as_ref(),
             broadcast_signer.address(),
             account_1.clone(),
             chain.wrapped_base_token,
@@ -196,8 +182,9 @@ async fn test_broadcast_utxo() {
         .unwrap();
 
     let prepared = railgun
-        .prepare_broadcast(
+        .prepare_userop(
             tx,
+            bundler.as_ref(),
             broadcast_signer.address(),
             account_1.clone(),
             chain.wrapped_base_token,

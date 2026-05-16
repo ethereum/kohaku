@@ -4,16 +4,21 @@ use super::syncer::NoteSyncer;
 use crate::indexer::syncer::{SyncEvent, syncer::SyncerError};
 
 /// A syncer that chains multiple syncers in priority order.
+#[derive(Default)]
 pub struct ChainedSyncer {
     syncers: Vec<Arc<dyn NoteSyncer>>,
 }
 
 impl ChainedSyncer {
-    /// Creates a new ChainedSyncer with the given syncers in priority order.
-    ///
-    /// Syncers will be queried in the order they are provided, first to last.
-    pub fn new(syncers: Vec<Arc<dyn NoteSyncer>>) -> Self {
-        Self { syncers }
+    pub fn new() -> Self {
+        Self {
+            syncers: Vec::new(),
+        }
+    }
+
+    pub fn then<S: NoteSyncer + 'static>(mut self, syncer: S) -> Self {
+        self.syncers.push(Arc::new(syncer));
+        self
     }
 }
 

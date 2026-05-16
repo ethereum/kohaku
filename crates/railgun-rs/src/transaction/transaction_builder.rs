@@ -156,9 +156,9 @@ impl TransactionBuilder {
     }
 
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
-    pub async fn build<R: Rng, P: Prover>(
+    pub async fn build<R: Rng>(
         &self,
-        prover: &P,
+        prover: &dyn Prover,
         chain_id: u64,
         in_notes: &[UtxoNote],
         utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
@@ -378,7 +378,7 @@ fn add_change_note<R: Rng>(operation: &mut Operation, asset: AssetId, rng: &mut 
 }
 
 async fn prove_operations(
-    prover: &impl Prover,
+    prover: &dyn Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     chain_id: u64,
     operations: &[Operation],
@@ -397,7 +397,7 @@ async fn prove_operations(
 }
 
 async fn prove_operation(
-    prover: &impl Prover,
+    prover: &dyn Prover,
     utxo_tree: &UtxoMerkleTree,
     chain_id: u64,
     operation: &Operation,

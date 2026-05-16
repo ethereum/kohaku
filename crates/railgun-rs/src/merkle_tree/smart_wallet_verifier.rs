@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::primitives::{Address, U256};
-use eip_1193_provider::{Eip1193Provider, eth_call_sol};
+use eip_1193_provider::provider::{Eip1193Caller, Eip1193Provider};
 
 use crate::{
     abis::railgun::RailgunSmartWallet,
@@ -30,14 +30,15 @@ impl MerkleTreeVerifier for SmartWalletUtxoVerifier {
         root: MerkleRoot,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         let root: U256 = root.into();
-        Ok(eth_call_sol(
-            self.provider.as_ref(),
-            self.address,
-            RailgunSmartWallet::rootHistoryCall {
-                treeNumber: U256::from(tree_number),
-                root: root.into(),
-            },
-        )
-        .await?)
+        Ok(self
+            .provider
+            .sol_call(
+                self.address,
+                RailgunSmartWallet::rootHistoryCall {
+                    treeNumber: U256::from(tree_number),
+                    root: root.into(),
+                },
+            )
+            .await?)
     }
 }

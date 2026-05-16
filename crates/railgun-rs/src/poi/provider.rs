@@ -113,13 +113,13 @@ impl PoiProvider {
         })
     }
 
-    pub async fn sync<P: Prover>(&mut self, prover: &P) -> Result<(), PoiProviderError> {
+    pub async fn sync(&mut self, prover: &dyn Prover) -> Result<(), PoiProviderError> {
         self.sync_to(prover, u64::MAX).await
     }
 
-    pub async fn sync_to<P: Prover>(
+    pub async fn sync_to(
         &mut self,
-        prover: &P,
+        prover: &dyn Prover,
         block_number: u64,
     ) -> Result<(), PoiProviderError> {
         let poi_client = self.poi_client.clone();
@@ -213,7 +213,7 @@ impl PoiProvider {
         });
     }
 
-    async fn submit_pending<P: Prover>(&mut self, prover: &P) {
+    async fn submit_pending(&mut self, prover: &dyn Prover) {
         for i in (0..self.inner.pending.len()).rev() {
             let entry = self.inner.pending[i].clone();
             match self.submit_poi(prover, &entry).await {
@@ -231,9 +231,9 @@ impl PoiProvider {
         }
     }
 
-    async fn submit_poi<P: Prover>(
+    async fn submit_poi(
         &self,
-        prover: &P,
+        prover: &dyn Prover,
         entry: &PendingPoiEntry,
     ) -> Result<(), PendingPoiError> {
         let txid_tree_number = match self.txid_indexer.txid_position(&entry.txid) {

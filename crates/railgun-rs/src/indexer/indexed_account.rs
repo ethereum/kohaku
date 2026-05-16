@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use alloy::primitives::U256;
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ pub struct IndexedAccount {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub(crate) struct IndexedAccountState {
-    pub notes: HashMap<(u32, u32), UtxoNote>,
+    pub notes: Vec<UtxoNote>,
     pub synced_block: u64,
 }
 
@@ -47,7 +47,7 @@ impl IndexedAccount {
 
     /// Returns all unspent notes for this account.
     pub fn unspent(&self) -> Vec<UtxoNote> {
-        self.inner.notes.values().cloned().collect()
+        self.inner.notes.clone()
     }
 
     /// Returns the latest synced block for this account.
@@ -76,9 +76,7 @@ impl IndexedAccount {
         };
 
         info!(?note, "Decrypted Shield Note");
-        self.inner
-            .notes
-            .insert((event.tree_number, event.leaf_index), note);
+        self.inner.notes.push(note);
 
         Ok(())
     }
@@ -101,17 +99,15 @@ impl IndexedAccount {
         };
 
         info!(?note, "Decrypted Transact Note");
-        self.inner
-            .notes
-            .insert((event.tree_number, event.leaf_index), note);
+        self.inner.notes.push(note);
 
         Ok(())
     }
 
     pub fn handle_nullified_event(&mut self, event: &syncer::Nullified, _timestamp: u64) {
         let nullifier: U256 = event.nullifier.into();
-        self.inner.notes.retain(|(tree_number, _), note| {
-            if *tree_number != event.tree_number {
+        self.inner.notes.retain(|note| {
+            if note.tree_number != event.tree_number {
                 return true; // Keep notes from other trees
             }
             note.nullifier != nullifier // Keep notes that don't match the nullifier

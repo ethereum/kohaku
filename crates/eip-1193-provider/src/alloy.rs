@@ -4,12 +4,15 @@ use alloy::{
     eips::BlockId,
     network::TransactionBuilder,
     primitives::{Address, Bytes, FixedBytes},
-    providers::Provider,
+    providers::{DynProvider, Provider},
     rpc::types::{Filter, TransactionRequest},
     transports::{RpcError, TransportErrorKind},
 };
 
-use crate::{Eip1193Error, Eip1193Provider, RawLog, TxData};
+use crate::{
+    provider::{Eip1193Error, Eip1193Provider, IntoEip1193Provider, RawLog},
+    tx_data::TxData,
+};
 
 pub struct Alloy {
     inner: Arc<dyn Provider>,
@@ -108,13 +111,11 @@ impl Eip1193Provider for Alloy {
     }
 }
 
-pub trait ProviderExt: Provider + Sized + 'static {
+impl IntoEip1193Provider for DynProvider {
     fn into_eip1193(self) -> Arc<dyn Eip1193Provider> {
         Arc::new(Alloy::new(self))
     }
 }
-
-impl<P: Provider + 'static> ProviderExt for P {}
 
 impl From<RpcError<TransportErrorKind>> for Eip1193Error {
     fn from(e: RpcError<TransportErrorKind>) -> Self {

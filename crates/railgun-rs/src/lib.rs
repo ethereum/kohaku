@@ -1,5 +1,6 @@
 pub mod abis;
 pub mod account;
+pub mod builder;
 pub mod caip;
 pub mod chain_config;
 pub mod circuit;

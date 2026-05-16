@@ -1,14 +1,8 @@
-use std::sync::Arc;
-
-use alloy::{network::Ethereum, providers::ProviderBuilder};
-use eip_1193_provider::alloy::ProviderExt;
-use railgun_rs::{
-    chain_config::ChainConfig,
-    circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
-    database::InMemoryDatabase,
-    indexer::SubsquidSyncer,
-    provider::RailgunProvider,
+use alloy::{
+    network::Ethereum,
+    providers::{Provider, ProviderBuilder},
 };
+use railgun_rs::{builder::RailgunBuilder, chain_config::ChainConfig};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -31,31 +25,18 @@ async fn test_sync_utxo() {
 
     info!("Setting up chain client");
     let fork_url = std::env::var("RPC_URL_MAINNET").expect("Fork URL Must be set");
-    let provider = Arc::new(
-        ProviderBuilder::new()
-            .network::<Ethereum>()
-            .connect(&fork_url)
-            .await
-            .unwrap(),
-    );
+    let provider = ProviderBuilder::new()
+        .network::<Ethereum>()
+        .connect(&fork_url)
+        .await
+        .unwrap()
+        .erased();
 
     info!("Setting up indexer");
-    let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
-    let prover = Groth16Prover::new(RemoteArtifactLoader::new(
-        "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts",
-    ));
-    //? We use the RailgunProvider here instead of a UtxoIndexer so that we can write
-    //? the provider state to a file after syncing. This snapshot can be used in subsequent
-    //? tests to avoid re-syncing from scratch, which currently takes ~1 minute.
-    let mut railgun = RailgunProvider::new(
-        chain.clone(),
-        Arc::new(InMemoryDatabase::new()),
-        provider.clone().into_eip1193(),
-        subsquid_syncer.clone(),
-        prover,
-    )
-    .await
-    .unwrap();
+    let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
+        .build()
+        .await
+        .unwrap();
 
     info!("Syncing indexer");
     railgun.sync_to(FORK_BLOCK).await.unwrap();

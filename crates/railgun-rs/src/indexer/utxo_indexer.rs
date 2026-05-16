@@ -84,7 +84,8 @@ impl UtxoIndexer {
         min_synced
     }
 
-    /// Registers an account with the indexer.
+    /// Registers a signer with the indexer. The indexer will track UTXOs for the associated
+    /// address.
     pub async fn register(
         &mut self,
         signer: Arc<dyn RailgunSigner>,
@@ -114,16 +115,6 @@ impl UtxoIndexer {
         vec![]
     }
 
-    /// Lists all unspent notes for all registered accounts.
-    pub fn all_unspent(&self) -> Vec<UtxoNote> {
-        let mut notes = Vec::new();
-        for account in self.accounts.iter() {
-            notes.extend(account.unspent());
-        }
-
-        notes
-    }
-
     /// Syncs the indexer to the latest block.
     pub async fn sync(&mut self) -> Result<(), UtxoIndexerError> {
         self.sync_to(u64::MAX).await
@@ -145,7 +136,10 @@ impl UtxoIndexer {
         // Sync
         let events = self.utxo_syncer.sync(from_block, to_block).await?;
         info!("Fetched {} events from syncer", events.len());
-        for event in events {
+        for (i, event) in events.iter().enumerate() {
+            if i % 10000 == 0 {
+                info!("Processing event {}/{}", i, events.len());
+            }
             self.handle_event(&event)?;
         }
 
@@ -159,6 +153,7 @@ impl UtxoIndexer {
         info!("Verifying UTXO trees");
         self.verify().await?;
 
+        info!("Synced to block {}", to_block);
         self.synced_block = to_block;
         for account in self.accounts.iter_mut() {
             account.set_synced_block(to_block);

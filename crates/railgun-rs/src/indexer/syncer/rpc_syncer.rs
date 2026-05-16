@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy::sol_types::SolEvent;
-use eip_1193_provider::{Eip1193Error, Eip1193Provider, RawLog};
+use eip_1193_provider::provider::{Eip1193Error, Eip1193Provider, IntoEip1193Provider, RawLog};
 use tracing::{info, warn};
 
 use crate::{
@@ -32,10 +32,10 @@ pub enum RpcSyncerError {
 }
 
 impl RpcSyncer {
-    pub fn new(chain: ChainConfig, provider: Arc<dyn Eip1193Provider>) -> Self {
+    pub fn new(chain: ChainConfig, provider: impl IntoEip1193Provider) -> Self {
         Self {
             chain,
-            provider,
+            provider: provider.into_eip1193(),
             batch_size: 10000,
             timeout: web_time::Duration::from_millis(100),
         }

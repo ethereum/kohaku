@@ -6,16 +6,9 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
 };
-use eip_1193_provider::alloy::ProviderExt;
 use railgun_rs::{
-    abis::erc20::ERC20,
-    account::signer::RailgunSigner,
-    caip::AssetId,
-    chain_config::ChainConfig,
-    circuit::{groth16_prover::Groth16Prover, remote_artifact_loader::RemoteArtifactLoader},
-    database::InMemoryDatabase,
-    indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
-    provider::RailgunProvider,
+    abis::erc20::ERC20, account::signer::RailgunSigner, builder::RailgunBuilder, caip::AssetId,
+    chain_config::ChainConfig, provider::RailgunProvider,
 };
 use rand::random;
 use tracing::info;
@@ -53,44 +46,24 @@ async fn test_transact_poi() {
 
     let chain = ChainConfig::sepolia();
 
-    info!("Setting up prover");
-    let prover = Groth16Prover::new(RemoteArtifactLoader::new(
-        "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
-    ));
-
     info!("Setting up alloy provider");
     let signer_key = std::env::var("DEV_KEY").expect("DEV_KEY must be set");
     let signer = PrivateKeySigner::from_str(&signer_key).unwrap();
     let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("Fork URL Must be set");
-    let provider = Arc::new(
-        ProviderBuilder::new()
-            .network::<Ethereum>()
-            .wallet(signer)
-            .connect(&fork_url)
-            .await
-            .unwrap(),
-    );
+    let provider = ProviderBuilder::new()
+        .network::<Ethereum>()
+        .wallet(signer)
+        .connect(&fork_url)
+        .await
+        .unwrap()
+        .erased();
 
     info!("Setting up railgun");
-    let subsquid_syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
-    let rpc_syncer = Arc::new(
-        RpcSyncer::new(chain.clone(), provider.clone().into_eip1193()).with_batch_size(1000),
-    );
-    let syncer = Arc::new(ChainedSyncer::new(vec![
-        subsquid_syncer.clone(),
-        rpc_syncer,
-    ]));
-
-    let mut railgun = RailgunProvider::new(
-        chain.clone(),
-        Arc::new(InMemoryDatabase::new()),
-        provider.clone().into_eip1193(),
-        syncer,
-        prover,
-    )
-    .await
-    .unwrap();
-    railgun.set_poi(subsquid_syncer).await.unwrap();
+    let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
+        .with_poi()
+        .build()
+        .await
+        .unwrap();
 
     info!("Setting up accounts");
     let account_1 =

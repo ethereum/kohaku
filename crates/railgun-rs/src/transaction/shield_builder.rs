@@ -1,5 +1,5 @@
 use alloy::{primitives::U256, sol_types::SolCall};
-use eip_1193_provider::TxData;
+use eip_1193_provider::tx_data::TxData;
 use rand::Rng;
 use thiserror::Error;
 

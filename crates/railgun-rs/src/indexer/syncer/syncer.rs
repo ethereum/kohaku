@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::primitives::FixedBytes;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
@@ -76,13 +74,6 @@ pub enum SyncerError {
 pub trait NoteSyncer: common::MaybeSend {
     async fn latest_block(&self) -> Result<u64, SyncerError>;
     async fn sync(&self, from_block: u64, to_block: u64) -> Result<Vec<SyncEvent>, SyncerError>;
-
-    fn erased(self) -> Arc<dyn NoteSyncer>
-    where
-        Self: Sized + 'static,
-    {
-        Arc::new(self)
-    }
 }
 
 /// Syncers that fetch full operation data (nullifiers + commitments + tree positions).
@@ -91,11 +82,4 @@ pub trait NoteSyncer: common::MaybeSend {
 pub trait TransactionSyncer: common::MaybeSend {
     async fn latest_block(&self) -> Result<u64, SyncerError>;
     async fn sync(&self, from_block: u64, to_block: u64) -> Result<Vec<Operation>, SyncerError>;
-
-    fn erased(self) -> Arc<dyn TransactionSyncer>
-    where
-        Self: Sized + 'static,
-    {
-        Arc::new(self)
-    }
 }

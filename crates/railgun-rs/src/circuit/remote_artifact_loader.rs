@@ -25,6 +25,14 @@ pub enum RemoteArtifactLoaderError {
     DeserializationError(#[from] ark_serialize::SerializationError),
 }
 
+impl Default for RemoteArtifactLoader {
+    fn default() -> Self {
+        Self::new(
+            "https://github.com/Robert-MacWha/privacy-protocol-artifacts/raw/refs/heads/main/artifacts/",
+        )
+    }
+}
+
 impl RemoteArtifactLoader {
     pub fn new(base_url: &str) -> Self {
         Self {

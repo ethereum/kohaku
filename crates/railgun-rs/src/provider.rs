@@ -1,17 +1,20 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy::{
-    primitives::{Address, Bytes},
+    primitives::{Address, Bytes, aliases::U192},
     sol_types::SolCall,
 };
-use eip_1193_provider::{Eip1193Error, Eip1193Provider};
+use eip_1193_provider::provider::{Eip1193Caller, Eip1193Error, Eip1193Provider};
 use rand::Rng;
 use thiserror::Error;
 use tracing::{info, warn};
 use userop_kit::{
-    UserOperation, UserOperationBuilder,
+    UserOperationBuilder,
+    abis::entry_point::EntryPoint,
     bundler::{BundlerError, BundlerProvider},
+    entry_point::ENTRY_POINT_08,
     railgun::{PAYMASTER_MASTER_PUBLIC_KEY, PAYMASTER_VIEWING_PUBLIC_KEY},
+    signable_user_operation::SignableUserOperation,
 };
 
 use crate::{
@@ -19,11 +22,9 @@ use crate::{
     account::{address::RailgunAddress, signer::RailgunSigner},
     caip::AssetId,
     chain_config::ChainConfig,
-    circuit::{groth16_prover::Groth16Prover, prover::Prover},
+    circuit::prover::Prover,
     crypto::keys::{ByteKey, MasterPublicKey, ViewingPublicKey},
-    database::{Database, DatabaseError},
-    indexer::{NoteSyncer, TransactionSyncer, UtxoIndexer, UtxoIndexerError},
-    merkle_tree::SmartWalletUtxoVerifier,
+    indexer::{UtxoIndexer, UtxoIndexerError},
     note::{Note, utxo::UtxoNote},
     poi::{PoiProvider, PoiProviderError},
     transaction::{
@@ -32,14 +33,12 @@ use crate::{
 };
 
 /// Interfaces with the RAILGUN protocol.
-pub struct RailgunProvider<P: Prover = Groth16Prover> {
+pub struct RailgunProvider {
     chain: ChainConfig,
-    db: Arc<dyn Database>,
     provider: Arc<dyn Eip1193Provider>,
     utxo_indexer: UtxoIndexer,
-    prover: P,
+    prover: Arc<dyn Prover>,
     poi_provider: Option<PoiProvider>,
-    bundler: Option<Arc<dyn BundlerProvider>>,
 }
 
 #[derive(Debug, Error)]
@@ -54,70 +53,37 @@ pub enum RailgunProviderError {
     FeeNoteNotFound,
     #[error("Signer Error: {0}")]
     Signer(#[from] alloy::signers::Error),
-    #[error("No bundler provider configured")]
-    NoBundler,
     #[error("Bundler error: {0}")]
     Bundler(#[from] BundlerError),
     #[error("RPC error: {0}")]
     Rpc(#[from] Eip1193Error),
-    #[error("Database error: {0}")]
-    Database(#[from] DatabaseError),
 }
 
 /// General provider functions
-impl<P: Prover> RailgunProvider<P> {
+impl RailgunProvider {
     pub async fn new(
         chain: ChainConfig,
-        db: Arc<dyn Database>,
         provider: Arc<dyn Eip1193Provider>,
-        utxo_syncer: Arc<dyn NoteSyncer>,
-        prover: P,
+        utxo_indexer: UtxoIndexer,
+        prover: Arc<dyn Prover>,
+        poi_provider: Option<PoiProvider>,
     ) -> Result<Self, RailgunProviderError> {
-        let utxo_verifier = Arc::new(SmartWalletUtxoVerifier::new(
-            chain.railgun_smart_wallet,
-            provider.clone(),
-        ));
-
-        let utxo_indexer = UtxoIndexer::new(db.clone(), utxo_syncer, utxo_verifier).await?;
-
         Ok(Self {
             chain,
-            db,
             provider,
             utxo_indexer,
             prover,
-            poi_provider: None,
-            bundler: None,
+            poi_provider,
         })
     }
 
-    pub async fn set_poi(
-        &mut self,
-        txid_syncer: Arc<dyn TransactionSyncer>,
-    ) -> Result<(), RailgunProviderError> {
-        let poi_provider = PoiProvider::new(
-            self.chain.id,
-            self.db.clone(),
-            self.chain.poi_endpoint.clone(),
-            self.chain.list_keys.clone(),
-            txid_syncer,
-        )
-        .await?;
-        self.poi_provider = Some(poi_provider);
-        Ok(())
-    }
-
-    pub fn set_bundler(&mut self, bundler: Arc<dyn BundlerProvider>) {
-        self.bundler = Some(bundler);
-    }
-
-    /// Register an account with the provider. The provider will index the account's
-    /// transactions and balance as it syncs.
+    /// Register a signer with the provider. The provider will index and track
+    /// UTXOs for the associated address.
     pub async fn register(
         &mut self,
-        account: Arc<dyn RailgunSigner>,
+        signer: Arc<dyn RailgunSigner>,
     ) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer.register(account).await?;
+        self.utxo_indexer.register(signer).await?;
         Ok(())
     }
 
@@ -148,7 +114,7 @@ impl<P: Prover> RailgunProvider<P> {
         TransactionBuilder::new()
     }
 
-    /// Build a executable transaction from a transaction builder
+    /// Build a transaction builder into a proved, signable transaction.
     pub async fn build<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
@@ -163,32 +129,35 @@ impl<P: Prover> RailgunProvider<P> {
         Ok(proved_tx)
     }
 
-    /// Build a transaction from a transaction builder into a broadcastable 7702 UserOperation.
+    /// Build a transaction builder into a broadcastable 7702 UserOperation.
     ///
     /// Constructs a UserOperation sent from the `sender` that executes the provided transaction,
     /// with an additional fee note transfer to cover the bundler fees. The `fee_payer` is the
     /// signer that will authorize the fee note transfer to the bundler's address for the estimated
     /// fee amount in `fee_token`.
-    pub async fn prepare_broadcast<R: Rng>(
+    pub async fn prepare_userop<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
+        bundler: &dyn BundlerProvider,
         sender: Address,
         fee_payer: Arc<dyn RailgunSigner>,
         fee_token: Address,
         rng: &mut R,
-    ) -> Result<UserOperation, RailgunProviderError> {
-        let bundler = self
-            .bundler
-            .clone()
-            .ok_or(RailgunProviderError::NoBundler)?;
-
+    ) -> Result<SignableUserOperation, RailgunProviderError> {
         let fee_asset = AssetId::Erc20(fee_token);
 
         // 7702 authorization
-        let sender_nonce = self.provider.transaction_count(sender, None).await?;
+        let auth_nonce = self.provider.transaction_count(sender, None).await?;
+
+        let key = U192::ZERO;
+        // TODO: Move me into a `UserOperationBuilder::with_nonce(&dyn Eip1193Provider)` method
+        let sender_nonce = self
+            .provider
+            .sol_call(ENTRY_POINT_08, EntryPoint::getNonceCall::new((sender, key)))
+            .await?;
         info!(
-            "Signing 7702 authorization for sender: {:?}, nonce: {}",
-            sender, sender_nonce
+            "Signing 7702 authorization for eoa: {:?}, eoa_nonce: {}, sender_nonce: {}",
+            sender, auth_nonce, sender_nonce
         );
 
         //? Initial arbitrary estimation of fee note value.
@@ -202,7 +171,7 @@ impl<P: Prover> RailgunProvider<P> {
         let max_fee_per_gas = bundler.suggest_max_fee_per_gas().await?;
 
         info!("Iteratively building UserOperation to converge on accurate fee estimate");
-        let mut userop = UserOperation::default();
+        let mut userop = SignableUserOperation::default();
 
         for _ in 0..5 {
             let broadcast_builder = builder.clone().transfer(
@@ -233,7 +202,6 @@ impl<P: Prover> RailgunProvider<P> {
             .abi_encode()
             .into();
 
-            // TODO: Consider removing tail calls if there are no additional operations.
             let tail_call = userop_kit::abis::privacy_account::IPrivacyAccount::Call {
                 target: self.chain.railgun_smart_wallet,
                 data: RailgunSmartWallet::transactCall {
@@ -247,14 +215,15 @@ impl<P: Prover> RailgunProvider<P> {
             let userop_builder = UserOperationBuilder::new_railgun(
                 self.chain.id,
                 sender,
-                sender_nonce,
+                auth_nonce,
                 fee_calldata.clone(),
                 fee_note.random().into(),
                 fee_token,
                 fee_value,
             )
+            .with_nonce(sender_nonce)
             .with_tail_calls(vec![tail_call])
-            .with_gas_estimate(bundler.as_ref())
+            .with_gas_estimate(bundler)
             .await?;
             userop = userop_builder.build();
 
@@ -264,7 +233,7 @@ impl<P: Prover> RailgunProvider<P> {
             // The bundler seems to find the exact minimum call_gas_limit with
             // no margin.
             // Add 10% headroom so the implementation doesn't sporadically OOG.
-            userop.call_gas_limit = userop.call_gas_limit * 11 / 10;
+            userop.user_op.call_gas_limit = userop.user_op.call_gas_limit * 11 / 10;
 
             // Add a 10% headroom to the fee estimate to ensure buffer if prices change
             // slightly between estimation and execution
@@ -286,21 +255,23 @@ impl<P: Prover> RailgunProvider<P> {
         Ok(userop)
     }
 
-    pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer.sync_to(block_number).await?;
+    pub async fn sync(&mut self) -> Result<(), RailgunProviderError> {
+        self.utxo_indexer.sync().await?;
 
         if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.sync_to(&self.prover, block_number).await?;
+            poi_provider.sync(self.prover.as_ref()).await?;
         }
 
         Ok(())
     }
 
-    pub async fn sync(&mut self) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer.sync().await?;
+    pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {
+        self.utxo_indexer.sync_to(block_number).await?;
 
         if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.sync(&self.prover).await?;
+            poi_provider
+                .sync_to(self.prover.as_ref(), block_number)
+                .await?;
         }
 
         Ok(())
@@ -349,7 +320,7 @@ impl<P: Prover> RailgunProvider<P> {
         let in_notes = self.all_unspent().await;
         let operations = builder
             .build(
-                &self.prover,
+                self.prover.as_ref(),
                 self.chain.id,
                 &in_notes,
                 &self.utxo_indexer.utxo_trees,
