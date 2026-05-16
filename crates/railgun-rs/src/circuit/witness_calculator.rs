@@ -19,7 +19,7 @@ pub enum WitnessCalculatorError {
 }
 
 pub async fn calculate_witness(
-    artifact_loader: &impl ArtifactLoader,
+    artifact_loader: &dyn ArtifactLoader,
     circuit_name: &str,
     inputs: HashMap<String, Vec<U256>>,
 ) -> Result<Vec<U256>, WitnessCalculatorError> {

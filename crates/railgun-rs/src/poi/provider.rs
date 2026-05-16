@@ -270,9 +270,9 @@ impl PoiProvider {
         Ok(())
     }
 
-    async fn create_proof<P: Prover>(
+    async fn create_proof(
         &self,
-        prover: &P,
+        prover: &dyn Prover,
         entry: &PendingPoiEntry,
         txid_tree_number: u32,
         utxo_tree_number: u32,

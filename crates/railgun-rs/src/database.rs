@@ -24,7 +24,7 @@ pub enum DatabaseError {
 }
 
 #[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(js, async_trait::async_trait(?Send))]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait Database: common::MaybeSend {
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, DatabaseError>;
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError>;
@@ -45,7 +45,7 @@ impl InMemoryDatabase {
 }
 
 #[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(js, async_trait::async_trait(?Send))]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 impl Database for InMemoryDatabase {
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, DatabaseError> {
         let store = self.store.lock().await;
@@ -66,7 +66,7 @@ impl Database for InMemoryDatabase {
 }
 
 #[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(js, async_trait::async_trait(?Send))]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub(crate) trait RailgunDB: Database + common::MaybeSend {
     async fn get_utxo_indexer(&self) -> Result<UtxoIndexerState, DatabaseError> {
         let key = utxo_indexer_key();

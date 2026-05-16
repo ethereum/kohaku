@@ -23,8 +23,8 @@ use crate::{
     },
 };
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait PoiNodeClient {
     fn list_keys(&self) -> Vec<ListKey>;
     async fn poi_status(
@@ -141,8 +141,8 @@ impl PoiClient {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 impl PoiNodeClient for PoiClient {
     fn list_keys(&self) -> Vec<ListKey> {
         self.list_keys.clone()
@@ -264,8 +264,8 @@ impl PoiNodeClient for PoiClient {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 impl MerkleTreeVerifier for PoiClient {
     async fn verify_root(
         &self,

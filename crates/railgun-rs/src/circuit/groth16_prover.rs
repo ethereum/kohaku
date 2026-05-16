@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use alloy::primitives::U256;
 use ark_bn254::{Bn254, Fr};
@@ -13,13 +13,12 @@ use tracing::info;
 use crate::circuit::{
     artifact_loader::ArtifactLoader,
     proof::Proof,
-    prover::Prover,
-    remote_artifact_loader::RemoteArtifactLoader,
+    prover::{Prover, ProverError},
     witness_calculator::{WitnessCalculatorError, calculate_witness},
 };
 
-pub struct Groth16Prover<A: ArtifactLoader = RemoteArtifactLoader> {
-    artifact_loader: A,
+pub struct Groth16Prover {
+    artifact_loader: Arc<dyn ArtifactLoader>,
 }
 
 #[derive(Debug, Error)]
@@ -34,22 +33,18 @@ pub enum Groth16ProverError {
     InvalidProof,
 }
 
-impl<A: ArtifactLoader> Groth16Prover<A> {
-    pub fn new(artifact_loader: A) -> Self {
+impl Groth16Prover {
+    pub fn new(artifact_loader: Arc<dyn ArtifactLoader>) -> Self {
         Groth16Prover { artifact_loader }
     }
 }
 
-#[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
-    type Error = Groth16ProverError;
-
+impl Groth16Prover {
     async fn prove(
         &self,
         circuit_name: &str,
         inputs: HashMap<String, Vec<U256>>,
-    ) -> Result<Proof, Self::Error> {
+    ) -> Result<Proof, Groth16ProverError> {
         info!("Loading artifacts");
         let pk = self
             .artifact_loader
@@ -64,7 +59,8 @@ impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
             .map_err(|e| Groth16ProverError::ArtifactLoaderError(Box::new(e)))?;
 
         info!("Calculating witness");
-        let witnesses = calculate_witness(&self.artifact_loader, circuit_name, inputs).await?;
+        let witnesses =
+            calculate_witness(self.artifact_loader.as_ref(), circuit_name, inputs).await?;
         let witnesses: Vec<Fr> = witnesses
             .iter()
             .map(|x| Fr::from(BigInt::from(*x)))
@@ -92,5 +88,19 @@ impl<A: ArtifactLoader + Send + Sync + 'static> Prover for Groth16Prover<A> {
 
         info!("Proof verified successfully");
         Ok(proof.into())
+    }
+}
+
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
+impl Prover for Groth16Prover {
+    async fn prove(
+        &self,
+        circuit_name: &str,
+        inputs: HashMap<String, Vec<U256>>,
+    ) -> Result<Proof, ProverError> {
+        self.prove(circuit_name, inputs)
+            .await
+            .map_err(ProverError::new)
     }
 }

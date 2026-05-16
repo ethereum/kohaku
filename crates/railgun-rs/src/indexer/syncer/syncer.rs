@@ -71,8 +71,8 @@ pub enum SyncerError {
 }
 
 /// Syncers that emit note-level events (Shield, Transact, Nullified).
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait NoteSyncer: common::MaybeSend {
     async fn latest_block(&self) -> Result<u64, SyncerError>;
     async fn sync(&self, from_block: u64, to_block: u64) -> Result<Vec<SyncEvent>, SyncerError>;
@@ -86,8 +86,8 @@ pub trait NoteSyncer: common::MaybeSend {
 }
 
 /// Syncers that fetch full operation data (nullifiers + commitments + tree positions).
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait TransactionSyncer: common::MaybeSend {
     async fn latest_block(&self) -> Result<u64, SyncerError>;
     async fn sync(&self, from_block: u64, to_block: u64) -> Result<Vec<Operation>, SyncerError>;
