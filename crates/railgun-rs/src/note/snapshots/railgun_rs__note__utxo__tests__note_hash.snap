@@ -1,6 +1,5 @@
 ---
-source: railgun-rs/src/railgun/note/utxo.rs
-assertion_line: 313
+source: crates/railgun-rs/src/note/utxo.rs
 expression: hash
 ---
 15652703063364460311785063361754318622468586649506025149049958389572383217849

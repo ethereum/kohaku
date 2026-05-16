@@ -1,6 +1,5 @@
 ---
-source: railgun-rs/src/railgun/note/encrypt.rs
-assertion_line: 151
+source: crates/railgun-rs/src/note/encrypt.rs
 expression: encrypted
 ---
 CommitmentCiphertext {
@@ -12,6 +11,6 @@ CommitmentCiphertext {
     ],
     blindedSenderViewingKey: 0x6046890e0c0db16cdf19a7a4b6f69ffce0f71c9b7ada91a93e0f2e970e0d6310,
     blindedReceiverViewingKey: 0x4fa247c5252eee8e4fac0d43194ff062a48898dc1342fccaa8fae5f5c9b034e2,
-    annotationData: 0xe42ffadfa3f464f8e92bbcc7bc8d22eebcdacbe0583c24a3680111ec9101450c6c0786538b00e1257c840d33510b071539cd58eedab65c4d1bab427354a090fa,
+    annotationData: 0xe42ffadfa3f464f8e92bbcc7bc8d22ee76e99c02169689efa551b80ecbe1e4cc6a6de63fbfc1477ca1582395119854adb8c2e89509f0d7d07c06d01aa335ca21,
     memo: 0xef6b608efce79eac1d,
 }

@@ -1,6 +1,5 @@
 ---
-source: crates/railgun-rs/src/railgun/note/encrypt.rs
-assertion_line: 207
+source: crates/railgun-rs/src/note/encrypt.rs
 expression: shield_request
 ---
 ShieldRequest {

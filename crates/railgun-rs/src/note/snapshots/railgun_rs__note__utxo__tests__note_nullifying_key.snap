@@ -1,6 +1,5 @@
 ---
-source: crates/railgun-rs/src/railgun/note/utxo.rs
-assertion_line: 287
+source: crates/railgun-rs/src/note/utxo.rs
 expression: nullifying_key
 ---
 NullifyingKey(186ab99ece60e112b37c660eaf7ca6dbcb04dc434e04aa5e106e94abc6c81936)

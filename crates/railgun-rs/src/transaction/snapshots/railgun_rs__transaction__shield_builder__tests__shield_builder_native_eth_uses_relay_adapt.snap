@@ -1,6 +1,5 @@
 ---
-source: crates/railgun-rs/src/railgun/transaction/shield_builder.rs
-assertion_line: 169
+source: crates/railgun-rs/src/transaction/shield_builder.rs
 expression: tx
 ---
 [

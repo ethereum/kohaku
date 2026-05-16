@@ -1,6 +1,5 @@
 ---
-source: railgun-rs/src/railgun/note/utxo.rs
-assertion_line: 360
+source: crates/railgun-rs/src/note/utxo.rs
 expression: pub_key
 ---
 6115421394727733128036252006164802934954447834850133641440670552529040512894
