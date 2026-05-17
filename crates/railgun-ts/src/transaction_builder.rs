@@ -18,6 +18,7 @@ impl JsTransactionBuilder {
         }
     }
 
+    /// Adds a transfer operation to this transaction.
     pub fn transfer(
         self,
         from: &JsRailgunSigner,
@@ -33,6 +34,7 @@ impl JsTransactionBuilder {
         }
     }
 
+    /// Adds an unshield operation to this transaction.
     pub fn unshield(
         self,
         from: &JsRailgunSigner,

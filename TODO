@@ -8,12 +8,14 @@
     - Do we want people to use our BundlerProvider, or to use something from viem?  Probably the latter for now for a more minimal, API surface but we can definitely add BundlerProvider if it increases complexity at all.
       - Main issue with adding it is ensuring all the UserOp* types have tsify definitions.
 - [x] Add docstrings to public API
-- [ ] Clean up integration tests to all use the `anvil` / `alto` rust fixtures
-- [ ] Add integration test for plugin interface.
-- [ ] Switch `spendable` to check the POI note status instead of just the inclusion of the note in the merkle trie.
-  - Technically the latter works as a boolean `spendable / not spendable` check, but checking the POI note status gives state information on whether it's missing, pending, blocked, or spendable.
-
 - [ ] Add docs to TS public API
+- [ ] Write TS database adapter
 - [ ] Migrate userop_kit into this repo
   - Update `prepare_userOp`'s sender nonce call to call into a UserOp Builder method
 - [ ] Add an Address TS type so we don't need to `tsify(type = `0x${string}`)` everywhere
+
+- [ ] Switch `spendable` to check the POI note status instead of just the inclusion of the note in the merkle trie.
+  - Technically the latter works as a boolean `spendable / not spendable` check, but checking the POI note status gives state information on whether it's missing, pending, blocked, or spendable.
+- [ ] Clean up integration tests to all use the `anvil` / `alto` rust fixtures
+- [ ] Add integration test for plugin interface.
+

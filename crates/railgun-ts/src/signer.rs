@@ -52,16 +52,16 @@ impl JsRailgunSigner {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn address(&self) -> RailgunAddress {
-        self.inner.address()
-    }
-
-    #[wasm_bindgen(getter)]
     pub fn chain_id(&self) -> Option<u64> {
         match self.inner.chain_id() {
             ChainId::Evm { id } => Some(id),
             _ => None,
         }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn address(&self) -> RailgunAddress {
+        self.inner.address()
     }
 }
 

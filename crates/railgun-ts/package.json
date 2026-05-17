@@ -14,7 +14,8 @@
   "license": "ISC",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "@kohaku-eth/provider": "workspace:*"
+    "@kohaku-eth/provider": "workspace:*",
+    "@kohaku-eth/plugins": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

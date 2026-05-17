@@ -156,7 +156,7 @@ impl TransactionBuilder {
     }
 
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
-    pub async fn build<R: Rng>(
+    pub(crate) async fn build<R: Rng>(
         &self,
         prover: &Groth16Prover,
         chain_id: u64,

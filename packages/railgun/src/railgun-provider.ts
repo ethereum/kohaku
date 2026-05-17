@@ -1,9 +1,7 @@
 import { Host } from "@kohaku-eth/plugins";
 import { RailgunPlugin } from "./plugin";
-import { RailgunPluginState, STATE_KEY } from "./state";
-import { EthereumProviderAdapter } from "./ethereum-provider";
 import { SignerPool } from "./signer-pool";
-import { chainConfig, ChainConfig, NoteSyncer, RailgunProvider, RailgunSigner } from "@kohaku-eth/railgun-ts";
+import { chainConfig, ChainConfig, EthereumProviderAdapter, NoteSyncer, RailgunProvider, RailgunSigner } from "@kohaku-eth/railgun-ts";
 
 // export async function loadRailgunProvider(host: Host): Promise<RailgunPlugin> {
 //     // const savedState = host.storage.get(STATE_KEY);
@@ -44,14 +42,14 @@ import { chainConfig, ChainConfig, NoteSyncer, RailgunProvider, RailgunSigner } 
 // }
 
 // TODO: Delete me in favor of builder
-export async function newRailgunProvider(host: Host, chainId: number): Promise<RailgunProvider> {
-    const chain = chainConfig(chainId);
-    if (!chain) throw new Error(`Unsupported chain ID: ${chainId}`);
+// export async function newRailgunProvider(host: Host, chainId: number): Promise<RailgunProvider> {
+//     const chain = chainConfig(chainId);
+//     if (!chain) throw new Error(`Unsupported chain ID: ${chainId}`);
 
-    const rpcAdapter = new EthereumProviderAdapter(host.provider);
-    const syncer = NoteSyncer.chained([
-        NoteSyncer.subsquid(chain),
-    ]);
+//     const rpcAdapter = new EthereumProviderAdapter(host.provider);
+//     const syncer = NoteSyncer.chained([
+//         NoteSyncer.subsquid(chain),
+//     ]);
 
-    return new RailgunProvider(chain, rpcAdapter, syncer);
-}
+//     return new RailgunProvider(chain, rpcAdapter, syncer);
+// }

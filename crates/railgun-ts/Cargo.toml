@@ -21,6 +21,7 @@ wasm-bindgen-futures = { workspace = true }
 rand = { workspace = true }
 tracing-wasm = { workspace = true }
 tracing = { workspace = true }
+async-trait = { workspace = true }
 
 [package.metadata.cargo-machete]
 ignored = ["wasm-bindgen-futures"]

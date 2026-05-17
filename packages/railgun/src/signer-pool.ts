@@ -26,21 +26,6 @@ export class SignerPool {
         this.signers.push(signer);
     }
 
-    /** Returns spending keys for serialization. */
-    internalKeys(): { spendingKey: `0x${string}`, viewingKey: `0x${string}` }[] {
-        return this.signers.slice(1).map(s => ({
-            spendingKey: s.spendingKey,
-            viewingKey: s.viewingKey,
-        }));
-    }
-
-    /** Register all signers with a provider. */
-    registerAll(provider: RailgunProvider) {
-        for (const s of this.signers) {
-            provider.register(s);
-        }
-    }
-
     /**
      * Drain UTXOs across all signers to satisfy requested token amounts.
      * Returns a list of (signer, asset, amount) contributions.
@@ -48,7 +33,6 @@ export class SignerPool {
      */
     async drain(
         provider: RailgunProvider,
-        listKey: string,
         tokens: AssetAmount<ERC20AssetId>[],
     ): Promise<DrainEntry[]> {
         const remaining = new Map(tokens.map(t => [t.asset.contract, t.amount]));
@@ -79,4 +63,3 @@ export class SignerPool {
         return entries;
     }
 }
-

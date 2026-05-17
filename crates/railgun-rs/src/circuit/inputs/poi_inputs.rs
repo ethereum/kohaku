@@ -63,16 +63,10 @@ pub struct PoiCircuitInputs {
     // POI tree
     poi_in_merkle_proof_indices: Vec<U256>,
     poi_in_merkle_proof_path_elements: Vec<Vec<U256>>,
-
-    // Helper fields. Not part of circuit inputs, but useful in other contexts
-    pub txid: Txid,
-    pub txid_leaf_hash: TxidLeafHash,
 }
 
 #[derive(Debug, Error)]
 pub enum PoiCircuitInputsError {
-    #[error("Invalid input: {0}")]
-    InvalidInput(String),
     #[error("Merkle tree error: {0}")]
     MerkleTree(#[from] MerkleTreeError),
     #[error("Missing POI proofs for list key {0}")]
@@ -211,8 +205,6 @@ impl PoiCircuitInputs {
                 poi_in_merkle_proof_path_elements,
                 max_size,
             ),
-            txid,
-            txid_leaf_hash,
         })
     }
 

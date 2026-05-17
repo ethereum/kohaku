@@ -19,12 +19,14 @@ impl JsShieldBuilder {
         }
     }
 
+    /// Adds a shield operation to the transaction builder
     pub fn shield(self, recipient: &RailgunAddress, asset: &AssetId, value: u128) -> Self {
         Self {
             inner: self.inner.shield(recipient.clone(), asset.clone(), value),
         }
     }
 
+    /// Adds a shield operation for a native asset to the transaction builder
     #[wasm_bindgen(js_name = "shieldNative")]
     pub fn shield_native(self, recipient: &RailgunAddress, value: u128) -> Self {
         Self {
@@ -32,6 +34,7 @@ impl JsShieldBuilder {
         }
     }
 
+    /// Builds the shield transaction. Shield txns must be self-broadcast
     pub fn build(self) -> Result<Vec<TxData>, JsError> {
         let mut rng = rand::rng();
         self.inner

@@ -13,7 +13,3 @@ off-chain components. It provides support for:
 ## Examples
 
 For examples of how to use railgun-rs, see the [integration tests](./tests/integration/).
-
-## Overview
-
-This library provides high-level interfaces for interacting with the Railgun protocol.

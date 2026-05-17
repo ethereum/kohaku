@@ -41,6 +41,9 @@ importers:
 
   crates/railgun-ts:
     dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
       '@kohaku-eth/provider':
         specifier: workspace:*
         version: link:../../packages/provider

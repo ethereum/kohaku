@@ -40,10 +40,8 @@
  */
 
 import { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
-import { derivationPaths, JsPoiProvedTx, JsPoiProvider, JsShieldBuilder, JsSigner, JsTransactionBuilder, RailgunAddress } from "./pkg/railgun_rs";
 import { TxData } from "@kohaku-eth/provider";
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
-import { loadRailgunProvider, newRailgunProvider } from "./railgun-provider";
 import { RailgunPluginState, STATE_KEY } from "./state";
 import { SignerPool } from "./signer-pool";
 
@@ -80,8 +78,7 @@ export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88";
 
 /**
- * Creates or loads a Railgun plugin instance. If persisted state exists, it will
- * loaded; otherwise, new keys will be generated and a new provider initialized.
+ * Creates or loads a Railgun plugin instance.
  * 
  * @param host Host struct
  * @param keyIndex Optional index for key derivation (default: 0)
@@ -89,22 +86,17 @@ const LIST_KEY = "efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e
  * @returns `RailgunPlugin` instance
  */
 export async function createRailgunPlugin(host: Host, keyIndex: number = 0, chainId?: bigint): Promise<RailgunPlugin> {
-    try {
-        return await loadRailgunProvider(host);
-    } catch (_e) {
-        // console.log("Failed to load existing Railgun provider, creating new one");
-    }
-
     const { spendingPath, viewingPath } = derivationPaths(keyIndex);
     const spendingKey = host.keystore.deriveAt(spendingPath);
     const viewingKey = host.keystore.deriveAt(viewingPath);
 
     const resolvedChainId = chainId ?? await host.provider.getChainId();
-    const provider = await newRailgunProvider(host, resolvedChainId);
-    const signer = new JsSigner(spendingKey, viewingKey, resolvedChainId);
-    const pool = new SignerPool(signer);
+    let provider = new RailgunBuilder()
+    // const provider = await newRailgunProvider(host, resolvedChainId);
+    // const signer = new JsSigner(spendingKey, viewingKey, resolvedChainId);
+    // const pool = new SignerPool(signer);
 
-    return new RailgunPlugin(resolvedChainId, provider, pool, host.storage);
+    // return new RailgunPlugin(resolvedChainId, provider, pool, host.storage);
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
@@ -311,17 +303,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         }
 
         throw new Error("Failed to build transaction with any broadcaster");
-    }
-
-    private async saveState() {
-        const state: RailgunPluginState = {
-            providerState: this.provider.state(),
-            internalSigners: this.pool.internalKeys(),
-            chainId: this.chainId,
-            version: '0.1.0',
-        };
-
-        this.storage.set(STATE_KEY, JSON.stringify(state));
     }
 };
 

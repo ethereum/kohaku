@@ -60,7 +60,6 @@ pub enum RailgunProviderError {
     Rpc(#[from] Eip1193Error),
 }
 
-/// General provider functions
 impl RailgunProvider {
     pub(crate) async fn new(
         chain: ChainConfig,

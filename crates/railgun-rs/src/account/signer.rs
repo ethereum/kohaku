@@ -10,10 +10,10 @@ use crate::{
 
 /// A railgun signer which can sign transactions and provide the associated 0xzk address.
 pub trait RailgunSigner {
-    fn sign(&self, inputs: U256) -> Result<SpendingSignature, RailgunSignerError>;
     fn chain_id(&self) -> ChainId;
     fn viewing_key(&self) -> ViewingKey;
     fn spending_key(&self) -> SpendingKey;
+    fn sign(&self, inputs: U256) -> Result<SpendingSignature, RailgunSignerError>;
 
     fn address(&self) -> RailgunAddress {
         RailgunAddress::from_private_keys(self.spending_key(), self.viewing_key(), self.chain_id())
@@ -47,10 +47,6 @@ impl PrivateKeySigner {
 }
 
 impl RailgunSigner for PrivateKeySigner {
-    fn sign(&self, inputs: U256) -> Result<SpendingSignature, RailgunSignerError> {
-        Ok(self.spending_key.sign(inputs))
-    }
-
     fn chain_id(&self) -> ChainId {
         self.chain_id
     }
@@ -61,6 +57,10 @@ impl RailgunSigner for PrivateKeySigner {
 
     fn viewing_key(&self) -> ViewingKey {
         self.viewing_key
+    }
+
+    fn sign(&self, inputs: U256) -> Result<SpendingSignature, RailgunSignerError> {
+        Ok(self.spending_key.sign(inputs))
     }
 }
 

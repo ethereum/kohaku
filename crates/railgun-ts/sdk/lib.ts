@@ -1,6 +1,7 @@
 import initWasm from "../pkg";
 export * from '../pkg/index';
 export { EthereumProviderAdapter } from "./ethereum-provider.js";
+export { DatabaseAdapter } from "./database.js";
 
 let initPromise: Promise<void> | null = null;
 

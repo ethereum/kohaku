@@ -63,10 +63,6 @@ impl TxidMerkleTree {
         }
     }
 
-    pub fn number(&self) -> u32 {
-        self.inner.number()
-    }
-
     pub fn root(&self) -> MerkleRoot {
         self.inner.root()
     }
@@ -77,10 +73,6 @@ impl TxidMerkleTree {
 
     pub fn state(&self) -> MerkleTreeState {
         self.inner.state()
-    }
-
-    pub fn into_state(self) -> MerkleTreeState {
-        self.inner.into_state()
     }
 
     pub fn generate_proof(&self, leaf: TxidLeafHash) -> Result<MerkleProof, MerkleTreeError> {

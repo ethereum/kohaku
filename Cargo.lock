@@ -4606,6 +4606,7 @@ name = "railgun-ts"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "async-trait",
  "eip-1193-provider",
  "railgun-rs",
  "rand 0.9.4",

@@ -41,10 +41,6 @@ impl UtxoMerkleTree {
         self.inner.state()
     }
 
-    pub fn into_state(self) -> MerkleTreeState {
-        self.inner.into_state()
-    }
-
     pub fn generate_proof(&self, leaf: UtxoLeafHash) -> Result<MerkleProof, MerkleTreeError> {
         self.inner.generate_proof(leaf.into())
     }
