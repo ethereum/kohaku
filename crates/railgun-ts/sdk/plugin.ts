@@ -316,6 +316,6 @@ function tokenGuard(token: AssetAmount) {
     const asset = token.asset;
 
     if (asset.__type !== 'erc20') {
-        throw new Error("Only ERC20 tokens are supported for shielding");
+        throw new Error("Only ERC20 tokens are supported for this operation");
     }
 }

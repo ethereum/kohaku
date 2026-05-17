@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.1.0-alpha.12",
+  "version": "0.1.0-alpha.14",
   "description": "",
   "main": "dist/sdk/lib.js",
   "scripts": {

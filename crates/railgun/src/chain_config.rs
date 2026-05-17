@@ -89,7 +89,7 @@ impl ChainConfig {
         Self::new(
             1,
             address!("0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9"),
-            address!("0x4025ee6512DBbda97049Bcf5AA5D38C54aF6bE8a"),
+            address!("0xAc9f360Ae85469B27aEDdEaFC579Ef2d052aD405"),
             address!("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
             14693013,
             18514200,
