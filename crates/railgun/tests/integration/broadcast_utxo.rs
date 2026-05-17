@@ -137,7 +137,7 @@ async fn test_broadcast_utxo() {
     assert_eq!(balance_2.get(&weth), None);
 
     // Test Transfer
-    let broadcast_signer = alloy::signers::local::PrivateKeySigner::from_str(
+    let delegator = alloy::signers::local::PrivateKeySigner::from_str(
         "0xd01165bc18d3f0d0b2114a42930164f729ae8310f447b4dd2e96124c02bbe151",
     )
     .unwrap();
@@ -155,7 +155,7 @@ async fn test_broadcast_utxo() {
         .prepare_userop(
             tx,
             bundler.as_ref(),
-            broadcast_signer.address(),
+            delegator.address(),
             account_1.clone(),
             chain.wrapped_base_token,
             &mut rand::rng(),
@@ -164,7 +164,7 @@ async fn test_broadcast_utxo() {
         .unwrap();
 
     info!("Prepared broadcast transaction: {:?}", prepared);
-    let signed = prepared.sign(&broadcast_signer).await.unwrap();
+    let signed = prepared.sign(&delegator).await.unwrap();
     let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
@@ -178,14 +178,14 @@ async fn test_broadcast_utxo() {
 
     info!("Testing unshielding");
     let tx = TransactionBuilder::new()
-        .unshield(account_1.clone(), broadcast_signer.address(), weth, 5_000)
+        .unshield(account_1.clone(), delegator.address(), weth, 5_000)
         .unwrap();
 
     let prepared = railgun
         .prepare_userop(
             tx,
             bundler.as_ref(),
-            broadcast_signer.address(),
+            delegator.address(),
             account_1.clone(),
             chain.wrapped_base_token,
             &mut rand::rng(),
@@ -194,7 +194,7 @@ async fn test_broadcast_utxo() {
         .unwrap();
 
     info!("Prepared broadcast transaction: {:?}", prepared);
-    let signed = prepared.sign(&broadcast_signer).await.unwrap();
+    let signed = prepared.sign(&delegator).await.unwrap();
     let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(

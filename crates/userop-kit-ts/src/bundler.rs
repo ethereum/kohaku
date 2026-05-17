@@ -3,12 +3,14 @@ use std::sync::Arc;
 use reqwest::Url;
 use userop_kit::{
     bundler::{Bundler, pimlico::PimlicoBundler},
-    signable_user_operation::SignableUserOperation,
     signed_user_operation::SignedUserOperation,
     user_operation::{UserOperationGasEstimate, UserOperationHash, UserOperationReceipt},
 };
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
+use crate::signable_user_operation::JsSignableUserOperation;
+
+/// A bundler provider for 4337 UserOperation JSON-RPC methods.
 #[wasm_bindgen(js_name = "Bundler")]
 pub struct JsBundler {
     inner: Arc<dyn Bundler>,
@@ -28,7 +30,9 @@ impl JsBundler {
 impl JsBundler {
     /// Creates a new Pimlico bundler provider.
     #[wasm_bindgen(js_name = "pimlico")]
-    pub fn new_pimlico(bundler_url: String) -> Result<Self, JsError> {
+    pub fn new_pimlico(
+        #[wasm_bindgen(js_name = "bundlerUrl")] bundler_url: String,
+    ) -> Result<Self, JsError> {
         let bundler_url = Url::parse(&bundler_url).map_err(|e| JsError::new(&e.to_string()))?;
 
         Ok(Self {
@@ -55,10 +59,10 @@ impl JsBundler {
     #[wasm_bindgen(js_name = "estimateGas")]
     pub async fn estimate_gas(
         &self,
-        op: SignableUserOperation,
+        op: &JsSignableUserOperation,
     ) -> Result<UserOperationGasEstimate, JsError> {
         self.inner
-            .estimate_gas(&op)
+            .estimate_gas(op.inner())
             .await
             .map_err(|e| JsError::new(&e.to_string()))
     }

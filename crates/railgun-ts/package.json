@@ -1,5 +1,5 @@
 {
-  "name": "@kohaku-eth/railgun-ts",
+  "name": "@kohaku-eth/railgun",
   "version": "0.1.0-alpha.12",
   "description": "",
   "main": "dist/sdk/lib.js",

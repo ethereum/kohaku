@@ -56,6 +56,8 @@ pub enum RailgunProviderError {
     Bundler(#[from] BundlerError),
     #[error("RPC error: {0}")]
     Rpc(#[from] Eip1193Error),
+    #[error("Other: {0}")]
+    Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl RailgunProvider {
@@ -139,23 +141,33 @@ impl RailgunProvider {
 
     /// Build a transaction builder into a broadcastable 7702 UserOperation.
     ///
-    /// Constructs a UserOperation sent from the `sender` that executes the provided transaction,
-    /// with an additional fee note transfer to cover the bundler fees. The `fee_payer` is the
-    /// signer that will authorize the fee note transfer to the bundler's address for the estimated
-    /// fee amount in `fee_token`.
+    /// Constructs a UserOperation sent from the `delegator_address` that executes the provided
+    /// transaction, with an additional fee note transfer to cover the bundler fees. The
+    /// `fee_payer` is the signer that will authorize the fee note transfer to the bundler's
+    /// address for the estimated fee amount in `fee_token`.
     pub async fn prepare_userop<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
         bundler: &dyn Bundler,
-        sender: Address,
+        delegator_address: Address,
         fee_payer: Arc<dyn RailgunSigner>,
         fee_token: Address,
         rng: &mut R,
     ) -> Result<SignableUserOperation, RailgunProviderError> {
+        if fee_token != self.chain.wrapped_base_token {
+            return Err(RailgunProviderError::Other(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Currently only the wrapped base token is supported for fee payment",
+            ))));
+        }
+
         let fee_asset = AssetId::Erc20(fee_token);
 
         // 7702 authorization
-        let auth_nonce = self.provider.transaction_count(sender, None).await?;
+        let auth_nonce = self
+            .provider
+            .transaction_count(delegator_address, None)
+            .await?;
         let sender_nonce_key = U192::ZERO;
 
         //? Initial arbitrary estimation of fee note value.
@@ -210,7 +222,7 @@ impl RailgunProvider {
             // TODO: Fetch provider_nonce once instead of on each iteration
             let userop_builder = UserOperationBuilder::new_railgun(
                 self.chain.id,
-                sender,
+                delegator_address,
                 auth_nonce,
                 fee_calldata.clone(),
                 userop_kit::railgun::FeeCommitment {

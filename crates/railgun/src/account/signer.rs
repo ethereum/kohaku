@@ -70,27 +70,24 @@ impl Debug for dyn RailgunSigner {
     }
 }
 
-/// BIP-32 derivation paths for railgun spending and viewing keys.
+/// BIP-32 derivation paths for railgun spending keys.
 ///
 /// <https://github.com/Railgun-Community/engine/blob/e2913b39e13f82f43556d23705fa20d2ece2e8ab/src/key-derivation/wallet-node.ts#L17>
-pub fn derivation_paths(index: u32) -> (String, String) {
-    let spending_path = format!("m/44'/1984'/0'/0'/{}'", index);
-    let viewing_path = format!("m/420'/1984'/0'/0'/{}'", index);
-    (spending_path, viewing_path)
+pub fn spending_key_path(index: u32) -> String {
+    format!("m/44'/1984'/0'/0'/{}'", index)
+}
+
+/// BIP-32 derivation paths for railgun viewing keys.
+///
+///  <https://github.com/Railgun-Community/engine/blob/e2913b39e13f82f43556d23705fa20d2ece2e8ab/src/key-derivation/wallet-node.ts#L17>
+pub fn viewing_key_path(index: u32) -> String {
+    format!("m/420'/1984'/0'/0'/{}'", index)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::crypto::keys::HexKey;
-
-    #[test]
-    fn test_derivation_paths() {
-        let index = 5;
-        let (spending_path, viewing_path) = derivation_paths(index);
-        assert_eq!(spending_path, "m/44'/1984'/0'/0'/5'");
-        assert_eq!(viewing_path, "m/420'/1984'/0'/0'/5'");
-    }
 
     #[test]
     fn test_address() {

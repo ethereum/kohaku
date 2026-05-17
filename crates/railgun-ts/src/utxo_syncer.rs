@@ -22,7 +22,11 @@ impl JsUtxoSyncer {
     }
 
     #[wasm_bindgen(js_name = "rpc")]
-    pub fn new_rpc(chain: &ChainConfig, provider: JsEip1193Provider, batch_size: u64) -> Self {
+    pub fn new_rpc(
+        chain: &ChainConfig,
+        provider: JsEip1193Provider,
+        #[wasm_bindgen(js_name = "batchSize")] batch_size: u64,
+    ) -> Self {
         Self {
             inner: Arc::new(
                 RpcSyncer::new(chain.clone(), Arc::new(provider)).with_batch_size(batch_size),

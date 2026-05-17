@@ -15,34 +15,28 @@ use crate::{
 /// A signable UserOperation, which includes the UserOperation data alongside the EntryPoint to
 /// which it will be sent.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(js, derive(tsify::Tsify))]
-#[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct SignableUserOperation {
     pub user_op: UserOperation,
-    #[cfg_attr(js, tsify(type = "`0x${string}`"))]
     pub entry_point: Address,
     pub(crate) domain: Eip712Domain,
 }
 
 impl SignableUserOperation {
-    /// Computes the EIP-712 signing hash for this UserOperation
-    pub fn signing_hash(&self) -> B256 {
-        PackedUserOperation::from(&self.user_op).eip712_signing_hash(&self.domain)
-    }
-
     /// Signs the UserOperation with the provided signer
     pub async fn sign(
-        mut self,
-        signer: &impl Signer,
+        &self,
+        signer: &dyn Signer,
     ) -> Result<SignedUserOperation, alloy::signers::Error> {
-        self.user_op.signature = signer
+        let mut user_op = self.user_op.clone();
+
+        user_op.signature = signer
             .sign_hash(&self.signing_hash())
             .await?
             .as_bytes()
             .into();
 
-        self.user_op.authorization = match self.user_op.authorization {
+        user_op.authorization = match user_op.authorization {
             Authorization::Eip7702(auth) => {
                 let auth_hash = auth.signature_hash();
                 let auth_sig = signer.sign_hash(&auth_hash).await?;
@@ -53,7 +47,7 @@ impl SignableUserOperation {
         };
 
         Ok(SignedUserOperation {
-            user_op: self.user_op,
+            user_op: user_op,
             entry_point: self.entry_point,
         })
     }
@@ -62,6 +56,11 @@ impl SignableUserOperation {
     /// applicable.
     pub fn total_gas_limit(&self) -> u128 {
         self.user_op.total_gas_limit()
+    }
+
+    /// Computes the EIP-712 signing hash for this UserOperation
+    fn signing_hash(&self) -> B256 {
+        PackedUserOperation::from(&self.user_op).eip712_signing_hash(&self.domain)
     }
 }
 

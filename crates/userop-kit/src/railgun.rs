@@ -67,8 +67,8 @@ impl UserOperationBuilder<RailgunProtocol> {
     /// # use userop_kit::railgun::FeeCommitment;
     /// # use userop_kit::builder::UserOperationBuilder;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let signer = PrivateKeySigner::random();
-    /// # let sender = signer.address();
+    /// # let delegator = PrivateKeySigner::random();
+    /// # let delegator_address = delegator.address();
     /// # let auth_nonce = 0u64;
     /// # let nonce = Default::default();
     /// # let fee_calldata = Bytes::new();
@@ -76,7 +76,7 @@ impl UserOperationBuilder<RailgunProtocol> {
     ///
     /// let signed_op = UserOperationBuilder::new_railgun(
     ///     1, // chain_id
-    ///     sender,
+    ///     delegator_address,
     ///     auth_nonce,
     ///     fee_calldata,
     ///     FeeCommitment {
@@ -98,7 +98,7 @@ impl UserOperationBuilder<RailgunProtocol> {
     /// ```
     pub fn new_railgun(
         chain_id: u64,
-        sender: Address,
+        delegator_address: Address,
         auth_nonce: u64,
         fee_calldata: Bytes,
         fee: FeeCommitment,
@@ -115,14 +115,15 @@ impl UserOperationBuilder<RailgunProtocol> {
         };
 
         let domain = entry_point_08_domain(chain_id);
-        let builder = UserOperationBuilder::new(sender, ENTRY_POINT_08, domain, protocol)
-            .with_paymaster(PAYMASTER)
-            .with_authorization(auth)
-            .with_paymaster_data(
-                (fee.random, fee.asset, U120::saturating_from(fee.value))
-                    .abi_encode()
-                    .into(),
-            );
+        let builder =
+            UserOperationBuilder::new(delegator_address, ENTRY_POINT_08, domain, protocol)
+                .with_paymaster(PAYMASTER)
+                .with_authorization(auth)
+                .with_paymaster_data(
+                    (fee.random, fee.asset, U120::saturating_from(fee.value))
+                        .abi_encode()
+                        .into(),
+                );
         builder.update_calldata()
     }
 

@@ -22,10 +22,15 @@ pub struct UserOperationBuilder<P = ()> {
 }
 
 impl<P> UserOperationBuilder<P> {
-    pub fn new(sender: Address, entry_point: Address, domain: Eip712Domain, protocol: P) -> Self {
+    pub fn new(
+        smart_account: Address,
+        entry_point: Address,
+        domain: Eip712Domain,
+        protocol: P,
+    ) -> Self {
         Self {
             op: UserOperation {
-                sender,
+                sender: smart_account,
                 nonce: U256::ZERO,
                 factory: None,
                 factory_data: None,

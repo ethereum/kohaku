@@ -13,6 +13,7 @@ ignored = ["wasm-bindgen-futures"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+alloy = { workspace = true, features = ["signers", "signer-local"] }
 reqwest = { workspace = true }
 userop-kit = { workspace = true, features = ["js"] }
 wasm-bindgen = { workspace = true }

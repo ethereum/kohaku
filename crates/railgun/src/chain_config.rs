@@ -7,6 +7,7 @@ use crate::poi::types::ListKey;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(js, derive(tsify::Tsify))]
 #[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
+#[serde(rename_all = "camelCase")]
 pub struct ChainConfig {
     /// EIP-155 Chain ID
     #[cfg_attr(js, tsify(type = "number"))]
