@@ -15,7 +15,6 @@ resolver = "3"
 pedantic = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
-wasmer = { version = "6.1", default-features = false }
 aes = "0.8"
 aes-gcm = "0.10"
 alloy = { version = "1.8", default-features = false }
@@ -30,6 +29,7 @@ ark-std = { version = "0.6", features = ["getrandom"] }
 async-trait = "0.1.89"
 bech32 = "0.11.1"
 blake-hash = { version = "0.2.0", default-features = false }
+cfg_aliases = "0.2.0"
 common = { path = "./crates/common" }
 console_error_panic_hook = "0.1"
 criterion = "0.8.2"
@@ -41,19 +41,19 @@ eip-1193-provider = { path = "./crates/eip-1193-provider" }
 futures = "0.3.31"
 gloo-net = "0.6.0"
 gloo-timers = "0.3.0"
-railgun = { path = "./crates/railgun" }
 hex = "0.4.3"
 http = "1.4.0"
 insta = { version = "1.46.3", features = ["json"] }
 itertools = "0.14.0"
 js-sys = "0.3"
-wasm-bindgen = "=0.2.108"
 lazy_static = "1.5.0"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 poseidon-rust = { path = "./crates/poseidon-rust" }
+railgun = { path = "./crates/railgun" }
 rand = "0.9.2"
 rand_chacha = "0.9.0"
+rayon = "1.12"
 reqwest = { version = "0.13", default-features = false }
 ruint = { version = "1", features = ["serde", "num-bigint", "ark-ff-06"] }
 serde = { version = "1", features = ["derive"] }
@@ -69,12 +69,12 @@ tracing-subscriber = "0.3.22"
 tracing-test = "0.2.5"
 tracing-wasm = "0.2"
 tsify = "0.5"
-wasm-bindgen-futures = "0.4"
-web-time = { version = "1.1" }
 userop-kit = { path = "./crates/userop-kit" }
-cfg_aliases = "0.2.0"
-rayon = "1.12"
 userop-kit-ts = { path = "./crates/userop-kit-ts" }
+wasm-bindgen = "=0.2.108"
+wasm-bindgen-futures = "0.4"
+wasmer = { version = "6.1", default-features = false }
+web-time = { version = "1.1" }
 
 [patch.crates-io]
 ruint = { git = "https://github.com/Robert-MacWha/ruint" }                                        # Adds ark-fr-06 support

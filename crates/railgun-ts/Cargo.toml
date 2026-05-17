@@ -6,23 +6,23 @@ edition = "2024"
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 
+[package.metadata.cargo-machete]
+ignored = ["wasm-bindgen-futures"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-railgun = { workspace = true, features = ["js"] }
 alloy = { workspace = true }
+async-trait = { workspace = true }
 eip-1193-provider = { workspace = true, features = ["js"] }
+railgun = { workspace = true, features = ["js"] }
+rand = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+tracing-wasm = { workspace = true }
+tsify = { workspace = true, features = ["js"] }
 userop-kit = { workspace = true, features = ["js"] }
 userop-kit-ts = { workspace = true }
-serde = { workspace = true }
-tsify = { workspace = true, features = ["js"] }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-rand = { workspace = true }
-tracing-wasm = { workspace = true }
-tracing = { workspace = true }
-async-trait = { workspace = true }
-
-[package.metadata.cargo-machete]
-ignored = ["wasm-bindgen-futures"]

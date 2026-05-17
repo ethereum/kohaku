@@ -3,6 +3,9 @@ name = "eip-1193-provider"
 version = "0.1.0"
 edition = "2024"
 
+[package.metadata.cargo-machete]
+ignored = ["wasm-bindgen-futures"]
+
 [lib]
 crate-type = ["rlib"]
 
@@ -22,11 +25,11 @@ alloy = { workspace = true, features = ["rpc", "rpc-types", "sol-types"] }
 async-trait = { workspace = true }
 common = { workspace = true }
 hex = { workspace = true }
+js-sys = { workspace = true, optional = true }
 serde = { workspace = true }
+serde-wasm-bindgen = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tsify = { workspace = true, optional = true }
-js-sys = { workspace = true, optional = true }
-serde-wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 
@@ -35,6 +38,3 @@ cfg_aliases = { workspace = true }
 
 [lints]
 workspace = true
-
-[package.metadata.cargo-machete]
-ignored = ["wasm-bindgen-futures"]

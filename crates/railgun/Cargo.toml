@@ -3,8 +3,15 @@ name = "railgun"
 version = "0.1.0"
 edition = "2024"
 
+[package.metadata.cargo-machete]
+ignored = ["wasm-bindgen"]
+
 [lib]
 crate-type = ["rlib"]
+
+[[bin]]
+name = "main"
+path = "bin/main.rs"
 
 [features]
 default = []
@@ -16,7 +23,10 @@ aes = { workspace = true }
 aes-gcm = { workspace = true }
 alloy = { workspace = true }
 ark-bn254 = { workspace = true }
+ark-circom = { workspace = true }
 ark-ff = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-relations = { workspace = true }
 ark-serialize = { workspace = true }
 ark-std = { workspace = true }
 async-trait = { workspace = true }
@@ -38,47 +48,37 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-web-time = { workspace = true }
-userop-kit = { workspace = true, features = ["railgun"] }
 tsify = { workspace = true, optional = true }
-ark-circom = { workspace = true }
-ark-relations = { workspace = true }
-ark-groth16 = { workspace = true }
+userop-kit = { workspace = true, features = ["railgun"] }
 wasm-bindgen = { workspace = true, optional = true }
+web-time = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-wasmer = { workspace = true }
-tokio = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls"] }
 clap = { version = "4", features = ["derive"] }
+reqwest = { workspace = true, features = ["json", "rustls"] }
+tokio = { workspace = true }
 tracing-subscriber = { workspace = true }
+wasmer = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-reqwest = { workspace = true, features = ["json"] }
 console_error_panic_hook = { workspace = true }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 gloo-timers = { workspace = true, features = ["futures"] }
 js-sys = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 tracing-wasm = { workspace = true }
 wasmer = { workspace = true, features = ["js-default"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-railgun = { path = ".", features = ["testing"] }
-alloy = { workspace = true, default-features = true, features = [
-    "provider-anvil-api",
-] }
-insta = { workspace = true }
-serial_test = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
-tracing-test = { workspace = true }
 
 [build-dependencies]
 cfg_aliases = { workspace = true }
 
-[package.metadata.cargo-machete]
-ignored = ["wasm-bindgen"]
-
-[[bin]]
-name = "main"
-path = "bin/main.rs"
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+alloy = { workspace = true, default-features = true, features = [
+    "provider-anvil-api",
+] }
+insta = { workspace = true }
+railgun = { path = ".", features = ["testing"] }
+serial_test = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing-test = { workspace = true }
