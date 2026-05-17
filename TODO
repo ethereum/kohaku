@@ -18,7 +18,7 @@
 - [ ] Add an Address TS type so we don't need to `tsify(type = `0x${string}`)` everywhere
 - [ ] Switch `spendable` to check the POI note status instead of just the inclusion of the note in the merkle trie.
   - Technically the latter works as a boolean `spendable / not spendable` check, but checking the POI note status gives state information on whether it's missing, pending, blocked, or spendable.
-- [ ] Clean up integration tests to all use the `anvil` / `alto` rust fixtures
+- [x] Clean up integration tests to all use the `anvil` / `alto` rust fixtures
 - [ ] Add `delete` to `@kohaku-plugins/host/storage` and delete rust <> ts database adapter
 - [ ] Unify Eip1193Provider with `@kohaku-eth/provider/EthereumProvider` and delete rust <> ts ethereum provider adapter
 - [ ] Impl bundler fee payment with non-weth tokens

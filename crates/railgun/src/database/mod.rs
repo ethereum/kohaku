@@ -1,4 +1,6 @@
 pub mod memory;
+// #[cfg(native)]
+// pub mod fs;
 mod railgun_db;
 
 pub(crate) use railgun_db::RailgunDB;

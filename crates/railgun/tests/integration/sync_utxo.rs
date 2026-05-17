@@ -1,12 +1,16 @@
+use std::sync::Arc;
+
 use alloy::{
     network::Ethereum,
     providers::{Provider, ProviderBuilder},
 };
-use railgun::{builder::RailgunBuilder, chain_config::ChainConfig};
+use railgun::{
+    builder::RailgunBuilder, chain_config::ChainConfig, indexer::syncer::SubsquidSyncer,
+};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-/// Tests syncing the UTXO state to a specific block. This integration test ensures that
+/// Tests syncing the UTXO indexer. This integration test ensures that
 /// the UTXO syncer can successfully sync and verifies that the provider's state is consistent
 /// with railgun's on-chain merkle tree.
 #[tokio::test]
@@ -19,23 +23,25 @@ async fn test_sync_utxo() {
         .try_init()
         .ok();
 
-    let chain = ChainConfig::mainnet();
+    let chain = ChainConfig::sepolia();
 
     info!("Setting up chain client");
-    let fork_url = std::env::var("RPC_URL_MAINNET").expect("Fork URL Must be set");
+    let rpc_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA Must be set");
     let provider = ProviderBuilder::new()
         .network::<Ethereum>()
-        .connect(&fork_url)
+        .connect(&rpc_url)
         .await
         .unwrap()
         .erased();
 
-    info!("Setting up indexer");
-    let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
+    info!("Setting up provider");
+    let syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
+    let mut railgun = RailgunBuilder::new(chain, provider)
+        .with_utxo_syncer(syncer)
         .build()
         .await
         .unwrap();
 
-    info!("Syncing indexer");
+    info!("Syncing");
     railgun.sync().await.unwrap();
 }

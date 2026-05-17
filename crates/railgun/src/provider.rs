@@ -89,10 +89,15 @@ impl RailgunProvider {
 
     /// Syncs the provider to the latest block.
     pub async fn sync(&mut self) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer.sync_to(u64::MAX).await?;
+        self.sync_to(u64::MAX).await
+    }
+
+    /// Syncs the provider to the specified block.
+    pub async fn sync_to(&mut self, to_block: u64) -> Result<(), RailgunProviderError> {
+        self.utxo_indexer.sync_to(to_block).await?;
 
         if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.sync_to(&self.prover, u64::MAX).await?;
+            poi_provider.sync_to(&self.prover, to_block).await?;
         }
 
         Ok(())

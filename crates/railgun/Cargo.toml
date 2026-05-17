@@ -56,7 +56,7 @@ web-time = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clap = { version = "4", features = ["derive"] }
 reqwest = { workspace = true, features = ["json", "rustls"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
 tracing-subscriber = { workspace = true }
 wasmer = { workspace = true }
 

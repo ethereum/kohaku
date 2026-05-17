@@ -21,7 +21,7 @@ use userop_kit::{
     entry_point::ENTRY_POINT_08,
 };
 
-use crate::{alto::AltoBuilder, anvil::AnvilBuilder};
+use crate::utils::{AltoBuilder, AnvilBuilder};
 
 /// Tests a full broadcast flow, transfering and unshielding a UTXO note
 /// via a 4337-style broadcast.
@@ -88,7 +88,7 @@ async fn test_broadcast_utxo() {
     let syncer = Arc::new(
         ChainedSyncer::new()
             .then(SubsquidSyncer::new(&chain.subsquid_endpoint).with_latest_block(fork_block))
-            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(10)),
+            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(1000)),
     );
     let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
         .with_utxo_syncer(syncer)

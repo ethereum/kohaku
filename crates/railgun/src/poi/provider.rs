@@ -119,10 +119,10 @@ impl PoiProvider {
     pub async fn sync_to(
         &mut self,
         prover: &Groth16Prover,
-        block_number: u64,
+        to_block: u64,
     ) -> Result<(), PoiProviderError> {
         let poi_client = self.poi_client.clone();
-        self.txid_indexer.sync_to(block_number, &poi_client).await?;
+        self.txid_indexer.sync_to(to_block, &poi_client).await?;
         self.submit_pending(prover).await;
         self.save().await?;
         Ok(())

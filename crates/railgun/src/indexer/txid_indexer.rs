@@ -56,6 +56,12 @@ impl TxidIndexer {
             }
         }
 
+        info!(
+            "Loaded Txid indexer state: synced_block={}, trees={:?}, pending_ops={}",
+            inner.synced_block,
+            inner.trees,
+            inner.pending.len()
+        );
         Ok(TxidIndexer {
             inner,
             trees: txid_trees,

@@ -5,7 +5,7 @@ use eip_1193_provider::provider::{Eip1193Provider, IntoEip1193Provider};
 use crate::{
     chain_config::ChainConfig,
     circuit::groth16_prover::Groth16Prover,
-    database::{Database, memory::InMemoryDatabase},
+    database::{Database, memory::MemoryDatabase},
     indexer::{
         syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer, UtxoSyncer},
         utxo_indexer::UtxoIndexer,
@@ -70,7 +70,7 @@ impl RailgunBuilder {
     /// Builds the `RailgunProvider` with the specified configuration.
     #[must_use]
     pub async fn build(self) -> Result<RailgunProvider, RailgunProviderError> {
-        let db = self.db.unwrap_or_else(|| Arc::new(InMemoryDatabase::new()));
+        let db = self.db.unwrap_or_else(|| Arc::new(MemoryDatabase::new()));
 
         let utxo_syncer = self.utxo_syncer.unwrap_or_else(|| {
             Arc::new(

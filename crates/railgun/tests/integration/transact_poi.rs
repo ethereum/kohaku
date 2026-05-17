@@ -8,8 +8,12 @@ use alloy::{
     sol,
 };
 use railgun::{
-    account::signer::RailgunSigner, builder::RailgunBuilder, caip::AssetId,
-    chain_config::ChainConfig, provider::RailgunProvider,
+    account::signer::RailgunSigner,
+    builder::RailgunBuilder,
+    caip::AssetId,
+    chain_config::ChainConfig,
+    indexer::syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
+    provider::RailgunProvider,
 };
 use rand::random;
 use tracing::info;
@@ -68,7 +72,13 @@ async fn test_transact_poi() {
         .erased();
 
     info!("Setting up railgun");
+    let syncer = Arc::new(
+        ChainedSyncer::new()
+            .then(SubsquidSyncer::new(&chain.subsquid_endpoint))
+            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(1000)),
+    );
     let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
+        .with_utxo_syncer(syncer)
         .with_poi()
         .build()
         .await

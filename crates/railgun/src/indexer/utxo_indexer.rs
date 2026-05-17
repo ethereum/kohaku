@@ -58,13 +58,17 @@ impl UtxoIndexer {
         let state = db.get_utxo_indexer().await?;
 
         let mut utxo_trees = BTreeMap::new();
-        for number in state.trees {
+        for number in state.trees.clone() {
             let tree_state = db.get_utxo_tree(number).await?;
             if let Some(tree_state) = tree_state {
                 utxo_trees.insert(number, UtxoMerkleTree::from_state(tree_state));
             }
         }
 
+        info!(
+            "Loaded UTXO indexer state: synced_block={}, trees={:?}",
+            state.synced_block, state.trees
+        );
         Ok(UtxoIndexer {
             synced_block: state.synced_block,
             utxo_trees,
@@ -132,7 +136,7 @@ impl UtxoIndexer {
         let events = self.utxo_syncer.sync(from_block, to_block).await?;
         info!("Fetched {} events from syncer", events.len());
         for (i, event) in events.iter().enumerate() {
-            if i % 10000 == 0 {
+            if i % 20000 == 0 {
                 info!("Processing event {}/{}", i, events.len());
             }
             self.handle_event(&event)?;
