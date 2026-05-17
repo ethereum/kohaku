@@ -25,7 +25,7 @@
           overlays = [ rust-overlay.overlays.default ];
         };
 
-        rustToolchain = pkgs.rust-bin.stable."1.88.0".default.override {
+        rustToolchain = pkgs.rust-bin.stable."1.93.0".default.override {
           extensions = [
             "rust-src"
             "llvm-tools"
@@ -51,6 +51,7 @@
               pkgs.wasm-pack
               pkgs.nodejs_24
               pkgs.pnpm
+              pkgs.wasm-bindgen-cli_0_2_108
               # pkgs.twiggy
 
               # Playwright browser
@@ -62,9 +63,12 @@
               # pkgs.cargo-insta
               # pkgs.cargo-sort
               # pkgs.cargo-llvm-cov
+              # pkgs.cargo-flamegraph
 
               pkgs.sops
             ];
+
+            env.WASM_BINDGEN = "${pkgs.wasm-bindgen-cli_0_2_108}/bin/wasm-bindgen";
           };
 
           ci = pkgs.mkShell {

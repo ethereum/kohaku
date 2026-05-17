@@ -1,0 +1,5 @@
+---
+source: crates/railgun/src/note/utxo.rs
+expression: pub_key
+---
+SpendingPublicKey(234056d968baf183fe8d237d496d1c04188220cd33e8f8d14df9b84479736b20, 2624393fad9b71c04b3b14d8ac45202dbb4eaff4c2d1350c9453fc08d18651fe)

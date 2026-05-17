@@ -1,0 +1,18 @@
+# Release enabled for integration tests since the txid syncing is *very* slow in 
+# debug mode.
+integration: integration-sync-utxo integration-transact-utxo integration-sync-txid integration-transact-poi
+
+integration-sync-utxo:
+    RUST_LOG=info cargo test --release -- test_sync_utxo --ignored --nocapture
+
+integration-transact-utxo:
+    RUST_LOG=info cargo test --release -- test_transact_utxo --ignored --nocapture
+
+integration-broadcast-utxo:
+    RUST_LOG=info cargo test --release -- test_broadcast_utxo --ignored --nocapture
+
+integration-sync-txid:
+    RUST_LOG=info cargo test --release -- test_sync_txid --ignored --nocapture
+
+integration-transact-poi:
+    RUST_LOG=info cargo test --release -- test_transact_poi --ignored --nocapture

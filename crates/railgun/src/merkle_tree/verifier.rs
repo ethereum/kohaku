@@ -1,0 +1,13 @@
+use crate::merkle_tree::MerkleRoot;
+
+/// Validates a Merkle root against an external authority (e.g. on-chain or a POI node).
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
+pub trait MerkleTreeVerifier: common::MaybeSend {
+    async fn verify_root(
+        &self,
+        tree_number: u32,
+        tree_index: u32,
+        root: MerkleRoot,
+    ) -> Result<bool, Box<dyn std::error::Error>>;
+}
