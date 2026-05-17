@@ -1,5 +1,6 @@
 ---
-source: crates/railgun-rs/src/transaction/shield_builder.rs
+source: crates/railgun-rs/src/transact/shield_builder.rs
+assertion_line: 158
 expression: shield_request
 ---
 [

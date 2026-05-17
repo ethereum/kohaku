@@ -12,10 +12,8 @@ use railgun_rs::{
     builder::RailgunBuilder,
     caip::AssetId,
     chain_config::ChainConfig,
-    indexer::syncer::{
-        chained_syncer::ChainedSyncer, rpc_syncer::RpcSyncer, subsquid_syncer::SubsquidSyncer,
-    },
-    transaction::TransactionBuilder,
+    indexer::syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
+    transact::TransactionBuilder,
 };
 use rand::random;
 use tracing::info;

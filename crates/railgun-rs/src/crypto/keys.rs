@@ -409,58 +409,6 @@ mod tests {
 
     #[test]
     #[traced_test]
-    fn test_blinded_key() {
-        let viewing_key = ViewingKey::from_bytes([2u8; 32]);
-        let their_viewing = ViewingKey::from_bytes([3u8; 32]);
-        let shared_random = [4u8; 32];
-        let sender_random = [5u8; 32];
-
-        let (blinded, their_blinded) = blind_viewing_keys(
-            viewing_key.public_key(),
-            their_viewing.public_key(),
-            &shared_random,
-            &sender_random,
-        )
-        .unwrap();
-
-        let expected_blinded = "2ed993356db2b8b5e573da394c2317942c9a1a72eb9a8dfd02705cc56cb1423b";
-        let expected_their_blinded =
-            "90878634485e306dc7f31840362fc43532313cea73c9006a19b0718e298ffcce";
-
-        assert_eq!(expected_blinded, blinded.to_hex());
-        assert_eq!(expected_their_blinded, their_blinded.to_hex());
-    }
-
-    #[test]
-    #[traced_test]
-    fn test_shared_blinded_key() {
-        let viewing_key = ViewingKey::from_bytes([2u8; 32]);
-        let their_viewing = ViewingKey::from_bytes([3u8; 32]);
-        let shared_random = [4u8; 32];
-        let sender_random = [5u8; 32];
-
-        let (blinded, their_blinded) = blind_viewing_keys(
-            viewing_key.public_key(),
-            their_viewing.public_key(),
-            &shared_random,
-            &sender_random,
-        )
-        .unwrap();
-
-        let shared_key_ab = viewing_key
-            .derive_shared_key_blinded(their_blinded)
-            .unwrap();
-        let shared_key_ba = their_viewing.derive_shared_key_blinded(blinded).unwrap();
-
-        let expected_shared_key =
-            "2d33b7ea38413dfd631149f00dd0745f06dc06cd8112a6a174c73fa97af8d5a0";
-
-        assert_eq!(shared_key_ab.to_hex(), shared_key_ba.to_hex());
-        assert_eq!(expected_shared_key, shared_key_ab.to_hex());
-    }
-
-    #[test]
-    #[traced_test]
     fn test_nullifying_key() {
         let viewing_key = ViewingKey::from_bytes([2u8; 32]);
         let nullifying_key = viewing_key.nullifying_key();

@@ -164,7 +164,8 @@ mod tests {
         let master_key = MasterPublicKey::from_bytes([1u8; 32]);
         let viewing_pubkey = ViewingPublicKey::from_bytes([2u8; 32]);
         let chain = 1;
-        let railgun_address = RailgunAddress::new(master_key, viewing_pubkey, ChainId::evm(chain));
+        let railgun_address =
+            RailgunAddress::from_public_keys(master_key, viewing_pubkey, ChainId::evm(chain));
 
         let address_string = railgun_address.to_string();
         let expected_address_string = "0zk1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszunpd9kxwatwqypqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqy3t4umn";

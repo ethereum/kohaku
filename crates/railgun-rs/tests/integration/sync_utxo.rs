@@ -6,8 +6,6 @@ use railgun_rs::{builder::RailgunBuilder, chain_config::ChainConfig};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-const FORK_BLOCK: u64 = 24379760;
-
 /// Tests syncing the UTXO state to a specific block. This integration test ensures that
 /// the UTXO syncer can successfully sync and verifies that the provider's state is consistent
 /// with railgun's on-chain merkle tree.
@@ -39,5 +37,5 @@ async fn test_sync_utxo() {
         .unwrap();
 
     info!("Syncing indexer");
-    railgun.sync_to(FORK_BLOCK).await.unwrap();
+    railgun.sync().await.unwrap();
 }
