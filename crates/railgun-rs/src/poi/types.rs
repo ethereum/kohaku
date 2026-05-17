@@ -1,6 +1,6 @@
 //! Types for the POI client
 //!
-//! https://github.com/Railgun-Community/private-proof-of-innocence/blob/4b1eaf6ef19099dbfd6b43b1ca78d2ce0132a752/packages/node/src/api/README.md
+//! <https://github.com/Railgun-Community/private-proof-of-innocence/blob/4b1eaf6ef19099dbfd6b43b1ca78d2ce0132a752/packages/node/src/api/README.md>
 
 use std::{collections::HashMap, fmt::Display, str::FromStr};
 

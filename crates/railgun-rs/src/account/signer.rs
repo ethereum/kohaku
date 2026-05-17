@@ -72,7 +72,7 @@ impl Debug for dyn RailgunSigner {
 
 /// BIP-32 derivation paths for railgun spending and viewing keys.
 ///
-/// https://github.com/Railgun-Community/engine/blob/e2913b39e13f82f43556d23705fa20d2ece2e8ab/src/key-derivation/wallet-node.ts#L17
+/// <https://github.com/Railgun-Community/engine/blob/e2913b39e13f82f43556d23705fa20d2ece2e8ab/src/key-derivation/wallet-node.ts#L17>
 pub fn derivation_paths(index: u32) -> (String, String) {
     let spending_path = format!("m/44'/1984'/0'/0'/{}'", index);
     let viewing_path = format!("m/420'/1984'/0'/0'/{}'", index);

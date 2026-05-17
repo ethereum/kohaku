@@ -6,6 +6,8 @@ members = [
     "crates/poseidon-rust",
     "crates/railgun-rs",
     "crates/railgun-ts",
+    "crates/userop-kit",
+    "crates/userop-kit-ts",
 ]
 resolver = "3"
 
@@ -16,16 +18,8 @@ pedantic = { level = "warn", priority = -1 }
 wasmer = { version = "6.1", default-features = false }
 aes = "0.8"
 aes-gcm = "0.10"
-alloy = { version = "1.8", default-features = false, features = [
-    "serde",
-    "eips",
-    "signers",
-    "signer-local",
-    "sol-types",
-    "rpc-types",
-    "contract",
-    "providers",
-] }
+alloy = { version = "1.8", default-features = false }
+alloy-sol-types = { version = "1.5", default-features = false }
 ark-bn254 = "0.6"
 ark-circom = "0.6"
 ark-ff = "0.6"
@@ -76,11 +70,11 @@ tracing-test = "0.2.5"
 tracing-wasm = "0.2"
 tsify = "0.5"
 wasm-bindgen-futures = "0.4"
-web-time = { version = "1.1", features = ["serde"] }
-# userop_kit = { git = "https://github.com/Robert-MacWha/privacy-paymaster" }
-userop_kit = { path = "../privacy-paymaster/crates/userop_kit" }
+web-time = { version = "1.1" }
+userop-kit = { path = "./crates/userop-kit" }
 cfg_aliases = "0.2.0"
 rayon = "1.12"
+userop-kit-ts = { path = "./crates/userop-kit-ts" }
 
 [patch.crates-io]
 ruint = { git = "https://github.com/Robert-MacWha/ruint" }                                        # Adds ark-fr-06 support

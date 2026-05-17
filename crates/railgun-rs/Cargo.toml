@@ -39,8 +39,8 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }
-userop_kit = { workspace = true }
-tsify = { workspace = true, features = ["js"], optional = true }
+userop-kit = { workspace = true, features = ["railgun"] }
+tsify = { workspace = true, optional = true }
 ark-circom = { workspace = true }
 ark-relations = { workspace = true }
 ark-groth16 = { workspace = true }

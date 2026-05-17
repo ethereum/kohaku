@@ -1,6 +1,6 @@
 //! Railgun Solidity types.
 //!
-//! https://github.com/Railgun-Privacy/contract/blob/9ec09123eb140fdaaf3a5ff1f29d634c353630cd/contracts/logic/Globals.sol
+//! <https://github.com/Railgun-Privacy/contract/blob/9ec09123eb140fdaaf3a5ff1f29d634c353630cd/contracts/logic/Globals.sol>
 
 use alloy::{
     primitives::{Address, ChainId, FixedBytes, aliases::U72, utils::keccak256_cached},

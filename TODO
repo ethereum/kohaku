@@ -10,7 +10,7 @@
 - [x] Add docstrings to public API
 - [ ] Add docs to TS public API
 - [ ] Write TS database adapter
-- [ ] Migrate userop_kit into this repo
+- [x] Migrate userop_kit into this repo
   - Update `prepare_userOp`'s sender nonce call to call into a UserOp Builder method
 - [ ] Add an Address TS type so we don't need to `tsify(type = `0x${string}`)` everywhere
 

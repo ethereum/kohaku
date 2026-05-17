@@ -14,13 +14,13 @@ pub struct ChainConfig {
     /// Railgun Smart Wallet Address on this chain
     ///
     /// Sourced from
-    /// https://docs.railgun.org/wiki/learn/helpful-links
+    /// <https://docs.railgun.org/wiki/learn/helpful-links>
     #[cfg_attr(js, tsify(type = "`0x${string}`"))]
     pub railgun_smart_wallet: Address,
     /// RelayAdapt contract for native base-token shielding (wrap + shield via `multicall`)
     ///
     /// Sourced from
-    /// https://github.com/Railgun-Community/shared-models/blob/main/src/models/network-config.ts
+    /// <https://github.com/Railgun-Community/shared-models/blob/main/src/models/network-config.ts>
     #[cfg_attr(js, tsify(type = "`0x${string}`"))]
     pub relay_adapt_contract: Address,
     /// Wrapped base token (e.g. WETH on Ethereum) used in shield note preimages when shielding
@@ -32,12 +32,12 @@ pub struct ChainConfig {
     /// Block number when POI was launched for this chain
     ///
     /// Sourced from
-    /// https://github.com/Railgun-Community/shared-models/blob/dc3af7873305938f9f0771a24ad91f807f1b88e0/src/models/network-config.ts#L340
+    /// <https://github.com/Railgun-Community/shared-models/blob/dc3af7873305938f9f0771a24ad91f807f1b88e0/src/models/network-config.ts#L340>
     pub poi_start_block: u64,
     /// Subsquid GraphQL Endpoint for fast syncing
     ///
     /// Sourced from
-    /// https://github.com/Railgun-Community/wallet/blob/3ee3364648d416aa055bb1d5f5a2c4961be00ed6/src/services/railgun/railgun-txids/graphql/index.ts#L3187
+    /// <https://github.com/Railgun-Community/wallet/blob/3ee3364648d416aa055bb1d5f5a2c4961be00ed6/src/services/railgun/railgun-txids/graphql/index.ts#L3187>
     pub subsquid_endpoint: String,
 
     /// Optional POI endpoint for this chain.

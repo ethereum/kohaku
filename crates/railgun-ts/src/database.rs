@@ -1,7 +1,6 @@
 use alloy::hex;
 use railgun_rs::database::{Database, DatabaseError};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
-use wasm_bindgen_futures::js_sys;
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_INTERFACE: &str = r#"

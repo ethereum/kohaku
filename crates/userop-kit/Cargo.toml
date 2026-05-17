@@ -1,0 +1,43 @@
+[package]
+name = "userop-kit"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib"]
+
+[features]
+default = []
+js = ["dep:tsify", "dep:wasm-bindgen"]
+railgun = []
+tornadocash = []
+
+[dependencies]
+alloy = { workspace = true, features = [
+    "signers",
+    "dyn-abi",
+    "rpc",
+    "rpc-types",
+] }
+alloy-sol-types = { workspace = true, features = ["eip712-serde"] }
+async-trait = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+common = { workspace = true }
+eip-1193-provider = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tsify = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+insta = "1.47.2"
+tokio = { workspace = true, features = ["full"] }
+alloy = { workspace = true, features = ["signer-local"] }
+
+[build-dependencies]
+cfg_aliases = { workspace = true }

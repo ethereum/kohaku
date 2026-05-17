@@ -1,0 +1,6 @@
+---
+source: crates/userop-kit/src/signable_user_operation.rs
+assertion_line: 86
+expression: hash
+---
+0xa763cdf6c11eee14cea4d32863d184afe29859b556c85b7ae6f11f64f8945492

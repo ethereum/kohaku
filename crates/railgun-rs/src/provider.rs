@@ -4,15 +4,13 @@ use alloy::{
     primitives::{Address, Bytes, aliases::U192},
     sol_types::SolCall,
 };
-use eip_1193_provider::provider::{Eip1193Caller, Eip1193Error, Eip1193Provider};
+use eip_1193_provider::provider::{Eip1193Error, Eip1193Provider};
 use rand::Rng;
 use thiserror::Error;
 use tracing::{info, warn};
 use userop_kit::{
-    abis::entry_point::EntryPoint,
     builder::UserOperationBuilder,
-    bundler::{BundlerError, BundlerProvider},
-    entry_point::ENTRY_POINT_08,
+    bundler::{Bundler, BundlerError},
     railgun::{PAYMASTER_MASTER_PUBLIC_KEY, PAYMASTER_VIEWING_PUBLIC_KEY},
     signable_user_operation::SignableUserOperation,
 };
@@ -148,7 +146,7 @@ impl RailgunProvider {
     pub async fn prepare_userop<R: Rng>(
         &mut self,
         builder: TransactionBuilder,
-        bundler: &dyn BundlerProvider,
+        bundler: &dyn Bundler,
         sender: Address,
         fee_payer: Arc<dyn RailgunSigner>,
         fee_token: Address,
@@ -158,17 +156,7 @@ impl RailgunProvider {
 
         // 7702 authorization
         let auth_nonce = self.provider.transaction_count(sender, None).await?;
-
-        let key = U192::ZERO;
-        // TODO: Move me into a `UserOperationBuilder::with_nonce(&dyn Eip1193Provider)` method
-        let sender_nonce = self
-            .provider
-            .sol_call(ENTRY_POINT_08, EntryPoint::getNonceCall::new((sender, key)))
-            .await?;
-        info!(
-            "Signing 7702 authorization for eoa: {:?}, eoa_nonce: {}, sender_nonce: {}",
-            sender, auth_nonce, sender_nonce
-        );
+        let sender_nonce_key = U192::ZERO;
 
         //? Initial arbitrary estimation of fee note value.
         //? IMPORTANT: Needs to be high enough to not cause a revert. Most
@@ -176,9 +164,6 @@ impl RailgunProvider {
         //? for pimlico). Setting this too low causes an unrecoverable estimation
         //? failure.
         let mut fee_value = 100_000_000;
-
-        info!("Fetching max fee per gas from bundler");
-        let max_fee_per_gas = bundler.suggest_max_fee_per_gas().await?;
 
         info!("Iteratively building UserOperation to converge on accurate fee estimate");
         let mut userop = SignableUserOperation::default();
@@ -212,7 +197,7 @@ impl RailgunProvider {
             .abi_encode()
             .into();
 
-            let tail_call = userop_kit::abis::privacy_account::IPrivacyAccount::Call {
+            let tail_call = userop_kit::abis::privacy_account::Call {
                 target: self.chain.railgun_smart_wallet,
                 data: RailgunSmartWallet::transactCall {
                     _transactions: operations.into_iter().map(|op| op.transaction).collect(),
@@ -222,16 +207,20 @@ impl RailgunProvider {
             };
 
             // Construct UserOperation
+            // TODO: Fetch provider_nonce once instead of on each iteration
             let userop_builder = UserOperationBuilder::new_railgun(
                 self.chain.id,
                 sender,
                 auth_nonce,
                 fee_calldata.clone(),
-                fee_note.random().into(),
-                fee_token,
-                fee_value,
+                userop_kit::railgun::FeeCommitment {
+                    random: fee_note.random().into(),
+                    asset: fee_token,
+                    value: fee_value,
+                },
             )
-            .with_nonce(sender_nonce)
+            .with_provider_nonce(self.provider.as_ref(), sender_nonce_key)
+            .await?
             .with_tail_calls(vec![tail_call])
             .with_gas_estimate(bundler)
             .await?;
@@ -248,7 +237,7 @@ impl RailgunProvider {
             // Add a 10% headroom to the fee estimate to ensure buffer if prices change
             // slightly between estimation and execution
             let total_gas = userop.total_gas_limit();
-            let new_fee = total_gas * max_fee_per_gas;
+            let new_fee = total_gas * userop.user_op.max_fee_per_gas;
             let new_fee = (new_fee * 11) / 10;
 
             let delta = new_fee.abs_diff(fee_value);

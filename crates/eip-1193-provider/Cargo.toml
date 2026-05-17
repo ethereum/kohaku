@@ -18,7 +18,7 @@ js = [
 ]
 
 [dependencies]
-alloy = { workspace = true, default-features = false }
+alloy = { workspace = true, features = ["rpc", "rpc-types", "sol-types"] }
 async-trait = { workspace = true }
 common = { workspace = true }
 hex = { workspace = true }

@@ -1,5 +1,5 @@
 [package]
-name = "railgun-ts"
+name = "userop-kit-ts"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,19 +10,10 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-railgun-rs = { workspace = true, features = ["js"] }
-alloy = { workspace = true }
-eip-1193-provider = { workspace = true, features = ["js"] }
+reqwest = { workspace = true }
 userop-kit = { workspace = true, features = ["js"] }
-userop-kit-ts = { workspace = true }
-serde = { workspace = true }
-tsify = { workspace = true, features = ["js"] }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-rand = { workspace = true }
-tracing-wasm = { workspace = true }
-tracing = { workspace = true }
-async-trait = { workspace = true }
 
 [package.metadata.cargo-machete]
 ignored = ["wasm-bindgen-futures"]
