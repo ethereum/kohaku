@@ -44,7 +44,7 @@ import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
 import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, type ChainConfig, type RailgunAddress, type SignableUserOperation } from "../pkg";
-import { DatabaseAdapter, EthereumProviderAdapter } from "./lib";
+import { DatabaseAdapter, ensureInitialized, EthereumProviderAdapter } from "./lib";
 
 /**
  * A proved private transaction ready for relay.
@@ -80,6 +80,9 @@ export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 export type RailgunPluginConfig = {
     /** Optional index for key derivation (default: 0) */
     keyIndex?: number,
+    /** Optional POI toggle */
+    poi?: boolean,
+    /** Optional bundler config */
     bundler?: BundlerConfig
 };
 
@@ -97,6 +100,8 @@ export type BundlerConfig = {
  * @returns `RailgunPlugin` instance
  */
 export async function createRailgunPlugin(host: Host, config?: RailgunPluginConfig): Promise<RailgunPlugin> {
+    await ensureInitialized();
+
     const keyIndex = config?.keyIndex ?? 0;
     const spendingKey = host.keystore.deriveAt(RailgunSigner.spendingKeyPath(keyIndex));
     const viewingKey = host.keystore.deriveAt(RailgunSigner.viewingKeyPath(keyIndex));
@@ -109,10 +114,11 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
 
     const eip1193Provider = new EthereumProviderAdapter(host.provider);
     const database = new DatabaseAdapter(host.storage);
-    let provider = await new RailgunBuilder(
-        chain,
-        eip1193Provider,
-    ).withDatabase(database).withPoi().build();
+    const builder = new RailgunBuilder(chain, eip1193Provider).withDatabase(database);
+    if (config?.poi) {
+        builder.withPoi();
+    }
+    const provider = await builder.build();
 
     const signer = RailgunSigner.privateKey(spendingKey, viewingKey, chainId);
 

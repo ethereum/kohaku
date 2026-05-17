@@ -14,11 +14,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "@kohaku-eth/provider": "workspace:*",
-    "@kohaku-eth/plugins": "workspace:*"
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "prool": "^0.2.4",
     "typescript": "^5.9.2",
     "viem": "^2.0.0",
     "vite": "^8.0.2",

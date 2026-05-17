@@ -2,6 +2,8 @@ import initWasm from "../pkg";
 export * from '../pkg/index';
 export { EthereumProviderAdapter } from "./ethereum-provider.js";
 export { DatabaseAdapter } from "./database.js";
+export type { RailgunPlugin, RailgunPluginConfig, BundlerConfig } from "./plugin.js";
+export { createRailgunPlugin } from "./plugin.js";
 
 let initPromise: Promise<void> | null = null;
 

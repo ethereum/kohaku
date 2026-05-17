@@ -51,6 +51,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
+      prool:
+        specifier: ^0.2.4
+        version: 0.2.4(@pimlico/alto@0.0.20(typescript@5.9.3))
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -74,7 +77,7 @@ importers:
         version: link:../packages/privacy-pools
       '@kohaku-eth/railgun':
         specifier: workspace:*
-        version: link:../packages/railgun
+        version: link:../crates/railgun-ts
       react:
         specifier: latest
         version: 19.2.4
@@ -340,37 +343,6 @@ importers:
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@24.5.0)(lightningcss@1.32.0)
-
-  packages/railgun:
-    dependencies:
-      '@kohaku-eth/plugins':
-        specifier: workspace:*
-        version: link:../plugins
-      '@kohaku-eth/provider':
-        specifier: workspace:*
-        version: link:../provider
-      '@kohaku-eth/railgun-ts':
-        specifier: workspace:*
-        version: link:../../crates/railgun-ts
-    devDependencies:
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.5.0
-      typescript:
-        specifier: ^5.9.2
-        version: 5.9.3
-      viem:
-        specifier: ^2.0.0
-        version: 2.37.9(typescript@5.9.3)(zod@4.3.6)
-      vite:
-        specifier: ^8.0.2
-        version: 8.0.2(@types/node@25.5.0)(esbuild@0.27.2)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.1)
-      vite-plugin-wasm:
-        specifier: ^3.6.0
-        version: 3.6.0(vite@8.0.2(@types/node@25.5.0)(esbuild@0.27.2)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.1))
-      vitest:
-        specifier: ^4.1.1
-        version: 4.1.1(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(vite@8.0.2(@types/node@25.5.0)(esbuild@0.27.2)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.1))
 
 packages:
 
@@ -6550,6 +6522,18 @@ packages:
       '@pimlico/alto':
         optional: true
 
+  prool@0.2.4:
+    resolution: {integrity: sha512-KAGs6e++7MJNQ/vq8Xrk6akz0lRk6AmhuGzSHkluX3kwVj2XjNDDOYSINZwahRv3xfSD0rXYv3iA/2vXw7z47w==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@pimlico/alto': '*'
+      testcontainers: '>=11.10.0'
+    peerDependenciesMeta:
+      '@pimlico/alto':
+        optional: true
+      testcontainers:
+        optional: true
+
   property-information@6.5.0:
     resolution: {integrity: sha512-PgTgs/BlvHxOu8QuEN7wi5A0OmXaBcHpmCSTehcs6Uuu9IkDIEo13Hy7n898RHfrQ49vKCoGeWZSaAK01nwVig==}
 
@@ -7202,7 +7186,7 @@ packages:
   tar@7.2.0:
     resolution: {integrity: sha512-hctwP0Nb4AB60bj8WQgRYaMOuJYRAPMGiQUAotms5igN8ppfQM+IvjQ5HcKu1MaZh2Wy2KWVTe563Yj8dfc14w==}
     engines: {node: '>=18'}
-    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   tdigest@0.1.2:
     resolution: {integrity: sha512-+G0LLgjjo9BZX2MfdvPfH+MKLCrxlXSYec5DaPYP1fe6Iyhf0/fSmJ0bFiZ1F8BT6cGXl2LpltQptzjXKWEkKA==}
@@ -15232,6 +15216,19 @@ snapshots:
       tdigest: 0.1.2
 
   prool@0.0.24(@pimlico/alto@0.0.20(typescript@5.9.3)):
+    dependencies:
+      change-case: 5.4.4
+      eventemitter3: 5.0.1
+      execa: 9.6.0
+      get-port: 7.1.0
+      http-proxy: 1.18.1
+      tar: 7.2.0
+    optionalDependencies:
+      '@pimlico/alto': 0.0.20(typescript@5.9.3)
+    transitivePeerDependencies:
+      - debug
+
+  prool@0.2.4(@pimlico/alto@0.0.20(typescript@5.9.3)):
     dependencies:
       change-case: 5.4.4
       eventemitter3: 5.0.1

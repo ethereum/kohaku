@@ -1,5 +1,6 @@
+import { Instance } from "prool";
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
-import { expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test } from "vitest";
 import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -10,11 +11,33 @@ await ensureInitialized();
 initLogging("Info");
 const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
-const RPC_URL = "http://localhost:8545";
+const SEPOLIA_RPC_URL: string | undefined = process.env.RPC_URL_SEPOLIA;
+if (!SEPOLIA_RPC_URL)
+    throw new Error("RPC_URL_SEPOLIA env must be defined");
 
 const erc20Abi = parseAbi([
     "function balanceOf(address) view returns (uint256)",
 ]);
+
+let execRpcUrl: string;
+let stop: () => Promise<void>;
+
+beforeAll(async () => {
+    const execServer = Instance.anvil({
+        forkUrl: SEPOLIA_RPC_URL,
+        chainId: CHAIN.id,
+    });
+    await execServer.start();
+    execRpcUrl = `http://localhost:${execServer.port}`;
+
+    stop = async () => {
+        await execServer.stop();
+    };
+}, 60_000);
+
+afterAll(async () => {
+    await stop();
+});
 
 /**
  * Tests a full transact flow, including shielding, transferring, and unshielding.
@@ -31,12 +54,12 @@ test("transact-utxo", async () => {
         return;
     }
 
-    const WETH = erc20(CHAIN.wrapped_base_token);
+    const WETH = erc20(CHAIN.wrappedBaseToken);
 
     console.log("Setup viem");
     const publicClient = createPublicClient({
         chain: sepolia,
-        transport: http(RPC_URL),
+        transport: http(execRpcUrl),
     });
     const viemClient = new EthereumProviderAdapter(viem(publicClient));
 
@@ -44,7 +67,7 @@ test("transact-utxo", async () => {
     const walletClient = createWalletClient({
         account,
         chain: sepolia,
-        transport: http(RPC_URL),
+        transport: http(execRpcUrl),
     });
 
     console.log("Setup Railgun");
@@ -122,7 +145,7 @@ test("transact-utxo", async () => {
         expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(991500n);
         expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(5000n);
         const eoaBalance = await publicClient.readContract({
-            address: CHAIN.wrapped_base_token as `0x${string}`,
+            address: CHAIN.wrappedBaseToken,
             abi: erc20Abi,
             functionName: "balanceOf",
             args: [unshieldRecipient as `0x${string}`],
