@@ -11,7 +11,7 @@
 // use ark_groth16::ProvingKey;
 // use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 // use clap::Parser;
-// use railgun_rs::crypto::serializable_np_index::SerializableNpIndex;
+// use railgun::crypto::serializable_np_index::SerializableNpIndex;
 // use tracing::info;
 
 // #[derive(Parser)]

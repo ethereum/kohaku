@@ -7,7 +7,7 @@ use alloy::{
     signers::local::PrivateKeySigner,
     sol,
 };
-use railgun_rs::{
+use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
     caip::AssetId,
@@ -82,9 +82,9 @@ async fn test_transact_utxo() {
 
     info!("Setting up accounts");
     let account_1 =
-        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
+        railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
     let account_2 =
-        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
+        railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
     railgun.register(account_1.clone()).await.unwrap();
     railgun.register(account_2.clone()).await.unwrap();
 

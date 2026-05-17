@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy::primitives::Address;
 use eip_1193_provider::tx_data::TxData;
-use railgun_rs::{account::address::RailgunAddress, caip::AssetId, provider::RailgunProvider};
+use railgun::{account::address::RailgunAddress, caip::AssetId, provider::RailgunProvider};
 use serde::Serialize;
 use tsify::Tsify;
 use userop_kit::signable_user_operation::SignableUserOperation;

@@ -2,7 +2,7 @@ use alloy::{
     network::Ethereum,
     providers::{Provider, ProviderBuilder},
 };
-use railgun_rs::{builder::RailgunBuilder, chain_config::ChainConfig};
+use railgun::{builder::RailgunBuilder, chain_config::ChainConfig};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 

@@ -1,4 +1,4 @@
-use railgun_rs::chain_config::ChainConfig;
+use railgun::chain_config::ChainConfig;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Gets the ChainConfig for a given chain ID. Returns null if the chain ID is

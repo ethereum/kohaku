@@ -5,7 +5,7 @@ use alloy::{
     primitives::U256,
     providers::{Provider, ProviderBuilder},
 };
-use railgun_rs::{
+use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
     caip::AssetId,
@@ -17,7 +17,7 @@ use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use userop_kit::{
-    bundler::{BundlerProvider, pimlico::PimlicoBundler},
+    bundler::{Bundler, pimlico::PimlicoBundler},
     entry_point::ENTRY_POINT_08,
 };
 
@@ -104,9 +104,9 @@ async fn test_broadcast_utxo() {
 
     info!("Setting up accounts");
     let account_1 =
-        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
+        railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
     let account_2 =
-        railgun_rs::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
+        railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
     railgun.register(account_1.clone()).await.unwrap();
     railgun.register(account_2.clone()).await.unwrap();
 

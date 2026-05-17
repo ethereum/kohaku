@@ -1,5 +1,5 @@
 [package]
-name = "railgun-rs"
+name = "railgun"
 version = "0.1.0"
 edition = "2024"
 
@@ -64,7 +64,7 @@ tracing-wasm = { workspace = true }
 wasmer = { workspace = true, features = ["js-default"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-railgun-rs = { path = ".", features = ["testing"] }
+railgun = { path = ".", features = ["testing"] }
 alloy = { workspace = true, default-features = true, features = [
     "provider-anvil-api",
 ] }

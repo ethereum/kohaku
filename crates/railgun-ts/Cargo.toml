@@ -10,7 +10,7 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-railgun-rs = { workspace = true, features = ["js"] }
+railgun = { workspace = true, features = ["js"] }
 alloy = { workspace = true }
 eip-1193-provider = { workspace = true, features = ["js"] }
 userop-kit = { workspace = true, features = ["js"] }

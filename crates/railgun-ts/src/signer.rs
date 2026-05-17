@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use railgun_rs::{
+use railgun::{
     account::{
         address::RailgunAddress,
         chain::ChainId,

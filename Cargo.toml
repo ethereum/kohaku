@@ -4,7 +4,7 @@ members = [
     "crates/crypto",
     "crates/eip-1193-provider",
     "crates/poseidon-rust",
-    "crates/railgun-rs",
+    "crates/railgun",
     "crates/railgun-ts",
     "crates/userop-kit",
     "crates/userop-kit-ts",
@@ -41,7 +41,7 @@ eip-1193-provider = { path = "./crates/eip-1193-provider" }
 futures = "0.3.31"
 gloo-net = "0.6.0"
 gloo-timers = "0.3.0"
-railgun-rs = { path = "./crates/railgun-rs" }
+railgun = { path = "./crates/railgun" }
 hex = "0.4.3"
 http = "1.4.0"
 insta = { version = "1.46.3", features = ["json"] }

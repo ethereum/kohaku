@@ -1,5 +1,5 @@
 use alloy::hex;
-use railgun_rs::database::{Database, DatabaseError};
+use railgun::database::{Database, DatabaseError};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 #[wasm_bindgen(typescript_custom_section)]

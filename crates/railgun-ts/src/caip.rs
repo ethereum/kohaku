@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use alloy::primitives::Address;
-use railgun_rs::caip::AssetId;
+use railgun::caip::AssetId;
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 /// Create an ERC20 AssetId from an erc20 token address.

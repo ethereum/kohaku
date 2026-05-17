@@ -4500,7 +4500,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
-name = "railgun-rs"
+name = "railgun"
 version = "0.1.0"
 dependencies = [
  "aes",
@@ -4532,7 +4532,7 @@ dependencies = [
  "insta",
  "js-sys",
  "num-bigint",
- "railgun-rs",
+ "railgun",
  "rand 0.9.4",
  "rand_chacha 0.9.0",
  "reqwest",
@@ -4561,7 +4561,7 @@ dependencies = [
  "alloy",
  "async-trait",
  "eip-1193-provider",
- "railgun-rs",
+ "railgun",
  "rand 0.9.4",
  "serde",
  "tracing",

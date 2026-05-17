@@ -1,5 +1,5 @@
 use eip_1193_provider::tx_data::TxData;
-use railgun_rs::{
+use railgun::{
     account::address::RailgunAddress, caip::AssetId, chain_config::ChainConfig,
     transact::ShieldBuilder,
 };

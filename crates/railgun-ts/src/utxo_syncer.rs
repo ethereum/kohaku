@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eip_1193_provider::js::JsEip1193Provider;
-use railgun_rs::{
+use railgun::{
     chain_config::ChainConfig,
     indexer::syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer, UtxoSyncer},
 };

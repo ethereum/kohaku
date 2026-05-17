@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use railgun_rs::{
+use railgun::{
     chain_config::ChainConfig, database::memory::InMemoryDatabase, indexer::syncer::SubsquidSyncer,
 };
 use tracing::info;

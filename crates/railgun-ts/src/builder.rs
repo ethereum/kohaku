@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eip_1193_provider::js::JsEip1193Provider;
-use railgun_rs::{builder::RailgunBuilder, chain_config::ChainConfig};
+use railgun::{builder::RailgunBuilder, chain_config::ChainConfig};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::{database::JsDatabase, provider::JsRailgunProvider, utxo_syncer::JsUtxoSyncer};
