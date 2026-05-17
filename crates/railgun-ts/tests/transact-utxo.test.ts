@@ -1,6 +1,6 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../sdk/lib.js";
+import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { ensureInitialized, initLogging, EthereumProviderAdapter } from "../sdk/lib.js";
@@ -48,9 +48,8 @@ test("transact-utxo", async () => {
     });
 
     console.log("Setup Railgun");
-    // const prover = new GrothProverAdapter(new RemoteArtifactLoader(ARTIFACTS_URL));
-    const syncer = NoteSyncer.chained([NoteSyncer.subsquid(CHAIN), NoteSyncer.rpc(CHAIN, viemClient, 1000n)]);
-    const railgun = new RailgunProvider(CHAIN, viemClient, syncer);
+    const syncer = UtxoSyncer.chained([UtxoSyncer.subsquid(CHAIN), UtxoSyncer.rpc(CHAIN, viemClient, 1000n)]);
+    const railgun = await new RailgunBuilder(CHAIN, viemClient).withUtxoSyncer(syncer).build();
 
     const account1 = RailgunSigner.random(BigInt(CHAIN.id));
     const account2 = RailgunSigner.random(BigInt(CHAIN.id));

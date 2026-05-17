@@ -63,24 +63,6 @@ impl JsRailgunSigner {
             _ => None,
         }
     }
-
-    #[wasm_bindgen(
-        getter,
-        js_name = "spendingKey",
-        unchecked_return_type = "`0x${string}`"
-    )]
-    pub fn spending_key(&self) -> String {
-        self.inner.spending_key().to_hex()
-    }
-
-    #[wasm_bindgen(
-        getter,
-        js_name = "viewingKey",
-        unchecked_return_type = "`0x${string}`"
-    )]
-    pub fn viewing_key(&self) -> String {
-        self.inner.viewing_key().to_hex()
-    }
 }
 
 impl JsRailgunSigner {

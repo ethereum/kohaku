@@ -1,6 +1,6 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { expect, test } from "vitest";
-import { Bundler, chainConfigSepolia, erc20, NoteSyncer, RailgunProvider, RailgunSigner } from "../sdk/lib.js";
+import { Bundler, chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { ensureInitialized, initLogging, EthereumProviderAdapter } from "../sdk/lib.js";
@@ -42,8 +42,8 @@ test("broadcast-utxo", async () => {
     });
 
     console.log("Setup Railgun");
-    const syncer = NoteSyncer.chained([NoteSyncer.subsquid(CHAIN), NoteSyncer.rpc(CHAIN, viemClient, 1000n)]);
-    const railgun = new RailgunProvider(CHAIN, viemClient, syncer);
+    const syncer = UtxoSyncer.chained([UtxoSyncer.subsquid(CHAIN), UtxoSyncer.rpc(CHAIN, viemClient, 1000n)]);
+    const railgun = await new RailgunBuilder(CHAIN, viemClient).withUtxoSyncer(syncer).build();
     const bundler = Bundler.pimlico("");
 
     const account1 = RailgunSigner.random(BigInt(CHAIN.id));
@@ -80,8 +80,9 @@ test("broadcast-utxo", async () => {
     console.log("Testing Transfer");
     {
         const builder = railgun.transact().transfer(account1, account2.address, WETH, 5000n, "test transfer");
-        const userop = await railgun.prepareBroadcast(
+        const userop = await railgun.prepareUserOp(
             builder,
+            bundler,
             account.address,
             account1,
             CHAIN.wrapped_base_token
@@ -100,10 +101,12 @@ test("broadcast-utxo", async () => {
 
     console.log("Testing Unshield");
     {
+        account1.address
         const unshieldRecipient = checksumAddress("0xe03747a83E600c3ab6C2e16dd1989C9b419D3a86");
         const builder = railgun.transact().unshield(account1, unshieldRecipient, WETH, 1000n);
-        const userop = await railgun.prepareBroadcast(
+        const userop = await railgun.prepareUserOp(
             builder,
+            bundler,
             account.address,
             account1,
             CHAIN.wrapped_base_token

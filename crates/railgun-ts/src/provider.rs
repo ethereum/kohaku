@@ -9,7 +9,7 @@ use userop_kit::{bundler::js::JsBundler, signable_user_operation::SignableUserOp
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::{
-    railgun_signer::JsRailgunSigner, shield_builder::JsShieldBuilder,
+    shield_builder::JsShieldBuilder, signer::JsRailgunSigner,
     transaction_builder::JsTransactionBuilder,
 };
 

@@ -7,13 +7,13 @@ use railgun_rs::{
 };
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[wasm_bindgen(js_name = "NoteSyncer")]
-pub struct JsNoteSyncer {
-    pub(crate) inner: Arc<dyn UtxoSyncer>,
+#[wasm_bindgen(js_name = "UtxoSyncer")]
+pub struct JsUtxoSyncer {
+    inner: Arc<dyn UtxoSyncer>,
 }
 
-#[wasm_bindgen(js_class = "NoteSyncer")]
-impl JsNoteSyncer {
+#[wasm_bindgen(js_class = "UtxoSyncer")]
+impl JsUtxoSyncer {
     #[wasm_bindgen(js_name = "subsquid")]
     pub fn new_subsquid(chain: &ChainConfig) -> Self {
         Self {
@@ -31,7 +31,7 @@ impl JsNoteSyncer {
     }
 
     #[wasm_bindgen(js_name = "chained")]
-    pub fn new_chained(syncers: Vec<JsNoteSyncer>) -> Self {
+    pub fn new_chained(syncers: Vec<JsUtxoSyncer>) -> Self {
         let mut chained = ChainedSyncer::new();
         for syncer in &syncers {
             chained = chained.then_arc(syncer.inner.clone());
@@ -40,5 +40,11 @@ impl JsNoteSyncer {
         Self {
             inner: Arc::new(chained),
         }
+    }
+}
+
+impl JsUtxoSyncer {
+    pub fn inner(&self) -> Arc<dyn UtxoSyncer> {
+        self.inner.clone()
     }
 }

@@ -2,7 +2,7 @@ use alloy::primitives::Address;
 use railgun_rs::{account::address::RailgunAddress, caip::AssetId, transact::TransactionBuilder};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
-use crate::railgun_signer::JsRailgunSigner;
+use crate::signer::JsRailgunSigner;
 
 #[wasm_bindgen(js_name = "TransactionBuilder")]
 pub struct JsTransactionBuilder {
