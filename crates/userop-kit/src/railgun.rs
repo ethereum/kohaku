@@ -63,7 +63,7 @@ impl UserOperationBuilder<RailgunProtocol> {
     /// ```no_run
     /// # use alloy::primitives::{Address, B128, Bytes, address};
     /// # use alloy::signers::local::PrivateKeySigner;
-    /// # use userop_kit::bundler::{BundlerProvider, pimlico::PimlicoBundler};
+    /// # use userop_kit::bundler::{Bundler, pimlico::PimlicoBundler};
     /// # use userop_kit::railgun::FeeCommitment;
     /// # use userop_kit::builder::UserOperationBuilder;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -72,7 +72,7 @@ impl UserOperationBuilder<RailgunProtocol> {
     /// # let auth_nonce = 0u64;
     /// # let nonce = Default::default();
     /// # let fee_calldata = Bytes::new();
-    /// let bundler = PimlicoBundler::new("https://api.pimlico.io/v2/1/rpc?apikey=...");
+    /// let bundler = PimlicoBundler::new("https://api.pimlico.io/v2/1/rpc?apikey=".parse()?);
     ///
     /// let signed_op = UserOperationBuilder::new_railgun(
     ///     1, // chain_id
@@ -89,10 +89,10 @@ impl UserOperationBuilder<RailgunProtocol> {
     /// .with_tail_calls(vec![/* your calls here */])
     /// .with_gas_estimate(&bundler).await?
     /// .build()
-    /// .sign(&signer).await?;
+    /// .sign(&delegator).await?;
     ///
     /// let hash = bundler.send_user_operation(&signed_op).await?;
-    /// let receipt = bundler.wait_for_receipt(&hash).await?;
+    /// let receipt = bundler.wait_for_receipt(hash).await?;
     /// # Ok(())
     /// # }
     /// ```
