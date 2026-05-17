@@ -3,6 +3,11 @@ use std::{fmt, str::FromStr};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Railgun Address Chain ID.
+///
+/// Railgun addresses optionally encode a chain ID as an advisory hint for off-chain tooling
+/// indicating on which chain the address owner expects to receive funds. The chain ID has no
+/// protocol-level enforcement.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ChainId {
     All,

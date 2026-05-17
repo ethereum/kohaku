@@ -6,7 +6,7 @@ use eip_1193_provider::tx_data::TxData;
 
 use crate::{
     abis::{self, railgun::RailgunSmartWallet},
-    circuit::inputs::TransactCircuitInputs,
+    circuit::inputs::transact_inputs::TransactCircuitInputs,
     note::operation::Operation,
 };
 

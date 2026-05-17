@@ -26,10 +26,6 @@ pub(crate) struct IndexedAccountState {
 }
 
 impl IndexedAccount {
-    pub fn new(signer: Arc<dyn RailgunSigner>) -> Self {
-        Self::from_state(signer, Default::default())
-    }
-
     pub(crate) fn from_state(signer: Arc<dyn RailgunSigner>, state: IndexedAccountState) -> Self {
         IndexedAccount {
             signer,
@@ -135,7 +131,10 @@ mod tests {
         let asset = AssetId::erc20(address!("0xDEADDEADDEADDEADDEADDEADDEADDEADDEADDEAD"));
         let value = 100;
         let rng = &mut rand::rng();
-        let mut account = IndexedAccount::new(recipient.clone());
+        let mut account = IndexedAccount {
+            signer: recipient.clone(),
+            inner: Default::default(),
+        };
 
         // Ingest a shield note
         let shield = encrypt_shield(recipient.address(), asset, value, rng).unwrap();
@@ -178,7 +177,7 @@ mod tests {
         // Ingest a transact note
         let memo = "Test transfer";
         let transact = TransferNote::new(
-            sender.viewing_key,
+            sender.viewing_key(),
             recipient.address(),
             asset,
             value,

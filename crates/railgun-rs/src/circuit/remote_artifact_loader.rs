@@ -6,10 +6,7 @@ use ark_groth16::ProvingKey;
 use ark_serialize::CanonicalDeserialize;
 use tracing::info;
 
-use crate::{
-    circuit::artifact_loader::{ArtifactLoader, ArtifactLoaderError},
-    crypto::serializable_np_index::SerializableNpIndex,
-};
+use crate::crypto::serializable_np_index::SerializableNpIndex;
 
 #[derive(Clone)]
 pub struct RemoteArtifactLoader {
@@ -41,7 +38,10 @@ impl RemoteArtifactLoader {
         }
     }
 
-    async fn load_wasm(&self, circuit_name: &str) -> Result<Vec<u8>, RemoteArtifactLoaderError> {
+    pub async fn load_wasm(
+        &self,
+        circuit_name: &str,
+    ) -> Result<Vec<u8>, RemoteArtifactLoaderError> {
         info!("Downloading WASM: {}", circuit_name);
         let url = format!("{}/{}.wasm", self.base_url, circuit_name);
         let resp = self.client.get(&url).send().await?;
@@ -49,7 +49,7 @@ impl RemoteArtifactLoader {
         Ok(bytes.to_vec())
     }
 
-    async fn load_proving_key(
+    pub async fn load_proving_key(
         &self,
         circuit_name: &str,
     ) -> Result<ProvingKey<Bn254>, RemoteArtifactLoaderError> {
@@ -62,7 +62,7 @@ impl RemoteArtifactLoader {
         Ok(pk)
     }
 
-    async fn load_matrices(
+    pub async fn load_matrices(
         &self,
         circuit_name: &str,
     ) -> Result<NPIndex<Fr>, RemoteArtifactLoaderError> {
@@ -75,30 +75,5 @@ impl RemoteArtifactLoader {
             SerializableNpIndex::<Fr>::deserialize_uncompressed_unchecked(Cursor::new(bytes))?;
 
         Ok(matrices.into())
-    }
-}
-
-#[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl ArtifactLoader for RemoteArtifactLoader {
-    async fn load_wasm(&self, circuit_name: &str) -> Result<Vec<u8>, ArtifactLoaderError> {
-        self.load_wasm(circuit_name)
-            .await
-            .map_err(ArtifactLoaderError::new)
-    }
-
-    async fn load_proving_key(
-        &self,
-        circuit_name: &str,
-    ) -> Result<ProvingKey<Bn254>, ArtifactLoaderError> {
-        self.load_proving_key(circuit_name)
-            .await
-            .map_err(ArtifactLoaderError::new)
-    }
-
-    async fn load_matrices(&self, circuit_name: &str) -> Result<NPIndex<Fr>, ArtifactLoaderError> {
-        self.load_matrices(circuit_name)
-            .await
-            .map_err(ArtifactLoaderError::new)
     }
 }

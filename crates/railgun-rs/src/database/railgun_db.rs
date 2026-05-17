@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
-use futures::lock::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     account::address::RailgunAddress,
+    database::{Database, DatabaseError},
     indexer::{
         indexed_account::IndexedAccountState, txid_indexer::TxidIndexerState,
         utxo_indexer::UtxoIndexerState,
@@ -13,61 +11,10 @@ use crate::{
     poi::provider::PoiProviderState,
 };
 
-#[derive(Debug, thiserror::Error)]
-pub enum DatabaseError {
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
-    #[error("Unsupported version: {0}")]
-    UnsupportedVersion(u32),
-    #[error("Storage error: {0}")]
-    StorageError(String),
-}
-
+/// Database trait extension with Railgun-specific methods for storing and retrieving typed state.
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
-pub trait Database: common::MaybeSend {
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, DatabaseError>;
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError>;
-    async fn delete(&self, key: &[u8]) -> Result<(), DatabaseError>;
-}
-
-#[derive(Default)]
-pub struct InMemoryDatabase {
-    store: Mutex<HashMap<Vec<u8>, Vec<u8>>>,
-}
-
-impl InMemoryDatabase {
-    pub fn new() -> Self {
-        Self {
-            store: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-#[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl Database for InMemoryDatabase {
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, DatabaseError> {
-        let store = self.store.lock().await;
-        Ok(store.get(key).cloned())
-    }
-
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<(), DatabaseError> {
-        let mut store = self.store.lock().await;
-        store.insert(key.to_vec(), value.to_vec());
-        Ok(())
-    }
-
-    async fn delete(&self, key: &[u8]) -> Result<(), DatabaseError> {
-        let mut store = self.store.lock().await;
-        store.remove(key);
-        Ok(())
-    }
-}
-
-#[cfg_attr(native, async_trait::async_trait)]
-#[cfg_attr(wasm, async_trait::async_trait(?Send))]
-pub(crate) trait RailgunDB: Database + common::MaybeSend {
+pub trait RailgunDB: Database + common::MaybeSend {
     async fn get_utxo_indexer(&self) -> Result<UtxoIndexerState, DatabaseError> {
         let key = utxo_indexer_key();
         let Some(bytes) = self.get(&key).await? else {

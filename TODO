@@ -2,11 +2,13 @@
 - [x] Make RailgunProvider builder pattern
 - [x] Add sensible defaults for prover, artifact loader, utxo indexer, utxo verifier, txid indexer, txid verifier, and bundler.
   - To do this will need an RPC URL and a bundler URL.  Can probably have::new add the RPC provider, ::with_poi add the txid stuff, and ::with_bundler add the bundler.
-- [ ] Audit public API for consistency and minimalism
+- [x] Audit public API for consistency and minimalism
   - Consider:
     - Do we want the typescript to just expose the RailgunProvider, or expose all the public rust functionality?  Probably the former for a minimal API surface, and can expose more if needed.
     - Do we want people to use our BundlerProvider, or to use something from viem?  Probably the latter for now for a more minimal, API surface but we can definitely add BundlerProvider if it increases complexity at all.
       - Main issue with adding it is ensuring all the UserOp* types have tsify definitions.
-- [ ] Add docstrings to public API
+- [x] Add docstrings to public API
 - [ ] Clean up integration tests to all use the `anvil` / `alto` rust fixtures
 - [ ] Add integration test for plugin interface.
+- [ ] Switch `spendable` to check the POI note status instead of just the inclusion of the note in the merkle trie.
+  - Technically the latter works as a boolean `spendable / not spendable` check, but checking the POI note status gives state information on whether it's missing, pending, blocked, or spendable.

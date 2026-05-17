@@ -1,17 +1,12 @@
-#[cfg(not(target_arch = "wasm32"))]
+#![cfg(test)]
+#![cfg(native)]
+
 mod broadcast_utxo;
-#[cfg(not(target_arch = "wasm32"))]
 mod sync_txid;
-#[cfg(not(target_arch = "wasm32"))]
 mod sync_utxo;
-#[cfg(not(target_arch = "wasm32"))]
 mod transact_poi;
-#[cfg(not(target_arch = "wasm32"))]
 mod transact_utxo;
 
-#[cfg(not(target_arch = "wasm32"))]
 mod alto;
-#[cfg(not(target_arch = "wasm32"))]
 mod anvil;
-#[cfg(not(target_arch = "wasm32"))]
 mod utils;

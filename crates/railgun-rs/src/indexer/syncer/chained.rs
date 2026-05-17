@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use super::syncer::NoteSyncer;
-use crate::indexer::syncer::{SyncEvent, syncer::SyncerError};
+use crate::indexer::syncer::{SyncEvent, SyncerError, UtxoSyncer};
 
-/// A syncer that chains multiple syncers in priority order.
+/// Helper syncer that chains multiple UTXO syncers together.
+///
+/// Syncers are queried in the order they are added, and the sync range is adjusted based on the
+/// latest block of each syncer.
 #[derive(Default)]
 pub struct ChainedSyncer {
-    syncers: Vec<Arc<dyn NoteSyncer>>,
+    syncers: Vec<Arc<dyn UtxoSyncer>>,
 }
 
 impl ChainedSyncer {
@@ -16,15 +18,22 @@ impl ChainedSyncer {
         }
     }
 
-    pub fn then<S: NoteSyncer + 'static>(mut self, syncer: S) -> Self {
+    /// Adds a syncer to the chain. Syncers are queried in the order they are added.
+    pub fn then<S: UtxoSyncer + 'static>(mut self, syncer: S) -> Self {
         self.syncers.push(Arc::new(syncer));
+        self
+    }
+
+    /// Adds a syncer to the chain. Syncers are queried in the order they are added.
+    pub fn then_arc(mut self, syncer: Arc<dyn UtxoSyncer>) -> Self {
+        self.syncers.push(syncer);
         self
     }
 }
 
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl NoteSyncer for ChainedSyncer {
+impl UtxoSyncer for ChainedSyncer {
     async fn latest_block(&self) -> Result<u64, SyncerError> {
         let mut max_block = 0u64;
         for syncer in &self.syncers {

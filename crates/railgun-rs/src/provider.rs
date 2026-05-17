@@ -9,8 +9,8 @@ use rand::Rng;
 use thiserror::Error;
 use tracing::{info, warn};
 use userop_kit::{
-    UserOperationBuilder,
     abis::entry_point::EntryPoint,
+    builder::UserOperationBuilder,
     bundler::{BundlerError, BundlerProvider},
     entry_point::ENTRY_POINT_08,
     railgun::{PAYMASTER_MASTER_PUBLIC_KEY, PAYMASTER_VIEWING_PUBLIC_KEY},
@@ -22,13 +22,14 @@ use crate::{
     account::{address::RailgunAddress, signer::RailgunSigner},
     caip::AssetId,
     chain_config::ChainConfig,
-    circuit::prover::Prover,
+    circuit::groth16_prover::Groth16Prover,
     crypto::keys::{ByteKey, MasterPublicKey, ViewingPublicKey},
-    indexer::{UtxoIndexer, UtxoIndexerError},
+    indexer::utxo_indexer::{UtxoIndexer, UtxoIndexerError},
     note::{Note, utxo::UtxoNote},
-    poi::{PoiProvider, PoiProviderError},
-    transaction::{
-        ProvedOperation, ProvedTx, ShieldBuilder, TransactionBuilder, TransactionBuilderError,
+    poi::provider::{PoiProvider, PoiProviderError},
+    transact::{
+        ShieldBuilder, TransactionBuilder, TransactionBuilderError,
+        proved_transaction::{ProvedOperation, ProvedTx},
     },
 };
 
@@ -37,7 +38,7 @@ pub struct RailgunProvider {
     chain: ChainConfig,
     provider: Arc<dyn Eip1193Provider>,
     utxo_indexer: UtxoIndexer,
-    prover: Arc<dyn Prover>,
+    prover: Groth16Prover,
     poi_provider: Option<PoiProvider>,
 }
 
@@ -61,11 +62,11 @@ pub enum RailgunProviderError {
 
 /// General provider functions
 impl RailgunProvider {
-    pub async fn new(
+    pub(crate) async fn new(
         chain: ChainConfig,
         provider: Arc<dyn Eip1193Provider>,
         utxo_indexer: UtxoIndexer,
-        prover: Arc<dyn Prover>,
+        prover: Groth16Prover,
         poi_provider: Option<PoiProvider>,
     ) -> Result<Self, RailgunProviderError> {
         Ok(Self {
@@ -87,10 +88,20 @@ impl RailgunProvider {
         Ok(())
     }
 
+    /// Syncs the provider to the latest block.
+    pub async fn sync(&mut self) -> Result<(), RailgunProviderError> {
+        self.utxo_indexer.sync_to(u64::MAX).await?;
+
+        if let Some(poi_provider) = &mut self.poi_provider {
+            poi_provider.sync_to(&self.prover, u64::MAX).await?;
+        }
+
+        Ok(())
+    }
+
     /// Returns the balance for the given address.
     ///
-    /// If a POI provider is configured, only returns the spendable balance
-    /// according to the POI provider.
+    /// If POI is enabled, only returns the spendable balance according to the POI provider.
     pub async fn balance(&mut self, address: RailgunAddress) -> HashMap<AssetId, u128> {
         let unspent = self.unspent(address).await;
 
@@ -104,12 +115,12 @@ impl RailgunProvider {
         balance_map
     }
 
-    /// Helper to create a shield builder
+    /// Helper to create a shield builder.
     pub fn shield(&self) -> ShieldBuilder {
         ShieldBuilder::new(self.chain.clone())
     }
 
-    /// Helper to create a transaction builder
+    /// Helper to create a transaction builder.
     pub fn transact(&self) -> TransactionBuilder {
         TransactionBuilder::new()
     }
@@ -176,7 +187,7 @@ impl RailgunProvider {
         for _ in 0..5 {
             let broadcast_builder = builder.clone().transfer(
                 fee_payer.clone(),
-                RailgunAddress::new(
+                RailgunAddress::from_public_keys(
                     MasterPublicKey::from_bytes(*PAYMASTER_MASTER_PUBLIC_KEY),
                     ViewingPublicKey::from_bytes(*PAYMASTER_VIEWING_PUBLIC_KEY),
                     crate::account::chain::ChainId::evm(self.chain.id),
@@ -255,28 +266,6 @@ impl RailgunProvider {
         Ok(userop)
     }
 
-    pub async fn sync(&mut self) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer.sync().await?;
-
-        if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.sync(self.prover.as_ref()).await?;
-        }
-
-        Ok(())
-    }
-
-    pub async fn sync_to(&mut self, block_number: u64) -> Result<(), RailgunProviderError> {
-        self.utxo_indexer.sync_to(block_number).await?;
-
-        if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider
-                .sync_to(self.prover.as_ref(), block_number)
-                .await?;
-        }
-
-        Ok(())
-    }
-
     async fn all_unspent(&mut self) -> Vec<UtxoNote> {
         let addresses = self.utxo_indexer.registered();
         let mut all_notes = Vec::new();
@@ -320,7 +309,7 @@ impl RailgunProvider {
         let in_notes = self.all_unspent().await;
         let operations = builder
             .build(
-                self.prover.as_ref(),
+                &self.prover,
                 self.chain.id,
                 &in_notes,
                 &self.utxo_indexer.utxo_trees,

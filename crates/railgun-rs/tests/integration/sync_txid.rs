@@ -3,7 +3,7 @@ use std::sync::Arc;
 use railgun_rs::{
     chain_config::ChainConfig,
     database::InMemoryDatabase,
-    indexer::{SubsquidSyncer, TxidIndexer},
+    indexer::{syncer::subsquid_syncer::SubsquidSyncer, txid_indexer::TxidIndexer},
     poi::client::PoiClient,
 };
 use tracing::info;

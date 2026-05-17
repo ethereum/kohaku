@@ -1,14 +1,99 @@
-pub mod chained_syncer;
-mod normalize_tree_position;
-pub mod rpc_syncer;
-pub mod subsquid_syncer;
-mod subsquid_types;
-pub mod syncer;
+pub use chained::ChainedSyncer;
+pub use rpc::RpcSyncer;
+pub use subsquid::SubsquidSyncer;
 
-pub use chained_syncer::ChainedSyncer;
-pub use rpc_syncer::RpcSyncer;
-pub use subsquid_syncer::SubsquidSyncer;
-pub use syncer::{
-    LegacyCommitment, NoteSyncer, Nullified, Operation, Shield, SyncEvent, SyncerError, Transact,
-    TransactionSyncer,
-};
+mod chained;
+mod normalize_tree_position;
+mod rpc;
+mod subsquid;
+mod subsquid_types;
+
+use alloy::primitives::FixedBytes;
+use ruint::aliases::U256;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::{caip::AssetId, crypto::aes::Ciphertext};
+
+/// Syncers that emit note-level events.
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
+pub trait UtxoSyncer: common::MaybeSend {
+    async fn latest_block(&self) -> Result<u64, SyncerError>;
+    async fn sync(&self, from_block: u64, to_block: u64) -> Result<Vec<SyncEvent>, SyncerError>;
+}
+
+/// Syncers that fetch full operation data.
+#[cfg_attr(native, async_trait::async_trait)]
+#[cfg_attr(wasm, async_trait::async_trait(?Send))]
+pub(crate) trait TxidSyncer: common::MaybeSend {
+    async fn latest_block(&self) -> Result<u64, SyncerError>;
+    async fn sync(&self, from_block: u64, to_block: u64) -> Result<Vec<Operation>, SyncerError>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SyncEvent {
+    Shield(Shield, u64),
+    Transact(Transact, u64),
+    Nullified(Nullified, u64),
+    Legacy(LegacyCommitment, u64),
+}
+
+/// A single Shield commitment event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Shield {
+    pub tree_number: u32,
+    pub leaf_index: u32,
+    pub npk: U256,
+    pub token: AssetId,
+    pub value: U256,
+    pub ciphertext: Ciphertext,
+    pub shield_key: [u8; 32],
+}
+
+/// A single transact commitment event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Transact {
+    pub tree_number: u32,
+    pub leaf_index: u32,
+    pub hash: U256,
+    pub ciphertext: Ciphertext,
+    pub blinded_sender_viewing_key: [u8; 32],
+    pub blinded_receiver_viewing_key: [u8; 32],
+    pub annotation_data: Vec<u8>,
+}
+
+/// A single nullified event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Nullified {
+    pub tree_number: u32,
+    pub nullifier: FixedBytes<32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LegacyCommitment {
+    pub hash: U256,
+    pub tree_number: u32,
+    pub leaf_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct Operation {
+    pub block_number: u64,
+    pub nullifiers: Vec<U256>,
+    pub commitment_hashes: Vec<U256>,
+    pub bound_params_hash: U256,
+    pub utxo_tree_in: u32,
+    pub utxo_tree_out: u32,
+    pub utxo_out_start_index: u32,
+}
+
+#[derive(Debug, Error)]
+#[error("Syncer error: {0}")]
+pub struct SyncerError(#[source] Box<dyn std::error::Error + Send + Sync>);
+
+impl SyncerError {
+    pub(crate) fn new<E: std::error::Error + Send + Sync + 'static>(e: E) -> Self {
+        SyncerError(Box::new(e))
+    }
+}

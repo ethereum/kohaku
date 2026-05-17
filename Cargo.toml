@@ -84,7 +84,7 @@ rayon = "1.12"
 
 [patch.crates-io]
 ruint = { git = "https://github.com/Robert-MacWha/ruint" }                                        # Adds ark-fr-06 support
-ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = "release/0.6.0" } # Adds opt-in parallel feature flag
+ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = "release/0.6.0" } # Adds opt-in parallel feature flag.  Withour parallel hangs indefinitely in wasm.
 
 [profile.release]
 opt-level = "z"

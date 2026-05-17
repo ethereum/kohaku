@@ -40,15 +40,15 @@ pub struct MasterPublicKey([u8; 32]);
 
 /// Symmetric key for AES encryption.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct SharedKey([u8; 32]);
+pub(crate) struct SharedKey([u8; 32]);
 
 /// Key for nullifier derivation.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct NullifyingKey([u8; 32]);
+pub(crate) struct NullifyingKey([u8; 32]);
 
 /// Blinded public key for stealth addresses.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct BlindedKey([u8; 32]);
+pub(crate) struct BlindedKey([u8; 32]);
 
 #[derive(Debug, Error)]
 pub enum KeyError {
@@ -58,21 +58,12 @@ pub enum KeyError {
     HexDecodingError(#[from] hex::FromHexError),
 }
 
-pub trait ByteKey: Sized {
+pub(crate) trait ByteKey: Sized {
     fn from_bytes(bytes: [u8; 32]) -> Self;
     fn as_bytes(&self) -> &[u8; 32];
 }
 
-pub trait FieldKey: ByteKey {
-    fn from_fr(fr: &Fr) -> Self {
-        Self::from_bytes(fr.into_bigint().to_bytes_be().try_into().unwrap())
-    }
-
-    fn to_fr(&self) -> Fr {
-        Fr::from_be_bytes_mod_order(self.as_bytes())
-    }
-}
-
+#[allow(private_bounds)]
 pub trait HexKey: ByteKey {
     fn to_hex(&self) -> String {
         hex::encode(self.as_bytes())
@@ -97,7 +88,7 @@ pub trait HexKey: ByteKey {
     }
 }
 
-pub trait U256Key: ByteKey {
+pub(crate) trait U256Key: ByteKey {
     fn from_u256(value: U256) -> Self {
         let bytes = value.to_be_bytes::<32>();
         Self::from_bytes(bytes)
@@ -158,7 +149,6 @@ macro_rules! impl_byte_key {
             }
         }
 
-        impl FieldKey for $name {}
         impl HexKey for $name {}
         impl U256Key for $name {}
     };
@@ -249,18 +239,24 @@ impl ViewingKey {
         ViewingPublicKey(signing_key.verifying_key().to_bytes())
     }
 
-    pub fn nullifying_key(&self) -> NullifyingKey {
+    pub(crate) fn nullifying_key(&self) -> NullifyingKey {
         NullifyingKey::new(*self)
     }
 
-    pub fn derive_shared_key(&self, their_public: ViewingPublicKey) -> Result<SharedKey, KeyError> {
+    pub(crate) fn derive_shared_key(
+        &self,
+        their_public: ViewingPublicKey,
+    ) -> Result<SharedKey, KeyError> {
         let point = CompressedEdwardsY(their_public.0)
             .decompress()
             .ok_or(KeyError::DecompressionFailed)?;
         Ok(SharedKey::new(self, point))
     }
 
-    pub fn derive_shared_key_blinded(&self, blinded: BlindedKey) -> Result<SharedKey, KeyError> {
+    pub(crate) fn derive_shared_key_blinded(
+        &self,
+        blinded: BlindedKey,
+    ) -> Result<SharedKey, KeyError> {
         let point = CompressedEdwardsY(blinded.0)
             .decompress()
             .ok_or(KeyError::DecompressionFailed)?;
@@ -268,19 +264,19 @@ impl ViewingKey {
     }
 
     /// Generate a shared secret compatible with @noble/ed25519's `ed.getSharedSecret`
-    pub fn derive_shared_secret(
-        &self,
-        their_public: ViewingPublicKey,
-    ) -> Result<SharedKey, KeyError> {
-        let scalar = self.to_curve25519_scalar();
-        let ed_point = CompressedEdwardsY(their_public.0)
-            .decompress()
-            .ok_or(KeyError::DecompressionFailed)?;
-        let x_point = ed_point.to_montgomery();
-        let shared_secret = x_point * scalar;
+    // pub(crate) fn derive_shared_secret(
+    //     &self,
+    //     their_public: ViewingPublicKey,
+    // ) -> Result<SharedKey, KeyError> {
+    //     let scalar = self.to_curve25519_scalar();
+    //     let ed_point = CompressedEdwardsY(their_public.0)
+    //         .decompress()
+    //         .ok_or(KeyError::DecompressionFailed)?;
+    //     let x_point = ed_point.to_montgomery();
+    //     let shared_secret = x_point * scalar;
 
-        Ok(SharedKey(shared_secret.to_bytes()))
-    }
+    //     Ok(SharedKey(shared_secret.to_bytes()))
+    // }
 
     pub fn encrypt_ctr(&self, plaintext: &[&[u8]], iv: &[u8; 16]) -> CiphertextCtr {
         encrypt_ctr(plaintext, &self.0, iv)
@@ -324,7 +320,7 @@ impl ViewingPublicKey {
 }
 
 impl MasterPublicKey {
-    pub fn new(spending_pubkey: SpendingPublicKey, nullifying_key: NullifyingKey) -> Self {
+    pub(crate) fn new(spending_pubkey: SpendingPublicKey, nullifying_key: NullifyingKey) -> Self {
         MasterPublicKey::from_u256(
             poseidon_hash(&[
                 spending_pubkey.x_u256(),
@@ -334,51 +330,12 @@ impl MasterPublicKey {
             .unwrap(),
         )
     }
-
-    pub const fn from_bytes_const(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
 }
 
 impl NullifyingKey {
     pub fn new(viewing_key: ViewingKey) -> Self {
         NullifyingKey::from_u256(poseidon_hash(&[viewing_key.to_u256()]).unwrap())
     }
-}
-
-pub fn blind_viewing_keys(
-    sender: ViewingPublicKey,
-    receiver: ViewingPublicKey,
-    shared_random: &[u8; 32],
-    sender_random: &[u8; 32],
-) -> Result<(BlindedKey, BlindedKey), KeyError> {
-    let sender_point = CompressedEdwardsY(sender.0)
-        .decompress()
-        .ok_or(KeyError::DecompressionFailed)?;
-    let receiver_point = CompressedEdwardsY(receiver.0)
-        .decompress()
-        .ok_or(KeyError::DecompressionFailed)?;
-
-    let mut final_random = [0u8; 32];
-    for i in 0..32 {
-        final_random[i] = shared_random[i] ^ sender_random[i];
-    }
-
-    let hash = Sha512::digest(final_random);
-    let mut hash_bytes: [u8; 64] = hash.into();
-    hash_bytes.reverse();
-    let scalar = Scalar::from_bytes_mod_order_wide(&hash_bytes);
-
-    Ok((
-        BlindedKey((sender_point * scalar).compress().to_bytes()),
-        BlindedKey((receiver_point * scalar).compress().to_bytes()),
-    ))
-}
-
-pub fn hex_to_u256(hex_str: &str) -> U256 {
-    let stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-    let bytes = hex::decode(stripped).unwrap();
-    U256::from_be_slice(&bytes)
 }
 
 #[cfg(all(test, native))]

@@ -1,8 +1,7 @@
-use eip_1193_provider::TxData;
+use eip_1193_provider::tx_data::TxData;
 use railgun_rs::{
-    caip::AssetId,
-    chain_config::ChainConfig,
-    railgun::{address::RailgunAddress, transaction::ShieldBuilder},
+    account::address::RailgunAddress, caip::AssetId, chain_config::ChainConfig,
+    transact::ShieldBuilder,
 };
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 

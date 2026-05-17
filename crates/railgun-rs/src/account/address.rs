@@ -9,6 +9,11 @@ use crate::{
     crypto::keys::{ByteKey, KeyError, MasterPublicKey, SpendingKey, ViewingKey, ViewingPublicKey},
 };
 
+/// Railgun address
+///
+/// Railgun addresses are the primary identifiers for users within the Railgun protocol, encoding
+/// the public key material required to send transactions to the addressed account, as well as an
+/// optional advisory chain ID.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 #[cfg_attr(js, derive(tsify::Tsify))]
@@ -43,7 +48,7 @@ const PREFIX: Hrp = Hrp::parse_unchecked("0zk");
 const ADDRESS_VERSION: u8 = 1;
 
 impl RailgunAddress {
-    pub fn new(
+    pub fn from_public_keys(
         master_key: MasterPublicKey,
         viewing_pubkey: ViewingPublicKey,
         chain_id: ChainId,
@@ -63,7 +68,7 @@ impl RailgunAddress {
         let master_key =
             MasterPublicKey::new(spending_key.public_key(), viewing_key.nullifying_key());
 
-        RailgunAddress::new(master_key, viewing_key.public_key(), chain_id)
+        RailgunAddress::from_public_keys(master_key, viewing_key.public_key(), chain_id)
     }
 
     pub fn master_key(&self) -> MasterPublicKey {
@@ -123,6 +128,7 @@ impl FromStr for RailgunAddress {
     }
 }
 
+//? Redundant with FromStr, but required for serde's try_from
 impl TryFrom<String> for RailgunAddress {
     type Error = RailgunAddressError;
 
@@ -131,13 +137,14 @@ impl TryFrom<String> for RailgunAddress {
     }
 }
 
+//? Redundant with Display, but required for serde's into
 impl From<RailgunAddress> for String {
     fn from(address: RailgunAddress) -> Self {
         address.to_string()
     }
 }
 
-pub fn xor_network_id(network_id: &str) -> String {
+fn xor_network_id(network_id: &str) -> String {
     let bytes = hex::decode(network_id).expect("valid hex");
     let key = b"railgun\x00"; // 8-byte key
     let xored: Vec<u8> = bytes.iter().zip(key.iter()).map(|(a, b)| a ^ b).collect();

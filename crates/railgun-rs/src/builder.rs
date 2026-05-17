@@ -4,31 +4,24 @@ use eip_1193_provider::provider::{Eip1193Provider, IntoEip1193Provider};
 
 use crate::{
     chain_config::ChainConfig,
-    circuit::{
-        groth16_prover::Groth16Prover, prover::Prover, remote_artifact_loader::RemoteArtifactLoader,
-    },
-    database::{Database, InMemoryDatabase},
+    circuit::groth16_prover::Groth16Prover,
+    database::{Database, memory::InMemoryDatabase},
     indexer::{
-        ChainedSyncer, NoteSyncer, RpcSyncer, SubsquidSyncer, TransactionSyncer, UtxoIndexer,
+        syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer, UtxoSyncer},
+        utxo_indexer::UtxoIndexer,
     },
-    merkle_tree::{MerkleTreeVerifier, SmartWalletUtxoVerifier},
-    poi::PoiProvider,
+    merkle_tree::SmartWalletUtxoVerifier,
+    poi::provider::PoiProvider,
     provider::{RailgunProvider, RailgunProviderError},
 };
 
+/// Builder for constructing a `RailgunProvider`.
 pub struct RailgunBuilder {
     chain: ChainConfig,
     provider: Arc<dyn Eip1193Provider>,
     db: Option<Arc<dyn Database>>,
-    utxo_syncer: Option<Arc<dyn NoteSyncer>>,
-    utxo_verifier: Option<Arc<dyn MerkleTreeVerifier>>,
-    prover: Option<Arc<dyn Prover>>,
-    poi: Option<PoiConfig>,
-}
-
-#[derive(Default)]
-pub struct PoiConfig {
-    txid_syncer: Option<Arc<dyn TransactionSyncer>>,
+    utxo_syncer: Option<Arc<dyn UtxoSyncer>>,
+    poi: bool,
 }
 
 impl RailgunBuilder {
@@ -39,48 +32,42 @@ impl RailgunBuilder {
             provider: provider.into_eip1193(),
             db: None,
             utxo_syncer: None,
-            utxo_verifier: None,
-            prover: None,
-            poi: None,
+            poi: false,
         }
     }
 
+    /// Sets a custom database for the provider. If not set, an in-memory database
+    /// will be used.
+    ///
+    /// Providers will use the database for storing synced UTXO data, POI proofs, and other internal
+    /// state. Sensitive data such as a user's unencrypted notes will be stored. Private key
+    /// material will never be stored in the database.
     #[must_use]
     pub fn with_database(mut self, db: Arc<dyn Database>) -> Self {
         self.db = Some(db);
         self
     }
 
+    /// Sets a custom UTXO syncer for the provider. If not set, a default subsquid + RPC syncer will
+    /// be used.
     #[must_use]
-    pub fn with_utxo_syncer(mut self, syncer: Arc<dyn NoteSyncer>) -> Self {
+    pub fn with_utxo_syncer(mut self, syncer: Arc<dyn UtxoSyncer>) -> Self {
         self.utxo_syncer = Some(syncer);
         self
     }
 
-    #[must_use]
-    pub fn with_utxo_verifier(mut self, verifier: Arc<dyn MerkleTreeVerifier>) -> Self {
-        self.utxo_verifier = Some(verifier);
-        self
-    }
-
-    #[must_use]
-    pub fn with_prover(mut self, prover: Arc<dyn Prover>) -> Self {
-        self.prover = Some(prover);
-        self
-    }
-
+    /// Enables POI (Proof of innocence) support for the provider.
+    ///
+    /// Uses the default chain-specific POI endpoints and list keys from the chain config. Enabling
+    /// this tells the builder to submit POI proofs when spending notes and to only spend
+    /// notes that have been marked as `spendable` by the POI provider.
     #[must_use]
     pub fn with_poi(mut self) -> Self {
-        self.poi = Some(PoiConfig::default());
+        self.poi = true;
         self
     }
 
-    #[must_use]
-    pub fn with_poi_config(mut self, config: PoiConfig) -> Self {
-        self.poi = Some(config);
-        self
-    }
-
+    /// Builds the `RailgunProvider` with the specified configuration.
     #[must_use]
     pub async fn build(self) -> Result<RailgunProvider, RailgunProviderError> {
         let db = self.db.unwrap_or_else(|| Arc::new(InMemoryDatabase::new()));
@@ -93,24 +80,29 @@ impl RailgunBuilder {
             )
         });
 
-        let utxo_verifier = self.utxo_verifier.unwrap_or_else(|| {
-            Arc::new(SmartWalletUtxoVerifier::new(
-                self.chain.railgun_smart_wallet,
-                self.provider.clone(),
-            ))
-        });
+        let utxo_verifier = Arc::new(SmartWalletUtxoVerifier::new(
+            self.chain.railgun_smart_wallet,
+            self.provider.clone(),
+        ));
 
         let utxo_indexer = UtxoIndexer::new(db.clone(), utxo_syncer, utxo_verifier).await?;
 
-        let prover = self.prover.unwrap_or_else(|| {
-            Arc::new(Groth16Prover::new(
-                Arc::new(RemoteArtifactLoader::default()),
-            ))
-        });
+        let prover = Groth16Prover::new();
 
-        let poi_provider = match self.poi {
-            Some(config) => Some(config.build(&self.chain, db.clone()).await?),
-            None => None,
+        let poi_provider = if self.poi {
+            let txid_syncer = Arc::new(SubsquidSyncer::new(&self.chain.subsquid_endpoint));
+
+            let poi_provider = PoiProvider::new(
+                self.chain.id,
+                db,
+                txid_syncer,
+                self.chain.poi_endpoint.clone(),
+                self.chain.list_keys.clone(),
+            )
+            .await?;
+            Some(poi_provider)
+        } else {
+            None
         };
 
         RailgunProvider::new(
@@ -121,34 +113,5 @@ impl RailgunBuilder {
             poi_provider,
         )
         .await
-    }
-}
-
-impl PoiConfig {
-    #[must_use]
-    pub fn with_txid_syncer(mut self, syncer: Arc<dyn TransactionSyncer>) -> Self {
-        self.txid_syncer = Some(syncer);
-        self
-    }
-
-    async fn build(
-        self,
-        chain: &ChainConfig,
-        db: Arc<dyn Database>,
-    ) -> Result<PoiProvider, RailgunProviderError> {
-        let txid_syncer = self
-            .txid_syncer
-            .unwrap_or_else(|| Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint)));
-
-        let poi_provider = PoiProvider::new(
-            chain.id,
-            db,
-            chain.poi_endpoint.clone(),
-            chain.list_keys.clone(),
-            txid_syncer,
-        )
-        .await?;
-
-        Ok(poi_provider)
     }
 }

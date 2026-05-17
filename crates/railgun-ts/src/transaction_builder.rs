@@ -1,8 +1,5 @@
 use alloy::primitives::Address;
-use railgun_rs::{
-    caip::AssetId,
-    railgun::{address::RailgunAddress, transaction::TransactionBuilder},
-};
+use railgun_rs::{account::address::RailgunAddress, caip::AssetId, transact::TransactionBuilder};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::railgun_signer::JsRailgunSigner;

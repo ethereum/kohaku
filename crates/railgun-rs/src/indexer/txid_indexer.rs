@@ -7,7 +7,7 @@ use tracing::{info, warn};
 use crate::{
     crypto::railgun_txid::Txid,
     database::{Database, DatabaseError, RailgunDB},
-    indexer::syncer::{Operation, SyncerError, TransactionSyncer},
+    indexer::syncer::{Operation, SyncerError, TxidSyncer},
     merkle_tree::{TOTAL_LEAVES, TxidLeafHash, TxidMerkleTree, UtxoTreeIndex},
     poi::client::{PoiClientError, PoiNodeClient},
 };
@@ -17,7 +17,7 @@ pub struct TxidIndexer {
     inner: TxidIndexerState,
 
     db: Arc<dyn Database>,
-    txid_syncer: Arc<dyn TransactionSyncer>,
+    txid_syncer: Arc<dyn TxidSyncer>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -44,7 +44,7 @@ pub enum TxidIndexerError {
 impl TxidIndexer {
     pub async fn new(
         db: Arc<dyn Database>,
-        txid_syncer: Arc<dyn TransactionSyncer>,
+        txid_syncer: Arc<dyn TxidSyncer>,
     ) -> Result<Self, TxidIndexerError> {
         let inner = db.get_txid_indexer().await?;
 
@@ -74,10 +74,6 @@ impl TxidIndexer {
 
     pub fn utxo_position(&self, txid: &Txid) -> Option<(u32, u32)> {
         self.inner.txid_to_utxo_position.get(txid).cloned()
-    }
-
-    pub async fn sync(&mut self, poi_client: &impl PoiNodeClient) -> Result<(), TxidIndexerError> {
-        self.sync_to(u64::MAX, poi_client).await
     }
 
     #[tracing::instrument(name = "txid_sync", skip_all)]

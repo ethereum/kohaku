@@ -33,7 +33,10 @@ pub fn encode(text: &str) -> Result<[u8; 16], EncodingError> {
 }
 
 /// Decodes a 16-byte array back into a string using Railgun's base 37 encoding.
-pub fn decode(bytes: &[u8; 16]) -> String {
+///
+/// ? Kept for completeness & testing
+#[allow(dead_code)]
+fn decode(bytes: &[u8; 16]) -> String {
     let mut value = u128::from_be_bytes(*bytes);
 
     let mut result = Vec::new();

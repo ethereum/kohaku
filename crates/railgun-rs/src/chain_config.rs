@@ -1,9 +1,9 @@
 use alloy::primitives::{Address, ChainId, address};
 use serde::{Deserialize, Serialize};
 
-use crate::poi::ListKey;
+use crate::poi::types::ListKey;
 
-/// Eip155 Chain Configurations
+/// Chain Configurations
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(js, derive(tsify::Tsify))]
 #[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]

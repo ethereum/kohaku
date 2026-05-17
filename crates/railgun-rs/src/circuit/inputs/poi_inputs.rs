@@ -13,7 +13,7 @@ use crate::{
         MerkleRoot, MerkleTree, MerkleTreeError, TREE_DEPTH, TxidLeafHash, TxidMerkleTree,
         UtxoTreeIndex,
     },
-    poi::{ListKey, PoiNote},
+    poi::{note::PoiNote, types::ListKey},
 };
 
 // TODO: Consider making me into an enum with two variants on a generic Inner, so
@@ -131,6 +131,7 @@ where
 impl PoiCircuitInputs {
     /// Builds POI circuit inputs on-chain TXID position.
     #[allow(clippy::too_many_arguments)]
+    #[allow(private_interfaces)]
     pub fn from_inputs(
         spending_pubkey: SpendingPublicKey,
         nullifying_key: NullifyingKey,

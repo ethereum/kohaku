@@ -19,7 +19,7 @@ use crate::{
             U256Key, ViewingPublicKey,
         },
     },
-    indexer,
+    indexer::syncer,
     merkle_tree::UtxoLeafHash,
     note::Note,
 };
@@ -41,6 +41,7 @@ pub struct UtxoNote {
     pub hash: UtxoLeafHash,
     pub nullifier: U256,
     pub note_public_key: U256,
+    #[allow(private_interfaces)]
     pub nullifying_key: NullifyingKey,
     pub blinded_commitment: U256,
 }
@@ -101,7 +102,7 @@ impl UtxoNote {
     /// Decrypt a transact note into a Note
     pub fn decrypt_transact(
         signer: Arc<dyn RailgunSigner>,
-        transact: &indexer::Transact,
+        transact: &syncer::Transact,
     ) -> Result<Self, NoteError> {
         let blinded_sender = BlindedKey::from_bytes(transact.blinded_sender_viewing_key);
         let shared_key = signer
@@ -144,7 +145,7 @@ impl UtxoNote {
     /// Decrypts a shield note into a Note
     pub fn decrypt_shield(
         signer: Arc<dyn RailgunSigner>,
-        shield: &indexer::Shield,
+        shield: &syncer::Shield,
     ) -> Result<Self, NoteError> {
         let shield_key = ViewingPublicKey::from_bytes(shield.shield_key);
         let shared_key = signer.viewing_key().derive_shared_key(shield_key)?;

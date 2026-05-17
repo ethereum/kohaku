@@ -8,12 +8,8 @@ crate-type = ["rlib"]
 
 [features]
 default = []
-js = [
-    "dep:tsify",
-    "dep:wasm-bindgen",
-    "dep:serde-wasm-bindgen",
-    "dep:wasm-bindgen-futures",
-]
+js = ["dep:tsify", "dep:wasm-bindgen"]
+testing = []
 
 [dependencies]
 aes = { workspace = true }
@@ -39,27 +35,23 @@ rand_chacha = { workspace = true }
 ruint = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-serde_with = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }
 userop_kit = { workspace = true }
 tsify = { workspace = true, features = ["js"], optional = true }
-wasm-bindgen = { workspace = true, optional = true }
-serde-wasm-bindgen = { workspace = true, optional = true }
-wasm-bindgen-futures = { workspace = true, optional = true }
 ark-circom = { workspace = true }
 ark-relations = { workspace = true }
 ark-groth16 = { workspace = true }
-rayon = { workspace = true }
+wasm-bindgen = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wasmer = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls"] }
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { workspace = true }
-wasmer = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 reqwest = { workspace = true, features = ["json"] }
@@ -72,6 +64,7 @@ tracing-wasm = { workspace = true }
 wasmer = { workspace = true, features = ["js-default"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+railgun-rs = { path = ".", features = ["testing"] }
 alloy = { workspace = true, default-features = true, features = [
     "provider-anvil-api",
 ] }
@@ -82,6 +75,9 @@ tracing-test = { workspace = true }
 
 [build-dependencies]
 cfg_aliases = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["wasm-bindgen"]
 
 [[bin]]
 name = "main"

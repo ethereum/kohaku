@@ -12,14 +12,11 @@ use thiserror::Error;
 
 use crate::{
     merkle_tree::{MerkleProof, MerkleRoot, MerkleTreeVerifier},
-    poi::{
-        BlindedCommitmentType, PoiStatus,
-        types::{
-            BlindedCommitment, BlindedCommitmentData, ChainParams, GetMerkleProofsParams,
-            GetPoisPerListParams, ListKey, PoisPerListMap, SubmitTransactProofParams,
-            TransactProofData, TxidVersion, ValidateTxidMerklerootParams,
-            ValidatedRailgunTxidStatus,
-        },
+    poi::types::{
+        BlindedCommitment, BlindedCommitmentData, BlindedCommitmentType, ChainParams,
+        GetMerkleProofsParams, GetPoisPerListParams, ListKey, PoiStatus, PoisPerListMap,
+        SubmitTransactProofParams, TransactProofData, TxidVersion, ValidateTxidMerklerootParams,
+        ValidatedRailgunTxidStatus,
     },
 };
 
@@ -120,15 +117,6 @@ impl PoiClient {
                 chain,
             }),
             list_keys,
-        }
-    }
-
-    /// Checks the health of the POI node
-    pub async fn health(&self) -> bool {
-        let resp = self.call::<Vec<()>, String>("ppoi_health", vec![]).await;
-        match resp {
-            Ok(status) if status.to_lowercase() == "ok" => true,
-            _ => false,
         }
     }
 

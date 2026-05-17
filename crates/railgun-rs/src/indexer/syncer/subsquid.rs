@@ -1,16 +1,14 @@
-//! Subsquid syncer for fetching commitments, nullifiers, and operations from a
-//! Subsquid graphql endpoint. Railgun maintains an official indexer for each
-//! supported chain.
-
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use tracing::{info, warn};
 
-use crate::indexer::{
-    NoteSyncer, TransactionSyncer,
-    syncer::{self, subsquid_types::*, syncer::SyncerError},
-};
+use crate::indexer::syncer::{self, SyncerError, TxidSyncer, UtxoSyncer, subsquid_types::*};
 
+/// Subsquid UTXO & TXID syncer.
+///
+/// Railgun maintains an official index for each supported chain. Syncing from subsquid
+/// is significantly faster than syncing from the chain directly, as we can fetch much larger ranges
+/// of events directly via graphql.
 pub struct SubsquidSyncer {
     client: reqwest::Client,
     url: String,
@@ -23,7 +21,7 @@ pub struct SubsquidSyncer {
 }
 
 #[derive(Debug, Error)]
-pub enum SubsquidSyncerError {
+enum SubsquidSyncerError {
     #[error("Serde error: {0}")]
     Serde(#[from] serde_json::Error),
     #[error("HTTP error: {0}")]
@@ -51,21 +49,9 @@ impl SubsquidSyncer {
         }
     }
 
-    pub fn with_batch_size(mut self, batch_size: u64) -> Self {
-        self.batch_size = batch_size;
-        self
-    }
-
-    pub fn with_retry_policy(
-        mut self,
-        max_retries: usize,
-        retry_delay: web_time::Duration,
-    ) -> Self {
-        self.max_retries = max_retries;
-        self.retry_delay = retry_delay;
-        self
-    }
-
+    /// Sets the latest block override, which causes the syncer to only sync
+    /// up to this block. Used in testing to sync against chain forks.
+    #[cfg(any(test, feature = "testing"))]
     pub fn with_latest_block(mut self, latest_block: u64) -> Self {
         self.latest_block_override = Some(latest_block);
         self
@@ -74,7 +60,7 @@ impl SubsquidSyncer {
 
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl NoteSyncer for SubsquidSyncer {
+impl UtxoSyncer for SubsquidSyncer {
     async fn latest_block(&self) -> Result<u64, SyncerError> {
         Ok(self.latest_block().await?)
     }
@@ -102,7 +88,7 @@ impl NoteSyncer for SubsquidSyncer {
 
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl TransactionSyncer for SubsquidSyncer {
+impl TxidSyncer for SubsquidSyncer {
     async fn latest_block(&self) -> Result<u64, SyncerError> {
         Ok(self.latest_block().await?)
     }
@@ -318,6 +304,6 @@ impl SubsquidSyncer {
 
 impl From<SubsquidSyncerError> for SyncerError {
     fn from(e: SubsquidSyncerError) -> Self {
-        SyncerError::Syncer(Box::new(e))
+        SyncerError::new(e)
     }
 }

@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
 use railgun_rs::{
+    account::{
+        address::RailgunAddress,
+        chain::ChainId,
+        signer::{PrivateKeySigner, RailgunSigner},
+    },
     crypto::keys::{HexKey, SpendingKey, ViewingKey},
-    railgun::{PrivateKeySigner, RailgunSigner, address::RailgunAddress, chain::ChainId},
 };
 use rand::random;
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};

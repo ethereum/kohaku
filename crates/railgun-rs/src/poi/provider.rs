@@ -8,23 +8,26 @@ use tracing::{info, warn};
 
 use crate::{
     circuit::{
+        groth16_prover::Groth16Prover,
         inputs::poi_inputs::{PoiCircuitInputs, PoiCircuitInputsError},
-        prover::Prover,
     },
     crypto::{
         keys::{NullifyingKey, SpendingPublicKey},
         railgun_txid::Txid,
     },
     database::{Database, DatabaseError, RailgunDB},
-    indexer::{TransactionSyncer, TxidIndexer, TxidIndexerError},
+    indexer::{
+        syncer::TxidSyncer,
+        txid_indexer::{TxidIndexer, TxidIndexerError},
+    },
     merkle_tree::{MerkleProof, TOTAL_LEAVES, TxidMerkleTree, UtxoTreeIndex},
     note::utxo::{self, UtxoNote},
     poi::{
-        BlindedCommitment, ListKey, PoiNote, PoiStatus,
         client::{PoiClient, PoiClientError, PoiNodeClient},
-        types::TransactProofData,
+        note::PoiNote,
+        types::{BlindedCommitment, ListKey, PoiStatus, TransactProofData},
     },
-    transaction::ProvedOperation,
+    transact::proved_transaction::ProvedOperation,
 };
 
 pub struct PoiProvider {
@@ -97,13 +100,13 @@ impl PoiProvider {
     pub async fn new(
         chain_id: ChainId,
         db: Arc<dyn Database>,
+        txid_syncer: Arc<dyn TxidSyncer>,
         poi_endpoint: impl Into<String>,
         list_keys: Vec<ListKey>,
-        txid_syncer: Arc<dyn TransactionSyncer>,
     ) -> Result<Self, PoiProviderError> {
         let inner = db.get_poi_provider().await?;
-        let poi_client = PoiClient::new(chain_id, poi_endpoint, list_keys);
         let txid_indexer = TxidIndexer::new(db.clone(), txid_syncer).await?;
+        let poi_client = PoiClient::new(chain_id, poi_endpoint, list_keys);
 
         Ok(Self {
             inner,
@@ -113,13 +116,9 @@ impl PoiProvider {
         })
     }
 
-    pub async fn sync(&mut self, prover: &dyn Prover) -> Result<(), PoiProviderError> {
-        self.sync_to(prover, u64::MAX).await
-    }
-
     pub async fn sync_to(
         &mut self,
-        prover: &dyn Prover,
+        prover: &Groth16Prover,
         block_number: u64,
     ) -> Result<(), PoiProviderError> {
         let poi_client = self.poi_client.clone();
@@ -136,6 +135,10 @@ impl PoiProvider {
         }
     }
 
+    pub fn list_keys(&self) -> Vec<ListKey> {
+        self.poi_client.list_keys()
+    }
+
     /// Returns whether the given blinded commitment is spendable (i.e. has a
     /// valid POI proof) for all list keys in the POI client.
     pub async fn spendable(
@@ -146,10 +149,6 @@ impl PoiProvider {
             self.poi_proof(&list_key, blinded_commitment).await?;
         }
         Ok(true)
-    }
-
-    pub fn list_keys(&self) -> Vec<ListKey> {
-        self.poi_client.list_keys()
     }
 
     pub async fn poi_proof(
@@ -213,7 +212,7 @@ impl PoiProvider {
         });
     }
 
-    async fn submit_pending(&mut self, prover: &dyn Prover) {
+    async fn submit_pending(&mut self, prover: &Groth16Prover) {
         for i in (0..self.inner.pending.len()).rev() {
             let entry = self.inner.pending[i].clone();
             match self.submit_poi(prover, &entry).await {
@@ -233,7 +232,7 @@ impl PoiProvider {
 
     async fn submit_poi(
         &self,
-        prover: &dyn Prover,
+        prover: &Groth16Prover,
         entry: &PendingPoiEntry,
     ) -> Result<(), PendingPoiError> {
         let txid_tree_number = match self.txid_indexer.txid_position(&entry.txid) {
@@ -272,7 +271,7 @@ impl PoiProvider {
 
     async fn create_proof(
         &self,
-        prover: &dyn Prover,
+        prover: &Groth16Prover,
         entry: &PendingPoiEntry,
         txid_tree_number: u32,
         utxo_tree_number: u32,

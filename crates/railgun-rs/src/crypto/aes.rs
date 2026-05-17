@@ -36,7 +36,7 @@ pub enum AesError {
 type Aes256GcmU16 = AesGcm<Aes256, U16>;
 type Aes256Ctr = ctr::Ctr128BE<aes::Aes256>;
 
-pub fn encrypt_gcm(
+pub(super) fn encrypt_gcm(
     plaintext: &[&[u8]],
     key: &[u8; 32],
     iv: &[u8; 16],
@@ -79,7 +79,10 @@ pub fn encrypt_gcm(
     Ok(Ciphertext { iv: *iv, tag, data })
 }
 
-pub fn decrypt_gcm(ciphertext: &Ciphertext, key: &[u8; 32]) -> Result<Vec<Vec<u8>>, AesError> {
+pub(super) fn decrypt_gcm(
+    ciphertext: &Ciphertext,
+    key: &[u8; 32],
+) -> Result<Vec<Vec<u8>>, AesError> {
     //? Safe to unwrap as key length is fixed
     let cipher = Aes256GcmU16::new_from_slice(key).unwrap();
     let nonce = Nonce::<U16>::from_slice(&ciphertext.iv);
@@ -112,7 +115,7 @@ pub fn decrypt_gcm(ciphertext: &Ciphertext, key: &[u8; 32]) -> Result<Vec<Vec<u8
     Ok(data)
 }
 
-pub fn encrypt_ctr(plaintext: &[&[u8]], key: &[u8; 32], iv: &[u8; 16]) -> CiphertextCtr {
+pub(super) fn encrypt_ctr(plaintext: &[&[u8]], key: &[u8; 32], iv: &[u8; 16]) -> CiphertextCtr {
     let mut cipher = Aes256Ctr::new(key.into(), iv.into());
     let mut data = Vec::with_capacity(plaintext.len());
 
@@ -125,7 +128,9 @@ pub fn encrypt_ctr(plaintext: &[&[u8]], key: &[u8; 32], iv: &[u8; 16]) -> Cipher
     CiphertextCtr { iv: *iv, data }
 }
 
-pub fn decrypt_ctr(ciphertext: &CiphertextCtr, key: &[u8; 32]) -> Vec<Vec<u8>> {
+///? Kept for completeness & testing
+#[allow(dead_code)]
+fn decrypt_ctr(ciphertext: &CiphertextCtr, key: &[u8; 32]) -> Vec<Vec<u8>> {
     let mut cipher = Aes256Ctr::new(key.into(), &ciphertext.iv.into());
     let mut data = Vec::with_capacity(ciphertext.data.len());
 

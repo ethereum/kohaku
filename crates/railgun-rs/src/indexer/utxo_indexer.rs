@@ -11,7 +11,7 @@ use crate::{
     database::{Database, DatabaseError, RailgunDB},
     indexer::{
         indexed_account::IndexedAccount,
-        syncer::{self, NoteSyncer, SyncEvent, SyncerError},
+        syncer::{self, SyncEvent, SyncerError, UtxoSyncer},
     },
     merkle_tree::{MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree},
     note::utxo::{NoteError, UtxoNote},
@@ -25,7 +25,7 @@ pub struct UtxoIndexer {
     accounts: Vec<IndexedAccount>,
 
     db: Arc<dyn Database>,
-    utxo_syncer: Arc<dyn NoteSyncer>,
+    utxo_syncer: Arc<dyn UtxoSyncer>,
     utxo_verifier: Arc<dyn MerkleTreeVerifier>,
 }
 
@@ -52,7 +52,7 @@ pub enum UtxoIndexerError {
 impl UtxoIndexer {
     pub async fn new(
         db: Arc<dyn Database>,
-        utxo_syncer: Arc<dyn NoteSyncer>,
+        utxo_syncer: Arc<dyn UtxoSyncer>,
         utxo_verifier: Arc<dyn MerkleTreeVerifier>,
     ) -> Result<Self, UtxoIndexerError> {
         let state = db.get_utxo_indexer().await?;
@@ -113,11 +113,6 @@ impl UtxoIndexer {
         }
 
         vec![]
-    }
-
-    /// Syncs the indexer to the latest block.
-    pub async fn sync(&mut self) -> Result<(), UtxoIndexerError> {
-        self.sync_to(u64::MAX).await
     }
 
     /// Syncs the indexer to a specific block. If the indexer is already synced past that block,

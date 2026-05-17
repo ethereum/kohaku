@@ -1,6 +1,8 @@
 use crypto::poseidon_hash;
+use curve25519_dalek::{Scalar, edwards::CompressedEdwardsY};
 use rand::{Rng, RngCore};
 use ruint::{Uint, aliases::U256};
+use sha2::{Digest, Sha512};
 use thiserror::Error;
 
 use crate::{
@@ -9,8 +11,7 @@ use crate::{
     caip::AssetId,
     crypto::{
         aes::AesError,
-        concat_arrays,
-        keys::{ByteKey, KeyError, U256Key, ViewingKey, blind_viewing_keys},
+        keys::{BlindedKey, ByteKey, KeyError, U256Key, ViewingKey, ViewingPublicKey},
         railgun_base_37,
     },
 };
@@ -138,6 +139,48 @@ pub fn encrypt_shield<R: Rng>(
             shieldKey: shield_private_key.public_key().to_u256().into(),
         },
     })
+}
+
+pub fn blind_viewing_keys(
+    sender: ViewingPublicKey,
+    receiver: ViewingPublicKey,
+    shared_random: &[u8; 32],
+    sender_random: &[u8; 32],
+) -> Result<(BlindedKey, BlindedKey), KeyError> {
+    let sender_point = CompressedEdwardsY(*sender.as_bytes())
+        .decompress()
+        .ok_or(KeyError::DecompressionFailed)?;
+    let receiver_point = CompressedEdwardsY(*receiver.as_bytes())
+        .decompress()
+        .ok_or(KeyError::DecompressionFailed)?;
+
+    let mut final_random = [0u8; 32];
+    for i in 0..32 {
+        final_random[i] = shared_random[i] ^ sender_random[i];
+    }
+
+    let hash = Sha512::digest(final_random);
+    let mut hash_bytes: [u8; 64] = hash.into();
+    hash_bytes.reverse();
+    let scalar = Scalar::from_bytes_mod_order_wide(&hash_bytes);
+
+    Ok((
+        BlindedKey::from_bytes((sender_point * scalar).compress().to_bytes()),
+        BlindedKey::from_bytes((receiver_point * scalar).compress().to_bytes()),
+    ))
+}
+
+/// Concatenates two sized arrays into a new sized array. The output size must be the sum of the
+/// input sizes.
+fn concat_arrays<const A: usize, const B: usize, const C: usize>(
+    a: &[u8; A],
+    b: &[u8; B],
+) -> [u8; C] {
+    assert_eq!(A + B, C);
+    let mut out = [0u8; C];
+    out[..A].copy_from_slice(a);
+    out[A..].copy_from_slice(b);
+    out
 }
 
 #[cfg(all(test, native))]

@@ -5,19 +5,29 @@ use alloy::{
     primitives::{Address, address},
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
+    sol,
 };
 use railgun_rs::{
-    abis::erc20::ERC20,
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
     caip::AssetId,
     chain_config::ChainConfig,
-    indexer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
+    indexer::syncer::{
+        chained_syncer::ChainedSyncer, rpc_syncer::RpcSyncer, subsquid_syncer::SubsquidSyncer,
+    },
     transaction::TransactionBuilder,
 };
 use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+
+sol! {
+    #[sol(rpc)]
+    // ERC20 interface
+    contract ERC20 {
+        function balanceOf(address account) external view returns (uint256);
+    }
+}
 
 const FORK_BLOCK: u64 = 24379760;
 const USDC_ADDRESS: Address = address!("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");

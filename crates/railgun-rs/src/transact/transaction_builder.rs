@@ -29,8 +29,8 @@ use crate::{
     account::{address::RailgunAddress, signer::RailgunSigner},
     caip::AssetId,
     circuit::{
-        inputs::{TransactCircuitInputs, TransactCircuitInputsError},
-        prover::Prover,
+        groth16_prover::Groth16Prover,
+        inputs::transact_inputs::{TransactCircuitInputs, TransactCircuitInputsError},
     },
     merkle_tree::UtxoMerkleTree,
     note::{
@@ -41,7 +41,7 @@ use crate::{
         unshield::UnshieldNote,
         utxo::UtxoNote,
     },
-    transaction::ProvedOperation,
+    transact::proved_transaction::ProvedOperation,
 };
 
 /// Basic builder for constructing railgun transactions. Transactions are sets
@@ -158,7 +158,7 @@ impl TransactionBuilder {
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
     pub async fn build<R: Rng>(
         &self,
-        prover: &dyn Prover,
+        prover: &Groth16Prover,
         chain_id: u64,
         in_notes: &[UtxoNote],
         utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
@@ -378,7 +378,7 @@ fn add_change_note<R: Rng>(operation: &mut Operation, asset: AssetId, rng: &mut 
 }
 
 async fn prove_operations(
-    prover: &dyn Prover,
+    prover: &Groth16Prover,
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     chain_id: u64,
     operations: &[Operation],
@@ -397,7 +397,7 @@ async fn prove_operations(
 }
 
 async fn prove_operation(
-    prover: &dyn Prover,
+    prover: &Groth16Prover,
     utxo_tree: &UtxoMerkleTree,
     chain_id: u64,
     operation: &Operation,
