@@ -87,7 +87,7 @@ export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 export type RailgunPluginConfig = {
     /** Optional index for key derivation (default: 0) */
     keyIndex?: number,
-    /** Optional POI toggle */
+    /** Optional POI toggle (default: true) */
     poi?: boolean,
     /** Optional bundler config */
     bundler?: BundlerConfig
@@ -122,7 +122,7 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
     const eip1193Provider = new EthereumProviderAdapter(host.provider);
     const database = new DatabaseAdapter(chainId.toString(), host.storage);
     const builder = new RailgunBuilder(chain, eip1193Provider).withDatabase(database);
-    if (config?.poi) {
+    if (config?.poi !== false) {
         builder.withPoi();
     }
     const provider = await builder.build();
