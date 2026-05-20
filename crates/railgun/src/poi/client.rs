@@ -9,6 +9,7 @@ use std::{
 use alloy::primitives::ChainId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
+use tracing::info;
 
 use crate::{
     merkle_tree::{MerkleProof, MerkleRoot, MerkleTreeVerifier},
@@ -298,6 +299,10 @@ async fn call<P: Serialize, R: DeserializeOwned>(
         id,
         params,
     };
+
+    // TODO: Remove me
+    let req_json = serde_json::to_string(&req).unwrap();
+    info!("Sending JSON-RPC request: {}", req_json);
 
     let resp: JsonRpcResponse<R> = http.post(url).json(&req).send().await?.json().await?;
     if let Some(err) = resp.error {
