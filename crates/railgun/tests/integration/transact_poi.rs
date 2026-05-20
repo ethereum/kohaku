@@ -91,9 +91,9 @@ async fn test_transact_poi() {
         railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
 
     info!("Syncing to latest block");
-    railgun.sync().await.unwrap();
     railgun.register(account_1.clone()).await.unwrap();
     railgun.register(account_2.clone()).await.unwrap();
+    railgun.sync().await.unwrap();
 
     // Test Shielding
     info!("Testing shield");

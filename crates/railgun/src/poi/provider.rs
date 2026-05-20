@@ -90,6 +90,8 @@ enum PendingPoiError {
     CircuitInputs(#[from] PoiCircuitInputsError),
     #[error("Prover error: {0}")]
     Prover(Box<dyn std::error::Error + Send + Sync>),
+    #[error("Missing txid position for txid {0:?}")]
+    MissingTxid(Txid),
     #[error("Missing UTXO tree {0}")]
     MissingUtxoTree(u32),
     #[error("Missing TXID tree {0}")]
@@ -237,7 +239,7 @@ impl PoiProvider {
     ) -> Result<(), PendingPoiError> {
         let txid_tree_number = match self.txid_indexer.txid_position(&entry.txid) {
             Some((tree_number, _)) => tree_number,
-            None => return Err(PendingPoiError::MissingTxidTree(entry.utxo_tree_in)),
+            None => return Err(PendingPoiError::MissingTxid(entry.txid)),
         };
 
         let (utxo_tree_number, utxo_leaf_index) = match self.txid_indexer.utxo_position(&entry.txid)
