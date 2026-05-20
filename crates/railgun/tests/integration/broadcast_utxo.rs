@@ -4,6 +4,7 @@ use alloy::{
     network::Ethereum,
     primitives::U256,
     providers::{Provider, ProviderBuilder},
+    sol,
 };
 use railgun::{
     account::signer::RailgunSigner,
@@ -19,9 +20,21 @@ use tracing_subscriber::EnvFilter;
 use userop_kit::{
     bundler::{Bundler, pimlico::PimlicoBundler},
     entry_point::ENTRY_POINT_08,
+    railgun::TailCall,
 };
 
 use crate::utils::{AltoBuilder, AnvilBuilder};
+
+sol! {
+    #[sol(rpc)]
+    // WETH interface
+    contract WETH {
+        function approve(address guy, uint256 wad) external returns (bool);
+        function balanceOf(address input) external view returns (uint256);
+        function deposit() external payable;
+        function withdraw(uint256 wad) external;
+    }
+}
 
 /// Tests a full broadcast flow, transfering and unshielding a UTXO note
 /// via a 4337-style broadcast.
@@ -49,7 +62,7 @@ async fn test_broadcast_utxo() {
     )
     .unwrap();
 
-    let fork_block = 10822990;
+    let fork_block = 10886668;
     let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
 
     info!("Setting up alloy provider");
@@ -66,6 +79,8 @@ async fn test_broadcast_utxo() {
         .await
         .unwrap()
         .erased();
+
+    let weth_contract = WETH::new(chain.wrapped_base_token, provider.clone());
 
     let alto_executor_pk = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
     let alto_utility_pk = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
@@ -151,20 +166,21 @@ async fn test_broadcast_utxo() {
         "test transfer",
     );
 
-    let prepared = railgun
+    let signable = railgun
         .prepare_userop(
             tx,
             bundler.as_ref(),
             delegator.address(),
             account_1.clone(),
             chain.wrapped_base_token,
+            vec![],
             &mut rand::rng(),
         )
         .await
         .unwrap();
 
-    info!("Prepared broadcast transaction: {:?}", prepared);
-    let signed = prepared.sign(&delegator).await.unwrap();
+    info!("Prepared broadcast transaction: {:?}", signable);
+    let signed = signable.sign(&delegator).await.unwrap();
     let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
@@ -181,20 +197,28 @@ async fn test_broadcast_utxo() {
         .unshield(account_1.clone(), delegator.address(), weth, 5_000)
         .unwrap();
 
-    let prepared = railgun
+    let unwrap_call = TailCall::new(
+        chain.wrapped_base_token,
+        weth_contract.withdraw(U256::from(3_000)).calldata().clone(),
+    );
+
+    let signable = railgun
         .prepare_userop(
             tx,
             bundler.as_ref(),
             delegator.address(),
             account_1.clone(),
             chain.wrapped_base_token,
+            vec![unwrap_call],
             &mut rand::rng(),
         )
         .await
         .unwrap();
 
-    info!("Prepared broadcast transaction: {:?}", prepared);
-    let signed = prepared.sign(&delegator).await.unwrap();
+    let pre_eoa_balance = provider.get_balance(delegator.address()).await.unwrap();
+
+    info!("Prepared broadcast transaction: {:?}", signable);
+    let signed = signable.sign(&delegator).await.unwrap();
     let hash = bundler.send_user_operation(&signed).await.unwrap();
     let receipt = bundler.wait_for_receipt(hash).await.unwrap();
     assert!(
@@ -202,4 +226,13 @@ async fn test_broadcast_utxo() {
         "Broadcast transaction failed: {:?}",
         receipt
     );
+
+    let weth_balance = weth_contract
+        .balanceOf(delegator.address())
+        .call()
+        .await
+        .unwrap();
+    let post_eoa_balance = provider.get_balance(delegator.address()).await.unwrap();
+    assert_eq!(weth_balance, U256::from(1988));
+    assert_eq!(post_eoa_balance - pre_eoa_balance, U256::from(3_000));
 }

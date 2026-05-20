@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -14,6 +15,7 @@
     {
       self,
       nixpkgs,
+      unstable,
       rust-overlay,
       flake-utils,
     }:
@@ -23,6 +25,10 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ rust-overlay.overlays.default ];
+        };
+
+        unstablePkgs = import unstable {
+          inherit system;
         };
 
         rustToolchain = pkgs.rust-bin.stable."1.93.0".default.override {
@@ -44,7 +50,7 @@
               rustToolchain
               pkgs.rust-analyzer
               pkgs.just
-              pkgs.foundry
+              unstablePkgs.foundry
 
               # Wasm tools
               pkgs.binaryen

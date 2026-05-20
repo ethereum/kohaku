@@ -11,7 +11,7 @@ use tracing::{info, warn};
 use userop_kit::{
     builder::UserOperationBuilder,
     bundler::{Bundler, BundlerError},
-    railgun::{PAYMASTER_MASTER_PUBLIC_KEY, PAYMASTER_VIEWING_PUBLIC_KEY},
+    railgun::{PAYMASTER_MASTER_PUBLIC_KEY, PAYMASTER_VIEWING_PUBLIC_KEY, TailCall},
     signable_user_operation::SignableUserOperation,
 };
 
@@ -157,6 +157,7 @@ impl RailgunProvider {
         delegator_address: Address,
         fee_payer: Arc<dyn RailgunSigner>,
         fee_token: Address,
+        tail_calls: Vec<TailCall>,
         rng: &mut R,
     ) -> Result<SignableUserOperation, RailgunProviderError> {
         if fee_token != self.chain.wrapped_base_token {
@@ -183,8 +184,6 @@ impl RailgunProvider {
         let mut fee_value = 100_000_000;
 
         info!("Iteratively building UserOperation to converge on accurate fee estimate");
-        let mut userop = SignableUserOperation::default();
-
         for _ in 0..5 {
             let broadcast_builder = builder.clone().transfer(
                 fee_payer.clone(),
@@ -214,18 +213,19 @@ impl RailgunProvider {
             .abi_encode()
             .into();
 
-            let tail_call = userop_kit::abis::privacy_account::Call {
-                target: self.chain.railgun_smart_wallet,
-                data: RailgunSmartWallet::transactCall {
+            let railgun_tail_call = TailCall::new(
+                self.chain.railgun_smart_wallet,
+                RailgunSmartWallet::transactCall {
                     _transactions: operations.into_iter().map(|op| op.transaction).collect(),
                 }
                 .abi_encode()
                 .into(),
-            };
+            );
+            let mut tail_calls = tail_calls.clone();
+            tail_calls.insert(0, railgun_tail_call);
 
             // Construct UserOperation
-            // TODO: Fetch provider_nonce once instead of on each iteration
-            let userop_builder = UserOperationBuilder::new_railgun(
+            let builder = UserOperationBuilder::new_railgun(
                 self.chain.id,
                 delegator_address,
                 auth_nonce,
@@ -238,10 +238,10 @@ impl RailgunProvider {
             )
             .with_provider_nonce(self.provider.as_ref(), sender_nonce_key)
             .await?
-            .with_tail_calls(vec![tail_call])
+            .with_tail_calls(tail_calls)
             .with_gas_estimate(bundler)
             .await?;
-            userop = userop_builder.build();
+            let mut signable = builder.build();
 
             // TODO: See if we can unify these two buffers into a single safety
             // margin
@@ -249,12 +249,12 @@ impl RailgunProvider {
             // The bundler seems to find the exact minimum call_gas_limit with
             // no margin.
             // Add 10% headroom so the implementation doesn't sporadically OOG.
-            userop.user_op.call_gas_limit = userop.user_op.call_gas_limit * 11 / 10;
+            signable.user_op.call_gas_limit = signable.user_op.call_gas_limit * 11 / 10;
 
             // Add a 10% headroom to the fee estimate to ensure buffer if prices change
             // slightly between estimation and execution
-            let total_gas = userop.total_gas_limit();
-            let new_fee = total_gas * userop.user_op.max_fee_per_gas;
+            let total_gas = signable.user_op.total_gas_limit();
+            let new_fee = total_gas * signable.user_op.max_fee_per_gas;
             let new_fee = (new_fee * 11) / 10;
 
             let delta = new_fee.abs_diff(fee_value);
@@ -263,12 +263,15 @@ impl RailgunProvider {
             if delta <= new_fee / 100 {
                 // 1% tolerance
                 info!("Fee converged at {}", new_fee);
-                break;
+                return Ok(signable);
             }
             info!("Fee updated to {}, delta: {}", new_fee, delta);
         }
 
-        Ok(userop)
+        return Err(RailgunProviderError::Other(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to converge on fee estimate",
+        ))));
     }
 
     async fn all_unspent(&mut self) -> Vec<UtxoNote> {

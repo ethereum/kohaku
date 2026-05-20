@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub struct UserOperationBuilder<P = ()> {
-    pub op: UserOperation,
+    user_op: UserOperation,
     pub(crate) protocol: P,
 
     gas_set: bool,
@@ -29,7 +29,7 @@ impl<P> UserOperationBuilder<P> {
         protocol: P,
     ) -> Self {
         Self {
-            op: UserOperation {
+            user_op: UserOperation {
                 sender: smart_account,
                 nonce: U256::ZERO,
                 factory: None,
@@ -56,25 +56,25 @@ impl<P> UserOperationBuilder<P> {
 
     /// Sets the calldata for this UserOperation.
     pub fn with_calldata(mut self, calldata: Bytes) -> Self {
-        self.op.call_data = calldata;
+        self.user_op.call_data = calldata;
         self
     }
 
     /// Sets the paymaster for this UserOperation.
     pub fn with_paymaster(mut self, paymaster: Address) -> Self {
-        self.op.paymaster = Some(paymaster);
+        self.user_op.paymaster = Some(paymaster);
         self
     }
 
     /// Sets the paymaster data for this UserOperation.
     pub fn with_paymaster_data(mut self, data: Bytes) -> Self {
-        self.op.paymaster_data = Some(data);
+        self.user_op.paymaster_data = Some(data);
         self
     }
 
     /// Sets the 4337 operation nonce for this UserOperation.
     pub fn with_nonce(mut self, nonce: U256) -> Self {
-        self.op.nonce = nonce;
+        self.user_op.nonce = nonce;
         self
     }
 
@@ -87,16 +87,16 @@ impl<P> UserOperationBuilder<P> {
         let nonce = provider
             .sol_call(
                 self.entry_point,
-                EntryPoint::getNonceCall::new((self.op.sender, key)),
+                EntryPoint::getNonceCall::new((self.user_op.sender, key)),
             )
             .await?;
-        self.op.nonce = nonce;
+        self.user_op.nonce = nonce;
         Ok(self)
     }
 
     /// Sets the EIP-7702 authorization for this UserOperation.
     pub fn with_authorization(mut self, auth: alloy::eips::eip7702::Authorization) -> Self {
-        self.op.authorization = crate::user_operation::Authorization::Eip7702(auth);
+        self.user_op.authorization = crate::user_operation::Authorization::Eip7702(auth);
         self
     }
 
@@ -126,15 +126,15 @@ impl<P> UserOperationBuilder<P> {
 
     /// Sets the factory and factory data for this UserOperation.
     pub fn with_factory(mut self, factory: Address, data: Bytes) -> Self {
-        self.op.factory = Some(factory);
-        self.op.factory_data = Some(data);
+        self.user_op.factory = Some(factory);
+        self.user_op.factory_data = Some(data);
         self
     }
 
     /// Builds a `SignableUserOperation` from this builder, which can then be signed and sent.
     pub fn build(&self) -> SignableUserOperation {
         SignableUserOperation {
-            user_op: self.op.clone(),
+            user_op: self.user_op.clone(),
             entry_point: self.entry_point,
             domain: self.domain.clone(),
         }
@@ -148,12 +148,12 @@ impl<P> UserOperationBuilder<P> {
     ) {
         self.gas_set = true;
 
-        self.op.call_gas_limit = gas.call_gas_limit;
-        self.op.verification_gas_limit = gas.verification_gas_limit;
-        self.op.pre_verification_gas = gas.pre_verification_gas;
-        self.op.paymaster_verification_gas_limit = gas.paymaster_verification_gas_limit;
-        self.op.paymaster_post_op_gas_limit = gas.paymaster_post_op_gas_limit;
-        self.op.max_fee_per_gas = max_fee_per_gas;
-        self.op.max_priority_fee_per_gas = max_priority_fee_per_gas;
+        self.user_op.call_gas_limit = gas.call_gas_limit;
+        self.user_op.verification_gas_limit = gas.verification_gas_limit;
+        self.user_op.pre_verification_gas = gas.pre_verification_gas;
+        self.user_op.paymaster_verification_gas_limit = gas.paymaster_verification_gas_limit;
+        self.user_op.paymaster_post_op_gas_limit = gas.paymaster_post_op_gas_limit;
+        self.user_op.max_fee_per_gas = max_fee_per_gas;
+        self.user_op.max_priority_fee_per_gas = max_priority_fee_per_gas;
     }
 }

@@ -7,9 +7,10 @@ use alloy::{
     primitives::{Address, B128, B256, Bytes, U256, address, aliases::U120, b256},
     sol_types::{SolCall, SolValue},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    abis::privacy_account_abi::IPrivacyAccount,
+    abis::privacy_account::IPrivacyAccount,
     builder::UserOperationBuilder,
     entry_point::{ENTRY_POINT_08, entry_point_08_domain},
 };
@@ -25,6 +26,17 @@ pub struct FeeCommitment {
     pub value: u128,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(js, derive(tsify::Tsify))]
+#[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
+#[serde(rename_all = "camelCase")]
+pub struct TailCall {
+    #[cfg_attr(js, tsify(type = "`0x${string}`"))]
+    pub target: Address,
+    #[cfg_attr(js, tsify(type = "`0x${string}`"))]
+    pub data: Bytes,
+}
+
 /// Railgun-specific protocol data for constructing UserOperations.
 pub struct RailgunProtocol {
     fee_calldata: Bytes,
@@ -35,7 +47,7 @@ pub struct RailgunProtocol {
 ///
 /// This is the only implementation that the Privacy-Protocol paymaster supports for
 /// railgun user operations.
-pub const IMPL: Address = address!("0xaBAd4109fcF3edBf7B7Cdff37A43a2197B5f2cC9");
+pub const IMPL: Address = address!("0x304a1b31d6cc77616951579bd373a4bd8aef4b4c");
 
 /// Privacy-Protocol paymaster address on all chains.
 pub const PAYMASTER: Address = address!("0xBbbc86034C5371e098163A39eC1bb8B2f015bB74");
@@ -127,13 +139,12 @@ impl UserOperationBuilder<RailgunProtocol> {
         builder.update_calldata()
     }
 
-    /// Sets the tail calls for this UserOperation.
-    ///
-    /// Tail calls are executed in the UserOperation's `execute` phase after the fee calldata has
-    /// been executed. They can perform arbitrary actions (IE sending or erc20s, interacting with
-    /// other contracts).
-    pub fn with_tail_calls(mut self, calls: Vec<IPrivacyAccount::Call>) -> Self {
-        self.protocol.tail_calls = calls;
+    /// Extends the UserOperation with additional tail calls to be executed after the fee
+    /// transaction.
+    pub fn with_tail_calls(mut self, calls: Vec<TailCall>) -> Self {
+        self.protocol
+            .tail_calls
+            .extend(calls.into_iter().map(Into::into));
         self.update_calldata()
     }
 
@@ -144,5 +155,20 @@ impl UserOperationBuilder<RailgunProtocol> {
                 .abi_encode()
                 .into();
         self.with_calldata(calldata)
+    }
+}
+
+impl TailCall {
+    pub fn new(target: Address, data: Bytes) -> Self {
+        Self { target, data }
+    }
+}
+
+impl From<TailCall> for IPrivacyAccount::Call {
+    fn from(call: TailCall) -> Self {
+        IPrivacyAccount::Call {
+            target: call.target,
+            data: call.data,
+        }
     }
 }

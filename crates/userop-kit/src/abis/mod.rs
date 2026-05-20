@@ -1,6 +1,5 @@
 pub(crate) mod entry_point;
-pub mod privacy_account;
-pub(crate) mod privacy_account_abi;
+pub(crate) mod privacy_account;
 
 #[cfg(tornadocash)]
 pub(crate) mod tornado;

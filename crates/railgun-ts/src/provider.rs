@@ -5,6 +5,7 @@ use eip_1193_provider::tx_data::TxData;
 use railgun::{account::address::RailgunAddress, caip::AssetId, provider::RailgunProvider};
 use serde::Serialize;
 use tsify::Tsify;
+use userop_kit::railgun::TailCall;
 use userop_kit_ts::{bundler::JsBundler, signable_user_operation::JsSignableUserOperation};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
@@ -98,13 +99,15 @@ impl JsRailgunProvider {
         #[wasm_bindgen(js_name = "feePayer")] fee_payer: &JsRailgunSigner,
         #[wasm_bindgen(js_name = "feeToken", unchecked_param_type = "`0x${string}`")]
         fee_token: String,
+        #[wasm_bindgen(js_name = "tailCalls")] tail_calls: Option<Vec<TailCall>>,
     ) -> Result<JsSignableUserOperation, JsError> {
         let delegator_address =
             Address::from_str(&delegator_address).map_err(|e| JsError::new(&e.to_string()))?;
         let fee_token = Address::from_str(&fee_token).map_err(|e| JsError::new(&e.to_string()))?;
+        let tail_calls = tail_calls.unwrap_or_default();
         let mut rng = rand::rng();
 
-        let user_op = self
+        let signable = self
             .inner
             .prepare_userop(
                 builder.inner.clone(),
@@ -112,10 +115,11 @@ impl JsRailgunProvider {
                 delegator_address,
                 fee_payer.inner(),
                 fee_token,
+                tail_calls,
                 &mut rng,
             )
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(JsSignableUserOperation::new(user_op))
+        Ok(JsSignableUserOperation::new(signable))
     }
 }
