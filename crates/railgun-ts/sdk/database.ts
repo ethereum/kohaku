@@ -9,8 +9,6 @@ export class DatabaseAdapter implements Database {
 
     async get(key: string): Promise<string | null> {
         const value = this.storage.get(this.key(key));
-
-        // TODO: Remove me once delete is implemented
         return value || value === "" ? value : null;
     }
 
@@ -19,7 +17,7 @@ export class DatabaseAdapter implements Database {
     }
 
     async delete(key: string): Promise<void> {
-        this.storage.set(this.key(key), ""); // TODO: Add a delete method to Storage
+        this.storage.set(this.key(key), "");
     }
 
     private key(key: string): string {
