@@ -39,18 +39,25 @@
  * restores from storage automatically.
  */
 
-import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation, Storage } from "@kohaku-eth/plugins";
+import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
-import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, type ChainConfig, type RailgunAddress, type SignableUserOperation } from "../pkg";
-import { DatabaseAdapter, ensureInitialized, EthereumProviderAdapter } from "./lib";
+import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, type ChainConfig, type RailgunAddress, type SignableUserOperation, type TailCall } from "../pkg";
+import { ensureInitialized } from "./lib";
+import { EthereumProviderAdapter } from "./ethereum-provider";
+import { DatabaseAdapter } from "./database";
+import { encodeFunctionData } from "viem";
 
 /**
  * A proved private transaction ready for relay.
  */
 export type RGPrivateOperation = PrivateOperation & {
     builder: TransactionBuilder,
+
+    // Optional fields for native unshield support
+    nativeAmount?: bigint,
+    to?: `0x${string}`,
 };
 
 /**
@@ -113,7 +120,7 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
     }
 
     const eip1193Provider = new EthereumProviderAdapter(host.provider);
-    const database = new DatabaseAdapter(host.storage);
+    const database = new DatabaseAdapter(chainId.toString(), host.storage);
     const builder = new RailgunBuilder(chain, eip1193Provider).withDatabase(database);
     if (config?.poi) {
         builder.withPoi();
@@ -189,15 +196,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async prepareShield(asset: AssetAmount): Promise<TxData[]> {
-        let builder = this.provider.shield();
-        builder = this.addShield(asset.asset, asset.amount, builder);
-
-        const txData = builder.build();
-        return txData.map((tx) => ({
-            to: tx.to,
-            data: tx.data,
-            value: BigInt(tx.value),
-        }));
+        return this.prepareShieldMulti([asset]);
     }
 
     async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData[]> {
@@ -216,7 +215,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         }));
     }
 
-    private addShield(asset: AssetId | { __type: 'native' }, amount: bigint, builder: ShieldBuilder) {
+    private addShield(asset: AssetId, amount: bigint, builder: ShieldBuilder) {
         if (asset.__type === 'erc20') {
             builder = builder.shield(this.pool.primary.address, { type: "Erc20", value: asset.contract }, amount);
         } else if (asset.__type === 'native') {
@@ -228,22 +227,23 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
-        tokenGuard(token);
-
-        //? Safe because of above tokenGuard
-        const entries = await this.pool.drain(this.provider, [token as AssetAmount<ERC20AssetId>]);
-        let builder = this.provider.transact();
-
-        for (const e of entries) {
-            builder = builder.unshield(e.signer, to, e.asset, e.amount);
-        }
-
-        return { __type: 'privateOperation', builder };
+        return this.prepareUnshieldMulti([token], to);
     }
 
     async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
+        let erc20Unshields: AssetAmount<ERC20AssetId>[] = [];
+        let nativeAmount: bigint = 0n;
         for (const token of tokens) {
-            tokenGuard(token);
+            if (token.asset.__type === 'erc20') {
+                erc20Unshields.push(token as AssetAmount<ERC20AssetId>);
+            } else if (token.asset.__type === 'native') {
+                nativeAmount += token.amount;
+                //? Need to unshield as ERC20 then unwrap
+                erc20Unshields.push({
+                    asset: { __type: 'erc20', contract: this.chain.wrappedBaseToken },
+                    amount: token.amount,
+                })
+            }
         }
 
         //? Safe because of above tokenGuard
@@ -254,21 +254,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             builder = builder.unshield(e.signer, to, e.asset, e.amount);
         }
 
-        return { __type: 'privateOperation', builder };
+        return { __type: 'privateOperation', builder, nativeAmount, to };
     }
 
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
-        tokenGuard(token);
-
-        //? Safe because of above tokenGuard
-        const entries = await this.pool.drain(this.provider, [token as AssetAmount<ERC20AssetId>]);
-        let builder = this.provider.transact();
-
-        for (const e of entries) {
-            builder = builder.transfer(e.signer, to, e.asset, e.amount, "");
-        }
-
-        return { __type: 'privateOperation', builder };
+        return this.prepareTransferMulti([token], to);
     }
 
     async prepareTransferMulti(tokens: AssetAmount[], to: RailgunAddress): Promise<RGPrivateOperation> {
@@ -294,12 +284,32 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         if (!this.bundler) throw new Error("No bundler configured for broadcast");
         if (!this.delegatingSigner) throw new Error("No delegating signer configured for broadcast");
 
+        //? If there's a native unshield, add the unwrap tail call
+        let tailCalls: TailCall[] = [];
+        if (op.nativeAmount && op.to) {
+            const data = encodeFunctionData({
+                abi: [{
+                    name: "withdraw",
+                    type: "function",
+                    inputs: [{ name: "wad", type: "uint256" }],
+                }],
+                functionName: "withdraw",
+                args: [op.nativeAmount],
+            });
+
+            tailCalls.push({
+                target: this.chain.wrappedBaseToken,
+                data: data
+            });
+        }
+
         const signableUserOp = await this.provider.prepareUserOp(
             op.builder,
             this.bundler,
             this.delegatingSigner.address,
             this.pool.primary,
             this.chain.wrappedBaseToken,
+            tailCalls
         );
 
         const signedUserOp = await signableUserOp.sign(this.delegatingSigner);
