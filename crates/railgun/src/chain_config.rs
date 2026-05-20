@@ -43,10 +43,9 @@ pub struct ChainConfig {
 
     /// Optional POI endpoint for this chain.
     ///
-    /// Originally sourced from the RAILGUN docs. It's since disappeared from
-    /// the docs, but the current value seems to be valid so ¯\_(ツ)_/¯
-    ///
-    /// Railgun's POI is confusing
+    /// Sourced from signal chat with the railgun team. Not publicly documented anywhere as far as
+    /// I can tell, but the POI endpoint is required for any POI-related functionality.
+    /// ¯\_(ツ)_/¯
     pub poi_endpoint: String,
     /// Optional list keys for POI
     pub list_keys: Vec<ListKey>,
@@ -94,7 +93,7 @@ impl ChainConfig {
             14693013,
             18514200,
             "https://rail-squid.squids.live/squid-railgun-ethereum-v2/v/v1/graphql",
-            "https://ppoi-agg.horsewithsixlegs.xyz/",
+            "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
         )
     }
@@ -108,7 +107,7 @@ impl ChainConfig {
             5784774,
             5944700,
             "https://rail-squid.squids.live/squid-railgun-eth-sepolia-v2/v/v1/graphql",
-            "https://ppoi-agg.horsewithsixlegs.xyz/",
+            "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
         )
     }
