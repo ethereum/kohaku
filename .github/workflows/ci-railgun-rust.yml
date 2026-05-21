@@ -44,7 +44,7 @@ jobs:
       run: cd crates/railgun-rs && just integration-sync-txid
 
     - name: Run transact
-      run: cd crates/railgun-rs && just integration-transact
+      run: cd crates/railgun-rs && just integration-transact-utxo
 
     # - name: Run transact-poi
     #   run: cd crates/railgun-rs && just integration-transact-poi

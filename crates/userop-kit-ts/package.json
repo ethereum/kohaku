@@ -1,0 +1,24 @@
+{
+  "name": "@kohaku-eth/userop-kit-ts",
+  "version": "0.1.0-alpha.12",
+  "description": "",
+  "main": "dist/sdk/lib.js",
+  "scripts": {
+    "build": "pnpm run build:wasm && pnpm run build:js",
+    "build:wasm": "wasm-pack build --target web --out-name index --out-dir pkg",
+    "build:js": "tsc && cp -r pkg dist/",
+    "test:e2e": "INTEGRATION=1 vitest run -t transact-utxo"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.2",
+    "vite": "^8.0.2",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^4.1.1"
+  }
+}

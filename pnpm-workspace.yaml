@@ -1,8 +1,8 @@
 autoInstallPeers: false
 packages:
   - "packages/provider"
-  - "packages/railgun"
   - "packages/privacy-pools"
   - "packages/plugins"
   - "examples/pq-account"
   - "docs"
+  - "crates/railgun-ts"

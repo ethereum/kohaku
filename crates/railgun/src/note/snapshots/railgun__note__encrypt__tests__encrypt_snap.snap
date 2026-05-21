@@ -1,0 +1,16 @@
+---
+source: crates/railgun/src/note/encrypt.rs
+expression: encrypted
+---
+CommitmentCiphertext {
+    ciphertext: [
+        0xb2d6a87ec06934ff5857e678d073000ddd64c9c7451b74c15d5d75f09c5403df,
+        0x2b0f8f409fc754957c60c5f76e5609ca7e3985f81bfd35eff3d8686a4ae0a3c2,
+        0x2f6b7a31b966e714f308ae5b1769e673d9981bd740f19e004d565521ccfc797a,
+        0xbbffdaa7c30cf98490a4fe38cc9fab46f146095b4e17bb5d47fe8ddca32d65b5,
+    ],
+    blindedSenderViewingKey: 0x6046890e0c0db16cdf19a7a4b6f69ffce0f71c9b7ada91a93e0f2e970e0d6310,
+    blindedReceiverViewingKey: 0x4fa247c5252eee8e4fac0d43194ff062a48898dc1342fccaa8fae5f5c9b034e2,
+    annotationData: 0xe42ffadfa3f464f8e92bbcc7bc8d22ee76e99c02169689efa551b80ecbe1e4cc6a6de63fbfc1477ca1582395119854adb8c2e89509f0d7d07c06d01aa335ca21,
+    memo: 0xef6b608efce79eac1d,
+}
