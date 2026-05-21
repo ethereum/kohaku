@@ -4,14 +4,13 @@ import { quoteThunk } from "./quoteThunk";
 import { IRelayerClient } from "../../relayer/interfaces/relayer-client.interface";
 import { assetSelector, poolsSelector } from "../selectors/slices.selectors";
 import { Address } from "../../interfaces/types.interface";
-import { IIndexedDepositWithSecrets } from "../../data/interfaces/events.interface";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
 import { IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { verifyRootsThunk } from "./verifyRootsThunk";
+import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
 
 export interface WithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
-    getWithdrawableDeposits: (asset: Address, amount?: bigint) => IIndexedDepositWithSecrets[];
     relayerClient: IRelayerClient;
     dataService: IDataService;
     assetAddress: bigint;
@@ -24,7 +23,6 @@ export const withdrawThunk = createAsyncThunk<
     WithdrawThunkParams,
     { state: RootState }
 >('withdraw/executeWithdrawals', async ({
-    getWithdrawableDeposits,
     relayerClient,
     dataService,
     assetAddress,
@@ -33,7 +31,7 @@ export const withdrawThunk = createAsyncThunk<
     ...rest
 }, { getState, dispatch }) => {
     const state = getState();
-    const deposits = getWithdrawableDeposits(assetAddress, amount);
+    const deposits = getWithdrawableDepositsSelector(state, assetAddress, amount);
 
     if (!deposits.length) throw new Error(`No deposits found for asset ${assetAddress}`);
 
@@ -113,6 +111,7 @@ export const withdrawThunk = createAsyncThunk<
       const proof = unwrapResult(withdrawResultAction);
 
       return {
+        mode: 'relayer' as const,
         proof,
         poolAddress: deposit.pool,
         relayerUrl,

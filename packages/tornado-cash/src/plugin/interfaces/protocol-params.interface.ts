@@ -1,4 +1,5 @@
 import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import type { SignedAuthorization } from 'viem';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { Address } from "../../interfaces/types.interface";
@@ -13,14 +14,45 @@ import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 
-export interface IWithdrawalPayload {
+export type DelegationConfig =
+  | { mode: 'deterministic'; path?: string }
+  | { mode: 'random' };
+
+export interface IPaymasterConfig {
+  paymasterAddress: `0x${string}`;
+  accountAddress: `0x${string}`;
+  bundlerUrl: string;
+  entryPointAddress: `0x${string}`;
+  delegation?: DelegationConfig;
+}
+
+export interface SignedDelegation {
+  senderAddress: `0x${string}`;
+  authorization: SignedAuthorization;
+}
+
+export interface IRelayerWithdrawalPayload {
+  mode: 'relayer';
   proof: TornadoProveOutput;
   poolAddress: Address;
   relayerUrl: string;
-};
+}
 
-export interface TCPrivateOperation extends PrivateOperation {
-  withdrawals: IWithdrawalPayload[];
+export interface IPaymasterWithdrawalPayload {
+  mode: 'paymaster';
+  proof: TornadoProveOutput;
+  poolAddress: Address;
+  paymasterAddress: `0x${string}`;
+  entryPointAddress: `0x${string}`;
+  bundlerUrl: string;
+  accountAddress: `0x${string}`;
+  delegation?: SignedDelegation;
+}
+
+export type IWithdrawalPayload = IRelayerWithdrawalPayload | IPaymasterWithdrawalPayload;
+
+export interface TCPrivateOperation<Mode extends IWithdrawalPayload['mode'] = 'relayer' | 'paymaster'> extends PrivateOperation {
+  withdrawals: (IWithdrawalPayload & {mode: Mode})[];
 }
 
 export interface TCPublicOperation extends PublicOperation {
@@ -55,16 +87,22 @@ export interface IDepositOperationParams extends IBaseOperationParams {
   strategy: DepositStrategy;
 }
 
-export interface IGetBalancesOperationParams extends IBaseOperationParams {
-  assets?: Address[];
-  balanceType?: 'approved' | 'unapproved';
-}
-
-export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount' | 'strategy'> {
+interface IWithdrawBaseParams extends Omit<IDepositOperationParams, 'amount' | 'strategy'> {
   amount?: bigint;
   recipient: Address;
-  preferredRelayersEns?: string[]
 }
+
+export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
+  mode: 'relayer';
+  preferredRelayersEns?: string[];
+}
+
+export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
+  mode: 'paymaster';
+  paymasterConfig: IPaymasterConfig;
+}
+
+export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
   assets?: Address[];

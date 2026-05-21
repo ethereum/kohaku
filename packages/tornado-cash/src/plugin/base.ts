@@ -14,8 +14,10 @@ import {
   TCAssetAmount,
   TCAssetBalance,
   TCInstance,
+  TCPaymasterUnshieldOptions,
   TCPrepareShieldOptions,
   TCPrepareUnshieldOptions,
+  TCRelayerUnshieldOptions,
 } from "../v1/interfaces.js";
 import {
   IStateManager,
@@ -137,25 +139,50 @@ export class TornadoCashProtocol implements TCInstance {
   async prepareUnshield(
     assets: AssetAmount,
     to: AccountId,
-    { preferredRelayersEns }: TCPrepareUnshieldOptions = {}
-  ): Promise<TCPrivateOperation> {
+    options?: TCRelayerUnshieldOptions,
+  ): Promise<TCPrivateOperation<'relayer'>>
+  async prepareUnshield(
+    assets: AssetAmount,
+    to: AccountId,
+    options?: TCPaymasterUnshieldOptions,
+  ): Promise<TCPrivateOperation<'paymaster'>>
+  async prepareUnshield(
+    assets: AssetAmount,
+    to: AccountId,
+    options?: TCPrepareUnshieldOptions,
+  ): Promise<TCPrivateOperation<'paymaster' | 'relayer'>> {
     const { asset, amount } = assets;
     const parsedAsset = BigInt(asset.contract);
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
 
-    const withdrawals = await stateManager.getWithdrawalPayloads({
+    const baseParams = {
       asset: parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset,
       amount,
       recipient: BigInt(to),
-      preferredRelayersEns
-    });
+    };
+
+    let withdrawals: Awaited<ReturnType<IStateManager['getWithdrawalPayloads']>>;
+
+    if (options && options.mode === 'paymaster') {
+      withdrawals = await stateManager.getWithdrawalPayloads({
+        ...baseParams,
+        mode: 'paymaster',
+        paymasterConfig: options.paymasterConfig,
+      });
+    } else {
+      withdrawals = await stateManager.getWithdrawalPayloads({
+        ...baseParams,
+        mode: 'relayer',
+        preferredRelayersEns: options?.preferredRelayersEns,
+      });
+    }
 
     return {
       __type: 'privateOperation',
       withdrawals
-    }as TCPrivateOperation;
+    } as TCPrivateOperation;
   }
 
   async sync() {

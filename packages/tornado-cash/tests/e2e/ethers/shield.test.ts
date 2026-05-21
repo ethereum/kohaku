@@ -19,7 +19,7 @@ describe('TornadoCash Deposit E2E Flow', () => {
   let protocol: TornadoCashProtocol;
   let protocolPools: Serializable<IPool>[];
   let eth1Pool: Serializable<IPool>;
-  let usdc100Pool: Serializable<IPool>;
+  let erc20Pool: Serializable<IPool>;
   
   const chainId: 1 | 11155111 = inject('chainId');
   const {
@@ -59,7 +59,7 @@ describe('TornadoCash Deposit E2E Flow', () => {
     protocolPools = Object.values(state)[0].pools.poolsTuples.map(([_, pool]) => pool);
 
     eth1Pool = protocolPools.find((p) => p.asset === '0x0' && BigInt(p.denomination) === parseEther('1'))!;
-    usdc100Pool = protocolPools.find((p) => BigInt(p.asset) === BigInt(erc20Address) && BigInt(p.denomination) === parseUnits('100', 6))!;
+    erc20Pool = protocolPools.find((p) => BigInt(p.asset) === BigInt(erc20Address))!;
   });
 
   afterAll(async () => {
@@ -111,7 +111,7 @@ describe('TornadoCash Deposit E2E Flow', () => {
   it('[prepareShield] executes successful ERC20 deposit on forked mainnet', { timeout: 60_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
-    const DEPOSIT_AMOUNT = BigInt(usdc100Pool.denomination); // 100 USDC (6 decimals)
+    const DEPOSIT_AMOUNT = BigInt(erc20Pool.denomination); // 1 deposit
 
     const erc20Asset = ERC20Asset(erc20Address);
 

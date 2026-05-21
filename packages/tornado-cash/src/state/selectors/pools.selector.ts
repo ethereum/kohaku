@@ -1,12 +1,11 @@
 import { createSelector } from "@reduxjs/toolkit";
 
-import { IDepositEvent, IPool } from "../../data/interfaces/events.interface";
+import { IDepositEvent } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
 import { computeMerkleTreeRoot } from "../../utils/proof.util";
 import { RootState } from "../store";
 import {
   depositsSelector,
-  poolsSelector,
   withdrawalsSelector,
 } from "./slices.selectors";
 
@@ -66,24 +65,5 @@ export const poolMerkleTreeRootSelector = createSelector(
     console.log(`Merkle tree for ${leaves.length} leaves took ${ +end - +start }ms`);
 
     return root;
-  },
-);
-
-export const poolFromAssetSelector = createSelector(
-  [poolsSelector, (state: RootState, assetAddress: Address) => assetAddress],
-  (pools, assetAddress: Address): IPool | undefined => {
-    const addressPoolTuple = Array.from(pools).find(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ([_, p]) => p.asset === assetAddress,
-    );
-
-    if (!addressPoolTuple) {
-      return undefined;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [_, poolInfo] = addressPoolTuple;
-
-    return poolInfo;
   },
 );

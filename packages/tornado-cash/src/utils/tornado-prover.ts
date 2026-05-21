@@ -1,6 +1,7 @@
 import _buildGroth16 from 'websnark/src/groth16';
 // websnark has no types — module.exports = build (a callable constructor)
 const buildGroth16 = _buildGroth16 as unknown as (options: { wasmInitialMemory: number }) => Promise<unknown>;
+
 import websnarkUtils from 'websnark/src/utils';
 
 import { toHex } from 'viem';

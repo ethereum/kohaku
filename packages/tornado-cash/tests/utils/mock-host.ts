@@ -13,7 +13,7 @@ export function createMockKeystore(phrase: string = TEST_MNEMONIC): Keystore {
   const masterNode = HDNodeWallet.fromSeed(mnemonic.computeSeed());
 
   return {
-    deriveAt(path: string) {
+    async deriveAt(path: string) {
       const derived = masterNode.derivePath(path);
 
       // Return the private key as hex (32 bytes)
@@ -27,8 +27,8 @@ const createMockStorage = (): PluginStorage => {
 
   return {
     _brand: "Storage",
-    set: storageMap.set.bind(storageMap),
-    get: (key) => storageMap.get(key) || null,
+    set: async (key, value) => {storageMap.set(key, value)},
+    get: async (key) => storageMap.get(key) || null,
   };
 };
 

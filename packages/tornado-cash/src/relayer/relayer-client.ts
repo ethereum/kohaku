@@ -34,6 +34,7 @@ export class RelayerClient implements IRelayerClient {
 
     if (!response.ok) {
       const { error } = await response.json();
+
       throw new RelayerError(error);
     }
 

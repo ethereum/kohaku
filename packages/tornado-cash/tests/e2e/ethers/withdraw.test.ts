@@ -9,11 +9,13 @@ import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { createMockRelayerClient } from '../../utils/mock-relayer';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { getProtocolWithState, sendMultipleTxsAndWait, sendTxAndWait, setupWallet } from '../../utils/test-helpers';
+import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 import { getChainConfigSetup } from '../../constants';
 import { parseEther } from 'viem';
 import { TCBroadcaster, TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
 import { Wallet } from 'ethers';
+import type { IPool } from '../../../src/data/interfaces/events.interface';
+import type { Serializable } from '../../../src/state/interfaces/utils.interface';
 
 describe('TornadoCash Unshield E2E', () => {
   let anvil: AnvilInstance;
@@ -23,11 +25,14 @@ describe('TornadoCash Unshield E2E', () => {
   let broadcaster: TCBroadcaster;
   let relayerClient: ReturnType<typeof createMockRelayerClient>;
   let relayerWallet: Wallet;
+  let erc20Pool: Serializable<IPool>;
 
   const chainId = inject('chainId');
   const {
     forkBlockNumber,
     rpcUrl,
+    erc20Address,
+    erc20WhaleAddress,
   } = getChainConfigSetup(chainId);
 
 
@@ -71,7 +76,7 @@ describe('TornadoCash Unshield E2E', () => {
   beforeEach(async () => {
     pool = anvil.pool(++poolIndex);
     relayerWallet = await setupWallet(pool, TEST_ACCOUNTS.charlie.privateKey)
-    relayerClient = createMockRelayerClient({signer: relayerWallet});
+    relayerClient = createMockRelayerClient({ signer: relayerWallet, chainId });
     ({ protocol, broadcaster } = await getProtocolWithState({
       chainId,
       initialState: () => initialStatePayload,
@@ -81,6 +86,11 @@ describe('TornadoCash Unshield E2E', () => {
     }));
 
     await protocol.sync();
+
+    const state = await protocol.dumpState();
+    const protocolPools = Object.values(state)[0].pools.poolsTuples.map(([, p]: [unknown, Serializable<IPool>]) => p);
+
+    erc20Pool = protocolPools.find((p) => BigInt(p.asset) === BigInt(erc20Address))!;
   });
 
   afterAll(async () => {
@@ -93,14 +103,13 @@ describe('TornadoCash Unshield E2E', () => {
     const DEPOSIT_AMOUNT = 1000000000000000000n; // 1 ETH
 
     // 1. Deposit first
-    const { txns: [shieldTx] } = await protocol.prepareShield(
+    const { txns } = await protocol.prepareShield(
       { asset: nativeAsset, amount: DEPOSIT_AMOUNT }
     );
 
-    const receipt = await sendTxAndWait(alice, shieldTx);
+    const receipts = await sendMultipleTxsAndWait(alice, txns);
 
-    expect(receipt).toBeTruthy();
-    expect(receipt!.status).toEqual(1);
+    expect(receipts.reduce((n, receipt) => n + (receipt?.status ? 1 : 0), 0)).toBe(receipts.length);
 
     await pool.mine(1);
 
@@ -130,14 +139,14 @@ describe('TornadoCash Unshield E2E', () => {
     const WITHDRAW_AMOUNT = DEPOSIT_AMOUNT;
 
     // 1. Deposit
-    const { txns: [shieldTx] } = await protocol.prepareShield(
+    const { txns } = await protocol.prepareShield(
       { asset: nativeAsset, amount: DEPOSIT_AMOUNT }
     );
 
-    const receipt = await sendTxAndWait(alice, shieldTx);
+    const receipts = await sendMultipleTxsAndWait(alice, txns);
 
-    expect(receipt).toBeTruthy();
-    expect(receipt!.status).toEqual(1);
+    expect(receipts.reduce((n, receipt) => n + (receipt?.status ? 1 : 0), 0)).toBe(receipts.length);
+
     await pool.mine(1);
 
     // 2. Verify deposit balance (triggers sync)
@@ -256,8 +265,54 @@ describe('TornadoCash Unshield E2E', () => {
 
     expect(postWithdrawTCBalance).toBe(DEPOSIT_AMOUNT - WITHDRAW_AMOUNT);
     expect(postWithdrawBalance).toBeGreaterThan(preWithdrawalBalance);
-    
   });
 
+  it('[prepareUnshield] ERC20 withdrawal succeeds', { timeout: 120_000 }, async () => {
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+
+    const erc20Asset = ERC20Asset(erc20Address);
+    const DEPOSIT_AMOUNT = BigInt(erc20Pool.denomination);
+    const WITHDRAW_AMOUNT = DEPOSIT_AMOUNT;
+
+    // 1. Fund Alice with ERC20 tokens
+    await transferERC20FromWhale(pool.rpcUrl, erc20Address, erc20WhaleAddress, alice.address, DEPOSIT_AMOUNT);
+
+    // 2. Deposit
+    const { txns } = await protocol.prepareShield({ asset: erc20Asset, amount: DEPOSIT_AMOUNT });
+    const depositReceipts = await sendMultipleTxsAndWait(alice, txns);
+
+    for (const receipt of depositReceipts) {
+      expect(receipt).toBeTruthy();
+      expect(receipt!.status).toEqual(1);
+    }
+
+    await pool.mine(1);
+
+    // 3. Verify deposit balance
+    const [{ amount }] = await protocol.balance([erc20Asset]);
+
+    expect(amount).toBe(DEPOSIT_AMOUNT);
+
+    // 4. Prepare withdrawal
+    const recipientAccount = alice.address as AccountId;
+    const unshieldOp = await protocol.prepareUnshield(
+      { asset: erc20Asset, amount: WITHDRAW_AMOUNT },
+      recipientAccount
+    );
+
+    // 5. Record Alice's pre-withdrawal ERC20 balance
+    const preWithdrawBalance = await getERC20Balance(pool.rpcUrl, erc20Address, alice.address);
+
+    // 6. Broadcast withdrawal
+    await broadcaster.broadcast(unshieldOp);
+    await pool.mine(1);
+
+    // 7. Verify balances
+    const [{ amount: postWithdrawTCBalance }] = await protocol.balance([erc20Asset]);
+    const postWithdrawBalance = await getERC20Balance(pool.rpcUrl, erc20Address, alice.address);
+
+    expect(postWithdrawTCBalance).toBe(DEPOSIT_AMOUNT - WITHDRAW_AMOUNT);
+    expect(postWithdrawBalance).toBeGreaterThan(preWithdrawBalance);
+  });
 
 });

@@ -233,4 +233,19 @@ export class DataService implements IDataService {
 
     return BigInt(block.timestamp);
   }
+
+  async getAccountNonce(accountAddress: Address): Promise<number> {
+    const addressHex = toHex(accountAddress, { size: 20 });
+    const nonce = await this.ethClient.request({
+      method: "eth_getTransactionCount",
+      params: [addressHex, "latest"],
+    }) as `0x${string}` | null;
+
+    if (!nonce) {
+      throw new Error(`Failed to fetch latest nonce for ${addressHex}`);
+    }
+
+    return Number(nonce)
+  }
+
 }

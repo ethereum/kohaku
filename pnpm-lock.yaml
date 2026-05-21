@@ -385,6 +385,9 @@ importers:
       ox:
         specifier: ^0.12.0
         version: 0.12.4(typescript@5.9.3)(zod@4.3.6)
+      privacy-paymaster:
+        specifier: link:../../../privacy-paymaster/sdk
+        version: link:../../../privacy-paymaster/sdk
       snarkjs:
         specifier: git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5
         version: https://codeload.github.com/tornadocash/snarkjs/tar.gz/869181cfaf7526fe8972073d31655493a04326d5(patch_hash=7612ebe3253cb9d4f6725452848cfdc35312015c402eecad1f9648054f0d56b5)

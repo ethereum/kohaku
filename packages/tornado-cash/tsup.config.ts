@@ -3,12 +3,14 @@
 
 import { defineConfig } from 'tsup';
 
+const sourcemap: boolean | 'inline' = false;
+
 export default defineConfig([
   {
     entry: { index: 'src/index.ts' },
     format: ['esm'],
     dts: true,
-    sourcemap: false,
+    sourcemap,
     clean: true,
     target: 'es2022',
     platform: 'browser',
@@ -20,6 +22,7 @@ export default defineConfig([
     entry: { 'worker-loader.browser': 'src/plugin/worker-loader.browser.ts' },
     outDir: 'dist',
     format: ['esm'],
+    sourcemap,
     dts: true,
     clean: false,
     target: 'es2022',
@@ -30,6 +33,7 @@ export default defineConfig([
     entry: { 'worker-loader.node': 'src/plugin/worker-loader.node.ts' },
     outDir: 'dist',
     format: ['esm'],
+    sourcemap,
     dts: true,
     clean: false,
     target: 'es2022',
@@ -40,6 +44,7 @@ export default defineConfig([
     entry: { 'circuit-loader.browser': 'src/utils/circuit-loader.browser.ts' },
     outDir: 'dist',
     format: ['esm'],
+    sourcemap,
     dts: true,
     clean: false,
     target: 'es2022',
@@ -49,6 +54,7 @@ export default defineConfig([
     entry: { 'circuit-loader.node': 'src/utils/circuit-loader.node.ts' },
     outDir: 'dist',
     format: ['cjs'],
+    sourcemap,
     dts: true,
     clean: false,
     target: 'es2022',
@@ -58,6 +64,7 @@ export default defineConfig([
     entry: { 'state-manager.worker': 'src/state/state-manager.worker.ts' },
     outDir: 'dist',
     format: ['esm'],
+    sourcemap,
     dts: false,
     clean: false,
     target: 'es2022',
@@ -97,12 +104,12 @@ export default defineConfig([
     entry: { 'state-manager.worker.node': 'src/state/state-manager.worker.node.ts' },
     outDir: 'dist',
     format: ['cjs'],
+    sourcemap,
     dts: false,
     clean: false,
     target: 'es2022',
     platform: 'node',
     treeshake: false,
-    sourcemap: 'inline',
     splitting: false,
     noExternal: [/^(?!(crypto|worker_threads|path|url|fs|buffer|events|util|os|stream|#worker-loader|#circuit-loader)$)/],
     external: ['crypto', 'worker_threads', '#worker-loader', '#circuit-loader'],

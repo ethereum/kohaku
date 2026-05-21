@@ -52,6 +52,21 @@ export async function fundAccountWithERC20(
 }
 
 /**
+ * Get the ERC20 balance of an account
+ */
+export async function getERC20Balance(
+  rpcUrl: string,
+  tokenAddress: string,
+  account: string
+): Promise<bigint> {
+  const provider = new JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
+  const erc20Abi = ['function balanceOf(address account) view returns (uint256)'];
+  const token = new Contract(tokenAddress, erc20Abi, provider);
+
+  return token.balanceOf(account) as Promise<bigint>;
+}
+
+/**
  * Approve ERC20 spending
  */
 export async function approveERC20(
@@ -170,7 +185,7 @@ interface SimplifiedProtocolParams {
 export const getProtocolWithState = async ({
   host,
   chainId,
-  relayerClientFactory = () => createMockRelayerClient(),
+  relayerClientFactory = () => createMockRelayerClient({ chainId }),
   ...rest
 }: SimplifiedProtocolParams) => {
   const protocolConfig = TornadoCashConfigs[chainId];

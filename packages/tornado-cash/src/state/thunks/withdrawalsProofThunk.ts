@@ -25,7 +25,7 @@ export const withdrawalsProofThunk = createAsyncThunk<
 
     const prover = await proverFactory();
 
-    const { nullifier, salt, nullifierHash } = deposit
+    const { nullifier, salt, nullifierHash } = deposit;
 
     const { root, siblings, pathIndices } = await stateMerkleProofSelector(
       state,

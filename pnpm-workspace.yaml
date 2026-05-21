@@ -1,9 +1,9 @@
 allowBuilds:
-  blake-hash: set this to true or false
-  esbuild: set this to true or false
-  keccak: set this to true or false
-  msgpackr-extract: set this to true or false
-  protobufjs: set this to true or false
+  blake-hash: true
+  esbuild: true
+  keccak: true
+  msgpackr-extract: true
+  protobufjs: true
 autoInstallPeers: false
 packages:
   - "packages/provider"

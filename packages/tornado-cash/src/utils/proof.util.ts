@@ -4,6 +4,7 @@ import { MerkleTree } from 'fixed-merkle-tree';
 
 export function pedersenHash(msg: Uint8Array): bigint {
   const hash = millerPedersenHash(msg);  // encoded baby jubjub point
+
   return Point.decode(hash).x;
 }
 

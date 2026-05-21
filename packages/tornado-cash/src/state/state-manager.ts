@@ -19,15 +19,16 @@ import {
   specificAssetsBalanceSelector,
   SpecificAssetBalanceFn,
 } from "./selectors/balance.selector";
-import { poolFromAssetSelector } from "./selectors/pools.selector";
-import { getWithdrawableDepositsSelector } from "./selectors/withdrawals.selector";
 import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
+import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
 import { ProtocolConfigState } from "./slices/protocolConfigSlice";
+
+const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
 export interface StoreFactoryParams {
   secretManagerFactory: () => Promise<ISecretManager>;
@@ -63,10 +64,6 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
   selectors: {
     specificAssetsBalanceSelector: ((assets: Address[] | Address | undefined) =>
       Promise.resolve(specificAssetsBalanceSelector(store.getState(), assets as Address[]))) as unknown as SpecificAssetBalanceFn<true>,
-    getWithdrawableDeposits: (asset: Address, amount?: bigint) =>
-      getWithdrawableDepositsSelector(store.getState(), asset, amount),
-    poolFromAssetSelector: (assetAddress: Address) =>
-      poolFromAssetSelector(store.getState(), assetAddress),
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -116,7 +113,12 @@ const storeByChainAndEntrypoint = ({
         const snapshotInitialState = storedState || !resolveInitialState
           ? undefined
           : (await resolveInitialState())[storageKey];
-        const initialState: PublicRootState | undefined = storedState || snapshotInitialState;
+        let initialState: PublicRootState | undefined = storedState || snapshotInitialState;
+
+        if (!initialState && getChainStoreParams.chainId === ETH_SEPOLIA_CHAIN_ID) {
+          initialState = await import('./initial-states/state.11155111.minimal.json').then((a) => a["tornado-cash-state-11155111-447664927873626138772898946646079239273904189887"] as never);
+        }
+
         const store = storeFactory({
           protocolConfig,
           initialState,
@@ -212,28 +214,40 @@ export const storeStateManager = async ({
         ),
       );
     },
-    getWithdrawalPayloads: async ({
-      asset,
-      amount,
-      recipient,
-      preferredRelayersEns
-    }: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
+    getWithdrawalPayloads: async (params: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
       const store = await getChainStore(await getChainInfo());
+      const { asset, amount, recipient } = params;
+
+      if (params.mode === 'paymaster') {
+        return unwrapResult(
+          await store.dispatch(
+            paymasterWithdrawThunk({
+              proverFactory,
+              recipient,
+              dataService,
+              assetAddress: asset,
+              amount,
+              paymasterConfig: params.paymasterConfig,
+              secretManager,
+            }),
+          ),
+        );
+      }
 
       return unwrapResult(
         await store.dispatch(
           withdrawThunk({
             proverFactory,
             recipient,
-            getWithdrawableDeposits: store.selectors.getWithdrawableDeposits,
             relayerClient,
             dataService,
             assetAddress: asset,
             amount,
-            preferredRelayersEns: preferredRelayersEns ? new Set(preferredRelayersEns) : undefined
+            preferredRelayersEns: params.preferredRelayersEns ? new Set(params.preferredRelayersEns) : undefined
           }),
         ),
       );
+
     },
     dumpState: () => getAllStores(),
   };

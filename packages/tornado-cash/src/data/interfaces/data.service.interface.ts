@@ -98,4 +98,5 @@ export interface IDataService {
     relayerNameHashes: bigint[],
     subdomains: string[],
   ): Promise<IRelayerAggregatorData[]>;
+  getAccountNonce(accountAddress: Address): Promise<number>;
 }

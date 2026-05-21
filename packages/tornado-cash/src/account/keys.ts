@@ -2,11 +2,11 @@ import { Host } from '@kohaku-eth/plugins';
 import { Commitment, Nullifier, NullifierHash } from '../interfaces/types.interface';
 import { pedersenHash } from '../utils/proof.util';
 
-/** BIP32-BIP43 - Privacy Pools v1
+/** BIP32-BIP43 - Tornado Cash
  *   2**31
  *
- * m/purpose'/version'/account'/secretType'/deposit'/secretIndex'
- *   secretIndex: 0 = deposit secret, 1+ = withdrawal secrets
+ * m/purpose'/version'/account'/secretType'/deposit'
+ *   secretType: 0 = nullifier, 1 = salt, 2 = signer
  *   PH[secret(N|C), entrypointAddress] -> circuit
  */
 
@@ -38,6 +38,7 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
 
 export interface ISecretManager {
   getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
+  deriveEphemeralSigner: (index: number) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -72,8 +73,8 @@ export async function SecretManager({
 }: SecretManagerParams): Promise<ISecretManager> {
   const deriveSecrets = async ({ chainId, poolAddress, depositIndex }: DeriveSecretsParams): Promise<Secret> => {
     // Promise.resolve handles both sync Hex (real keystore) and Promise<Hex> (Comlink proxy)
-    const saltSecret = await Promise.resolve(keystore.deriveAt(ppPath({ accountIndex, secretType: "salt", depositIndex })));
-    const nullifierSecret = await Promise.resolve(keystore.deriveAt(ppPath({ accountIndex, secretType: "nullifier", depositIndex })));
+    const saltSecret = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "salt", depositIndex })));
+    const nullifierSecret = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "nullifier", depositIndex })));
 
     // Domain separation via chained Pedersen: hash secret with chainId, then hash with poolAddress.
     // Truncated to 248 bits to satisfy the tornado circuit constraint.
@@ -89,25 +90,34 @@ export async function SecretManager({
     preimage.set(nullifierBytes, 0);
     preimage.set(toBytesLE(salt, 31), 31);
 
-    const commitment    = pedersenHash(preimage);
+    const commitment = pedersenHash(preimage);
     const nullifierHash = pedersenHash(nullifierBytes);
 
     return { nullifier, salt, commitment, nullifierHash };
   };
 
+  const deriveEphemeralSigner = async (index: number) => {
+    const path = tcPath({ accountIndex, secretType: "signer", depositIndex: index });
+    return Promise.resolve(keystore.deriveAt(path));
+  };
+
   return {
     getDepositSecrets: (params) => deriveSecrets(params),
+    deriveEphemeralSigner,
   };
 }
 
-type PrivacyPoolsDerivationPath = {
+type TorandoCashDerivationPath = {
   accountIndex: number;
-  secretType: "salt" | "nullifier";
+  secretType: "salt" | "nullifier" | "signer";
   depositIndex: number;
 };
 
-function ppPath({ accountIndex, secretType, depositIndex }: PrivacyPoolsDerivationPath) {
-  const _secretType = secretType === "nullifier" ? 0 : 1;
-
+function tcPath({ accountIndex, secretType, depositIndex }: TorandoCashDerivationPath) {
+  const _secretType = {
+    "nullifier": 0,
+    "salt": 1,
+    "signer": 2,
+  }[secretType];
   return `${TORNADO_CASH_PATH}/${accountIndex}'/${_secretType}'/${depositIndex}'`;
 }

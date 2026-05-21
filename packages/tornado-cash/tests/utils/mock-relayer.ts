@@ -1,22 +1,22 @@
-import { Contract, Wallet } from 'ethers';
+import { Contract, parseEther, Wallet } from 'ethers';
 
 import { poolAbi } from '../../src/data/abis/pool.abi';
 import { IRelayerClient, IRelayerStatusResponse, ITornadoWithdrawRequest, ITornadoWithdrawResponse } from '../../src/relayer/interfaces/relayer-client.interface';
 
 export interface MockRelayerOptions {
-  chainId: 1 | 1155511;
-  fees: {
+  chainId: 1 | 11155111;
+  fees?: {
     cheap: number;
     expensive: number;
   };
   signer?: Wallet;
 }
 
-const relayersHostnames = new Set<keyof MockRelayerOptions['fees']>(['cheap', 'expensive']);
+const relayersHostnames = new Set<keyof Exclude<MockRelayerOptions['fees'], undefined>>(['cheap', 'expensive']);
 
-export const createMockRelayerClient = (options: Partial<MockRelayerOptions> = {}) => {
+export const createMockRelayerClient = (options: MockRelayerOptions) => {
   const {
-    chainId = 1,
+    chainId,
     fees = {
       cheap: 0.03,
       expensive: 0.04
@@ -38,10 +38,12 @@ export const createMockRelayerClient = (options: Partial<MockRelayerOptions> = {
       if (!relayersHostnames.has(hostname)) {
         throw new Error('Invalid hostname, must be either \'cheap\' or \'expensive\'');
       }
-  
+
       return {
         currentQueue: 0,
-        ethPrices: {},
+        ethPrices: {
+          DAI: parseEther('0.000468371').toString(),
+        },
         netId: chainId,
         rewardAccount: '0x0000000000000000000000000000000000000001',
         tornadoServiceFee: fees[hostname],

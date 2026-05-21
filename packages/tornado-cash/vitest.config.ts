@@ -10,7 +10,8 @@ const E2E_SUITES = [
   { suiteName: 'all',             include: ['tests/unit/**/*.test.ts', 'tests/e2e/**/*.test.ts'], timeout: 600_000 },
   { suiteName: 'e2e',             include: ['tests/e2e/**/*.test.ts'],                    timeout: 600_000 },
   { suiteName: 'shield',          include: ['tests/e2e/**/shield.test.ts'],               timeout: 600_000 },
-  { suiteName: 'withdraw',        include: ['tests/e2e/**/withdraw.test.ts'],             timeout: 600_000 },
+  { suiteName: 'withdraw',         include: ['tests/e2e/**/withdraw.test.ts'],              timeout: 600_000 },
+  { suiteName: 'withdraw-paymaster', include: ['tests/e2e/**/withdraw-paymaster.test.ts'], timeout: 600_000 },
   { suiteName: 'sync',            include: ['tests/sync.test.ts'],                        timeout: 1_200_000 },
 ];
 
