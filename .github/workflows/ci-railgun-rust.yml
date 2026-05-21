@@ -38,13 +38,13 @@ jobs:
       run: cargo test
 
     - name: Run sync-utxo
-      run: cd crates/railgun-rs && just integration-sync-utxo
+      run: cd crates/railgun && just integration-sync-utxo
 
     - name: Run sync-txid
-      run: cd crates/railgun-rs && just integration-sync-txid
+      run: cd crates/railgun && just integration-sync-txid
 
     - name: Run transact
-      run: cd crates/railgun-rs && just integration-transact-utxo
+      run: cd crates/railgun && just integration-transact-utxo
 
     # - name: Run transact-poi
     #   run: cd crates/railgun-rs && just integration-transact-poi
