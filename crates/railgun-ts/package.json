@@ -8,6 +8,7 @@
     "url": "https://github.com/ethereum/kohaku.git",
     "directory": "crates/railgun-ts"
   },
+  "private": false,
   "scripts": {
     "build": "pnpm run build:wasm && pnpm run build:js",
     "build:wasm": "wasm-pack build --target web --out-name index --out-dir pkg",
