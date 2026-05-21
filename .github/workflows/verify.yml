@@ -66,7 +66,7 @@ jobs:
             PPV1_SEPOLIA_FORK_BLOCK: ${{ secrets.PPV1_SEPOLIA_FORK_BLOCK }}
         
         - name: Run Railgun tests
-          run: cd packages/railgun && just integration
+          run: cd crates/railgun-ts && pnpm test:e2e
           env:
             RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}

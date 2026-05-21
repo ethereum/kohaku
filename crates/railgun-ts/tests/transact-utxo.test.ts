@@ -4,7 +4,8 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { ensureInitialized, initLogging, EthereumProviderAdapter } from "../sdk/lib.js";
+import { ensureInitialized, initLogging } from "../sdk/lib.js";
+import { EthereumProviderAdapter } from "../sdk/ethereum-provider.js";
 import { viem } from "@kohaku-eth/provider/viem";
 
 await ensureInitialized();
