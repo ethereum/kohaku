@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1-alpha.16",
+  "version": "0.0.1-alpha.15",
   "description": "",
   "main": "dist/sdk/lib.js",
   "repository": {
@@ -17,11 +17,14 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
