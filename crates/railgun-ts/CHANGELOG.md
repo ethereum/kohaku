@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.15
+
+### Patch Changes
+
+- 2c3adcf: railgun plugin now with 4337 broadcasting
+
 ## 0.0.1-alpha.14
 
 ### Patch Changes
