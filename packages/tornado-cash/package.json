@@ -45,6 +45,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "aux": "tsx src/account/keys.ts",
     "build": "echo Building @kohaku-eth/tornado-cash && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "demo": "tsx demo/simple.ts",
@@ -85,6 +86,8 @@
   "dependencies": {
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "@reduxjs/toolkit": "^2.11.2",
     "buffer": "^6.0.3",
     "circomlibjs": "0.1.2",

@@ -1,4 +1,7 @@
 import { Host } from '@kohaku-eth/plugins';
+import { bytesToNumberLE, concatBytes as concat, numberToBytesLE } from "@noble/curves/utils.js";
+import { keccak_256 } from "@noble/hashes/sha3.js";
+
 import { Commitment, Nullifier, NullifierHash } from '../interfaces/types.interface';
 import { pedersenHash } from '../utils/proof.util';
 
@@ -9,7 +12,6 @@ import { pedersenHash } from '../utils/proof.util';
  *   secretType: 0 = nullifier, 1 = salt, 2 = signer
  *   PH[secret(N|C), entrypointAddress] -> circuit
  */
-
 const TORNADO_CASH_PATH = "m/29795'/1'";
 
 // Tornado circuits constrain nullifier and secret to 248 bits (31 bytes).
@@ -38,7 +40,7 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
 
 export interface ISecretManager {
   getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
-  deriveEphemeralSigner: (index: number) => Promise<`0x${string}`>;
+  deriveEphemeralSigner: (params: DeriveDepositSecretParams) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -46,25 +48,39 @@ export interface SecretManagerParams {
   accountIndex?: number;
 }
 
-function toBytesLE(n: bigint, byteLength: number): Uint8Array {
-  const buf = new Uint8Array(byteLength);
+interface CoalesceSecretParams {
 
-  for (let i = 0; i < byteLength; i++) buf[i] = Number((n >> BigInt(i * 8)) & 0xffn);
-
-  return buf;
+  /**
+   * randomly derived secret. 32 bytes, excess is truncated.
+   */
+  secret: `0x${string}`;
+  /**
+   * Chain id. 8 bytes, excess is truncated.
+   */
+  chainId: bigint;
+  /**
+   * EVM address as bigint. 20 bytes, excess is truncated.
+   */
+  poolAddress: bigint;
 }
 
-function concat(...arrays: Uint8Array[]): Uint8Array {
-  const total = arrays.reduce((sum, a) => sum + a.length, 0);
-  const result = new Uint8Array(total);
-  let offset = 0;
-
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-
-  return result;
+/**
+ * Takes a random secret potentially derived from a bip32 path and hashes it with unique context
+ * information, chainId and poolAddress, so it's impossible for the user to accidentally dox
+ * themselves, while still allowing deterministic secrets.
+ *
+ * @returns bigint (256 bits)
+ */
+function coalesceSecret({ secret, chainId, poolAddress }: CoalesceSecretParams): bigint {
+  return bytesToNumberLE(
+    keccak_256(
+      concat(
+        numberToBytesLE(BigInt(secret), 32),
+        numberToBytesLE(chainId, 8),
+        numberToBytesLE(poolAddress, 20)
+      )
+    )
+  );
 }
 
 export async function SecretManager({
@@ -73,32 +89,30 @@ export async function SecretManager({
 }: SecretManagerParams): Promise<ISecretManager> {
   const deriveSecrets = async ({ chainId, poolAddress, depositIndex }: DeriveSecretsParams): Promise<Secret> => {
     // Promise.resolve handles both sync Hex (real keystore) and Promise<Hex> (Comlink proxy)
-    const saltSecret = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "salt", depositIndex })));
-    const nullifierSecret = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "nullifier", depositIndex })));
+    const saltSecretRaw = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "salt", depositIndex })));
+    const nullifierSecretRaw = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "nullifier", depositIndex })));
 
-    // Domain separation via chained Pedersen: hash secret with chainId, then hash with poolAddress.
     // Truncated to 248 bits to satisfy the tornado circuit constraint.
-    const nullifierWithChain = pedersenHash(concat(toBytesLE(BigInt(nullifierSecret), 32), toBytesLE(chainId, 8)));
-    const nullifier = pedersenHash(concat(toBytesLE(nullifierWithChain, 32), toBytesLE(poolAddress, 20))) & MASK_248;
+    const salt = coalesceSecret({ secret: saltSecretRaw, chainId, poolAddress }) & MASK_248;
+    const nullifier = coalesceSecret({ secret: nullifierSecretRaw, chainId, poolAddress }) & MASK_248;
 
-    const saltWithChain = pedersenHash(concat(toBytesLE(BigInt(saltSecret), 32), toBytesLE(chainId, 8)));
-    const salt = pedersenHash(concat(toBytesLE(saltWithChain, 32), toBytesLE(poolAddress, 20))) & MASK_248;
-
-    const nullifierBytes = toBytesLE(nullifier, 31);
+    const nullifierBytes = numberToBytesLE(nullifier, 31);
     const preimage = new Uint8Array(62);
 
     preimage.set(nullifierBytes, 0);
-    preimage.set(toBytesLE(salt, 31), 31);
+    preimage.set(numberToBytesLE(salt, 31), 31);
 
-    const commitment = pedersenHash(preimage);
-    const nullifierHash = pedersenHash(nullifierBytes);
+    const commitment = pedersenHash(preimage);   // 496 bits == 62 bytes
+    const nullifierHash = pedersenHash(nullifierBytes);  // 248 == 31 bytes
 
     return { nullifier, salt, commitment, nullifierHash };
   };
 
-  const deriveEphemeralSigner = async (index: number) => {
-    const path = tcPath({ accountIndex, secretType: "signer", depositIndex: index });
-    return Promise.resolve(keystore.deriveAt(path));
+  const deriveEphemeralSigner = async ({ chainId, poolAddress, depositIndex }: DeriveDepositSecretParams) => {
+    const path = tcPath({ accountIndex, secretType: "signer", depositIndex });
+    const raw = await Promise.resolve(keystore.deriveAt(path));
+    const coalesced = coalesceSecret({ secret: raw, chainId, poolAddress });
+    return `0x${coalesced.toString(16).padStart(64, '0')}` as `0x${string}`;
   };
 
   return {

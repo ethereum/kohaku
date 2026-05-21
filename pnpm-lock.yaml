@@ -361,6 +361,12 @@ importers:
       '@kohaku-eth/provider':
         specifier: workspace:*
         version: link:../provider
+      '@noble/curves':
+        specifier: ^2.2.0
+        version: 2.2.0
+      '@noble/hashes':
+        specifier: ^2.2.0
+        version: 2.2.0
       '@reduxjs/toolkit':
         specifier: ^2.11.2
         version: 2.11.2(react@19.2.6)

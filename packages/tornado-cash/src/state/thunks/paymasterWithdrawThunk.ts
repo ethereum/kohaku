@@ -77,16 +77,20 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   let delegations: (SignedDelegation | undefined)[];
 
   if (paymasterConfig.delegation?.mode === 'deterministic') {
-    const chainId = Number(await dataService.getChainId());
+    const chainId = await dataService.getChainId();
 
     delegations = await Promise.all(
       deposits.map(async (deposit) => {
-        const ephemeralPk = await secretManager.deriveEphemeralSigner(deposit.index);
+        const ephemeralPk = await secretManager.deriveEphemeralSigner({
+          depositIndex: deposit.index,
+          chainId,
+          poolAddress: poolInfo.address,
+        });
 
         return signDelegationAuthorization({
           privateKey: ephemeralPk,
           accountAddress: paymasterConfig.accountAddress,
-          chainId,
+          chainId: Number(chainId),
           nonce: 0,
         });
       }),
