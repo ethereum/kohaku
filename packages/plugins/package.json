@@ -37,6 +37,8 @@
   },
   "dependencies": {
     "@kohaku-eth/provider": "workspace:*",
+    "@scure/bip32": "^2.2.0",
+    "@scure/bip39": "^2.2.0",
     "ox": "^0.12.0"
   }
 }
