@@ -12,6 +12,7 @@ import {
   IWithdrawalPayload,
   StoreStorageKey,
   TCProtocolConfig,
+  IChainsPaymastersConfig,
 } from '../plugin/interfaces/protocol-params.interface';
 import { PublicRootState, RootState } from './store';
 import { Address } from '../interfaces/types.interface';
@@ -23,6 +24,7 @@ export interface WorkerInitOptions {
   accountIndex: number,
   circuitUrl?: string,
   provingKeyUrl?: string,
+  paymasterConfig: IChainsPaymastersConfig,
 }
 
 let _stateManager: IStateManager | null = null;
@@ -43,11 +45,12 @@ export const workerApi = {
     keystore: Keystore,
     rawStorage: Omit<Storage, '_brand'>,
     initialState: () => Promise<Record<string, PublicRootState>>,
-    { protocolConfig, accountIndex, circuitUrl, provingKeyUrl, relayerConfig }: WorkerInitOptions,
+    { protocolConfig, accountIndex, circuitUrl, provingKeyUrl, relayerConfig, paymasterConfig }: WorkerInitOptions,
   ): Promise<void> {
     const storage = rawStorage as Storage;
 
     _stateManager = await storeStateManager({
+      paymasterConfig,
       secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
       dataService: new DataService({ provider }),
       relayerClient,

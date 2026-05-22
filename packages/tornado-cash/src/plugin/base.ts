@@ -25,7 +25,7 @@ import {
   TCPublicOperation,
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
-import { E_ADDRESS_BIGINT } from "../config";
+import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
@@ -41,6 +41,7 @@ export class TornadoCashProtocol implements TCInstance {
       artifacts,
       stateManagerWorkerUrl,
       relayerConfig,
+      paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host)
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'protocolConfig'>,
   ) {
@@ -61,7 +62,7 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.keystore),
           proxy(host.storage),
           proxy(initialState),
-          { protocolConfig, accountIndex, circuitUrl: artifacts?.circuitUrl, provingKeyUrl: artifacts?.provingKeyUrl, relayerConfig },
+          { protocolConfig, accountIndex, circuitUrl: artifacts?.circuitUrl, provingKeyUrl: artifacts?.provingKeyUrl, relayerConfig, paymasterConfig },
         ),
         workerReady,
       ]);
@@ -169,7 +170,7 @@ export class TornadoCashProtocol implements TCInstance {
       withdrawals = await stateManager.getWithdrawalPayloads({
         ...baseParams,
         mode: 'paymaster',
-        paymasterConfig: options.paymasterConfig,
+        delegation: options.delegation
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

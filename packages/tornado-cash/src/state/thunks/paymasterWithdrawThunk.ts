@@ -5,18 +5,21 @@ import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
 import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
 import { setupBundlerClient, signDelegationAuthorization } from "../../paymaster/utils";
-import { IPaymasterConfig, IWithdrawalPayload, SignedDelegation } from "../../plugin/interfaces/protocol-params.interface";
-import { poolsSelector } from "../selectors/slices.selectors";
+import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
+import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
 import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
+import { SignedDelegation } from "../../relayer/interfaces/paymaster-client.interface";
 
 export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
   dataService: IDataService;
   assetAddress: bigint;
   amount?: bigint;
-  paymasterConfig: IPaymasterConfig;
+  paymasterSettings: IChainsPaymastersConfig & {
+    delegation?: DelegationConfig;
+  };
   secretManager: ISecretManager;
 }
 
@@ -28,17 +31,38 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   dataService,
   assetAddress,
   amount,
-  paymasterConfig,
+  paymasterSettings: {
+    delegation,
+    ...paymasterConfig
+  },
   secretManager,
   ...rest
 }, { getState, dispatch }) => {
   const state = getState();
+  const { chainId: rawChainId } = instanceRegistryInfoSelector(state);
+  const chainId = Number(rawChainId);
   const deposits = getWithdrawableDepositsSelector(state, assetAddress, amount);
   const poolsToWithdrawFrom = [...new Set(deposits.map((d) => d.pool))];
 
   const pools = poolsSelector(state);
   const poolInfo = pools.get(deposits[0]!.pool);
+
   if (!poolInfo) throw new Error(`No pool found for asset ${assetAddress}`);
+
+  const {
+    bundlerUrl,
+    entryPointAddress,
+    paymasterAddress,
+    poolsAccountsMap: rawPoolsAccountsMap,
+  } = paymasterConfig[chainId]!;
+
+  const poolAcountsMap = new Map(
+    Object.entries(rawPoolsAccountsMap)
+      .map(([poolAccount, tornadoAccount]) => [
+        BigInt(poolAccount) as Address,
+        tornadoAccount
+      ] as const)
+    )
 
   unwrapResult(
     await dispatch(verifyRootsThunk({
@@ -48,8 +72,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   );
 
   const bundlerClient = setupBundlerClient({
-    bundlerUrl: paymasterConfig.bundlerUrl,
-    entryPointAddress: paymasterConfig.entryPointAddress,
+    bundlerUrl: bundlerUrl,
+    entryPointAddress: entryPointAddress,
     chainId: Number(state.instanceRegistryInfo.chainId)
   });
 
@@ -62,7 +86,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     : ethFee;
 
   // The relayer address in the proof is the paymaster — it receives the fee
-  const relayerAddress = BigInt(paymasterConfig.paymasterAddress) as Address;
+  const relayerAddress = BigInt(paymasterAddress) as Address;
 
   const proofOutputs = await Promise.all(deposits.map(async (deposit) => {
     const withdrawResultAction = await dispatch(
@@ -85,20 +109,20 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // Each deposit gets its own signer derived from its deposit index.
   let delegations: (SignedDelegation | undefined)[];
 
-  if (paymasterConfig.delegation?.mode === 'deterministic') {
+  if (delegation?.mode === 'deterministic') {
     const chainId = await dataService.getChainId();
 
     delegations = await Promise.all(
-      deposits.map(async (deposit) => {
+      deposits.map(async ({ index, pool }) => {
         const ephemeralPk = await secretManager.deriveEphemeralSigner({
-          depositIndex: deposit.index,
+          depositIndex: index,
           chainId,
-          poolAddress: poolInfo.address,
+          poolAddress: pool,
         });
 
         return signDelegationAuthorization({
           privateKey: ephemeralPk,
-          accountAddress: paymasterConfig.accountAddress,
+          accountAddress: poolAcountsMap.get(pool)!,
           chainId: Number(chainId),
           nonce: 0,
         });
@@ -113,10 +137,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     proof,
     poolAddress,
     isERC20: poolInfo.isERC20,
-    paymasterAddress: paymasterConfig.paymasterAddress,
-    entryPointAddress: paymasterConfig.entryPointAddress,
-    bundlerUrl: paymasterConfig.bundlerUrl,
-    accountAddress: paymasterConfig.accountAddress,
+    paymasterAddress: paymasterAddress,
+    entryPointAddress: entryPointAddress,
+    bundlerUrl: bundlerUrl,
+    accountAddress: poolAcountsMap.get(poolAddress)!,
     delegation: delegations[i],
   })) satisfies IWithdrawalPayload[];
 });

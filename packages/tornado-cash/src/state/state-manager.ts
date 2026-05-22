@@ -11,6 +11,7 @@ import {
   StoreStorageKey,
   IWithdrawalPayload,
   TCProtocolConfig,
+  IChainsPaymastersConfig,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { ITornadoProver } from "../utils/tornado-prover";
@@ -34,6 +35,7 @@ export interface StoreFactoryParams {
   secretManagerFactory: () => Promise<ISecretManager>;
   dataService: IDataService;
   relayerClient: IRelayerClient;
+  paymasterConfig: IChainsPaymastersConfig;
   storageToSyncTo?: Storage;
   protocolConfig: TCProtocolConfig;
   relayerConfig?: IRelayerFeeConfig;
@@ -150,6 +152,7 @@ export const storeStateManager = async ({
   secretManagerFactory,
   dataService,
   relayerClient,
+  paymasterConfig,
   proverFactory,
   storageToSyncTo,
   initialState,
@@ -227,7 +230,10 @@ export const storeStateManager = async ({
               dataService,
               assetAddress: asset,
               amount,
-              paymasterConfig: params.paymasterConfig,
+              paymasterSettings: {
+                ...paymasterConfig,
+                delegation: params.delegation,
+              },
               secretManager,
             }),
           ),

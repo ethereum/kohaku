@@ -11,10 +11,10 @@ import { createMockRelayerClient } from './utils/mock-relayer';
 import { getPoolStateRoot } from './utils/test-helpers';
 import { TornadoCashProtocol } from "@kohaku-eth/tornado-cash";
 
-const mockParams = () => {
+const mockParams = (chainId: 1 | 11155111) => {
   return {
     params: {
-      relayerClientFactory: createMockRelayerClient,
+      relayerClientFactory: () => createMockRelayerClient({ chainId }),
     }
   };
 };
@@ -52,10 +52,10 @@ describe("Creates the dump state payload", () => {
     await anvil.stop();
   });
 
-  it.skip("syncs [from 0]", { timeout: 0 }, async () => {
+  it.only("syncs [from 0]", { timeout: 0 }, async () => {
     const pool = pools[10];
 
-    const { params } = mockParams();
+    const { params } = mockParams(chainId);
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
 
     const protocol = new TornadoCashProtocol(host, {
@@ -74,7 +74,7 @@ describe("Creates the dump state payload", () => {
   it("syncs [progressively]", { timeout: 0 }, async () => {
     const pool = pools[11];
 
-    const { params } = mockParams();
+    const { params } = mockParams(chainId);
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
 
     const protocol = new TornadoCashProtocol(host, {

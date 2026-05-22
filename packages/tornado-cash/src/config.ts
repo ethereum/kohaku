@@ -1,6 +1,24 @@
+import { IPaymasterConfig } from "./plugin/interfaces/protocol-params.interface";
+
 // Protocol constants
 export const E_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 export const E_ADDRESS_BIGINT = BigInt(E_ADDRESS);
+
+export const TornadoPaymasterConfigs = {
+  11155111: {
+    bundlerUrl: 'https://public.pimlico.io/v2/11155111/rpc',
+    entryPointAddress: '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108',
+    paymasterAddress: '0xA0e2667AcdECb9bCDa6Fcf87638a962e2E9dB20D',
+    poolsAccountsMap: {
+      '0x8c4a04d872a6c1be37964a21ba3a138525dff50b': '0x8A70E3dE493B8599447013f08d8b35719C8ED0ec',
+      '0x8cc930096b4df705a007c4a039bdfa1320ed2508': '0x191e3De3cF7f61de7EbEf4Bf45cfBA4f652d1C6e',
+      '0x6921fd1a97441dd603a997ed6ddf388658daf754': '0x060d053A6595630851ab873d6C95401b0C964d26'
+    }
+  },
+  1: {
+
+  } as never
+} as const satisfies Record<number, IPaymasterConfig>;
 
 export const TornadoCashConfigs = {
   1: {

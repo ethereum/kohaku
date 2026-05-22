@@ -14,7 +14,7 @@ export interface MockRelayerOptions {
 
 const relayersHostnames = new Set<keyof Exclude<MockRelayerOptions['fees'], undefined>>(['cheap', 'expensive']);
 
-export const createMockRelayerClient = (options: MockRelayerOptions) => {
+export const createMockRelayerClient = (options?: MockRelayerOptions) => {
   const {
     chainId,
     fees = {
@@ -22,7 +22,11 @@ export const createMockRelayerClient = (options: MockRelayerOptions) => {
       expensive: 0.04
     },
     signer,
-  } = options;
+  } = options || {};
+
+  if (!chainId) {
+    throw new Error('Provide a chainId');
+  }
 
   let alwaysFail = false;
   const setAlwaysFail = (bool: boolean) => {

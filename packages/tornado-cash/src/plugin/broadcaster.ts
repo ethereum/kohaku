@@ -3,12 +3,14 @@ import type { Chain } from 'viem';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
 import { TCBroadcaster, TCBroadcasterParameters } from "../v1";
-import { IPaymasterWithdrawalPayload, IRelayerWithdrawalPayload, TCPrivateOperation } from "./interfaces/protocol-params.interface";
+import { IPaymasterConfig, IRelayerWithdrawalPayload, TCPrivateOperation } from "./interfaces/protocol-params.interface";
 import { addressToHex } from "../utils";
 import { PaymasterBroadcaster, PaymasterBroadcastResult } from "../paymaster/paymaster-broadcaster";
+import { IPaymasterBroadcasterClient, IPaymasterWithdrawalPayload } from "../relayer/interfaces/paymaster-client.interface";
 
 export interface TCRelayerConstructorParams extends TCBroadcasterParameters {
   host: Host;
+  paymasterConfig: Record<number, IPaymasterConfig>;
   chain?: Chain;
   rpcUrl?: string;
 }
@@ -18,13 +20,17 @@ export type TCBroadcastResult = ITornadoWithdrawResponse[] | PaymasterBroadcastR
 export class TornadoCashBroadcaster implements TCBroadcaster {
   private relayerClient: IRelayerClient;
   private provider: Host["provider"];
+  private paymasterBroadcaster: IPaymasterBroadcasterClient;
 
   constructor({
     host,
     relayerClientFactory = () => new RelayerClient({ network: host.network }),
+    paymasterConfig,
+    paymasterClientFactory = () => new PaymasterBroadcaster(host.provider, paymasterConfig)
   }: TCRelayerConstructorParams) {
     this.provider = host.provider;
     this.relayerClient = relayerClientFactory();
+    this.paymasterBroadcaster = paymasterClientFactory();
   }
 
   async broadcast({
@@ -80,9 +86,6 @@ export class TornadoCashBroadcaster implements TCBroadcaster {
   private async broadcastViaPaymaster(
     withdrawals: IPaymasterWithdrawalPayload[],
   ): Promise<PaymasterBroadcastResult[]> {
-
-    const broadcaster = new PaymasterBroadcaster(this.provider);
-
-    return broadcaster.broadcast(withdrawals);
+    return this.paymasterBroadcaster.broadcast(withdrawals);
   }
 }

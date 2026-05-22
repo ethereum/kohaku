@@ -1,14 +1,17 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IPaymasterConfig, TCPrivateOperation, TCPublicOperation, PrivacyPoolsV1ProtocolParams, ITornadoArtifacts, TCProtocolConfig } from '../plugin/interfaces/protocol-params.interface.js';
+import { TCPrivateOperation, TCPublicOperation, PrivacyPoolsV1ProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
 import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
 import { IRelayerFeeConfig } from "../state/slices/relayersSlice.js";
+import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface.js";
 export { DepositStrategy };
 
 export type TCBroadcasterParameters = {
     relayerClientFactory?: () => IRelayerClient;
+    paymasterConfig?: IChainsPaymastersConfig;
+    paymasterClientFactory?: () => IPaymasterBroadcasterClient
 };
 export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResponse[]>;
 interface TCBaseCredential {
@@ -32,7 +35,8 @@ export interface TCRelayerUnshieldOptions {
 }
 
 export interface TCPaymasterUnshieldOptions {
-    mode: 'paymaster'; paymasterConfig: IPaymasterConfig;
+    mode: 'paymaster';
+    delegation?: DelegationConfig;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;

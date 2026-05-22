@@ -7,6 +7,7 @@ import { InitialState } from './common';
 import { IRelayerClient } from '../../src/relayer/interfaces/relayer-client.interface';
 import { createMockRelayerClient } from './mock-relayer';
 import { poolAbi } from '../../src/data/abis/pool.abi';
+import { TornadoPaymasterConfigs } from '../../src/config';
 /**
  * Fund an account with ETH using anvil pool's setBalance
  */
@@ -176,6 +177,7 @@ export async function getPoolStateRoot(pool: AnvilPool, poolAddress: bigint) {
 
 interface SimplifiedProtocolParams {
   host: Host,
+  bundlerUrl?: string;
   initialState?: () => Promise<InitialState>;
   rpcUrl: string;
   chainId: 1 | 11155111;
@@ -186,13 +188,21 @@ export const getProtocolWithState = async ({
   host,
   chainId,
   relayerClientFactory = () => createMockRelayerClient({ chainId }),
+  bundlerUrl,
   ...rest
 }: SimplifiedProtocolParams) => {
+  const paymasterConfig = {
+    [chainId]: {
+      ...TornadoPaymasterConfigs[chainId],
+      ...(bundlerUrl ? { bundlerUrl } : {}),
+    }
+  }
   const protocolConfig = TornadoCashConfigs[chainId];
-  const broadcaster = createTCBroadcaster(host, { relayerClientFactory });
+  const broadcaster = createTCBroadcaster(host, { relayerClientFactory, paymasterConfig });
   const protocol = new TornadoCashProtocol(host, {
     protocolConfig,
     relayerClientFactory,
+    paymasterConfig,
     ...rest,
   });
 

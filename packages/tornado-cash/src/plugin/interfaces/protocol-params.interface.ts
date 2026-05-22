@@ -1,8 +1,6 @@
 import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
-import type { SignedAuthorization } from 'viem';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
-import { Address } from "../../interfaces/types.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
@@ -13,41 +11,28 @@ import { TxData } from '@kohaku-eth/provider';
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
+import { IPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
+import { Address } from '../../interfaces/types.interface';
 
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }
   | { mode: 'random' };
 
+type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
-  paymasterAddress: `0x${string}`;
-  accountAddress: `0x${string}`;
+  paymasterAddress: StringAddress;
+  entryPointAddress: StringAddress;
+  poolsAccountsMap: Record<StringAddress, StringAddress>;
   bundlerUrl: string;
-  entryPointAddress: `0x${string}`;
-  delegation?: DelegationConfig;
 }
 
-export interface SignedDelegation {
-  senderAddress: `0x${string}`;
-  authorization: SignedAuthorization;
-}
+export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
 
 export interface IRelayerWithdrawalPayload {
   mode: 'relayer';
   proof: TornadoProveOutput;
   poolAddress: Address;
   relayerUrl: string;
-}
-
-export interface IPaymasterWithdrawalPayload {
-  mode: 'paymaster';
-  proof: TornadoProveOutput;
-  poolAddress: Address;
-  isERC20: boolean;
-  paymasterAddress: `0x${string}`;
-  entryPointAddress: `0x${string}`;
-  bundlerUrl: string;
-  accountAddress: `0x${string}`;
-  delegation?: SignedDelegation;
 }
 
 export type IWithdrawalPayload = IRelayerWithdrawalPayload | IPaymasterWithdrawalPayload;
@@ -69,6 +54,7 @@ export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
 
 export interface PrivacyPoolsV1ProtocolParams {
   accountIndex?: number;
+  paymasterConfig: IChainsPaymastersConfig;
   secretManagerFactory: (params: SecretManagerParams) => Promise<ISecretManager>;
   stateManager: (params: StoreFactoryParams) => Promise<IStateManager>;
   relayerClientFactory: () => IRelayerClient;
@@ -100,7 +86,7 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
   mode: 'paymaster';
-  paymasterConfig: IPaymasterConfig;
+  delegation?: DelegationConfig;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
