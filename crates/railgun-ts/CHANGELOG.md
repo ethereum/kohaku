@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.19
+
+### Patch Changes
+
+- 6aa8243: fix: railgun pkg null ptr issues
+
 ## 0.0.1-alpha.18
 
 ### Patch Changes
