@@ -13,4 +13,8 @@ packages/pq-account/foundry.lock
 .claude
 .direnv
 .vscode
-target/
+target/venv/
+crates/stim_qec/venv/
+crates/stim_qec/sinter_decoder_cpp
+crates/stim_qec/sinter_decoder_sv
+crates/stim_qec/sinter_decoder_sv_exec
