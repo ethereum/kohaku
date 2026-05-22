@@ -4518,7 +4518,6 @@ dependencies = [
  "cfg_aliases",
  "clap",
  "common",
- "console_error_panic_hook",
  "crypto",
  "ctr",
  "curve25519-dalek",
@@ -4560,6 +4559,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "async-trait",
+ "console_error_panic_hook",
  "eip-1193-provider",
  "railgun",
  "rand 0.9.4",

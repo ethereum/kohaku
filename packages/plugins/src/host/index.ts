@@ -1,5 +1,7 @@
 import { Hex } from "ox/Hex";
 import { EthereumProvider } from "@kohaku-eth/provider";
+export { MemoryStorage } from "./memory-storage";
+export { MnemonicKeystore } from "./mnemonic-keystore";
 
 export type Host = {
     network: Network;

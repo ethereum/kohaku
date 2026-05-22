@@ -72,6 +72,10 @@ export const viem = (client: PublicClient): EthereumProvider<PublicClient> => {
         },
         async getGasPrice(): Promise<bigint> {
             return await client.getGasPrice();
+        },
+        async getTransactionCount(address: `0x${string}`, block?: number): Promise<number> {
+            return await client.getTransactionCount({ address: address, blockNumber: block ? BigInt(block) : undefined });
+
         }
     };
 };

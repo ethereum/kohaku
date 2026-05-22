@@ -1,5 +1,5 @@
 {
-  description = "Skylock dev shell";
+  description = "Kohaku dev shell";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";

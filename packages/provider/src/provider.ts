@@ -63,6 +63,11 @@ export type EthereumProvider<T = unknown> = {
    * Get the current gas price
    */
   getGasPrice(): Promise<bigint>;
+
+  /**
+   * Gets the transaction count (nonce) for an address, optionally at a specific block
+   */
+  getTransactionCount(address: `0x${string}`, block?: number): Promise<number>;
 }
 
 /**

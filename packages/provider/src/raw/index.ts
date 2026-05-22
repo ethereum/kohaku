@@ -3,6 +3,7 @@ import { EthereumProvider, TransactionReceipt, TxLog, CallData } from "..";
 import { HexString, hexToBigInt } from "./hex";
 import { Provider } from 'ox/Provider';
 import { Block, Filter } from "ox";
+import { toHex } from "viem";
 
 export const raw = (client: Provider): EthereumProvider<Provider> => {
     const getTransactionReceipt = async (txHash: string): Promise<TransactionReceipt | null> => {
@@ -102,6 +103,14 @@ export const raw = (client: Provider): EthereumProvider<Provider> => {
             return hexToBigInt(hex);
         },
         getTransactionReceipt,
+        async getTransactionCount(address: `0x${string}`, block?: number): Promise<number> {
+            const hex = await client.request({
+                method: 'eth_getTransactionCount',
+                params: [address, block ? toHex(block) : 'latest'],
+            }) as HexString;
+
+            return Number(hexToBigInt(hex));
+        }
     }
 }
 

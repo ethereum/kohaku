@@ -4,7 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+wasm-opt = [
+    "-O",
+    "--debuginfo",
+    "--enable-bulk-memory",
+    "--enable-nontrapping-float-to-int",
+]
 
 [package.metadata.cargo-machete]
 ignored = ["wasm-bindgen-futures"]
@@ -13,6 +18,7 @@ ignored = ["wasm-bindgen-futures"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+console_error_panic_hook = { workspace = true }
 alloy = { workspace = true }
 async-trait = { workspace = true }
 eip-1193-provider = { workspace = true, features = ["js"] }
