@@ -43,7 +43,7 @@ import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateO
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
-import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, type ChainConfig, type RailgunAddress, type SignableUserOperation, type TailCall } from "../pkg";
+import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, UtxoSyncer, type ChainConfig, type RailgunAddress, type SignableUserOperation, type TailCall } from "../pkg";
 import { ensureInitialized } from "./lib";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { DatabaseAdapter } from "./database";
@@ -85,6 +85,8 @@ export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
 
 export type RailgunPluginConfig = {
+    /** Optional RPC call batch size when syncing (default: 10) */
+    rpcBatchSize?: number,
     /** Optional index for key derivation (default: 0) */
     keyIndex?: number,
     /** Optional POI toggle (default: true) */
@@ -123,7 +125,16 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
 
     const eip1193Provider = new EthereumProviderAdapter(host.provider);
     const database = new DatabaseAdapter(chainId.toString(), host.storage);
-    const builder = new RailgunBuilder(chain, eip1193Provider).withDatabase(database);
+
+    console.log("Building Railgun provider");
+    let builder = new RailgunBuilder(chain, eip1193Provider)
+        .withDatabase(database)
+        .withUtxoSyncer(
+            UtxoSyncer.chained([
+                UtxoSyncer.subsquid(chain),
+                UtxoSyncer.rpc(chain, eip1193Provider, BigInt(config?.rpcBatchSize ?? 10))
+            ])
+        );
     if (config?.poi !== false) {
         console.log("Enabling POI");
         builder = builder.withPoi();
@@ -175,10 +186,12 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async balance(assets: AssetId[] | undefined): Promise<AssetAmount[]> {
+        console.log("Syncing provider before balance query...");
+        console.log(this.provider);
         await this.provider.sync();
 
+        console.log("Calculating balances across all signers");
         const all: Map<string, AssetAmount> = new Map();
-
         for (const signer of this.pool.all) {
             const balances = await this.provider.balance(signer.address);
             for (const b of balances) {
