@@ -109,10 +109,12 @@ export type BundlerConfig = {
 export async function createRailgunPlugin(host: Host, config?: RailgunPluginConfig): Promise<RailgunPlugin> {
     await ensureInitialized();
 
+    console.log("Deriving keys");
     const keyIndex = config?.keyIndex ?? 0;
     const spendingKey = host.keystore.deriveAt(RailgunSigner.spendingKeyPath(keyIndex));
     const viewingKey = host.keystore.deriveAt(RailgunSigner.viewingKeyPath(keyIndex));
 
+    console.log("Fetching chain config");
     const chainId = await host.provider.getChainId();
     const chain = chainConfig(chainId);
     if (!chain) {
@@ -123,15 +125,19 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
     const database = new DatabaseAdapter(chainId.toString(), host.storage);
     const builder = new RailgunBuilder(chain, eip1193Provider).withDatabase(database);
     if (config?.poi !== false) {
-        builder.withPoi();
+        console.log("Enabling POI");
+        builder = builder.withPoi();
     }
-    const provider = await builder.build();
 
+    console.log("Initializing provider");
+    const provider = await builder.build();
     const signer = RailgunSigner.privateKey(spendingKey, viewingKey, chainId);
 
-    provider.register(signer);
+    console.log("Registering signer with provider");
+    await provider.register(signer);
     const pool = new SignerPool(signer);
 
+    console.log("Creating plugin instance");
     const plugin = new RailgunPlugin(chain, provider, pool);
     plugin.setBundler(config?.bundler?.bundler);
     plugin.setDelegatingSigner(config?.bundler?.delegating_account);
