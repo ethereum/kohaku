@@ -46,6 +46,7 @@ export class PaymasterBroadcaster {
       entryPointAddress,
       bundlerUrl,
       accountAddress,
+      isERC20,
     } = withdrawal;
     const [root, nullifierHash, recipient, _paymasterAddress, feeHex, _refund] = proofArgs;
 
@@ -68,7 +69,7 @@ export class PaymasterBroadcaster {
     if (gasMode === "manual") {
       gas = {
         type: 'manual',
-        ...reasonableGasUnits,
+        ...reasonableGasUnits(isERC20),
         maxFeePerGas,
         maxPriorityFeePerGas,
       };

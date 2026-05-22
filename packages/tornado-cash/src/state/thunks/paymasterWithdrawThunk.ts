@@ -6,6 +6,7 @@ import { Address } from "../../interfaces/types.interface";
 import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
 import { setupBundlerClient, signDelegationAuthorization } from "../../paymaster/utils";
 import { IPaymasterConfig, IWithdrawalPayload, SignedDelegation } from "../../plugin/interfaces/protocol-params.interface";
+import { poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
@@ -35,6 +36,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const deposits = getWithdrawableDepositsSelector(state, assetAddress, amount);
   const poolsToWithdrawFrom = [...new Set(deposits.map((d) => d.pool))];
 
+  const pools = poolsSelector(state);
+  const poolInfo = pools.get(deposits[0]!.pool);
+  if (!poolInfo) throw new Error(`No pool found for asset ${assetAddress}`);
+
   unwrapResult(
     await dispatch(verifyRootsThunk({
       dataService,
@@ -50,7 +55,11 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   const { standard: { maxFeePerGas } } = await bundlerClient.getUserOperationGasPrice();
 
-  const fee = computeMinimumViableFee(reasonableGasUnits, maxFeePerGas);
+  const gasUnits = reasonableGasUnits(poolInfo.isERC20);
+  const ethFee = computeMinimumViableFee(gasUnits, maxFeePerGas);
+  const fee = poolInfo.isERC20
+    ? await dataService.quoteEthToToken(ethFee, poolInfo.asset, poolInfo.uniswapPoolSwappingFee)
+    : ethFee;
 
   // The relayer address in the proof is the paymaster — it receives the fee
   const relayerAddress = BigInt(paymasterConfig.paymasterAddress) as Address;
@@ -64,12 +73,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         fee,
       }),
     );
-  
+
     return {
       ...unwrapResult(withdrawResultAction),
       poolAddress: deposit.pool
     };
-  }))
+  }));
 
 
   // Compute delegation only for deterministic mode — random is deferred to broadcast.
@@ -103,6 +112,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     mode: 'paymaster' as const,
     proof,
     poolAddress,
+    isERC20: poolInfo.isERC20,
     paymasterAddress: paymasterConfig.paymasterAddress,
     entryPointAddress: paymasterConfig.entryPointAddress,
     bundlerUrl: paymasterConfig.bundlerUrl,

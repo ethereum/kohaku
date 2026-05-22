@@ -19,7 +19,7 @@ import { EVENTS_PARSERS } from "./utils/events-parsers.util";
 import { EthClient } from "./eth-client";
 import type { IAsset } from "./interfaces/events.interface";
 import { Address } from "../interfaces/types.interface";
-import { E_ADDRESS } from "../config";
+import { E_ADDRESS, TornadoCashConfigs } from "../config";
 
 const txLogToRpcLog = ({
   address,
@@ -246,6 +246,30 @@ export class DataService implements IDataService {
     }
 
     return Number(nonce)
+  }
+
+  async quoteEthToToken(amountInWei: bigint, tokenAddress: Address, poolFee: number): Promise<bigint> {
+    const chainId = await this.getChainId();
+    const config = TornadoCashConfigs[Number(chainId) as keyof typeof TornadoCashConfigs];
+
+    if (!config?.weth || !config?.uniswapQuoterV2) {
+      throw new Error(`Uniswap QuoterV2 not configured for chain ${chainId}`);
+    }
+
+    const [amountOut] = await this.ethClient.makeContractRequest(
+      BigInt(config.uniswapQuoterV2),
+      'uniswapQuoter',
+      'quoteExactInputSingle',
+      {
+        tokenIn: toHex(config.weth, { size: 20 }),
+        tokenOut: toHex(tokenAddress, { size: 20 }),
+        amountIn: amountInWei,
+        fee: poolFee,
+        sqrtPriceLimitX96: 0n,
+      },
+    );
+
+    return amountOut;
   }
 
 }

@@ -17,7 +17,9 @@ interface UserOperationGasLimits {
 
 }
 
-export const reasonableGasUnits: UserOperationGasLimits = {
+const ERC20_TRANSFER_GAS = 100_000n;
+
+const baseGasUnits: UserOperationGasLimits = {
   preVerificationGas: 80_000n,
   verificationGasLimit: 50_000n,
   callGasLimit: 300_000n,
@@ -25,6 +27,15 @@ export const reasonableGasUnits: UserOperationGasLimits = {
   paymasterVerificationGasLimit: 350_000n,
   paymasterPostOpGasLimit: 10_000n,
 };
+
+export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
+  if (!isERC20) return baseGasUnits;
+
+  return {
+    ...baseGasUnits,
+    callGasLimit: baseGasUnits.callGasLimit + ERC20_TRANSFER_GAS,
+  };
+}
 
 // The fee amount the paymaster expects to break even
 export function computeMinimumViableFee(reasonableGasUnits: UserOperationGasLimits, maxFeePerGas: bigint) {
@@ -60,5 +71,4 @@ export function computeMinimumViableFee(reasonableGasUnits: UserOperationGasLimi
   console.log("multiply", 1.2);
 
   return multiply(requiredPrefund);
-  // console.log("fee", BigInt(feeHex));
 }

@@ -4,6 +4,7 @@ import { Address } from "../interfaces/types.interface";
 import { aggregatorAbi } from "./abis/aggregator.abi";
 import { instanceRegistryAbi } from "./abis/instance-registry.abi";
 import { poolAbi } from "./abis/pool.abi";
+import { uniswapQuoterAbi } from "./abis/uniswap-quoter.abi";
 
 export interface GetLogsParams {
     address: string;
@@ -17,6 +18,7 @@ const abis = {
     pool: poolAbi,
     instanceRegistry: instanceRegistryAbi,
     aggregator: aggregatorAbi,
+    uniswapQuoter: uniswapQuoterAbi,
 } as const;
 
 interface IGetLogsResult {

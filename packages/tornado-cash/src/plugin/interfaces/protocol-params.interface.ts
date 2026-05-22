@@ -42,6 +42,7 @@ export interface IPaymasterWithdrawalPayload {
   mode: 'paymaster';
   proof: TornadoProveOutput;
   poolAddress: Address;
+  isERC20: boolean;
   paymasterAddress: `0x${string}`;
   entryPointAddress: `0x${string}`;
   bundlerUrl: string;

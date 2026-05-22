@@ -99,4 +99,5 @@ export interface IDataService {
     subdomains: string[],
   ): Promise<IRelayerAggregatorData[]>;
   getAccountNonce(accountAddress: Address): Promise<number>;
+  quoteEthToToken(amountInWei: bigint, tokenAddress: Address, poolFee: number): Promise<bigint>;
 }

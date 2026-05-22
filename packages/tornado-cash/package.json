@@ -46,6 +46,7 @@
   },
   "scripts": {
     "aux": "tsx src/account/keys.ts",
+    "check": "tsc --noEmit -p ./tsconfig.json",
     "build": "echo Building @kohaku-eth/tornado-cash && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "demo": "tsx demo/simple.ts",
