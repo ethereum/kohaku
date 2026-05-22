@@ -1,4 +1,4 @@
-import { BundlerClient, GasConfig, TornadoBuilder } from 'privacy-paymaster';
+import { BundlerClient, GasConfig, TornadoBuilder } from '@privacy-paymasters/sdk';
 import { type Hash } from 'viem';
 import { generatePrivateKey } from 'viem/accounts';
 

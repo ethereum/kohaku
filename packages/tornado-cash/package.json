@@ -89,6 +89,7 @@
     "@kohaku-eth/provider": "workspace:*",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
+    "@privacy-paymasters/sdk": "0.0.2",
     "@reduxjs/toolkit": "^2.11.2",
     "buffer": "^6.0.3",
     "circomlibjs": "0.1.2",
@@ -97,13 +98,12 @@
     "maci-crypto": "2.5.0",
     "micro-zk-proofs": "0.3.0",
     "ox": "^0.12.0",
-    "@privacy-paymasters/sdk": "0.0.2",
     "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
     "viem": "^2.37.9",
     "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d"
   },
   "devDependencies": {
-    "@types/node": "^24.1.0",
+    "@types/node": "^24.12.2",
     "dotenv": "^17.2.1",
     "ethers": "^6.16.0",
     "get-port": "^7.1.0",

@@ -1,8 +1,7 @@
-import { BundlerClient } from 'privacy-paymaster';
+import { BundlerClient } from '@privacy-paymasters/sdk';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Hex } from 'viem';
-
-import type { SignedDelegation } from '../plugin/interfaces/protocol-params.interface';
+import type { SignedDelegation } from '../relayer/interfaces/paymaster-client.interface';
 
 export function setupBundlerClient({
   bundlerUrl,

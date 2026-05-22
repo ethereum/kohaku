@@ -405,7 +405,7 @@ importers:
         version: https://codeload.github.com/tornadocash/websnark/tar.gz/4c0af6a8b65aabea3c09f377f63c44e7a58afa6d
     devDependencies:
       '@types/node':
-        specifier: ^24.1.0
+        specifier: ^24.12.2
         version: 24.12.2
       dotenv:
         specifier: ^17.2.1
