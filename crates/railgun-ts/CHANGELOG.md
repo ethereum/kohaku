@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.20
+
+### Patch Changes
+
+- ca9cdcd: fix poi sync
+
 ## 0.0.1-alpha.19
 
 ### Patch Changes
