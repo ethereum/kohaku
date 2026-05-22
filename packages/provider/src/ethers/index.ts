@@ -79,6 +79,9 @@ export const ethers = (provider: JsonRpcProvider): EthereumProvider<JsonRpcProvi
     },
     async getGasPrice(): Promise<bigint> {
       return await provider.getFeeData().then((feeData) => feeData.gasPrice ?? BigInt(0));
+    },
+    async getTransactionCount(address: `0x${string}`, block?: number): Promise<number> {
+      return await provider.getTransactionCount(address, block ? block : 'latest');
     }
   };
 };

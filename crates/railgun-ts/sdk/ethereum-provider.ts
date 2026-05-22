@@ -49,4 +49,8 @@ export class EthereumProviderAdapter implements Eip1193Provider {
     async getGasPrice(): Promise<bigint> {
         return await this.provider.getGasPrice();
     }
+
+    async getTransactionCount(address: `0x${string}`, block: number | undefined): Promise<bigint> {
+        return BigInt(await this.provider.getTransactionCount(address, block));
+    }
 }

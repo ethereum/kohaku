@@ -18,6 +18,7 @@ export interface Eip1193Provider {
     ethCall(to: `0x${string}`, data: `0x${string}`): Promise<`0x${string}`>;
     estimateGas(to: `0x${string}`, from: `0x${string}` | undefined, data: `0x${string}`): Promise<bigint>;
     getGasPrice(): Promise<bigint>;
+    getTransactionCount(address: `0x${string}`, block: number | undefined): Promise<bigint>;
 }
 "#;
 
@@ -58,6 +59,13 @@ extern "C" {
 
     #[wasm_bindgen(method, catch, js_name = "getGasPrice")]
     pub async fn get_gas_price(this: &JsEip1193Provider) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(method, catch, js_name = "getTransactionCount")]
+    pub async fn get_transaction_count(
+        this: &JsEip1193Provider,
+        address: &str,
+        block: Option<u64>,
+    ) -> Result<JsValue, JsValue>;
 }
 
 #[async_trait::async_trait(?Send)]
@@ -139,10 +147,16 @@ impl Eip1193Provider for JsEip1193Provider {
 
     async fn transaction_count(
         &self,
-        _address: Address,
-        _block: Option<u64>,
+        address: Address,
+        block: Option<u64>,
     ) -> Result<u64, Eip1193Error> {
-        unimplemented!("get_transaction_count is not implemented in the WASM RPC client");
+        let address_str = format!("{:#x}", address);
+        let block_num = block;
+        let result = self
+            .get_transaction_count(&address_str, block_num)
+            .await
+            .map_err(|e| Eip1193Error::Rpc(format!("{:?}", e)))?;
+        js_bigint_to_u64(result)
     }
 }
 
