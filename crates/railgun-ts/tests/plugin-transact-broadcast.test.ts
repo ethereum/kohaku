@@ -87,7 +87,7 @@ test("plugin-transact-broadcast", async () => {
 
     console.log("Testing shield");
     {
-        const txDatas = await plugin1.prepareShield({ asset: { __type: 'native' }, amount: 1_000_000n });
+        const txDatas = await plugin1.prepareShield({ asset: { __type: 'native' }, amount: 1_000_000_000_000_000_000n });
         for (const tx of txDatas) {
             const hash = await walletClient.sendTransaction({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: tx.value });
             await publicClient.waitForTransactionReceipt({ hash });
@@ -96,7 +96,7 @@ test("plugin-transact-broadcast", async () => {
         const balance1 = wethBalance(await plugin1.balance(undefined));
         const balance2 = wethBalance(await plugin2.balance(undefined));
 
-        expect(balance1).toBe(997_500n);
+        expect(balance1).toBe(997_500_000_000_000_000n);
         expect(balance2).toBeUndefined();
     }
 
@@ -111,7 +111,7 @@ test("plugin-transact-broadcast", async () => {
         const balance1 = wethBalance(await plugin1.balance(undefined));
         const balance2 = wethBalance(await plugin2.balance(undefined));
 
-        expect(balance1).toBeLessThan(997_500n);
+        expect(balance1).toBeLessThan(997_499_999_999_995_000n);
         expect(balance2).toBe(5_000n);
     }
 
@@ -125,6 +125,6 @@ test("plugin-transact-broadcast", async () => {
         await plugin1.broadcast(op);
 
         const balance1 = wethBalance(await plugin1.balance(undefined));
-        expect(balance1).toBeLessThan(992_500n);
+        expect(balance1).toBeLessThan(997_499_999_999_990_000n);
     }
 }, 300 * 1000);
