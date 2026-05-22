@@ -203,7 +203,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         let builder = this.provider.shield();
 
         for (const token of tokens) {
-            this.addShield(token.asset, token.amount, builder);
+            builder = this.addShield(token.asset, token.amount, builder);
         }
 
         const txData = builder.build();
