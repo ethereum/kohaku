@@ -1,5 +1,17 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.18
+
+### Patch Changes
+
+- 243dac3: fix: tx hash null issue
+
+## 0.0.1-alpha.17
+
+### Patch Changes
+
+- 7d8d70d: pkg exports
+
 ## 0.0.1-alpha.16
 
 ### Patch Changes

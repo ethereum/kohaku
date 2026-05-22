@@ -1,8 +1,24 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1-alpha.16",
+  "version": "0.0.1-alpha.18",
   "description": "",
-  "main": "dist/sdk/lib.js",
+  "type": "module",
+  "main": "./dist/sdk/lib.js",
+  "types": "./dist/sdk/lib.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/sdk/lib.d.ts",
+      "import": "./dist/sdk/lib.js",
+      "default": "./dist/sdk/lib.js"
+    }
+  },
+  "files": [
+    "dist",
+    "sdk",
+    "src",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/ethereum/kohaku.git",
@@ -12,18 +28,21 @@
   "scripts": {
     "build": "pnpm run build:wasm && pnpm run build:js",
     "build:wasm": "wasm-pack build --target web --out-name index --out-dir pkg",
-    "build:js": "tsc && cp -r pkg dist/",
+    "build:js": "tsc && cp -r pkg dist/ && rm -f dist/pkg/.gitignore",
     "test:e2e": "pnpm run test:e2e:transact-utxo && pnpm run test:e2e:plugin-transact-broadcast",
     "test:e2e:transact-utxo": "INTEGRATION=1 vitest run -t transact-utxo",
     "test:e2e:plugin-transact-broadcast": "INTEGRATION=1 vitest run -t plugin-transact-broadcast"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

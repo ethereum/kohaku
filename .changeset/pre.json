@@ -10,6 +10,7 @@
     "@kohaku-eth/plugins": "0.0.1-alpha.1"
   },
   "changesets": [
+    "beige-islands-give",
     "bold-moons-train",
     "clear-plums-post",
     "clear-views-sing",
@@ -20,6 +21,7 @@
     "khaki-worms-kneel",
     "loud-worlds-yell",
     "major-sides-call",
+    "olive-pigs-like",
     "petite-views-attack",
     "quiet-windows-unite",
     "shaky-clubs-bet",

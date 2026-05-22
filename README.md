@@ -21,7 +21,7 @@ Privacy-first tooling for the Ethereum ecosystem
 
 | Package                                             | Status | Description                                  |
 | ----------------------------------------------------| ------ | -------------------------------------------- |
-| [@kohaku-eth/railgun](packages/railgun)             | ✅     | railgun privacy protocol lib                 |
+| [@kohaku-eth/railgun](crates/railgun-ts)             | ✅     | railgun privacy protocol lib                 |
 | [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools privacy protocol lib           |
 | [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, helios, colibri) |
 | [@kohaku-eth/pq-account](packages/pq-account)       | ✅     | post-quantum 4337 account implementation     |
