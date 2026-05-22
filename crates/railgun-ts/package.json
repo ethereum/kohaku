@@ -13,7 +13,9 @@
     "build": "pnpm run build:wasm && pnpm run build:js",
     "build:wasm": "wasm-pack build --target web --out-name index --out-dir pkg",
     "build:js": "tsc && cp -r pkg dist/",
-    "test:e2e": "INTEGRATION=1 vitest run -t transact-utxo"
+    "test:e2e": "pnpm run test:e2e:transact-utxo && pnpm run test:e2e:plugin-transact-broadcast",
+    "test:e2e:transact-utxo": "INTEGRATION=1 vitest run -t transact-utxo",
+    "test:e2e:plugin-transact-broadcast": "INTEGRATION=1 vitest run -t plugin-transact-broadcast"
   },
   "keywords": [],
   "author": "",

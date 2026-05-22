@@ -1,4 +1,3 @@
-import { Instance } from "prool";
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
@@ -7,6 +6,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { ensureInitialized, initLogging } from "../sdk/lib.js";
 import { EthereumProviderAdapter } from "../sdk/ethereum-provider.js";
 import { viem } from "@kohaku-eth/provider/viem";
+import { WALLET_PK, startAnvil } from "./utils.js";
 
 await ensureInitialized();
 initLogging("Info");
@@ -21,23 +21,16 @@ const erc20Abi = parseAbi([
 ]);
 
 let execRpcUrl: string;
-let stop: () => Promise<void>;
+let anvilServer: Awaited<ReturnType<typeof startAnvil>>["server"];
 
 beforeAll(async () => {
-    const execServer = Instance.anvil({
-        forkUrl: SEPOLIA_RPC_URL,
-        chainId: CHAIN.id,
-    });
-    await execServer.start();
-    execRpcUrl = `http://localhost:${execServer.port}`;
-
-    stop = async () => {
-        await execServer.stop();
-    };
+    const anvil = await startAnvil(SEPOLIA_RPC_URL, CHAIN.id);
+    anvilServer = anvil.server;
+    execRpcUrl = anvil.rpcUrl;
 }, 60_000);
 
 afterAll(async () => {
-    await stop();
+    await anvilServer?.stop();
 });
 
 /**
@@ -64,7 +57,7 @@ test("transact-utxo", async () => {
     });
     const viemClient = new EthereumProviderAdapter(viem(publicClient));
 
-    const account = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const account = privateKeyToAccount(WALLET_PK);
     const walletClient = createWalletClient({
         account,
         chain: sepolia,
