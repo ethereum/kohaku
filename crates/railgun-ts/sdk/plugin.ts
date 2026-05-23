@@ -49,6 +49,8 @@ import { EthereumProviderAdapter } from "./ethereum-provider";
 import { DatabaseAdapter } from "./database";
 import { encodeFunctionData } from "viem";
 
+const BPS_DENOMINATOR = 10_000n;
+
 /**
  * A proved private transaction ready for relay.
  */
@@ -253,20 +255,31 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         let erc20Unshields: AssetAmount<ERC20AssetId>[] = [];
         let nativeAmount: bigint = 0n;
         for (const token of tokens) {
+            //? Need to account for the 0.025% fee on unshield.
+            //? I've decided it's more intuitive to add the fee on top of the 
+            //? unshield so that the user receives the exact amount they expect 
+            //? after fees
+            const unshieldAmount = (token.amount * BPS_DENOMINATOR) / (BPS_DENOMINATOR - BigInt(this.chain.unshieldFeeBps));
+
             if (token.asset.__type === 'erc20') {
-                erc20Unshields.push(token as AssetAmount<ERC20AssetId>);
+                erc20Unshields.push({
+                    asset: token.asset,
+                    amount: unshieldAmount,
+                });
             } else if (token.asset.__type === 'native') {
                 nativeAmount += token.amount;
                 //? Need to unshield as ERC20 then unwrap
                 erc20Unshields.push({
                     asset: { __type: 'erc20', contract: this.chain.wrappedBaseToken },
-                    amount: token.amount,
+                    amount: unshieldAmount,
                 })
+            } else {
+                throw new Error("Unsupported asset type for unshielding");
             }
         }
 
         //? Safe because of above tokenGuard
-        const entries = await this.pool.drain(this.provider, tokens as AssetAmount<ERC20AssetId>[]);
+        const entries = await this.pool.drain(this.provider, erc20Unshields as AssetAmount<ERC20AssetId>[]);
         let builder = this.provider.transact();
 
         for (const e of entries) {
@@ -337,7 +350,10 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         console.log(`Broadcasted user operation with hash: ${userOpHash}`);
 
         const receipt = await this.bundler.waitForReceipt(userOpHash);
-        console.log(`User operation included: ${receipt}`);
+        console.log(`User operation included: ${JSON.stringify(receipt)}`);
+
+        // Sync after broadcast to update state.
+        await this.provider.sync();
     }
 };
 
