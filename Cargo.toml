@@ -1,4 +1,5 @@
 [workspace]
+exclude = ["arkhe-cli-windows"]
 members = [
     "crates/common",
     "crates/crypto",
