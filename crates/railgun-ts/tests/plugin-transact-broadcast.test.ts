@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -18,6 +18,10 @@ const SEPOLIA_RPC_URL: string | undefined = process.env.RPC_URL_SEPOLIA;
 if (!SEPOLIA_RPC_URL)
     throw new Error("RPC_URL_SEPOLIA env must be defined");
 
+const erc20Abi = parseAbi([
+    "function balanceOf(address) view returns (uint256)",
+]);
+
 let rpcUrl: string;
 let anvilServer: Awaited<ReturnType<typeof startAnvil>>["server"];
 let altoServer: Awaited<ReturnType<typeof startAlto>>;
@@ -26,6 +30,8 @@ beforeAll(async () => {
     const anvil = await startAnvil(SEPOLIA_RPC_URL, CHAIN.id);
     anvilServer = anvil.server;
     rpcUrl = anvil.rpcUrl;
+    // rpcUrl = "http://localhost:8545";
+
 
     const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
     await fundAddresses(publicClient, [
@@ -115,16 +121,43 @@ test("plugin-transact-broadcast", async () => {
         expect(balance2).toBe(5_000n);
     }
 
-    console.log("Testing unshield via broadcast");
+    console.log("Testing ERC20 unshield via broadcast");
     {
         const delegatorAddress = privateKeyToAccount(DELEGATOR_PK).address;
+        const wethBalanceBefore = await publicClient.readContract({
+            abi: erc20Abi,
+            address: CHAIN.wrappedBaseToken,
+            functionName: "balanceOf",
+            args: [delegatorAddress],
+        });
+
         const op = await plugin1.prepareUnshield(
             { asset: { __type: 'erc20', contract: CHAIN.wrappedBaseToken }, amount: 5_000n },
             delegatorAddress,
         );
         await plugin1.broadcast(op);
 
-        const balance1 = wethBalance(await plugin1.balance(undefined));
-        expect(balance1).toBeLessThan(997_499_999_999_990_000n);
+        const wethBalanceAfter = await publicClient.readContract({
+            abi: erc20Abi,
+            address: CHAIN.wrappedBaseToken,
+            functionName: "balanceOf",
+            args: [delegatorAddress],
+        });
+
+        expect(wethBalanceAfter - wethBalanceBefore).toBe(5_000n);
+    }
+
+    console.log("Testing native unshield via broadcast");
+    {
+        const delegatorAddress = privateKeyToAccount(DELEGATOR_PK).address;
+        const nativeBalanceBefore = await publicClient.getBalance({ address: delegatorAddress });
+        const op = await plugin1.prepareUnshield(
+            { asset: { __type: 'native' }, amount: 5_000n },
+            delegatorAddress,
+        );
+        await plugin1.broadcast(op);
+
+        const nativeBalanceAfter = await publicClient.getBalance({ address: delegatorAddress });
+        expect(nativeBalanceAfter - nativeBalanceBefore).toBe(5_000n);
     }
 }, 300 * 1000);
