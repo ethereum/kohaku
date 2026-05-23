@@ -3,5 +3,6 @@ fn main() {
         native: { not(target_arch = "wasm32") },
         wasm: { all(target_arch = "wasm32") },
         js: { all(target_arch = "wasm32", feature = "js") },
+        bench: { all(not(target_arch = "wasm32"), feature = "bench") },
     }
 }

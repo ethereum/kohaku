@@ -4518,6 +4518,7 @@ dependencies = [
  "cfg_aliases",
  "clap",
  "common",
+ "criterion",
  "crypto",
  "ctr",
  "curve25519-dalek",

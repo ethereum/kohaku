@@ -81,6 +81,10 @@ ruint = { git = "https://github.com/Robert-MacWha/ruint" }                      
 ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = "release/0.6.0" } # Adds opt-in parallel feature flag.  Withour parallel hangs indefinitely in wasm.
 
 [profile.release]
+jobs = 6
+
+[profile.release-wasm]
+inherits = "release"
 opt-level = "z"
 lto = true
 codegen-units = 1

@@ -20,20 +20,20 @@ pub struct IndexedAccount {
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
-pub(crate) struct IndexedAccountState {
+pub struct IndexedAccountState {
     pub notes: Vec<UtxoNote>,
     pub synced_block: u64,
 }
 
 impl IndexedAccount {
-    pub(crate) fn from_state(signer: Arc<dyn RailgunSigner>, state: IndexedAccountState) -> Self {
+    pub fn from_state(signer: Arc<dyn RailgunSigner>, state: IndexedAccountState) -> Self {
         IndexedAccount {
             signer,
             inner: state,
         }
     }
 
-    pub(crate) fn state(&self) -> IndexedAccountState {
+    pub fn state(&self) -> IndexedAccountState {
         self.inner.clone()
     }
 

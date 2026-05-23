@@ -14,3 +14,8 @@ mod note;
 mod poi;
 pub mod provider;
 pub mod transact;
+
+#[cfg(bench)]
+pub mod bench_helpers {
+    pub use crate::{indexer::indexed_account::*, note::*};
+}
