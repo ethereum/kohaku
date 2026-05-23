@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/arkhe-cli-windows",
     "crates/common",
     "crates/crypto",
     "crates/eip-1193-provider",
