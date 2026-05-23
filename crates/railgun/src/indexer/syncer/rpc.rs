@@ -142,7 +142,6 @@ fn log_to_sync_events(log: RawLog) -> Result<Vec<SyncEvent>, RpcSyncerError> {
     }
 }
 
-// TODO: Test me
 fn handle_shield_event(log: &RawLog, block_number: u64) -> Result<Vec<SyncEvent>, RpcSyncerError> {
     let event = RailgunSmartWallet::Shield::decode_log(&log.inner())?;
 
@@ -164,6 +163,7 @@ fn handle_shield_event(log: &RawLog, block_number: u64) -> Result<Vec<SyncEvent>
                 value: commitment.value.saturating_to(),
                 ciphertext: shield_ciphertext.clone().into(),
                 shield_key: shield_ciphertext.shieldKey.into(),
+                hash: None,
             },
             block_number,
         ));
@@ -172,7 +172,6 @@ fn handle_shield_event(log: &RawLog, block_number: u64) -> Result<Vec<SyncEvent>
     Ok(events)
 }
 
-// TODO: Test me
 fn handle_transact_event(
     log: &RawLog,
     block_timestamp: u64,
@@ -205,7 +204,6 @@ fn handle_transact_event(
     Ok(events)
 }
 
-// TODO: Test me
 fn handle_nullified_event(
     log: &RawLog,
     block_timestamp: u64,

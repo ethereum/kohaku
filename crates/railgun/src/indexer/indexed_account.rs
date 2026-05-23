@@ -146,6 +146,7 @@ mod tests {
             value: U256::from(shield.preimage.value),
             ciphertext: shield.ciphertext.clone().into(),
             shield_key: *shield.ciphertext.shieldKey,
+            hash: None,
         };
 
         account.handle_shield_event(&event).unwrap();
@@ -168,6 +169,7 @@ mod tests {
             value: U256::from(other_shield.preimage.value),
             ciphertext: other_shield.ciphertext.clone().into(),
             shield_key: *other_shield.ciphertext.shieldKey,
+            hash: None,
         };
 
         account.handle_shield_event(&other_event).unwrap();
