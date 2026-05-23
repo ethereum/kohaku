@@ -45,19 +45,10 @@ impl UtxoMerkleTree {
         self.inner.generate_proof(leaf.into())
     }
 
-    /// Insert one UTXO leaf and immediately rebuild.
-    pub fn insert_leaf(&mut self, leaf: UtxoLeafHash, position: usize) {
-        self.inner.insert_leaf(leaf.into(), position);
-    }
-
-    /// Insert leaves without rebuilding.
-    pub fn insert_leaves_raw(&mut self, leaves: &[UtxoLeafHash], start_position: usize) {
+    /// Append leaves to the end of the tree and immediately rebuild.
+    pub fn insert_leaves(&mut self, leaves: &[UtxoLeafHash], start_position: usize) {
         let u256s: Vec<U256> = leaves.iter().map(|l| (*l).into()).collect();
-        self.inner.insert_leaves_raw(&u256s, start_position);
-    }
-
-    pub fn rebuild(&mut self) {
-        self.inner.rebuild();
+        self.inner.insert_leaves(&u256s, start_position);
     }
 }
 
