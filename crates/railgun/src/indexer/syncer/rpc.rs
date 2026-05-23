@@ -78,6 +78,8 @@ impl RpcSyncer {
         from_block: u64,
         to_block: u64,
     ) -> Result<Vec<SyncEvent>, RpcSyncerError> {
+        let from_block = from_block.max(self.chain.deployment_block);
+
         let mut all_events = Vec::new();
         let mut current_from = from_block;
         while current_from <= to_block {
