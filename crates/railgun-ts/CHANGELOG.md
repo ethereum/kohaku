@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.21
+
+### Patch Changes
+
+- 05bea5b: fix: account for railgun fee
+
 ## 0.0.1-alpha.20
 
 ### Patch Changes
