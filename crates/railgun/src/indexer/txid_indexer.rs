@@ -159,7 +159,7 @@ impl TxidIndexer {
 
             if total % 10000 == 0 {
                 info!(
-                    "Drained {}/{} operations",
+                    "Draining operation {}/{}",
                     total - current_total,
                     target_total
                 );
