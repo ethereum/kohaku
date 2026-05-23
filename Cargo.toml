@@ -8,6 +8,9 @@ members = [
     "crates/railgun-ts",
     "crates/userop-kit",
     "crates/userop-kit-ts",
+    "crates/aetherweave",
+    "crates/aetherweave-ts",
+    "crates/aetherweave-server",
 ]
 resolver = "3"
 

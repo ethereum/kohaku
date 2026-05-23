@@ -1,0 +1,17 @@
+[package]
+name = "aetherweave-ts"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aetherweave = { path = "../aetherweave" }
+wasm-bindgen = { workspace = true }
+tsify = { workspace = true, features = ["js"] }
+serde = { workspace = true }
+serde-wasm-bindgen.workspace = true
+
+[lints]
+workspace = true
