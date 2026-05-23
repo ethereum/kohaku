@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pca-595.fullname" . }}
+  labels:
+    {{- include "pca-595.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pca-595.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              arkhe-os.org/namespace: iris
+        - namespaceSelector:
+            matchLabels:
+              arkhe-os.org/namespace: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              arkhe-os.org/namespace: iris
+        - namespaceSelector:
+            matchLabels:
+              arkhe-os.org/namespace: alignment
+        - namespaceSelector:
+            matchLabels:
+              arkhe-os.org/namespace: iit
+        - namespaceSelector:
+            matchLabels:
+              arkhe-os.org/namespace: temporalchain
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8443

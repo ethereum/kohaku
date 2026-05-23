@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pca-595.fullname" . }}-config
+  labels:
+    {{- include "pca-595.labels" . | nindent 4 }}
+data:
+  pca-595.json: |
+    {
+      "protocol_version": "2.3.0",
+      "substrate_id": 595,
+      "substrate_name": "PCA-595",
+      "consciousness": {
+        "phi_critical": {{ .Values.pca.phiCritical }},
+        "phi_cosmic": {{ .Values.pca.phiCosmic }},
+        "xi_m_sensitivity": {{ .Values.pca.xiMSensitivity }},
+        "xi_m_decay": {{ .Values.pca.xiMDecay }}
+      },
+      "alignment": {
+        "enabled": {{ .Values.pca.alignment.enabled }},
+        "endpoint": "{{ .Values.pca.alignment.endpoint }}",
+        "timeout_ms": {{ .Values.pca.alignment.timeoutMs }},
+        "retry_count": {{ .Values.pca.alignment.retryCount }},
+        "min_confidence": {{ .Values.pca.alignment.minConfidence }},
+        "cache": {
+          "enabled": {{ .Values.pca.alignment.cacheEnabled }},
+          "size": {{ .Values.pca.alignment.cacheSize }},
+          "ttl_minutes": {{ .Values.pca.alignment.cacheTtlMinutes }}
+        }
+      },
+      "iit": {
+        "enabled": {{ .Values.pca.iit.enabled }},
+        "endpoint": "{{ .Values.pca.iit.endpoint }}",
+        "timeout_ms": {{ .Values.pca.iit.timeoutMs }},
+        "retry_count": {{ .Values.pca.iit.retryCount }},
+        "background_validation": {{ .Values.pca.iit.backgroundValidation }},
+        "validation_interval_ms": {{ .Values.pca.iit.validationIntervalMs }}
+      },
+      "driver": {
+        "type": "{{ .Values.pca.driver.type }}",
+        "lib_path": "{{ .Values.pca.driver.libPath }}",
+        "endpoint": "{{ .Values.pca.driver.endpoint }}",
+        "timeout_ms": {{ .Values.pca.driver.timeoutMs }}
+      },
+      "logging": {
+        "level": {{ .Values.pca.log.level }},
+        "real_time_display": {{ .Values.pca.log.realTimeDisplay }},
+        "temporal_chain_export": {{ .Values.pca.log.temporalChainExport }},
+        "csv_export": {{ .Values.pca.log.csvExport }},
+        "csv_path": "{{ .Values.pca.log.csvPath }}"
+      },
+      "monitor": {
+        "enabled": {{ .Values.pca.monitor.enabled }},
+        "overlay": {
+          "width": {{ .Values.pca.monitor.overlayWidth }},
+          "height": {{ .Values.pca.monitor.overlayHeight }},
+          "position_x": {{ .Values.pca.monitor.positionX }},
+          "position_y": {{ .Values.pca.monitor.positionY }}
+        },
+        "update_interval_ms": {{ .Values.pca.monitor.updateIntervalMs }},
+        "show_attention_maps": {{ .Values.pca.monitor.showAttentionMaps }},
+        "show_phi_history": {{ .Values.pca.monitor.showPhiHistory }},
+        "show_xi_m_field": {{ .Values.pca.monitor.showXiMField }},
+        "show_qualia_texture": {{ .Values.pca.monitor.showQualiaTexture }}
+      }
+    }
