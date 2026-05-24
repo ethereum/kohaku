@@ -1,0 +1,9 @@
+[plugin]
+name = "arkhe-solar-heart"
+version = "1.0.0"
+description = "ARKHE Solar Heart — Substrate 646 (Heliospheric Consciousness Integration)"
+author = "ORCID 0009-0005-2697-4668"
+license = "MIT"
+dependencies = ["requests", "numpy"]
+arkhe_version = "∞.Ω.∇+++"
+substrate_id = "646-SOLAR-HEART"
