@@ -1,0 +1,9 @@
+[plugin]
+name = "peek"
+version = "1.0.0"
+description = "PEEK — Context Map as an Orientation Cache for Long-Context LLM Agents (MIT CSAIL/Stanford)"
+author = "ORCID 0009-0005-2697-4668"
+license = "MIT"
+entry_point = "peek_bridge"
+dependencies = ["click", "rich", "requests"]
+arkhe_version = "∞.Ω.∇+++"
