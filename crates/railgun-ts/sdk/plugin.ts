@@ -188,8 +188,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async balance(assets: AssetId[] | undefined): Promise<AssetAmount[]> {
-        console.log("Syncing provider before balance query...");
-        console.log(this.provider);
+        console.log("Syncing provider before balance query");
         await this.provider.sync();
 
         console.log("Calculating balances across all signers");

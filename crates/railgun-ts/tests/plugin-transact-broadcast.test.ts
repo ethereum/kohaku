@@ -3,7 +3,7 @@ import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import type { AssetAmount } from "@kohaku-eth/plugins";
-import { chainConfigSepolia, Bundler, Signer, UtxoSyncer, RailgunBuilder, RailgunSigner, ensureInitialized, initLogging } from "../sdk/lib.js";
+import { chainConfigSepolia, Bundler, Signer, UtxoSyncer, RailgunBuilder, RailgunSigner, ensureInitialized } from "../sdk/lib.js";
 import { RailgunPlugin } from "../sdk/plugin.js";
 import { SignerPool } from "../sdk/signer-pool.js";
 import { EthereumProviderAdapter } from "../sdk/ethereum-provider.js";
@@ -11,7 +11,6 @@ import { viem } from "@kohaku-eth/provider/viem";
 import { WALLET_PK, DELEGATOR_PK, ALTO_EXECUTOR_PK, ALTO_UTILITY_PK, startAnvil, startAlto, fundAddresses } from "./utils.js";
 
 await ensureInitialized();
-initLogging("Info");
 const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
 const SEPOLIA_RPC_URL: string | undefined = process.env.RPC_URL_SEPOLIA;
