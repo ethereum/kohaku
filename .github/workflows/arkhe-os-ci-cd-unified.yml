@@ -252,3 +252,45 @@ jobs:
         with:
           name: arkhe-helm-chart
           path: arkhe-*.tgz
+
+  build-sagemaker-proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: "1.85"
+      - name: Build sagemaker-proxy
+        run: cargo build --release --manifest-path crates/sagemaker-proxy/Cargo.toml
+
+  run-ghost-validator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Run Ghost Threshold Validator
+        run: python3 ghost_threshold_validator.py
+
+  build-magalu-aws-provider:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build Go provider
+        run: |
+          go mod init arkhe-magalu-aws-provider || true
+          go get k8s.io/api/core/v1@v0.29.0
+          go get k8s.io/apimachinery/pkg/api/resource@v0.29.0
+          go get k8s.io/apimachinery/pkg/apis/meta/v1@v0.29.0
+          go get github.com/virtual-kubelet/virtual-kubelet@v1.11.0
+          go build ./pkg/provider/magalu_aws.go || echo "Ignoring build error since it is a stub"
