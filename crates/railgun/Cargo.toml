@@ -17,6 +17,13 @@ path = "bin/main.rs"
 default = []
 js = ["dep:tsify", "dep:wasm-bindgen"]
 testing = []
+parallel = [
+    "ark-circom/parallel",
+    "ark-groth16/parallel",
+    "ark-ff/parallel",
+    "ark-relations/parallel",
+    "ark-serialize/parallel",
+]
 
 [dependencies]
 aes = { workspace = true }
