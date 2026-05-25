@@ -12,6 +12,7 @@ members = [
     "crates/aetherweave",
     "crates/aetherweave-ts",
     "crates/aetherweave-server",
+    "tools/arkhe-moat",
 ]
 resolver = "3"
 
