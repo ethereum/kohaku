@@ -16,6 +16,8 @@ use crate::{
 /// A bundler provider for Pimlico.
 pub struct PimlicoBundler {
     client: RpcClient,
+    wait_interval: common::Duration,
+    timeout: common::Duration,
 }
 
 /// Errors from the bundler SDK.
@@ -49,6 +51,8 @@ impl PimlicoBundler {
     pub fn new(bundler_url: Url) -> Self {
         Self {
             client: RpcClient::new(bundler_url),
+            wait_interval: common::Duration::from_secs(6),
+            timeout: common::Duration::from_secs(60),
         }
     }
 }
@@ -114,7 +118,8 @@ impl Bundler for PimlicoBundler {
     ) -> Result<UserOperationReceipt, BundlerError> {
         info!("Waiting for user operation receipt from Pimlico...");
 
-        for _ in 0..5 {
+        let start = common::Instant::now();
+        while start.elapsed() < self.timeout {
             let receipt: Option<UserOperationReceipt> = self
                 .client
                 .request("eth_getUserOperationReceipt", (hash.0,))
@@ -126,7 +131,7 @@ impl Bundler for PimlicoBundler {
             }
 
             info!("User operation not yet included, retrying...");
-            common::sleep(common::Duration::from_secs(2)).await;
+            common::sleep(self.wait_interval).await;
         }
 
         Err(BundlerError::Timeout)
