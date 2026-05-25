@@ -160,3 +160,7 @@ func (p *MagaluAWSProvider) NodeConditions(ctx context.Context) []corev1.NodeCon
 		},
 	}
 }
+
+// Compile-time interface checks
+var _ api.PodLifecycleHandler = (*MagaluAWSProvider)(nil)
+var _ api.NodeProvider = (*MagaluAWSProvider)(nil)
