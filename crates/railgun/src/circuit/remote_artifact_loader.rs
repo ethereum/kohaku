@@ -20,6 +20,8 @@ pub enum RemoteArtifactLoaderError {
     HttpError(#[from] reqwest::Error),
     #[error("Deserialization error: {0}")]
     DeserializationError(#[from] ark_serialize::SerializationError),
+    #[error("Decompression error: {0}")]
+    DecompressionError(#[from] std::io::Error),
 }
 
 impl Default for RemoteArtifactLoader {
@@ -43,10 +45,9 @@ impl RemoteArtifactLoader {
         circuit_name: &str,
     ) -> Result<Vec<u8>, RemoteArtifactLoaderError> {
         info!("Downloading WASM: {}", circuit_name);
-        let url = format!("{}/{}.wasm", self.base_url, circuit_name);
-        let resp = self.client.get(&url).send().await?;
-        let bytes = resp.bytes().await?;
-        Ok(bytes.to_vec())
+        let url = format!("{}/{}/wasm.br", self.base_url, circuit_name);
+        let compressed = self.client.get(&url).send().await?.bytes().await?;
+        Ok(decompress(&compressed)?)
     }
 
     pub async fn load_proving_key(
@@ -54,11 +55,10 @@ impl RemoteArtifactLoader {
         circuit_name: &str,
     ) -> Result<ProvingKey<Bn254>, RemoteArtifactLoaderError> {
         info!("Downloading proving key: {}", circuit_name);
-        let url = format!("{}/{}_proving_key.bin", self.base_url, circuit_name);
-        let resp = self.client.get(&url).send().await?;
-        let bytes = resp.bytes().await?;
+        let url = format!("{}/{}/proving_key.bin.br", self.base_url, circuit_name);
+        let compressed = self.client.get(&url).send().await?.bytes().await?;
+        let bytes = decompress(&compressed)?;
         let pk = ProvingKey::<Bn254>::deserialize_uncompressed_unchecked(Cursor::new(bytes))?;
-
         Ok(pk)
     }
 
@@ -67,13 +67,17 @@ impl RemoteArtifactLoader {
         circuit_name: &str,
     ) -> Result<NPIndex<Fr>, RemoteArtifactLoaderError> {
         info!("Downloading matrices: {}", circuit_name);
-        let url = format!("{}/{}_matrices.bin", self.base_url, circuit_name);
-        let resp = self.client.get(&url).send().await?;
-        let bytes = resp.bytes().await?;
-
+        let url = format!("{}/{}/matrices.bin.br", self.base_url, circuit_name);
+        let compressed = self.client.get(&url).send().await?.bytes().await?;
+        let bytes = decompress(&compressed)?;
         let matrices =
             SerializableNpIndex::<Fr>::deserialize_uncompressed_unchecked(Cursor::new(bytes))?;
-
         Ok(matrices.into())
     }
+}
+
+fn decompress(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    let mut out = Vec::new();
+    brotli::BrotliDecompress(&mut &data[..], &mut out)?;
+    Ok(out)
 }
