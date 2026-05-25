@@ -2,7 +2,7 @@
 // Substrate 584-ARKHE-CLI-WINDOWS-BINARY v1.0
 // Covers all 18 categories × 100+ commands from CLI Reference
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use anyhow::Result;
 use colored::*;
 
