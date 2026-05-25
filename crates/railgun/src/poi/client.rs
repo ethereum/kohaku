@@ -9,7 +9,6 @@ use std::{
 use alloy::primitives::ChainId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
-use tracing::info;
 
 use crate::{
     merkle_tree::{MerkleProof, MerkleRoot, MerkleTreeVerifier},
