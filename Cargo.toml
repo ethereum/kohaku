@@ -12,6 +12,7 @@ members = [
     "crates/aetherweave",
     "crates/aetherweave-ts",
     "crates/aetherweave-server",
+    "crates/sagemaker-proxy",
     "tools/arkhe-moat",
 ]
 resolver = "3"
@@ -80,6 +81,15 @@ wasm-bindgen = "=0.2.108"
 wasm-bindgen-futures = "0.4"
 wasmer = { version = "6.1", default-features = false }
 web-time = { version = "1.1" }
+aws-config = "1.1.7"
+aws-sdk-s3 = "1.17.0"
+aws-sdk-sagemaker = "1.17.0"
+aws-sdk-kms = "1.16.0"
+ring = "0.17.8"
+uuid = { version = "1.8.0", features = ["v4"] }
+anyhow = "1.0.86"
+axum = "0.7.5"
+sha3 = "0.10.8"
 
 [patch.crates-io]
 ruint = { git = "https://github.com/Robert-MacWha/ruint" }                                        # Adds ark-fr-06 support
