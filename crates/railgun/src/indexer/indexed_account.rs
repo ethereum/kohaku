@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use alloy::primitives::U256;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, info};
 
 use crate::{
     account::{address::RailgunAddress, signer::RailgunSigner},
@@ -62,7 +62,7 @@ impl IndexedAccount {
                 return Ok(());
             }
             Err(e) => {
-                warn!(
+                debug!(
                     "Failed to decrypt Shield note at tree {}, leaf {}: {}",
                     event.tree_number, event.leaf_index, e
                 );
@@ -85,7 +85,7 @@ impl IndexedAccount {
                 return Ok(());
             }
             Err(e) => {
-                warn!(
+                debug!(
                     "Failed to decrypt Transact note at tree {}, leaf {}: {}",
                     event.tree_number, event.leaf_index, e
                 );
