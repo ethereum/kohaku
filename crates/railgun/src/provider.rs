@@ -24,7 +24,10 @@ use crate::{
     crypto::keys::{ByteKey, MasterPublicKey, ViewingPublicKey},
     indexer::utxo_indexer::{UtxoIndexer, UtxoIndexerError},
     note::{Note, utxo::UtxoNote},
-    poi::provider::{PoiProvider, PoiProviderError},
+    poi::{
+        provider::{PoiProvider, PoiProviderError},
+        types::PoiStatus,
+    },
     transact::{
         ShieldBuilder, TransactionBuilder, TransactionBuilderError,
         proved_transaction::{ProvedOperation, ProvedTx},
@@ -294,12 +297,16 @@ impl RailgunProvider {
 
         let mut spendable_notes = Vec::new();
         for note in notes {
-            let spendable = poi_provider.spendable(note.blinded_commitment.into()).await;
-            match spendable {
-                Ok(true) => spendable_notes.push(note),
-                Ok(false) => continue, //? Not spendable, skip
+            let status = poi_provider
+                .status(note.blinded_commitment.into(), note.commitment_type)
+                .await;
+            match status {
+                Ok(PoiStatus::Valid) => spendable_notes.push(note),
+                Ok(status) => {
+                    info!("Note {} not spendable: {status:?}", note);
+                    continue;
+                }
                 Err(e) => {
-                    //? If there's an error checking POI, log it and skip the note
                     warn!("Error checking POI for note {}: {}", note, e);
                     continue;
                 }

@@ -22,6 +22,7 @@ use crate::{
     indexer::syncer,
     merkle_tree::UtxoLeafHash,
     note::Note,
+    poi::types::BlindedCommitmentType,
 };
 
 /// Railgun UTXO note
@@ -36,7 +37,6 @@ pub struct UtxoNote {
     pub value: u128,
     pub asset: AssetId,
     pub memo: String,
-    pub utxo_type: UtxoType,
 
     pub hash: UtxoLeafHash,
     pub nullifier: U256,
@@ -44,12 +44,7 @@ pub struct UtxoNote {
     #[allow(private_interfaces)]
     pub nullifying_key: NullifyingKey,
     pub blinded_commitment: U256,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UtxoType {
-    Shield,
-    Transact,
+    pub commitment_type: BlindedCommitmentType,
 }
 
 #[derive(Debug, Error)]
@@ -71,7 +66,7 @@ impl UtxoNote {
         value: u128,
         random: [u8; 16],
         memo: &str,
-        utxo_type: UtxoType,
+        commitment_type: BlindedCommitmentType,
     ) -> Self {
         let spending_pubkey = signer.spending_key().public_key();
         let viewing_pubkey = signer.viewing_key().public_key();
@@ -90,12 +85,12 @@ impl UtxoNote {
             value,
             random,
             memo: memo.to_string(),
-            utxo_type,
             hash,
             note_public_key: npk,
             nullifying_key,
             nullifier,
             blinded_commitment,
+            commitment_type,
         }
     }
 
@@ -138,7 +133,7 @@ impl UtxoNote {
             value,
             random,
             memo,
-            UtxoType::Transact,
+            BlindedCommitmentType::Transact,
         ))
     }
 
@@ -165,7 +160,7 @@ impl UtxoNote {
             value.saturating_to(),
             random,
             "",
-            UtxoType::Shield,
+            BlindedCommitmentType::Shield,
         ))
     }
 }
@@ -196,18 +191,17 @@ impl Note for UtxoNote {
     }
 }
 
-impl UtxoNote {
-    pub fn utxo_type(&self) -> UtxoType {
-        self.utxo_type
-    }
-}
-
 impl Display for UtxoNote {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "UtxoNote {{ tree_number: {}, leaf_index: {}, asset: {}, value: {}, memo: {}, utxo_type: {:?} }}",
-            self.tree_number, self.leaf_index, self.asset, self.value, self.memo, self.utxo_type
+            "UtxoNote {{ tree_number: {}, leaf_index: {}, asset: {}, value: {}, memo: {}, type: {:?} }}",
+            self.tree_number,
+            self.leaf_index,
+            self.asset,
+            self.value,
+            self.memo,
+            self.commitment_type
         )
     }
 }
@@ -259,7 +253,7 @@ pub fn test_note() -> UtxoNote {
         100u128,
         [3u8; 16],
         "test memo",
-        UtxoType::Transact,
+        BlindedCommitmentType::Transact,
     )
 }
 
