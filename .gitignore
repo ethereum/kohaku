@@ -20,3 +20,4 @@ crates/stim_qec/sinter_decoder_sv
 crates/stim_qec/sinter_decoder_sv_exec
 target
 terraform-arkhe-infra/.terraform
+venv/
