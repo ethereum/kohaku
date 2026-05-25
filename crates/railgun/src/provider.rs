@@ -140,7 +140,7 @@ impl RailgunProvider {
     ) -> Result<ProvedTx, RailgunProviderError> {
         let operations = self.build_operation(builder, rng).await?;
         if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.register_ops(&operations).await;
+            poi_provider.register_ops(&operations).await?;
         }
 
         let proved_tx = ProvedTx::new(self.chain.railgun_smart_wallet, operations);

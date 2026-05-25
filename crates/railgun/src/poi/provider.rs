@@ -130,11 +130,16 @@ impl PoiProvider {
         Ok(())
     }
 
-    pub async fn register_ops(&mut self, operations: &[ProvedOperation]) {
+    pub async fn register_ops(
+        &mut self,
+        operations: &[ProvedOperation],
+    ) -> Result<(), PoiProviderError> {
         let list_keys = self.poi_client.list_keys();
         for op in operations {
             self.register(op, list_keys.clone());
         }
+        self.save().await?;
+        Ok(())
     }
 
     pub fn list_keys(&self) -> Vec<ListKey> {
