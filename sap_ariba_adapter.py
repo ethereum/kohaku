@@ -62,3 +62,4 @@ Total: {total_amount:.2f}
         all_phi = [v["phi_c"] for v in self.substrate_registry.values()]
         avg_phi = sum(all_phi)/len(all_phi) if all_phi else 0.0
         return f"<|ARKHE_START|>\n<|SUBSTRATE|> 853-GOV\n<|PHI_C|> {avg_phi:.3f}\n<|SEAL|> ...\n<|ARKHE_END|>"
+# EOF

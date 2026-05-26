@@ -144,3 +144,4 @@ if __name__ == "__main__":
     results = [adapter._task_to_arkhe(t) for t in adapter.tasks.values()]
     portfolio = adapter.generate_portfolio_decree(results)
     print(portfolio)
+# EOF
