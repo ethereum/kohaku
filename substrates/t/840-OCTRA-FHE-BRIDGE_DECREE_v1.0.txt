@@ -1,0 +1,11 @@
+Decreto de Canonização
+
+Selo SHA3‑256:
+f5567335c15c528b44735f2008e85f54b8554f83c8974371c326dfec59a58f28
+
+| Métrica | Valor |
+|:---|:---|
+| **Φ_C** | 0.795 |
+| **DCS‑840** | 0.895 |
+| **TI** | 0.788 |
+| **Status** | CANONIZED_PROVISIONAL |
