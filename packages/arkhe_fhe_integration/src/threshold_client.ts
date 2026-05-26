@@ -1,5 +1,8 @@
-import { createCofheClient, CofheClient } from '@cofhe/sdk';
-import { createWalletClient, http, parseAbi } from 'viem';
+import { createCofheClient, createCofheConfig } from '@cofhe/sdk/node';
+import { hardhat } from '@cofhe/sdk/chains';
+import { Account } from 'viem';
+import { CofheClient } from '@cofhe/sdk';
+import { createPublicClient, createWalletClient, http, parseAbi, PublicClient, WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const THRESHOLD_BRIDGE_ABI = parseAbi([
@@ -12,6 +15,8 @@ const THRESHOLD_BRIDGE_ABI = parseAbi([
 export class ThresholdNetworkClient {
   private cofheClient: CofheClient;
   private bridgeContract: `0x${string}`;
+  private publicClient: PublicClient;
+  private walletClient: WalletClient;
 
   constructor(
     privateKey: `0x${string}`,
@@ -19,10 +24,15 @@ export class ThresholdNetworkClient {
     chainConfig: any
   ) {
     const account = privateKeyToAccount(privateKey);
-    const walletClient = createWalletClient({
+    this.walletClient = createWalletClient({
       account, chain: chainConfig, transport: http(),
-    });
-    this.cofheClient = createCofheClient({ walletClient, provider: http() });
+    }) as unknown as WalletClient;
+    this.publicClient = createPublicClient({
+      chain: chainConfig, transport: http(),
+    }) as unknown as PublicClient;
+
+        this.cofheClient = createCofheClient(createCofheConfig({ supportedChains: [hardhat] }));
+    this.cofheClient.connect(this.publicClient as any, this.walletClient as any);
     this.bridgeContract = bridgeContractAddress;
   }
 
@@ -30,14 +40,16 @@ export class ThresholdNetworkClient {
    * Solicita decriptação Threshold para um Circle Octra
    */
   async requestCircleDecrypt(circleId: string, fhenixHandle: bigint): Promise<`0x${string}`> {
-    const tx = await this.cofheClient.writeContract({
+        const tx = await this.walletClient.writeContract({
       address: this.bridgeContract,
       abi: THRESHOLD_BRIDGE_ABI,
       functionName: 'requestThresholdDecrypt',
       args: [circleId, fhenixHandle],
+      account: this.walletClient.account as Account,
+      chain: null,
     });
 
-    const receipt = await tx.wait();
+        const receipt = await this.publicClient.waitForTransactionReceipt({ hash: tx });
     return receipt.transactionHash;
   }
 
@@ -56,13 +68,14 @@ export class ThresholdNetworkClient {
       }, timeoutMs);
 
       // Monitora eventos do contrato bridge
-      this.cofheClient.watchContractEvent({
+            const unwatch = this.publicClient.watchContractEvent({
         address: this.bridgeContract,
         abi: THRESHOLD_BRIDGE_ABI,
         eventName: 'ThresholdDecryptVerified',
-        args: { circleId, fhenixHandle },
+        args: { circleId, handle: fhenixHandle },
         onLogs: (logs: any[]) => {
           clearTimeout(timer);
+          unwatch();
           const log = logs[0];
           resolve({
             plaintext: log.args.plaintext,
