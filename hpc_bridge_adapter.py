@@ -93,3 +93,4 @@ if __name__ == "__main__":
     bridge = HPCArkheBridge(partition="gpu", nodes=4, gpus_per_node=2)
     result = bridge.submit_arkhe_job("825-PME-FINETUNE", "python3 train.py --epochs 10")
     print(result["decree"])
+# EOF
