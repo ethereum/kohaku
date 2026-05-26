@@ -5,6 +5,7 @@ allowBuilds:
   msgpackr-extract: true
   protobufjs: true
 autoInstallPeers: false
+blockExoticSubdeps: false
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
