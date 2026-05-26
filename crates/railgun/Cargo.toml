@@ -16,6 +16,8 @@ path = "bin/main.rs"
 [features]
 default = []
 js = ["dep:tsify", "dep:wasm-bindgen"]
+
+# Feature for integration tests that require additional exposed methods.
 testing = []
 parallel = [
     "ark-circom/parallel",
@@ -24,6 +26,9 @@ parallel = [
     "ark-relations/parallel",
     "ark-serialize/parallel",
 ]
+
+# Feature that enables benchmarks
+bench = []
 
 [dependencies]
 aes = { workspace = true }
@@ -88,3 +93,8 @@ railgun = { path = ".", features = ["testing"] }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing-test = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "indexed_account"
+harness = false
