@@ -1,0 +1,39 @@
+# Schema canônico do registro de substratos (Substrato 865)
+# Cada entrada é um substrato com id, nome, categoria e lista de cross‑links existentes.
+---
+"825":
+  name: "Parametric Memory Engine"
+  category: "cognition"
+  links: ["824", "826", "830", "845", "857", "864"]
+"826":
+  name: "Detector of Isomorphisms"
+  category: "cognition"
+  links: ["825", "835", "857"]
+"845":
+  name: "Action Context Engine"
+  category: "cognition"
+  links: ["825", "826", "830"]
+"853":
+  name: "SAP/ARIBA-ERP-BRIDGE"
+  category: "enterprise"
+  links: ["824", "846", "852"]
+"847":
+  name: "LeanIX-EAM-Bridge"
+  category: "enterprise"
+  links: ["846", "852"]
+"859":
+  name: "Biological-Computing-Bridge"
+  category: "hardware"
+  links: ["824", "825", "830", "845"]
+"856":
+  name: "Quantum-Computing-Bridge"
+  category: "hardware"
+  links: ["824", "825", "826", "840"]
+"863":
+  name: "SecOps-Guardian-Bridge"
+  category: "security"
+  links: ["824", "832", "864"]
+"864":
+  name: "EIP-8272-Recent-Roots-Bridge"
+  category: "security"
+  links: ["824", "832", "863"]
