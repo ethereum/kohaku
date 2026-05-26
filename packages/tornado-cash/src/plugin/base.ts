@@ -153,7 +153,7 @@ export class TornadoCashProtocol implements TCInstance {
     options?: TCPrepareUnshieldOptions,
   ): Promise<TCPrivateOperation<'paymaster' | 'relayer'>> {
     const { asset, amount } = assets;
-    const parsedAsset = BigInt(asset.contract);
+    const parsedAsset = BigInt((asset as ERC20AssetId).contract || E_ADDRESS_BIGINT);
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
