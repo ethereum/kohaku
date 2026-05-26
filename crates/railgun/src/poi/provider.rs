@@ -324,10 +324,6 @@ impl PoiProvider {
     }
 
     async fn save(&self) -> Result<(), PoiProviderError> {
-        info!(
-            "Saving POI provider state to database, pending ops: {}",
-            self.inner.pending.len()
-        );
         self.db.set_poi_provider(&self.inner).await?;
         Ok(())
     }
