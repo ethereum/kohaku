@@ -7,7 +7,6 @@ import {
   Host,
 } from "@kohaku-eth/plugins";
 
-import { TxData } from "packages/provider/dist/index.js";
 import { ISecretManager, SecretManager } from "../account/keys";
 import { IPFSAspService } from "../data/ipfsAsp.service.js";
 import { DataService } from "../data/data.service";
@@ -30,6 +29,7 @@ import {
   PPv1PublicOperation,
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
+import { TxData } from "@kohaku-eth/provider";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
