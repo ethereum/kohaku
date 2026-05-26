@@ -1,4 +1,5 @@
-#!/ "polaritonic_snn_trainer.py" — Substrato 862.2
+#!/usr/bin/env python3
+# "polaritonic_snn_trainer.py" — Substrato 862.2
 # Treinamento de SNNs com neurônios cuja dinâmica simula condensados polaritônicos
 import numpy as np
 from scipy.integrate import solve_ivp

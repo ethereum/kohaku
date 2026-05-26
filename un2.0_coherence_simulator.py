@@ -1,4 +1,5 @@
-#!/ "un2.0_coherence_simulator.py" — Substrato 861
+#!/usr/bin/env python3
+# "un2.0_coherence_simulator.py" — Substrato 861
 # Simulador de Coerência dos ODS (Kuramoto)
 import numpy as np
 import hashlib

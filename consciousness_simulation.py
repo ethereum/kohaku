@@ -1,4 +1,5 @@
-#!/ "consciousness_simulation.py" — Substrato 860
+#!/usr/bin/env python3
+# "consciousness_simulation.py" — Substrato 860
 # Calculador de Φ (IIT simplificado) para o campo ξM
 import numpy as np
 import hashlib
