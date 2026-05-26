@@ -4,7 +4,7 @@ use alloy::primitives::ChainId;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     circuit::{
@@ -25,7 +25,7 @@ use crate::{
     poi::{
         client::{PoiClient, PoiClientError, PoiNodeClient},
         note::PoiNote,
-        types::{BlindedCommitment, ListKey, PoiStatus, TransactProofData},
+        types::{BlindedCommitment, BlindedCommitmentType, ListKey, PoiStatus, TransactProofData},
     },
     transact::proved_transaction::ProvedOperation,
 };
@@ -130,55 +130,41 @@ impl PoiProvider {
         Ok(())
     }
 
-    pub async fn register_ops(&mut self, operations: &[ProvedOperation]) {
+    pub async fn register_ops(
+        &mut self,
+        operations: &[ProvedOperation],
+    ) -> Result<(), PoiProviderError> {
         let list_keys = self.poi_client.list_keys();
         for op in operations {
             self.register(op, list_keys.clone());
         }
+        self.save().await?;
+        Ok(())
     }
 
     pub fn list_keys(&self) -> Vec<ListKey> {
         self.poi_client.list_keys()
     }
 
-    /// Returns whether the given blinded commitment is spendable (i.e. has a
-    /// valid POI proof) for all list keys in the POI client.
-    pub async fn spendable(
+    /// Returns the worst-case POI status across all configured list keys.
+    pub async fn status(
         &mut self,
         blinded_commitment: BlindedCommitment,
-    ) -> Result<bool, PoiProviderError> {
+        commitment_type: BlindedCommitmentType,
+    ) -> Result<PoiStatus, PoiProviderError> {
+        let mut worst = PoiStatus::Valid;
         for list_key in self.list_keys() {
-            self.poi_proof(&list_key, blinded_commitment).await?;
+            let status = self
+                .poi_client
+                .poi_status(&list_key, blinded_commitment, commitment_type)
+                .await?;
+            debug!(
+                "POI status for {} ({list_key}): {status:?}",
+                blinded_commitment
+            );
+            worst = worst.max(status);
         }
-        Ok(true)
-    }
-
-    pub async fn poi_proof(
-        &mut self,
-        list_key: &ListKey,
-        blinded_commitment: BlindedCommitment,
-    ) -> Result<MerkleProof, PoiProviderError> {
-        if let Some(list_key_map) = self.inner.pois.get(&blinded_commitment) {
-            if let Some(info) = list_key_map.get(list_key) {
-                if let Some(proof) = &info.proof {
-                    return Ok(proof.clone());
-                }
-            }
-        }
-
-        let proof = self
-            .poi_client
-            .merkle_proof(list_key, blinded_commitment)
-            .await?;
-
-        self.inner
-            .pois
-            .entry(blinded_commitment)
-            .or_default()
-            .entry(list_key.clone())
-            .or_default()
-            .proof = Some(proof.clone());
-        Ok(proof)
+        Ok(worst)
     }
 
     fn register(&mut self, op: &ProvedOperation, list_keys: Vec<ListKey>) {

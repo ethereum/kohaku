@@ -3,13 +3,12 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { ensureInitialized, initLogging } from "../sdk/lib.js";
+import { ensureInitialized } from "../sdk/lib.js";
 import { EthereumProviderAdapter } from "../sdk/ethereum-provider.js";
 import { viem } from "@kohaku-eth/provider/viem";
 import { WALLET_PK, startAnvil } from "./utils.js";
 
 await ensureInitialized();
-initLogging("Info");
 const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
 const SEPOLIA_RPC_URL: string | undefined = process.env.RPC_URL_SEPOLIA;

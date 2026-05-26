@@ -15,6 +15,9 @@ mod poi;
 pub mod provider;
 pub mod transact;
 
+#[cfg(all(wasm, parallel))]
+compile_error!("The `parallel` feature is not supported in WASM builds.");
+
 #[cfg(bench)]
 pub mod bench_helpers {
     pub use crate::{indexer::indexed_account::*, note::*};
