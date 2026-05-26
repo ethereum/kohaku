@@ -1,0 +1,118 @@
+@prefix arkhe: <https://arkhe.org/ontology/841#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+arkhe:Substrate a owl:Class ;
+    rdfs:label "ARKHE Substrate"@en ;
+    rdfs:comment "A self-contained module within ARKHE OS with defined invariants and coherence metrics"@en ;
+    owl:equivalentClass [
+        owl:intersectionOf (
+            [ a owl:Restriction ;
+              owl:onProperty arkhe:hasInvariant ;
+              owl:minCardinality "18"^^xsd:nonNegativeInteger ]
+            [ a owl:Restriction ;
+              owl:onProperty arkhe:hasPhiCoherence ;
+              owl:someValuesFrom [
+                owl:intersectionOf (
+                  xsd:float
+                  [ a owl:Restriction ;
+                    owl:onProperty xsd:minInclusive ;
+                    owl:hasValue "0.7"^^xsd:float ]
+                )
+              ]
+            ]
+        )
+    ] .
+
+arkhe:Invariant a owl:Class ;
+    rdfs:label "Coherence Invariant"@en ;
+    rdfs:comment "A measurable property that must exceed threshold for substrate validity"@en .
+
+arkhe:CrossLink a owl:Class ;
+    rdfs:label "Cross-Substrate Link"@en ;
+    rdfs:comment "Verified connection between two substrates"@en ;
+    owl:equivalentClass [
+        a owl:Restriction ;
+        owl:onProperty arkhe:linksTo ;
+        owl:cardinality "1"^^xsd:nonNegativeInteger
+    ] .
+
+arkhe:Seal a owl:Class ;
+    rdfs:label "Cryptographic Seal"@en ;
+    rdfs:comment "SHA3-256 hash attesting to substrate integrity"@en ;
+    owl:equivalentClass [
+        a owl:Restriction ;
+        owl:onProperty arkhe:hashAlgorithm ;
+        owl:hasValue "SHA3-256"
+    ] .
+
+arkhe:GovernanceProposal a owl:Class ;
+    rdfs:subClassOf web3dao:Proposal ;
+    rdfs:label "ARKHE Governance Proposal"@en ;
+    rdfs:comment "Proposal requiring Theosis Index >= 0.84 for approval"@en .
+
+arkhe:BridgePacket a owl:Class ;
+    rdfs:label "Cross-Chain Bridge Packet"@en ;
+    rdfs:comment "IBC-compatible packet for FHE-encrypted relay"@en .
+
+arkhe:Circle a owl:Class ;
+    rdfs:label "Octra FHE Circle"@en ;
+    rdfs:comment "Isolated execution environment for HFHE computation"@en .
+
+arkhe:hasInvariant a owl:ObjectProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range arkhe:Invariant ;
+    rdfs:label "has invariant"@en .
+
+arkhe:linksTo a owl:ObjectProperty ;
+    rdfs:domain arkhe:CrossLink ;
+    rdfs:range arkhe:Substrate ;
+    rdfs:label "links to substrate"@en ;
+    owl:inverseOf arkhe:isLinkedBy .
+
+arkhe:isLinkedBy a owl:ObjectProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range arkhe:CrossLink ;
+    rdfs:label "is linked by"@en .
+
+arkhe:hasSeal a owl:ObjectProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range arkhe:Seal ;
+    rdfs:label "has cryptographic seal"@en ;
+    owl:FunctionalProperty .
+
+arkhe:requiresPhiCoherence a owl:ObjectProperty ;
+    rdfs:domain arkhe:GovernanceProposal ;
+    rdfs:range arkhe:PhiCoherenceThreshold ;
+    rdfs:label "requires Phi Coherence threshold"@en .
+
+arkhe:belongsToCircle a owl:ObjectProperty ;
+    rdfs:domain arkhe:BridgePacket ;
+    rdfs:range arkhe:Circle ;
+    rdfs:label "belongs to FHE circle"@en .
+
+arkhe:substrateId a owl:DatatypeProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range xsd:integer ;
+    rdfs:label "substrate identifier"@en .
+
+arkhe:phiCoherenceValue a owl:DatatypeProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range xsd:float ;
+    rdfs:label "Phi Coherence value"@en .
+
+arkhe:theosisIndex a owl:DatatypeProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range xsd:float ;
+    rdfs:label "Theosis Index"@en .
+
+arkhe:sealHash a owl:DatatypeProperty ;
+    rdfs:domain arkhe:Seal ;
+    rdfs:range xsd:hexBinary ;
+    rdfs:label "seal SHA3-256 hash"@en .
+
+arkhe:status a owl:DatatypeProperty ;
+    rdfs:domain arkhe:Substrate ;
+    rdfs:range [ owl:oneOf ("PROPOSED" "CANONIZED_PROVISIONAL" "CANONIZED_CLEAN" "REJECTED") ] ;
+    rdfs:label "canonical status"@en .
