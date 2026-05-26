@@ -1,9 +1,11 @@
-import { createCofheClient } from '@cofhe/sdk';
+import { createCofheClient, createCofheConfig } from '@cofhe/sdk/node';
+import { hardhat } from '@cofhe/sdk/chains';
+import { CofheClient } from '@cofhe/sdk';
 import { ThresholdNetworkClient } from './threshold_client';
-import { createWalletClient, http } from 'viem';
+import { createPublicClient, createWalletClient, http, parseAbi, PublicClient, WalletClient, Account } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-const ONTOLOGY_REGISTRY_ABI = [
+const ONTOLOGY_REGISTRY_ABI = parseAbi([
   'function registerSubstrate(uint256 id, string name, uint64 phiCoherence, uint64 theosisIndex, string status, tuple(uint256 ctHash, bytes signature) encryptedSeal, tuple(uint256 ctHash, bytes signature) encryptedPhi)',
   'function verifyCrossLink(uint256 fromId, uint256 toId, bytes zkProof)',
   'function queryConfidentialPhi(uint256 substrateId, bytes aclPermit) view returns (uint256)',
@@ -11,12 +13,14 @@ const ONTOLOGY_REGISTRY_ABI = [
   'function querySubstratesByStatus(string status) view returns (uint256[])',
   'event SubstrateRegistered(uint256 id, string name, string status)',
   'event CrossLinkVerified(uint256 fromId, uint256 toId, bool verified)',
-];
+]);
 
 export class ArkheDKGClient {
-  private cofheClient: any;
+  private cofheClient: CofheClient;
   private registryContract: `0x${string}`;
   private thresholdClient: ThresholdNetworkClient;
+  private publicClient: PublicClient;
+  private walletClient: WalletClient;
 
   constructor(
     privateKey: `0x${string}`,
@@ -25,8 +29,12 @@ export class ArkheDKGClient {
     chainConfig: any
   ) {
     const account = privateKeyToAccount(privateKey);
-    const walletClient = createWalletClient({ account, chain: chainConfig, transport: http() });
-    this.cofheClient = createCofheClient({ walletClient, provider: http() });
+    this.walletClient = createWalletClient({ account, chain: chainConfig, transport: http() }) as unknown as WalletClient;
+    this.publicClient = createPublicClient({ chain: chainConfig, transport: http() }) as unknown as PublicClient;
+
+        this.cofheClient = createCofheClient(createCofheConfig({ supportedChains: [hardhat] }));
+    this.cofheClient.connect(this.publicClient as any, this.walletClient as any);
+
     this.registryContract = registryContract;
     this.thresholdClient = thresholdClient;
   }
@@ -44,24 +52,26 @@ export class ArkheDKGClient {
     phiPlaintext: bigint
   ): Promise<`0x${string}`> {
     // Criptografa selo e Phi
-    const encryptedSeal = await this.cofheClient.encryptUint256(sealPlaintext);
-    const encryptedPhi = await this.cofheClient.encryptUint64(phiPlaintext);
+        const encryptedSeal = await this.cofheClient.encryptInputs([{ utype: 6, securityZone: 0, data: sealPlaintext }]).execute();
+        const encryptedPhi = await this.cofheClient.encryptInputs([{ utype: 5, securityZone: 0, data: phiPlaintext }]).execute();
 
-    const tx = await this.cofheClient.writeContract({
+        const tx = await this.walletClient.writeContract({
       address: this.registryContract,
       abi: ONTOLOGY_REGISTRY_ABI,
       functionName: 'registerSubstrate',
       args: [
-        id, name,
+        BigInt(id), name,
         BigInt(Math.round(phiCoherence * 1_000_000)),
         BigInt(Math.round(theosisIndex * 1_000_000)),
         status,
-        encryptedSeal,
-        encryptedPhi,
+        encryptedSeal[0],
+        encryptedPhi[0],
       ],
+      account: this.walletClient.account as Account,
+      chain: null,
     });
 
-    const receipt = await tx.wait();
+        const receipt = await this.publicClient.waitForTransactionReceipt({ hash: tx });
     return receipt.transactionHash;
   }
 
@@ -74,12 +84,12 @@ export class ArkheDKGClient {
     signature: `0x${string}`;
   }> {
     // 1. Obtém handle FHE do Phi
-    const phiHandle = await this.cofheClient.readContract({
+        const phiHandle = await this.publicClient.readContract({
       address: this.registryContract,
       abi: ONTOLOGY_REGISTRY_ABI,
       functionName: 'queryConfidentialPhi',
-      args: [substrateId, '0x'], // ACL permit placeholder
-    });
+      args: [BigInt(substrateId), '0x'], // ACL permit placeholder
+    }) as bigint;
 
     // 2. Decripta via Threshold Network
     const circleId = `substrate-${substrateId}`;
@@ -100,14 +110,16 @@ export class ArkheDKGClient {
     toId: number,
     zkProof: `0x${string}`
   ): Promise<`0x${string}`> {
-    const tx = await this.cofheClient.writeContract({
+        const tx = await this.walletClient.writeContract({
       address: this.registryContract,
       abi: ONTOLOGY_REGISTRY_ABI,
       functionName: 'verifyCrossLink',
-      args: [fromId, toId, zkProof],
+      args: [BigInt(fromId), BigInt(toId), zkProof],
+      account: this.walletClient.account as Account,
+      chain: null,
     });
 
-    const receipt = await tx.wait();
+        const receipt = await this.publicClient.waitForTransactionReceipt({ hash: tx });
     return receipt.transactionHash;
   }
 
@@ -119,14 +131,16 @@ export class ArkheDKGClient {
     ipfsHash: string,
     adminSignature: `0x${string}`
   ): Promise<`0x${string}`> {
-    const tx = await this.cofheClient.writeContract({
+        const tx = await this.walletClient.writeContract({
       address: this.registryContract,
       abi: ONTOLOGY_REGISTRY_ABI,
       functionName: 'updateOntology',
       args: [ontologyName, ipfsHash, adminSignature],
+      account: this.walletClient.account as Account,
+      chain: null,
     });
 
-    const receipt = await tx.wait();
+        const receipt = await this.publicClient.waitForTransactionReceipt({ hash: tx });
     return receipt.transactionHash;
   }
 
@@ -134,12 +148,12 @@ export class ArkheDKGClient {
    * Query SPARQL-like: substratos por status
    */
   async querySubstratesByStatus(status: string): Promise<number[]> {
-    const ids = await this.cofheClient.readContract({
+        const ids = await this.publicClient.readContract({
       address: this.registryContract,
       abi: ONTOLOGY_REGISTRY_ABI,
       functionName: 'querySubstratesByStatus',
       args: [status],
-    });
+    }) as readonly bigint[];
 
     return ids.map((id: bigint) => Number(id));
   }
