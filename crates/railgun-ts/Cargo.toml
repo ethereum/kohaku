@@ -32,3 +32,9 @@ userop-kit = { workspace = true, features = ["js"] }
 userop-kit-ts = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

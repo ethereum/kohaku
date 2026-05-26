@@ -1,7 +1,9 @@
-use std::{collections::BTreeMap, sync::Arc, u64};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    u64,
+};
 
-use crypto::poseidon_hash;
-use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
@@ -135,17 +137,25 @@ impl UtxoIndexer {
         // Sync
         let events = self.utxo_syncer.sync(from_block, to_block).await?;
         info!("Fetched {} events from syncer", events.len());
+
+        let mut tree_leaves: HashMap<u32, Vec<(u32, UtxoLeafHash)>> = HashMap::new();
         for (i, event) in events.iter().enumerate() {
             if i % 20000 == 0 {
                 info!("Processing event {}/{}", i, events.len());
             }
-            self.handle_event(&event)?;
+            self.handle_event(&event, &mut tree_leaves)?;
         }
 
-        // Rebuild
-        info!("Rebuilding UTXO trees");
-        for tree in self.utxo_trees.values_mut() {
-            tree.rebuild();
+        info!("Inserting leaves into UTXO trees");
+        for (tree_number, mut leaves) in tree_leaves {
+            leaves.sort_by_key(|(idx, _)| *idx);
+            let start = leaves[0].0;
+            let hashes: Vec<_> = leaves.into_iter().map(|(_, hash)| hash).collect();
+
+            self.utxo_trees
+                .entry(tree_number)
+                .or_insert(UtxoMerkleTree::new(tree_number))
+                .insert_leaves(&hashes, start as usize);
         }
 
         // Verify
@@ -164,23 +174,30 @@ impl UtxoIndexer {
         Ok(())
     }
 
-    fn handle_event(&mut self, event: &SyncEvent) -> Result<(), UtxoIndexerError> {
+    fn handle_event(
+        &mut self,
+        event: &SyncEvent,
+        tree_leaves: &mut HashMap<u32, Vec<(u32, UtxoLeafHash)>>,
+    ) -> Result<(), UtxoIndexerError> {
         match event {
-            SyncEvent::Shield(shield, _) => self.handle_shield(shield)?,
-            SyncEvent::Transact(transact, _) => self.handle_transact(transact)?,
+            SyncEvent::Shield(shield, _) => self.handle_shield(shield, tree_leaves)?,
+            SyncEvent::Transact(transact, _) => self.handle_transact(transact, tree_leaves)?,
             SyncEvent::Nullified(nullified, ts) => self.handle_nullified(nullified, *ts),
-            SyncEvent::Legacy(legacy, _) => self.handle_legacy(legacy),
+            SyncEvent::Legacy(legacy, _) => self.handle_legacy(legacy, tree_leaves),
         };
 
         Ok(())
     }
 
-    fn handle_shield(&mut self, event: &syncer::Shield) -> Result<(), UtxoIndexerError> {
-        let leaf: UtxoLeafHash =
-            poseidon_hash(&[event.npk, event.token.hash(), U256::from(event.value)])
-                .unwrap()
-                .into();
-        self.insert_utxo_leaf(event.tree_number, event.leaf_index, leaf);
+    fn handle_shield(
+        &mut self,
+        event: &syncer::Shield,
+        tree_leaves: &mut HashMap<u32, Vec<(u32, UtxoLeafHash)>>,
+    ) -> Result<(), UtxoIndexerError> {
+        tree_leaves
+            .entry(event.tree_number)
+            .or_default()
+            .push((event.leaf_index, event.hash()));
 
         for account in self.accounts.iter_mut() {
             account.handle_shield_event(event)?;
@@ -189,8 +206,15 @@ impl UtxoIndexer {
         Ok(())
     }
 
-    fn handle_transact(&mut self, event: &syncer::Transact) -> Result<(), UtxoIndexerError> {
-        self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
+    fn handle_transact(
+        &mut self,
+        event: &syncer::Transact,
+        tree_leaves: &mut HashMap<u32, Vec<(u32, UtxoLeafHash)>>,
+    ) -> Result<(), UtxoIndexerError> {
+        tree_leaves
+            .entry(event.tree_number)
+            .or_default()
+            .push((event.leaf_index, event.hash.into()));
 
         for account in self.accounts.iter_mut() {
             account.handle_transact_event(event)?;
@@ -205,8 +229,17 @@ impl UtxoIndexer {
         }
     }
 
-    fn handle_legacy(&mut self, event: &syncer::LegacyCommitment) {
-        self.insert_utxo_leaf(event.tree_number, event.leaf_index, event.hash.into());
+    fn handle_legacy(
+        &mut self,
+        _event: &syncer::LegacyCommitment,
+        tree_leaves: &mut HashMap<u32, Vec<(u32, UtxoLeafHash)>>,
+    ) {
+        tree_leaves
+            .entry(_event.tree_number)
+            .or_default()
+            .push((_event.leaf_index, _event.hash.into()));
+
+        // TODO: Forward legacy to accounts
     }
 
     async fn verify(&self) -> Result<(), UtxoIndexerError> {
@@ -221,16 +254,6 @@ impl UtxoIndexer {
                 .map_err(|e| UtxoIndexerError::VerificationError(e))?;
         }
         Ok(())
-    }
-
-    /// Insert a leaf into the appropriate UTXO tree, creating the tree if necessary
-    fn insert_utxo_leaf(&mut self, tree_number: u32, leaf_index: u32, leaf: UtxoLeafHash) {
-        let tree = self
-            .utxo_trees
-            .entry(tree_number)
-            .or_insert(UtxoMerkleTree::new(tree_number));
-
-        tree.insert_leaves_raw(&[leaf], leaf_index as usize);
     }
 
     /// Saves the current state of the indexer to the database.
