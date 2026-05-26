@@ -212,7 +212,6 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             }
         }
 
-        console.log(`Total balances: ${JSON.stringify(Array.from(all.values()))}`);
         return Array.from(all.values());
     }
 
