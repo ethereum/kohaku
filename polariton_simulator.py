@@ -1,4 +1,5 @@
-#!/ "polariton_simulator.py" — Substrato 862
+#!/usr/bin/env python3
+# "polariton_simulator.py" — Substrato 862
 import numpy as np
 import hashlib
 

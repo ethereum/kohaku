@@ -1,4 +1,5 @@
-#!/ "photonic_hardware_driver.py" — Substrato 862.1
+#!/usr/bin/env python3
+# "photonic_hardware_driver.py" — Substrato 862.1
 # Interface para hardware fotônico (Xanadu Strawberry Fields, simulação pura)
 import numpy as np
 import hashlib

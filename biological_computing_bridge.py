@@ -1,4 +1,5 @@
-#!/ "biological_computing_bridge.py" — Substrato 859
+#!/usr/bin/env python3
+# "biological_computing_bridge.py" — Substrato 859
 # Simulador de circuitos genéticos para ARKHE OS
 import numpy as np
 from scipy.integrate import solve_ivp
