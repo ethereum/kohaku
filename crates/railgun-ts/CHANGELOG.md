@@ -1,5 +1,14 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.22
+
+### Patch Changes
+
+- 0d26a25: Feat: Switch remote artifact loading to use brotli compressed files, and update remote file structure
+  Feat: Enable logging in railgun plugin by default, with option to disable it
+  Fix: Pending POIs were not saved under certain conditions
+  Fix: Switch POI query to check spendability status rather than merkle trie inclusion for better accuracy
+
 ## 0.0.1-alpha.21
 
 ### Patch Changes
