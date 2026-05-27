@@ -121,7 +121,7 @@ def kolmogorov_complexity_estimate(
     w_norm_sq = sum(p.pow(2).sum().item() for p in model.parameters() if p.requires_grad)
 
     # Complexidade de Kolmogorov estimada (Musat 2026)
-    K_estimate = w_norm_sq * (w_norm_sq + 1).bit_length()  # aproximação: ‖θ‖² · log₂(‖θ‖²)
+    K_estimate = w_norm_sq * int(w_norm_sq + 1).bit_length()  # aproximação: ‖θ‖² · log₂(‖θ‖²)
 
     # Bits mínimos para descrever o modelo (limite inferior)
     bits_lower_bound = trainable_params * precision_bits
@@ -199,7 +199,7 @@ class KolmogorovWeightDecay(torch.optim.Optimizer):
             # Gradiente do regularizador de Kolmogorov
             # R_K = ‖θ‖² · log(‖θ‖² + 1)
             # ∇R_K = 2θ · log(‖θ‖² + 1) + 2θ · ‖θ‖² / (‖θ‖² + 1)
-            log_term = (w_norm_sq + 1).bit_length()  # log₂ aproximado
+            log_term = int(w_norm_sq + 1).bit_length()  # log₂ aproximado
             grad_factor = log_term + w_norm_sq / (w_norm_sq + 1)
 
             for p in group["params"]:

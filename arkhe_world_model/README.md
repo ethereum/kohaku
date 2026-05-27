@@ -103,8 +103,8 @@ python train.py --maturity embryo --epochs 100 --batch_size 32
 # Treinar modelo infant com simulação
 python train.py --maturity infant --epochs 200 --scene pendulum
 
-# Treinar modelo adulto com RL
-python train.py --maturity adult --epochs 500 --rl_timesteps 100000
+# Treinar modelo adulto com RL e prior de Kolmogorov
+python train.py --maturity adult --epochs 500 --optimizer kolmogorov
 ```
 
 ### 4. Demonstração
@@ -144,6 +144,7 @@ arkhe_world_model/
 ├── causal_reasoning.py      # Stage 5: Causal Reasoning
 ├── self_model.py            # Stage 6: Self-Modeling
 ├── losses.py                # Loss Híbrida (CE + MSE + Causal)
+├── kolmogorov_regularizer.py# Substrato 898 (Kolmogorov Complexity)
 ├── rl_policy.py             # PPO / DreamerV3
 ├── train.py                 # Script de treinamento
 ├── demo.py                  # Script de demonstração
@@ -226,19 +227,20 @@ report = self_model.introspect(fused_embedding)
 
 ---
 
-## Loss Híbrida
+## Loss Híbrida e Kolmogorov Regularizer (Substrato 898)
 
-A loss de treinamento combina três componentes:
+A loss de treinamento combina três componentes e um termo regularizador:
 
 ```
-L_total = λ₁·CrossEntropy(texto) + λ₂·MSE(estado físico) + λ₃·causal_loss(contrafactual)
+L_total = λ₁·CrossEntropy(texto) + λ₂·MSE(estado físico) + λ₃·causal_loss(contrafactual) + λ_K·R_K(θ)
 ```
 
 - **CE**: competência linguística
 - **MSE**: grounding físico
 - **Causal**: raciocínio contrafactual
+- **Kolmogorov (R_K)**: complexidade de Kolmogorov (Solomonoff prior) de acordo com o Teorema Musat 2026.
 
-Hiperparâmetros padrão: `λ₁=1.0`, `λ₂=0.5`, `λ₃=0.3`
+Hiperparâmetros padrão: `λ₁=1.0`, `λ₂=0.5`, `λ₃=0.3`, `λ_K=1e-4`
 
 ---
 
@@ -253,6 +255,7 @@ Hiperparâmetros padrão: `λ₁=1.0`, `λ₂=0.5`, `λ₃=0.3`
 | 234 | Causal Inference | Inferência causal |
 | 240 | Metacognition | Metacognição |
 | 247 | Embodied AI | IA incorporada |
+| 898 | Kolmogorov Regularizer | Norma dos pesos (Occam's Razor) |
 
 ---
 

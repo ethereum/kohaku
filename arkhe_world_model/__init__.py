@@ -22,7 +22,7 @@ Uso:
     from arkhe_world_model import WorldModelEmbryo
 
     model = WorldModelEmbryo(stage=1, maturity="embryo")
-    model.train(data_loader)
+    model.fit(data_loader)
     prediction = model.predict(scene_description)
 
 Módulos:
@@ -60,9 +60,9 @@ from .kolmogorov_regularizer import (
 )
 
 __all__ = [
+    "WorldModelEmbryo",
     "WorldModelConfig",
     "MaturityLevel",
-    "WorldModelEmbryo",
     "ArkheLLMEngine",
     "PhysicsPriorsModule",
     "MultimodalFusionModule",

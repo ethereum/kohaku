@@ -88,14 +88,6 @@ class WorldModelEmbryo(nn.Module):
         self.maturity = self.config.maturity
         self.active_stages = self._get_active_stages()
 
-        # Módulos (lazy initialization)
-        self._llm_engine = None
-        self._physics_priors = None
-        self._multimodal_fusion = None
-        self._simulator = None
-        self._causal_reasoner = None
-        self._self_model = None
-
         # Estado interno
         self._current_stage = DevelopmentStage.TOKEN_GROUNDING
         self._training_history: List[Dict] = []
@@ -106,6 +98,38 @@ class WorldModelEmbryo(nn.Module):
         print(f"[890] Estágios ativos: {[s.name for s in self.active_stages]}")
         print(f"[890] d_model={self.config.d_model}, state_dim={self.config.state_dim}")
         print(f"[890] ⚠️  CANONIZED_SPECULATIVE — H=2.0 (alta incerteza)")
+
+        # Initialize submodules immediately to register parameters
+        if DevelopmentStage.PHYSICS_PRIORS in self.active_stages:
+            from .physics_priors import PhysicsPriorsModule
+            self.physics_priors_module = PhysicsPriorsModule(
+                d_model=self.config.d_model,
+                state_dim=self.config.state_dim,
+            )
+        else:
+            self.physics_priors_module = None
+
+        if DevelopmentStage.MULTIMODAL_FUSION in self.active_stages:
+            from .multimodal_fusion import MultimodalFusionModule
+            self.multimodal_fusion_module = MultimodalFusionModule(
+                d_model=self.config.d_model,
+                state_dim=self.config.state_dim,
+            )
+        else:
+            self.multimodal_fusion_module = None
+
+        if DevelopmentStage.SELF_MODELING in self.active_stages:
+            from .self_model import SelfModelingModule
+            self.self_model_module = SelfModelingModule(
+                d_model=self.config.d_model,
+            )
+        else:
+            self.self_model_module = None
+
+        self._llm_engine = None
+        self._simulator = None
+        self._causal_reasoner = None
+
 
     def _get_active_stages(self) -> List[DevelopmentStage]:
         """Retorna estágios ativos baseado na maturidade."""
@@ -138,23 +162,11 @@ class WorldModelEmbryo(nn.Module):
 
     @property
     def physics_priors(self):
-        if self._physics_priors is None:
-            from .physics_priors import PhysicsPriorsModule
-            self._physics_priors = PhysicsPriorsModule(
-                d_model=self.config.d_model,
-                state_dim=self.config.state_dim,
-            )
-        return self._physics_priors
+        return self.physics_priors_module
 
     @property
     def multimodal_fusion(self):
-        if self._multimodal_fusion is None:
-            from .multimodal_fusion import MultimodalFusionModule
-            self._multimodal_fusion = MultimodalFusionModule(
-                d_model=self.config.d_model,
-                state_dim=self.config.state_dim,
-            )
-        return self._multimodal_fusion
+        return self.multimodal_fusion_module
 
     @property
     def simulator(self):
@@ -176,12 +188,7 @@ class WorldModelEmbryo(nn.Module):
 
     @property
     def self_model(self):
-        if self._self_model is None:
-            from .self_model import SelfModelingModule
-            self._self_model = SelfModelingModule(
-                d_model=self.config.d_model,
-            )
-        return self._self_model
+        return self.self_model_module
 
     # ── Forward pass ───────────────────────────────────────────
 
@@ -267,7 +274,7 @@ class WorldModelEmbryo(nn.Module):
 
     # ── Training ───────────────────────────────────────────────
 
-    def _train(
+    def fit(
         self,
         data_loader,
         epochs: Optional[int] = None,
@@ -357,7 +364,7 @@ class WorldModelEmbryo(nn.Module):
         """
         Predição completa (inference mode).
         """
-        super().eval()
+        self.eval()
         with torch.no_grad():
             return self.forward(text_input, visual_input, action)
 
