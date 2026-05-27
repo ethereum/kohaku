@@ -82,9 +82,9 @@ def train_epoch(model, dataloader, optimizer, criterion, device, epoch):
         batch_size = tokens.size(0)
 
         predictions = {
-            "logits": torch.randn(batch_size, tokens.size(1), model.config.vocab_size, device=device),
-            "state_pred": torch.randn(batch_size, model.config.state_dim, device=device),
-            "causal_pred": torch.randn(batch_size, model.config.n_vars, device=device),
+            "logits": torch.randn(batch_size, tokens.size(1), model.config.vocab_size, device=device, requires_grad=True),
+            "state_pred": torch.randn(batch_size, model.config.state_dim, device=device, requires_grad=True),
+            "causal_pred": torch.randn(batch_size, model.config.n_vars, device=device, requires_grad=True),
         }
         targets = {
             "tokens": tokens,

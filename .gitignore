@@ -23,3 +23,5 @@ terraform-arkhe-infra/.terraform
 venv/
 bin/
 bin/
+arkhe_world_model/__pycache__/
+arkhe_world_model/checkpoints/

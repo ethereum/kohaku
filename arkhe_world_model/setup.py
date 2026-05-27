@@ -11,10 +11,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="arkhe-world-model",
-    version="890.0.0",
+    version="890.1.0",
     author="ARKHE Cathedral",
     author_email="arkhe@cathedral.ai",
-    description="Embryonic World Model for ARKHE-OS (Substrate 890)",
+    description="Embryonic World Model for ARKHE-OS (Substrate 890 + Substrate 898)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/arkhe-cathedral/world-model",
