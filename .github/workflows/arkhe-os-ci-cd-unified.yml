@@ -93,7 +93,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: arkhe
-          POSTGRES_PASSWORD: arkhe_test
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: extenddb_catalog
         ports:
           - 5432:5432
@@ -111,7 +111,7 @@ jobs:
           EXTENDDB__STORAGE__POSTGRES__HOST: postgres
           EXTENDDB__STORAGE__POSTGRES__PORT: "5432"
           EXTENDDB__STORAGE__POSTGRES__USER: arkhe
-          EXTENDDB__STORAGE__POSTGRES__PASSWORD: arkhe_test
+          EXTENDDB__STORAGE__POSTGRES__PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           EXTENDDB__STORAGE__POSTGRES__DBNAME: extenddb_catalog
         options: >-
           --health-cmd "curl --cacert /root/.extenddb/tls/cert.pem https://localhost:8000/health"
