@@ -38,3 +38,23 @@
   category: "security"
   links: ["824", "832", "863"]
 # ... outros substratos conforme necessário
+"905":
+  name: "CROPS Local AI Stack"
+  category: "security"
+  links: ["255", "872"]
+"906":
+  name: "Lucebox Inference Engine"
+  category: "hardware"
+  links: ["834", "836"]
+"907":
+  name: "VoxTerm Audio Privacy Layer"
+  category: "security"
+  links: ["683"]
+"908":
+  name: "Leanstral Formal Verification Bridge"
+  category: "cognition"
+  links: ["841", "890"]
+"909":
+  name: "ZK Remote LLM Access Layer"
+  category: "security"
+  links: ["225", "230", "840"]
