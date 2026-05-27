@@ -2,14 +2,10 @@ import { createPublicClient, http } from "viem";
 import { sepolia } from "viem/chains";
 import { afterAll, beforeAll, test } from "vitest";
 import { MemoryStorage, MnemonicKeystore, type Host } from "@kohaku-eth/plugins";
-import { chainConfigSepolia, ensureInitialized, initLogging } from "../sdk/lib.js";
 import { createRailgunPlugin } from "../sdk/plugin.js";
 import { viem } from "@kohaku-eth/provider/viem";
 import { startAnvil } from "./utils.js";
 
-await ensureInitialized();
-initLogging("Info");
-const CHAIN = chainConfigSepolia();
 const INTEGRATION = process.env.INTEGRATION === "1";
 const SEPOLIA_RPC_URL: string | undefined = process.env.RPC_URL_SEPOLIA;
 if (!SEPOLIA_RPC_URL)
@@ -19,7 +15,7 @@ let rpcUrl: string;
 let anvilServer: Awaited<ReturnType<typeof startAnvil>>["server"];
 
 beforeAll(async () => {
-    const anvil = await startAnvil(SEPOLIA_RPC_URL, CHAIN.id);
+    const anvil = await startAnvil(SEPOLIA_RPC_URL, 11155111);
     anvilServer = anvil.server;
     rpcUrl = anvil.rpcUrl;
 }, 60_000);

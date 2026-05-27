@@ -221,6 +221,7 @@ impl From<Commitment> for syncer::SyncEvent {
                         data: vec![encrypted_bundle[1][..16].to_vec()],
                     },
                     shield_key: shield_key.into(),
+                    hash: Some(value.hash.into()),
                 },
                 value.block_number,
             ),

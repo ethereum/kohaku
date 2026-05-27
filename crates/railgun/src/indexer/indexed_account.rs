@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use alloy::primitives::U256;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, info};
 
 use crate::{
     account::{address::RailgunAddress, signer::RailgunSigner},
@@ -20,20 +20,20 @@ pub struct IndexedAccount {
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
-pub(crate) struct IndexedAccountState {
+pub struct IndexedAccountState {
     pub notes: Vec<UtxoNote>,
     pub synced_block: u64,
 }
 
 impl IndexedAccount {
-    pub(crate) fn from_state(signer: Arc<dyn RailgunSigner>, state: IndexedAccountState) -> Self {
+    pub fn from_state(signer: Arc<dyn RailgunSigner>, state: IndexedAccountState) -> Self {
         IndexedAccount {
             signer,
             inner: state,
         }
     }
 
-    pub(crate) fn state(&self) -> IndexedAccountState {
+    pub fn state(&self) -> IndexedAccountState {
         self.inner.clone()
     }
 
@@ -62,7 +62,7 @@ impl IndexedAccount {
                 return Ok(());
             }
             Err(e) => {
-                warn!(
+                debug!(
                     "Failed to decrypt Shield note at tree {}, leaf {}: {}",
                     event.tree_number, event.leaf_index, e
                 );
@@ -85,7 +85,7 @@ impl IndexedAccount {
                 return Ok(());
             }
             Err(e) => {
-                warn!(
+                debug!(
                     "Failed to decrypt Transact note at tree {}, leaf {}: {}",
                     event.tree_number, event.leaf_index, e
                 );
@@ -146,6 +146,7 @@ mod tests {
             value: U256::from(shield.preimage.value),
             ciphertext: shield.ciphertext.clone().into(),
             shield_key: *shield.ciphertext.shieldKey,
+            hash: None,
         };
 
         account.handle_shield_event(&event).unwrap();
@@ -168,6 +169,7 @@ mod tests {
             value: U256::from(other_shield.preimage.value),
             ciphertext: other_shield.ciphertext.clone().into(),
             shield_key: *other_shield.ciphertext.shieldKey,
+            hash: None,
         };
 
         account.handle_shield_event(&other_event).unwrap();

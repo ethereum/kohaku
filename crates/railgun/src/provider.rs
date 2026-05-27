@@ -6,6 +6,7 @@ use alloy::{
 };
 use eip_1193_provider::provider::{Eip1193Error, Eip1193Provider};
 use rand::Rng;
+use serde::Serialize;
 use thiserror::Error;
 use tracing::{info, warn};
 use userop_kit::{
@@ -24,12 +25,23 @@ use crate::{
     crypto::keys::{ByteKey, MasterPublicKey, ViewingPublicKey},
     indexer::utxo_indexer::{UtxoIndexer, UtxoIndexerError},
     note::{Note, utxo::UtxoNote},
-    poi::provider::{PoiProvider, PoiProviderError},
+    poi::{
+        provider::{PoiProvider, PoiProviderError},
+        types::PoiStatus,
+    },
     transact::{
         ShieldBuilder, TransactionBuilder, TransactionBuilderError,
         proved_transaction::{ProvedOperation, ProvedTx},
     },
 };
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(js, derive(tsify::Tsify))]
+pub struct BalanceEntry {
+    pub asset: AssetId,
+    pub poi_status: Option<PoiStatus>,
+    pub amount: u128,
+}
 
 /// Interfaces with the RAILGUN protocol.
 pub struct RailgunProvider {
@@ -137,7 +149,7 @@ impl RailgunProvider {
     ) -> Result<ProvedTx, RailgunProviderError> {
         let operations = self.build_operation(builder, rng).await?;
         if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.register_ops(&operations).await;
+            poi_provider.register_ops(&operations).await?;
         }
 
         let proved_tx = ProvedTx::new(self.chain.railgun_smart_wallet, operations);
@@ -201,6 +213,7 @@ impl RailgunProvider {
                 fee_value
             );
             let mut operations = self.build_operation(broadcast_builder, rng).await?;
+            let poi_operations = operations.clone();
 
             // Remove the fee note from the operations
             let fee_operation = take_fee_operation(&mut operations, fee_asset, fee_value)?;
@@ -263,6 +276,9 @@ impl RailgunProvider {
             if delta <= new_fee / 100 {
                 // 1% tolerance
                 info!("Fee converged at {}", new_fee);
+                if let Some(poi_provider) = &mut self.poi_provider {
+                    poi_provider.register_ops(&poi_operations).await?;
+                }
                 return Ok(signable);
             }
             info!("Fee updated to {}, delta: {}", new_fee, delta);
@@ -294,12 +310,16 @@ impl RailgunProvider {
 
         let mut spendable_notes = Vec::new();
         for note in notes {
-            let spendable = poi_provider.spendable(note.blinded_commitment.into()).await;
-            match spendable {
-                Ok(true) => spendable_notes.push(note),
-                Ok(false) => continue, //? Not spendable, skip
+            let status = poi_provider
+                .status(note.blinded_commitment.into(), note.commitment_type)
+                .await;
+            match status {
+                Ok(PoiStatus::Valid) => spendable_notes.push(note),
+                Ok(status) => {
+                    info!("Note {} not spendable: {status:?}", note);
+                    continue;
+                }
                 Err(e) => {
-                    //? If there's an error checking POI, log it and skip the note
                     warn!("Error checking POI for note {}: {}", note, e);
                     continue;
                 }

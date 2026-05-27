@@ -127,6 +127,7 @@ impl TxidIndexer {
         let drained: Vec<_> = self.inner.pending.drain(..drain_count).collect();
 
         let mut total = current_total;
+        let mut tree_leaves: HashMap<u32, Vec<(u32, TxidLeafHash)>> = HashMap::new();
         for op in drained {
             let txid = Txid::new(&op.nullifiers, &op.commitment_hashes, op.bound_params_hash);
 
@@ -142,23 +143,23 @@ impl TxidIndexer {
             let leaf = TxidLeafHash::new(txid, op.utxo_tree_in, included);
 
             let tree_number = total / TOTAL_LEAVES;
-            let position = total % TOTAL_LEAVES;
+            let leaf_index = total % TOTAL_LEAVES;
 
-            self.trees
+            tree_leaves
                 .entry(tree_number)
-                .or_insert_with(|| TxidMerkleTree::new(tree_number))
-                .insert_leaves(&[leaf], position as usize);
+                .or_default()
+                .push((leaf_index as u32, leaf));
 
             self.inner
                 .txid_to_txid_position
-                .insert(txid, (tree_number, position as u32));
+                .insert(txid, (tree_number, leaf_index as u32));
             self.inner
                 .txid_to_utxo_position
                 .insert(txid, (op.utxo_tree_out, op.utxo_out_start_index));
 
             if total % 10000 == 0 {
                 info!(
-                    "Drained {}/{} operations",
+                    "Draining operation {}/{}",
                     total - current_total,
                     target_total
                 );
@@ -166,12 +167,17 @@ impl TxidIndexer {
             total += 1;
         }
 
-        info!("Drained {} operations", drain_count);
-
-        info!("Rebuilding TXID trees");
-        for tree in self.trees.values_mut() {
-            tree.rebuild();
+        info!("Inserting leaves into TXID trees");
+        for (tree_number, mut leaves) in tree_leaves {
+            leaves.sort_by_key(|(idx, _)| *idx);
+            let start = leaves[0].0;
+            let hashes: Vec<_> = leaves.into_iter().map(|(_, hash)| hash).collect();
+            self.trees
+                .entry(tree_number)
+                .or_insert_with(|| TxidMerkleTree::new(tree_number))
+                .insert_leaves(&hashes, start as usize);
         }
+        info!("Drained {} operations", drain_count);
 
         info!("Validating TXID trees");
         for (tree_number, tree) in self.trees.iter() {

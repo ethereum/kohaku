@@ -7,10 +7,7 @@ use std::{collections::HashMap, fmt::Display, str::FromStr};
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    circuit::proof::Proof, crypto::railgun_txid::Txid, merkle_tree::MerkleRoot,
-    note::utxo::UtxoType,
-};
+use crate::{circuit::proof::Proof, crypto::railgun_txid::Txid, merkle_tree::MerkleRoot};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[cfg_attr(js, derive(tsify::Tsify))]
@@ -35,14 +32,14 @@ pub enum BlindedCommitmentType {
     Unshield,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(js, derive(tsify::Tsify))]
 #[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
 pub enum PoiStatus {
     Valid,
-    ShieldBlocked,
     ProofSubmitted,
     Missing,
+    ShieldBlocked,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,15 +184,6 @@ impl Serialize for BlindedCommitment {
     {
         let hex_string = format!("0x{:064x}", self.0);
         serializer.serialize_str(&hex_string)
-    }
-}
-
-impl From<UtxoType> for BlindedCommitmentType {
-    fn from(utxo_type: UtxoType) -> Self {
-        match utxo_type {
-            UtxoType::Shield => BlindedCommitmentType::Shield,
-            UtxoType::Transact => BlindedCommitmentType::Transact,
-        }
     }
 }
 
