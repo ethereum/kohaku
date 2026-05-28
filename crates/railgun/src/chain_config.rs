@@ -18,6 +18,8 @@ pub struct ChainConfig {
     /// <https://docs.railgun.org/wiki/learn/helpful-links>
     #[cfg_attr(js, tsify(type = "`0x${string}`"))]
     pub railgun_smart_wallet: Address,
+    /// Unshield fee in basis points (bps).
+    pub unshield_fee_bps: u16,
     /// RelayAdapt contract for native base-token shielding (wrap + shield via `multicall`)
     ///
     /// Sourced from
@@ -55,6 +57,7 @@ impl ChainConfig {
     pub fn new(
         id: ChainId,
         railgun_smart_wallet: Address,
+        unshield_fee_bps: u16,
         relay_adapt_contract: Address,
         wrapped_base_token: Address,
         deployment_block: u64,
@@ -66,6 +69,7 @@ impl ChainConfig {
         Self {
             id,
             railgun_smart_wallet,
+            unshield_fee_bps,
             relay_adapt_contract,
             wrapped_base_token,
             deployment_block,
@@ -88,6 +92,7 @@ impl ChainConfig {
         Self::new(
             1,
             address!("0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9"),
+            25,
             address!("0xAc9f360Ae85469B27aEDdEaFC579Ef2d052aD405"),
             address!("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
             14693013,
@@ -102,6 +107,7 @@ impl ChainConfig {
         Self::new(
             11155111,
             address!("0xeCFCf3b4eC647c4Ca6D49108b311b7a7C9543fea"),
+            25,
             address!("0x7e3d929EbD5bDC84d02Bd3205c777578f33A214D"),
             address!("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"),
             5784774,

@@ -1,13 +1,14 @@
-import initWasm from "../pkg";
+import initWasm, { initLogging, type LogLevel } from "../pkg";
 export * from '../pkg/index';
 export type { RailgunPlugin, RailgunPluginConfig, BundlerConfig } from "./plugin.js";
 export { createRailgunPlugin } from "./plugin.js";
 
 let initPromise: Promise<void> | null = null;
 
-export function ensureInitialized(wasmInput?: BufferSource | Response): Promise<void> {
+export async function ensureInitialized(wasmInput?: BufferSource | Response, logLevel?: LogLevel): Promise<void> {
     if (!initPromise) initPromise = _init(wasmInput);
-    return initPromise;
+    await initPromise;
+    initLogging(logLevel ?? "Info");
 }
 
 async function _init(wasmInput?: BufferSource | Response): Promise<void> {

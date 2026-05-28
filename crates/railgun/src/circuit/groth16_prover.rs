@@ -81,6 +81,7 @@ impl Groth16Prover {
             .map(|x| Fr::from(BigInt::from(*x)))
             .collect();
 
+        info!("Creating proof");
         let proof = Groth16::<Bn254, CircomReduction>::create_proof_with_reduction_and_matrices(
             &pk,
             random(),

@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/railgun",
-  "version": "0.0.1-alpha.20",
+  "version": "0.0.1-alpha.22",
   "description": "",
   "type": "module",
   "main": "./dist/sdk/lib.js",
@@ -27,7 +27,7 @@
   "private": false,
   "scripts": {
     "build": "pnpm run build:wasm && pnpm run build:js",
-    "build:wasm": "wasm-pack build --target web --out-name index --out-dir pkg",
+    "build:wasm": "wasm-pack build --profile release-wasm --target web --out-name index --out-dir pkg",
     "build:js": "tsc && cp -r pkg dist/ && rm -f dist/pkg/.gitignore",
     "test:e2e": "pnpm run test:e2e:transact-utxo && pnpm run test:e2e:plugin-sync && pnpm run test:e2e:plugin-transact-broadcast",
     "test:e2e:transact-utxo": "INTEGRATION=1 vitest run -t transact-utxo",

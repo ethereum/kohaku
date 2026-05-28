@@ -1,4 +1,5 @@
 pub use chained::ChainedSyncer;
+use crypto::poseidon_hash;
 pub use rpc::RpcSyncer;
 pub use subsquid::SubsquidSyncer;
 
@@ -13,7 +14,7 @@ use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{caip::AssetId, crypto::aes::Ciphertext};
+use crate::{caip::AssetId, crypto::aes::Ciphertext, merkle_tree::UtxoLeafHash};
 
 /// Syncers that emit note-level events.
 #[cfg_attr(native, async_trait::async_trait)]
@@ -49,6 +50,7 @@ pub struct Shield {
     pub value: U256,
     pub ciphertext: Ciphertext,
     pub shield_key: [u8; 32],
+    pub hash: Option<UtxoLeafHash>,
 }
 
 /// A single transact commitment event
@@ -95,5 +97,17 @@ pub struct SyncerError(#[source] Box<dyn std::error::Error + Send + Sync>);
 impl SyncerError {
     pub(crate) fn new<E: std::error::Error + Send + Sync + 'static>(e: E) -> Self {
         SyncerError(Box::new(e))
+    }
+}
+
+impl Shield {
+    pub fn hash(&self) -> UtxoLeafHash {
+        if let Some(hash) = self.hash {
+            return hash;
+        }
+
+        poseidon_hash(&[self.npk, self.token.hash(), U256::from(self.value)])
+            .unwrap()
+            .into()
     }
 }

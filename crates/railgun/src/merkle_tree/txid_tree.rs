@@ -79,19 +79,10 @@ impl TxidMerkleTree {
         self.inner.generate_proof(leaf.into())
     }
 
-    /// Insert one TxID leaf and immediately rebuild.
-    pub fn insert_leaf(&mut self, leaf: TxidLeafHash, position: usize) {
-        self.inner.insert_leaf(leaf.into(), position);
-    }
-
-    /// Insert leaves without immediately rebuilding.
+    /// Append leaves to the end of the tree and immediately rebuild.
     pub(crate) fn insert_leaves(&mut self, leaves: &[TxidLeafHash], start_position: usize) {
         let u256s: Vec<U256> = leaves.iter().map(|l| (*l).into()).collect();
-        self.inner.insert_leaves_raw(&u256s, start_position);
-    }
-
-    pub fn rebuild(&mut self) {
-        self.inner.rebuild();
+        self.inner.insert_leaves(&u256s, start_position);
     }
 }
 

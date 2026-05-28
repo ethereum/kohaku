@@ -141,14 +141,8 @@ impl<C: MerkleConfig> MerkleTree<C> {
         Ok(proof)
     }
 
-    /// Insert one leaf and immediately rebuilds.
-    pub fn insert_leaf(&mut self, leaf: U256, position: usize) {
-        self.insert_leaves_raw(&[leaf], position);
-        self.rebuild();
-    }
-
-    /// Inserts leaves starting at the given position without rebuilding.
-    pub fn insert_leaves_raw(&mut self, leaves: &[U256], start_position: usize) {
+    /// Inserts leaves starting at the given position
+    pub fn insert_leaves(&mut self, leaves: &[U256], start_position: usize) {
         if leaves.is_empty() {
             return;
         }
@@ -163,9 +157,11 @@ impl<C: MerkleConfig> MerkleTree<C> {
             self.tree[0][leaf_index] = *leaf;
             self.dirty_parents.insert(leaf_index / 2);
         }
+
+        self.rebuild();
     }
 
-    pub fn rebuild(&mut self) {
+    fn rebuild(&mut self) {
         if self.dirty_parents.is_empty() {
             return;
         }
@@ -227,8 +223,7 @@ mod tests {
     fn test_merkle_tree() {
         let mut tree = MerkleTree::<TestMerkleConfig>::new(0);
         let leaves = vec![U256::from(1), U256::from(2), U256::from(3), U256::from(4)];
-        tree.insert_leaves_raw(&leaves, 0);
-        tree.rebuild();
+        tree.insert_leaves(&leaves, 0);
 
         insta::assert_debug_snapshot!(tree.state());
     }
@@ -237,8 +232,7 @@ mod tests {
     fn test_serialize_deserialize() {
         let mut tree = MerkleTree::<TestMerkleConfig>::new(0);
         let leaves = vec![U256::from(1), U256::from(2), U256::from(3), U256::from(4)];
-        tree.insert_leaves_raw(&leaves, 0);
-        tree.rebuild();
+        tree.insert_leaves(&leaves, 0);
 
         let state = tree.state();
         let deserialized_tree = MerkleTree::<TestMerkleConfig>::from_state(state.clone());
