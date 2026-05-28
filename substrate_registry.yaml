@@ -21,6 +21,10 @@
   name: "LeanIX-EAM-Bridge"
   category: "enterprise"
   links: ["846", "852"]
+"929":
+  name: "ARKHE-AS-ANDROID-OS"
+  category: "technical"
+  links: ["920", "921", "922", "923", "924", "925", "926", "927", "928"]
 "859":
   name: "Biological-Computing-Bridge"
   category: "hardware"
