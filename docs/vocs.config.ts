@@ -72,38 +72,6 @@ export default defineConfig({
       ]
     },
     {
-      text: '@kohaku-eth/privacy-pools (WIP)',
-      disabled: true,
-      collapsed: true,
-      items: [
-        {
-          text: 'Introduction',
-          link: '/privacy-pools/intro',
-          disabled: true,
-        },
-        {
-          text: 'Accounts',
-          link: '/privacy-pools/accounts',
-          disabled: true,
-        },
-        {
-          text: 'Shielding',
-          link: '/privacy-pools/shielding',
-          disabled: true,
-        },
-        {
-          text: 'Transacting',
-          link: '/privacy-pools/txs',
-          disabled: true,
-        },
-        {
-          text: 'Proof of Innocence',
-          link: '/privacy-pools/ppoi',
-          disabled: true,
-        }
-      ]
-    },
-    {
       text: '@kohaku-eth/tornado (WIP)',
       collapsed: true,
       items: [
