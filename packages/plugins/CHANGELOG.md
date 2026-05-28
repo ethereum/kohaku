@@ -47,4 +47,4 @@
 
 ### Patch Changes
 
-- 21e550e: Update broadcastfn & privacy-pools v1 asp
+- 21e550e: Update broadcastfn

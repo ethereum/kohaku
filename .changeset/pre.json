@@ -5,7 +5,6 @@
     "@kohaku-eth/provider": "0.0.1-alpha.1",
     "@kohaku-eth/railgun": "0.0.1-alpha.3",
     "docs": "0.0.0",
-    "@kohaku-eth/privacy-pools": "0.0.1-alpha.1",
     "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
     "@kohaku-eth/plugins": "0.0.1-alpha.1"
   },
@@ -13,7 +12,6 @@
     "beige-islands-give",
     "bold-moons-train",
     "brown-ears-camp",
-    "clear-plums-post",
     "clear-views-sing",
     "early-geese-show",
     "easy-tigers-rescue",
@@ -21,9 +19,7 @@
     "good-papers-kick",
     "green-ducks-appear",
     "heavy-readers-sniff",
-    "khaki-worms-kneel",
     "loud-worlds-yell",
-    "major-sides-call",
     "olive-pigs-like",
     "petite-views-attack",
     "puny-olives-mate",
@@ -31,12 +27,10 @@
     "shaky-clubs-bet",
     "shy-donkeys-wave",
     "slimy-boxes-flash",
-    "small-times-tap",
-    "wide-words-smash"
+    "small-times-tap"
   ],
   "ignore": [
     "docs",
-    "@kohaku-eth/example-*",
-    "@kohaku-eth/privacy-pools"
+    "@kohaku-eth/example-*"
   ]
 }
