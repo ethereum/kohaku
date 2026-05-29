@@ -8,7 +8,7 @@ import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { getProtocolWithState, sendMultipleTxsAndWait, sendTxAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 import { TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
-import { parseEther, parseUnits } from 'viem';
+import { parseEther } from 'viem';
 import type { IPool } from '../../../src/data/interfaces/events.interface';
 import type { Serializable } from '../../../src/state/interfaces/utils.interface';
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { AccountId } from '@kohaku-eth/plugins';
-import { startServers } from 'privacy-paymaster/bundler-server';
+import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 // import { deployPaymaster } from 'privacy-paymaster/deploy-paymaster';
 import { Wallet } from 'ethers';
 import { parseEther, type Hex } from 'viem';

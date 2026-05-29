@@ -8,6 +8,8 @@ import { IRelayerClient } from '../../src/relayer/interfaces/relayer-client.inte
 import { createMockRelayerClient } from './mock-relayer';
 import { poolAbi } from '../../src/data/abis/pool.abi';
 import { TornadoPaymasterConfigs } from '../../src/config';
+import { ITornadoArtifacts } from '../../src/plugin/interfaces/protocol-params.interface';
+import { defaultArtifactsLoader } from '../../src/utils/default-artifacts-loader';
 /**
  * Fund an account with ETH using anvil pool's setBalance
  */
@@ -184,6 +186,20 @@ interface SimplifiedProtocolParams {
   relayerClientFactory?: () => IRelayerClient
 }
 
+const cachedArtifactsLoader = () => {
+  let artifacts: ITornadoArtifacts | null = null;
+  
+  return async () => {
+    if (artifacts) {
+      return artifacts;
+    }
+
+    artifacts = await defaultArtifactsLoader();
+    
+    return artifacts;
+  }
+}
+
 export const getProtocolWithState = async ({
   host,
   chainId,
@@ -203,6 +219,7 @@ export const getProtocolWithState = async ({
     protocolConfig,
     relayerClientFactory,
     paymasterConfig,
+    artifactsLoader: cachedArtifactsLoader(),
     ...rest,
   });
 

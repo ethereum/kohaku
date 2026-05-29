@@ -13,6 +13,7 @@ import {
   StoreStorageKey,
   TCProtocolConfig,
   IChainsPaymastersConfig,
+  ITornadoArtifacts,
 } from '../plugin/interfaces/protocol-params.interface';
 import { PublicRootState, RootState } from './store';
 import { Address } from '../interfaces/types.interface';
@@ -22,8 +23,6 @@ export interface WorkerInitOptions {
   protocolConfig: TCProtocolConfig,
   relayerConfig?: IRelayerFeeConfig,
   accountIndex: number,
-  circuitUrl?: string,
-  provingKeyUrl?: string,
   paymasterConfig: IChainsPaymastersConfig,
 }
 
@@ -45,7 +44,8 @@ export const workerApi = {
     keystore: Keystore,
     rawStorage: Omit<Storage, '_brand'>,
     initialState: () => Promise<Record<string, PublicRootState>>,
-    { protocolConfig, accountIndex, circuitUrl, provingKeyUrl, relayerConfig, paymasterConfig }: WorkerInitOptions,
+    artifactsLoader: () => Promise<ITornadoArtifacts>,
+    { protocolConfig, accountIndex, relayerConfig, paymasterConfig }: WorkerInitOptions,
   ): Promise<void> {
     const storage = rawStorage as Storage;
 
@@ -54,7 +54,7 @@ export const workerApi = {
       secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
       dataService: new DataService({ provider }),
       relayerClient,
-      proverFactory: makeLazyProverFactory(circuitUrl, provingKeyUrl),
+      proverFactory: makeLazyProverFactory(artifactsLoader),
       storageToSyncTo: storage,
       protocolConfig,
       relayerConfig,

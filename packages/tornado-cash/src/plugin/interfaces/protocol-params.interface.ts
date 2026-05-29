@@ -46,8 +46,8 @@ export interface TCPublicOperation extends PublicOperation {
 }
 
 export interface ITornadoArtifacts {
-  circuitUrl: string;
-  provingKeyUrl: string;
+  circuitText: string;
+  provingKey: ArrayBuffer;
 }
 
 export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
@@ -60,7 +60,7 @@ export interface PrivacyPoolsV1ProtocolParams {
   relayerClientFactory: () => IRelayerClient;
   protocolConfig: TCProtocolConfig;
   relayerConfig?: IRelayerFeeConfig;
-  artifacts: ITornadoArtifacts;
+  artifactsLoader?: () => Promise<ITornadoArtifacts>;
   proverFactory?: () => Promise<ITornadoProver>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
   stateManagerWorkerUrl?: string;

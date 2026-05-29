@@ -26,6 +26,7 @@ import {
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
+import { defaultArtifactsLoader } from "../utils/default-artifacts-loader";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
@@ -38,7 +39,7 @@ export class TornadoCashProtocol implements TCInstance {
       accountIndex = 0,
       initialState = async () => ({}),
       protocolConfig,
-      artifacts,
+      artifactsLoader = defaultArtifactsLoader,
       stateManagerWorkerUrl,
       relayerConfig,
       paymasterConfig = TornadoPaymasterConfigs,
@@ -62,7 +63,8 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.keystore),
           proxy(host.storage),
           proxy(initialState),
-          { protocolConfig, accountIndex, circuitUrl: artifacts?.circuitUrl, provingKeyUrl: artifacts?.provingKeyUrl, relayerConfig, paymasterConfig },
+          proxy(artifactsLoader),
+          { protocolConfig, accountIndex, relayerConfig, paymasterConfig },
         ),
         workerReady,
       ]);

@@ -1,5 +1,6 @@
 allowBuilds:
   blake-hash: true
+  es5-ext: true
   esbuild: true
   keccak: true
   msgpackr-extract: true
