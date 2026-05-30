@@ -39,7 +39,7 @@ export type Storage = {
 
     /**
      * Gets a value from storage.
-     * 
+     *
      * @returns The value associated with the key, or null if the key does not exist.
      * @throws {Error}
      */

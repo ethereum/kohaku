@@ -1,0 +1,103 @@
+{
+    "tornado-cash-state-11155111-447664927873626138772898946646079239273904189887": {
+        "deposits": {
+            "depositsTuples": []
+        },
+        "withdrawals": {
+            "withdrawalsTuples": []
+        },
+        "assets": {
+            "assetsTuples": [
+                [
+                    "0x0",
+                    {
+                        "name": "ETH",
+                        "address": "0x0",
+                        "decimals": 18,
+                        "symbol": "ETH"
+                    }
+                ],
+                [
+                    "0xff34b3d4aee8ddcd6f9afffb6fe49bd371b8a357",
+                    {
+                        "name": "DAI",
+                        "decimals": 18,
+                        "symbol": "DAI",
+                        "address": "0xff34b3d4aee8ddcd6f9afffb6fe49bd371b8a357"
+                    }
+                ]
+            ]
+        },
+        "pools": {
+            "poolsTuples": [
+                [
+                    "0x8c4a04d872a6c1be37964a21ba3a138525dff50b",
+                    {
+                        "address": "0x8c4a04d872a6c1be37964a21ba3a138525dff50b",
+                        "asset": "0x0",
+                        "isERC20": false,
+                        "denomination": "0x16345785d8a0000",
+                        "registeredBlock": "0x555d20",
+                        "uniswapPoolSwappingFee": 0,
+                        "protocolFeePercentage": 0.04,
+                        "state": 1,
+                        "rootHistorySize": 30
+                    }
+                ],
+                [
+                    "0x8cc930096b4df705a007c4a039bdfa1320ed2508",
+                    {
+                        "address": "0x8cc930096b4df705a007c4a039bdfa1320ed2508",
+                        "asset": "0x0",
+                        "isERC20": false,
+                        "denomination": "0xde0b6b3a7640000",
+                        "registeredBlock": "0x555d21",
+                        "uniswapPoolSwappingFee": 0,
+                        "protocolFeePercentage": 0.04,
+                        "state": 1,
+                        "rootHistorySize": 30
+                    }
+                ],
+                [
+                    "0x6921fd1a97441dd603a997ed6ddf388658daf754",
+                    {
+                        "address": "0x6921fd1a97441dd603a997ed6ddf388658daf754",
+                        "asset": "0xff34b3d4aee8ddcd6f9afffb6fe49bd371b8a357",
+                        "isERC20": true,
+                        "denomination": "0x56bc75e2d63100000",
+                        "registeredBlock": "0x555d26",
+                        "uniswapPoolSwappingFee": 0,
+                        "protocolFeePercentage": 0.04,
+                        "state": 1,
+                        "rootHistorySize": 30
+                    }
+                ]
+            ]
+        },
+        "relayers": {
+            "relayersTuples": [],
+            "feeConfig": {
+                "minFee": 0.01,
+                "maxFee": 0.3
+            }
+        },
+        "instanceRegistryInfo": {
+            "ensSubdomainKey": "sepolia-tornado",
+            "instanceRegistry": {
+                "address": "0x4e69fd587118dfb64957d18654e3894118e9b1bf",
+                "deploymentBlock": "0x555df3"
+            },
+            "relayerRegistry": {
+                "address": "0xd6663593e71e4916ecb6f6606e1a6fbfa1634ffa",
+                "deploymentBlock": "0x555e24"
+            },
+            "aggregator": {
+                "address": "0x4088712ac9fad39ea133cdb9130e465d235e9642"
+            },
+            "chainId": "0xaa36a7"
+        },
+        "sync": {
+            "lastSyncedBlock": "0x555d20"
+        }
+    }
+}
