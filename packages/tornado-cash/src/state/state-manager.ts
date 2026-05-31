@@ -167,7 +167,7 @@ export const storeStateManager = async ({
 
   const getChainInfo = async () => {
     const chainId = await dataService.getChainId();
-    const actualRelayerConfig = relayerConfig ?? chainId === 1n ? DEFAULT_MAINNET_FEE_CONFIG : DEFAULT_OTHER_FEE_CONFIG;
+    const actualRelayerConfig = relayerConfig ?? (chainId === 1n ? DEFAULT_MAINNET_FEE_CONFIG : DEFAULT_OTHER_FEE_CONFIG);
 
     return {
       chainId,
