@@ -1,0 +1,43 @@
+[package]
+name = "tornadocash"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.cargo-machete]
+ignored = ["wasm-bindgen"]
+
+[lib]
+crate-type = ["rlib"]
+
+
+[features]
+default = []
+
+[dependencies]
+alloy = { workspace = true }
+ark-ff = { workspace = true }
+ark-bn254 = { workspace = true }
+async-trait = { workspace = true }
+common = { workspace = true }
+ruint = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+crypto = { workspace = true }
+eip-1193-provider = { workspace = true }
+web-time = { workspace = true }
+hex = { workspace = true }
+websnark-rs = { workspace = true }
+brotli = { workspace = true }
+anyhow = { workspace = true }
+rand = { workspace = true }
+postcard = { workspace = true }
+
+
+[dev-dependencies]
+insta = { workspace = true }
+
+[build-dependencies]
+cfg_aliases = { workspace = true }

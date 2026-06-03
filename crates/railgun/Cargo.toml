@@ -19,13 +19,7 @@ js = ["dep:tsify", "dep:wasm-bindgen"]
 
 # Feature for integration tests that require additional exposed methods.
 testing = []
-parallel = [
-    "ark-circom/parallel",
-    "ark-groth16/parallel",
-    "ark-ff/parallel",
-    "ark-relations/parallel",
-    "ark-serialize/parallel",
-]
+parallel = ["ark-groth16/parallel", "ark-ff/parallel", "ark-serialize/parallel"]
 
 # Feature that enables benchmarks
 bench = []
