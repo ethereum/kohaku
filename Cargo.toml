@@ -83,10 +83,3 @@ ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = 
 
 [profile.release]
 jobs = 6
-
-[profile.release-wasm]
-inherits = "release"
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"

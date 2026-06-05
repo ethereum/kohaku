@@ -1,36 +1,28 @@
 use alloy::{
     dyn_abi::Eip712Domain,
-    primitives::{Address, Bytes, U256, aliases::U192},
+    primitives::{Address, Bytes, U256},
 };
-use alloy_sol_types::SolCall;
-use eip_1193_provider::provider::{Eip1193Caller, Eip1193Error, Eip1193Provider};
 
 use crate::{
-    abis::entry_point::EntryPoint,
     bundler::{Bundler, BundlerError},
     signable_user_operation::SignableUserOperation,
+    smart_account::smart_account::{SmartAccount, SmartAccountError},
     user_operation::{UserOperation, UserOperationGasEstimate},
 };
 
-pub struct UserOperationBuilder<P = ()> {
+pub struct UserOperationBuilder {
     user_op: UserOperation,
-    pub(crate) protocol: P,
 
     gas_set: bool,
     entry_point: Address,
     domain: Eip712Domain,
 }
 
-impl<P> UserOperationBuilder<P> {
-    pub fn new(
-        smart_account: Address,
-        entry_point: Address,
-        domain: Eip712Domain,
-        protocol: P,
-    ) -> Self {
+impl UserOperationBuilder {
+    pub fn new(sender: Address, entry_point: Address, domain: Eip712Domain) -> Self {
         Self {
             user_op: UserOperation {
-                sender: smart_account,
+                sender,
                 nonce: U256::ZERO,
                 factory: None,
                 factory_data: None,
@@ -49,9 +41,22 @@ impl<P> UserOperationBuilder<P> {
             },
             entry_point,
             domain,
-            protocol,
             gas_set: false,
         }
+    }
+
+    /// Create a new UserOperationBuilder with a smart account
+    pub async fn new_with_smart_account(
+        smart_account: &impl SmartAccount,
+    ) -> Result<Self, SmartAccountError> {
+        Ok(Self::new(
+            smart_account.address(),
+            smart_account.entry_point(),
+            smart_account.domain(),
+        )
+        .with_nonce(smart_account.nonce().await?)
+        .with_authorization(smart_account.authorization().await?)
+        .with_signature(smart_account.dummy_signature()))
     }
 
     /// Sets the calldata for this UserOperation.
@@ -60,15 +65,10 @@ impl<P> UserOperationBuilder<P> {
         self
     }
 
-    /// Sets the paymaster for this UserOperation.
-    pub fn with_paymaster(mut self, paymaster: Address) -> Self {
+    /// Sets the paymaster address and data for this UserOperation.
+    pub fn with_paymaster(mut self, paymaster: Address, paymaster_data: Vec<u8>) -> Self {
         self.user_op.paymaster = Some(paymaster);
-        self
-    }
-
-    /// Sets the paymaster data for this UserOperation.
-    pub fn with_paymaster_data(mut self, data: Bytes) -> Self {
-        self.user_op.paymaster_data = Some(data);
+        self.user_op.paymaster_data = Some(paymaster_data.into());
         self
     }
 
@@ -76,22 +76,6 @@ impl<P> UserOperationBuilder<P> {
     pub fn with_nonce(mut self, nonce: U256) -> Self {
         self.user_op.nonce = nonce;
         self
-    }
-
-    /// Fetches the nonce for this UserOperation from the EntryPoint, using the provided key.
-    pub async fn with_provider_nonce(
-        mut self,
-        provider: &dyn Eip1193Provider,
-        key: U192,
-    ) -> Result<Self, Eip1193Error> {
-        let nonce = provider
-            .sol_call(
-                self.entry_point,
-                EntryPoint::getNonceCall::new((self.user_op.sender, key)),
-            )
-            .await?;
-        self.user_op.nonce = nonce;
-        Ok(self)
     }
 
     /// Sets the EIP-7702 authorization for this UserOperation.
@@ -138,6 +122,12 @@ impl<P> UserOperationBuilder<P> {
             entry_point: self.entry_point,
             domain: self.domain.clone(),
         }
+    }
+
+    /// Sets the signature for this UserOperation.
+    pub(crate) fn with_signature(mut self, signature: Bytes) -> Self {
+        self.user_op.signature = signature;
+        self
     }
 
     fn set_gas(

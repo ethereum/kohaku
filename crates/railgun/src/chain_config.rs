@@ -51,6 +51,13 @@ pub struct ChainConfig {
     pub poi_endpoint: String,
     /// Optional list keys for POI
     pub list_keys: Vec<ListKey>,
+
+    /// Privacy Paymaster address for this chain. This is used as the paymaster for all
+    /// UserOperations.
+    pub privacy_paymaster: Option<Address>,
+
+    /// Railgun Fee Adapter address for this chain.
+    pub railgun_fee_adapter: Option<Address>,
 }
 
 impl ChainConfig {
@@ -65,6 +72,8 @@ impl ChainConfig {
         subsquid_endpoint: impl Into<String>,
         poi_endpoint: impl Into<String>,
         list_keys: impl IntoIterator<Item: AsRef<str>>,
+        privacy_paymaster: Option<Address>,
+        railgun_fee_adapter: Option<Address>,
     ) -> Self {
         Self {
             id,
@@ -77,6 +86,8 @@ impl ChainConfig {
             subsquid_endpoint: subsquid_endpoint.into(),
             poi_endpoint: poi_endpoint.into(),
             list_keys: list_keys.into_iter().map(|s| s.as_ref().into()).collect(),
+            privacy_paymaster,
+            railgun_fee_adapter,
         }
     }
 
@@ -100,6 +111,8 @@ impl ChainConfig {
             "https://rail-squid.squids.live/squid-railgun-ethereum-v2/v/v1/graphql",
             "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
+            None,
+            None,
         )
     }
 
@@ -115,6 +128,8 @@ impl ChainConfig {
             "https://rail-squid.squids.live/squid-railgun-eth-sepolia-v2/v/v1/graphql",
             "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
+            Some(address!("0xBb9D6507B5dE027dEb0196c83A7DC6Eef325bEe4")),
+            Some(address!("0xeBabF510f824a349a9Be7F40cad3486B7249b1e0")),
         )
     }
 }

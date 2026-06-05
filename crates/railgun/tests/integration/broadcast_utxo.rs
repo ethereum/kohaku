@@ -20,7 +20,7 @@ use tracing_subscriber::EnvFilter;
 use userop_kit::{
     bundler::{Bundler, pimlico::PimlicoBundler},
     entry_point::ENTRY_POINT_08,
-    railgun::TailCall,
+    smart_account::simple_smart_account::{self, SimpleSmartAccount},
 };
 
 use crate::utils::{AltoBuilder, AnvilBuilder};
@@ -62,7 +62,7 @@ async fn test_broadcast_utxo() {
     )
     .unwrap();
 
-    let fork_block = 10886668;
+    let fork_block = 10990397;
     let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
 
     info!("Setting up alloy provider");
@@ -156,6 +156,7 @@ async fn test_broadcast_utxo() {
         "0xd01165bc18d3f0d0b2114a42930164f729ae8310f447b4dd2e96124c02bbe151",
     )
     .unwrap();
+    let smart_account = SimpleSmartAccount::new(delegator.address(), chain.id, provider.clone());
 
     info!("Testing transfer");
     let tx = TransactionBuilder::new().transfer(
@@ -170,10 +171,10 @@ async fn test_broadcast_utxo() {
         .prepare_userop(
             tx,
             bundler.as_ref(),
-            delegator.address(),
+            &smart_account,
             account_1.clone(),
             chain.wrapped_base_token,
-            vec![],
+            Default::default(),
             &mut rand::rng(),
         )
         .await
@@ -197,16 +198,17 @@ async fn test_broadcast_utxo() {
         .unshield(account_1.clone(), delegator.address(), weth, 5_000)
         .unwrap();
 
-    let unwrap_call = TailCall::new(
-        chain.wrapped_base_token,
-        weth_contract.withdraw(U256::from(3_000)).calldata().clone(),
-    );
+    let unwrap_call = simple_smart_account::Call {
+        target: chain.wrapped_base_token,
+        value: U256::ZERO,
+        data: weth_contract.withdraw(U256::from(3_000)).calldata().clone(),
+    };
 
     let signable = railgun
         .prepare_userop(
             tx,
             bundler.as_ref(),
-            delegator.address(),
+            &smart_account,
             account_1.clone(),
             chain.wrapped_base_token,
             vec![unwrap_call],
@@ -216,6 +218,11 @@ async fn test_broadcast_utxo() {
         .unwrap();
 
     let pre_eoa_balance = provider.get_balance(delegator.address()).await.unwrap();
+    let pre_weth_balance = weth_contract
+        .balanceOf(delegator.address())
+        .call()
+        .await
+        .unwrap();
 
     info!("Prepared broadcast transaction: {:?}", signable);
     let signed = signable.sign(&delegator).await.unwrap();
@@ -227,12 +234,12 @@ async fn test_broadcast_utxo() {
         receipt
     );
 
-    let weth_balance = weth_contract
+    let post_weth_balance = weth_contract
         .balanceOf(delegator.address())
         .call()
         .await
         .unwrap();
     let post_eoa_balance = provider.get_balance(delegator.address()).await.unwrap();
-    assert_eq!(weth_balance, U256::from(1988));
+    assert_eq!(post_weth_balance - pre_weth_balance, U256::from(1988));
     assert_eq!(post_eoa_balance - pre_eoa_balance, U256::from(3_000));
 }

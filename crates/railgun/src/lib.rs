@@ -2,6 +2,7 @@
 
 mod abis;
 pub mod account;
+mod adapter_data;
 pub mod builder;
 pub mod caip;
 pub mod chain_config;

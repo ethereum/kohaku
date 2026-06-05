@@ -6198,6 +6198,7 @@ name = "userop-kit-ts"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "eip-1193-provider",
  "reqwest",
  "userop-kit",
  "wasm-bindgen",

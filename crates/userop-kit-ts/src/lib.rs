@@ -3,3 +3,4 @@
 pub mod bundler;
 pub mod signable_user_operation;
 pub mod signer;
+pub mod simple_smart_account;

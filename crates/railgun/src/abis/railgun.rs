@@ -107,7 +107,7 @@ impl BoundParams {
         unshield: UnshieldType,
         chain_id: ChainId,
         adapt_contract: Address,
-        adapt_input: &[u8; 32],
+        adapt_params: &[u8; 32],
         commitment_ciphertexts: Vec<CommitmentCiphertext>,
     ) -> Self {
         BoundParams {
@@ -116,7 +116,7 @@ impl BoundParams {
             unshield,
             chainID: chain_id,
             adaptContract: adapt_contract,
-            adaptParams: adapt_input.into(),
+            adaptParams: adapt_params.into(),
             commitmentCiphertext: commitment_ciphertexts,
         }
     }
