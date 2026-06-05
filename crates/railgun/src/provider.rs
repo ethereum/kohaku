@@ -235,15 +235,17 @@ impl RailgunProvider {
                 .await?
                 .build();
 
-            // Add a 10% headroom to the fee estimate to ensure buffer if prices change
-            // slightly between estimation and execution
+            // Recalculate fee and check for convergence.
             let total_gas = signable.total_gas_limit();
             let new_fee = total_gas * signable.user_op.max_fee_per_gas;
-            let new_fee = (new_fee * 11) / 10;
+            info!("Estimated total gas: {}", total_gas);
+            info!(
+                "Estimated max fee per gas: {}",
+                signable.user_op.max_fee_per_gas
+            );
 
             let delta = new_fee.abs_diff(fee_value);
             fee_value = new_fee;
-
             if delta <= new_fee / 100 {
                 // 1% tolerance
                 info!("Fee converged at {}", new_fee);
