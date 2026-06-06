@@ -85,26 +85,17 @@ impl UserOperationBuilder {
     }
 
     /// Sets the gas parameters for this UserOperation.
-    pub fn with_gas(
-        mut self,
-        gas: UserOperationGasEstimate,
-        max_fee_per_gas: u128,
-        max_priority_fee_per_gas: u128,
-    ) -> Self {
-        self.set_gas(gas, max_fee_per_gas, max_priority_fee_per_gas);
+    pub fn with_gas(mut self, gas: UserOperationGasEstimate) -> Self {
+        self.set_gas(gas);
         self
     }
 
     /// Fetches a gas estimate from the provider for the current UserOp.
     pub async fn with_gas_estimate(mut self, bundler: &dyn Bundler) -> Result<Self, BundlerError> {
         let op = self.build();
-        let (est, max_fee, max_priority_fee) = futures::try_join!(
-            bundler.estimate_gas(&op),
-            bundler.suggest_max_fee_per_gas(),
-            bundler.suggest_max_priority_fee_per_gas()
-        )?;
+        let est = bundler.estimate_gas(&op).await?;
 
-        self.set_gas(est, max_fee, max_priority_fee);
+        self.set_gas(est);
         Ok(self)
     }
 
@@ -130,12 +121,7 @@ impl UserOperationBuilder {
         self
     }
 
-    fn set_gas(
-        &mut self,
-        gas: UserOperationGasEstimate,
-        max_fee_per_gas: u128,
-        max_priority_fee_per_gas: u128,
-    ) {
+    fn set_gas(&mut self, gas: UserOperationGasEstimate) {
         self.gas_set = true;
 
         self.user_op.call_gas_limit = gas.call_gas_limit;
@@ -143,7 +129,7 @@ impl UserOperationBuilder {
         self.user_op.pre_verification_gas = gas.pre_verification_gas;
         self.user_op.paymaster_verification_gas_limit = gas.paymaster_verification_gas_limit;
         self.user_op.paymaster_post_op_gas_limit = gas.paymaster_post_op_gas_limit;
-        self.user_op.max_fee_per_gas = max_fee_per_gas;
-        self.user_op.max_priority_fee_per_gas = max_priority_fee_per_gas;
+        self.user_op.max_fee_per_gas = gas.max_fee_per_gas;
+        self.user_op.max_priority_fee_per_gas = gas.max_priority_fee_per_gas;
     }
 }

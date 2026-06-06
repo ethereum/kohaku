@@ -1,12 +1,12 @@
 use alloy::primitives::B256;
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::info;
 
 use crate::{
     bundler::{
         bundler::{Bundler, BundlerError},
-        rpc_client::{RpcClient, RpcClientError},
+        rpc_client::RpcClient,
     },
     signable_user_operation::SignableUserOperation,
     signed_user_operation::SignedUserOperation,
@@ -20,25 +20,30 @@ pub struct PimlicoBundler {
     timeout: common::Duration,
 }
 
-/// Errors from the bundler SDK.
-#[derive(Debug, thiserror::Error)]
-pub enum PimlicoError {
-    #[error("Transport error: {0}")]
-    Transport(#[from] RpcClientError),
-
-    #[error("Abi error: {0}")]
-    Abi(#[from] alloy::sol_types::Error),
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PimlicoUserOperationGasEstimate {
+    #[serde(with = "alloy::serde::quantity")]
+    pub call_gas_limit: u128,
+    #[serde(with = "alloy::serde::quantity")]
+    pub verification_gas_limit: u128,
+    #[serde(with = "alloy::serde::quantity")]
+    pub pre_verification_gas: u128,
+    #[serde(default, with = "alloy::serde::quantity::opt")]
+    pub paymaster_post_op_gas_limit: Option<u128>,
+    #[serde(default, with = "alloy::serde::quantity::opt")]
+    pub paymaster_verification_gas_limit: Option<u128>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct PimlicoUserOperationGasEstimate {
+struct PimlicoUserOperationGasPrice {
     pub slow: PimlicoSpeedGasEstimate,
     pub standard: PimlicoSpeedGasEstimate,
     pub fast: PimlicoSpeedGasEstimate,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PimlicoSpeedGasEstimate {
     #[serde(with = "alloy::serde::quantity")]
@@ -60,42 +65,34 @@ impl PimlicoBundler {
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
 impl Bundler for PimlicoBundler {
-    async fn suggest_max_fee_per_gas(&self) -> Result<u128, BundlerError> {
-        info!("Requesting max fee estimate from Pimlico...");
-        let estimate: PimlicoUserOperationGasEstimate = self
-            .client
-            .request("pimlico_getUserOperationGasPrice", serde_json::json!([]))
-            .await
-            .map_err(|e| BundlerError::Other(Box::new(e)))?;
-
-        Ok(estimate.standard.max_fee_per_gas)
-    }
-
-    async fn suggest_max_priority_fee_per_gas(&self) -> Result<u128, BundlerError> {
-        info!("Requesting max priority fee estimate from Pimlico...");
-        let estimate: PimlicoUserOperationGasEstimate = self
-            .client
-            .request("pimlico_getUserOperationGasPrice", serde_json::json!([]))
-            .await
-            .map_err(|e| BundlerError::Other(Box::new(e)))?;
-
-        Ok(estimate.standard.max_priority_fee_per_gas)
-    }
-
     async fn estimate_gas(
         &self,
         op: &SignableUserOperation,
     ) -> Result<UserOperationGasEstimate, BundlerError> {
         info!("Requesting gas estimate from Pimlico...");
 
-        Ok(self
-            .client
-            .request(
+        let (estimate, price): (
+            PimlicoUserOperationGasEstimate,
+            PimlicoUserOperationGasPrice,
+        ) = futures::try_join!(
+            self.client.request(
                 "eth_estimateUserOperationGas",
                 (&op.user_op, op.entry_point),
-            )
-            .await
-            .map_err(|e| BundlerError::Other(Box::new(e)))?)
+            ),
+            self.client
+                .request("pimlico_getUserOperationGasPrice", serde_json::json!([]))
+        )
+        .map_err(|e| BundlerError::Other(Box::new(e)))?;
+
+        Ok(UserOperationGasEstimate {
+            call_gas_limit: estimate.call_gas_limit,
+            verification_gas_limit: estimate.verification_gas_limit,
+            pre_verification_gas: estimate.pre_verification_gas,
+            paymaster_post_op_gas_limit: estimate.paymaster_post_op_gas_limit,
+            paymaster_verification_gas_limit: estimate.paymaster_verification_gas_limit,
+            max_fee_per_gas: price.slow.max_fee_per_gas,
+            max_priority_fee_per_gas: price.slow.max_priority_fee_per_gas,
+        })
     }
 
     async fn send_user_operation(

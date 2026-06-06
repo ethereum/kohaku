@@ -1,1 +1,1 @@
-pub(crate) mod entry_point;
+pub mod entry_point;

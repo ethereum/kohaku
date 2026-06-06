@@ -105,6 +105,13 @@ impl RailgunBuilder {
             None
         };
 
-        RailgunProvider::new(self.chain, utxo_indexer, prover, poi_provider).await
+        RailgunProvider::new(
+            self.chain,
+            self.provider,
+            utxo_indexer,
+            prover,
+            poi_provider,
+        )
+        .await
     }
 }

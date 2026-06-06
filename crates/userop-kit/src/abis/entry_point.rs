@@ -2,33 +2,32 @@ use alloy::{
     primitives::{Address, Bytes, U256},
     sol,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::user_operation::UserOperation;
 
 sol! {
     contract EntryPoint {
         function getNonce(address sender, uint192 key) external view returns (uint256 nonce);
-    }
 
-    #[derive(Debug, Serialize, Deserialize)]
-    /// The "packed" version of the 4337 UserOperation
-    ///
-    /// See the 0.8.0 EntryPoint impl for format details:
-    /// <https://etherscan.io/address/0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108#code#F30#L1>
-    struct PackedUserOperation {
-        address sender;
-        uint256 nonce;
-        bytes initCode;
-        bytes callData;
-        bytes32 accountGasLimits;
-        uint256 preVerificationGas;
-        bytes32 gasFees;
-        bytes paymasterAndData;
+        #[derive(Debug)]
+        /// The "packed" version of the 4337 UserOperation
+        ///
+        /// See the 0.8.0 EntryPoint impl for format details:
+        /// <https://etherscan.io/address/0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108#code#F30#L1>
+        struct PackedUserOperation {
+            address sender;
+            uint256 nonce;
+            bytes initCode;
+            bytes callData;
+            bytes32 accountGasLimits;
+            uint256 preVerificationGas;
+            bytes32 gasFees;
+            bytes paymasterAndData;
+        }
     }
 }
 
-impl From<&UserOperation> for PackedUserOperation {
+impl From<&UserOperation> for EntryPoint::PackedUserOperation {
     fn from(op: &UserOperation) -> Self {
         let account_gas_limits = pack_u256(op.verification_gas_limit, op.call_gas_limit).into();
         let gas_fees = pack_u256(op.max_priority_fee_per_gas, op.max_fee_per_gas).into();
@@ -40,7 +39,7 @@ impl From<&UserOperation> for PackedUserOperation {
             op.paymaster_data.clone(),
         );
 
-        PackedUserOperation {
+        EntryPoint::PackedUserOperation {
             sender: op.sender,
             nonce: op.nonce,
             initCode: init_code,

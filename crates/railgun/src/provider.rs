@@ -1,7 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy::primitives::Address;
-use eip_1193_provider::provider::Eip1193Error;
+use alloy::{
+    primitives::{Address, B256, Bytes, U256},
+    sol_types::SolCall,
+};
+use eip_1193_provider::provider::{Eip1193Error, Eip1193Provider};
 use rand::Rng;
 use serde::Serialize;
 use thiserror::Error;
@@ -42,6 +45,7 @@ pub struct BalanceEntry {
 /// Interfaces with the RAILGUN protocol.
 pub struct RailgunProvider {
     chain: ChainConfig,
+    provider: Arc<dyn Eip1193Provider>,
     utxo_indexer: UtxoIndexer,
     prover: Groth16Prover,
     poi_provider: Option<PoiProvider>,
@@ -72,12 +76,14 @@ pub enum RailgunProviderError {
 impl RailgunProvider {
     pub(crate) async fn new(
         chain: ChainConfig,
+        provider: Arc<dyn Eip1193Provider>,
         utxo_indexer: UtxoIndexer,
         prover: Groth16Prover,
         poi_provider: Option<PoiProvider>,
     ) -> Result<Self, RailgunProviderError> {
         Ok(Self {
             chain,
+            provider,
             utxo_indexer,
             prover,
             poi_provider,
@@ -181,6 +187,7 @@ impl RailgunProvider {
             ))));
         }
 
+        let paymaster_railgun_address = paymaster_railgun_address(ChainId::evm(self.chain.id));
         let fee_asset = AssetId::Erc20(fee_token);
         let calldata = sender.encode_call_data(calldata);
 
@@ -191,28 +198,27 @@ impl RailgunProvider {
         //? failure.
         let mut fee_value = 100_000_000;
 
+        let builder = builder.adapt(railgun_fee_adapter, *sender.address().into_word());
+
         info!("Iteratively building UserOperation to converge on accurate fee estimate");
         for _ in 0..5 {
-            let broadcast_builder = builder
-                .clone()
-                .adapt(railgun_fee_adapter, *sender.address().into_word())
-                .transfer(
-                    fee_payer.clone(),
-                    paymaster_railgun_address(ChainId::evm(self.chain.id)),
-                    fee_asset,
-                    fee_value,
-                    "fee",
-                );
+            let broadcast_builder = builder.clone().transfer(
+                fee_payer.clone(),
+                paymaster_railgun_address,
+                fee_asset,
+                fee_value,
+                "fee",
+            );
+
             info!(
                 "Building broadcast transaction with fee value: {}",
                 fee_value
             );
-            let mut operations = self.build_operation(broadcast_builder, rng).await?;
-            let poi_operations = operations.clone();
+            let operations = self.build_operation(broadcast_builder, rng).await?;
 
             // Get the fee operation & note so the decrypted commitment data can be sent to the
             // paymaster.
-            let fee_operation = get_fee_operation(&mut operations, fee_asset, fee_value)?;
+            let fee_operation = get_fee_operation(&operations, fee_asset, fee_value)?;
             let fee_note = get_fee_note(fee_operation, fee_asset, fee_value)?;
 
             let random = fee_note.random();
@@ -226,7 +232,7 @@ impl RailgunProvider {
             );
 
             // Construct UserOperation
-            let signable = UserOperationBuilder::new_with_smart_account(sender)
+            let mut signable = UserOperationBuilder::new_with_smart_account(sender)
                 .await
                 .map_err(|e| RailgunProviderError::Other(Box::new(e)))?
                 .with_calldata(calldata.clone())
@@ -236,6 +242,16 @@ impl RailgunProvider {
                 .build();
 
             // Recalculate fee and check for convergence.
+            info!("Prepared broadcast transaction: {:?}", signable);
+            let estimated_paymaster_verification_gas_limit =
+                estimate_paymaster_verification_gas_limit(self.provider.as_ref(), &signable)
+                    .await?;
+            info!(
+                "Estimated paymaster verification gas limit: {}",
+                estimated_paymaster_verification_gas_limit
+            );
+            signable.user_op.paymaster_verification_gas_limit =
+                Some(estimated_paymaster_verification_gas_limit);
             let total_gas = signable.total_gas_limit();
             let new_fee = total_gas * signable.user_op.max_fee_per_gas;
             info!("Estimated total gas: {}", total_gas);
@@ -244,17 +260,16 @@ impl RailgunProvider {
                 signable.user_op.max_fee_per_gas
             );
 
-            let delta = new_fee.abs_diff(fee_value);
-            fee_value = new_fee;
-            if delta <= new_fee / 100 {
-                // 1% tolerance
-                info!("Fee converged at {}", new_fee);
+            //? Return once the fee converges within 1% of the previous estimate.
+            if new_fee <= fee_value && new_fee.abs_diff(fee_value) <= fee_value / 100 {
+                info!("Fee converged at {}, total gas: {}", new_fee, total_gas);
                 if let Some(poi_provider) = &mut self.poi_provider {
-                    poi_provider.register_ops(&poi_operations).await?;
+                    poi_provider.register_ops(&operations).await?;
                 }
                 return Ok(signable);
             }
-            info!("Fee updated to {}, delta: {}", new_fee, delta);
+            fee_value = new_fee;
+            info!("Fee updated to {}", new_fee);
         }
 
         return Err(RailgunProviderError::Other(Box::new(std::io::Error::new(
@@ -324,7 +339,7 @@ impl RailgunProvider {
 
 /// Gets the operation containing the fee note
 fn get_fee_operation<'a>(
-    operations: &'a mut Vec<ProvedOperation>,
+    operations: &'a Vec<ProvedOperation>,
     fee_asset: AssetId,
     fee_value: u128,
 ) -> Result<&'a ProvedOperation, RailgunProviderError> {
@@ -355,4 +370,62 @@ fn get_fee_note(
 
 fn is_fee_note(note: &Box<dyn Note>, fee_asset: AssetId, fee_value: u128) -> bool {
     note.asset() == fee_asset && note.value() == fee_value && note.memo() == "fee"
+}
+
+async fn estimate_paymaster_verification_gas_limit(
+    provider: &dyn Eip1193Provider,
+    user_op: &SignableUserOperation,
+) -> Result<u128, RailgunProviderError> {
+    let entry_point = user_op.entry_point;
+    let Some(paymaster) = user_op.user_op.paymaster else {
+        return Ok(0);
+    };
+    let user_op = user_op.user_op.into_packed();
+    let data = abi::PrivacyPaymaster::validatePaymasterUserOpCall {
+        userOp: abi::PrivacyPaymaster::PackedUserOperation {
+            sender: user_op.sender,
+            nonce: user_op.nonce,
+            initCode: user_op.initCode,
+            callData: user_op.callData,
+            accountGasLimits: user_op.accountGasLimits,
+            preVerificationGas: user_op.preVerificationGas,
+            gasFees: user_op.gasFees,
+            paymasterAndData: user_op.paymasterAndData,
+            signature: Bytes::new(),
+        },
+        userOpHash: B256::ZERO,
+        maxCost: U256::ZERO,
+    }
+    .abi_encode()
+    .into();
+
+    Ok(provider
+        .estimate_gas(paymaster, data, Some(entry_point))
+        .await? as u128)
+}
+
+mod abi {
+    use alloy::sol;
+
+    sol!(
+        contract PrivacyPaymaster {
+            function validatePaymasterUserOp(
+                PackedUserOperation calldata userOp,
+                bytes32 userOpHash,
+                uint256 maxCost
+            ) external returns (bytes memory context, uint256 validationData);
+
+            struct PackedUserOperation {
+                address sender;
+                uint256 nonce;
+                bytes initCode;
+                bytes callData;
+                bytes32 accountGasLimits;
+                uint256 preVerificationGas;
+                bytes32 gasFees;
+                bytes paymasterAndData;
+                bytes signature;
+            }
+        }
+    );
 }

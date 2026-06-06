@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-mod abis;
+pub mod abis;
 pub mod builder;
 pub mod bundler;
 pub mod entry_point;
