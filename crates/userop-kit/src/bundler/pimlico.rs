@@ -39,7 +39,9 @@ pub struct PimlicoUserOperationGasEstimate {
 #[serde(rename_all = "camelCase")]
 struct PimlicoUserOperationGasPrice {
     pub slow: PimlicoSpeedGasEstimate,
+    #[allow(dead_code)]
     pub standard: PimlicoSpeedGasEstimate,
+    #[allow(dead_code)]
     pub fast: PimlicoSpeedGasEstimate,
 }
 
