@@ -111,8 +111,8 @@ impl ChainConfig {
             "https://rail-squid.squids.live/squid-railgun-ethereum-v2/v/v1/graphql",
             "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
-            None,
-            None,
+            Some(address!("0xE80e020Ca04150F9231788F375781445390D955D")),
+            Some(address!("0x93066BC5d841c3eC874B79e7bDc9Fc83ff52E733")),
         )
     }
 
