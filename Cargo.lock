@@ -6206,7 +6206,6 @@ dependencies = [
  "cfg_aliases",
  "common",
  "crypto",
- "eip-1193-provider",
  "hex",
  "insta",
  "postcard",
@@ -6216,7 +6215,9 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
+ "tracing-subscriber",
  "web-time",
  "websnark-rs",
 ]
@@ -6935,7 +6936,7 @@ dependencies = [
 [[package]]
 name = "websnark-rs"
 version = "0.3.1"
-source = "git+https://github.com/Robert-MacWha/websnark-rs?branch=main#441883a4bc244de3579142ab3a8df5d871742d7b"
+source = "git+https://github.com/Robert-MacWha/websnark-rs?branch=debug#d5e38bac5e77b6a2b6204d5be5115af290220004"
 dependencies = [
  "anyhow",
  "ark-bn254 0.5.0",

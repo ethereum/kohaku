@@ -1,18 +1,16 @@
 use std::sync::Arc;
 
 use alloy::primitives::Address;
-use eip_1193_provider::tx_data::TxData;
 use rand::CryptoRng;
 use ruint::aliases::U256;
 use thiserror::Error;
 
 use crate::{
-    circuit::artifacts::RemoteArtifactLoader,
     indexer::{syncer::Syncer, verifier::Verifier},
     provider::{
         note::Note,
         pool::Pool,
-        pool_provider::{PoolProvider, PoolProviderError},
+        pool_provider::{PoolProvider, PoolProviderError, TxData},
     },
 };
 
@@ -23,7 +21,6 @@ pub struct TornadoProvider {
     verifier: Arc<dyn Verifier>,
 
     pools: Vec<PoolProvider>,
-    artifact_loader: RemoteArtifactLoader,
 }
 
 #[derive(Debug, Error)]
@@ -36,12 +33,10 @@ pub enum TornadoProviderError {
 
 impl TornadoProvider {
     pub fn new(syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>) -> Self {
-        let artifact_loader = RemoteArtifactLoader::default();
         Self {
             syncer,
             verifier,
             pools: Vec::new(),
-            artifact_loader,
         }
     }
 
@@ -51,12 +46,7 @@ impl TornadoProvider {
             return &mut self.pools[i];
         }
 
-        let provider = PoolProvider::new(
-            self.syncer.clone(),
-            self.verifier.clone(),
-            self.artifact_loader.clone(),
-            pool,
-        );
+        let provider = PoolProvider::new(pool, self.syncer.clone(), self.verifier.clone());
 
         self.pools.retain(|p| *p.pool() != pool);
         self.pools.push(provider);

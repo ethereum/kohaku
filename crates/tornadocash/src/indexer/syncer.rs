@@ -7,8 +7,8 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum SyncerError {
-    #[error("Syncer error: {0}")]
-    Syncer(#[from] Box<dyn std::error::Error>),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -27,10 +27,4 @@ pub trait Syncer: common::MaybeSend {
 pub enum SyncEvent {
     Deposit(Deposit),
     Withdrawal(Withdrawal),
-}
-
-impl SyncerError {
-    pub fn new<E: std::error::Error + 'static>(e: E) -> Self {
-        SyncerError::Syncer(Box::new(e))
-    }
 }

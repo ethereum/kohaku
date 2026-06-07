@@ -79,7 +79,7 @@ impl RemoteArtifactLoader {
 
     pub async fn load_circuit(&self) -> Result<Circuit, RemoteArtifactLoaderError> {
         info!("Downloading circuit");
-        let url = format!("{}/circuit.json.br", self.base_url);
+        let url = format!("{}/tornadocash-classic/circuit.json.br", self.base_url);
         let compressed = self.fetch(&url).await?;
         let bytes = decompress(&compressed)?;
         let circuit =
@@ -90,7 +90,7 @@ impl RemoteArtifactLoader {
 
     pub async fn load_proving_key(&self) -> Result<ProvingKey, RemoteArtifactLoaderError> {
         info!("Downloading proving key");
-        let url = format!("{}/proving_key.bin.br", self.base_url);
+        let url = format!("{}/tornadocash-classic/proving_key.bin.br", self.base_url);
         let compressed = self.fetch(&url).await?;
         let bytes = decompress(&compressed)?;
         let pk: ProvingKey =

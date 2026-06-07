@@ -15,12 +15,12 @@ use crate::{
 };
 
 pub struct Indexer {
+    pool: Pool,
     syncer: Arc<dyn Syncer>,
     verifier: Arc<dyn Verifier>,
     synced_block: u64,
     tree: TornadoMerkleTree,
     nullifiers: Vec<B256>,
-    pool: Pool,
 }
 
 #[derive(Debug, Error)]
@@ -34,14 +34,14 @@ pub enum IndexerError {
 }
 
 impl Indexer {
-    pub fn new(syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>, pool: Pool) -> Self {
+    pub fn new(pool: Pool, syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>) -> Self {
         Self {
+            pool,
             syncer,
             verifier,
             synced_block: 0,
             tree: TornadoMerkleTree::new(0),
             nullifiers: Vec::new(),
-            pool,
         }
     }
 
@@ -64,8 +64,8 @@ impl Indexer {
     }
 
     pub async fn sync_to(&mut self, to_block: u64) -> Result<(), IndexerError> {
-        let from_block = self.synced_block.saturating_add(1);
-        if from_block > to_block {
+        let from_block = self.synced_block.max(self.pool.deployed_block);
+        if from_block >= to_block {
             info!("Already synced to block {}", self.synced_block);
             return Ok(());
         }

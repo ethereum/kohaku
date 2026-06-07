@@ -10,8 +10,8 @@ pub enum VerifierError {
     InvalidRoot { root: MerkleRoot },
     #[error("Invalid contract {contract}: {reason}")]
     InvalidContract { contract: Address, reason: String },
-    #[error("Other error: {0}")]
-    Other(Box<dyn std::error::Error>),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

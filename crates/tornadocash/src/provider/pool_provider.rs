@@ -5,9 +5,9 @@ use alloy::{
     sol_types::SolCall,
 };
 use anyhow::Context;
-use eip_1193_provider::tx_data::TxData;
 use rand::CryptoRng;
 use ruint::aliases::U256;
+use tracing::info;
 use websnark_rs::{
     circuit::generate_witness,
     proof::{Proof, generate_random_proof},
@@ -33,6 +33,13 @@ pub struct PoolProvider {
     artifact_loader: RemoteArtifactLoader,
 }
 
+#[derive(Debug, Clone)]
+pub struct TxData {
+    pub to: Address,
+    pub data: Bytes,
+    pub value: U256,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum PoolProviderError {
     #[error("Invalid amount for pool: {0} != {1}")]
@@ -52,13 +59,9 @@ pub enum PoolProviderError {
 }
 
 impl PoolProvider {
-    pub fn new(
-        syncer: Arc<dyn Syncer>,
-        verifier: Arc<dyn Verifier>,
-        artifact_loader: RemoteArtifactLoader,
-        pool: Pool,
-    ) -> Self {
-        let indexer = Indexer::new(syncer, verifier, pool);
+    pub fn new(pool: Pool, syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>) -> Self {
+        let artifact_loader = RemoteArtifactLoader::default();
+        let indexer = Indexer::new(pool, syncer, verifier);
         Self {
             indexer,
             artifact_loader,
@@ -131,11 +134,11 @@ impl PoolProvider {
             .await?
             .abi_encode();
 
-        Ok(TxData::new(
-            self.pool().address,
-            call.into(),
-            refund.unwrap_or_default(),
-        ))
+        Ok(TxData {
+            to: self.pool().address,
+            data: call.into(),
+            value: refund.unwrap_or_default(),
+        })
     }
 
     /// Create the calldata for a withdrawal transaction
@@ -170,6 +173,10 @@ impl PoolProvider {
         let refund = refund.unwrap_or_default();
 
         let (path_elements, path_indices) = generate_merkle_proof(note, merkle_tree)?;
+        info!(
+            "Generated merkle proof for note: path_elements={:?}, path_indices={:?}",
+            path_elements, path_indices
+        );
         let circuit_inputs = CircuitInputs::new(
             root,
             nullifier_hash,
@@ -177,13 +184,15 @@ impl PoolProvider {
             U256::from_be_slice(relayer.as_slice()),
             fee,
             refund,
-            U256::from_be_slice(&note.nullifier),
-            U256::from_be_slice(&note.secret),
+            U256::from_le_slice(&note.nullifier),
+            U256::from_le_slice(&note.secret),
             path_elements,
             path_indices,
         );
 
         let input_signals = circuit_inputs.as_signals();
+        info!("Generated circuit inputs: {:?}", input_signals);
+
         let circuit = self
             .artifact_loader
             .load_circuit()
@@ -213,27 +222,6 @@ impl PoolProvider {
     }
 }
 
-/// Convert a websnark proof into the format expected by the Solidity contract.
-fn solidity_proof(proof: &Proof) -> Bytes {
-    let proof_elements: [U256; 8] = [
-        proof.a.x.into(),
-        proof.a.y.into(),
-        //? Order of b elements are reversed to match Solidity's expected format
-        proof.b.x.c1.into(),
-        proof.b.x.c0.into(),
-        proof.b.y.c1.into(),
-        proof.b.y.c0.into(),
-        proof.c.x.into(),
-        proof.c.y.into(),
-    ];
-    let mut proof_bytes = Vec::with_capacity(256);
-    for elem in &proof_elements {
-        proof_bytes.extend_from_slice(&elem.to_be_bytes::<32>());
-    }
-
-    proof_bytes.into()
-}
-
 /// Generate the merkle proof for a given note and merkle tree.
 ///
 /// Returns (path elements, path indices)
@@ -258,3 +246,32 @@ fn generate_merkle_proof(
     }
     Ok((path_elements, path_indices))
 }
+
+/// Convert a websnark proof into the format expected by the Solidity contract.
+fn solidity_proof(proof: &Proof) -> Bytes {
+    let proof_elements: [U256; 8] = [
+        proof.a.x.into(),
+        proof.a.y.into(),
+        //? Order of b elements are reversed to match Solidity's expected format
+        proof.b.x.c1.into(),
+        proof.b.x.c0.into(),
+        proof.b.y.c1.into(),
+        proof.b.y.c0.into(),
+        proof.c.x.into(),
+        proof.c.y.into(),
+    ];
+    let mut proof_bytes = Vec::with_capacity(256);
+    for elem in &proof_elements {
+        proof_bytes.extend_from_slice(&elem.to_be_bytes::<32>());
+    }
+
+    proof_bytes.into()
+}
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_
+// }
