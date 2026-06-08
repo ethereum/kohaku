@@ -2,7 +2,10 @@ use std::str::FromStr;
 
 use alloy::primitives::Address;
 use eip_1193_provider::tx_data::TxData;
-use railgun::{account::address::RailgunAddress, caip::AssetId, provider::RailgunProvider};
+use railgun::{
+    account::address::RailgunAddress,
+    provider::{BalanceEntry, RailgunProvider},
+};
 use serde::Serialize;
 use tsify::Tsify;
 use userop_kit::railgun::TailCall;
@@ -23,7 +26,7 @@ pub struct JsRailgunProvider {
 #[derive(Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 #[serde(transparent)]
-pub struct Balances(Vec<(AssetId, u128)>);
+pub struct Balances(Vec<BalanceEntry>);
 
 impl JsRailgunProvider {
     pub fn new(inner: RailgunProvider) -> Self {
@@ -54,8 +57,7 @@ impl JsRailgunProvider {
     ///
     /// If POI is enabled, only returns the spendable balance according to the POI provider.
     pub async fn balance(&mut self, address: RailgunAddress) -> Balances {
-        let balances = self.inner.balance(address.clone()).await;
-        Balances(balances.into_iter().collect())
+        Balances(self.inner.balance(address.clone()).await)
     }
 
     /// Helper to create a shield builder.

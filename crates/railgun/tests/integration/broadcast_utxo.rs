@@ -148,8 +148,14 @@ async fn test_broadcast_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&weth), Some(&997_500_000_000_000_000));
-    assert_eq!(balance_2.get(&weth), None);
+    assert_eq!(
+        balance_1.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(997_500_000_000_000_000)
+    );
+    assert_eq!(
+        balance_2.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        None
+    );
 
     // Test Transfer
     let delegator = alloy::signers::local::PrivateKeySigner::from_str(
