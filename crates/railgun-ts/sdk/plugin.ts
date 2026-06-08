@@ -43,7 +43,7 @@ import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateO
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
-import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, UtxoSyncer, type ChainConfig, type RailgunAddress, type SignableUserOperation, type TailCall } from "../pkg";
+import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, SimpleSmartAccount, TransactionBuilder, UtxoSyncer, type Call, type ChainConfig, type RailgunAddress } from "../pkg";
 import { ensureInitialized } from "./lib";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { DatabaseAdapter } from "./database";
@@ -100,9 +100,10 @@ export type RailgunPluginConfig = {
 export type BundlerConfig = {
     /** 4337 bundler */
     bundler?: Bundler,
-    /** 7702 delegating account */
-    delegating_account?: Signer,
+    /** 7702 smart account signer */
+    smartAccountSigner?: Signer,
 }
+
 /**
  * Creates or loads a Railgun plugin instance.
  * 
@@ -153,14 +154,22 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
     console.log("Creating plugin instance");
     const plugin = new RailgunPlugin(chain, provider, pool);
     plugin.setBundler(config?.bundler?.bundler);
-    plugin.setDelegatingSigner(config?.bundler?.delegating_account);
+    if (config?.bundler?.smartAccountSigner) {
+        const smartAccount = new SimpleSmartAccount(
+            config?.bundler?.smartAccountSigner.address,
+            BigInt(chain.id),
+            eip1193Provider,
+        );
+        plugin.setSmartAccount(smartAccount, config?.bundler?.smartAccountSigner);
+    }
 
     return plugin;
 }
 
 export class RailgunPlugin implements RGInstance, RGBroadcaster {
     private bundler: Bundler | undefined;
-    private delegatingSigner: Signer | undefined;
+    private smartAccount: SimpleSmartAccount | undefined;
+    private smartAccountSigner: Signer | undefined;
 
     constructor(
         private chain: ChainConfig,
@@ -172,8 +181,9 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         this.bundler = bundler;
     }
 
-    setDelegatingSigner(signer?: Signer) {
-        this.delegatingSigner = signer;
+    setSmartAccount(smartAccount: SimpleSmartAccount, signer: Signer) {
+        this.smartAccount = smartAccount;
+        this.smartAccountSigner = signer;
     }
 
     async addInternalSigner(spendingKey: `0x${string}`, viewingKey: `0x${string}`) {
@@ -313,10 +323,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
      */
     async broadcast(op: RGPrivateOperation): Promise<void> {
         if (!this.bundler) throw new Error("No bundler configured for broadcast");
-        if (!this.delegatingSigner) throw new Error("No delegating signer configured for broadcast");
+        if (!this.smartAccount) throw new Error("No smart account configured for broadcast");
+        if (!this.smartAccountSigner) throw new Error("No smart account signer configured for broadcast");
 
         //? If there's a native unshield, add the unwrap tail call
-        let tailCalls: TailCall[] = [];
+        let calls: Call[] = [];
         if (op.nativeAmount && op.to) {
             const data = encodeFunctionData({
                 abi: [{
@@ -328,8 +339,9 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
                 args: [op.nativeAmount],
             });
 
-            tailCalls.push({
+            calls.push({
                 target: this.chain.wrappedBaseToken,
+                value: "0x00",
                 data: data
             });
         }
@@ -337,13 +349,13 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         const signableUserOp = await this.provider.prepareUserOp(
             op.builder,
             this.bundler,
-            this.delegatingSigner.address,
+            this.smartAccount,
             this.pool.primary,
             this.chain.wrappedBaseToken,
-            tailCalls
+            calls
         );
 
-        const signedUserOp = await signableUserOp.sign(this.delegatingSigner);
+        const signedUserOp = await signableUserOp.sign(this.smartAccountSigner);
         const userOpHash = await this.bundler.sendUserOperation(signedUserOp);
 
         console.log(`Broadcasted user operation with hash: ${userOpHash}`);

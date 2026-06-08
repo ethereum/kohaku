@@ -760,6 +760,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
+name = "anyhow"
+version = "1.0.102"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+
+[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4473,6 +4479,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "alloy",
+ "anyhow",
  "ark-bn254",
  "ark-circom",
  "ark-ff 0.6.0",
@@ -6198,6 +6205,7 @@ name = "userop-kit-ts"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "eip-1193-provider",
  "reqwest",
  "userop-kit",
  "wasm-bindgen",

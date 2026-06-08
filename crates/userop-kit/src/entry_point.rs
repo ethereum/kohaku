@@ -14,6 +14,5 @@ pub(crate) const fn entry_point_08_domain(chain_id: u64) -> Eip712Domain {
         version: "1",
         chain_id: chain_id,
         verifying_contract: ENTRY_POINT_08,
-
     }
 }

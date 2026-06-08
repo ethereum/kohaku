@@ -42,7 +42,7 @@ pub enum UtxoIndexerError {
     #[error("Syncer error: {0}")]
     SyncerError(#[from] SyncerError),
     #[error("Verification error: {0}")]
-    VerificationError(#[source] Box<dyn std::error::Error + 'static>),
+    VerificationError(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
     #[error("Note error: {0}")]
     NoteError(#[from] NoteError),
     #[error("Database error: {0}")]
