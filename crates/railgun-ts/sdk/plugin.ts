@@ -43,7 +43,7 @@ import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateO
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
-import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, UtxoSyncer, type ChainConfig, type RailgunAddress, type SignableUserOperation, type TailCall } from "../pkg";
+import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, TransactionBuilder, UtxoSyncer, type ChainConfig, type LogLevel, type RailgunAddress, type SignableUserOperation, type TailCall } from "../pkg";
 import { ensureInitialized } from "./lib";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { DatabaseAdapter } from "./database";
@@ -87,6 +87,8 @@ export type RGBroadcaster = Broadcaster<RGPrivateOperation>;
 
 
 export type RailgunPluginConfig = {
+    /** Optional log level for debugging.  Defaults to `Off`  */
+    logLevel?: LogLevel,
     /** Optional RPC call batch size when syncing (default: 10) */
     rpcBatchSize?: number,
     /** Optional index for key derivation (default: 0) */
@@ -111,7 +113,7 @@ export type BundlerConfig = {
  * @returns `RailgunPlugin` instance
  */
 export async function createRailgunPlugin(host: Host, config?: RailgunPluginConfig): Promise<RailgunPlugin> {
-    await ensureInitialized();
+    await ensureInitialized(undefined, config?.logLevel || "Off");
 
     console.log("Deriving keys");
     const keyIndex = config?.keyIndex ?? 0;
