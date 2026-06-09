@@ -8,8 +8,8 @@ use alloy::{
     providers::{Provider, ext::AnvilApi},
     signers::local::PrivateKeySigner,
 };
-pub use alto::AltoBuilder;
-pub use anvil::AnvilBuilder;
+pub use alto::{Alto, AltoBuilder};
+pub use anvil::{Anvil, AnvilBuilder};
 use common::sleep;
 
 pub async fn wait_for_port(port: u16) {

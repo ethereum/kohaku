@@ -7,8 +7,5 @@ pub mod bundler;
 pub mod entry_point;
 pub mod signable_user_operation;
 pub mod signed_user_operation;
+pub mod smart_account;
 pub mod user_operation;
-
-#[cfg(railgun)]
-#[cfg_attr(docsrs, doc(cfg(feature = "railgun")))]
-pub mod railgun;

@@ -3,7 +3,5 @@ fn main() {
         native: { not(target_arch = "wasm32") },
         wasm: { all(target_arch = "wasm32") },
         js: { all(target_arch = "wasm32", feature = "js") },
-        railgun: { feature = "railgun" },
-        tornadocash: { feature = "tornadocash" },
     }
 }
