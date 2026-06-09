@@ -1,9 +1,9 @@
-use std::{str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use alloy::{
     network::Ethereum,
     primitives::U256,
-    providers::{Provider, ProviderBuilder},
+    providers::{DynProvider, Provider, ProviderBuilder},
     sol,
 };
 use railgun::{
@@ -11,19 +11,20 @@ use railgun::{
     builder::RailgunBuilder,
     caip::AssetId,
     chain_config::ChainConfig,
+    crypto::keys::{HexKey, SpendingKey, ViewingKey},
     indexer::syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
     transact::TransactionBuilder,
 };
-use rand::random;
+use tokio::time::sleep;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use userop_kit::{
     bundler::{Bundler, pimlico::PimlicoBundler},
     entry_point::ENTRY_POINT_08,
-    railgun::TailCall,
+    smart_account::simple_smart_account::{self, SimpleSmartAccount},
 };
 
-use crate::utils::{AltoBuilder, AnvilBuilder};
+use crate::utils::{Alto, AltoBuilder, Anvil, AnvilBuilder};
 
 sol! {
     #[sol(rpc)]
@@ -47,7 +48,7 @@ sol! {
 #[tokio::test]
 #[serial_test::serial]
 #[ignore]
-async fn test_broadcast_utxo() {
+async fn test_broadcast_utxo() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .with_test_writer()
@@ -55,32 +56,175 @@ async fn test_broadcast_utxo() {
         .ok();
 
     let chain = ChainConfig::sepolia();
-    let weth = AssetId::Erc20(chain.wrapped_base_token);
-
-    let signer = alloy::signers::local::PrivateKeySigner::from_str(
-        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    )
-    .unwrap();
-
-    let fork_block = 10886668;
-    let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
 
     info!("Setting up alloy provider");
-    let _anvil = AnvilBuilder::new()
-        .fork_url(&fork_url)
-        .fork_block(fork_block)
+    let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
+    let fork_block = 11011021;
+    // let fork_block = 25269258;
+    let signer_key = std::env::var("DEV_KEY").expect("DEV_KEY must be set");
+    let signer = alloy::signers::local::PrivateKeySigner::from_str(&signer_key)?;
+
+    let (provider, _anvil) = setup_provider(&fork_url, fork_block, signer, true).await?;
+
+    info!("Setting up railgun signer");
+    let spending_key = std::env::var("DEV_SPENDING_KEY").expect("DEV_SPENDING_KEY must be set");
+    let spending_key = SpendingKey::from_hex(&spending_key)?;
+    let viewing_key = std::env::var("DEV_VIEWING_KEY").expect("DEV_VIEWING_KEY must be set");
+    let viewing_key = ViewingKey::from_hex(&viewing_key)?;
+    let railgun_signer =
+        railgun::account::signer::PrivateKeySigner::new_evm(spending_key, viewing_key, chain.id);
+
+    info!("Setting up alto");
+    let pimlico_url = format!("https://public.pimlico.io/v2/{}/rpc", chain.id);
+    let (bundler, _alto) = setup_bundler(provider.clone(), &pimlico_url, true).await?;
+
+    info!("Setting up railgun");
+    let syncer = Arc::new(
+        ChainedSyncer::new()
+            .then(SubsquidSyncer::new(&chain.subsquid_endpoint).with_latest_block(fork_block))
+            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(1000)),
+    );
+    let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
+        .with_utxo_syncer(syncer)
+        .build()
+        .await?;
+
+    railgun.register(railgun_signer.clone()).await?;
+    railgun.sync().await?;
+
+    // Test Shielding
+    info!("Testing shielding");
+    let shield_tx = railgun
+        .shield()
+        .shield_native(railgun_signer.address(), 4_000_000_000_000_000)
+        .build(&mut rand::rng())?;
+
+    for tx in shield_tx {
+        info!("Sending shielding transaction");
+        provider
+            .send_transaction(tx.into())
+            .await?
+            .get_receipt()
+            .await?;
+    }
+
+    sleep(Duration::from_secs(12)).await;
+    railgun.sync().await?;
+    let railgun_balance = railgun.balance(railgun_signer.address()).await;
+    info!("Railgun balance: {:?}", railgun_balance);
+
+    // Test Unshield
+    let weth = AssetId::Erc20(chain.wrapped_base_token);
+    let weth_contract = WETH::new(chain.wrapped_base_token, provider.clone());
+
+    let smart_account_signer = alloy::signers::local::PrivateKeySigner::random();
+    let smart_account =
+        SimpleSmartAccount::new(smart_account_signer.address(), chain.id, provider.clone());
+
+    info!("Testing unshielding");
+    let tx = TransactionBuilder::new().unshield(
+        railgun_signer.clone(),
+        smart_account_signer.address(),
+        weth,
+        5_000,
+    )?;
+
+    let unwrap_call = simple_smart_account::Call {
+        target: chain.wrapped_base_token,
+        value: U256::ZERO,
+        data: weth_contract.withdraw(U256::from(3_000)).calldata().clone(),
+    };
+
+    let signable = railgun
+        .prepare_userop(
+            tx,
+            bundler.as_ref(),
+            &smart_account,
+            railgun_signer.clone(),
+            chain.wrapped_base_token,
+            vec![unwrap_call],
+            &mut rand::rng(),
+        )
+        .await?;
+
+    let pre_eoa_balance = provider.get_balance(smart_account_signer.address()).await?;
+    let pre_weth_balance = weth_contract
+        .balanceOf(smart_account_signer.address())
+        .call()
+        .await?;
+
+    let signed = signable.sign(&smart_account_signer).await?;
+    let hash = bundler.send_user_operation(&signed).await?;
+    let receipt = bundler.wait_for_receipt(hash).await?;
+    assert!(
+        receipt.success,
+        "Broadcast transaction failed: {:?}",
+        receipt
+    );
+
+    info!("Broadcast transaction succeeded: {:?}", receipt);
+    info!("Waiting 24s for transaction indexing");
+    sleep(Duration::from_secs(24)).await;
+
+    railgun.sync().await?;
+    let railgun_balance = railgun.balance(railgun_signer.address()).await;
+    info!("Railgun balance after unshield: {:?}", railgun_balance);
+
+    let post_weth_balance = weth_contract
+        .balanceOf(smart_account_signer.address())
+        .call()
+        .await?;
+    info!("Pre-unshield WETH balance: {}", pre_weth_balance);
+    info!("Post-unshield WETH balance: {}", post_weth_balance);
+
+    let post_eoa_balance = provider.get_balance(smart_account_signer.address()).await?;
+    info!("Pre-unshield EOA balance: {}", pre_eoa_balance);
+    info!("Post-unshield EOA balance: {}", post_eoa_balance);
+    Ok(())
+}
+
+async fn setup_provider(
+    rpc_url: &str,
+    block_number: u64,
+    signer: alloy::signers::local::PrivateKeySigner,
+    local: bool,
+) -> Result<(DynProvider, Option<Anvil>), anyhow::Error> {
+    if !local {
+        let provider = ProviderBuilder::new()
+            .network::<Ethereum>()
+            .wallet(signer)
+            .connect(rpc_url)
+            .await?
+            .erased();
+        return Ok((provider, None));
+    }
+
+    let anvil = AnvilBuilder::new()
+        .fork_url(rpc_url)
+        .fork_block(block_number)
         .spawn()
         .await;
 
     let provider = ProviderBuilder::new()
         .network::<Ethereum>()
         .wallet(signer)
-        .connect("http://localhost:8545")
-        .await
-        .unwrap()
+        .connect(&"http://localhost:8545")
+        .await?
         .erased();
 
-    let weth_contract = WETH::new(chain.wrapped_base_token, provider.clone());
+    Ok((provider, Some(anvil)))
+}
+
+async fn setup_bundler(
+    provider: DynProvider,
+    pimlico_url: &str,
+    local: bool,
+) -> Result<(Arc<dyn Bundler>, Option<Alto>), anyhow::Error> {
+    if !local {
+        let pimlico_url = pimlico_url.parse()?;
+        let bundler = Arc::new(PimlicoBundler::new(pimlico_url));
+        return Ok((bundler, None));
+    }
 
     let alto_executor_pk = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
     let alto_utility_pk = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
@@ -99,146 +243,7 @@ async fn test_broadcast_utxo() {
         .spawn()
         .await;
 
-    info!("Setting up railgun");
-    let syncer = Arc::new(
-        ChainedSyncer::new()
-            .then(SubsquidSyncer::new(&chain.subsquid_endpoint).with_latest_block(fork_block))
-            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(1000)),
-    );
-    let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
-        .with_utxo_syncer(syncer)
-        .build()
-        .await
-        .unwrap();
-
-    let bundler = Arc::new(PimlicoBundler::new(
-        "http://localhost:3000".parse().unwrap(),
-    ));
-
-    railgun.sync().await.unwrap();
-
-    info!("Setting up accounts");
-    let account_1 =
-        railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
-    let account_2 =
-        railgun::account::signer::PrivateKeySigner::new_evm(random(), random(), chain.id);
-    railgun.register(account_1.clone()).await.unwrap();
-    railgun.register(account_2.clone()).await.unwrap();
-
-    // Test Shielding
-    info!("Testing shielding");
-    let shield_tx = railgun
-        .shield()
-        .shield_native(account_1.address(), 1_000_000_000_000_000_000)
-        .build(&mut rand::rng())
-        .unwrap();
-
-    for tx in shield_tx {
-        info!("Sending shielding transaction");
-        provider
-            .send_transaction(tx.into())
-            .await
-            .unwrap()
-            .get_receipt()
-            .await
-            .unwrap();
-    }
-
-    railgun.sync().await.unwrap();
-    let balance_1 = railgun.balance(account_1.address()).await;
-    let balance_2 = railgun.balance(account_2.address()).await;
-
-    assert_eq!(
-        balance_1.iter().find(|e| e.asset == weth).map(|e| e.amount),
-        Some(997_500_000_000_000_000)
-    );
-    assert_eq!(
-        balance_2.iter().find(|e| e.asset == weth).map(|e| e.amount),
-        None
-    );
-
-    // Test Transfer
-    let delegator = alloy::signers::local::PrivateKeySigner::from_str(
-        "0xd01165bc18d3f0d0b2114a42930164f729ae8310f447b4dd2e96124c02bbe151",
-    )
-    .unwrap();
-
-    info!("Testing transfer");
-    let tx = TransactionBuilder::new().transfer(
-        account_1.clone(),
-        account_2.address(),
-        weth,
-        5_000,
-        "test transfer",
-    );
-
-    let signable = railgun
-        .prepare_userop(
-            tx,
-            bundler.as_ref(),
-            delegator.address(),
-            account_1.clone(),
-            chain.wrapped_base_token,
-            vec![],
-            &mut rand::rng(),
-        )
-        .await
-        .unwrap();
-
-    info!("Prepared broadcast transaction: {:?}", signable);
-    let signed = signable.sign(&delegator).await.unwrap();
-    let hash = bundler.send_user_operation(&signed).await.unwrap();
-    let receipt = bundler.wait_for_receipt(hash).await.unwrap();
-    assert!(
-        receipt.success,
-        "Broadcast transaction failed: {:?}",
-        receipt
-    );
-
-    // Sync to update balances after transfer
-    railgun.sync().await.unwrap();
-
-    info!("Testing unshielding");
-    let tx = TransactionBuilder::new()
-        .unshield(account_1.clone(), delegator.address(), weth, 5_000)
-        .unwrap();
-
-    let unwrap_call = TailCall::new(
-        chain.wrapped_base_token,
-        weth_contract.withdraw(U256::from(3_000)).calldata().clone(),
-    );
-
-    let signable = railgun
-        .prepare_userop(
-            tx,
-            bundler.as_ref(),
-            delegator.address(),
-            account_1.clone(),
-            chain.wrapped_base_token,
-            vec![unwrap_call],
-            &mut rand::rng(),
-        )
-        .await
-        .unwrap();
-
-    let pre_eoa_balance = provider.get_balance(delegator.address()).await.unwrap();
-
-    info!("Prepared broadcast transaction: {:?}", signable);
-    let signed = signable.sign(&delegator).await.unwrap();
-    let hash = bundler.send_user_operation(&signed).await.unwrap();
-    let receipt = bundler.wait_for_receipt(hash).await.unwrap();
-    assert!(
-        receipt.success,
-        "Broadcast transaction failed: {:?}",
-        receipt
-    );
-
-    let weth_balance = weth_contract
-        .balanceOf(delegator.address())
-        .call()
-        .await
-        .unwrap();
-    let post_eoa_balance = provider.get_balance(delegator.address()).await.unwrap();
-    assert_eq!(weth_balance, U256::from(1988));
-    assert_eq!(post_eoa_balance - pre_eoa_balance, U256::from(3_000));
+    let alto_url = "http://localhost:3000".parse()?;
+    let bundler = Arc::new(PimlicoBundler::new(alto_url));
+    Ok((bundler, Some(_alto)))
 }

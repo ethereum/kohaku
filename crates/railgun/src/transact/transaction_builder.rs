@@ -54,6 +54,9 @@ pub struct TransactionBuilder {
     //? Used to track unshield intents to ensure we don't have multiple unshields
     //? for the same from / asset.
     unshields: HashSet<(RailgunAddress, AssetId)>,
+
+    adapt_contract: Option<Address>,
+    adapt_params: Option<[u8; 32]>,
 }
 
 #[derive(Debug, Error)]
@@ -104,6 +107,8 @@ impl TransactionBuilder {
         Self {
             intents: Vec::new(),
             unshields: HashSet::new(),
+            adapt_contract: None,
+            adapt_params: None,
         }
     }
 }
@@ -155,6 +160,13 @@ impl TransactionBuilder {
         Ok(self)
     }
 
+    /// Sets the adapt contract and parameters for this transaction.
+    pub fn adapt(mut self, contract: Address, params: [u8; 32]) -> Self {
+        self.adapt_contract = Some(contract);
+        self.adapt_params = Some(params);
+        self
+    }
+
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
     pub(crate) async fn build<R: Rng>(
         &self,
@@ -165,9 +177,11 @@ impl TransactionBuilder {
         rng: &mut R,
     ) -> Result<Vec<ProvedOperation>, TransactionBuilderError> {
         let groups = self.group_intents();
-        let operations = build_groups(in_notes, groups, rng)?;
+        let mut operations = build_groups(in_notes, groups, rng)?;
 
-        for op in &operations {
+        for op in &mut operations {
+            op.adapt_contract = self.adapt_contract;
+            op.adapt_params = self.adapt_params;
             op.verify()?;
         }
 
@@ -421,8 +435,8 @@ async fn prove_operation(
         0,
         unshield_type,
         chain_id,
-        Address::ZERO,
-        &[0u8; 32],
+        operation.adapt_contract.unwrap_or(Address::ZERO),
+        &operation.adapt_params.unwrap_or([0u8; 32]),
         commitment_ciphertexts,
     );
 
