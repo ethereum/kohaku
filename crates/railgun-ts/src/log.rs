@@ -9,6 +9,8 @@ pub enum LogLevel {
     Info,
     Warn,
     Error,
+    /// Disable all logging.
+    Off,
 }
 
 /// Initialize console logging. Call once at startup to route tracing events
@@ -21,6 +23,7 @@ pub fn init_logging(#[wasm_bindgen(js_name = "maxLevel")] max_level: LogLevel) {
         LogLevel::Info => tracing::Level::INFO,
         LogLevel::Warn => tracing::Level::WARN,
         LogLevel::Error => tracing::Level::ERROR,
+        LogLevel::Off => return,
     };
     tracing_wasm::set_as_global_default_with_config(
         tracing_wasm::WASMLayerConfigBuilder::new()
