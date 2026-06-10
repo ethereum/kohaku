@@ -1,5 +1,8 @@
 # @kohaku-eth/railgun
 
+> [!IMPORTANT]
+> THIS PACKAGE IS NOT READY FOR PRODUCTION USE AND CONTAINS UNAUDITED CODE. USE WITH CAUTION AND ENTIRELY AT YOUR OWN RISK. POSSIBILITY OF BREAKING CHANGES IN SUBSEQUENT VERSIONS.
+
 Cross-platform Railgun Typescript SDK with support for kohaku's standard interfaces.  The SDK is designed to interface with railgun's on-chain contracts, facilitating state syncing, transaction construction, proof generation, transaction submission via broadcasters, and proof submission.
 
 ## Installation
