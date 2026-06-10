@@ -15,14 +15,16 @@
 Privacy-first tooling for the Ethereum ecosystem
 
 > [!IMPORTANT]
-> Some parts of this project are work in progress and not ready for production use.
+> Some parts of this project are work in progress and NOT READY FOR PRODUCTION USE. Packages contain UNAUDITED CODE. Consult underlying package READMEs for more detailed information.
 
 ## Repository Structure
 
 | Package                                             | Status | Description                                  |
 | ----------------------------------------------------| ------ | -------------------------------------------- |
-| [@kohaku-eth/railgun](crates/railgun-ts)             | ✅     | railgun privacy protocol lib                 |
-| [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools privacy protocol lib           |
+| [@kohaku-eth/railgun](crates/railgun-ts)             | ✅     | railgun shielded pool protocol lib                 |
+| [@kohaku-eth/tornado-cash](packages/tornado-cash) | ✅     | tornado cash shielded pool protocol lib           |
+| [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools shielded pool protocol lib           |
+| [@kohaku-eth/plugins](packages/plugins) | ✅     | shielded pool protocols standardized plugin interface          |
 | [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, helios, colibri) |
 | [@kohaku-eth/pq-account](packages/pq-account)       | ✅     | post-quantum 4337 account implementation     |
 
