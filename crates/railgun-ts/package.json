@@ -1,7 +1,7 @@
 {
   "name": "@kohaku-eth/railgun",
   "version": "0.0.1-alpha.24",
-  "description": "",
+  "description": "Railgun Shielded Pool Kohaku Plugin",
   "type": "module",
   "main": "./dist/sdk/lib.js",
   "types": "./dist/sdk/lib.d.ts",
