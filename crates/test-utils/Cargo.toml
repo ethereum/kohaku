@@ -8,5 +8,5 @@ publish = false
 crate-type = ["rlib"]
 
 [dependencies]
-alloy = { workspace = true }
+alloy = { workspace = true, features = ["provider-anvil-api"] }
 tokio = { workspace = true, features = ["full"] }

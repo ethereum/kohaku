@@ -65,7 +65,6 @@ reqwest = { workspace = true, features = ["json", "rustls"] }
 tokio = { workspace = true, features = ["fs"] }
 tracing-subscriber = { workspace = true }
 wasmer = { workspace = true }
-kohaku-test-utils = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
@@ -79,16 +78,15 @@ wasmer = { workspace = true, features = ["js-default"] }
 [build-dependencies]
 cfg_aliases = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-alloy = { workspace = true, default-features = true, features = [
-    "provider-anvil-api",
-] }
+[dev-dependencies]
+alloy = { workspace = true, default-features = true }
 insta = { workspace = true }
 railgun = { path = ".", features = ["testing"] }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing-test = { workspace = true }
 criterion = { workspace = true }
+kohaku-test-utils = { workspace = true }
 
 [[bench]]
 name = "indexed_account"

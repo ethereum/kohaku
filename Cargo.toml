@@ -79,7 +79,7 @@ tracing-wasm = "0.2"
 tsify = "0.5"
 userop-kit = { path = "./crates/userop-kit" }
 userop-kit-ts = { path = "./crates/userop-kit-ts" }
-wasm-bindgen = "=0.2.118"
+wasm-bindgen = "=0.2.108"
 wasm-bindgen-futures = "0.4"
 wasmer = { version = "6.1", default-features = false }
 web-time = { version = "1.1" }
@@ -89,7 +89,7 @@ postcard = "1.1.3"
 kohaku-test-utils = { path = "./crates/test-utils" }
 
 [patch.crates-io]
-websnark-rs = { git = "https://github.com/Robert-MacWha/websnark-rs", branch = "debug" }
+websnark-rs = { git = "https://github.com/Robert-MacWha/websnark-rs" }
 ruint = { git = "https://github.com/Robert-MacWha/ruint" }                                        # Adds ark-fr-06 support
 ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = "release/0.6.0" } # Adds opt-in parallel feature flag.  Without parallel hangs indefinitely in wasm.
 
