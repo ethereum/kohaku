@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/tornado-cash",
-  "version": "0.0.2-alpha.9",
+  "version": "0.0.2-alpha.10",
   "description": "Tornado Cash Shielded Pool Kohaku Plugin",
   "type": "module",
   "private": false,
