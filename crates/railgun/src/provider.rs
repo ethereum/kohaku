@@ -38,6 +38,9 @@ use crate::{
 #[cfg_attr(js, derive(tsify::Tsify))]
 pub struct BalanceEntry {
     pub asset: AssetId,
+    /// If POI is enabled, the spendability status of the note according to the POI provider.
+    /// Otherwise None.
+    #[serde(rename = "poiStatus")]
     pub poi_status: Option<PoiStatus>,
     pub amount: u128,
 }
@@ -119,17 +122,24 @@ impl RailgunProvider {
     /// Returns the balance for the given address.
     ///
     /// If POI is enabled, only returns the spendable balance according to the POI provider.
-    pub async fn balance(&mut self, address: RailgunAddress) -> HashMap<AssetId, u128> {
+    pub async fn balance(&mut self, address: RailgunAddress) -> Vec<BalanceEntry> {
         let unspent = self.unspent(address).await;
 
         let mut balance_map = HashMap::new();
-        for note in unspent {
+        for (note, poi_status) in unspent {
             let asset = note.asset();
             let value = note.value();
-            *balance_map.entry(asset).or_insert(0) += value;
+            *balance_map.entry((asset, poi_status)).or_insert(0) += value;
         }
 
         balance_map
+            .into_iter()
+            .map(|((asset, poi_status), amount)| BalanceEntry {
+                asset,
+                poi_status,
+                amount,
+            })
+            .collect()
     }
 
     /// Helper to create a shield builder.
@@ -278,7 +288,7 @@ impl RailgunProvider {
         ))));
     }
 
-    async fn all_unspent(&mut self) -> Vec<UtxoNote> {
+    async fn all_unspent(&mut self) -> Vec<(UtxoNote, Option<PoiStatus>)> {
         let addresses = self.utxo_indexer.registered();
         let mut all_notes = Vec::new();
 
@@ -289,32 +299,30 @@ impl RailgunProvider {
         all_notes
     }
 
-    async fn unspent(&mut self, address: RailgunAddress) -> Vec<UtxoNote> {
+    async fn unspent(&mut self, address: RailgunAddress) -> Vec<(UtxoNote, Option<PoiStatus>)> {
         let notes = self.utxo_indexer.unspent(address);
 
         let Some(poi_provider) = &mut self.poi_provider else {
-            return notes;
+            return notes.into_iter().map(|note| (note, None)).collect();
         };
 
-        let mut spendable_notes = Vec::new();
+        let mut annotated_notes = Vec::new();
         for note in notes {
             let status = poi_provider
                 .status(note.blinded_commitment.into(), note.commitment_type)
                 .await;
             match status {
-                Ok(PoiStatus::Valid) => spendable_notes.push(note),
                 Ok(status) => {
-                    info!("Note {} not spendable: {status:?}", note);
-                    continue;
+                    annotated_notes.push((note, Some(status)));
                 }
                 Err(e) => {
                     warn!("Error checking POI for note {}: {}", note, e);
-                    continue;
+                    annotated_notes.push((note, Some(PoiStatus::Missing)));
                 }
             }
         }
 
-        spendable_notes
+        annotated_notes
     }
 
     async fn build_operation<R: Rng>(
@@ -323,11 +331,21 @@ impl RailgunProvider {
         rng: &mut R,
     ) -> Result<Vec<ProvedOperation>, RailgunProviderError> {
         let in_notes = self.all_unspent().await;
+        let spendable_notes: Vec<UtxoNote> = if let Some(_) = self.poi_provider {
+            in_notes
+                .into_iter()
+                .filter(|(_, status)| *status == Some(PoiStatus::Valid))
+                .map(|(note, _)| note)
+                .collect()
+        } else {
+            in_notes.into_iter().map(|(note, _)| note).collect()
+        };
+
         let operations = builder
             .build(
                 &self.prover,
                 self.chain.id,
-                &in_notes,
+                &spendable_notes,
                 &self.utxo_indexer.utxo_trees,
                 rng,
             )

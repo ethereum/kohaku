@@ -238,7 +238,12 @@ async fn await_balance_update(
         let balance = railgun.balance(account.address()).await;
         info!("Balance: {:?}, Expected: {:?}", balance, expected);
 
-        if balance.get(&asset) == expected.as_ref() {
+        if balance
+            .iter()
+            .find(|e| e.asset == asset && e.poi_status == Some(railgun::poi::PoiStatus::Valid))
+            .map(|e| e.amount)
+            == expected
+        {
             return;
         }
     }

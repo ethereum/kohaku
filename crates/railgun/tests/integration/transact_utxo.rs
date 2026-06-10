@@ -139,8 +139,14 @@ async fn test_transact_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&weth), Some(&997_500));
-    assert_eq!(balance_2.get(&weth), None);
+    assert_eq!(
+        balance_1.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(997_500)
+    );
+    assert_eq!(
+        balance_2.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        None
+    );
 
     // Test shield native
     info!("Testing shielding native");
@@ -164,8 +170,14 @@ async fn test_transact_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&weth), Some(&1_097_250));
-    assert_eq!(balance_2.get(&weth), None);
+    assert_eq!(
+        balance_1.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(1_097_250)
+    );
+    assert_eq!(
+        balance_2.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        None
+    );
 
     // Test Transfer
     info!("Testing transfer");
@@ -190,8 +202,14 @@ async fn test_transact_utxo() {
     let balance_1 = railgun.balance(account_1.address()).await;
     let balance_2 = railgun.balance(account_2.address()).await;
 
-    assert_eq!(balance_1.get(&weth), Some(&1_092_250));
-    assert_eq!(balance_2.get(&weth), Some(&5_000));
+    assert_eq!(
+        balance_1.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(1_092_250)
+    );
+    assert_eq!(
+        balance_2.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(5_000)
+    );
 
     // Test Unshielding
     info!("Testing unshielding");
@@ -222,7 +240,13 @@ async fn test_transact_utxo() {
         .await
         .unwrap();
 
-    assert_eq!(balance_1.get(&weth), Some(&1_091_250));
-    assert_eq!(balance_2.get(&weth), Some(&5_000));
+    assert_eq!(
+        balance_1.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(1_091_250)
+    );
+    assert_eq!(
+        balance_2.iter().find(|e| e.asset == weth).map(|e| e.amount),
+        Some(5_000)
+    );
     assert_eq!(balance_eoa, 998);
 }

@@ -208,19 +208,20 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         for (const signer of this.pool.all) {
             const balances = await this.provider.balance(signer.address);
             for (const b of balances) {
-                const assetId = b[0];
-                const balance = b[1];
+                const assetId = b.asset;
+                const balance = b.amount;
+                const poiStatus = b.poiStatus;
 
                 if (assetId.type !== "Erc20") continue;
                 if (balance <= 0n) continue;
 
                 if (assets && !assets.some(a => a.__type === 'erc20' && a.contract === assetId.value)) continue;
 
-                const key = assetId.value;
+                const key = assetId.value + (poiStatus || "unknown");
                 const existing = all.get(key);
 
                 if (existing) { existing.amount += balance; }
-                else { all.set(key, { asset: { __type: 'erc20', contract: key }, amount: balance }); }
+                else { all.set(key, { asset: { __type: 'erc20', contract: assetId.value }, amount: balance, tag: poiStatus }); }
             }
         }
 
