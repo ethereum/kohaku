@@ -7,7 +7,7 @@ use alloy::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    abis::entry_point::PackedUserOperation,
+    abis::entry_point::EntryPoint::PackedUserOperation,
     signed_user_operation::SignedUserOperation,
     user_operation::{Authorization, UserOperation},
 };

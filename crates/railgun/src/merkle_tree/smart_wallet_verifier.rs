@@ -28,7 +28,7 @@ impl MerkleTreeVerifier for SmartWalletUtxoVerifier {
         tree_number: u32,
         _tree_index: u32,
         root: MerkleRoot,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let root: U256 = root.into();
         Ok(self
             .provider

@@ -1,6 +1,6 @@
 import { checksumAddress, createPublicClient, createWalletClient, http, parseAbi } from "viem";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner } from "../sdk/lib.js";
+import { chainConfigSepolia, erc20, UtxoSyncer, RailgunBuilder, RailgunSigner, BalanceEntry } from "../sdk/lib.js";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { ensureInitialized } from "../sdk/lib.js";
@@ -70,6 +70,9 @@ test("transact-utxo", async () => {
     const account1 = RailgunSigner.random(BigInt(CHAIN.id));
     const account2 = RailgunSigner.random(BigInt(CHAIN.id));
 
+    const wethBalance = (balances: BalanceEntry[]) =>
+        balances.find(b => b.asset.value === CHAIN.wrappedBaseToken)?.amount;
+
     console.log("Sync Railgun");
     await railgun.sync();
     railgun.register(account1);
@@ -94,8 +97,8 @@ test("transact-utxo", async () => {
         const balance1 = await railgun.balance(account1.address);
         const balance2 = await railgun.balance(account2.address);
 
-        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(997500n);
-        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBeUndefined();
+        expect(wethBalance(balance1)).toBe(997500n);
+        expect(wethBalance(balance2)).toBeUndefined();
     }
 
     console.log("Testing Transfer");
@@ -114,8 +117,8 @@ test("transact-utxo", async () => {
         const balance1 = await railgun.balance(account1.address);
         const balance2 = await railgun.balance(account2.address);
 
-        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(992500n);
-        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(5000n);
+        expect(wethBalance(balance1)).toBe(992500n);
+        expect(wethBalance(balance2)).toBe(5000n);
     }
 
     console.log("Testing Unshield");
@@ -135,8 +138,8 @@ test("transact-utxo", async () => {
         const balance1 = await railgun.balance(account1.address);
         const balance2 = await railgun.balance(account2.address);
 
-        expect(balance1.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(991500n);
-        expect(balance2.find((entry) => JSON.stringify(entry[0]) === JSON.stringify(WETH))?.[1]).toBe(5000n);
+        expect(wethBalance(balance1)).toBe(991500n);
+        expect(wethBalance(balance2)).toBe(5000n);
         const eoaBalance = await publicClient.readContract({
             address: CHAIN.wrappedBaseToken,
             abi: erc20Abi,
