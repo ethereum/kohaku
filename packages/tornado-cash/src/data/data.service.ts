@@ -171,7 +171,7 @@ export class DataService implements IDataService {
   }
 
   isPoolRootValid(poolAddress: Address, root: bigint): Promise<boolean> {
-    return this.ethClient.makeContractRequest(poolAddress, 'pool', 'isKnownRoot', toHex(root))
+    return this.ethClient.makeContractRequest(poolAddress, 'pool', 'isKnownRoot', toHex(root, { size: 32 }))
   }
 
   async getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint> {
