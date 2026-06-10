@@ -1,5 +1,7 @@
 use std::process::Stdio;
 
+use tracing::info;
+
 /// Helper for spawning an Anvil process in tests
 pub struct Anvil {
     process: std::process::Child,
@@ -45,6 +47,11 @@ impl AnvilBuilder {
     }
 
     pub async fn spawn(self) -> Anvil {
+        info!(
+            "Spawning Anvil with fork_url={:?}, fork_block={:?}, port={}, log={}",
+            self.fork_url, self.fork_block, self.port, self.log
+        );
+
         let mut args = vec!["--port".to_string(), self.port.to_string()];
         if let Some(url) = self.fork_url {
             args.extend(["--fork-url".to_string(), url]);

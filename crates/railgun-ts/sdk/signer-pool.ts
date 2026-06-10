@@ -42,10 +42,12 @@ export class SignerPool {
             const balances = await provider.balance(signer.address);
 
             for (const b of balances) {
-                const asset = b[0];
-                const balance = b[1];
+                const asset = b.asset;
+                const balance = b.amount;
+                const poiStatus = b.poiStatus;
                 if (balance <= 0n) continue;
                 if (asset.type !== "Erc20") continue;
+                if (poiStatus !== undefined && poiStatus !== "Valid") continue;
 
                 const need = remaining.get(asset.value);
                 if (!need || need <= 0n) continue;

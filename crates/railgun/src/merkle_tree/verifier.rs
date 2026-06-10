@@ -9,5 +9,5 @@ pub trait MerkleTreeVerifier: common::MaybeSend {
         tree_number: u32,
         tree_index: u32,
         root: MerkleRoot,
-    ) -> Result<bool, Box<dyn std::error::Error>>;
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync + 'static>>;
 }

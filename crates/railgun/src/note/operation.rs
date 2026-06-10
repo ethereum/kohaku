@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use alloy::primitives::Address;
 use thiserror::Error;
 
 use crate::{
@@ -34,6 +35,9 @@ pub struct Operation {
 
     /// The asset this operation is spending.
     pub asset: AssetId,
+
+    pub adapt_contract: Option<Address>,
+    pub adapt_params: Option<[u8; 32]>,
 
     in_notes: Vec<UtxoNote>,
     out_notes: Vec<TransferNote>,
@@ -74,6 +78,8 @@ impl Operation {
             in_notes,
             out_notes,
             unshield_note: unshield,
+            adapt_contract: None,
+            adapt_params: None,
         }
     }
 
@@ -85,6 +91,8 @@ impl Operation {
             in_notes: Vec::new(),
             out_notes: Vec::new(),
             unshield_note: None,
+            adapt_contract: None,
+            adapt_params: None,
         }
     }
 
@@ -130,11 +138,6 @@ impl Operation {
 }
 
 impl Operation {
-    /// UTXO tree number for these in_notes
-    pub fn utxo_tree_number(&self) -> u32 {
-        self.utxo_tree_number
-    }
-
     pub fn in_value(&self) -> u128 {
         self.in_notes.iter().map(|n| n.value()).sum()
     }

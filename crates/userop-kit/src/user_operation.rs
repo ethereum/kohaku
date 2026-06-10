@@ -4,6 +4,8 @@ use alloy::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::abis::entry_point::EntryPoint::PackedUserOperation;
+
 /// ERC-4337 UserOperation in unpacked JSON-RPC wire format.
 ///
 /// EntryPoint 0.7 & 0.8
@@ -133,6 +135,14 @@ pub struct UserOperationGasEstimate {
     #[serde(default, with = "alloy::serde::quantity::opt")]
     #[cfg_attr(js, tsify(type = "`0x${string}`"))]
     pub paymaster_post_op_gas_limit: Option<u128>,
+
+    #[serde(with = "alloy::serde::quantity")]
+    #[cfg_attr(js, tsify(type = "`0x${string}`"))]
+    pub max_fee_per_gas: u128,
+
+    #[serde(with = "alloy::serde::quantity")]
+    #[cfg_attr(js, tsify(type = "`0x${string}`"))]
+    pub max_priority_fee_per_gas: u128,
 }
 
 /// Receipt returned by `eth_getUserOperationReceipt`.
@@ -171,6 +181,10 @@ pub struct UserOperationReceipt {
 }
 
 impl UserOperation {
+    pub fn into_packed(&self) -> PackedUserOperation {
+        self.into()
+    }
+
     /// Returns the total gas limit for this UserOperation, including paymaster gas limits if
     /// applicable.
     pub fn total_gas_limit(&self) -> u128 {

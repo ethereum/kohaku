@@ -1,7 +1,8 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct RpcClient {
     client: Client,
@@ -17,8 +18,6 @@ pub enum RpcClientError {
     Json(#[from] serde_json::Error),
     #[error("RPC error {code}: {message}")]
     Rpc { code: i64, message: String },
-    #[error("Missing result")]
-    MissingResult,
 }
 
 #[derive(Deserialize)]

@@ -1,5 +1,7 @@
 use std::process::Stdio;
 
+use tracing::info;
+
 /// Helper for spawning an Alto process in tests
 pub struct Alto {
     process: std::process::Child,
@@ -68,6 +70,17 @@ impl AltoBuilder {
     }
 
     pub async fn spawn(self) -> Alto {
+        info!(
+            "Spawning Alto with entrypoints={:?}, executor_private_keys={:?}, utility_private_key={:?}, rpc_url={:?}, safe_mode={}, port={}, log={}",
+            self.entrypoints,
+            self.executor_private_keys,
+            self.utility_private_key,
+            self.rpc_url,
+            self.safe_mode,
+            self.port,
+            self.log
+        );
+
         let mut args = vec!["--port".to_string(), self.port.to_string()];
         if !self.entrypoints.is_empty() {
             args.extend(["--entrypoints".to_string(), self.entrypoints.join(",")]);

@@ -4732,6 +4732,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "alloy",
+ "anyhow",
  "ark-bn254 0.6.0",
  "ark-circom",
  "ark-ff 0.6.0",
@@ -6530,6 +6531,7 @@ name = "userop-kit-ts"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "eip-1193-provider",
  "reqwest",
  "userop-kit",
  "wasm-bindgen",

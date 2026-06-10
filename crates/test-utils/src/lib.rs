@@ -8,8 +8,8 @@ use alloy::{
     providers::{Provider, ext::AnvilApi},
     signers::local::PrivateKeySigner,
 };
-pub use alto::AltoBuilder;
-pub use anvil::AnvilBuilder;
+pub use alto::{Alto, AltoBuilder};
+pub use anvil::{Anvil, AnvilBuilder};
 
 pub async fn set_balances(provider: &impl Provider, addresses: &[Address], value: U256) {
     for addr in addresses {

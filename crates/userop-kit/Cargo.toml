@@ -9,8 +9,6 @@ crate-type = ["rlib"]
 [features]
 default = []
 js = ["dep:tsify", "dep:wasm-bindgen"]
-railgun = []
-tornadocash = []
 
 [dependencies]
 alloy = { workspace = true, features = [
