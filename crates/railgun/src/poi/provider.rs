@@ -208,11 +208,11 @@ impl PoiProvider {
                     info!("Submitted POI for {:?}", entry.txid);
                     self.inner.pending.remove(i);
                 }
+                Err(PendingPoiError::MissingTxid(_)) => {
+                    info!("Waiting for txid to be indexed: {:?}", entry.txid);
+                }
                 Err(e) => {
-                    warn!(
-                        "Failed to submit POI for pending entry {:?}: {:?}",
-                        entry.txid, e
-                    );
+                    warn!("Failed to submit POI for pending entry: {:?}", e);
                 }
             }
         }

@@ -40,22 +40,6 @@ impl JsBundler {
         })
     }
 
-    #[wasm_bindgen(js_name = "suggestMaxFeePerGas")]
-    pub async fn suggest_max_fee_per_gas(&self) -> Result<u128, JsError> {
-        self.inner
-            .suggest_max_fee_per_gas()
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
-    }
-
-    #[wasm_bindgen(js_name = "suggestMaxPriorityFeePerGas")]
-    pub async fn suggest_max_priority_fee_per_gas(&self) -> Result<u128, JsError> {
-        self.inner
-            .suggest_max_priority_fee_per_gas()
-            .await
-            .map_err(|e| JsError::new(&e.to_string()))
-    }
-
     #[wasm_bindgen(js_name = "estimateGas")]
     pub async fn estimate_gas(
         &self,

@@ -64,6 +64,18 @@ jobs:
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
             PPV1_MAINNET_FORK_BLOCK: ${{ secrets.PPV1_MAINNET_FORK_BLOCK }}
             PPV1_SEPOLIA_FORK_BLOCK: ${{ secrets.PPV1_SEPOLIA_FORK_BLOCK }}
+
+        - name: Run Tornado Cash tests
+          uses: nick-fields/retry@v3
+          with:
+            timeout_minutes: 20
+            max_attempts: 3
+            command: pnpm --filter @kohaku-eth/tornado-cash test
+          env:
+            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+            RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+            TC_MAINNET_FORK_BLOCK: ${{ secrets.TC_MAINNET_FORK_BLOCK }}
+            TC_SEPOLIA_FORK_BLOCK: ${{ secrets.TC_SEPOLIA_FORK_BLOCK }}
         
         - name: Run Railgun tests
           run: cd crates/railgun-ts && pnpm test:e2e

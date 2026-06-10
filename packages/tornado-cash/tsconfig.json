@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "verbatimModuleSyntax": false,
+    "paths": {
+      "#worker-loader": ["./src/plugin/worker-loader.browser.js"],
+      "#circuit-loader": ["./src/utils/circuit-loader.browser.js"]
+    }
+  },
+  "include": ["src", "demo"]
+}

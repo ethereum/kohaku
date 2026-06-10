@@ -1,8 +1,20 @@
+allowBuilds:
+  blake-hash: true
+  es5-ext: true
+  esbuild: true
+  keccak: true
+  msgpackr-extract: true
+  protobufjs: true
 autoInstallPeers: false
+blockExoticSubdeps: false
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
   - "packages/plugins"
+  - "packages/tornado-cash"
   - "examples/pq-account"
-  - "docs"
   - "crates/railgun-ts"
+  - "docs"
+
+patchedDependencies:
+  snarkjs@0.1.20: patches/snarkjs@0.1.20.patch

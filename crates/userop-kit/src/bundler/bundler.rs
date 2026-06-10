@@ -18,8 +18,6 @@ pub enum BundlerError {
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait Bundler {
-    async fn suggest_max_fee_per_gas(&self) -> Result<u128, BundlerError>;
-    async fn suggest_max_priority_fee_per_gas(&self) -> Result<u128, BundlerError>;
     async fn estimate_gas(
         &self,
         op: &SignableUserOperation,

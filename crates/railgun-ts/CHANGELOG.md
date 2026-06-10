@@ -1,5 +1,17 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.24
+
+### Patch Changes
+
+- f36d197: bump tornado and railgun
+
+## 0.0.1-alpha.23
+
+### Patch Changes
+
+- 23841f1: enable mainnet
+
 ## 0.0.1-alpha.22
 
 ### Patch Changes

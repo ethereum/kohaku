@@ -7,7 +7,8 @@
     "docs": "0.0.0",
     "@kohaku-eth/privacy-pools": "0.0.1-alpha.1",
     "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
-    "@kohaku-eth/plugins": "0.0.1-alpha.1"
+    "@kohaku-eth/plugins": "0.0.1-alpha.1",
+    "@kohaku-eth/tornado-cash": "0.0.2-alpha.8"
   },
   "changesets": [
     "beige-islands-give",
@@ -18,6 +19,7 @@
     "early-geese-show",
     "easy-tigers-rescue",
     "eleven-pots-stay",
+    "free-heads-taste",
     "good-papers-kick",
     "green-ducks-appear",
     "heavy-readers-sniff",
@@ -32,6 +34,7 @@
     "shy-donkeys-wave",
     "slimy-boxes-flash",
     "small-times-tap",
+    "vast-colts-sell",
     "wide-words-smash"
   ],
   "ignore": [
