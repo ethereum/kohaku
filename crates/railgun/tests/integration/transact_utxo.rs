@@ -7,6 +7,7 @@ use alloy::{
     signers::local::PrivateKeySigner,
     sol,
 };
+use kohaku_test_utils::AnvilBuilder;
 use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
@@ -18,8 +19,6 @@ use railgun::{
 use rand::random;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-
-use crate::utils::AnvilBuilder;
 
 sol! {
     #[sol(rpc)]

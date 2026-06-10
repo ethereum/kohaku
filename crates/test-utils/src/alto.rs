@@ -111,7 +111,7 @@ impl AltoBuilder {
             .spawn()
             .expect("Failed to start Alto process");
 
-        crate::utils::wait_for_port(self.port).await;
+        crate::wait_for_port(self.port).await;
 
         Alto { process }
     }

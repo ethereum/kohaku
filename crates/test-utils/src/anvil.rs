@@ -68,7 +68,7 @@ impl AnvilBuilder {
             .spawn()
             .expect("Failed to start Anvil process");
 
-        crate::utils::wait_for_port(self.port).await;
+        crate::wait_for_port(self.port).await;
 
         Anvil { process }
     }

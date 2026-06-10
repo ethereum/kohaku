@@ -3786,6 +3786,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kohaku-test-utils"
+version = "0.1.0"
+dependencies = [
+ "alloy",
+ "tokio",
+]
+
+[[package]]
 name = "lalrpop"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4751,6 +4759,7 @@ dependencies = [
  "hex",
  "insta",
  "js-sys",
+ "kohaku-test-utils",
  "num-bigint",
  "railgun",
  "rand 0.9.4",
