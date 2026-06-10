@@ -14,7 +14,7 @@ pub enum LogLevel {
 }
 
 /// Initialize console logging. Call once at startup to route tracing events
-/// to the browser console. Defaults to `Info` if omitted.
+/// to the browser console. Pass `Off` to disable logging.
 #[wasm_bindgen(js_name = "initLogging")]
 pub fn init_logging(#[wasm_bindgen(js_name = "maxLevel")] max_level: LogLevel) {
     let level: tracing::Level = match max_level {

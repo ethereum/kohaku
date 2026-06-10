@@ -1,5 +1,11 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.25
+
+### Patch Changes
+
+- c1dc36b: fix: ts logs adhere to LogLevel
+
 ## 0.0.1-alpha.24
 
 ### Patch Changes
