@@ -45,6 +45,7 @@ import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
 import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, SimpleSmartAccount, TransactionBuilder, UtxoSyncer, type Call, type ChainConfig, type LogLevel, type RailgunAddress } from "../pkg";
 import { ensureInitialized } from "./lib";
+import { tsLog } from "./logger";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { DatabaseAdapter } from "./database";
 import { encodeFunctionData } from "viem";
@@ -116,12 +117,12 @@ export type BundlerConfig = {
 export async function createRailgunPlugin(host: Host, config?: RailgunPluginConfig): Promise<RailgunPlugin> {
     await ensureInitialized(undefined, config?.logLevel || "Off");
 
-    console.log("Deriving keys");
+    tsLog("Deriving keys");
     const keyIndex = config?.keyIndex ?? 0;
     const spendingKey = host.keystore.deriveAt(RailgunSigner.spendingKeyPath(keyIndex));
     const viewingKey = host.keystore.deriveAt(RailgunSigner.viewingKeyPath(keyIndex));
 
-    console.log("Fetching chain config");
+    tsLog("Fetching chain config");
     const chainId = await host.provider.getChainId();
     const chain = chainConfig(chainId);
     if (!chain) {
@@ -131,7 +132,7 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
     const eip1193Provider = new EthereumProviderAdapter(host.provider);
     const database = new DatabaseAdapter(chainId.toString(), host.storage);
 
-    console.log("Building Railgun provider");
+    tsLog("Building Railgun provider");
     let builder = new RailgunBuilder(chain, eip1193Provider)
         .withDatabase(database)
         .withUtxoSyncer(
@@ -141,19 +142,19 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
             ])
         );
     if (config?.poi !== false) {
-        console.log("Enabling POI");
+        tsLog("Enabling POI");
         builder = builder.withPoi();
     }
 
-    console.log("Initializing provider");
+    tsLog("Initializing provider");
     const provider = await builder.build();
     const signer = RailgunSigner.privateKey(spendingKey, viewingKey, chainId);
 
-    console.log("Registering signer with provider");
+    tsLog("Registering signer with provider");
     await provider.register(signer);
     const pool = new SignerPool(signer);
 
-    console.log("Creating plugin instance");
+    tsLog("Creating plugin instance");
     const plugin = new RailgunPlugin(chain, provider, pool);
     plugin.setBundler(config?.bundler?.bundler);
     if (config?.bundler?.smartAccountSigner) {
@@ -200,10 +201,10 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
     }
 
     async balance(assets: AssetId[] | undefined): Promise<AssetAmount[]> {
-        console.log("Syncing provider before balance query");
+        tsLog("Syncing provider before balance query");
         await this.provider.sync();
 
-        console.log("Calculating balances across all signers");
+        tsLog("Calculating balances across all signers");
         const all: Map<string, AssetAmount> = new Map();
         for (const signer of this.pool.all) {
             const balances = await this.provider.balance(signer.address);
@@ -361,10 +362,10 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         const signedUserOp = await signableUserOp.sign(this.smartAccountSigner);
         const userOpHash = await this.bundler.sendUserOperation(signedUserOp);
 
-        console.log(`Broadcasted user operation with hash: ${userOpHash}`);
+        tsLog(`Broadcasted user operation with hash: ${userOpHash}`);
 
         const receipt = await this.bundler.waitForReceipt(userOpHash);
-        console.log(`User operation included: ${JSON.stringify(receipt)}`);
+        tsLog(`User operation included: ${JSON.stringify(receipt)}`);
 
         // Sync after broadcast to update state.
         await this.provider.sync();
