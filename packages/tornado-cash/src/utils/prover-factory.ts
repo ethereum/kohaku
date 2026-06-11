@@ -1,8 +1,9 @@
-import { createTornadoProver, ITornadoProver } from './tornado-prover';
 import { ITornadoArtifacts } from '../plugin/interfaces/protocol-params.interface';
+import { ITornadoProver } from './tornado-prover';
 
 export function makeLazyProverFactory(
-  artifactsLoader: () => Promise<ITornadoArtifacts>
+  artifactsLoader: () => Promise<ITornadoArtifacts>,
+  version: 'legacy' | 'js' = 'legacy'
 ): () => Promise<ITornadoProver> {
   let prover: ITornadoProver | null = null;
 
@@ -10,7 +11,11 @@ export function makeLazyProverFactory(
     if (!prover) {
       const { circuitText, provingKey } = await artifactsLoader();
 
-      prover = await createTornadoProver(JSON.parse(circuitText), provingKey);
+      const actualProverFactory = await (version === 'js' ?
+        import('./tornado-prover-v2').then((m) => m.createTornadoProver) :
+        import('./tornado-prover').then((m) => m.createTornadoProver));
+
+      prover = await actualProverFactory(JSON.parse(circuitText), provingKey);
     }
 
     return prover;

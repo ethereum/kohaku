@@ -1,6 +1,6 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { TCPrivateOperation, TCPublicOperation, PrivacyPoolsV1ProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig } from '../plugin/interfaces/protocol-params.interface.js';
+import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
 import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
@@ -17,12 +17,11 @@ export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResp
 interface TCBaseCredential {
     accountIndex: number;
 }
-export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential {
+export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential, Pick<TCProtocolParams, 'proverVersion' | 'initialState'> {
     protocolConfig: TCProtocolConfig;
     relayerConfig?: IRelayerFeeConfig;
-    initialState?: PrivacyPoolsV1ProtocolParams['initialState'];
-    artifacts: ITornadoArtifacts;
     stateManagerWorkerUrl?: string;
+    artifactsLoader?: () => Promise<ITornadoArtifacts>;
 };
 
 export type TCAddress = Address;
