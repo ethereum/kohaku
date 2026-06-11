@@ -35,7 +35,7 @@ export type Storage = {
      * Sets a value in storage.
      * @throws {Error}
      */
-    set(key: string, value: string): void;
+    set(key: string, value: string): Promise<void>;
 
     /**
      * Gets a value from storage.
@@ -43,7 +43,7 @@ export type Storage = {
      * @returns The value associated with the key, or null if the key does not exist.
      * @throws {Error}
      */
-    get(key: string): string | null;
+    get(key: string): Promise<string | null>;
 };
 
 /**
@@ -61,5 +61,5 @@ export type Keystore = {
      * @param path BIP-32 path to derive the key at.
      * @returns The derived private key as a hex string.
      */
-    deriveAt(path: string): Hex;
+    deriveAt(path: string): Promise<Hex>;
 };

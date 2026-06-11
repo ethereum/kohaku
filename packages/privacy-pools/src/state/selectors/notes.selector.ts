@@ -4,81 +4,84 @@ import { createSelector } from '@reduxjs/toolkit';
 import { ISecretManager, Secret } from '../../account/keys';
 import { Address } from '../../interfaces/types.interface';
 import { INote } from '../../plugin/interfaces/protocol-params.interface';
-import { createMyDepositsBalanceSelector } from './balance.selector';
-import { createMyWithdrawalsSelector } from './withdrawals.selector';
+import { RootState } from '../store';
+import { myDepositsBalanceSelector } from './balance.selector';
+import { userSecretsSelector } from './slices.selectors';
+import { myWithdrawalsSelector } from './withdrawals.selector';
 
 /**
- * Creates a selector that finds the smallest sufficient note for a withdrawal.
+ * Finds the smallest sufficient note for a withdrawal.
  * Returns undefined if no note has sufficient balance.
  */
-export const createGetNoteSelector = ({
-  myDepositsBalanceSelector,
-  myWithdrawalsSelector,
-}: {
-  myDepositsBalanceSelector: ReturnType<typeof createMyDepositsBalanceSelector>;
-  myWithdrawalsSelector: ReturnType<typeof createMyWithdrawalsSelector>;
-}) => {
-  return createSelector(
-    [
-      myDepositsBalanceSelector,
-      myWithdrawalsSelector,
-      (_state: unknown, assetAddress: Address) => assetAddress,
-      (_state: unknown, _assetAddress: Address, minAmount: bigint) => minAmount,
-    ],
-    (depositsMap, withdrawalsMap, assetAddress, minAmount): INote | undefined => {
-      // Filter deposits by asset and sufficient balance
-      const eligibleDeposits = Array.from(depositsMap.values())
-        .filter(deposit => deposit.assetAddress === assetAddress && deposit.balance >= minAmount);
+export const getNoteSelector = createSelector(
+  [
+    myDepositsBalanceSelector,
+    myWithdrawalsSelector,
+    (_state: unknown, assetAddress: Address) => assetAddress,
+    (_state: unknown, _assetAddress: Address, minAmount: bigint) => minAmount,
+  ],
+  (depositsMap, withdrawalsMap, assetAddress, minAmount): INote | undefined => {
+    const eligibleDeposits = Array.from(depositsMap.values())
+      .filter(deposit => deposit.assetAddress === assetAddress && deposit.balance >= minAmount);
 
-      if (eligibleDeposits.length === 0) {
-        return undefined;
-      }
-
-      // Sort by balance ascending to get smallest sufficient
-      eligibleDeposits.sort((a, b) => Number(a.balance - b.balance));
-
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { commitment, ...bestDeposit } = eligibleDeposits[0]!;
-
-      // Get withdrawal count for this deposit
-      const withdrawals = withdrawalsMap.get(bestDeposit.precommitment) || [];
-      const withdrawIndex = withdrawals.length;
-
-      return {
-        ...bestDeposit,
-        deposit: bestDeposit.index,
-        withdraw: withdrawIndex,
-      };
+    if (eligibleDeposits.length === 0) {
+      return undefined;
     }
-  );
-};
+
+    eligibleDeposits.sort((a, b) => Number(a.balance - b.balance));
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { commitment, ...bestDeposit } = eligibleDeposits[0]!;
+    const withdrawals = withdrawalsMap.get(bestDeposit.precommitment) || [];
+    const withdrawIndex = withdrawals.length;
+
+    return {
+      ...bestDeposit,
+      deposit: bestDeposit.index,
+      withdraw: withdrawIndex,
+    };
+  },
+);
 
 /**
- * Creates a selector that returns all notes for the account.
+ * Returns all notes for the account.
  */
-export const createAllNotesSelector = ({
-  myDepositsBalanceSelector,
-  myWithdrawalsSelector,
-}: {
-  myDepositsBalanceSelector: ReturnType<typeof createMyDepositsBalanceSelector>;
-  myWithdrawalsSelector: ReturnType<typeof createMyWithdrawalsSelector>;
-}) => {
-  return createSelector(
-    [myDepositsBalanceSelector, myWithdrawalsSelector],
-    (depositsMap, withdrawalsMap): INote[] => {
-      return Array.from(depositsMap.values()).map(deposit => ({
-        label: deposit.label,
-        precommitment: deposit.precommitment,
-        commitment: deposit.commitment,
-        value: deposit.value,
-        balance: deposit.balance,
-        assetAddress: deposit.assetAddress,
-        approved: deposit.approved,
-        deposit: deposit.index,
-        withdraw: (withdrawalsMap.get(deposit.precommitment) || []).length,
-      }));
-    }
-  );
+export const allNotesSelector = createSelector(
+  [myDepositsBalanceSelector, myWithdrawalsSelector],
+  (depositsMap, withdrawalsMap): INote[] => {
+    return Array.from(depositsMap.values()).map(deposit => ({
+      label: deposit.label,
+      precommitment: deposit.precommitment,
+      commitment: deposit.commitment,
+      value: deposit.value,
+      balance: deposit.balance,
+      assetAddress: deposit.assetAddress,
+      approved: deposit.approved,
+      deposit: deposit.index,
+      withdraw: (withdrawalsMap.get(deposit.precommitment) || []).length,
+    }));
+  },
+);
+
+/**
+ * Returns secrets for an existing note by reading directly from the userSecrets slice.
+ * No secretManager required.
+ */
+export const existingNoteSecretsSelector = (state: RootState, note: INote): Secret => {
+  const userSecretsMap = userSecretsSelector(state);
+  const record = userSecretsMap.get(note.precommitment);
+
+  if (!record) {
+    throw new Error(`No user secret found for precommitment ${note.precommitment}`);
+  }
+
+  const ns = record.noteSecrets[note.withdraw];
+
+  if (!ns) {
+    throw new Error(`No note secret at withdraw index ${note.withdraw} for deposit ${record.depositIndex}`);
+  }
+
+  return { nullifier: ns.nullifier, salt: ns.salt, precommitment: ns.precommitment, nullifierHash: ns.nullifierHash };
 };
 
 type NextNoteResult = {
@@ -87,28 +90,27 @@ type NextNoteResult = {
 };
 
 /**
- * Creates a function that computes the next note in a label lineage after a withdrawal.
- * This is not a Redux selector since it doesn't depend on state, only on secretManager.
+ * Creates an async deriver that computes the next note in a label lineage after a withdrawal.
+ * Remains a factory because it derives secretIndex N+1 which is not yet stored in the slice.
  */
 export const createNextNoteDeriver = ({
   secretManager,
 }: {
   secretManager: ISecretManager;
 }) => {
-  return (
+  return async (
     note: INote,
     withdrawAmount: bigint,
     chainId: bigint,
-    entrypointAddress: Address
-  ): NextNoteResult => {
+    entrypointAddress: Address,
+  ): Promise<NextNoteResult> => {
     const newBalance = note.balance - withdrawAmount;
 
     if (newBalance < 0n) {
       throw new Error("Withdrawal amount exceeds note balance");
     }
 
-    // Derive secrets for the next withdrawal index
-    const secrets = secretManager.getSecrets({
+    const secrets = await secretManager.getSecrets({
       entrypointAddress,
       chainId,
       depositIndex: note.deposit,
@@ -116,90 +118,48 @@ export const createNextNoteDeriver = ({
     });
 
     return {
-      note: {
-        ...note,
-        balance: newBalance,
-        withdraw: note.withdraw + 1,
-      },
+      note: { ...note, balance: newBalance, withdraw: note.withdraw + 1 },
       secrets,
     };
   };
 };
 
 /**
- * Creates a deriver function that gets secrets for an existing note.
- * Used to retrieve the secrets needed for spending an existing note in a withdrawal.
+ * Returns all unapproved notes with positive balance (candidates for ragequit).
  */
-export const createExistingNoteSecretsDeriver = ({
-  secretManager,
-}: {
-  secretManager: ISecretManager;
-}) => {
-  return (
-    note: INote,
-    chainId: bigint,
-    entrypointAddress: Address
-  ): Secret => {
-    return secretManager.getSecrets({
-      entrypointAddress,
-      chainId,
-      depositIndex: note.deposit,
-      withdrawIndex: note.withdraw,
-    });
-  };
-};
+export const unapprovedNotesSelector = createSelector(
+  [myDepositsBalanceSelector, myWithdrawalsSelector],
+  (depositsMap, withdrawalsMap): INote[] => {
+    return Array.from(depositsMap.values())
+      .filter(deposit => !deposit.approved && deposit.balance > 0n)
+      .map(deposit => ({
+        label: deposit.label,
+        precommitment: deposit.precommitment,
+        value: deposit.value,
+        balance: deposit.balance,
+        assetAddress: deposit.assetAddress,
+        approved: deposit.approved,
+        deposit: deposit.index,
+        withdraw: (withdrawalsMap.get(deposit.precommitment) || []).length,
+      }));
+  },
+);
 
 /**
- * Creates a selector that returns all unapproved notes with positive balance.
- * These are candidates for ragequit (exit without ASP approval).
+ * Filters unapproved notes by asset addresses.
  */
-export const createUnapprovedNotesSelector = ({
-  myDepositsBalanceSelector,
-  myWithdrawalsSelector,
-}: {
-  myDepositsBalanceSelector: ReturnType<typeof createMyDepositsBalanceSelector>;
-  myWithdrawalsSelector: ReturnType<typeof createMyWithdrawalsSelector>;
-}) => {
-  return createSelector(
-    [myDepositsBalanceSelector, myWithdrawalsSelector],
-    (depositsMap, withdrawalsMap): INote[] => {
-      return Array.from(depositsMap.values())
-        .filter(deposit => !deposit.approved && deposit.balance > 0n)
-        .map(deposit => ({
-          label: deposit.label,
-          precommitment: deposit.precommitment,
-          value: deposit.value,
-          balance: deposit.balance,
-          assetAddress: deposit.assetAddress,
-          approved: deposit.approved,
-          deposit: deposit.index,
-          withdraw: (withdrawalsMap.get(deposit.precommitment) || []).length,
-        }));
+export const unapprovedNotesByAssetSelector = createSelector(
+  [
+    unapprovedNotesSelector,
+    (_state: unknown, assets: Address[]) => assets,
+  ],
+  (notes, assets): INote[] => {
+    if (assets.length === 0) {
+      return notes;
     }
-  );
-};
 
-/**
- * Creates a selector that filters unapproved notes by asset addresses.
- */
-export const createUnapprovedNotesByAssetSelector = ({
-  unapprovedNotesSelector,
-}: {
-  unapprovedNotesSelector: ReturnType<typeof createUnapprovedNotesSelector>;
-}) => {
-  return createSelector(
-    [
-      unapprovedNotesSelector,
-      (_state: unknown, assets: Address[]) => assets,
-    ],
-    (notes, assets): INote[] => {
-      if (assets.length === 0) {
-        return notes; // Return all if no filter
-      }
+    const assetSet = new Set(assets.map(a => a.toString()));
 
-      const assetSet = new Set(assets.map(a => a.toString()));
-
-      return notes.filter(note => assetSet.has(note.assetAddress.toString()));
-    }
-  );
-};
+    return notes.filter(note => assetSet.has(note.assetAddress.toString()));
+  },
+);

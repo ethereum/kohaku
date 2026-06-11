@@ -214,7 +214,7 @@ export const MOCK_IPFS_CID = 'bafybeihrecrgyfkzyzli2oxnpfos5z2fgjt7zs52cbjyppigu
 interface SimplifiedProtocolParams {
   entrypoint: IEntrypoint,
   host: Host,
-  initialState?: InitialState;
+  initialState?: () => Promise<InitialState>;
   aspServiceFactory?: () => IMockAspService;
   rpcUrl: string;
   postman: string;
