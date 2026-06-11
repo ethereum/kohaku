@@ -31,6 +31,7 @@
     "build:js": "tsc && cp -r pkg dist/ && rm -f dist/pkg/.gitignore",
     "test:e2e": "pnpm run test:e2e:transact-utxo && pnpm run test:e2e:plugin-sync && pnpm run test:e2e:plugin-transact-broadcast",
     "test:e2e:transact-utxo": "INTEGRATION=1 vitest run -t transact-utxo",
+    "test:e2e:broadcast-utxo": "INTEGRATION=1 vitest run -t broadcast-utxo",
     "test:e2e:plugin-sync": "INTEGRATION=1 vitest run -t plugin-sync",
     "test:e2e:plugin-transact-broadcast": "INTEGRATION=1 vitest run -t plugin-transact-broadcast"
   },
