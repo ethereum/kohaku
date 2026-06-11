@@ -2,7 +2,6 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "verbatimModuleSyntax": false,
     "paths": {
       "#worker-loader": ["./src/plugin/worker-loader.browser.js"],
