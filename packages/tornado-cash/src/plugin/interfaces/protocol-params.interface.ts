@@ -6,7 +6,6 @@ import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover";
-import { ITornadoProver } from "../../utils/tornado-prover";
 import { TxData } from '@kohaku-eth/provider';
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
@@ -62,7 +61,6 @@ export interface TCProtocolParams extends Pick<WorkerInitOptions, 'proverVersion
   protocolConfig: TCProtocolConfig;
   relayerConfig?: IRelayerFeeConfig;
   artifactsLoader?: () => Promise<ITornadoArtifacts>;
-  proverFactory?: () => Promise<ITornadoProver>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
   stateManagerWorkerUrl?: string;
 }
