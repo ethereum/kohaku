@@ -10,13 +10,13 @@ use alloy::{
 use kohaku_test_utils::AnvilBuilder;
 use tornadocash::{
     indexer::rpc::RpcSyncer,
-    provider::{pool::Pool, pool_provider::PoolProvider},
+    provider::{pool::Pool, provider::TornadoProvider},
 };
 use tracing::info;
 
 #[tokio::test]
 #[ignore]
-async fn test_pool_provider() -> Result<(), anyhow::Error> {
+async fn test_provider() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_test_writer()
@@ -41,12 +41,12 @@ async fn test_pool_provider() -> Result<(), anyhow::Error> {
         .await?;
     let syncer = Arc::new(RpcSyncer::new(provider.clone()).with_batch_size(10_000));
 
-    let mut pool_provider = PoolProvider::new(pool, syncer.clone(), syncer.clone());
+    let mut tornado_provider = TornadoProvider::new(syncer.clone(), syncer.clone());
     info!("Syncing pool provider");
-    pool_provider.sync().await?;
+    tornado_provider.sync().await?;
 
     info!("Depositing into pool");
-    let (tx_data, note) = pool_provider.deposit(&mut rand::rng());
+    let (tx_data, note) = tornado_provider.deposit(pool, &mut rand::rng());
     info!("Deposit tx data: {tx_data:?}");
     info!("Deposit note: {note:?}");
 
@@ -62,11 +62,11 @@ async fn test_pool_provider() -> Result<(), anyhow::Error> {
         .await?;
     info!("Deposit tx receipt: {receipt:?}");
 
-    pool_provider.sync().await?;
+    tornado_provider.sync().await?;
 
     info!("Withdrawing from pool");
     let recipient: Address = PrivateKeySigner::random().address();
-    let tx_data = pool_provider
+    let tx_data = tornado_provider
         .withdraw(&note, recipient, None, None, None, &mut rand::rng())
         .await?;
     info!("Withdraw tx data: {tx_data:?}");

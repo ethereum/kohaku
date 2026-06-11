@@ -6,7 +6,7 @@ use alloy::{
     providers::{DynProvider, Provider, ProviderBuilder},
     sol,
 };
-use kohaku_test_utils::{AltoBuilder, AnvilBuilder, set_pk_balances};
+use kohaku_test_utils::{Alto, AltoBuilder, Anvil, AnvilBuilder, set_pk_balances};
 use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,

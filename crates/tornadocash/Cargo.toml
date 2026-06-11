@@ -43,6 +43,7 @@ insta = { workspace = true }
 tracing-subscriber = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 alloy = { workspace = true, features = ["signers", "signer-local"] }
+kohaku-test-utils = { workspace = true }
 
 [build-dependencies]
 cfg_aliases = { workspace = true }

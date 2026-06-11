@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
 use alloy::{
+    network::TransactionBuilder,
     primitives::{Address, Bytes, U256, address, aliases::U192, bytes},
-    rpc::types::Authorization,
+    providers::Provider,
+    rpc::types::{Authorization, TransactionRequest},
 };
 use alloy_sol_types::{Eip712Domain, SolCall};
+use anyhow::Context;
 use eip_1193_provider::provider::{Eip1193Caller, Eip1193Provider, IntoEip1193Provider};
 use serde::{Deserialize, Serialize};
 
@@ -19,10 +22,10 @@ use crate::{
 /// Defaults to the v0.8 EntryPoint and the eth-infinitism Simple7702Account implementation at
 /// `0xe6Cae83BdE06E4c305530e199D7217f42808555B`.
 #[derive(Clone)]
-pub struct SimpleSmartAccount {
+pub struct Simple7702SmartAccount<P: Provider> {
     owner: Address,
     chain_id: u64,
-    provider: Arc<dyn Eip1193Provider>,
+    provider: P,
 
     implementation: Address,
     entry_point: Address,
@@ -43,8 +46,8 @@ pub struct Call {
     pub data: Bytes,
 }
 
-impl SimpleSmartAccount {
-    pub fn new(owner: Address, chain_id: u64, provider: impl IntoEip1193Provider) -> Self {
+impl<P: Provider> Simple7702SmartAccount<P> {
+    pub fn new(provider: P, owner: Address, chain_id: u64) -> Self {
         let implementation = address!("0xe6Cae83BdE06E4c305530e199D7217f42808555B");
         let entry_point = ENTRY_POINT_08;
         let domain = entry_point_08_domain(chain_id);
@@ -55,7 +58,7 @@ impl SimpleSmartAccount {
         Self {
             owner,
             chain_id,
-            provider: provider.into_eip1193(),
+            provider,
             implementation,
             entry_point,
             domain,
@@ -66,7 +69,7 @@ impl SimpleSmartAccount {
 
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
-impl SmartAccount for SimpleSmartAccount {
+impl<P: Provider> SmartAccount for Simple7702SmartAccount<P> {
     type Call = Vec<Call>;
 
     fn entry_point(&self) -> Address {
@@ -82,13 +85,19 @@ impl SmartAccount for SimpleSmartAccount {
     }
 
     async fn nonce(&self) -> Result<U256, SmartAccountError> {
+        let call = EntryPoint::getNonceCall::new((self.owner, U192::from(0))).abi_encode();
+
         let nonce = self
             .provider
-            .sol_call(
-                self.entry_point,
-                EntryPoint::getNonceCall::new((self.owner, U192::from(0))),
+            .call(
+                TransactionRequest::default()
+                    .with_to(self.entry_point)
+                    .input(call.into()),
             )
             .await?;
+        let nonce = EntryPoint::getNonceCall::abi_decode_returns(&nonce)
+            .context("Failed to decode nonce")?;
+
         Ok(nonce)
     }
 
@@ -127,10 +136,10 @@ impl SmartAccount for SimpleSmartAccount {
     }
 }
 
-impl SimpleSmartAccount {
+impl<P: Provider> Simple7702SmartAccount<P> {
     /// Gets the nonce for the owner address
     async fn owner_nonce(&self) -> Result<u64, SmartAccountError> {
-        let nonce = self.provider.transaction_count(self.owner, None).await?;
+        let nonce = self.provider.get_transaction_count(self.owner).await?;
         Ok(nonce)
     }
 }

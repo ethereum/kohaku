@@ -10,3 +10,4 @@ crate-type = ["rlib"]
 [dependencies]
 alloy = { workspace = true, features = ["provider-anvil-api"] }
 tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }

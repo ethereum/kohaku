@@ -3789,6 +3789,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6510,6 +6511,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-sol-types",
+ "anyhow",
  "async-trait",
  "cfg_aliases",
  "common",

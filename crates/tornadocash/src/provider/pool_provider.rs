@@ -27,7 +27,10 @@ use crate::{
     },
 };
 
-/// A provider for a single tornadocash pool
+/// A provider for a single tornadocash pool.
+///
+/// The provider manages syncing and verifying the trie state, generating merkle proofs, and
+/// creating deposit and withdrawal transactions.
 pub struct PoolProvider {
     indexer: Indexer,
     artifact_loader: RemoteArtifactLoader,

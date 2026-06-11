@@ -100,8 +100,10 @@ impl RemoteArtifactLoader {
 
     async fn fetch(&self, url: &str) -> Result<Vec<u8>, reqwest::Error> {
         if let Some(cached) = self.cache.lock().unwrap().get(url) {
+            info!("Cache hit for {}", url);
             return Ok(cached);
         }
+        info!("Cache miss for {}, downloading...", url);
         let data = self.client.get(url).send().await?.bytes().await?.to_vec();
         self.cache
             .lock()

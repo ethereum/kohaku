@@ -14,8 +14,10 @@ use crate::{
     },
 };
 
-/// TornadoProvider manages multiple pools and provides a unified interface for
-/// deposits and withdrawals
+/// A provider for multiple tornadocash pools.
+///
+/// The provider manages multiple `PoolProvider`s for requested pools, providing a unified
+/// interface.
 pub struct TornadoProvider {
     syncer: Arc<dyn Syncer>,
     verifier: Arc<dyn Verifier>,

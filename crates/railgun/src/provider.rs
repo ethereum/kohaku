@@ -180,7 +180,7 @@ impl RailgunProvider {
         sender: &S,
         fee_payer: Arc<dyn RailgunSigner>,
         fee_token: Address,
-        calldata: S::CallData,
+        calldata: S::Call,
         rng: &mut impl Rng,
     ) -> Result<SignableUserOperation, RailgunProviderError> {
         let privacy_paymaster = self.chain.privacy_paymaster.ok_or(
@@ -199,7 +199,6 @@ impl RailgunProvider {
 
         let paymaster_railgun_address = paymaster_railgun_address(ChainId::evm(self.chain.id));
         let fee_asset = AssetId::Erc20(fee_token);
-        let calldata = sender.encode_call_data(calldata);
 
         //? Initial arbitrary estimation of fee note value.
         //? IMPORTANT: Needs to be high enough to not cause a revert. Most
@@ -245,8 +244,8 @@ impl RailgunProvider {
             let mut signable = UserOperationBuilder::new_with_smart_account(sender)
                 .await
                 .map_err(|e| RailgunProviderError::Other(Box::new(e)))?
-                .with_calldata(calldata.clone())
-                .with_paymaster(privacy_paymaster, paymaster_data)
+                .with_call(&calldata)
+                .with_paymaster_and_data(privacy_paymaster, paymaster_data)
                 .with_gas_estimate(bundler)
                 .await?
                 .build();

@@ -45,42 +45,25 @@ impl CircuitInputs {
 
     /// Convert the circuit inputs into a circuit input signal map
     pub fn as_signals(self) -> HashMap<String, Value> {
-        let mut map = HashMap::new();
-        map.insert("root".to_string(), Value::Number(self.root.into()));
-        map.insert(
-            "nullifierHash".to_string(),
-            Value::Number(self.nullifier_hash.into()),
-        );
-        map.insert(
-            "recipient".to_string(),
-            Value::Number(self.recipient.into()),
-        );
-        map.insert("relayer".to_string(), Value::Number(self.relayer.into()));
-        map.insert("fee".to_string(), Value::Number(self.fee.into()));
-        map.insert("refund".to_string(), Value::Number(self.refund.into()));
-        map.insert(
-            "nullifier".to_string(),
-            Value::Number(self.nullifier.into()),
-        );
-        map.insert("secret".to_string(), Value::Number(self.secret.into()));
-        map.insert(
-            "pathElements".to_string(),
-            Value::Array(
-                self.path_elements
-                    .into_iter()
-                    .map(|e| Value::Number(e.into()))
-                    .collect(),
-            ),
-        );
-        map.insert(
-            "pathIndices".to_string(),
-            Value::Array(
-                self.path_indices
-                    .into_iter()
-                    .map(|e| Value::Number(e.into()))
-                    .collect(),
-            ),
-        );
-        map
+        HashMap::from([
+            ("root".into(), to_value(self.root)),
+            ("nullifierHash".into(), to_value(self.nullifier_hash)),
+            ("recipient".into(), to_value(self.recipient)),
+            ("relayer".into(), to_value(self.relayer)),
+            ("fee".into(), to_value(self.fee)),
+            ("refund".into(), to_value(self.refund)),
+            ("nullifier".into(), to_value(self.nullifier)),
+            ("secret".into(), to_value(self.secret)),
+            ("pathElements".into(), to_value_arr(&self.path_elements)),
+            ("pathIndices".into(), to_value_arr(&self.path_indices)),
+        ])
     }
+}
+
+fn to_value(value: U256) -> Value {
+    Value::Number(value.into())
+}
+
+fn to_value_arr(values: &[U256]) -> Value {
+    Value::Array(values.iter().map(|v| to_value(*v)).collect())
 }
