@@ -67,8 +67,7 @@ mod tests {
         )
         .into();
 
-        tree.insert_leaves_raw(&leaves, 0);
-        tree.rebuild();
+        tree.insert_leaves(&leaves, 0);
 
         let root = tree.root();
         assert_eq!(root, expected_root);
@@ -87,8 +86,7 @@ mod tests {
     fn test_state() {
         let mut tree = MerkleTree::new(0);
         let leaves: Vec<U256> = (0..10u64).map(|i| U256::from(i + 1)).collect();
-        tree.insert_leaves_raw(&leaves, 0);
-        tree.rebuild();
+        tree.insert_leaves(&leaves, 0);
 
         let state = tree.state();
         let rebuilt_tree = MerkleTree::from_state(state);

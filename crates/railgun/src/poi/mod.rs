@@ -1,4 +1,6 @@
-pub mod client;
-pub mod note;
-pub mod provider;
-pub mod types;
+pub(crate) mod client;
+pub(crate) mod note;
+pub(crate) mod provider;
+pub(crate) mod types;
+
+pub use types::PoiStatus;

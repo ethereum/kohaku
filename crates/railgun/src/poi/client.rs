@@ -9,7 +9,6 @@ use std::{
 use alloy::primitives::ChainId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
-use tracing::info;
 
 use crate::{
     merkle_tree::{MerkleProof, MerkleRoot, MerkleTreeVerifier},
@@ -261,7 +260,7 @@ impl MerkleTreeVerifier for PoiClient {
         tree_number: u32,
         tree_index: u32,
         root: MerkleRoot,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync + 'static>> {
         Ok(self
             .validate_txid_merkleroot(tree_number, tree_index, root)
             .await?)
@@ -300,9 +299,8 @@ async fn call<P: Serialize, R: DeserializeOwned>(
         params,
     };
 
-    // TODO: Remove me
-    let req_json = serde_json::to_string(&req).unwrap();
-    info!("Sending JSON-RPC request: {}", req_json);
+    // let req_json = serde_json::to_string(&req).unwrap();
+    // info!("Sending JSON-RPC request: {}", req_json);
 
     let resp: JsonRpcResponse<R> = http.post(url).json(&req).send().await?.json().await?;
     if let Some(err) = resp.error {

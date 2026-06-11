@@ -1,5 +1,13 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.11
+
+### Patch Changes
+
+- 0c165e7: Add minimal `demo/simple.ts` script referenced by the `pnpm demo` package script.
+  The script derives a deposit precommitment from a mnemonic and encodes the
+  corresponding shield transaction (no network calls, no broadcast).
+
 ## 0.0.2-alpha.10
 
 ### Patch Changes

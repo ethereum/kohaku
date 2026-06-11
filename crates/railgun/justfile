@@ -16,3 +16,6 @@ integration-sync-txid:
 
 integration-transact-poi:
     RUST_LOG=info cargo test --release -- test_transact_poi --ignored --nocapture
+
+bench:
+    RUST_LOG=info cargo bench --features bench

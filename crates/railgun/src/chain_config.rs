@@ -18,6 +18,8 @@ pub struct ChainConfig {
     /// <https://docs.railgun.org/wiki/learn/helpful-links>
     #[cfg_attr(js, tsify(type = "`0x${string}`"))]
     pub railgun_smart_wallet: Address,
+    /// Unshield fee in basis points (bps).
+    pub unshield_fee_bps: u16,
     /// RelayAdapt contract for native base-token shielding (wrap + shield via `multicall`)
     ///
     /// Sourced from
@@ -49,12 +51,20 @@ pub struct ChainConfig {
     pub poi_endpoint: String,
     /// Optional list keys for POI
     pub list_keys: Vec<ListKey>,
+
+    /// Privacy Paymaster address for this chain. This is used as the paymaster for all
+    /// UserOperations.
+    pub privacy_paymaster: Option<Address>,
+
+    /// Railgun Fee Adapter address for this chain.
+    pub railgun_fee_adapter: Option<Address>,
 }
 
 impl ChainConfig {
     pub fn new(
         id: ChainId,
         railgun_smart_wallet: Address,
+        unshield_fee_bps: u16,
         relay_adapt_contract: Address,
         wrapped_base_token: Address,
         deployment_block: u64,
@@ -62,10 +72,13 @@ impl ChainConfig {
         subsquid_endpoint: impl Into<String>,
         poi_endpoint: impl Into<String>,
         list_keys: impl IntoIterator<Item: AsRef<str>>,
+        privacy_paymaster: Option<Address>,
+        railgun_fee_adapter: Option<Address>,
     ) -> Self {
         Self {
             id,
             railgun_smart_wallet,
+            unshield_fee_bps,
             relay_adapt_contract,
             wrapped_base_token,
             deployment_block,
@@ -73,6 +86,8 @@ impl ChainConfig {
             subsquid_endpoint: subsquid_endpoint.into(),
             poi_endpoint: poi_endpoint.into(),
             list_keys: list_keys.into_iter().map(|s| s.as_ref().into()).collect(),
+            privacy_paymaster,
+            railgun_fee_adapter,
         }
     }
 
@@ -88,6 +103,7 @@ impl ChainConfig {
         Self::new(
             1,
             address!("0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9"),
+            25,
             address!("0xAc9f360Ae85469B27aEDdEaFC579Ef2d052aD405"),
             address!("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
             14693013,
@@ -95,6 +111,8 @@ impl ChainConfig {
             "https://rail-squid.squids.live/squid-railgun-ethereum-v2/v/v1/graphql",
             "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
+            Some(address!("0x5FCd478c286528aE735e8CDAEF707956469ED208")),
+            Some(address!("0x0Aff8d142E3655714B716bBE1d66165a060D4155")),
         )
     }
 
@@ -102,6 +120,7 @@ impl ChainConfig {
         Self::new(
             11155111,
             address!("0xeCFCf3b4eC647c4Ca6D49108b311b7a7C9543fea"),
+            25,
             address!("0x7e3d929EbD5bDC84d02Bd3205c777578f33A214D"),
             address!("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"),
             5784774,
@@ -109,6 +128,8 @@ impl ChainConfig {
             "https://rail-squid.squids.live/squid-railgun-eth-sepolia-v2/v/v1/graphql",
             "https://ppoi.fdi.network/",
             &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
+            Some(address!("0xBb9D6507B5dE027dEb0196c83A7DC6Eef325bEe4")),
+            Some(address!("0xeBabF510f824a349a9Be7F40cad3486B7249b1e0")),
         )
     }
 }

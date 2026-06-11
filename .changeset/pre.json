@@ -7,17 +7,22 @@
     "docs": "0.0.0",
     "@kohaku-eth/privacy-pools": "0.0.1-alpha.1",
     "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
-    "@kohaku-eth/plugins": "0.0.1-alpha.1"
+    "@kohaku-eth/plugins": "0.0.1-alpha.1",
+    "@kohaku-eth/tornado-cash": "0.0.2-alpha.8"
   },
   "changesets": [
+    "add-privacy-pools-demo",
     "beige-islands-give",
     "bold-moons-train",
+    "brown-ears-camp",
     "clear-plums-post",
     "clear-views-sing",
     "early-geese-show",
     "easy-tigers-rescue",
     "eleven-pots-stay",
+    "free-heads-taste",
     "good-papers-kick",
+    "green-ducks-appear",
     "heavy-readers-sniff",
     "khaki-worms-kneel",
     "loud-worlds-yell",
@@ -30,6 +35,9 @@
     "shy-donkeys-wave",
     "slimy-boxes-flash",
     "small-times-tap",
+    "smart-hands-lay",
+    "tornado-cash-correctness",
+    "vast-colts-sell",
     "wide-words-smash"
   ],
   "ignore": [

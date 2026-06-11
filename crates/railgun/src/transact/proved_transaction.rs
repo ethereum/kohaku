@@ -19,6 +19,7 @@ pub struct ProvedTx {
 }
 
 /// A single proved operation.
+#[derive(Clone)]
 pub struct ProvedOperation {
     pub inner: Operation,
     pub circuit_inputs: TransactCircuitInputs,

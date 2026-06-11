@@ -1,5 +1,38 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.25
+
+### Patch Changes
+
+- c1dc36b: fix: ts logs adhere to LogLevel
+
+## 0.0.1-alpha.24
+
+### Patch Changes
+
+- f36d197: bump tornado and railgun
+
+## 0.0.1-alpha.23
+
+### Patch Changes
+
+- 23841f1: enable mainnet
+
+## 0.0.1-alpha.22
+
+### Patch Changes
+
+- 0d26a25: Feat: Switch remote artifact loading to use brotli compressed files, and update remote file structure
+  Feat: Enable logging in railgun plugin by default, with option to disable it
+  Fix: Pending POIs were not saved under certain conditions
+  Fix: Switch POI query to check spendability status rather than merkle trie inclusion for better accuracy
+
+## 0.0.1-alpha.21
+
+### Patch Changes
+
+- 05bea5b: fix: account for railgun fee
+
 ## 0.0.1-alpha.20
 
 ### Patch Changes
