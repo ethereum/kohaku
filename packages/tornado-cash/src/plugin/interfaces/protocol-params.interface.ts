@@ -10,7 +10,7 @@ import { TxData } from '@kohaku-eth/provider';
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
-import { IPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
+import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import { WorkerInitOptions } from '../../state/state-manager-api';
 
@@ -35,7 +35,7 @@ export interface IRelayerWithdrawalPayload {
   relayerUrl: string;
 }
 
-export type IWithdrawalPayload = IRelayerWithdrawalPayload | IPaymasterWithdrawalPayload;
+export type IWithdrawalPayload = IRelayerWithdrawalPayload | IGenericPaymasterWithdrawalPayload;
 
 export interface TCPrivateOperation<Mode extends IWithdrawalPayload['mode'] = 'relayer' | 'paymaster'> extends PrivateOperation {
   withdrawals: (IWithdrawalPayload & {mode: Mode})[];

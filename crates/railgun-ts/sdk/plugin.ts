@@ -119,8 +119,8 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
 
     tsLog("Deriving keys");
     const keyIndex = config?.keyIndex ?? 0;
-    const spendingKey = host.keystore.deriveAt(RailgunSigner.spendingKeyPath(keyIndex));
-    const viewingKey = host.keystore.deriveAt(RailgunSigner.viewingKeyPath(keyIndex));
+    const spendingKey = await host.keystore.deriveAt(RailgunSigner.spendingKeyPath(keyIndex));
+    const viewingKey = await host.keystore.deriveAt(RailgunSigner.viewingKeyPath(keyIndex));
 
     tsLog("Fetching chain config");
     const chainId = await host.provider.getChainId();

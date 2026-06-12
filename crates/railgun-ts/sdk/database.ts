@@ -8,16 +8,16 @@ export class DatabaseAdapter implements Database {
     constructor(private prefix: string, private storage: Storage) { }
 
     async get(key: string): Promise<string | null> {
-        const value = this.storage.get(this.key(key));
+        const value = await this.storage.get(this.key(key));
         return value || value === "" ? value : null;
     }
 
     async set(key: string, value: string): Promise<void> {
-        this.storage.set(this.key(key), value);
+        await this.storage.set(this.key(key), value);
     }
 
     async delete(key: string): Promise<void> {
-        this.storage.set(this.key(key), "");
+        await this.storage.set(this.key(key), "");
     }
 
     private key(key: string): string {

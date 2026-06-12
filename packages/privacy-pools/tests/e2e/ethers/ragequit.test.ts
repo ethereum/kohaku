@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { E_ADDRESS } from '../../../src/config';
-import { chainConfigSetup } from '../../constants';
+import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
@@ -18,7 +18,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     forkBlockNumber,
     postman,
     rpcUrl
-  } = chainConfigSetup[chainId];
+  } = getChainConfigSetup(chainId);
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
   // E_ADDRESS represents native ETH in Privacy Pools
@@ -39,7 +39,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const pool = anvil.pool(1);
     const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(chainId),
+      initialState: () => loadInitialState(chainId),
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       rpcUrl: pool.rpcUrl,
       postman,
@@ -69,7 +69,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState,
+      initialState: async () => latestState,
       rpcUrl: pool.rpcUrl,
       postman,
     });

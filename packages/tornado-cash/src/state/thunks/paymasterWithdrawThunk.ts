@@ -11,7 +11,7 @@ import { RootState } from "../store";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
 import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
-import { SignedDelegation } from "../../relayer/interfaces/paymaster-client.interface";
+import { IGenericPaymasterWithdrawalPayload, SignedDelegation } from "../../relayer/interfaces/paymaster-client.interface";
 
 export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
   dataService: IDataService;
@@ -139,8 +139,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     isERC20: poolInfo.isERC20,
     paymasterAddress: paymasterAddress,
     entryPointAddress: entryPointAddress,
-    bundlerUrl: bundlerUrl,
+    bundlerUrl,
     accountAddress: poolAcountsMap.get(poolAddress)!,
     delegation: delegations[i],
-  })) satisfies IWithdrawalPayload[];
+  })) satisfies IGenericPaymasterWithdrawalPayload[];
 });

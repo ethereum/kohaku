@@ -9,11 +9,11 @@ export class MemoryStorage implements Storage {
 
     constructor() { }
 
-    set(key: string, value: string): void {
+    async set(key: string, value: string): Promise<void> {
         this.storage[key] = value;
     }
 
-    get(key: string): string | null {
+    async get(key: string): Promise<string | null> {
         return this.storage[key] ?? null;
     }
 }
