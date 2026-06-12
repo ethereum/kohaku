@@ -47,7 +47,6 @@
     "check": "tsc --noEmit -p ./tsconfig.json",
     "build": "echo Building @kohaku-eth/tornado-cash && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
-    "demo": "tsx demo/simple.ts",
     "test": "vitest run --project=e2e-sepolia",
     "test:unit": "vitest run --project=unit",
     "test:e2e:sepolia": ". ./.env.e2e.tests && vitest run --project=e2e-sepolia",
