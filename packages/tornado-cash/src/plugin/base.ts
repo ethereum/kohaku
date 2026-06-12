@@ -23,7 +23,7 @@ import {
   IStateManager,
   TCPrivateOperation,
   TCPublicOperation,
-  PrivacyPoolsV1ProtocolParams,
+  TCProtocolParams,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
 import { defaultArtifactsLoader } from "../utils/default-artifacts-loader";
@@ -43,8 +43,9 @@ export class TornadoCashProtocol implements TCInstance {
       stateManagerWorkerUrl,
       relayerConfig,
       paymasterConfig = TornadoPaymasterConfigs,
-      relayerClientFactory = () => new RelayerClient(host)
-    }: RequireOnly<PrivacyPoolsV1ProtocolParams, 'protocolConfig'>,
+      relayerClientFactory = () => new RelayerClient(host),
+      proverVersion
+    }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
     this.stateManager = (async () => {
       const { remote, onError } = loadStateManagerWorker(stateManagerWorkerUrl);
@@ -64,7 +65,7 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.storage),
           proxy(initialState),
           proxy(artifactsLoader),
-          { protocolConfig, accountIndex, relayerConfig, paymasterConfig },
+          { protocolConfig, accountIndex, relayerConfig, paymasterConfig, proverVersion },
         ),
         workerReady,
       ]);

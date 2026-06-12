@@ -24,6 +24,7 @@ export interface WorkerInitOptions {
   relayerConfig?: IRelayerFeeConfig,
   accountIndex: number,
   paymasterConfig: IChainsPaymastersConfig,
+  proverVersion?: Parameters<typeof makeLazyProverFactory>[1]
 }
 
 let _stateManager: IStateManager | null = null;
@@ -45,7 +46,7 @@ export const workerApi = {
     rawStorage: Omit<Storage, '_brand'>,
     initialState: () => Promise<Record<string, PublicRootState>>,
     artifactsLoader: () => Promise<ITornadoArtifacts>,
-    { protocolConfig, accountIndex, relayerConfig, paymasterConfig }: WorkerInitOptions,
+    { protocolConfig, accountIndex, relayerConfig, paymasterConfig, proverVersion }: WorkerInitOptions,
   ): Promise<void> {
     const storage = rawStorage as Storage;
 
@@ -54,7 +55,7 @@ export const workerApi = {
       secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
       dataService: new DataService({ provider }),
       relayerClient,
-      proverFactory: makeLazyProverFactory(artifactsLoader),
+      proverFactory: makeLazyProverFactory(artifactsLoader, proverVersion),
       storageToSyncTo: storage,
       protocolConfig,
       relayerConfig,
