@@ -5,6 +5,7 @@ import { Secret } from '../../account/keys';
 import { Address } from '../../interfaces/types.interface';
 import { INote } from '../../plugin/interfaces/protocol-params.interface';
 import { aspMerkleProofSelector, stateMerkleProofSelector } from '../selectors/merkle.selector';
+import { existingNoteSecretsSelector, getNoteSelector } from '../selectors/notes.selector';
 import { poolFromAssetSelector } from "../selectors/pools.selector";
 import { entrypointInfoSelector } from '../selectors/slices.selectors';
 import { RootState } from '../store';
@@ -15,13 +16,8 @@ export type WithdrawProveOutput = Omit<ProveOutput, 'mappedSignals'> & {
 };
 
 export interface WithdrawThunkParams {
-  // Selector functions
-  getNote: (assetAddress: Address, minAmount: bigint) => INote | undefined;
-  getNextNote: (note: INote, withdrawAmount: bigint, chainId: bigint, entrypoint: Address) => { note: INote; secrets: Secret; };
-  getExistingNoteSecrets: (note: INote, chainId: bigint, entrypoint: Address) => Secret;
-  // Prover factory
+  getNextNote: (note: INote, withdrawAmount: bigint, chainId: bigint, entrypoint: Address) => Promise<{ note: INote; secrets: Secret; }>;
   proverFactory: () => ReturnType<typeof Prover>;
-  // Withdrawal params
   asset: Address;
   amount: bigint;
   recipient: Address;
@@ -36,44 +32,39 @@ export const withdrawThunk = createAsyncThunk<
   'withdraw/generateProof',
   async (params, { getState }) => {
     const state = getState();
-    
+
     const { chainId, entrypointAddress } = entrypointInfoSelector(state);
 
     // 1. Get existing note (smallest sufficient)
-    const existingNote = params.getNote(params.asset, params.amount);
+    const existingNote = getNoteSelector(state, params.asset, params.amount);
 
     if (!existingNote) {
       throw new Error("No note with sufficient balance for withdrawal");
     }
 
-    // 2. Get existing note's secrets
-    const existingSecrets = params.getExistingNoteSecrets(
-      existingNote,
-      chainId,
-      entrypointAddress
-    );
+    // 2. Get existing note's secrets from the slice
+    const existingSecrets = existingNoteSecretsSelector(state, existingNote);
 
-    // 3. Get change note with its secrets
-    const { secrets: changeSecrets } = params.getNextNote(
+    // 3. Get change note with its secrets (derives index N+1, not yet in slice)
+    const { secrets: changeSecrets } = await params.getNextNote(
       existingNote,
       params.amount,
       chainId,
-      entrypointAddress
+      entrypointAddress,
     );
 
-    const poolInfo = poolFromAssetSelector(state, params.asset)
+    const poolInfo = poolFromAssetSelector(state, params.asset);
 
     if (!poolInfo) {
       throw new Error(`No pool found for asset ${params.asset}`);
     }
 
-    // 4. Get Merkle proofs (selectors parameterized by note/label)
+    // 4. Get Merkle proofs
     const existingNoteFull = { ...existingNote, ...existingSecrets };
-
     const stateMerkleProof = stateMerkleProofSelector(state, poolInfo.address, existingNoteFull);
     const aspMerkleProof = aspMerkleProofSelector(state, existingNote.label);
 
-    // 6. Generate ZK proof
+    // 5. Generate ZK proof
     const prover = await params.proverFactory();
 
     return prover.prove("withdraw", {
@@ -96,5 +87,5 @@ export const withdrawThunk = createAsyncThunk<
       ASPSiblings: aspMerkleProof.siblings,
       ASPTreeDepth: 2n,
     });
-  }
+  },
 );

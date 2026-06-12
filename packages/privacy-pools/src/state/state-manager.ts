@@ -3,6 +3,8 @@ import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import { ChainId, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
 
+import { ISecretManager } from "../account/keys";
+import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
 import {
@@ -23,142 +25,71 @@ import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { addressToHex } from "../utils";
 import { decodeRelayData } from "../utils/encoding.utils";
 import { calculateContext } from "../utils/proof.util";
-import { BaseSelectorParams } from "./interfaces/selectors.interface";
 import {
-  createAllAssetsBalanceSelector,
-  createMyAssetsBalanceSelector,
-  createMyDepositsBalanceSelector,
-  createMyDepositsWithAssetSelector,
-  createSpecificAssetBalanceSelector,
+  allNotesSelector,
+  createNextNoteDeriver,
+  unapprovedNotesByAssetSelector,
+  unapprovedNotesSelector,
+} from "./selectors/notes.selector";
+import {
+  myPoolsSelector,
+  poolFromAssetSelector,
+} from "./selectors/pools.selector";
+import {
+  entrypointInfoSelector,
+  userSecretsSelector,
+} from "./selectors/slices.selectors";
+import { buildDepositPayload, myDepositsCountSelector } from "./selectors/deposits.selector";
+import {
   IBalanceType,
   SpecificAssetBalanceFn,
+  specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
-import {
-  createGetNextDepositPayloadSelector,
-  createGetNextDepositSecretsSelector,
-  createMyDepositsCountSelector,
-  createMyDepositsSelector,
-  createMyEntrypointDepositsSelector,
-} from "./selectors/deposits.selector";
-import {
-  createAllNotesSelector,
-  createExistingNoteSecretsDeriver,
-  createGetNoteSelector,
-  createNextNoteDeriver,
-  createUnapprovedNotesByAssetSelector,
-  createUnapprovedNotesSelector,
-} from "./selectors/notes.selector";
-import { createMyPoolsSelector, poolFromAssetSelector } from "./selectors/pools.selector";
-import { createMyRagequitsSelector } from "./selectors/ragequits.selector";
-import { createMyWithdrawalsSelector } from "./selectors/withdrawals.selector";
-import { RootState, storeFactory } from "./store";
+import { getNoteSelector } from "./selectors/notes.selector";
+import { PublicRootState, RootState, storeFactory } from "./store";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 
-export interface StoreFactoryParams
-  extends BaseSelectorParams, SyncAspThunkParams {
+export interface StoreFactoryParams extends SyncAspThunkParams {
+  secretManager: ISecretManager;
+  dataService: IDataService;
   relayerClient: IRelayerClient;
   relayersList: Map<string, string>;
   storageToSyncTo?: Storage;
   entrypoint: IEntrypoint;
   proverFactory: () => ReturnType<typeof Prover>;
-  initialState?: Record<
-    string,
-    Parameters<typeof storeFactory>[0]["initialState"]
-  >;
+  initialState?: () => Promise<Record<string, PublicRootState>>;
 }
 
 const initializeSelectors = <const T extends Store>({
   store,
-  ...params
-}: Omit<StoreFactoryParams, "dataService"> & { store: T; }) => {
-  // We need to tie the selectors instances to a specific store
-  // so they can memoize correctly
-  const myDepositsSelector = createMyDepositsSelector(params);
-  const depositsCountSelector =
-    createMyDepositsCountSelector(myDepositsSelector);
-  const myRagequitsSelector = createMyRagequitsSelector(myDepositsSelector);
-  const myEntrypointDepositsSelector =
-    createMyEntrypointDepositsSelector(myDepositsSelector);
-  const myDepositsWithAssetSelector =
-    createMyDepositsWithAssetSelector(myDepositsSelector);
-  const myWithdrawalsSelector = createMyWithdrawalsSelector({
-    myDepositsSelector,
-    ...params,
-  });
-
-  const myPoolsSelector = createMyPoolsSelector(myEntrypointDepositsSelector);
-
-  const myDepositsBalanceSelector = createMyDepositsBalanceSelector({
-    myDepositsWithAssetSelector,
-    myRagequitsSelector,
-    myWithdrawalsSelector,
-  });
-  const myAssetsBalanceSelector = createMyAssetsBalanceSelector({
-    myDepositsBalanceSelector,
-  });
-
-  // Note selectors for withdrawals
-  const getNoteSelector = createGetNoteSelector({
-    myDepositsBalanceSelector,
-    myWithdrawalsSelector,
-  });
-  const allNotesSelector = createAllNotesSelector({
-    myDepositsBalanceSelector,
-    myWithdrawalsSelector,
-  });
-  const getNextNote = createNextNoteDeriver({
-    secretManager: params.secretManager,
-  });
-  const getExistingNoteSecrets = createExistingNoteSecretsDeriver({
-    secretManager: params.secretManager,
-  });
-
-  // Deposit payload selectors
-  const getNextDepositSecretsSelector = createGetNextDepositSecretsSelector({
-    depositsCountSelector,
-    secretManager: params.secretManager,
-  });
-  const getNextDepositPayloadSelector = createGetNextDepositPayloadSelector({
-    getNextDepositSecretsSelector,
-  });
-
-  const allAssetsBalanceSelector = createAllAssetsBalanceSelector(myAssetsBalanceSelector);
-  const specificAssetsBalanceSelector = createSpecificAssetBalanceSelector(allAssetsBalanceSelector);
-
-  // Ragequit selectors for unapproved notes
-  const unapprovedNotesSelector = createUnapprovedNotesSelector({
-    myDepositsBalanceSelector,
-    myWithdrawalsSelector,
-  });
-  const unapprovedNotesByAssetSelector = createUnapprovedNotesByAssetSelector({
-    unapprovedNotesSelector,
-  });
+  secretManager,
+}: { store: T; secretManager: ISecretManager }) => {
+  const getNextNote = createNextNoteDeriver({ secretManager });
 
   return {
     ...store,
     selectors: {
-      depositsCount: () => depositsCountSelector(store.getState()),
-
-      myAssetsBalanceSelector: () => myAssetsBalanceSelector(store.getState()),
-      specificAssetsBalanceSelector: ((addresses: Address[], balanceType: IBalanceType = 'approved') => specificAssetsBalanceSelector(store.getState(), addresses, balanceType)) as SpecificAssetBalanceFn,
-      getExistingNoteSecrets,
-      getNextDepositPayload: (asset: Address, amount: bigint) =>
-        getNextDepositPayloadSelector(store.getState(), asset, amount),
+      specificAssetsBalanceSelector: ((addresses: Address[], balanceType: IBalanceType = 'approved') =>
+        specificAssetsBalanceSelector(store.getState(), addresses, balanceType)) as SpecificAssetBalanceFn,
+      getNote: (assetAddress: Address, minAmount: bigint) =>
+        getNoteSelector(store.getState(), assetAddress, minAmount),
       getNextNote,
-      getNote: (assetAddress: Address, minAmount: bigint) => getNoteSelector(store.getState(), assetAddress, minAmount),
       getAllNotes: () => allNotesSelector(store.getState()),
-
       myPoolsSelector: () => myPoolsSelector(store.getState()),
       poolFromAssetSelector: (assetAddress: Address) => poolFromAssetSelector(store.getState(), assetAddress),
-
-      // Ragequit selectors
       getUnapprovedNotes: () => unapprovedNotesSelector(store.getState()),
       getUnapprovedNotesByAsset: (assets: Address[]) =>
         unapprovedNotesByAssetSelector(store.getState(), assets),
+    },
+    getPublicState: (): PublicRootState => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { userSecrets, ...publicState } = store.getState() as RootState;
+
+      return publicState;
     },
   };
 };
@@ -179,9 +110,18 @@ const getStoreStorageKey = (
 
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
-  initialState: initialStateByChainAndEntrypoint = {},
-  ...params
-}: Omit<StoreFactoryParams, "dataService">) => {
+  initialState: initialStateCallback,
+  secretManager,
+}: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState' | 'secretManager'>) => {
+  let cachedInitialState: Record<string, PublicRootState> | undefined;
+
+  const resolveInitialState = initialStateCallback
+    ? async () => {
+        cachedInitialState ??= await initialStateCallback();
+
+        return cachedInitialState;
+      }
+    : undefined;
 
   const chainStoreMap = new Map<
     StoreKey,
@@ -189,7 +129,7 @@ const storeByChainAndEntrypoint = ({
   >();
 
   return {
-    getChainStore: (getChainStoreParams: GetChainStoreParams) => {
+    getChainStore: async (getChainStoreParams: GetChainStoreParams) => {
       const {
         chainId,
         entrypoint: { address, deploymentBlock },
@@ -199,20 +139,18 @@ const storeByChainAndEntrypoint = ({
 
       if (!storeWithSelectors) {
         const storageKey = getStoreStorageKey(getChainStoreParams);
-        const rawStoredState = storageToSyncTo?.get(storageKey);
-        const storedState: RootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
-        const snapshotInitialState = initialStateByChainAndEntrypoint[storageKey];
-        const initialState: RootState | undefined = storedState || snapshotInitialState;
+        const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : null;
+        const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+        const snapshotInitialState = storedState || !resolveInitialState
+          ? undefined
+          : (await resolveInitialState())[storageKey];
+        const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
         const store = storeFactory({
-          entrypointInfo: {
-            chainId,
-            entrypointAddress: address,
-            deploymentBlock,
-          },
-          initialState,
+          entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
+          initialState: initialState as RootState | undefined,
         });
 
-        storeWithSelectors = initializeSelectors({ ...params, store });
+        storeWithSelectors = initializeSelectors({ store, secretManager });
         chainStoreMap.set(computedChainKey, storeWithSelectors);
       }
 
@@ -222,7 +160,7 @@ const storeByChainAndEntrypoint = ({
       return Array.from(chainStoreMap).reduce(
         (completeState, [chainKey, state]) => ({
           ...completeState,
-          [`privacy-pool-state-${chainKey}`]: state.getState(),
+          [`privacy-pool-state-${chainKey}`]: state.getPublicState(),
         }),
         {} as ReturnType<IStateManager['dumpState']>,
       );
@@ -234,54 +172,53 @@ export const storeStateManager = (
   params: StoreFactoryParams,
 ): IStateManager => {
   const { getChainStore, getAllStores } = storeByChainAndEntrypoint(params);
-  const { storageToSyncTo } = params;
+  const { storageToSyncTo, secretManager } = params;
 
   const getChainInfo = async () => ({
     chainId: await params.dataService.getChainId(),
-    entrypoint: params.entrypoint
+    entrypoint: params.entrypoint,
   });
 
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
-
-      const store = getChainStore(chainInfo);
+      const store = await getChainStore(chainInfo);
 
       unwrapResult(
         await store.dispatch(
           syncThunk({
             ...params,
-            ...store.selectors,
+            secretManager,
           }),
         ),
       );
 
       if (storageToSyncTo) {
-        storageToSyncTo.set(
+        await storageToSyncTo.set(
           getStoreStorageKey(chainInfo),
-          JSON.stringify(store.getState()),
+          JSON.stringify(store.getPublicState()),
         );
       }
     },
-    getBalances: async (
-      assets,
-      balanceType,
-    ) => {
-      const {
-        selectors: {
-          specificAssetsBalanceSelector,
-        },
-      } = getChainStore(await getChainInfo());
+    getBalances: async (assets, balanceType) => {
+      const { selectors: { specificAssetsBalanceSelector } } =
+        await getChainStore(await getChainInfo());
 
       return specificAssetsBalanceSelector(assets, balanceType);
     },
-    getDepositPayload: async ({
-      asset,
-      amount,
-    }: IDepositOperationParams) => {
-      const store = getChainStore(await getChainInfo());
+    getDepositPayload: async ({ asset, amount }: IDepositOperationParams) => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+      const state = store.getState();
+      const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+      const depositIndex = myDepositsCountSelector(state);
+      const { precommitment } = await secretManager.getDepositSecrets({
+        entrypointAddress,
+        chainId,
+        depositIndex,
+      });
 
-      return store.selectors.getNextDepositPayload(asset, amount);
+      return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
     },
     getWithdrawalPayloads: async ({
       asset,
@@ -289,9 +226,8 @@ export const storeStateManager = (
       recipient,
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
-      const store = getChainStore(chainInfo);
+      const store = await getChainStore(chainInfo);
 
-      // Get best quote from relayers
       const quoteResultAction = await store.dispatch(
         quoteThunk({
           relayerClient: params.relayerClient,
@@ -307,11 +243,9 @@ export const storeStateManager = (
       }
 
       const { quote, relayerId } = unwrapResult(quoteResultAction);
-
       const poolInfo = store.selectors.poolFromAssetSelector(asset);
 
-      if (!poolInfo)
-        throw new Error(`No pool found for asset ${asset}`);
+      if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
 
       const withdrawal = {
         processooor: addressToHex(params.entrypoint.address) as `0x${string}`,
@@ -319,18 +253,15 @@ export const storeStateManager = (
       };
       const context = BigInt(calculateContext(withdrawal, poolInfo.scope));
 
-      // Dispatch the withdraw thunk which handles note selection and proof generation
       const withdrawResultAction = await store.dispatch(
         withdrawThunk({
-          getNote: store.selectors.getNote,
           getNextNote: store.selectors.getNextNote,
-          getExistingNoteSecrets: store.selectors.getExistingNoteSecrets,
           proverFactory: params.proverFactory,
           asset,
           amount: amount ?? 0n,
           recipient,
           context,
-        })
+        }),
       );
 
       const withdrawProofResult = unwrapResult(withdrawResultAction);
@@ -339,7 +270,6 @@ export const storeStateManager = (
         withdrawalInfo: {
           context,
           scope: poolInfo.scope,
-          // raw RelayData:= { address recipient; address feeRecipient; uint256 relayFeeBPS;  }
           relayDataAbi: JSON.stringify(relayDataAbi),
           relayDataObject: decodeRelayData(withdrawal.data),
           withdrawalObject: withdrawal,
@@ -353,26 +283,18 @@ export const storeStateManager = (
       assets = [],
     }: IRagequitAssetsOperationParams): Promise<StateRagequitPayload[]> => {
       const chainInfo = await getChainInfo();
-      const store = getChainStore(chainInfo);
+      const store = await getChainStore(chainInfo);
 
-      // 1. Get all unapproved notes for the specified assets
       const unapprovedNotes = assets.length > 0
         ? store.selectors.getUnapprovedNotesByAsset(assets)
         : store.selectors.getUnapprovedNotes();
 
-      if (unapprovedNotes.length === 0) {
-        return [];
-      }
+      if (unapprovedNotes.length === 0) return [];
 
-      // 2. Generate proofs for each note
       const ragequitResults = await Promise.all(
         unapprovedNotes.map(async (note) => {
           const resultAction = await store.dispatch(
-            ragequitThunk({
-              note,
-              getExistingNoteSecrets: store.selectors.getExistingNoteSecrets,
-              proverFactory: params.proverFactory,
-            })
+            ragequitThunk({ note, proverFactory: params.proverFactory }),
           );
 
           if (resultAction.meta.requestStatus === "rejected") {
@@ -382,42 +304,29 @@ export const storeStateManager = (
           }
 
           return unwrapResult(resultAction);
-        })
+        }),
       );
 
-      // 3. Filter out failed proofs and return payloads
       return ragequitResults
         .filter((result): result is NonNullable<typeof result> => result !== null)
-        .map(({ note, poolAddress, proofResult }) => ({
-          note,
-          poolAddress,
-          proofResult,
-        }));
+        .map(({ note, poolAddress, proofResult }) => ({ note, poolAddress, proofResult }));
     },
     getRagequitByLabelPayloads: async ({
       labels = [],
     }: IRagequitLabelsOperationParams): Promise<StateRagequitPayload[]> => {
       const chainInfo = await getChainInfo();
-      const store = getChainStore(chainInfo);
+      const store = await getChainStore(chainInfo);
 
-      // 1. Get all unapproved notes for the specified assets
       const allNotes = store.selectors.getAllNotes();
 
-      if (allNotes.length === 0) {
-        return [];
-      }
+      if (allNotes.length === 0) return [];
 
-      // 2. Generate proofs for each note
       const ragequitResults = await Promise.all(
         allNotes
           .filter(note => labels.includes(note.label))
           .map(async (note) => {
             const resultAction = await store.dispatch(
-              ragequitThunk({
-                note,
-                getExistingNoteSecrets: store.selectors.getExistingNoteSecrets,
-                proverFactory: params.proverFactory,
-              })
+              ragequitThunk({ note, proverFactory: params.proverFactory }),
             );
 
             if (resultAction.meta.requestStatus === "rejected") {
@@ -427,31 +336,24 @@ export const storeStateManager = (
             }
 
             return unwrapResult(resultAction);
-          })
+          }),
       );
 
-      // 3. Filter out failed proofs and return payloads
       return ragequitResults
         .filter((result): result is NonNullable<typeof result> => result !== null)
-        .map(({ note, poolAddress, proofResult }) => ({
-          note,
-          poolAddress,
-          proofResult,
-        }));
+        .map(({ note, poolAddress, proofResult }) => ({ note, poolAddress, proofResult }));
     },
     getNotes: async ({
       includeSpent = false,
       assets = [],
     }: IGetNotesParams): Promise<INote[]> => {
-      const store = getChainStore(await getChainInfo());
+      const store = await getChainStore(await getChainInfo());
       let notes = store.selectors.getAllNotes();
 
-      // Filter out spent notes unless includeSpent
       if (!includeSpent) {
         notes = notes.filter(note => note.balance > 0n);
       }
 
-      // Filter by assets if specified
       if (assets.length > 0) {
         const assetSet = new Set(assets.map(a => a.toString()));
 

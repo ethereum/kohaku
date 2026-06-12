@@ -38,8 +38,8 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
 };
 
 export interface ISecretManager {
-  getDepositSecrets: (params: DeriveDepositSecretParams) => Secret;
-  getSecrets: (params: DeriveWithdrawalSecretsParams) => Secret;
+  getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
+  getSecrets: (params: DeriveWithdrawalSecretsParams) => Promise<Secret>;
 }
 
 export interface SecretManagerParams {
@@ -52,9 +52,9 @@ export function SecretManager({
   accountIndex = 0
 }: SecretManagerParams): ISecretManager {
 
-  const deriveSecrets = ({ chainId, entrypointAddress, depositIndex, secretIndex }: DeriveSecretsParams) => {
-    const saltSecret = keystore.deriveAt(ppPath({ accountIndex, secretType: "salt", depositIndex, secretIndex }));
-    const nullifierSecret = keystore.deriveAt(ppPath({ accountIndex, secretType: "nullifier", depositIndex, secretIndex }));
+  const deriveSecrets = async ({ chainId, entrypointAddress, depositIndex, secretIndex }: DeriveSecretsParams) => {
+    const saltSecret = await keystore.deriveAt(ppPath({ accountIndex, secretType: "salt", depositIndex, secretIndex }));
+    const nullifierSecret = await keystore.deriveAt(ppPath({ accountIndex, secretType: "nullifier", depositIndex, secretIndex }));
     const nullifier = hashToSnarkField([chainId.toString(), BigInt(entrypointAddress), BigInt(nullifierSecret)]);
     const salt = hashToSnarkField([chainId.toString(), BigInt(entrypointAddress), BigInt(saltSecret)]);
     const precommitment = hashToSnarkField([nullifier, salt]);

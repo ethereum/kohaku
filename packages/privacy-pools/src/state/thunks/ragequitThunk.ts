@@ -1,11 +1,10 @@
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { Secret } from '../../account/keys';
 import { Address } from '../../interfaces/types.interface';
 import { CommitmentProveOutput, INote } from '../../plugin/interfaces/protocol-params.interface';
-import { entrypointInfoSelector } from '../selectors/slices.selectors';
-import { RootState } from '../store';
+import { existingNoteSecretsSelector } from '../selectors/notes.selector';
 import { poolFromAssetSelector } from "../selectors/pools.selector";
+import { RootState } from '../store';
 
 export interface RagequitResult {
   note: INote;
@@ -14,11 +13,7 @@ export interface RagequitResult {
 }
 
 export interface RagequitThunkParams {
-  // The unapproved note to ragequit
   note: INote;
-  // Function to get secrets for the note
-  getExistingNoteSecrets: (note: INote, chainId: bigint, entrypoint: Address) => Secret;
-  // Prover factory
   proverFactory: () => ReturnType<typeof Prover>;
 }
 
@@ -37,34 +32,22 @@ export const ragequitThunk = createAsyncThunk<
   { state: RootState; }
 >(
   'ragequit/generateProof',
-  async (params, { getState }) => {
+  async ({ note, proverFactory }, { getState }) => {
     const state = getState();
-    const { chainId, entrypointAddress } = entrypointInfoSelector(state);
 
-    const { note, getExistingNoteSecrets, proverFactory } = params;
-
-    // 1. Validate note has balance
     if (note.balance <= 0n) {
       throw new Error("Note has no balance to ragequit.");
     }
 
-    // 2. Get the pool for this asset
     const poolInfo = poolFromAssetSelector(state, note.assetAddress);
 
     if (!poolInfo) {
       throw new Error(`No pool found for asset ${note.assetAddress}`);
     }
 
-    // 3. Get existing note's secrets
-    const secrets = getExistingNoteSecrets(
-      note,
-      chainId,
-      entrypointAddress
-    );
+    // Get secrets directly from the slice
+    const secrets = existingNoteSecretsSelector(state, note);
 
-    // 4. Generate commitment proof
-    // The commitment circuit proves knowledge of (value, label, nullifier, secret)
-    // and outputs (commitment, nullifierHash, value, label)
     const prover = await proverFactory();
     const proofResult = await prover.prove("commitment", {
       value: note.balance,
@@ -78,5 +61,5 @@ export const ragequitThunk = createAsyncThunk<
       poolAddress: poolInfo.address,
       proofResult: proofResult as CommitmentProveOutput,
     };
-  }
+  },
 );

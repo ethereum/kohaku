@@ -14,7 +14,7 @@ export { registerAssets } from './slices/assetsSlice';
 export type { AssetsState } from './slices/assetsSlice';
 export { registerPoolLeaves } from './slices/poolLeavesSlice';
 export type { PoolLeavesState } from './slices/poolLeavesSlice';
-export { createMyDepositsSelector, createMyDepositsCountSelector, createMyEntrypointDepositsSelector } from './selectors/deposits.selector';
+export { myDepositsSelector, myDepositsCountSelector, myEntrypointDepositsSelector } from './selectors/deposits.selector';
 export { selectLastSyncedBlock } from './selectors/last-synced-block.selector';
 export { syncThunk } from './thunks/syncThunk';
 export type { SyncThunkParams } from './thunks/syncThunk';
