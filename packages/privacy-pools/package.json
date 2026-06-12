@@ -25,7 +25,6 @@
   "scripts": {
     "build": "echo Building @kohaku-eth/privacy-pools && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
-    "demo": "tsx demo/simple.ts",
     "test": "vitest run --project=e2e-sepolia",
     "test:unit": "vitest run --project=unit",
     "test:e2e:mainnet": ". ./.env.e2e.tests && vitest run --project=e2e-mainnet",
