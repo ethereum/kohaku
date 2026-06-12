@@ -5,7 +5,7 @@ import { generatePrivateKey } from 'viem/accounts';
 import { EthereumProvider } from '@kohaku-eth/provider';
 import { reasonableGasUnits } from './fee';
 import { signDelegationAuthorization } from './utils';
-import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient, IPaymasterWithdrawalPayload, SignedDelegation } from '../relayer/interfaces/paymaster-client.interface';
+import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient, SignedDelegation } from '../relayer/interfaces/paymaster-client.interface';
 import { IPaymasterConfig } from '../plugin/interfaces/protocol-params.interface';
 import { Address } from '../interfaces/types.interface';
 
@@ -20,15 +20,12 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
   ) { }
 
   async broadcast(
-    withdrawals: IPaymasterWithdrawalPayload[],
+    withdrawals: IGenericPaymasterWithdrawalPayload[],
   ): Promise<PaymasterBroadcastResult[]> {
     const chainId = Number(await this.provider.getChainId()) as 1 | 11155111;
 
     const {
       poolsAccountsMap: rawPoolsAccountsMap,
-      bundlerUrl,
-      paymasterAddress,
-      entryPointAddress,
     } = this.options[chainId]!;
 
     const poolAcountsMap = new Map(
@@ -42,9 +39,6 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
     const results = await Promise.allSettled(
       withdrawals.map((w) => PaymasterBroadcaster.broadcastOne({
         ...w,
-        bundlerUrl,
-        paymasterAddress,
-        entryPointAddress,
         accountAddress: poolAcountsMap.get(w.poolAddress)!
       }, this.provider)),
     );
