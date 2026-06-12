@@ -1,3 +1,11 @@
+## 0.0.2-alpha.11
+
+### Patch Changes
+
+- 4bb7e64: fix: plugin iface has async host methods
+- Updated dependencies [4bb7e64]
+  - @kohaku-eth/plugins@0.0.1-alpha.9
+
 ## 0.0.2-alpha.10
 
 ### Patch Changes
