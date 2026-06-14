@@ -26,7 +26,7 @@ use crate::{
     note::{Note, utxo::UtxoNote},
     poi::{
         provider::{PoiProvider, PoiProviderError},
-        types::PoiStatus,
+        types::{BlindedCommitmentType, PoiStatus},
     },
     transact::{
         ShieldBuilder, TransactionBuilder, TransactionBuilderError,
@@ -43,6 +43,42 @@ pub struct BalanceEntry {
     #[serde(rename = "poiStatus")]
     pub poi_status: Option<PoiStatus>,
     pub amount: u128,
+}
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(js, derive(tsify::Tsify))]
+pub struct NoteEntry {
+    pub asset: AssetId,
+    /// If POI is enabled, the spendability status of the note according to the POI provider.
+    /// Otherwise None.
+    #[serde(rename = "poiStatus")]
+    pub poi_status: Option<PoiStatus>,
+    pub amount: u128,
+    #[serde(rename = "treeNumber")]
+    pub tree_number: u32,
+    #[serde(rename = "leafIndex")]
+    pub leaf_index: u32,
+    #[serde(rename = "blindedCommitment")]
+    #[cfg_attr(js, tsify(type = "`0x${string}`"))]
+    pub blinded_commitment: String,
+    #[serde(rename = "commitmentType")]
+    pub commitment_type: BlindedCommitmentType,
+    pub memo: String,
+}
+
+impl NoteEntry {
+    fn from_note(note: UtxoNote, poi_status: Option<PoiStatus>) -> Self {
+        Self {
+            asset: note.asset(),
+            poi_status,
+            amount: note.value(),
+            tree_number: note.tree_number,
+            leaf_index: note.leaf_index,
+            blinded_commitment: format!("0x{:064x}", note.blinded_commitment),
+            commitment_type: note.commitment_type,
+            memo: note.memo,
+        }
+    }
 }
 
 /// Interfaces with the RAILGUN protocol.
@@ -119,17 +155,24 @@ impl RailgunProvider {
         Ok(())
     }
 
+    /// Returns all unspent notes for the given address.
+    pub async fn notes(&mut self, address: RailgunAddress) -> Vec<NoteEntry> {
+        self.unspent(address)
+            .await
+            .into_iter()
+            .map(|(note, poi_status)| NoteEntry::from_note(note, poi_status))
+            .collect()
+    }
+
     /// Returns the balance for the given address.
     ///
     /// If POI is enabled, only returns the spendable balance according to the POI provider.
     pub async fn balance(&mut self, address: RailgunAddress) -> Vec<BalanceEntry> {
-        let unspent = self.unspent(address).await;
-
         let mut balance_map = HashMap::new();
-        for (note, poi_status) in unspent {
-            let asset = note.asset();
-            let value = note.value();
-            *balance_map.entry((asset, poi_status)).or_insert(0) += value;
+        for note in self.notes(address).await {
+            *balance_map
+                .entry((note.asset, note.poi_status))
+                .or_insert(0) += note.amount;
         }
 
         balance_map

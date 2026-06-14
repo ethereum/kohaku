@@ -1,12 +1,13 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig } from '../plugin/interfaces/protocol-params.interface.js';
+import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
 import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
 import { IRelayerFeeConfig } from "../state/slices/relayersSlice.js";
 import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface.js";
 export { DepositStrategy };
+export type { TCNote };
 
 export type TCBroadcasterParameters = {
     relayerClientFactory?: () => IRelayerClient;
@@ -59,6 +60,7 @@ export type TCInstance = PluginInstance<
         },
         extras: {
             sync(): Promise<void>,
+            notes(assets?: ERC20AssetId[], includeSpent?: boolean): Promise<TCNote[]>,
             prepareShield(asset: TCAssetAmount, options: TCPrepareShieldOptions): Promise<TCPublicOperation>;
             prepareUnshield(asset: TCAssetAmount, to: Address, options: TCRelayerUnshieldOptions): Promise<TCPrivateOperation<'relayer'>>,
             prepareUnshield(asset: TCAssetAmount, to: Address, options: TCPaymasterUnshieldOptions): Promise<TCPrivateOperation<'paymaster'>>,

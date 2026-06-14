@@ -43,7 +43,7 @@ import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateO
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
-import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, SimpleSmartAccount, TransactionBuilder, UtxoSyncer, type Call, type ChainConfig, type LogLevel, type RailgunAddress } from "../pkg";
+import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, SimpleSmartAccount, TransactionBuilder, UtxoSyncer, type Call, type ChainConfig, type LogLevel, type NoteEntry, type RailgunAddress } from "../pkg";
 import { ensureInitialized } from "./lib";
 import { tsLog } from "./logger";
 import { EthereumProviderAdapter } from "./ethereum-provider";
@@ -51,6 +51,18 @@ import { DatabaseAdapter } from "./database";
 import { encodeFunctionData } from "viem";
 
 const BPS_DENOMINATOR = 10_000n;
+
+export type RGNote = {
+    asset: ERC20AssetId;
+    amount: bigint;
+    poiStatus?: string;
+    treeNumber: number;
+    leafIndex: number;
+    blindedCommitment: `0x${string}`;
+    commitmentType: NoteEntry["commitmentType"];
+    memo: string;
+    address: RailgunAddress;
+};
 
 /**
  * A proved private transaction ready for relay.
@@ -227,6 +239,36 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         }
 
         return Array.from(all.values());
+    }
+
+    async notes(assets: AssetId[] | undefined): Promise<RGNote[]> {
+        tsLog("Syncing provider before notes query");
+        await this.provider.sync();
+
+        tsLog("Fetching notes across all signers");
+        const notes: RGNote[] = [];
+        for (const signer of this.pool.all) {
+            const entries = await this.provider.notes(signer.address);
+            for (const note of entries) {
+                const assetId = note.asset;
+                if (assetId.type !== "Erc20") continue;
+                if (assets && !assets.some(a => a.__type === 'erc20' && a.contract === assetId.value)) continue;
+
+                notes.push({
+                    asset: { __type: 'erc20', contract: assetId.value },
+                    amount: note.amount,
+                    poiStatus: note.poiStatus,
+                    treeNumber: note.treeNumber,
+                    leafIndex: note.leafIndex,
+                    blindedCommitment: note.blindedCommitment,
+                    commitmentType: note.commitmentType,
+                    memo: note.memo,
+                    address: signer.address,
+                });
+            }
+        }
+
+        return notes;
     }
 
     async prepareShield(asset: AssetAmount): Promise<TxData[]> {

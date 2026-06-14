@@ -24,6 +24,7 @@ import {
   TCPrivateOperation,
   TCPublicOperation,
   TCProtocolParams,
+  TCNote,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
 import { defaultArtifactsLoader } from "../utils/default-artifacts-loader";
@@ -73,6 +74,7 @@ export class TornadoCashProtocol implements TCInstance {
       return {
         sync: () => remote.sync(),
         getBalances: ((assets: bigint[] | undefined) => remote.getBalances(assets)) as unknown as IStateManager['getBalances'],
+        getNotes: (params) => remote.getNotes(params),
         getDepositPayload: (params) => remote.getDepositPayload(params),
         getWithdrawalPayloads: (params) => remote.getWithdrawalPayloads(params),
         dumpState: (() => remote.dumpState()) as unknown as IStateManager['dumpState'],
@@ -116,6 +118,31 @@ export class TornadoCashProtocol implements TCInstance {
         asset,
         amount: balance,
       };
+    });
+  }
+
+  /**
+   * Returns all notes for the account.
+   * @param assets - Filter by specific assets (optional, if empty returns all)
+   * @param includeSpent - Include notes with zero balance (default: false)
+   */
+  async notes(
+    assets: ERC20AssetId[] = [],
+    includeSpent = false,
+  ): Promise<TCNote[]> {
+    const stateManager = await this.stateManager;
+
+    await stateManager.sync();
+
+    const assetAddresses = assets.map(({ contract }) => {
+      const parsedAddress = BigInt(contract);
+
+      return parsedAddress === E_ADDRESS_BIGINT ? 0n : parsedAddress;
+    });
+
+    return stateManager.getNotes({
+      includeSpent,
+      assets: assetAddresses.length > 0 ? assetAddresses : undefined,
     });
   }
 

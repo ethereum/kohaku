@@ -4,7 +4,7 @@ use alloy::primitives::Address;
 use eip_1193_provider::tx_data::TxData;
 use railgun::{
     account::address::RailgunAddress,
-    provider::{BalanceEntry, RailgunProvider},
+    provider::{BalanceEntry, NoteEntry, RailgunProvider},
 };
 use serde::Serialize;
 use tsify::Tsify;
@@ -30,6 +30,11 @@ pub struct JsRailgunProvider {
 #[tsify(into_wasm_abi)]
 #[serde(transparent)]
 pub struct Balances(Vec<BalanceEntry>);
+
+#[derive(Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+#[serde(transparent)]
+pub struct Notes(Vec<NoteEntry>);
 
 impl JsRailgunProvider {
     pub fn new(inner: RailgunProvider) -> Self {
@@ -61,6 +66,11 @@ impl JsRailgunProvider {
     /// If POI is enabled, only returns the spendable balance according to the POI provider.
     pub async fn balance(&mut self, address: RailgunAddress) -> Balances {
         Balances(self.inner.balance(address.clone()).await)
+    }
+
+    /// Returns all unspent notes for the given address.
+    pub async fn notes(&mut self, address: RailgunAddress) -> Notes {
+        Notes(self.inner.notes(address.clone()).await)
     }
 
     /// Helper to create a shield builder.

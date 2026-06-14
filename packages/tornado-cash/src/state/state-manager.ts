@@ -5,6 +5,7 @@ import { Store, unwrapResult } from "@reduxjs/toolkit";
 import { Address } from "../interfaces/types.interface";
 import {
   IDepositOperationParams,
+  IGetNotesParams,
   IStateManager,
   IWithdrawapOperationParams,
   StoreKey,
@@ -20,6 +21,7 @@ import {
   specificAssetsBalanceSelector,
   SpecificAssetBalanceFn,
 } from "./selectors/balance.selector";
+import { allNotesSelector } from "./selectors/notes.selector";
 import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
@@ -66,6 +68,7 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
   selectors: {
     specificAssetsBalanceSelector: ((assets: Address[] | Address | undefined) =>
       Promise.resolve(specificAssetsBalanceSelector(store.getState(), assets as Address[]))) as unknown as SpecificAssetBalanceFn<true>,
+    getAllNotes: () => allNotesSelector(store.getState()),
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -207,6 +210,25 @@ export const storeStateManager = async ({
         await getChainStore(await getChainInfo());
 
       return specificAssetsBalanceSelector(assets);
+    },
+    getNotes: async ({
+      includeSpent = false,
+      assets = [],
+    }: IGetNotesParams) => {
+      const store = await getChainStore(await getChainInfo());
+      let notes = store.selectors.getAllNotes();
+
+      if (!includeSpent) {
+        notes = notes.filter((note) => note.balance > 0n);
+      }
+
+      if (assets.length > 0) {
+        const assetSet = new Set(assets.map((a) => a.toString()));
+
+        notes = notes.filter((note) => assetSet.has(note.assetAddress.toString()));
+      }
+
+      return notes;
     },
     getDepositPayload: async ({ asset, amount, strategy }: IDepositOperationParams) => {
       const store = await getChainStore(await getChainInfo());
