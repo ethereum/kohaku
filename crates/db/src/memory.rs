@@ -38,3 +38,36 @@ impl Database for MemoryDatabase {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn round_trip() {
+        let db = MemoryDatabase::new();
+        assert_eq!(db.get(b"missing").await.unwrap(), None);
+
+        db.set(b"key", b"value").await.unwrap();
+        assert_eq!(db.get(b"key").await.unwrap(), Some(b"value".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn overwrite() {
+        let db = MemoryDatabase::new();
+        db.set(b"key", b"first").await.unwrap();
+        db.set(b"key", b"second").await.unwrap();
+        assert_eq!(db.get(b"key").await.unwrap(), Some(b"second".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn delete() {
+        let db = MemoryDatabase::new();
+        db.set(b"key", b"value").await.unwrap();
+        db.delete(b"key").await.unwrap();
+        assert_eq!(db.get(b"key").await.unwrap(), None);
+
+        // Deleting a missing key is a no-op.
+        db.delete(b"missing").await.unwrap();
+    }
+}
