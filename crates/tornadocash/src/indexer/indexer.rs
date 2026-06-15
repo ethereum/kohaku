@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use alloy::primitives::B256;
+use kohaku_db::{Database, DatabaseError};
 use ruint::aliases::U256;
 use thiserror::Error;
 use tracing::info;
@@ -12,6 +13,7 @@ use crate::{
     },
     merkle::TornadoMerkleTree,
     provider::pool::Pool,
+    tornado_database::{IndexerState, TornadoDB},
 };
 
 pub struct Indexer {
@@ -21,6 +23,7 @@ pub struct Indexer {
     synced_block: u64,
     tree: TornadoMerkleTree,
     nullifiers: Vec<B256>,
+    db: Arc<dyn Database>,
 }
 
 #[derive(Debug, Error)]
@@ -29,20 +32,40 @@ pub enum IndexerError {
     Syncer(#[from] SyncerError),
     #[error("Verifier error: {0}")]
     Verifier(#[from] VerifierError),
+    #[error("Database error: {0}")]
+    Database(#[from] DatabaseError),
     #[error("Unknown pool: amount={0}, symbol={1}, chain_id={2}")]
     UnknownPool(String, String, u64),
 }
 
 impl Indexer {
-    pub fn new(pool: Pool, syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>) -> Self {
-        Self {
+    pub async fn new(
+        db: Arc<dyn Database>,
+        pool: Pool,
+        syncer: Arc<dyn Syncer>,
+        verifier: Arc<dyn Verifier>,
+    ) -> Result<Self, IndexerError> {
+        let state = db.get_indexer(&pool).await?;
+        let tree = match db.get_tree(&pool).await? {
+            Some(tree_state) => TornadoMerkleTree::from_state(tree_state),
+            None => TornadoMerkleTree::new(0),
+        };
+
+        info!(
+            "Loaded indexer state for {}: synced_block={}, nullifiers={}",
+            pool,
+            state.synced_block,
+            state.nullifiers.len()
+        );
+        Ok(Self {
             pool,
             syncer,
             verifier,
-            synced_block: 0,
-            tree: TornadoMerkleTree::new(0),
-            nullifiers: Vec::new(),
-        }
+            synced_block: state.synced_block,
+            tree,
+            nullifiers: state.nullifiers,
+            db,
+        })
     }
 
     pub fn pool(&self) -> &Pool {
@@ -99,6 +122,17 @@ impl Indexer {
         }
 
         self.synced_block = to_block;
+        self.save().await?;
+        Ok(())
+    }
+
+    async fn save(&self) -> Result<(), DatabaseError> {
+        let state = IndexerState {
+            synced_block: self.synced_block,
+            nullifiers: self.nullifiers.clone(),
+        };
+        self.db.set_indexer(&self.pool, &state).await?;
+        self.db.set_tree(&self.pool, self.tree.state()).await?;
         Ok(())
     }
 }

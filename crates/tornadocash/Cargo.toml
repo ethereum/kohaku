@@ -30,6 +30,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 reqwest = { workspace = true, features = ["rustls"] }
 crypto = { workspace = true }
+kohaku-db = { workspace = true }
 web-time = { workspace = true }
 hex = { workspace = true }
 websnark-rs = { workspace = true }

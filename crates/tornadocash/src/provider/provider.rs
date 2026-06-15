@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use alloy::primitives::Address;
+use kohaku_db::Database;
 use rand::CryptoRng;
 use ruint::aliases::U256;
 use thiserror::Error;
@@ -19,6 +20,7 @@ use crate::{
 /// The provider manages multiple `PoolProvider`s for requested pools, providing a unified
 /// interface.
 pub struct TornadoProvider {
+    db: Arc<dyn Database>,
     syncer: Arc<dyn Syncer>,
     verifier: Arc<dyn Verifier>,
 
@@ -29,13 +31,20 @@ pub struct TornadoProvider {
 pub enum TornadoProviderError {
     #[error("Unknown pool: amount={0}, symbol={1}, chain_id={2}")]
     UnknownPool(String, String, u64),
+    #[error("Pool not initialized: {0}")]
+    PoolNotInitialized(Pool),
     #[error(transparent)]
     Pool(#[from] PoolProviderError),
 }
 
 impl TornadoProvider {
-    pub fn new(syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>) -> Self {
+    pub fn new(
+        db: Arc<dyn Database>,
+        syncer: Arc<dyn Syncer>,
+        verifier: Arc<dyn Verifier>,
+    ) -> Self {
         Self {
+            db,
             syncer,
             verifier,
             pools: Vec::new(),
@@ -43,22 +52,39 @@ impl TornadoProvider {
     }
 
     /// Get a mutable reference to the provider for a given pool, creating it if it doesn't exist.
-    pub fn pool(&mut self, pool: Pool) -> &mut PoolProvider {
+    pub async fn pool(&mut self, pool: Pool) -> Result<&mut PoolProvider, PoolProviderError> {
         if let Some(i) = self.pools.iter().position(|p| *p.pool() == pool) {
-            return &mut self.pools[i];
+            return Ok(&mut self.pools[i]);
         }
 
-        let provider = PoolProvider::new(pool, self.syncer.clone(), self.verifier.clone());
+        let provider = PoolProvider::new(
+            self.db.clone(),
+            pool,
+            self.syncer.clone(),
+            self.verifier.clone(),
+        )
+        .await?;
 
         self.pools.retain(|p| *p.pool() != pool);
         self.pools.push(provider);
-        self.pools.last_mut().unwrap()
+        Ok(self.pools.last_mut().unwrap())
     }
 
     /// Create a deposit transaction and note for a given pool.
-    pub fn deposit(&mut self, pool: Pool, rng: &mut impl CryptoRng) -> (TxData, Note) {
-        let provider = self.pool(pool);
-        provider.deposit(rng)
+    ///
+    /// The pool must already be initialized (e.g. via [`TornadoProvider::pool`]); otherwise
+    /// returns [`TornadoProviderError::PoolNotInitialized`].
+    pub fn deposit(
+        &self,
+        pool: Pool,
+        rng: &mut impl CryptoRng,
+    ) -> Result<(TxData, Note), TornadoProviderError> {
+        let provider = self
+            .pools
+            .iter()
+            .find(|p| *p.pool() == pool)
+            .ok_or(TornadoProviderError::PoolNotInitialized(pool))?;
+        Ok(provider.deposit(rng))
     }
 
     /// Create a withdrawal transaction.
@@ -79,7 +105,7 @@ impl TornadoProvider {
             )
         })?;
 
-        let provider = self.pool(pool);
+        let provider = self.pool(pool).await?;
         provider.sync().await?;
         Ok(provider
             .withdraw(note, recipient, relayer, fee, refund, rng)

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use alloy::{providers::ProviderBuilder, signers::local::PrivateKeySigner};
+use kohaku_db::memory::MemoryDatabase;
 use tornadocash::{
     indexer::{chained::ChainedSyncer, remote::RemoteSyncer, rpc::RpcSyncer},
     provider::{pool::Pool, pool_provider::PoolProvider},
@@ -30,7 +31,9 @@ async fn test_sync() -> Result<(), anyhow::Error> {
         ChainedSyncer::new().then( RemoteSyncer::new("https://raw.githubusercontent.com/Robert-MacWha/privacy-protocols/refs/heads/sync-state/tornadocash-sync"))
         .then_arc(rpc_syncer.clone()));
 
-    let mut pool_provider = PoolProvider::new(pool, syncer.clone(), rpc_syncer.clone());
+    let db = Arc::new(MemoryDatabase::new());
+    let mut pool_provider =
+        PoolProvider::new(db, pool, syncer.clone(), rpc_syncer.clone()).await?;
     info!("Syncing pool provider");
     pool_provider.sync().await?;
 

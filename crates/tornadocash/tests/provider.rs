@@ -7,6 +7,7 @@ use alloy::{
     rpc::types::TransactionRequest,
     signers::local::PrivateKeySigner,
 };
+use kohaku_db::memory::MemoryDatabase;
 use kohaku_test_utils::AnvilBuilder;
 use tornadocash::{
     indexer::rpc::RpcSyncer,
@@ -41,12 +42,14 @@ async fn test_provider() -> Result<(), anyhow::Error> {
         .await?;
     let syncer = Arc::new(RpcSyncer::new(provider.clone()).with_batch_size(10_000));
 
-    let mut tornado_provider = TornadoProvider::new(syncer.clone(), syncer.clone());
+    let db = Arc::new(MemoryDatabase::new());
+    let mut tornado_provider = TornadoProvider::new(db, syncer.clone(), syncer.clone());
     info!("Syncing pool provider");
+    tornado_provider.pool(pool).await?;
     tornado_provider.sync().await?;
 
     info!("Depositing into pool");
-    let (tx_data, note) = tornado_provider.deposit(pool, &mut rand::rng());
+    let (tx_data, note) = tornado_provider.deposit(pool, &mut rand::rng())?;
     info!("Deposit tx data: {tx_data:?}");
     info!("Deposit note: {note:?}");
 

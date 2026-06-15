@@ -5,6 +5,7 @@ use alloy::{
     sol_types::SolCall,
 };
 use anyhow::Context;
+use kohaku_db::Database;
 use rand::CryptoRng;
 use ruint::aliases::U256;
 use tracing::info;
@@ -62,13 +63,18 @@ pub enum PoolProviderError {
 }
 
 impl PoolProvider {
-    pub fn new(pool: Pool, syncer: Arc<dyn Syncer>, verifier: Arc<dyn Verifier>) -> Self {
+    pub async fn new(
+        db: Arc<dyn Database>,
+        pool: Pool,
+        syncer: Arc<dyn Syncer>,
+        verifier: Arc<dyn Verifier>,
+    ) -> Result<Self, PoolProviderError> {
         let artifact_loader = RemoteArtifactLoader::default();
-        let indexer = Indexer::new(pool, syncer, verifier);
-        Self {
+        let indexer = Indexer::new(db, pool, syncer, verifier).await?;
+        Ok(Self {
             indexer,
             artifact_loader,
-        }
+        })
     }
 
     /// Get the pool associated with this provider.

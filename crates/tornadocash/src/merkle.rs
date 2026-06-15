@@ -34,6 +34,7 @@ impl MerkleConfig for TornadoMerkleConfig {
 }
 
 pub type TornadoMerkleTree = crypto::merkle_tree::MerkleTree<TornadoMerkleConfig>;
+pub type TornadoMerkleTreeState = crypto::merkle_tree::MerkleTreeState<TornadoMerkleConfig>;
 pub use crypto::merkle_tree::MerkleRoot;
 
 #[cfg(test)]

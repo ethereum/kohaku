@@ -6240,6 +6240,7 @@ dependencies = [
  "crypto",
  "hex",
  "insta",
+ "kohaku-db",
  "kohaku-test-utils",
  "postcard",
  "rand 0.9.4",
