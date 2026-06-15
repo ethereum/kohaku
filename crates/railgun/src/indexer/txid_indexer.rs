@@ -1,15 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 
+use kohaku_db::{Database, DatabaseError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{info, warn};
 
 use crate::{
     crypto::railgun_txid::Txid,
-    database::{Database, DatabaseError, RailgunDB},
     indexer::syncer::{Operation, SyncerError, TxidSyncer},
     merkle_tree::{TOTAL_LEAVES, TxidLeafHash, TxidMerkleTree, UtxoTreeIndex},
     poi::client::{PoiClientError, PoiNodeClient},
+    railgun_database::RailgunDB,
 };
 
 pub struct TxidIndexer {

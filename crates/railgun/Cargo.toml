@@ -60,6 +60,7 @@ wasm-bindgen = { workspace = true, optional = true }
 web-time = { workspace = true }
 brotli = { workspace = true }
 anyhow = { workspace = true }
+kohaku-db = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 reqwest = { workspace = true, features = ["json", "rustls"] }

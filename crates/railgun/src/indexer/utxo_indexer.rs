@@ -4,19 +4,20 @@ use std::{
     u64,
 };
 
+use kohaku_db::{Database, DatabaseError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::info;
 
 use crate::{
     account::{address::RailgunAddress, signer::RailgunSigner},
-    database::{Database, DatabaseError, RailgunDB},
     indexer::{
         indexed_account::IndexedAccount,
         syncer::{self, SyncEvent, SyncerError, UtxoSyncer},
     },
     merkle_tree::{MerkleTreeVerifier, UtxoLeafHash, UtxoMerkleTree},
     note::utxo::{NoteError, UtxoNote},
+    railgun_database::RailgunDB,
 };
 
 /// Utxo indexer that maintains the set of UTXO merkle trees and tracks accounts

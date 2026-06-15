@@ -1,8 +1,8 @@
+use kohaku_db::{Database, DatabaseError};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     account::address::RailgunAddress,
-    database::{Database, DatabaseError},
     indexer::{
         indexed_account::IndexedAccountState, txid_indexer::TxidIndexerState,
         utxo_indexer::UtxoIndexerState,
@@ -21,9 +21,9 @@ pub trait RailgunDB: Database + common::MaybeSend {
             return Ok(Default::default());
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes)?;
+        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;
         match envelope.v {
-            1 => Ok(serde_json::from_value(envelope.data)?),
+            1 => Ok(serde_json::from_value(envelope.data).map_err(DatabaseError::other)?),
             v => Err(DatabaseError::UnsupportedVersion(v)),
         }
     }
@@ -41,9 +41,9 @@ pub trait RailgunDB: Database + common::MaybeSend {
             return Ok(Default::default());
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes)?;
+        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;
         match envelope.v {
-            1 => Ok(serde_json::from_value(envelope.data)?),
+            1 => Ok(serde_json::from_value(envelope.data).map_err(DatabaseError::other)?),
             v => Err(DatabaseError::UnsupportedVersion(v)),
         }
     }
@@ -65,9 +65,11 @@ pub trait RailgunDB: Database + common::MaybeSend {
             return Ok(None);
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes)?;
+        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;
         match envelope.v {
-            1 => Ok(Some(serde_json::from_value(envelope.data)?)),
+            1 => Ok(Some(
+                serde_json::from_value(envelope.data).map_err(DatabaseError::other)?,
+            )),
             v => Err(DatabaseError::UnsupportedVersion(v)),
         }
     }
@@ -87,9 +89,9 @@ pub trait RailgunDB: Database + common::MaybeSend {
             return Ok(Default::default());
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes)?;
+        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;
         match envelope.v {
-            1 => Ok(serde_json::from_value(envelope.data)?),
+            1 => Ok(serde_json::from_value(envelope.data).map_err(DatabaseError::other)?),
             v => Err(DatabaseError::UnsupportedVersion(v)),
         }
     }
@@ -107,9 +109,11 @@ pub trait RailgunDB: Database + common::MaybeSend {
             return Ok(None);
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes)?;
+        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;
         match envelope.v {
-            1 => Ok(Some(serde_json::from_value(envelope.data)?)),
+            1 => Ok(Some(
+                serde_json::from_value(envelope.data).map_err(DatabaseError::other)?,
+            )),
             v => Err(DatabaseError::UnsupportedVersion(v)),
         }
     }
@@ -129,9 +133,9 @@ pub trait RailgunDB: Database + common::MaybeSend {
             return Ok(Default::default());
         };
 
-        let envelope: Envelope = serde_json::from_slice(&bytes)?;
+        let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;
         match envelope.v {
-            1 => Ok(serde_json::from_value(envelope.data)?),
+            1 => Ok(serde_json::from_value(envelope.data).map_err(DatabaseError::other)?),
             v => Err(DatabaseError::UnsupportedVersion(v)),
         }
     }
@@ -163,9 +167,9 @@ struct Envelope {
 fn serialize_envelope<T: Serialize>(version: u32, data: &T) -> Result<Vec<u8>, DatabaseError> {
     let envelope = Envelope {
         v: version,
-        data: serde_json::to_value(data)?,
+        data: serde_json::to_value(data).map_err(DatabaseError::other)?,
     };
-    Ok(serde_json::to_vec(&envelope)?)
+    Ok(serde_json::to_vec(&envelope).map_err(DatabaseError::other)?)
 }
 
 fn utxo_indexer_key() -> Vec<u8> {

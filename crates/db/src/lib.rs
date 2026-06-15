@@ -1,9 +1,10 @@
-pub mod memory;
-// #[cfg(native)]
-// pub mod fs;
-mod railgun_db;
+//! Kohaku database module, providing a unified backend for various storage implementations.
 
-pub(crate) use railgun_db::RailgunDB;
+#[cfg(native)]
+pub mod fs;
+#[cfg(wasm)]
+pub mod js;
+pub mod memory;
 
 /// Key-value database interface.
 #[cfg_attr(native, async_trait::async_trait)]
@@ -16,10 +17,16 @@ pub trait Database: common::MaybeSend {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DatabaseError {
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
     #[error("Unsupported version: {0}")]
     UnsupportedVersion(u32),
     #[error("Storage error: {0}")]
     StorageError(String),
+    #[error("Other error: {0}")]
+    Other(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+impl DatabaseError {
+    pub fn other(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        DatabaseError::Other(Box::new(e))
+    }
 }

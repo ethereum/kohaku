@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use futures::lock::Mutex;
 
-use crate::database::{Database, DatabaseError};
+use crate::{Database, DatabaseError};
 
 /// Basic in-memory KV database implementation.
 #[derive(Default)]

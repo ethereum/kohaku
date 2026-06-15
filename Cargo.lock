@@ -3784,6 +3784,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kohaku-db"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "cfg_aliases",
+ "common",
+ "futures",
+ "hex",
+ "thiserror 2.0.18",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "kohaku-test-utils"
 version = "0.1.0"
 dependencies = [
@@ -4759,6 +4774,7 @@ dependencies = [
  "hex",
  "insta",
  "js-sys",
+ "kohaku-db",
  "kohaku-test-utils",
  "num-bigint",
  "railgun",
@@ -4791,6 +4807,7 @@ dependencies = [
  "async-trait",
  "console_error_panic_hook",
  "eip-1193-provider",
+ "kohaku-db",
  "railgun",
  "rand 0.9.4",
  "serde",

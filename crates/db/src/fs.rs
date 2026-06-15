@@ -1,6 +1,6 @@
 use std::{io, path::PathBuf};
 
-use crate::database::{Database, DatabaseError};
+use crate::{Database, DatabaseError};
 
 /// Filesystem-backed KV database. Each key is stored as a hex-encoded file in `dir`.
 pub struct FilesystemDatabase {
