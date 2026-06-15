@@ -39,7 +39,7 @@ impl Database for MemoryDatabase {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use super::*;
 

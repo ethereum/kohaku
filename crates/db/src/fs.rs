@@ -44,7 +44,7 @@ impl Database for FilesystemDatabase {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, native))]
 mod tests {
     use super::*;
 
