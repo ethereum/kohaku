@@ -47,7 +47,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 1 * 10_u128.pow(17),
+        amount_wei: 10_u128.pow(17),
         deployed_block: 5594400,
     };
 
@@ -58,7 +58,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 1 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(18),
         deployed_block: 5594401,
     };
 
@@ -69,7 +69,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 10 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(19),
         deployed_block: 5594402,
     };
 
@@ -80,7 +80,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 1 * 10_u128.pow(17),
+        amount_wei: 10_u128.pow(17),
         deployed_block: 9116966,
     };
 
@@ -91,7 +91,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 1 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(18),
         deployed_block: 9117609,
     };
 
@@ -102,7 +102,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 10 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(19),
         deployed_block: 9117720,
     };
 
@@ -113,7 +113,7 @@ impl Pool {
             symbol: "ETH",
             decimals: 18,
         },
-        amount_wei: 100 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(20),
         deployed_block: 9161895,
     };
 
@@ -124,7 +124,7 @@ impl Pool {
             symbol: "MATIC",
             decimals: 18,
         },
-        amount_wei: 100 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(20),
         deployed_block: 16258013,
     };
 
@@ -135,7 +135,7 @@ impl Pool {
             symbol: "MATIC",
             decimals: 18,
         },
-        amount_wei: 1000 * 10_u128.pow(18),
+        amount_wei: 10_u128.pow(21),
         deployed_block: 16258032,
     };
 

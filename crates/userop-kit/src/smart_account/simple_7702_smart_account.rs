@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use alloy::{
     network::TransactionBuilder,
     primitives::{Address, Bytes, U256, address, aliases::U192, bytes},
@@ -8,7 +6,6 @@ use alloy::{
 };
 use alloy_sol_types::{Eip712Domain, SolCall};
 use anyhow::Context;
-use eip_1193_provider::provider::{Eip1193Caller, Eip1193Provider, IntoEip1193Provider};
 use serde::{Deserialize, Serialize};
 
 use crate::{

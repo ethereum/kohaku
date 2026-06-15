@@ -237,11 +237,11 @@ fn generate_merkle_proof(
     let mut path_indices = [U256::ZERO; 20];
 
     for (i, element) in proof.elements.iter().enumerate() {
-        path_elements[i] = (*element).into();
+        path_elements[i] = *element;
     }
 
-    for i in 0..20 {
-        path_indices[i] = if proof.indices.bit(i) {
+    for (i, path_index) in path_indices.iter_mut().enumerate() {
+        *path_index = if proof.indices.bit(i) {
             U256::from(1)
         } else {
             U256::ZERO

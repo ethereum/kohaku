@@ -115,7 +115,7 @@ impl<C: MerkleConfig> MerkleTree<C> {
         let initial_index = self.tree[0]
             .iter()
             .position(|val| *val == element)
-            .ok_or(MerkleTreeError::ElementNotFound(format!("{:?}", element)))?;
+            .ok_or(MerkleTreeError::ElementNotFound(format!("{element}")))?;
 
         let mut elements = Vec::with_capacity(C::DEPTH);
         let mut index = initial_index;

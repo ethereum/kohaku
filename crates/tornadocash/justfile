@@ -1,3 +1,6 @@
+integration-sync:
+    RUST_LOG=info cargo test --release -- test_sync --ignored --nocapture
+
 integration-pool-provider:
     RUST_LOG=info cargo test --release -- test_pool_provider --ignored --nocapture
 

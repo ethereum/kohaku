@@ -78,6 +78,7 @@ impl<P: Provider> Syncer for RpcSyncer<P> {
         from_block: u64,
         to_block: u64,
     ) -> Result<Vec<SyncEvent>, SyncerError> {
+        info!("Syncing from {} to {}", from_block, to_block);
         Ok(self
             .sync(pool, from_block, to_block)
             .await

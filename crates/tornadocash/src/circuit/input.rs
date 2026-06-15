@@ -17,6 +17,7 @@ pub struct CircuitInputs {
 }
 
 impl CircuitInputs {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         root: U256,
         nullifier_hash: U256,
@@ -44,7 +45,7 @@ impl CircuitInputs {
     }
 
     /// Convert the circuit inputs into a circuit input signal map
-    pub fn as_signals(self) -> HashMap<String, Value> {
+    pub fn as_signals(&self) -> HashMap<String, Value> {
         HashMap::from([
             ("root".into(), to_value(self.root)),
             ("nullifierHash".into(), to_value(self.nullifier_hash)),

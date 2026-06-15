@@ -63,13 +63,14 @@ impl Indexer {
         self.sync_to(latest).await
     }
 
+    #[tracing::instrument(name = "sync", skip_all)]
     pub async fn sync_to(&mut self, to_block: u64) -> Result<(), IndexerError> {
         let from_block = self.synced_block.max(self.pool.deployed_block);
         if from_block >= to_block {
             info!("Already synced to block {}", self.synced_block);
             return Ok(());
         }
-        info!("Syncing from block {} to {}", from_block, to_block);
+        info!("Syncing from {} to {}", from_block, to_block);
 
         let events = self.syncer.sync(&self.pool, from_block, to_block).await?;
         info!("Synced {} events", events.len());
