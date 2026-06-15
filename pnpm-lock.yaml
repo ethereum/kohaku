@@ -389,8 +389,8 @@ importers:
         specifier: 2.5.0
         version: 2.5.0
       micro-zk-proofs:
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.3.1
+        version: 0.3.1
       ox:
         specifier: ^0.12.0
         version: 0.12.4(typescript@5.9.3)(zod@4.4.3)
@@ -6369,8 +6369,8 @@ packages:
   micro-wrkr@0.2.0:
     resolution: {integrity: sha512-yZdhhfWMwMTAFQc/5cRUtCGURF/HplgP15WmItE8La0f/Dn1t9ckZh4vW6LvV3AMdSRYAfKGdbXyvhxIKy1Xxw==}
 
-  micro-zk-proofs@0.3.0:
-    resolution: {integrity: sha512-ueAtCjOuyniumaKTQ3CJslFPZnaQUR9Y3chTr0Cxfenmz1ti/e1+5jOYFunaOOeYUMEVkKMtqNKJhiW5wa1BpQ==}
+  micro-zk-proofs@0.3.1:
+    resolution: {integrity: sha512-Vjn2jY+TvJHL44byIvMuMzduAm9lsA+uZunzchZ46AdAgvK4X4SU3uiaCToX2I1DbMQXrpGBIXyJqmvYzl7pVg==}
 
   micromark-core-commonmark@2.0.3:
     resolution: {integrity: sha512-RDBrHEMSxVFLg6xvnXmb1Ayr2WzLAWjeSATAoxwKYJV94TeNavgoIdA0a9ytzDSVzBy2YKFK+emCPOEibLeCrg==}
@@ -8004,6 +8004,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -15544,7 +15545,7 @@ snapshots:
 
   micro-wrkr@0.2.0: {}
 
-  micro-zk-proofs@0.3.0:
+  micro-zk-proofs@0.3.1:
     dependencies:
       '@noble/ciphers': 2.2.0
       '@noble/curves': 2.2.0
