@@ -82,9 +82,10 @@ impl RemoteArtifactLoader {
         let url = format!("{}/tornadocash-classic/circuit.json.br", self.base_url);
         let compressed = self.fetch(&url).await?;
         let bytes = decompress(&compressed)?;
-        let circuit =
-            Circuit::from_json(&String::from_utf8(bytes).context("Invalid UTF-8 in circuit JSON")?)
-                .context("Failed to parse circuit JSON")?;
+        let circuit: Circuit = serde_json::from_str(
+            &String::from_utf8(bytes).context("Invalid UTF-8 in circuit JSON")?,
+        )
+        .context("Failed to parse circuit JSON")?;
         Ok(circuit)
     }
 

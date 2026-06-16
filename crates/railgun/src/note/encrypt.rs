@@ -1,6 +1,6 @@
 use crypto::poseidon_hash;
 use curve25519_dalek::{Scalar, edwards::CompressedEdwardsY};
-use rand::{Rng, RngCore};
+use rand::{CryptoRng, RngExt};
 use ruint::{Uint, aliases::U256};
 use sha2::{Digest, Sha512};
 use thiserror::Error;
@@ -29,7 +29,7 @@ pub enum EncryptError {
 /// Encrypts a note into a CommitmentCiphertext
 ///
 /// TODO: Add details on blind
-pub fn encrypt_note<R: RngCore + ?Sized>(
+pub fn encrypt_note(
     receiver: &RailgunAddress,
     shared_random: &[u8; 16],
     value: u128,
@@ -37,7 +37,7 @@ pub fn encrypt_note<R: RngCore + ?Sized>(
     memo: &str,
     viewing_key: ViewingKey,
     blind: bool,
-    rng: &mut R,
+    rng: &mut dyn CryptoRng,
 ) -> Result<CommitmentCiphertext, EncryptError> {
     let output_type = 0;
     let application_identifier = railgun_base_37::encode("railgun rs")?;
@@ -92,11 +92,11 @@ pub fn encrypt_note<R: RngCore + ?Sized>(
     })
 }
 
-pub fn encrypt_shield<R: Rng>(
+pub fn encrypt_shield(
     recipient: RailgunAddress,
     asset: AssetId,
     value: u128,
-    rng: &mut R,
+    rng: &mut impl CryptoRng,
 ) -> Result<ShieldRequest, EncryptError> {
     let shield_private_key: ViewingKey = rng.random();
     let shared_key = shield_private_key
@@ -186,7 +186,8 @@ fn concat_arrays<const A: usize, const B: usize, const C: usize>(
 #[cfg(all(test, native))]
 mod tests {
     use alloy::primitives::{Address, address};
-    use rand_chacha::{ChaChaRng, rand_core::SeedableRng};
+    use rand::SeedableRng;
+    use rand_chacha::ChaChaRng;
     use tracing_test::traced_test;
 
     use super::*;

@@ -5,7 +5,7 @@ use alloy::{
     sol_types::SolCall,
 };
 use eip_1193_provider::provider::{Eip1193Error, Eip1193Provider};
-use rand::Rng;
+use rand::CryptoRng;
 use serde::Serialize;
 use thiserror::Error;
 use tracing::{info, warn};
@@ -153,10 +153,10 @@ impl RailgunProvider {
     }
 
     /// Build a transaction builder into a proved, signable transaction.
-    pub async fn build<R: Rng>(
+    pub async fn build(
         &mut self,
         builder: TransactionBuilder,
-        rng: &mut R,
+        rng: &mut impl CryptoRng,
     ) -> Result<ProvedTx, RailgunProviderError> {
         let operations = self.build_operation(builder, rng).await?;
         if let Some(poi_provider) = &mut self.poi_provider {
@@ -181,7 +181,7 @@ impl RailgunProvider {
         fee_payer: Arc<dyn RailgunSigner>,
         fee_token: Address,
         calldata: S::Call,
-        rng: &mut impl Rng,
+        rng: &mut impl CryptoRng,
     ) -> Result<SignableUserOperation, RailgunProviderError> {
         let privacy_paymaster = self.chain.privacy_paymaster.ok_or(
             RailgunProviderError::PrivacyPaymasterNotConfigured(self.chain.id),
@@ -324,10 +324,10 @@ impl RailgunProvider {
         annotated_notes
     }
 
-    async fn build_operation<R: Rng>(
+    async fn build_operation(
         &mut self,
         builder: TransactionBuilder,
-        rng: &mut R,
+        rng: &mut impl CryptoRng,
     ) -> Result<Vec<ProvedOperation>, RailgunProviderError> {
         let in_notes = self.all_unspent().await;
         let spendable_notes: Vec<UtxoNote> = if let Some(_) = self.poi_provider {

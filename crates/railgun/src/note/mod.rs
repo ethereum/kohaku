@@ -1,4 +1,4 @@
-use rand::RngCore;
+use rand::CryptoRng;
 use ruint::aliases::U256;
 
 use crate::{
@@ -13,7 +13,7 @@ pub mod unshield;
 pub mod utxo;
 
 pub trait EncryptableNote: Note {
-    fn encrypt(&self, rng: &mut dyn RngCore) -> Result<CommitmentCiphertext, EncryptError>;
+    fn encrypt(&self, rng: &mut dyn CryptoRng) -> Result<CommitmentCiphertext, EncryptError>;
 }
 
 pub trait Note {

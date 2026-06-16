@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use crypto::pedersen_hash;
-use rand::{CryptoRng, Rng};
+use rand::{CryptoRng, RngExt};
 use ruint::aliases::U256;
 use thiserror::Error;
 

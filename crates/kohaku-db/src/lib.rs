@@ -6,7 +6,7 @@ pub mod fs;
 pub mod js;
 pub mod memory;
 
-/// Key-value database interface.
+/// Key-value async database interface.
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait Database: common::MaybeSend {
