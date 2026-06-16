@@ -61,16 +61,6 @@ export type PICapCfg<T extends Partial<PICapabilities> = object> = {
 type ResolvedCapabilities<C extends Partial<PICapabilities>> =
     PICapCfg<C> extends PICapabilities ? PICapCfg<C> : never;
 
-type NotesCapability<C extends Partial<PICapabilities>> =
-    [ResolvedCapabilities<C>['note']] extends [undefined]
-        ? Record<never, never>
-        : {
-              notes: (
-                  assets?: Array<ResolvedCapabilities<C>['assetAmounts']['read']['asset']>,
-                  includeSpent?: boolean,
-              ) => Promise<Array<Exclude<ResolvedCapabilities<C>['note'], undefined>>>;
-          };
-
 export type Transact<
     TAccountId extends string,
     C extends Partial<PICapabilities>
@@ -94,7 +84,15 @@ export type Transact<
     balance: (
         assets: Array<ResolvedCapabilities<C>['assetAmounts']['read']['asset']> | undefined
     ) => Promise<Array<ResolvedCapabilities<C>['assetAmounts']['read']>>;
-} & NotesCapability<C>;
+    /**
+     * Returns per-note details. Only present when the plugin capability `note`
+     * is set to a concrete type (not `undefined`).
+     */
+    notes?: (
+        assets?: Array<ResolvedCapabilities<C>['assetAmounts']['read']['asset']>,
+        includeSpent?: boolean,
+    ) => Promise<Array<Exclude<ResolvedCapabilities<C>['note'], undefined>>>;
+};
 
 export type PluginInstance<
     TAccountId extends string = string,
