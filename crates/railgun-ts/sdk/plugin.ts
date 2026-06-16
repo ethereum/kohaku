@@ -82,6 +82,7 @@ export type RGInstance = PluginInstance<
     RailgunAddress,
     {
         privateOp: RGPrivateOperation,
+        note: RGNote,
         features: {
             prepareShield: true,
             prepareShieldMulti: true,
@@ -241,7 +242,10 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         return Array.from(all.values());
     }
 
-    async notes(assets: AssetId[] | undefined): Promise<RGNote[]> {
+    async notes(
+        assets: AssetId[] = [],
+        _includeSpent = false,
+    ): Promise<RGNote[]> {
         tsLog("Syncing provider before notes query");
         await this.provider.sync();
 
@@ -252,7 +256,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             for (const note of entries) {
                 const assetId = note.asset;
                 if (assetId.type !== "Erc20") continue;
-                if (assets && !assets.some(a => a.__type === 'erc20' && a.contract === assetId.value)) continue;
+                if (assets.length > 0 && !assets.some(a => a.__type === 'erc20' && a.contract === assetId.value)) continue;
 
                 notes.push({
                     asset: { __type: 'erc20', contract: assetId.value },

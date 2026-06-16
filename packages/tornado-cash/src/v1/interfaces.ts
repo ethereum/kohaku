@@ -58,9 +58,9 @@ export type TCInstance = PluginInstance<
             output: TCAssetAmount,
             read: TCAssetBalance,
         },
+        note: TCNote,
         extras: {
             sync(): Promise<void>,
-            notes(assets?: ERC20AssetId[], includeSpent?: boolean): Promise<TCNote[]>,
             prepareShield(asset: TCAssetAmount, options: TCPrepareShieldOptions): Promise<TCPublicOperation>;
             prepareUnshield(asset: TCAssetAmount, to: Address, options: TCRelayerUnshieldOptions): Promise<TCPrivateOperation<'relayer'>>,
             prepareUnshield(asset: TCAssetAmount, to: Address, options: TCPaymasterUnshieldOptions): Promise<TCPrivateOperation<'paymaster'>>,

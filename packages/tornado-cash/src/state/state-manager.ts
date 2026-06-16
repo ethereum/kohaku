@@ -223,9 +223,9 @@ export const storeStateManager = async ({
       }
 
       if (assets.length > 0) {
-        const assetSet = new Set(assets.map((a) => a.toString()));
+        const assetSet = new Set(assets);
 
-        notes = notes.filter((note) => assetSet.has(note.assetAddress.toString()));
+        notes = notes.filter((note) => assetSet.has(note.assetAddress));
       }
 
       return notes;

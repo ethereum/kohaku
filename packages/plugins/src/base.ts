@@ -49,25 +49,59 @@ export type PICapabilities = {
     privateOp: PrivateOperation;
     publicOp: PublicOperation;
     assetAmounts: AssetAmounts;
+    /** When set, the plugin exposes a `notes()` method returning this type. */
+    note: undefined;
     extras: Record<string, unknown>;
 };
 
 export type PICapCfg<T extends Partial<PICapabilities> = object> = {
     [key in keyof PICapabilities]: undefined extends T[key] ? PICapabilities[key] : T[key];
 };
+
+type ResolvedCapabilities<C extends Partial<PICapabilities>> =
+    PICapCfg<C> extends PICapabilities ? PICapCfg<C> : never;
+
+type NotesCapability<C extends Partial<PICapabilities>> =
+    [ResolvedCapabilities<C>['note']] extends [undefined]
+        ? Record<never, never>
+        : {
+              notes: (
+                  assets?: Array<ResolvedCapabilities<C>['assetAmounts']['read']['asset']>,
+                  includeSpent?: boolean,
+              ) => Promise<Array<Exclude<ResolvedCapabilities<C>['note'], undefined>>>;
+          };
+
 export type Transact<
     TAccountId extends string,
-    C extends PICapabilities
-> = Pick<TxFeatureMap<TAccountId, C['assetAmounts'], C['privateOp'], C['publicOp']>, EnabledKeys<TxFeatureMap<TAccountId, C['assetAmounts'], C['privateOp'], C['publicOp']>, C['features']>> & {
-    balance: (assets: Array<C['assetAmounts']['read']['asset']> | undefined) => Promise<Array<C['assetAmounts']['read']>>;
-};
+    C extends Partial<PICapabilities>
+> = Pick<
+    TxFeatureMap<
+        TAccountId,
+        ResolvedCapabilities<C>['assetAmounts'],
+        ResolvedCapabilities<C>['privateOp'],
+        ResolvedCapabilities<C>['publicOp']
+    >,
+    EnabledKeys<
+        TxFeatureMap<
+            TAccountId,
+            ResolvedCapabilities<C>['assetAmounts'],
+            ResolvedCapabilities<C>['privateOp'],
+            ResolvedCapabilities<C>['publicOp']
+        >,
+        ResolvedCapabilities<C>['features']
+    >
+> & {
+    balance: (
+        assets: Array<ResolvedCapabilities<C>['assetAmounts']['read']['asset']> | undefined
+    ) => Promise<Array<ResolvedCapabilities<C>['assetAmounts']['read']>>;
+} & NotesCapability<C>;
 
 export type PluginInstance<
     TAccountId extends string = string,
     C extends Partial<PICapabilities> = object,
 > = {
     instanceId: () => Promise<TAccountId>;
-} & Transact<TAccountId, PICapCfg<C> extends PICapabilities ? PICapCfg<C> : never> & C['extras'];
+} & Transact<TAccountId, C> & ResolvedCapabilities<C>['extras'];
 
 export type PICapabilitiesExtract<C extends PluginInstance<any, any>> = C extends PluginInstance<any, infer T extends Partial<PICapabilities>> ? T : never;
 

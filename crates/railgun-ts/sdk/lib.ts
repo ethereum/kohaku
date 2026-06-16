@@ -1,7 +1,7 @@
 import initWasm, { initLogging, type LogLevel } from "../pkg";
 import { setTsLogLevel } from "./logger.js";
 export * from '../pkg/index';
-export type { RailgunPlugin, RailgunPluginConfig, BundlerConfig, RGNote } from "./plugin.js";
+export type { RailgunPlugin, RailgunPluginConfig, BundlerConfig, RGInstance, RGNote } from "./plugin.js";
 export { createRailgunPlugin } from "./plugin.js";
 
 let initPromise: Promise<void> | null = null;
