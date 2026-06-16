@@ -89,7 +89,6 @@
     "@privacy-paymasters/sdk": "0.0.2",
     "@reduxjs/toolkit": "^2.11.2",
     "buffer": "^6.0.3",
-    "circomlibjs": "0.1.2",
     "comlink": "^4.4.2",
     "fixed-merkle-tree": "^0.7.3",
     "maci-crypto": "2.5.0",
