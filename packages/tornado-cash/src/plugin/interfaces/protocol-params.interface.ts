@@ -6,14 +6,13 @@ import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interfac
 import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
-import { TornadoProveOutput } from "../../utils/tornado-prover";
+import { TornadoProveOutput } from "../../utils/tornado-prover.js";
 import { TxData } from '@kohaku-eth/provider';
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
-import { WorkerInitOptions } from '../../state/state-manager-api';
 
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }
@@ -53,7 +52,7 @@ export interface ITornadoArtifacts {
 
 export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
 
-export interface TCProtocolParams extends Pick<WorkerInitOptions, 'proverVersion'> {
+export interface TCProtocolParams {
   accountIndex?: number;
   paymasterConfig: IChainsPaymastersConfig;
   secretManagerFactory: (params: SecretManagerParams) => Promise<ISecretManager>;

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   AccountId,
   AssetAmount,
@@ -45,7 +46,6 @@ export class TornadoCashProtocol implements TCInstance {
       relayerConfig,
       paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host),
-      proverVersion
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
     this.stateManager = (async () => {
@@ -66,7 +66,7 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.storage),
           proxy(initialState),
           proxy(artifactsLoader),
-          { protocolConfig, accountIndex, relayerConfig, paymasterConfig, proverVersion },
+          { protocolConfig, accountIndex, relayerConfig, paymasterConfig },
         ),
         workerReady,
       ]);

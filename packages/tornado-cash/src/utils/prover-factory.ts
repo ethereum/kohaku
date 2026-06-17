@@ -3,7 +3,6 @@ import { ITornadoProver } from './tornado-prover';
 
 export function makeLazyProverFactory(
   artifactsLoader: () => Promise<ITornadoArtifacts>,
-  version: 'legacy' | 'js' = 'legacy'
 ): () => Promise<ITornadoProver> {
   let prover: ITornadoProver | null = null;
 
@@ -11,9 +10,7 @@ export function makeLazyProverFactory(
     if (!prover) {
       const { circuitText, provingKey } = await artifactsLoader();
 
-      const actualProverFactory = await (version === 'js' ?
-        import('./tornado-prover-v2').then((m) => m.createTornadoProver) :
-        import('./tornado-prover').then((m) => m.createTornadoProver));
+      const actualProverFactory = await import('./tornado-prover').then((m) => m.createTornadoProver);
 
       prover = await actualProverFactory(JSON.parse(circuitText), provingKey);
     }

@@ -15,7 +15,7 @@ import {
   IChainsPaymastersConfig,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
-import { ITornadoProver } from "../utils/tornado-prover";
+import { ITornadoProver } from "../utils/tornado-prover.js";
 import { ISecretManager } from "../account/keys";
 import {
   specificAssetsBalanceSelector,
