@@ -12,6 +12,7 @@ import { verifyRootsThunk } from "./verifyRootsThunk";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
 import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
 import { IGenericPaymasterWithdrawalPayload, SignedDelegation } from "../../relayer/interfaces/paymaster-client.interface";
+import { TornadoProveOutput } from "../../utils/tornado-prover";
 
 export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
   dataService: IDataService;
@@ -88,22 +89,29 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // The relayer address in the proof is the paymaster — it receives the fee
   const relayerAddress = BigInt(paymasterAddress) as Address;
 
-  const proofOutputs = await Promise.all(deposits.map(async (deposit) => {
-    const withdrawResultAction = await dispatch(
-      withdrawalsProofThunk({
-        ...rest,
-        deposit,
-        relayerAddress,
-        fee,
-      }),
-    );
+  const getProofOutputs = async () => {
+    const results: (TornadoProveOutput & {poolAddress: bigint})[] = [];
 
-    return {
-      ...unwrapResult(withdrawResultAction),
-      poolAddress: deposit.pool
-    };
-  }));
+    for (const deposit of deposits) {
+      const withdrawResultAction = await dispatch(
+        withdrawalsProofThunk({
+          ...rest,
+          deposit,
+          relayerAddress,
+          fee,
+        }),
+      );
+  
+      results.push({
+        ...unwrapResult(withdrawResultAction),
+        poolAddress: deposit.pool
+      });
+    }
 
+    return results;
+  }
+
+  const proofOutputs = await getProofOutputs();
 
   // Compute delegation only for deterministic mode — random is deferred to broadcast.
   // Each deposit gets its own signer derived from its deposit index.

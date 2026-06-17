@@ -64,57 +64,65 @@ export const withdrawThunk = createAsyncThunk<
     const gasPrice = await dataService.getGasPrice();
     const networkFee = gasPrice * WITHDRAW_GAS;
 
-    return Promise.all(deposits.map(async (deposit) => {
-      const pool = pools.get(deposit.pool);
+    const getWithdrawalsProofs = async () => {
+      const results: IWithdrawalPayload[] = [];
 
-      if (!pool) {
-        throw new Error('Pool not found');
+      for (const deposit of deposits) {
+        const pool = pools.get(deposit.pool);
+
+        if (!pool) {
+          throw new Error('Pool not found');
+        }
+
+        const serviceFee = pool.denomination * BigInt(Math.round(tornadoServiceFee * 100)) / 10_000n;
+    
+        let fee: bigint;
+    
+        if (poolInfo.isERC20) {
+          const asset = assetSelector(state).get(assetAddress as Address);
+    
+          if (!asset) throw new Error(`Asset info not found for ${assetAddress}`);
+    
+          const tokenPriceStr =
+            ethPrices[asset.symbol.toLowerCase()] ??
+            ethPrices[asset.symbol.toUpperCase()] ??
+            ethPrices[asset.symbol];
+    
+          if (!tokenPriceStr) throw new Error(`No ETH price found for token ${asset.symbol}`);
+    
+          const tokenPrice = BigInt(tokenPriceStr);
+    
+          if (tokenPrice === 0n) throw new Error(`Token price is zero for ${asset.symbol}`);
+    
+          const ethFeeInToken = networkFee * (10n ** BigInt(asset.decimals)) / tokenPrice;
+    
+          fee = ethFeeInToken + serviceFee;
+        } else {
+          fee = networkFee + serviceFee;
+        }
+    
+        // Generate proofs for each deposit
+        const withdrawResultAction = await dispatch(
+          withdrawalsProofThunk({
+              ...rest,
+              deposit,
+              relayerAddress: BigInt(rewardAccount) as Address,
+              fee,
+          }),
+        );
+
+        const proof = unwrapResult(withdrawResultAction);
+
+        results.push({
+          mode: 'relayer' as const,
+          proof,
+          poolAddress: deposit.pool,
+          relayerUrl,
+        });
       }
+      
+      return results;
+    }
 
-      const serviceFee = pool.denomination * BigInt(Math.round(tornadoServiceFee * 100)) / 10_000n;
-  
-      let fee: bigint;
-  
-      if (poolInfo.isERC20) {
-        const asset = assetSelector(state).get(assetAddress as Address);
-  
-        if (!asset) throw new Error(`Asset info not found for ${assetAddress}`);
-  
-        const tokenPriceStr =
-          ethPrices[asset.symbol.toLowerCase()] ??
-          ethPrices[asset.symbol.toUpperCase()] ??
-          ethPrices[asset.symbol];
-  
-        if (!tokenPriceStr) throw new Error(`No ETH price found for token ${asset.symbol}`);
-  
-        const tokenPrice = BigInt(tokenPriceStr);
-  
-        if (tokenPrice === 0n) throw new Error(`Token price is zero for ${asset.symbol}`);
-  
-        const ethFeeInToken = networkFee * (10n ** BigInt(asset.decimals)) / tokenPrice;
-  
-        fee = ethFeeInToken + serviceFee;
-      } else {
-        fee = networkFee + serviceFee;
-      }
-  
-      // Generate proofs for each deposit
-      const withdrawResultAction = await dispatch(
-        withdrawalsProofThunk({
-            ...rest,
-            deposit,
-            relayerAddress: BigInt(rewardAccount) as Address,
-            fee,
-        }),
-      );
-
-      const proof = unwrapResult(withdrawResultAction);
-
-      return {
-        mode: 'relayer' as const,
-        proof,
-        poolAddress: deposit.pool,
-        relayerUrl,
-      }
-    }));
+    return getWithdrawalsProofs();
 });
