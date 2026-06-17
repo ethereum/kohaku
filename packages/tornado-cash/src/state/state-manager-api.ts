@@ -8,6 +8,7 @@ import { storeStateManager } from './state-manager';
 import {
   IStateManager,
   IDepositOperationParams,
+  IGetNotesParams,
   IWithdrawapOperationParams,
   IWithdrawalPayload,
   StoreStorageKey,
@@ -69,6 +70,10 @@ export const workerApi = {
 
   getBalances(assets?: Address[]): Promise<Map<Address, bigint>> {
     return getStateManager().getBalances(assets) as Promise<Map<Address, bigint>>;
+  },
+
+  getNotes(params: IGetNotesParams) {
+    return getStateManager().getNotes(params);
   },
 
   getDepositPayload(params: IDepositOperationParams): Promise<TxData[]> {

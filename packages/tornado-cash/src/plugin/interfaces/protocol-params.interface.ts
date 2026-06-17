@@ -1,6 +1,7 @@
 import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
+import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
@@ -99,6 +100,15 @@ export interface IGetNotesParams extends IBaseOperationParams {
   assets?: Address[];
 }
 
+export type TCNote = Pick<
+  IDepositWithBalance,
+  'commitment' | 'balance' | 'assetAddress' | 'timestamp' | 'leafIndex' | 'pool'
+> & {
+  /** Fixed pool denomination for this note. */
+  amount: bigint;
+  depositIndex: number;
+};
+
 export type StoreKey = `${string}-${string}`;
 export type StoreStorageKey = `tornado-cash-state-${StoreKey}`;
 
@@ -120,5 +130,11 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
+  /**
+   * Gets all notes for the account.
+   * @param includeSpent - If true, include notes with zero balance
+   * @param assets - Optional filter by specific assets
+   */
+  getNotes: (params: IGetNotesParams) => Promise<TCNote[]>;
   dumpState: () => Record<StoreStorageKey, PublicRootState>;
 }
