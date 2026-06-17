@@ -60,7 +60,6 @@ export interface IPool {
   address: Address;
   asset: Address;
   isERC20: boolean;
-  uniswapPoolSwappingFee: number;
   protocolFeePercentage: number;
   /** Deposit amount for the pool */
   denomination: bigint;

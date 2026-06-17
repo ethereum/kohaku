@@ -47,7 +47,6 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
           poolAddress,
           protocolFeePercentage,
           token,
-          uniswapPoolSwappingFee,
           state,
           isERC20,
           denomination,
@@ -60,7 +59,6 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       isERC20,
       denomination,
       registeredBlock,
-      uniswapPoolSwappingFee,
       protocolFeePercentage,
       state,
       rootHistorySize

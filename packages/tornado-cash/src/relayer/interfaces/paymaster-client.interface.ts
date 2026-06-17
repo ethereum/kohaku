@@ -1,6 +1,7 @@
 import type { SignedAuthorization, Hash } from 'viem';
 import { TornadoProveOutput } from '../../utils/tornado-prover';
 import { Address } from '../../interfaces/types.interface';
+import type { SerializedUserOperation } from '../../paymaster/utils';
 
 export interface SignedDelegation {
   senderAddress: `0x${string}`;
@@ -23,8 +24,9 @@ export interface IGenericPaymasterWithdrawalPayload {
   paymasterAddress: `0x${string}`;
   entryPointAddress: `0x${string}`;
   bundlerUrl: string;
-  accountAddress: `0x${string}`;
-  delegation?: SignedDelegation;
+  // The fully built and signed userOp, produced in the prepare phase. The
+  // broadcaster only relays it to the bundler.
+  userOperation: SerializedUserOperation;
 }
 
 export interface PaymasterBroadcastResult {

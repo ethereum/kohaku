@@ -31,9 +31,12 @@ const baseGasUnits: UserOperationGasLimits = {
 export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
   if (!isERC20) return baseGasUnits;
 
+  // The fee-paying unshield (incl. ERC20 transfers) runs inside the adapter's
+  // collectFee during paymaster validation, so the extra ERC20 cost belongs to
+  // paymasterVerificationGasLimit — not callGasLimit (which is 0 in this flow).
   return {
     ...baseGasUnits,
-    callGasLimit: baseGasUnits.callGasLimit + ERC20_TRANSFER_GAS,
+    paymasterVerificationGasLimit: baseGasUnits.paymasterVerificationGasLimit + ERC20_TRANSFER_GAS,
   };
 }
 

@@ -17,7 +17,7 @@ export const getChainConfigSetup = (chainId: 1 | 11155111) => {
   return {
     protocolConfig: TornadoCashConfigs[11155111],
     rpcUrl: getEnv('RPC_URL_SEPOLIA'),
-    forkBlockNumber: getEnv('TORNADO_SEPOLIA_FORK_BLOCK', '10899138'),
+    forkBlockNumber: getEnv('TORNADO_SEPOLIA_FORK_BLOCK', '11067998'),
     erc20Address: '0xff34b3d4aee8ddcd6f9afffb6fe49bd371b8a357',  // DAI
     erc20WhaleAddress: '0xc0dEC722b431c02a0787F349587B783A0f2F3281',
     paymasterConfig: TornadoPaymasterConfigs[chainId],

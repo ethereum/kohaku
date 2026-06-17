@@ -19,7 +19,7 @@ import { EVENTS_PARSERS } from "./utils/events-parsers.util";
 import { EthClient } from "./eth-client";
 import type { IAsset } from "./interfaces/events.interface";
 import { Address } from "../interfaces/types.interface";
-import { E_ADDRESS, TornadoCashConfigs } from "../config";
+import { E_ADDRESS } from "../config";
 
 const txLogToRpcLog = ({
   address,
@@ -133,7 +133,9 @@ export class DataService implements IDataService {
     poolAddress: Address,
   ): Promise<IPoolConfig> {
     const [
-      [isERC20, token, state, uniswapPoolSwappingFee, protocolFeePercentage],
+      // `instances` also returns uniswapPoolSwappingFee at index 3 (unused — the
+      // paymaster owns fee pricing); elided to keep protocolFeePercentage aligned.
+      [isERC20, token, state, , protocolFeePercentage],
       denomination,
       rootHistorySize
     ] =
@@ -153,7 +155,6 @@ export class DataService implements IDataService {
       isERC20,
       token: BigInt(token),
       state: state as 0 | 1,
-      uniswapPoolSwappingFee,
       protocolFeePercentage,
       denomination,
       rootHistorySize
@@ -248,28 +249,20 @@ export class DataService implements IDataService {
     return Number(nonce)
   }
 
-  async quoteEthToToken(amountInWei: bigint, tokenAddress: Address, poolFee: number): Promise<bigint> {
-    const chainId = await this.getChainId();
-    const config = TornadoCashConfigs[Number(chainId) as keyof typeof TornadoCashConfigs];
-
-    if (!config?.weth || !config?.uniswapQuoterV2) {
-      throw new Error(`Uniswap QuoterV2 not configured for chain ${chainId}`);
-    }
-
-    const [amountOut] = await this.ethClient.makeContractRequest(
-      BigInt(config.uniswapQuoterV2),
-      'uniswapQuoter',
-      'quoteExactInputSingle',
-      {
-        tokenIn: toHex(config.weth, { size: 20 }),
-        tokenOut: toHex(tokenAddress, { size: 20 }),
-        amountIn: amountInWei,
-        fee: poolFee,
-        sqrtPriceLimitX96: 0n,
-      },
+  /**
+   * Asks the paymaster how much of `feeToken` is required to cover `weiAmount`
+   * of gas — the exact value it enforces in validation (`feePaid >= required`).
+   * Uses the paymaster's own TWAP oracle/pool, so the SDK fee and the on-chain
+   * requirement price against the same source.
+   */
+  async quoteWeiInToken(paymasterAddress: Address, feeToken: Address, weiAmount: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequest(
+      paymasterAddress,
+      'paymaster',
+      'quoteWeiInToken',
+      toHex(feeToken, { size: 20 }),
+      weiAmount,
     );
-
-    return amountOut;
   }
 
 }
