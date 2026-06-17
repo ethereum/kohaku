@@ -1,3 +1,11 @@
+## 0.0.2-alpha.12
+
+### Patch Changes
+
+- 30a64b7: feat: unified note by note api for plugins
+- Updated dependencies [30a64b7]
+  - @kohaku-eth/plugins@0.0.1-alpha.10
+
 ## 0.0.2-alpha.11
 
 ### Patch Changes
