@@ -2,7 +2,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
 import { poolCommitmentsSelector } from './pools.selector';
 import { Commitment } from '../../interfaces/types.interface';
-import { generateMerkleProof } from '../../utils/proof.util';
+import { generateMerkleProof } from '#merkle-tree';
 
 export const stateLeavesSelector = createSelector(
   [poolCommitmentsSelector],

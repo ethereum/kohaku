@@ -2,7 +2,7 @@ import { createSelector } from "@reduxjs/toolkit";
 
 import { IDepositEvent } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
-import { computeMerkleTreeRoot } from "../../utils/proof.util";
+import { buildTree } from "#merkle-tree";
 import { RootState } from "../store";
 import {
   depositsSelector,
@@ -59,11 +59,11 @@ export const poolMerkleTreeRootSelector = createSelector(
       return 0n;
     }
 
-    const root = await computeMerkleTreeRoot(leaves);
+    const {root} = await buildTree(leaves);
     const end = new Date();
 
     console.log(`Merkle tree for ${leaves.length} leaves took ${ +end - +start }ms`);
 
-    return root;
+    return BigInt(root);
   },
 );

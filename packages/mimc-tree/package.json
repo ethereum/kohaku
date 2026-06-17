@@ -1,0 +1,49 @@
+{
+  "name": "mimc-tree",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MiMC Merkle tree helpers built on merkle-tree",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker.js": {
+      "node": "./dist/MimcMerkleTreeWorker.js",
+      "browser": "./dist/MimcMerkleTreeBrowserWorker.js"
+    }
+  },
+  "scripts": {
+    "test": "exit 1",
+    "build": "tsc",
+    "benchmark": "npm run build && node benchmark/tree-creation.js"
+  },
+  "keywords": [
+    "mimc",
+    "merkle",
+    "tree"
+  ],
+  "author": "fat",
+  "license": "ISC",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "files": [
+    "lib/*"
+  ],
+  "sideEffects": [
+    "./dist/MimcMerkleTreeWorker.js",
+    "./dist/MimcMerkleTreeBrowserWorker.js"
+  ],
+  "dependencies": {
+    "fixed-merkle-tree": "0.7.3",
+    "micro-wrkr": "^0.2.0",
+    "micro-zk-proofs": "^0.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

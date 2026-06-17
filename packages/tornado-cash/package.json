@@ -20,6 +20,11 @@
     },
     "#circuit-loader": {
       "default": "./dist/circuit-loader.js"
+    },
+    "#merkle-tree": {
+      "node": "./dist/merkle-tree.node.js",
+      "browser": "./dist/merkle-tree.browser.js",
+      "default": "./dist/merkle-tree.browser.js"
     }
   },
   "exports": {
@@ -36,7 +41,6 @@
     },
     "./worker-loader.browser": "./dist/worker-loader.browser.js",
     "./worker-loader.node": "./dist/worker-loader.node.js",
-    "./circuits/*": "./circuits/*",
     "./package.json": "./package.json"
   },
   "engines": {
@@ -84,19 +88,15 @@
   "dependencies": {
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
+    "mimc-tree": "workspace:*",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@privacy-paymasters/sdk": "0.0.2",
     "@reduxjs/toolkit": "^2.11.2",
-    "buffer": "^6.0.3",
     "comlink": "^4.4.2",
-    "fixed-merkle-tree": "^0.7.3",
-    "maci-crypto": "2.5.0",
     "micro-zk-proofs": "0.3.1",
     "ox": "^0.12.0",
-    "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
-    "viem": "^2.51.3",
-    "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d"
+    "viem": "^2.51.3"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",
