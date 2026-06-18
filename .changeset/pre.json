@@ -8,7 +8,8 @@
     "@kohaku-eth/privacy-pools": "0.0.1-alpha.1",
     "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
     "@kohaku-eth/plugins": "0.0.1-alpha.1",
-    "@kohaku-eth/tornado-cash": "0.0.2-alpha.8"
+    "@kohaku-eth/tornado-cash": "0.0.2-alpha.8",
+    "mimc-tree": "0.1.0"
   },
   "changesets": [
     "add-privacy-pools-demo",
@@ -28,6 +29,7 @@
     "khaki-worms-kneel",
     "loud-worlds-yell",
     "major-sides-call",
+    "many-queens-fry",
     "olive-pigs-like",
     "petite-views-attack",
     "puny-olives-mate",
