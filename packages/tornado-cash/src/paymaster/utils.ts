@@ -204,6 +204,16 @@ export interface UserOpGasLimits {
   paymasterPostOpGasLimit: bigint;
 }
 
+interface BuildSignedTornadoUserOpParams {
+  privateKey: Hex;
+  chainId: number;
+  paymasterAddress: Address;
+  paymasterData: Hex;
+  gas: UserOpGasLimits;
+  maxFeePerGas: bigint;
+  maxPriorityFeePerGas: bigint;
+}
+
 /**
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
  * 7702 sender, returning it serialized for the broadcast phase.
@@ -212,16 +222,15 @@ export interface UserOpGasLimits {
  * Simple7702 implementation; the owner signs the userOp. No RPC access is
  * required — gas limits and fees are supplied by the caller.
  */
-export async function buildSignedTornadoUserOp(params: {
-  privateKey: Hex;
-  chainId: number;
-  paymasterAddress: Address;
-  paymasterData: Hex;
-  gas: UserOpGasLimits;
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
-}): Promise<SerializedUserOperation> {
-  const { privateKey, chainId, paymasterAddress, paymasterData, gas, maxFeePerGas, maxPriorityFeePerGas } = params;
+export async function buildSignedTornadoUserOp({
+  privateKey,
+  chainId,
+  paymasterAddress,
+  paymasterData,
+  gas,
+  maxFeePerGas,
+  maxPriorityFeePerGas
+}: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
   const owner = privateKeyToAccount(privateKey);
   const chain = {
@@ -314,7 +323,7 @@ export async function getEntryPointNonce(
 ): Promise<bigint> {
   const rpcClient = createPublicClient({
     transport: custom({
-      request: (args: { method: string; params?: unknown }) =>
+      request: (args: { method: string; params?: unknown; }) =>
         provider.request({ method: args.method, params: args.params ?? [] }) as Promise<any>,
     }),
   });
