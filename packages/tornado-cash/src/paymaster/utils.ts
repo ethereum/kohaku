@@ -2,19 +2,17 @@ import { privateKeyToAccount } from 'viem/accounts';
 import {
   http,
   toHex,
-  createClient,
   createPublicClient,
   custom,
-  walletActions,
   type Address,
-  type Chain,
   type Hash,
   type Hex,
   type SignedAuthorization,
 } from 'viem';
 import {
   createBundlerClient as createViemBundlerClient,
-  toSimple7702SmartAccount,
+  entryPoint08Address,
+  getUserOperationTypedData,
   type BundlerClient as ViemBundlerClient,
   type EstimateUserOperationGasReturnType,
   type UserOperationReceipt,
@@ -233,20 +231,6 @@ export async function buildSignedTornadoUserOp({
 }: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
   const owner = privateKeyToAccount(privateKey);
-  const chain = {
-    id: chainId,
-    name: `chain-${chainId}`,
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: { default: { http: ['http://127.0.0.1'] } },
-  } as const satisfies Chain;
-
-  // Transport is unused: signing the userOp + authorization is purely local.
-  const client = createClient({ chain, transport: http() }).extend(walletActions);
-  const account = await toSimple7702SmartAccount({
-    client,
-    owner,
-    implementation: SIMPLE_7702_IMPLEMENTATION,
-  });
 
   // Fresh EOA → nonce 0, both for the userOp and the 7702 authorization.
   const authorization = await owner.signAuthorization({
@@ -270,8 +254,15 @@ export async function buildSignedTornadoUserOp({
     paymasterData,
   };
 
-  const signature = await account.signUserOperation(
-    { ...userOperation, chainId } as Parameters<typeof account.signUserOperation>[0],
+  // No client/transport needed: the Simple7702 sender is the owner EOA itself,
+  // so signing is a purely local EIP-712 sign over the userOp hash.
+  const signature = await owner.signTypedData(
+    getUserOperationTypedData({
+      chainId,
+      entryPointAddress: entryPoint08Address,
+      // we cast because viem type requires a `signature`, but under the hood UserOp typedData does not contain one
+      userOperation: userOperation as Parameters<typeof getUserOperationTypedData>[0]['userOperation'],
+    }),
   );
 
   return {
