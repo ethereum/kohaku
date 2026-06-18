@@ -7,7 +7,7 @@ import { encodePaymasterData, encodeTornadoAdapterData } from "@privacy-paymaste
 import { generatePrivateKey } from "viem/accounts";
 
 import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
-import { buildSignedTornadoUserOp, setupBundlerClient } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, setupBundlerClient, type SerializedUserOperation } from "../../paymaster/utils";
 import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
@@ -127,34 +127,36 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const bigintChainId = await dataService.getChainId();
   const userOpGas = { ...gasUnits, callGasLimit: 0n };
 
-  const userOperations = await Promise.all(
-    proofOutputs.map(async ({ poolAddress, ...proof }, i) => {
-      const deposit = deposits[i]!;
+  const userOperations: SerializedUserOperation[] = [];
+  for (let i = 0; i < proofOutputs.length; i++) {
+    const { poolAddress, ...proof } = proofOutputs[i]!;
+    const deposit = deposits[i]!;
 
-      const privateKey = delegation?.mode === 'deterministic'
-        ? await secretManager.deriveEphemeralSigner({
-            depositIndex: deposit.index,
-            chainId: bigintChainId,
-            poolAddress: deposit.pool,
-          })
-        : generatePrivateKey();
+    const privateKey = delegation?.mode === 'deterministic'
+      ? await secretManager.deriveEphemeralSigner({
+          depositIndex: deposit.index,
+          chainId: bigintChainId,
+          poolAddress: deposit.pool,
+        })
+      : generatePrivateKey();
 
-      const [root, nullifierHash, recipient, relayerArg, feeArg, refundArg] = proof.args;
+    const [root, nullifierHash, recipient, relayerArg, feeArg, refundArg] = proof.args;
 
-      const paymasterData = encodePaymasterData(
-        poolAcountsMap.get(poolAddress)!,
-        encodeTornadoAdapterData(
-          proof.proof,
-          root,
-          nullifierHash,
-          recipient,
-          relayerArg,
-          BigInt(feeArg),
-          BigInt(refundArg),
-        ),
-      );
+    const paymasterData = encodePaymasterData(
+      poolAcountsMap.get(poolAddress)!,
+      encodeTornadoAdapterData(
+        proof.proof,
+        root,
+        nullifierHash,
+        recipient,
+        relayerArg,
+        BigInt(feeArg),
+        BigInt(refundArg),
+      ),
+    );
 
-      return buildSignedTornadoUserOp({
+    userOperations.push(
+      await buildSignedTornadoUserOp({
         privateKey,
         chainId,
         paymasterAddress,
@@ -162,9 +164,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         gas: userOpGas,
         maxFeePerGas,
         maxPriorityFeePerGas,
-      });
-    }),
-  );
+      }),
+    );
+  }
 
   return proofOutputs.map(({ poolAddress, ...proof }, i) => ({
     mode: 'paymaster' as const,
