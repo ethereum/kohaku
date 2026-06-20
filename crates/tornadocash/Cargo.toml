@@ -8,7 +8,7 @@ crate-type = ["rlib"]
 
 [features]
 default = []
-parallel = ["websnark-rs/parallel"]
+parallel = ["websnark-rs/parallel", "crypto/parallel"]
 
 [dependencies]
 alloy = { workspace = true, features = [
@@ -41,10 +41,10 @@ rand = { workspace = true }
 postcard = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 getrandom_04 = { package = "getrandom", version = "0.4", features = [
     "wasm_js",
 ] }
-getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 insta = { workspace = true }
@@ -52,6 +52,11 @@ tracing-subscriber = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 alloy = { workspace = true, features = ["signers", "signer-local"] }
 kohaku-test-utils = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "merkle"
+harness = false
 
 [build-dependencies]
 cfg_aliases = { workspace = true }

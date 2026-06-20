@@ -1,5 +1,8 @@
 use std::{collections::BTreeSet, fmt::Debug};
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -169,35 +172,31 @@ impl<C: MerkleConfig> MerkleTree<C> {
         let mut dirty = std::mem::take(&mut self.dirty_parents);
 
         for level in 0..C::DEPTH {
-            let child_width = self.tree[level].len();
-            let parent_width = child_width.div_ceil(2);
+            let parent_width = self.tree[level].len().div_ceil(2);
 
             if self.tree[level + 1].len() < parent_width {
                 self.tree[level + 1].resize(parent_width, self.zeros[level + 1]);
             }
 
-            let mut next_dirty = BTreeSet::new();
+            let dirty_vec: Vec<usize> = dirty.into_iter().collect();
+            let level_nodes = &self.tree[level];
+            let zero = self.zeros[level];
+            let hash_parent = |&parent_idx: &usize| {
+                let left = level_nodes.get(parent_idx * 2).copied().unwrap_or(zero);
+                let right = level_nodes.get(parent_idx * 2 + 1).copied().unwrap_or(zero);
+                (parent_idx, C::hash(left, right))
+            };
 
-            for &parent_idx in &dirty {
-                let left_idx = parent_idx * 2;
-                let right_idx = left_idx + 1;
+            #[cfg(feature = "parallel")]
+            let hashes: Vec<(usize, U256)> = dirty_vec.par_iter().map(hash_parent).collect();
+            #[cfg(not(feature = "parallel"))]
+            let hashes: Vec<(usize, U256)> = dirty_vec.iter().map(hash_parent).collect();
 
-                let left = if left_idx < child_width {
-                    self.tree[level][left_idx]
-                } else {
-                    self.zeros[level]
-                };
-                let right = if right_idx < child_width {
-                    self.tree[level][right_idx]
-                } else {
-                    self.zeros[level]
-                };
-
-                self.tree[level + 1][parent_idx] = C::hash(left, right);
-                next_dirty.insert(parent_idx / 2);
+            dirty = BTreeSet::new();
+            for (parent_idx, hash) in hashes {
+                self.tree[level + 1][parent_idx] = hash;
+                dirty.insert(parent_idx / 2);
             }
-
-            dirty = next_dirty;
         }
     }
 }
