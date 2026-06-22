@@ -7,8 +7,6 @@ allowBuilds:
   protobufjs: true
 autoInstallPeers: false
 blockExoticSubdeps: false
-minimumReleaseAgeExclude:
-  - '@privacy-paymasters/sdk@0.0.4'
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
