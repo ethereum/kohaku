@@ -22,7 +22,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwind-variants": "^3.2.2",
     "ts-pattern": "^5.9.0",
-    "viem": "^2.45.1",
+    "viem": "^2.51.3",
     "wagmi": "^3.4.1"
   },
   "devDependencies": {

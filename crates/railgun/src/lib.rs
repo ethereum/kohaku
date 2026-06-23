@@ -2,6 +2,7 @@
 
 mod abis;
 pub mod account;
+mod adapter_data;
 pub mod builder;
 pub mod caip;
 pub mod chain_config;
@@ -11,7 +12,7 @@ pub mod database;
 pub mod indexer;
 mod merkle_tree;
 mod note;
-mod poi;
+pub mod poi;
 pub mod provider;
 pub mod transact;
 

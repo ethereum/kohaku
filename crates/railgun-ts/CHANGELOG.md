@@ -1,5 +1,39 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.27
+
+### Patch Changes
+
+- 30a64b7: feat: unified note by note api for plugins
+- Updated dependencies [30a64b7]
+  - @kohaku-eth/plugins@0.0.1-alpha.10
+
+## 0.0.1-alpha.26
+
+### Patch Changes
+
+- 4bb7e64: fix: plugin iface has async host methods
+- Updated dependencies [4bb7e64]
+  - @kohaku-eth/plugins@0.0.1-alpha.9
+
+## 0.0.1-alpha.25
+
+### Patch Changes
+
+- c1dc36b: fix: ts logs adhere to LogLevel
+
+## 0.0.1-alpha.24
+
+### Patch Changes
+
+- f36d197: bump tornado and railgun
+
+## 0.0.1-alpha.23
+
+### Patch Changes
+
+- 23841f1: enable mainnet
+
 ## 0.0.1-alpha.22
 
 ### Patch Changes

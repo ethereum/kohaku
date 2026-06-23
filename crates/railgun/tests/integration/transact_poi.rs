@@ -8,12 +8,8 @@ use alloy::{
     sol,
 };
 use railgun::{
-    account::signer::RailgunSigner,
-    builder::RailgunBuilder,
-    caip::AssetId,
-    chain_config::ChainConfig,
-    indexer::syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer},
-    provider::RailgunProvider,
+    account::signer::RailgunSigner, builder::RailgunBuilder, caip::AssetId,
+    chain_config::ChainConfig, indexer::syncer::SubsquidSyncer, provider::RailgunProvider,
 };
 use rand::random;
 use tracing::info;
@@ -44,9 +40,6 @@ const USDC: AssetId = AssetId::Erc20(USDC_ADDRESS);
 /// The test is run on Sepolia because the POI submission process relies on
 /// submitting POI proofs to a real POI endpoint, which in turn verifies that the
 /// proofs are valid against the real chain state.
-///
-/// TODO: Make this a snapshot test that runs against a local fork with a mocked POI
-/// endpoint, and only runs against sepolia when the snapshot needs to be refreshed.
 #[tokio::test]
 #[serial_test::serial]
 #[ignore]
@@ -72,11 +65,7 @@ async fn test_transact_poi() {
         .erased();
 
     info!("Setting up railgun");
-    let syncer = Arc::new(
-        ChainedSyncer::new()
-            .then(SubsquidSyncer::new(&chain.subsquid_endpoint))
-            .then(RpcSyncer::new(chain.clone(), provider.clone()).with_batch_size(1000)),
-    );
+    let syncer = Arc::new(SubsquidSyncer::new(&chain.subsquid_endpoint));
     let mut railgun = RailgunBuilder::new(chain.clone(), provider.clone())
         .with_utxo_syncer(syncer)
         .with_poi()
@@ -249,7 +238,12 @@ async fn await_balance_update(
         let balance = railgun.balance(account.address()).await;
         info!("Balance: {:?}, Expected: {:?}", balance, expected);
 
-        if balance.get(&asset) == expected.as_ref() {
+        if balance
+            .iter()
+            .find(|e| e.asset == asset && e.poi_status == Some(railgun::poi::PoiStatus::Valid))
+            .map(|e| e.amount)
+            == expected
+        {
             return;
         }
     }

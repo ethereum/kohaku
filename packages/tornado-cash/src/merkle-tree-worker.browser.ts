@@ -1,0 +1,1 @@
+import 'mimc-tree/worker.js';

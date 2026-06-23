@@ -19,6 +19,7 @@ aes = "0.8"
 aes-gcm = "0.10"
 alloy = { version = "1.8", default-features = false }
 alloy-sol-types = { version = "1.5", default-features = false }
+anyhow = "1"
 ark-bn254 = "0.6"
 ark-circom = "0.6"
 ark-ff = "0.6"
@@ -83,10 +84,3 @@ ark-circom = { git = "https://github.com/Robert-MacWha/circom-compat", branch = 
 
 [profile.release]
 jobs = 6
-
-[profile.release-wasm]
-inherits = "release"
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"

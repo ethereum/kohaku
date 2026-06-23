@@ -17,15 +17,17 @@ export class MnemonicKeystore implements Keystore {
 
     static random(): MnemonicKeystore {
         const mnemonic = generateMnemonic(wordlist, 256);
+
         return new MnemonicKeystore(mnemonic);
     }
 
-    deriveAt(path: string): Hex.Hex {
+    async deriveAt(path: string): Promise<Hex.Hex> {
         const seed = mnemonicToSeedSync(this.mnemonic);
         const root = HDKey.fromMasterSeed(seed);
         const child = root.derive(path);
 
         if (!child.privateKey) throw new Error(`Could not derive private key at path ${path}`);
+
         return Hex.fromBytes(child.privateKey);
     }
 }

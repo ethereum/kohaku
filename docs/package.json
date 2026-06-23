@@ -15,12 +15,12 @@
     "@kohaku-eth/railgun": "workspace:*",
     "react": "latest",
     "react-dom": "latest",
-    "vocs": "latest"
+    "vocs": "1.4.1"
   },
   "devDependencies": {
     "@types/react": "latest",
     "ethers": "^6",
     "typescript": "latest",
-    "viem": "^2"
+    "viem": "^2.51.3"
   }
 }

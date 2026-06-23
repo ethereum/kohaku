@@ -3,7 +3,7 @@ import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import type { AssetAmount } from "@kohaku-eth/plugins";
-import { chainConfigSepolia, Bundler, Signer, UtxoSyncer, RailgunBuilder, RailgunSigner, ensureInitialized } from "../sdk/lib.js";
+import { chainConfigSepolia, Bundler, Signer, UtxoSyncer, RailgunBuilder, RailgunSigner, ensureInitialized, SimpleSmartAccount } from "../sdk/lib.js";
 import { RailgunPlugin } from "../sdk/plugin.js";
 import { SignerPool } from "../sdk/signer-pool.js";
 import { EthereumProviderAdapter } from "../sdk/ethereum-provider.js";
@@ -29,8 +29,6 @@ beforeAll(async () => {
     const anvil = await startAnvil(SEPOLIA_RPC_URL, CHAIN.id);
     anvilServer = anvil.server;
     rpcUrl = anvil.rpcUrl;
-    // rpcUrl = "http://localhost:8545";
-
 
     const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
     await fundAddresses(publicClient, [
@@ -83,7 +81,14 @@ test("plugin-transact-broadcast", async () => {
 
     const plugin1 = new RailgunPlugin(CHAIN, railgunProvider, new SignerPool(signer1));
     plugin1.setBundler(Bundler.pimlico("http://127.0.0.1:3000"));
-    plugin1.setDelegatingSigner(Signer.privateKey(DELEGATOR_PK));
+
+    const smartAccountSigner = Signer.privateKey(DELEGATOR_PK);
+    const smartAccount = new SimpleSmartAccount(
+        smartAccountSigner.address,
+        BigInt(CHAIN.id),
+        eip1193,
+    );
+    plugin1.setSmartAccount(smartAccount, smartAccountSigner);
 
     const plugin2 = new RailgunPlugin(CHAIN, railgunProvider, new SignerPool(signer2));
 

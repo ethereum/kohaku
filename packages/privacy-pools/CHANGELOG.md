@@ -1,5 +1,29 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.13
+
+### Patch Changes
+
+- 30a64b7: feat: unified note by note api for plugins
+- Updated dependencies [30a64b7]
+  - @kohaku-eth/plugins@0.0.1-alpha.10
+
+## 0.0.2-alpha.12
+
+### Patch Changes
+
+- 4bb7e64: fix: plugin iface has async host methods
+- Updated dependencies [4bb7e64]
+  - @kohaku-eth/plugins@0.0.1-alpha.9
+
+## 0.0.2-alpha.11
+
+### Patch Changes
+
+- 0c165e7: Add minimal `demo/simple.ts` script referenced by the `pnpm demo` package script.
+  The script derives a deposit precommitment from a mnemonic and encodes the
+  corresponding shield transaction (no network calls, no broadcast).
+
 ## 0.0.2-alpha.10
 
 ### Patch Changes

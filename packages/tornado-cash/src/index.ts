@@ -1,0 +1,11 @@
+export * from './v1';
+// Main factory
+export { TornadoCashProtocol } from './plugin/base';
+export { SecretManager } from './account/keys';
+
+// Types
+export type { SecretManagerParams, ISecretManager } from './account/keys';
+export type { Commitment, Nullifier } from './account/types';
+
+// Configs
+export { TornadoCashConfigs, E_ADDRESS, TornadoPaymasterConfigs } from './config.js';

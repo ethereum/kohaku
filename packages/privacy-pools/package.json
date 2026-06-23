@@ -1,7 +1,7 @@
 {
   "name": "@kohaku-eth/privacy-pools",
-  "version": "0.0.2-alpha.10",
-  "description": "Simplified Privacy Pools TS utils",
+  "version": "0.0.2-alpha.13",
+  "description": "Privacy Pools Shielded Pool Kohaku Plugin",
   "type": "module",
   "private": false,
   "main": "./dist/index.js",
@@ -25,7 +25,6 @@
   "scripts": {
     "build": "echo Building @kohaku-eth/privacy-pools && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
-    "demo": "tsx demo/simple.ts",
     "test": "vitest run --project=e2e-sepolia",
     "test:unit": "vitest run --project=unit",
     "test:e2e:mainnet": ". ./.env.e2e.tests && vitest run --project=e2e-mainnet",
@@ -70,7 +69,7 @@
     "@zk-kit/lean-imt": "^2.2.4",
     "maci-crypto": "2.5.0",
     "ox": "^0.12.0",
-    "viem": "^2.37.9"
+    "viem": "^2.51.3"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",

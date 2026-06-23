@@ -2,11 +2,17 @@ use std::str::FromStr;
 
 use alloy::primitives::Address;
 use eip_1193_provider::tx_data::TxData;
-use railgun::{account::address::RailgunAddress, caip::AssetId, provider::RailgunProvider};
+use railgun::{
+    account::address::RailgunAddress,
+    provider::{BalanceEntry, NoteEntry, RailgunProvider},
+};
 use serde::Serialize;
 use tsify::Tsify;
-use userop_kit::railgun::TailCall;
-use userop_kit_ts::{bundler::JsBundler, signable_user_operation::JsSignableUserOperation};
+use userop_kit::smart_account::simple_smart_account::Call;
+use userop_kit_ts::{
+    bundler::JsBundler, signable_user_operation::JsSignableUserOperation,
+    simple_smart_account::JsSimpleSmartAccount,
+};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::{
@@ -23,7 +29,12 @@ pub struct JsRailgunProvider {
 #[derive(Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 #[serde(transparent)]
-pub struct Balances(Vec<(AssetId, u128)>);
+pub struct Balances(Vec<BalanceEntry>);
+
+#[derive(Tsify, Serialize)]
+#[tsify(into_wasm_abi)]
+#[serde(transparent)]
+pub struct Notes(Vec<NoteEntry>);
 
 impl JsRailgunProvider {
     pub fn new(inner: RailgunProvider) -> Self {
@@ -54,8 +65,12 @@ impl JsRailgunProvider {
     ///
     /// If POI is enabled, only returns the spendable balance according to the POI provider.
     pub async fn balance(&mut self, address: RailgunAddress) -> Balances {
-        let balances = self.inner.balance(address.clone()).await;
-        Balances(balances.into_iter().collect())
+        Balances(self.inner.balance(address.clone()).await)
+    }
+
+    /// Returns all unspent notes for the given address.
+    pub async fn notes(&mut self, address: RailgunAddress) -> Notes {
+        Notes(self.inner.notes(address.clone()).await)
     }
 
     /// Helper to create a shield builder.
@@ -94,17 +109,14 @@ impl JsRailgunProvider {
         &mut self,
         builder: JsTransactionBuilder,
         bundler: &JsBundler,
-        #[wasm_bindgen(js_name = "delegatorAddress", unchecked_param_type = "`0x${string}`")]
-        delegator_address: String,
+        smart_account: &JsSimpleSmartAccount,
         #[wasm_bindgen(js_name = "feePayer")] fee_payer: &JsRailgunSigner,
         #[wasm_bindgen(js_name = "feeToken", unchecked_param_type = "`0x${string}`")]
         fee_token: String,
-        #[wasm_bindgen(js_name = "tailCalls")] tail_calls: Option<Vec<TailCall>>,
+        calldata: Option<Vec<Call>>,
     ) -> Result<JsSignableUserOperation, JsError> {
-        let delegator_address =
-            Address::from_str(&delegator_address).map_err(|e| JsError::new(&e.to_string()))?;
         let fee_token = Address::from_str(&fee_token).map_err(|e| JsError::new(&e.to_string()))?;
-        let tail_calls = tail_calls.unwrap_or_default();
+        let calldata = calldata.unwrap_or_default();
         let mut rng = rand::rng();
 
         let signable = self
@@ -112,10 +124,10 @@ impl JsRailgunProvider {
             .prepare_userop(
                 builder.inner.clone(),
                 bundler.inner().as_ref(),
-                delegator_address,
+                smart_account.inner(),
                 fee_payer.inner(),
                 fee_token,
-                tail_calls,
+                calldata,
                 &mut rng,
             )
             .await
