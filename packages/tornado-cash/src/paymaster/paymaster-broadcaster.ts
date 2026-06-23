@@ -15,11 +15,6 @@ export interface PaymasterBroadcastResult {
  * this client only forwards them and awaits their receipts.
  */
 export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
-  // Kept for API compatibility; the userOps arrive fully built, so neither is used.
-  constructor(
-    _provider: EthereumProvider,
-    _options: Record<number, IPaymasterConfig>,
-  ) { }
 
   async broadcast(
     withdrawals: IGenericPaymasterWithdrawalPayload[],
