@@ -1,7 +1,7 @@
 import { type Hash } from 'viem';
 
 import { EthereumProvider } from '@kohaku-eth/provider';
-import { BundlerClient } from './utils';
+import { createPaymasterBundlerClient, sendSerializedUserOperation } from './utils';
 import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient } from '../relayer/interfaces/paymaster-client.interface';
 import { IPaymasterConfig } from '../plugin/interfaces/protocol-params.interface';
 
@@ -47,10 +47,10 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
   ): Promise<PaymasterBroadcastResult> {
     const { bundlerUrl, entryPointAddress, userOperation } = withdrawal;
 
-    const bundlerClient = new BundlerClient(bundlerUrl, entryPointAddress);
-    const userOpHash = await bundlerClient.sendSerializedUserOperation(userOperation);
+    const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
+    const userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress);
 
-    await bundlerClient.waitForUserOperationReceipt(userOpHash);
+    await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
 
     return { userOpHash };
   }

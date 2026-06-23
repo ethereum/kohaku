@@ -7,7 +7,7 @@ import { encodePaymasterData, encodeTornadoAdapterData } from "@privacy-paymaste
 import { generatePrivateKey } from "viem/accounts";
 
 import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
-import { buildSignedTornadoUserOp, setupBundlerClient, type SerializedUserOperation } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, createPaymasterBundlerClient, getUserOperationGasPrice, type SerializedUserOperation } from "../../paymaster/utils";
 import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
@@ -75,13 +75,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     }))
   );
 
-  const bundlerClient = setupBundlerClient({
-    bundlerUrl: bundlerUrl,
-    entryPointAddress: entryPointAddress,
-    chainId: Number(state.instanceRegistryInfo.chainId)
-  });
+  const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
 
-  const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await bundlerClient.getUserOperationGasPrice();
+  const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
 
   const gasUnits = reasonableGasUnits(poolInfo.isERC20);
   const ethFee = computeMinimumViableFee(gasUnits, maxFeePerGas);

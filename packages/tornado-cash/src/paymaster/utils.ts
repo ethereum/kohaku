@@ -2,23 +2,17 @@ import { privateKeyToAccount } from 'viem/accounts';
 import {
   http,
   toHex,
-  createPublicClient,
-  custom,
   type Address,
   type Hash,
   type Hex,
   type SignedAuthorization,
 } from 'viem';
 import {
-  createBundlerClient as createViemBundlerClient,
+  createBundlerClient,
   entryPoint08Address,
   getUserOperationTypedData,
-  type BundlerClient as ViemBundlerClient,
-  type EstimateUserOperationGasReturnType,
-  type UserOperationReceipt,
+  type BundlerClient,
 } from 'viem/account-abstraction';
-import type { EthereumProvider } from '@kohaku-eth/provider';
-import type { SignedDelegation } from '../relayer/interfaces/paymaster-client.interface';
 
 /**
  * EntryPoint v0.8 canonical Simple7702Account implementation. The ephemeral
@@ -39,137 +33,53 @@ export type UserOperationGasPrice = {
 };
 
 /**
- * Minimal user operation request for the paymaster-sponsored flow. The
- * withdrawal proof lives in `paymasterData`, so `callData` is empty and the
- * account is reached via a 7702 `authorization` rather than a signature.
+ * viem bundler client for the paymaster flow. We rely on viem's native
+ * `waitForUserOperationReceipt` action directly; the two helpers below cover
+ * the only methods viem doesn't expose natively.
  */
-export interface UserOpRequest {
-  sender: Address;
-  nonce: bigint;
-  callData: Hex;
-  callGasLimit: bigint;
-  verificationGasLimit: bigint;
-  preVerificationGas: bigint;
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
-  paymaster?: Address;
-  paymasterVerificationGasLimit?: bigint;
-  paymasterPostOpGasLimit?: bigint;
-  paymasterData?: Hex;
-  signature: Hex;
-  authorization?: SignedAuthorization;
+export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
+  return createBundlerClient({ transport: http(bundlerUrl) });
 }
 
-const entryPointAbi = [
-  {
-    type: 'function',
-    name: 'getNonce',
-    inputs: [
-      { name: 'sender', type: 'address' },
-      { name: 'key', type: 'uint192' },
-    ],
-    outputs: [{ name: 'nonce', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-] as const;
+/**
+ * Pimlico gas-price oracle (`pimlico_getUserOperationGasPrice`). Not a standard
+ * ERC-4337 bundler method, so it isn't on viem's bundler action surface — we
+ * issue the raw request and parse the tiers ourselves.
+ */
+export async function getUserOperationGasPrice(
+  client: BundlerClient,
+): Promise<UserOperationGasPrice> {
+  const result = (await client.request({
+    method: 'pimlico_getUserOperationGasPrice',
+    params: [],
+  } as any)) as any;
+
+  const parse = (tier: any): GasPrice => ({
+    maxFeePerGas: BigInt(tier.maxFeePerGas),
+    maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas),
+  });
+
+  return {
+    slow: parse(result.slow),
+    standard: parse(result.standard),
+    fast: parse(result.fast),
+  };
+}
 
 /**
- * Thin bundler client for the paymaster flow.
- *
- * Previously provided by `@privacy-paymasters/sdk`, which dropped its bundler
- * helpers in 0.0.3 in favour of consumers driving the bundler directly. We keep
- * the small surface this package relies on here.
+ * Sends an already-built, serialized (hex) userOp directly to the bundler.
+ * viem's `sendUserOperation` rebuilds/re-signs from a structured op, but ours
+ * is already finalized in the prepare phase, so we forward it verbatim.
  */
-export class BundlerClient {
-  private client: ViemBundlerClient;
-
-  constructor(bundlerUrl: string, public entryPoint: Address) {
-    this.client = createViemBundlerClient({ transport: http(bundlerUrl) });
-  }
-
-  async estimateUserOperationGas(op: UserOpRequest): Promise<EstimateUserOperationGasReturnType> {
-    return this.client.request({
-      method: 'eth_estimateUserOperationGas',
-      params: [
-        {
-          sender: op.sender,
-          nonce: toHex(op.nonce),
-          callData: op.callData,
-          callGasLimit: toHex(0),
-          verificationGasLimit: toHex(0),
-          preVerificationGas: toHex(0),
-          maxFeePerGas: toHex(0),
-          maxPriorityFeePerGas: toHex(0),
-          paymaster: op.paymaster,
-          paymasterVerificationGasLimit: op.paymaster ? toHex(0) : undefined,
-          paymasterPostOpGasLimit: op.paymaster ? toHex(0) : undefined,
-          paymasterData: op.paymasterData,
-          signature: op.signature,
-          eip7702Auth: op.authorization ? serializeAuth(op.authorization) : undefined,
-        },
-        this.entryPoint,
-      ],
-    } as any);
-  }
-
-  async getUserOperationGasPrice(): Promise<UserOperationGasPrice> {
-    const result = await this.client.request({
-      method: 'pimlico_getUserOperationGasPrice',
-      params: [],
-    } as any);
-
-    const parse = (tier: any): GasPrice => ({
-      maxFeePerGas: BigInt(tier.maxFeePerGas),
-      maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas),
-    });
-
-    return {
-      slow: parse((result as any).slow),
-      standard: parse((result as any).standard),
-      fast: parse((result as any).fast),
-    };
-  }
-
-  async sendUserOperation(op: UserOpRequest): Promise<Hash> {
-    return this.client.request({
-      method: 'eth_sendUserOperation',
-      params: [
-        {
-          sender: op.sender,
-          nonce: toHex(op.nonce),
-          callData: op.callData,
-          callGasLimit: toHex(op.callGasLimit),
-          verificationGasLimit: toHex(op.verificationGasLimit),
-          preVerificationGas: toHex(op.preVerificationGas),
-          maxFeePerGas: toHex(op.maxFeePerGas),
-          maxPriorityFeePerGas: toHex(op.maxPriorityFeePerGas),
-          paymaster: op.paymaster,
-          paymasterVerificationGasLimit: op.paymasterVerificationGasLimit
-            ? toHex(op.paymasterVerificationGasLimit)
-            : undefined,
-          paymasterPostOpGasLimit: op.paymasterPostOpGasLimit
-            ? toHex(op.paymasterPostOpGasLimit)
-            : undefined,
-          paymasterData: op.paymasterData,
-          signature: op.signature,
-          eip7702Auth: op.authorization ? serializeAuth(op.authorization) : undefined,
-        },
-        this.entryPoint,
-      ],
-    } as any);
-  }
-
-  /** Sends an already-built, serialized (hex) userOp directly to the bundler. */
-  async sendSerializedUserOperation(op: SerializedUserOperation): Promise<Hash> {
-    return this.client.request({
-      method: 'eth_sendUserOperation',
-      params: [op, this.entryPoint],
-    } as any);
-  }
-
-  async waitForUserOperationReceipt(hash: Hash): Promise<UserOperationReceipt> {
-    return this.client.waitForUserOperationReceipt({ hash });
-  }
+export async function sendSerializedUserOperation(
+  client: BundlerClient,
+  op: SerializedUserOperation,
+  entryPoint: Address,
+): Promise<Hash> {
+  return client.request({
+    method: 'eth_sendUserOperation',
+    params: [op, entryPoint],
+  } as any) as Promise<Hash>;
 }
 
 /**
@@ -294,56 +204,3 @@ function serializeAuth(auth: SignedAuthorization) {
   };
 }
 
-export function setupBundlerClient({
-  bundlerUrl,
-  entryPointAddress,
-}: {
-  chainId: number;
-  bundlerUrl: string;
-  entryPointAddress: `0x${string}`;
-}) {
-  return new BundlerClient(bundlerUrl, entryPointAddress);
-}
-
-/** Reads the EntryPoint nonce for `sender` over the kohaku provider. */
-export async function getEntryPointNonce(
-  provider: EthereumProvider,
-  entryPoint: Address,
-  sender: Address,
-  key: bigint = 0n,
-): Promise<bigint> {
-  const rpcClient = createPublicClient({
-    transport: custom({
-      request: (args: { method: string; params?: unknown; }) =>
-        provider.request({ method: args.method, params: args.params ?? [] }) as Promise<any>,
-    }),
-  });
-
-  return rpcClient.readContract({
-    address: entryPoint,
-    abi: entryPointAbi,
-    functionName: 'getNonce',
-    args: [sender, key],
-  });
-}
-
-export async function signDelegationAuthorization({
-  privateKey,
-  accountAddress,
-  chainId,
-  nonce,
-}: {
-  privateKey: Hex;
-  accountAddress: `0x${string}`;
-  chainId: number;
-  nonce: number;
-}): Promise<SignedDelegation> {
-  const account = privateKeyToAccount(privateKey);
-  const authorization = await account.signAuthorization({
-    contractAddress: accountAddress,
-    chainId,
-    nonce,
-  });
-
-  return { authorization, senderAddress: account.address };
-}
