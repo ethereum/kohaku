@@ -38,6 +38,11 @@
       "import": "./dist/helios.js",
       "require": "./dist/helios.cjs"
     },
+    "./nvp": {
+      "types": "./dist/nvp.d.ts",
+      "import": "./dist/nvp.js",
+      "require": "./dist/nvp.cjs"
+    },
     "./raw": {
       "types": "./dist/raw.d.ts",
       "import": "./dist/raw.js",
@@ -73,6 +78,7 @@
   "peerDependencies": {
     "@a16z/helios": ">=0.11",
     "@corpus-core/colibri-stateless": ">=1.1.22 <2",
+    "@status-im/nimbus-verified-proxy": ">=0.3.1",
     "ethers": "^6.13.1"
   },
   "peerDependenciesMeta": {
@@ -80,6 +86,9 @@
       "optional": true
     },
     "@corpus-core/colibri-stateless": {
+      "optional": true
+    },
+    "@status-im/nimbus-verified-proxy": {
       "optional": true
     },
     "snarkjs": {
@@ -94,6 +103,7 @@
   },
   "devDependencies": {
     "@a16z/helios": ">=0.11",
+    "@status-im/nimbus-verified-proxy": "0.3.1",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/buffer-xor": "^2.0.0",
     "@types/node": "^24.1.0",
