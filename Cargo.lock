@@ -7042,9 +7042,10 @@ dependencies = [
 
 [[package]]
 name = "websnark-rs"
-version = "0.3.1"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0545f7f2acd5af35cc9b5f70383141331fc328d6d489f37b47736746187a6dc8"
 dependencies = [
- "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.6.0",
@@ -7058,7 +7059,6 @@ dependencies = [
  "rand 0.10.1",
  "rustc-hash 2.1.2",
  "serde",
- "serde_json",
  "thiserror 2.0.18",
  "tracing",
  "wasm-bindgen",
