@@ -15,10 +15,12 @@ fn random_leaves(n: usize) -> Vec<U256> {
         .collect()
 }
 
+/// Benchmark the time taken to insert `n` leaves into the TornadoMerkleTree, for various values of
+/// `n`.
 fn bench_insert(c: &mut Criterion) {
     let mut group = c.benchmark_group("merkle_insert");
 
-    for n in [1, 100, 10_000, 100_000] {
+    for n in [100, 10_000] {
         let leaves = random_leaves(n);
 
         group.bench_with_input(BenchmarkId::from_parameter(n), &leaves, |b, leaves| {

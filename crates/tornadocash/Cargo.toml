@@ -9,6 +9,7 @@ crate-type = ["rlib"]
 [features]
 default = []
 parallel = ["websnark-rs/parallel", "crypto/parallel"]
+bench = []
 
 [dependencies]
 alloy = { workspace = true, features = [
@@ -56,6 +57,10 @@ criterion = { workspace = true }
 
 [[bench]]
 name = "merkle"
+harness = false
+
+[[bench]]
+name = "prove"
 harness = false
 
 [build-dependencies]

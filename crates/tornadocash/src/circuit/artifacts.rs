@@ -81,11 +81,10 @@ impl RemoteArtifactLoader {
         info!("Downloading circuit");
         let url = format!("{}/tornadocash-classic/circuit.json.br", self.base_url);
         let compressed = self.fetch(&url).await?;
+
         let bytes = decompress(&compressed)?;
-        let circuit: Circuit = serde_json::from_str(
-            &String::from_utf8(bytes).context("Invalid UTF-8 in circuit JSON")?,
-        )
-        .context("Failed to parse circuit JSON")?;
+        let circuit: Circuit =
+            serde_json::from_slice(&bytes).context("Failed to parse circuit JSON")?;
         Ok(circuit)
     }
 
@@ -93,6 +92,7 @@ impl RemoteArtifactLoader {
         info!("Downloading proving key");
         let url = format!("{}/tornadocash-classic/proving_key.bin.br", self.base_url);
         let compressed = self.fetch(&url).await?;
+
         let bytes = decompress(&compressed)?;
         let pk: ProvingKey =
             postcard::from_bytes(&bytes).context("Failed to deserialize proving key")?;
@@ -104,7 +104,7 @@ impl RemoteArtifactLoader {
             info!("Cache hit for {}", url);
             return Ok(cached);
         }
-        info!("Cache miss for {}, downloading...", url);
+        info!("Cache miss for {}, downloading", url);
         let data = self.client.get(url).send().await?.bytes().await?.to_vec();
         self.cache
             .lock()
