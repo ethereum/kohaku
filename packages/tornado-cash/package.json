@@ -91,7 +91,7 @@
     "mimc-tree": "workspace:*",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
-    "@privacy-paymasters/sdk": "0.0.2",
+    "@privacy-paymasters/sdk": "0.0.4",
     "@reduxjs/toolkit": "^2.11.2",
     "comlink": "^4.4.2",
     "micro-zk-proofs": "0.3.1",

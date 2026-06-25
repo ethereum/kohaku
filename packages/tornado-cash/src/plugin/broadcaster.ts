@@ -26,7 +26,7 @@ export class TornadoCashBroadcaster implements TCBroadcaster {
     host,
     relayerClientFactory = () => new RelayerClient({ network: host.network }),
     paymasterConfig,
-    paymasterClientFactory = () => new PaymasterBroadcaster(host.provider, paymasterConfig)
+    paymasterClientFactory = () => new PaymasterBroadcaster()
   }: TCRelayerConstructorParams) {
     this.provider = host.provider;
     this.relayerClient = relayerClientFactory();

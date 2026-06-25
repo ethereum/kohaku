@@ -57,7 +57,6 @@ export interface IPoolConfig {
   isERC20: boolean;
   token: Address;
   state: 0 | 1;
-  uniswapPoolSwappingFee: number;
   protocolFeePercentage: number;
   denomination: bigint;
   rootHistorySize: number;
@@ -99,5 +98,5 @@ export interface IDataService {
     subdomains: string[],
   ): Promise<IRelayerAggregatorData[]>;
   getAccountNonce(accountAddress: Address): Promise<number>;
-  quoteEthToToken(amountInWei: bigint, tokenAddress: Address, poolFee: number): Promise<bigint>;
+  quoteWeiInToken(paymasterAddress: Address, feeToken: Address, weiAmount: bigint): Promise<bigint>;
 }

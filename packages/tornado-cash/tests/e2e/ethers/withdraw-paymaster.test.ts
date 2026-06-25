@@ -11,7 +11,7 @@ import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
+import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setUniswapV3PoolPrice, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 import { getChainConfigSetup } from '../../constants';
 import { TCBroadcaster, TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
 import { Serializable } from '../../../src/state/interfaces/utils.interface';
@@ -159,6 +159,13 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     const { amount } = rawBalance.find((b) => BigInt(b.asset.contract) === BigInt(erc20Asset.contract))!;
 
     expect(amount).toBe(DEPOSIT_AMOUNT);
+
+    // Sepolia's WETH/DAI pools are arbitrarily priced, so both the SDK fee quote
+    // and the paymaster's on-chain TWAP value gas at absurd rates. Override the
+    // configured (0.05%) DAI/WETH pool to a realistic 3000 DAI/ETH so the fee
+    // fits under the note denomination and the paymaster accepts it.
+    const DAI_WETH_500_POOL = '0x122450AE55BD9B74768A128Bda99906351F81827';
+    await setUniswapV3PoolPrice(pool, DAI_WETH_500_POOL, 3000n);
 
     // 3. Prepare paymaster withdrawal
     const unshieldOp = await protocol.prepareUnshield(

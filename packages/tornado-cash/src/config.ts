@@ -8,11 +8,12 @@ export const TornadoPaymasterConfigs = {
   11155111: {
     bundlerUrl: 'https://public.pimlico.io/v2/11155111/rpc',
     entryPointAddress: '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108',
-    paymasterAddress: '0xA0e2667AcdECb9bCDa6Fcf87638a962e2E9dB20D',
+    paymasterAddress: '0x1c5aCCb9c09D72945b79EC986776136bE01d7B2F',
     poolsAccountsMap: {
-      '0x8c4a04d872a6c1be37964a21ba3a138525dff50b': '0x8A70E3dE493B8599447013f08d8b35719C8ED0ec',
-      '0x8cc930096b4df705a007c4a039bdfa1320ed2508': '0x191e3De3cF7f61de7EbEf4Bf45cfBA4f652d1C6e',
-      '0x6921fd1a97441dd603a997ed6ddf388658daf754': '0x060d053A6595630851ab873d6C95401b0C964d26'
+      // pool -> per-pool TornadoFeeAdapter (eth_0_1, eth_1, dai_100)
+      '0x8c4a04d872a6c1be37964a21ba3a138525dff50b': '0xa616aAE443FCCABfc2F1EA2Afe001E5046FFDCe0',
+      '0x8cc930096b4df705a007c4a039bdfa1320ed2508': '0x67a898343F32641206d0f30CB3367944a8919A3A',
+      '0x6921fd1a97441dd603a997ed6ddf388658daf754': '0xbF0a7969dacF8337716d0F283df0574dF56b0479'
     }
   },
   1: {
@@ -35,7 +36,6 @@ export const TornadoCashConfigs = {
       address: 0xE8F47A78A6D52D317D0D2FFFac56739fE14D1b49n
     },
     weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2n,
-    uniswapQuoterV2: 0x61fFE014bA17989E743c5F6cB21bF9697530B21en,
   },
   11155111: {
     ensSubdomainKey: 'sepolia-tornado',
@@ -51,6 +51,5 @@ export const TornadoCashConfigs = {
       address: 0x4088712AC9fad39ea133cdb9130E465d235e9642n
     },
     weth: 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14n,
-    uniswapQuoterV2: 0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3n,
   }
 } as const;

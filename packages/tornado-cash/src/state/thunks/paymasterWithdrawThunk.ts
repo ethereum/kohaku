@@ -3,16 +3,19 @@ import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { ISecretManager } from "../../account/keys";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
+import { encodePaymasterData, encodeTornadoAdapterData } from "@privacy-paymasters/sdk";
+import { generatePrivateKey } from "viem/accounts";
+
 import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
-import { setupBundlerClient, signDelegationAuthorization } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, createPaymasterBundlerClient, getUserOperationGasPrice, type SerializedUserOperation } from "../../paymaster/utils";
 import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
 import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
-import { IGenericPaymasterWithdrawalPayload, SignedDelegation } from "../../relayer/interfaces/paymaster-client.interface";
 import { TornadoProveOutput } from "../../utils/tornado-prover";
+import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 
 export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
   dataService: IDataService;
@@ -72,18 +75,16 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     }))
   );
 
-  const bundlerClient = setupBundlerClient({
-    bundlerUrl: bundlerUrl,
-    entryPointAddress: entryPointAddress,
-    chainId: Number(state.instanceRegistryInfo.chainId)
-  });
+  const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
 
-  const { standard: { maxFeePerGas } } = await bundlerClient.getUserOperationGasPrice();
+  const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
 
   const gasUnits = reasonableGasUnits(poolInfo.isERC20);
   const ethFee = computeMinimumViableFee(gasUnits, maxFeePerGas);
+  // Price the ERC20 fee via the paymaster's own oracle (same pool/TWAP it
+  // enforces in validation), so feePaid >= required holds by construction.
   const fee = poolInfo.isERC20
-    ? await dataService.quoteEthToToken(ethFee, poolInfo.asset, poolInfo.uniswapPoolSwappingFee)
+    ? await dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee)
     : ethFee;
 
   // The relayer address in the proof is the paymaster — it receives the fee
@@ -113,31 +114,54 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   const proofOutputs = await getProofOutputs();
 
-  // Compute delegation only for deterministic mode — random is deferred to broadcast.
-  // Each deposit gets its own signer derived from its deposit index.
-  let delegations: (SignedDelegation | undefined)[];
+  // Each deposit is withdrawn through its own ephemeral 7702 sender. The signer
+  // is either derived deterministically from the deposit (so it can be
+  // reproduced) or generated randomly. Because the sender is reached via a
+  // paymaster + Simple7702 owner signature, the userOp must be fully built and
+  // signed here — the broadcaster only relays it. The withdrawal recipient is a
+  // user address (distinct from the ephemeral sender), so callGasLimit is 0.
+  const bigintChainId = await dataService.getChainId();
+  const userOpGas = { ...gasUnits, callGasLimit: 0n };
 
-  if (delegation?.mode === 'deterministic') {
-    const chainId = await dataService.getChainId();
+  const userOperations: SerializedUserOperation[] = [];
+  for (let i = 0; i < proofOutputs.length; i++) {
+    const { poolAddress, ...proof } = proofOutputs[i]!;
+    const deposit = deposits[i]!;
 
-    delegations = await Promise.all(
-      deposits.map(async ({ index, pool }) => {
-        const ephemeralPk = await secretManager.deriveEphemeralSigner({
-          depositIndex: index,
-          chainId,
-          poolAddress: pool,
-        });
+    const privateKey = delegation?.mode === 'deterministic'
+      ? await secretManager.deriveEphemeralSigner({
+          depositIndex: deposit.index,
+          chainId: bigintChainId,
+          poolAddress: deposit.pool,
+        })
+      : generatePrivateKey();
 
-        return signDelegationAuthorization({
-          privateKey: ephemeralPk,
-          accountAddress: poolAcountsMap.get(pool)!,
-          chainId: Number(chainId),
-          nonce: 0,
-        });
+    const [root, nullifierHash, recipient, relayerArg, feeArg, refundArg] = proof.args;
+
+    const paymasterData = encodePaymasterData(
+      poolAcountsMap.get(poolAddress)!,
+      encodeTornadoAdapterData(
+        proof.proof,
+        root,
+        nullifierHash,
+        recipient,
+        relayerArg,
+        BigInt(feeArg),
+        BigInt(refundArg),
+      ),
+    );
+
+    userOperations.push(
+      await buildSignedTornadoUserOp({
+        privateKey,
+        chainId,
+        paymasterAddress,
+        paymasterData,
+        gas: userOpGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
       }),
     );
-  } else {
-    delegations = deposits.map(() => undefined);
   }
 
   return proofOutputs.map(({ poolAddress, ...proof }, i) => ({
@@ -148,7 +172,6 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     paymasterAddress: paymasterAddress,
     entryPointAddress: entryPointAddress,
     bundlerUrl,
-    accountAddress: poolAcountsMap.get(poolAddress)!,
-    delegation: delegations[i],
+    userOperation: userOperations[i]!,
   })) satisfies IGenericPaymasterWithdrawalPayload[];
 });
