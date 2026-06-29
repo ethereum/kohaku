@@ -21,7 +21,9 @@ import {
   TCRelayerUnshieldOptions,
 } from "../v1/interfaces.js";
 import {
+  IPaymasterWithdrawParams,
   IStateManager,
+  IWithdrawapOperationParams,
   TCPrivateOperation,
   TCPublicOperation,
   TCProtocolParams,
@@ -76,7 +78,21 @@ export class TornadoCashProtocol implements TCInstance {
         getBalances: ((assets: bigint[] | undefined) => remote.getBalances(assets)) as unknown as IStateManager['getBalances'],
         getNotes: (params) => remote.getNotes(params),
         getDepositPayload: (params) => remote.getDepositPayload(params),
-        getWithdrawalPayloads: (params) => remote.getWithdrawalPayloads(params),
+        getWithdrawalPayloads: (params) => {
+          if (params.mode === 'paymaster') {
+            const { tailCalls, ...rest } = params as IPaymasterWithdrawParams;
+            // tailCalls must be a top-level comlink arg (not nested in an object) so
+            // comlink's proxy transfer handler can wrap it in a MessagePort instead of
+            // trying to structuredClone the function.
+          
+            return (remote.getWithdrawalPayloads)(
+              rest as IWithdrawapOperationParams,
+              tailCalls ? proxy(tailCalls) : undefined,
+            );
+          }
+
+          return remote.getWithdrawalPayloads(params as IWithdrawapOperationParams);
+        },
         dumpState: (() => remote.dumpState()) as unknown as IStateManager['dumpState'],
       } as IStateManager;
     })();
@@ -200,7 +216,8 @@ export class TornadoCashProtocol implements TCInstance {
       withdrawals = await stateManager.getWithdrawalPayloads({
         ...baseParams,
         mode: 'paymaster',
-        delegation: options.delegation
+        delegation: options.delegation,
+        tailCalls: options.tailCalls,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

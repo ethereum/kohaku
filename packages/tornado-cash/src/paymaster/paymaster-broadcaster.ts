@@ -19,11 +19,32 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
   async broadcast(
     withdrawals: IGenericPaymasterWithdrawalPayload[],
   ): Promise<PaymasterBroadcastResult[]> {
-    const results = await Promise.allSettled(
-      withdrawals.map((w) => PaymasterBroadcaster.broadcastOne(w)),
+    // Group by sender: ops from the same sender carry sequential nonces and
+    // must be submitted one-at-a-time (each must mine before the next is sent).
+    // Ops from different senders can still run concurrently.
+    const bySender = new Map<string, IGenericPaymasterWithdrawalPayload[]>();
+
+    for (const w of withdrawals) {
+      const key = w.userOperation.sender.toLowerCase();
+      const group = bySender.get(key) ?? [];
+
+      group.push(w);
+      bySender.set(key, group);
+    }
+
+    const groupResults = await Promise.allSettled(
+      [...bySender.values()].map(async (group) => {
+        const out: PaymasterBroadcastResult[] = [];
+
+        for (const w of group) {
+          out.push(await PaymasterBroadcaster.broadcastOne(w));
+        }
+
+        return out;
+      }),
     );
 
-    const failed = results.filter((r) => r.status === 'rejected');
+    const failed = groupResults.filter((r) => r.status === 'rejected');
 
     if (failed.length > 0) {
       console.warn(
@@ -32,9 +53,9 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
       );
     }
 
-    return results
+    return groupResults
       .filter((r) => r.status === 'fulfilled')
-      .map((r) => r.value);
+      .flatMap((r) => r.value);
   }
 
   static async broadcastOne(

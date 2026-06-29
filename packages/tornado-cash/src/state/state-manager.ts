@@ -257,6 +257,7 @@ export const storeStateManager = async ({
                 delegation: params.delegation,
               },
               secretManager,
+              tailCalls: params.tailCalls,
             }),
           ),
         );
