@@ -8,8 +8,10 @@ use crate::{
     crypto::keys::{SpendingKey, SpendingSignature, ViewingKey},
 };
 
+use common::MaybeSend;
+
 /// A railgun signer which can sign transactions and provide the associated 0xzk address.
-pub trait RailgunSigner {
+pub trait RailgunSigner: MaybeSend {
     fn chain_id(&self) -> ChainId;
     fn viewing_key(&self) -> ViewingKey;
     fn spending_key(&self) -> SpendingKey;
