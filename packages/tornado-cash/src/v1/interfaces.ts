@@ -1,5 +1,5 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
-import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
+import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
 import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote } from '../plugin/interfaces/protocol-params.interface.js';
 import { TxData } from '@kohaku-eth/provider';
 import { Address } from 'ox/Address';
@@ -31,14 +31,14 @@ export type TCAddress = Address;
 export type TCAssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
 export type TCAssetBalance = TCAssetAmount;
 
-export interface TCRelayerUnshieldOptions {
-    mode: 'relayer'; preferredRelayersEns?: string[];
+export interface TCRelayerUnshieldOptions extends UnshieldOptions {
+    mode: 'relayer';
+    preferredRelayersEns?: string[];
 }
 
-export interface TCPaymasterUnshieldOptions {
+export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     mode: 'paymaster';
     delegation?: DelegationConfig;
-    tailCalls?: (address: Address) => Promise<TxData[]>;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;
