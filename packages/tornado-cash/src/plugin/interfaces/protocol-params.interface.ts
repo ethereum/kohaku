@@ -1,4 +1,5 @@
-import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
@@ -7,7 +8,6 @@ import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover.js";
-import { TxData } from '@kohaku-eth/provider';
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
@@ -86,6 +86,7 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
   mode: 'paymaster';
   delegation?: DelegationConfig;
+  tailCalls?: (address: AccountId) => Promise<TxData[]>;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;

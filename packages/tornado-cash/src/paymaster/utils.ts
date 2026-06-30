@@ -1,5 +1,6 @@
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  encodeFunctionData,
   http,
   toHex,
   type Address,
@@ -13,6 +14,8 @@ import {
   getUserOperationTypedData,
   type BundlerClient,
 } from 'viem/account-abstraction';
+import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
+import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation } from '../interfaces/user-ops.interface';
 
 /**
  * EntryPoint v0.8 canonical Simple7702Account implementation. The ephemeral
@@ -79,47 +82,13 @@ export async function sendSerializedUserOperation(
   return client.request({
     method: 'eth_sendUserOperation',
     params: [op, entryPoint],
-  } as any) as Promise<Hash>;
+  }) as Promise<Hash>;
 }
 
-/**
- * A userOp serialized to the hex shape expected by `eth_sendUserOperation`, so
- * it can be carried as plain (JSON-serializable) data from the prepare phase
- * (thunk) to the broadcast phase.
- */
-export interface SerializedUserOperation {
-  sender: `0x${string}`;
-  nonce: `0x${string}`;
-  callData: `0x${string}`;
-  callGasLimit: `0x${string}`;
-  verificationGasLimit: `0x${string}`;
-  preVerificationGas: `0x${string}`;
-  maxFeePerGas: `0x${string}`;
-  maxPriorityFeePerGas: `0x${string}`;
-  paymaster?: `0x${string}`;
-  paymasterVerificationGasLimit?: `0x${string}`;
-  paymasterPostOpGasLimit?: `0x${string}`;
-  paymasterData?: `0x${string}`;
-  signature: `0x${string}`;
-  eip7702Auth?: ReturnType<typeof serializeAuth>;
-}
 
-export interface UserOpGasLimits {
-  callGasLimit: bigint;
-  verificationGasLimit: bigint;
-  preVerificationGas: bigint;
-  paymasterVerificationGasLimit: bigint;
-  paymasterPostOpGasLimit: bigint;
-}
-
-interface BuildSignedTornadoUserOpParams {
-  privateKey: Hex;
-  chainId: number;
-  paymasterAddress: Address;
-  paymasterData: Hex;
-  gas: UserOpGasLimits;
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
+/** Returns the EVM address that would be the sender for a given ephemeral private key. */
+export function ephemeralSenderAddress(privateKey: Hex): Address {
+  return privateKeyToAccount(privateKey).address;
 }
 
 /**
@@ -137,22 +106,46 @@ export async function buildSignedTornadoUserOp({
   paymasterData,
   gas,
   maxFeePerGas,
-  maxPriorityFeePerGas
+  maxPriorityFeePerGas,
+  tailCalls = async () => [],
+  nonce = 0n,
 }: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
   const owner = privateKeyToAccount(privateKey);
 
-  // Fresh EOA → nonce 0, both for the userOp and the 7702 authorization.
+  const calls = await tailCalls(owner.address);
+  let callData: Hex = '0x';
+
+  if (calls.length === 1) {
+    const call = calls[0]!;
+
+    callData = encodeFunctionData({
+      abi: SIMPLE_7702_EXECUTE_ABI,
+      functionName: 'execute',
+      args: [call.to as Address, call.value, call.data as Hex],
+    });
+  } else if (calls.length > 1) {
+    callData = encodeFunctionData({
+      abi: SIMPLE_7702_EXECUTE_ABI,
+      functionName: 'executeBatch',
+      args: [calls.map(c => ({ target: c.to as Address, value: c.value, data: c.data as Hex }))],
+    });
+  }
+
+  // The EIP-7702 authorization nonce must equal the sender's EOA nonce at the
+  // time the bundle tx is processed. Each time a 7702 auth is consumed the EOA
+  // nonce increments, so for the k-th userOp from the same shared sender we
+  // need nonce = k (matching the userOp's EntryPoint sequence number).
   const authorization = await owner.signAuthorization({
     address: SIMPLE_7702_IMPLEMENTATION,
     chainId,
-    nonce: 0,
+    nonce: Number(nonce),
   });
 
   const userOperation = {
     sender: owner.address,
-    nonce: 0n,
-    callData: '0x' as Hex,
+    nonce,
+    callData,
     callGasLimit: gas.callGasLimit,
     verificationGasLimit: gas.verificationGasLimit,
     preVerificationGas: gas.preVerificationGas,
@@ -193,7 +186,7 @@ export async function buildSignedTornadoUserOp({
   };
 }
 
-function serializeAuth(auth: SignedAuthorization) {
+function serializeAuth(auth: SignedAuthorization): SerializedAuth {
   return {
     address: (auth as any).address ?? (auth as any).contractAddress,
     chainId: toHex(auth.chainId),

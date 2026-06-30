@@ -1,7 +1,7 @@
 import type { SignedAuthorization, Hash } from 'viem';
 import { TornadoProveOutput } from '../../utils/tornado-prover';
 import { Address } from '../../interfaces/types.interface';
-import type { SerializedUserOperation } from '../../paymaster/utils';
+import { SerializedUserOperation } from '../../interfaces/user-ops.interface';
 
 export interface SignedDelegation {
   senderAddress: `0x${string}`;

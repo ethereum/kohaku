@@ -9,6 +9,7 @@ import {
   IStateManager,
   IDepositOperationParams,
   IGetNotesParams,
+  IPaymasterWithdrawParams,
   IWithdrawapOperationParams,
   IWithdrawalPayload,
   StoreStorageKey,
@@ -79,8 +80,12 @@ export const workerApi = {
     return getStateManager().getDepositPayload(params);
   },
 
-  getWithdrawalPayloads(params: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> {
-    return getStateManager().getWithdrawalPayloads(params);
+  getWithdrawalPayloads(params: IWithdrawapOperationParams, tailCalls?: IPaymasterWithdrawParams['tailCalls']): Promise<IWithdrawalPayload[]> {
+    const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster' && tailCalls
+      ? { ...params, tailCalls }
+      : params;
+
+    return getStateManager().getWithdrawalPayloads(fullParams);
   },
 
   dumpState(): Record<StoreStorageKey, Omit<RootState, 'userSecrets'>> {
