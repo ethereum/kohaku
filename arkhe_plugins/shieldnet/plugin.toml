@@ -1,0 +1,5 @@
+[plugin]
+name = "arkhe-shieldnet"
+version = "614.0"
+description = "ZK-STARK-secured Sovereign Computation Layer"
+entry_point = "arkhe_shieldnet:register"

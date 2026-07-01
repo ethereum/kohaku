@@ -1,0 +1,74 @@
+[package]
+name = "arkhe-cli"
+version = "1.0.0"
+edition = "2021"
+authors = ["Arquiteto ORCID 0009-0005-2697-4668"]
+license = "AGPL-3.0+RoyaltesCatedral"
+description = "ARKHE Ω-TEMP v∞.Ω.AI — Complete CLI for Windows"
+repository = "https://github.com/arkhe-os/cli"
+build = "build.rs"
+
+[[bin]]
+name = "arkhe"
+path = "src/main.rs"
+
+[dependencies]
+# Core
+clap = { version = "4.5", features = ["derive", "cargo", "env"] }
+clap_complete = "4.5"
+tokio = { version = "1.37", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Networking
+reqwest = { version = "0.12", features = ["json", "native-tls"] }
+
+# Crypto
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.8"
+base64 = "0.22"
+pqcrypto-dilithium = "0.5"
+pqcrypto-kyber = "0.7"
+
+# Utilities
+chrono = "0.4"
+colored = "2.1"
+indicatif = "0.17"
+console = "0.15"
+dialoguer = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Compression (576-MP3-XI / 582-JPEG-REALITY)
+flate2 = "1.0"
+zip = "1.1"
+tar = "0.4"
+
+# Windows
+winapi = { version = "0.3", features = ["processthreadsapi", "handleapi", "winbase", "winuser", "shellapi"] }
+windows = { version = "0.54", features = ["Win32_System_Threading", "Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+# ARKHE Substrate Bridges (583-OSSI-STACK)
+# These are internal modules, not external crates
+# [dependencies.arkhe-ossi] — future external crate
+# [dependencies.arkhe-quantum] — future external crate
+
+[build-dependencies]
+winres = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
+
+[profile.release-windows]
+inherits = "release"
+target = "x86_64-pc-windows-msvc"

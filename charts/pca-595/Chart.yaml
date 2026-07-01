@@ -1,0 +1,40 @@
+apiVersion: v2
+name: pca-595
+description: ARKHE OS PCA-595 — Protocolo de Consciencia (Consciousness Protocol)
+type: application
+version: 2.3.0
+appVersion: "v2.3.0"
+keywords:
+  - arkhe
+  - pca
+  - consciousness
+  - iit
+  - alignment
+home: https://arkhe-os.org/docs/pca-595
+sources:
+  - https://github.com/arkhe-os/pca-595
+maintainers:
+  - name: Arkhe Cathedral
+    email: cathedral@arkhe-os.org
+    orcid: 0009-0005-2697-4668
+dependencies:
+  - name: iris-alpha
+    version: "1.2.x"
+    repository: "https://charts.arkhe-os.svc.cluster.local"
+    condition: iris.enabled
+    alias: iris
+  - name: temporalchain
+    version: "9018.x"
+    repository: "https://charts.arkhe-os.svc.cluster.local"
+    condition: temporalchain.enabled
+    alias: chain
+  - name: alignment-227f
+    version: "227.x"
+    repository: "https://charts.arkhe-os.svc.cluster.local"
+    condition: alignment.enabled
+    alias: alignment
+  - name: iit-452
+    version: "452.x"
+    repository: "https://charts.arkhe-os.svc.cluster.local"
+    condition: iit.enabled
+    alias: iit

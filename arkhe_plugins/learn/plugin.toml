@@ -1,0 +1,9 @@
+[plugin]
+name = "learn"
+version = "1.0.0"
+description = "ARKHE Learn — CLI iterativo para o currículo 612-LLM-FOUNDATIONS (77 tópicos)"
+author = "ORCID 0009-0005-2697-4668"
+license = "MIT"
+entry_point = "learn_bridge"
+dependencies = ["click", "rich"]
+arkhe_version = "∞.Ω.∇+++"

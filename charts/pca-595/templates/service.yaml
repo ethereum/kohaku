@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pca-595.fullname" . }}
+  labels:
+    {{- include "pca-595.labels" . | nindent 4 }}
+    arkhe-os.org/service: pca-595
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+    - port: 9090
+      targetPort: 9090
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "pca-595.selectorLabels" . | nindent 4 }}

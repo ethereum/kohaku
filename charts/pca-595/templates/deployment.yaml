@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pca-595.fullname" . }}
+  labels:
+    {{- include "pca-595.labels" . | nindent 4 }}
+    arkhe-os.org/substrate: "595"
+    arkhe-os.org/version: "{{ .Chart.AppVersion }}"
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pca-595.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "pca-595.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "pca-595.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: PCA_PHI_CRITICAL
+              value: "{{ .Values.pca.phiCritical }}"
+            - name: PCA_PHI_COSMIC
+              value: "{{ .Values.pca.phiCosmic }}"
+            - name: PCA_XI_M_SENSITIVITY
+              value: "{{ .Values.pca.xiMSensitivity }}"
+            - name: PCA_ALIGNMENT_ENABLED
+              value: "{{ .Values.pca.alignment.enabled }}"
+            - name: PCA_ALIGNMENT_ENDPOINT
+              value: "{{ .Values.pca.alignment.endpoint }}"
+            - name: PCA_ALIGNMENT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pca-595-secrets
+                  key: alignment-api-key
+            - name: PCA_IIT_ENABLED
+              value: "{{ .Values.pca.iit.enabled }}"
+            - name: PCA_IIT_ENDPOINT
+              value: "{{ .Values.pca.iit.endpoint }}"
+            - name: PCA_IIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pca-595-secrets
+                  key: iit-api-key
+            - name: PCA_DRIVER_TYPE
+              value: "{{ .Values.pca.driver.type }}"
+            - name: PCA_DRIVER_LIB_PATH
+              value: "{{ .Values.pca.driver.libPath }}"
+            - name: PCA_LOG_LEVEL
+              value: "{{ .Values.pca.log.level }}"
+            - name: PCA_MONITOR_ENABLED
+              value: "{{ .Values.pca.monitor.enabled }}"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/arkhe/pca-595
+              readOnly: true
+            - name: logs
+              mountPath: /var/log/arkhe
+            - name: driver-lib
+              mountPath: /usr/lib/arkhe
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pca-595.fullname" . }}-config
+        - name: logs
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: driver-lib
+          hostPath:
+            path: /opt/arkhe/lib
+            type: Directory
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

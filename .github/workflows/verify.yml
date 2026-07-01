@@ -23,7 +23,7 @@ jobs:
           run: pnpm audit
           continue-on-error: true
         - run: cargo test
-        - run: cargo check --target wasm32-unknown-unknown 
+        - run: cargo check --workspace --exclude aetherweave-server --exclude sagemaker-proxy --target wasm32-unknown-unknown
 
     build:
         name: Build

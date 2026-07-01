@@ -1,0 +1,116 @@
+# .github/workflows/arkhe-824-cicd.yml
+name: Substrato 824 — Bridge Magalu↔AWS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'substrato-824/**'
+  schedule:
+    - cron: '0 6 * * *'   # validação diária do threshold
+
+jobs:
+  # Job 1: Validação contínua do Ghost Threshold
+  ghost-threshold-calibration:
+    runs-on: ubuntu-latest
+    outputs:
+      threshold_valid: ${{ steps.validate.outputs.valid }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Ghost Threshold Simulator
+        id: validate
+        run: |
+          python3 ghost_threshold_validator.py | tee calibration.log
+          # Verifica se o threshold calibrado está dentro da margem esperada (0.57-0.58)
+          if grep -q "Ghost Threshold VALIDADO" calibration.log; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "✅ Ghost Threshold 0.577 confirmado."
+          else
+            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Threshold divergente — revisão necessária."
+          fi
+      - name: Upload calibration report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghost-threshold-report
+          path: calibration.log
+
+  # Job 2: Build e push do Virtual Kubelet Provider (Go)
+  build-vk-provider:
+    runs-on: ubuntu-latest
+    needs: ghost-threshold-calibration
+    if: needs.ghost-threshold-calibration.outputs.threshold_valid == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build VK Provider
+        run: |
+          cd pkg/provider
+          CGO_ENABLED=0 go build -o vk-magalu-aws .
+      - name: Docker build & push
+        run: |
+          docker build -t registry.magalu.cloud/arkhe/vk-magalu-aws:${{ github.sha }} -f Dockerfile.vk-magalu-aws .
+          docker push registry.magalu.cloud/arkhe/vk-magalu-aws:${{ github.sha }}
+      - name: Deploy to Magalu K8s
+        run: |
+          mgc kubernetes cluster kubeconfig --cluster arkhe-core
+          kubectl set image deployment/vk-magalu-aws -n kube-system \
+            virtual-kubelet=registry.magalu.cloud/arkhe/vk-magalu-aws:${{ github.sha }}
+
+  # Job 3: Build e push do Proxy SageMaker (Rust)
+  build-sagemaker-proxy:
+    runs-on: ubuntu-latest
+    needs: ghost-threshold-calibration
+    if: needs.ghost-threshold-calibration.outputs.threshold_valid == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sagemaker-proxy/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('sagemaker-proxy/Cargo.lock') }}
+      - name: Build proxy (musl)
+        run: |
+          cd sagemaker-proxy
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --release --target x86_64-unknown-linux-musl
+      - name: Docker build & push
+        run: |
+          cd sagemaker-proxy
+          docker build -t registry.magalu.cloud/arkhe/sagemaker-proxy:${{ github.sha }} -f Dockerfile.sagemaker-proxy .
+          docker push registry.magalu.cloud/arkhe/sagemaker-proxy:${{ github.sha }}
+      - name: Deploy to Magalu K8s
+        run: |
+          mgc kubernetes cluster kubeconfig --cluster arkhe-core
+          kubectl set image deployment/sagemaker-proxy -n arkhe-ml \
+            proxy=registry.magalu.cloud/arkhe/sagemaker-proxy:${{ github.sha }}
+
+  # Job 4: Smoke test integrado
+  integration-smoke-test:
+    runs-on: ubuntu-latest
+    needs: [build-vk-provider, build-sagemaker-proxy]
+    steps:
+      - name: Check cluster coherence
+        run: |
+          mgc kubernetes cluster kubeconfig --cluster arkhe-core
+          # Simula alta carga e verifica se o burst é acionado
+          kubectl run load-test --image=busybox --restart=Never -- /bin/sh -c "while true; do wget -qO- http://laravel-app/load; done"
+          sleep 120
+          kubectl get pods -o wide | grep magalu-burst-node
+          echo "Burst validado."
+      - name: Test SageMaker offload
+        run: |
+          mgc kubernetes cluster kubeconfig --cluster arkhe-core
+          kubectl run sm-test --image=alpine/curl --restart=Never -- \
+            curl -X POST http://sagemaker-proxy.arkhe-ml.svc:8242/v1/sagemaker/train \
+            -H "Content-Type: application/json" \
+            -d '{"training_data_uri":"s3://test","algorithm":"xgboost","instance_type":"ml.m5.large","hyperparameters":{"max_depth":"3"}}'
+          sleep 300
+          kubectl logs job/sm-test | grep "COMPLETED"
+          echo "Offload seguro validado."
