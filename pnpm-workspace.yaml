@@ -16,3 +16,4 @@ packages:
   - "examples/pq-account"
   - "crates/railgun-ts"
   - "docs"
+  - "packages/security"
