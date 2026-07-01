@@ -10,20 +10,6 @@ use alloy::{
 };
 pub use alto::{Alto, AltoBuilder};
 pub use anvil::{Anvil, AnvilBuilder};
-use common::sleep;
-
-pub async fn wait_for_port(port: u16) {
-    for _ in 0..100 {
-        if tokio::net::TcpStream::connect(("127.0.0.1", port))
-            .await
-            .is_ok()
-        {
-            return;
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
-    panic!("service on port {port} never became ready");
-}
 
 pub async fn set_balances(provider: &impl Provider, addresses: &[Address], value: U256) {
     for addr in addresses {
@@ -38,4 +24,17 @@ pub async fn set_pk_balances(provider: &impl Provider, private_keys: &[&str], va
         .collect::<Result<_, _>>()
         .unwrap();
     set_balances(provider, &addresses, value).await
+}
+
+pub(crate) async fn wait_for_port(port: u16) {
+    for _ in 0..100 {
+        if tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .is_ok()
+        {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    panic!("service on port {port} never became ready");
 }

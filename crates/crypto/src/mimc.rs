@@ -24,24 +24,27 @@ fn constants() -> &'static [Fr; N_ROUNDS] {
     })
 }
 
+fn pow5(t: Fr) -> Fr {
+    let t2 = t.square();
+    t2.square() * t
+}
+
 fn hash(mut xl: Fr, mut xr: Fr, k: Fr) -> (Fr, Fr) {
     let cts = constants();
     let last = N_ROUNDS - 1;
 
-    for (i, c) in cts.iter().enumerate() {
-        let mut t = xl + k;
-        if i > 0 {
-            t += c;
-        }
-        let t5 = t.pow([5u64]);
-        let xr_new = xr + t5;
-        if i < last {
-            xr = xl;
-            xl = xr_new;
-        } else {
-            xr = xr_new;
-        }
+    let t5 = pow5(xl + k);
+    xr += t5;
+    std::mem::swap(&mut xl, &mut xr);
+
+    for c in &cts[1..last] {
+        let t5 = pow5(xl + k + c);
+        xr += t5;
+        std::mem::swap(&mut xl, &mut xr);
     }
+
+    // last round: don't swap
+    xr += pow5(xl + k + cts[last]);
 
     (xl, xr)
 }

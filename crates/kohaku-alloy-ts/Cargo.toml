@@ -1,0 +1,19 @@
+[package]
+name = "kohaku-alloy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy = { workspace = true, features = ["transports", "rpc", "json-rpc"] }
+tower-service = { workspace = true }
+serde_json = { workspace = true }
+js-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+
+[build-dependencies]
+cfg_aliases = { workspace = true }
+
+[lints]
+workspace = true

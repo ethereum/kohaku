@@ -1,5 +1,5 @@
 use crypto::poseidon_hash;
-use rand::RngCore;
+use rand::CryptoRng;
 use ruint::aliases::U256;
 
 use crate::{
@@ -46,7 +46,7 @@ impl TransferNote {
 }
 
 impl EncryptableNote for TransferNote {
-    fn encrypt(&self, rng: &mut dyn RngCore) -> Result<CommitmentCiphertext, EncryptError> {
+    fn encrypt(&self, rng: &mut dyn CryptoRng) -> Result<CommitmentCiphertext, EncryptError> {
         encrypt_note(
             &self.to,
             &self.random,

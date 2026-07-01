@@ -6,6 +6,7 @@ use alloy::{
     providers::{DynProvider, Provider, ProviderBuilder},
     sol,
 };
+use kohaku_test_utils::{Alto, AltoBuilder, Anvil, AnvilBuilder, set_pk_balances};
 use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
@@ -23,8 +24,6 @@ use userop_kit::{
     entry_point::ENTRY_POINT_08,
     smart_account::simple_smart_account::{self, SimpleSmartAccount},
 };
-
-use crate::utils::{Alto, AltoBuilder, Anvil, AnvilBuilder};
 
 sol! {
     #[sol(rpc)]
@@ -228,7 +227,7 @@ async fn setup_bundler(
 
     let alto_executor_pk = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
     let alto_utility_pk = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
-    crate::utils::set_pk_balances(
+    set_pk_balances(
         &provider,
         &[alto_executor_pk, alto_utility_pk],
         U256::from(1000000000000000000000u128),

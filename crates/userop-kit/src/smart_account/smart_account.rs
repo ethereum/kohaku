@@ -8,7 +8,7 @@ use eip_1193_provider::provider::Eip1193Error;
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
 pub trait SmartAccount {
-    type CallData;
+    type Call;
 
     /// Get the address of this smart account.
     fn address(&self) -> Address;
@@ -29,13 +29,15 @@ pub trait SmartAccount {
     fn dummy_signature(&self) -> Bytes;
 
     /// Encodes the provided call data into the format expected by this smart account's EntryPoint.
-    fn encode_call_data(&self, call_data: Self::CallData) -> Bytes;
+    fn abi_encode_call(call_data: &Self::Call) -> Bytes;
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum SmartAccountError {
     #[error("EIP-1193 error: {0}")]
     Eip1193Error(#[from] Eip1193Error),
-    // #[error(transparent)]
-    // Other(#[from] anyhow::Error),
+    #[error("Provider error: {0}")]
+    ProviderError(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }

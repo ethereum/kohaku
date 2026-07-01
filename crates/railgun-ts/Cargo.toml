@@ -32,6 +32,7 @@ userop-kit = { workspace = true, features = ["js"] }
 userop-kit-ts = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
+kohaku-db = { workspace = true }
 
 [profile.release]
 opt-level = "z"

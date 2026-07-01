@@ -6,14 +6,6 @@ use crate::{
     user_operation::{UserOperationGasEstimate, UserOperationHash, UserOperationReceipt},
 };
 
-#[derive(Debug, Error)]
-pub enum BundlerError {
-    #[error("Timeout")]
-    Timeout,
-    #[error("Other: {0}")]
-    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
-}
-
 /// A bundler provider for 4337 UserOperation JSON-RPC methods.
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
@@ -30,4 +22,12 @@ pub trait Bundler {
         &self,
         hash: UserOperationHash,
     ) -> Result<UserOperationReceipt, BundlerError>;
+}
+
+#[derive(Debug, Error)]
+pub enum BundlerError {
+    #[error("Timeout")]
+    Timeout,
+    #[error("Other: {0}")]
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }

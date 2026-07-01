@@ -15,7 +15,7 @@ const WINDOW_SIZE: usize = 4;
 const N_WINDOWS_PER_SEGMENT: usize = 50;
 const BITS_PER_SEGMENT: usize = WINDOW_SIZE * N_WINDOWS_PER_SEGMENT;
 
-/// Circomlib-compatible Pedersen hash over BabyJubJub.
+/// Circomlib-compatible Pedersen hash over `BabyJubJub`.
 ///
 /// Converts `data` to a bit array (LSB first), partitions into segments of
 /// 200 bits, encodes each segment as a signed-window scalar, multiplies by
@@ -88,7 +88,7 @@ fn segment_scalar(bits: &[bool]) -> BigInt {
 ///
 /// Hashes the string `"PedersenGenerator_{s:032}_{try:032}"` with Blake-256,
 /// clears the 254th bit (circomlib convention), unpacks the resulting bytes as
-/// a BabyJubJub point, multiplies by 8 to clear the cofactor, and returns the
+/// a `BabyJubJub` point, multiplies by 8 to clear the cofactor, and returns the
 /// first such point that lies in the prime-order subgroup.
 fn get_base_point(point_idx: usize) -> Point {
     for try_idx in 0.. {
@@ -106,7 +106,7 @@ fn get_base_point(point_idx: usize) -> Point {
     unreachable!()
 }
 
-/// Unpack a 32-byte compressed BabyJubJub point.
+/// Unpack a 32-byte compressed `BabyJubJub` point.
 ///
 /// Bytes are a LE-encoded y-coordinate; the high bit of byte 31 is the sign of
 /// x (1 = x > p/2). Returns `None` if y ≥ p or x² has no square root.

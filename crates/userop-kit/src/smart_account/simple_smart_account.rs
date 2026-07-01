@@ -67,7 +67,7 @@ impl SimpleSmartAccount {
 #[cfg_attr(native, async_trait::async_trait)]
 #[cfg_attr(wasm, async_trait::async_trait(?Send))]
 impl SmartAccount for SimpleSmartAccount {
-    type CallData = Vec<Call>;
+    type Call = Vec<Call>;
 
     fn entry_point(&self) -> Address {
         self.entry_point
@@ -106,18 +106,18 @@ impl SmartAccount for SimpleSmartAccount {
         self.dummy_signature.clone()
     }
 
-    fn encode_call_data(&self, call_data: Self::CallData) -> Bytes {
+    fn abi_encode_call(call_data: &Self::Call) -> Bytes {
         if call_data.is_empty() {
             // If no calls, return empty data to save gas.
             return Bytes::new();
         }
 
         let calls = call_data
-            .into_iter()
+            .iter()
             .map(|call| abi::BaseAccount::Call {
                 target: call.target,
                 value: call.value,
-                data: call.data,
+                data: call.data.clone(),
             })
             .collect();
 

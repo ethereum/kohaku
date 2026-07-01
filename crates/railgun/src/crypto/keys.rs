@@ -3,6 +3,7 @@ use ark_ff::{BigInteger, PrimeField};
 use crypto::poseidon_hash;
 use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY};
 use ed25519_dalek::SigningKey;
+use rand::RngExt;
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha512};

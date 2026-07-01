@@ -20,7 +20,7 @@ use std::{
 };
 
 use alloy::primitives::{Address, U256};
-use rand::Rng;
+use rand::{CryptoRng, RngExt};
 use thiserror::Error;
 use tracing::info;
 
@@ -168,13 +168,13 @@ impl TransactionBuilder {
     }
 
     /// Builds and proves a set of operations for railgun, without packaging into a transaction.
-    pub(crate) async fn build<R: Rng>(
+    pub(crate) async fn build(
         &self,
         prover: &Groth16Prover,
         chain_id: u64,
         in_notes: &[UtxoNote],
         utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
-        rng: &mut R,
+        rng: &mut impl CryptoRng,
     ) -> Result<Vec<ProvedOperation>, TransactionBuilderError> {
         let groups = self.group_intents();
         let mut operations = build_groups(in_notes, groups, rng)?;
@@ -208,10 +208,10 @@ impl TransactionBuilder {
 }
 
 /// Build the operations for each group of intents.
-fn build_groups<R: Rng>(
+fn build_groups(
     in_notes: &[UtxoNote],
     groups: BTreeMap<(RailgunAddress, AssetId), Vec<Intent>>,
-    rng: &mut R,
+    rng: &mut impl CryptoRng,
 ) -> Result<Vec<Operation>, TransactionBuilderError> {
     let mut operations = Vec::new();
     for ((from, asset), intents) in groups {
@@ -222,12 +222,12 @@ fn build_groups<R: Rng>(
 }
 
 /// Build the operations for a single group of intents.
-fn build_group<R: Rng>(
+fn build_group(
     in_notes: &[UtxoNote],
     from: RailgunAddress,
     asset: AssetId,
     mut intents: Vec<Intent>,
-    rng: &mut R,
+    rng: &mut impl CryptoRng,
 ) -> Result<Vec<Operation>, TransactionBuilderError> {
     // Sort intents smallest to largest. Helps to ensure small intents don't
     // ever need to span across multiple trees.
@@ -286,13 +286,13 @@ fn build_group<R: Rng>(
 }
 
 /// Helper for fitting an intent to multiple trees when it can't fit on a single tree.
-fn split_intent<R: Rng>(
+fn split_intent(
     from: RailgunAddress,
     asset: AssetId,
     intent: Intent,
     balances: &mut BTreeMap<u32, u128>,
     operations: &mut BTreeMap<u32, Operation>,
-    rng: &mut R,
+    rng: &mut impl CryptoRng,
 ) -> Result<(), TransactionBuilderError> {
     let mut remaining = intent.value;
     let trees: Vec<u32> = balances.keys().copied().collect();
@@ -328,11 +328,11 @@ fn split_intent<R: Rng>(
 
 /// Helper to insert an intent into an operation, creating the operation if it
 /// doesn't exist.
-fn insert_operation<R: Rng>(
+fn insert_operation(
     operations: &mut BTreeMap<u32, Operation>,
     tree: u32,
     intent: Intent,
-    rng: &mut R,
+    rng: &mut impl CryptoRng,
 ) {
     let from = intent.from.clone();
     let asset = intent.asset;
@@ -375,7 +375,7 @@ fn select_notes<'a>(notes: &'a [&UtxoNote], value: u128) -> Vec<&'a UtxoNote> {
 }
 
 /// Helper to add a change note to an operation if there is excess value.
-fn add_change_note<R: Rng>(operation: &mut Operation, asset: AssetId, rng: &mut R) {
+fn add_change_note(operation: &mut Operation, asset: AssetId, rng: &mut impl CryptoRng) {
     let signer = operation.from.clone();
     let change = operation.in_value().saturating_sub(operation.out_value());
     if change > 0 {
@@ -396,7 +396,7 @@ async fn prove_operations(
     utxo_trees: &BTreeMap<u32, UtxoMerkleTree>,
     chain_id: u64,
     operations: &[Operation],
-    rng: &mut impl Rng,
+    rng: &mut impl CryptoRng,
 ) -> Result<Vec<ProvedOperation>, TransactionBuilderError> {
     let mut proved = Vec::new();
     for op in operations {
@@ -415,7 +415,7 @@ async fn prove_operation(
     utxo_tree: &UtxoMerkleTree,
     chain_id: u64,
     operation: &Operation,
-    rng: &mut impl Rng,
+    rng: &mut impl CryptoRng,
 ) -> Result<ProvedOperation, TransactionBuilderError> {
     info!("Constructing circuit inputs");
     let unshield_note = operation.unshield_note();

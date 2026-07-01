@@ -111,8 +111,8 @@ pub struct RawLog {
     pub data: Bytes,
 }
 
-impl RawLog {
-    pub fn inner(&self) -> Log {
-        Log::new_unchecked(self.address, self.topics.clone(), self.data.clone())
+impl From<RawLog> for Log {
+    fn from(raw: RawLog) -> Self {
+        Log::new_unchecked(raw.address, raw.topics, raw.data)
     }
 }
