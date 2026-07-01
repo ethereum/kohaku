@@ -1,0 +1,142 @@
+{
+  "id": "612-LLM-FOUNDATIONS",
+  "nome": "Currículo Canônico de Fundamentos de LLMs e Ecossistema de IA",
+  "tipo": "Substrato Educacional / Referência Técnica",
+  "status": "CANONIZED_CLEAN",
+  "data_incorporacao": "2026-05-23",
+  "arquiteto": "ORCID 0009-0005-2697-4668",
+  "seal_sha256": "fcb9bb64e90515e2c57e27a9f41ebd06fa88da14721859db41f62c9981ee0893",
+  "phi_c": 1.0,
+  "invariants": "18/18 PASS",
+  "mode": "STRICT",
+  "pilares": 11,
+  "topicos": 77,
+  "pilares_detalhados": {
+    "P1_FOUNDATIONS": [
+      "LLM Basics",
+      "How AI Models Work",
+      "Tokens",
+      "Tokenization",
+      "Context Windows",
+      "Embeddings",
+      "Transformers",
+      "Attention Mechanism",
+      "Parameters",
+      "Training vs Inference",
+      "Open-Source vs Closed-Source"
+    ],
+    "P2_DATASETS_TRAINING": [
+      "SFT Datasets",
+      "Instruction Tuning",
+      "Preference Datasets",
+      "Synthetic Datasets",
+      "Data Curation",
+      "Dataset Cleaning",
+      "Dataset Formatting",
+      "Fine-Tuning Basics",
+      "Continued Pretraining",
+      "Hallucination Reduction"
+    ],
+    "P3_FINE_TUNING": [
+      "LoRA",
+      "QLoRA",
+      "DPO",
+      "RLHF",
+      "Quantization",
+      "Model Checkpoints",
+      "Adapter Tuning",
+      "GGUF Models"
+    ],
+    "P4_INFERENCE_OPTIMIZATION": [
+      "KV Cache",
+      "Flash Attention",
+      "Speculative Decoding",
+      "Inference Optimization",
+      "Model Serving",
+      "Batch Inference",
+      "GPU Basics",
+      "VRAM Basics",
+      "Latency vs Quality Tradeoffs"
+    ],
+    "P5_LOCAL_AI_ECOSYSTEM": [
+      "llama.cpp",
+      "Ollama",
+      "vLLM",
+      "MLX",
+      "Hugging Face",
+      "Unsloth",
+      "Axolotl",
+      "PEFT",
+      "TRL Library"
+    ],
+    "P6_RAG_MEMORY": [
+      "RAG",
+      "Vector Databases",
+      "Chunking",
+      "Retrieval Pipelines",
+      "AI Memory Systems",
+      "Semantic Search"
+    ],
+    "P7_AGENTS_WORKFLOWS": [
+      "Prompt Engineering",
+      "System Prompts",
+      "Tool Calling",
+      "Function Calling",
+      "AI Agents",
+      "Agentic Workflows",
+      "Multi-Agent Systems",
+      "Browser Agents"
+    ],
+    "P8_MODEL_TYPES": [
+      "VLMs",
+      "SLMs",
+      "Dense Models",
+      "MoE Models",
+      "Coding Models",
+      "Reasoning Models"
+    ],
+    "P9_DEPLOYMENT": [
+      "Local Inference",
+      "On-Device AI",
+      "API Serving",
+      "Cloud GPUs",
+      "Edge AI Basics"
+    ],
+    "P10_EVALUATION": [
+      "AI Benchmarks",
+      "Human Evals",
+      "Cost-Per-Token Analysis",
+      "Speed Benchmarking",
+      "Quality Benchmarking"
+    ],
+    "P11_REAL_WORLD_SKILLS": [
+      "Building Chatbots",
+      "Building AI Copilots",
+      "AI Automation",
+      "AI SaaS Workflows",
+      "AI Coding Workflows",
+      "AI Orchestration Systems",
+      "AI Product Thinking"
+    ]
+  },
+  "cross_substrate": {
+    "612↔610-PEEK": "PEEK cacheia orientação sobre currículo LLM",
+    "612↔611-CODEGRAPH": "CodeGraph indexa repos de treinamento/fine-tuning",
+    "612↔604-CAI": "CAI usa fundamentos para auditoria de modelos",
+    "612↔607-NUCLEI": "Nuclei escaneia infra de treinamento/deploy",
+    "612↔491-AGI-CORTEX": "Φ monitoring da consciência do modelo",
+    "612↔595-PCA": "OR events em cada fase do pipeline ML",
+    "612↔600": "Logician gates validam pipelines de treinamento",
+    "612↔585": "ZK proofs de integridade de datasets",
+    "612↔227-F": "Salvaguardas éticas em treinamento (consentimento)",
+    "612↔603-HASHTREE": "Datasets distribuídos via IPFS/Hashtree",
+    "612↔9018": "Checkpoints de modelo ancorados na TemporalChain",
+    "612↔562-STIM": "Blindagem quântica de weights de modelo",
+    "612↔560-GLASSWING": "Auditoria de segurança de infra ML",
+    "612↔570": "Claude Code Bridge para coding workflows",
+    "612↔523-HERMES": "Hermes Agent com fundamentos LLM nativos",
+    "612↔598": "Fundamentos para neurointerfaces e Brainet",
+    "612↔249": "Fundamentos para análise de corpora UAP",
+    "612↔584": "MegaKernel CLI para orquestração de pipelines ML"
+  }
+}

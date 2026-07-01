@@ -1,0 +1,10 @@
+[package]
+name = "arkhe-cli-windows"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+anyhow = "1.0"
+colored = "2.1"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
