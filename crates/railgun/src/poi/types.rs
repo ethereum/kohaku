@@ -83,8 +83,6 @@ pub struct GetMerkleProofsParams {
 pub struct ValidatedRailgunTxidStatus {
     #[serde(rename = "validatedTxidIndex")]
     pub index: u32,
-    #[serde(rename = "validatedMerkleroot")]
-    pub merkleroot: MerkleRoot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
