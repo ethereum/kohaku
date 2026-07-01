@@ -186,6 +186,10 @@ export class TornadoCashProtocol implements TCInstance {
   async prepareUnshield(
     assets: AssetAmount,
     to: AccountId,
+  ): Promise<TCPrivateOperation<'relayer'>>
+  async prepareUnshield(
+    assets: AssetAmount,
+    to: AccountId,
     options?: TCRelayerUnshieldOptions,
   ): Promise<TCPrivateOperation<'relayer'>>
   async prepareUnshield(
@@ -196,8 +200,12 @@ export class TornadoCashProtocol implements TCInstance {
   async prepareUnshield(
     assets: AssetAmount,
     to: AccountId,
-    options?: TCPrepareUnshieldOptions,
+    options: TCPrepareUnshieldOptions = { mode: 'relayer' },
   ): Promise<TCPrivateOperation<'paymaster' | 'relayer'>> {
+    if (options.mode === 'relayer' && options.tailCalls !== undefined) {
+      throw new Error('Tail Calls are only supported when using paymaster mode.');
+    }
+
     const { asset, amount } = assets;
     const parsedAsset = BigInt((asset as ERC20AssetId).contract || E_ADDRESS_BIGINT);
     const stateManager = await this.stateManager;
