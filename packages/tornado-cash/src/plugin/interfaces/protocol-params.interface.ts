@@ -63,6 +63,12 @@ export interface TCProtocolParams {
   artifactsLoader?: () => Promise<ITornadoArtifacts>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
   stateManagerWorkerUrl?: string;
+  /**
+   * When a pool is at least this many blocks behind, use the host's
+   * `externalSyncProvider` (if any) for the bulk of the sync instead of the
+   * chain. Omit to always sync from the chain.
+   */
+  minExternalSyncBlocksAmount?: number;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type

@@ -28,6 +28,7 @@ import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
+import { ISyncService } from "../data/interfaces/sync.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
 import { ProtocolConfigState } from "./slices/protocolConfigSlice";
 
@@ -36,6 +37,7 @@ const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 export interface StoreFactoryParams {
   secretManagerFactory: () => Promise<ISecretManager>;
   dataService: IDataService;
+  syncService: ISyncService;
   relayerClient: IRelayerClient;
   paymasterConfig: IChainsPaymastersConfig;
   storageToSyncTo?: Storage;
@@ -154,6 +156,7 @@ const storeByChainAndEntrypoint = ({
 export const storeStateManager = async ({
   secretManagerFactory,
   dataService,
+  syncService,
   relayerClient,
   paymasterConfig,
   proverFactory,
@@ -191,6 +194,7 @@ export const storeStateManager = async ({
         await store.dispatch(
           syncThunk({
             dataService,
+            syncService,
             relayerClient,
             secretManager,
             ...store.selectors,

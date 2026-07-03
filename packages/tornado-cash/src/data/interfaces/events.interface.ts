@@ -66,6 +66,13 @@ export interface IPool {
   registeredBlock: bigint;
   state: 0 | 1;
   rootHistorySize: number;
+  /**
+   * Highest block this pool's events have been synced to. Absent until the first
+   * sync; syncing resumes from here (falling back to `registeredBlock`). Tracked
+   * per-pool because the external sync provider serves data per pool, each with
+   * its own coverage.
+   */
+  lastSyncedBlock?: bigint;
 }
 
 export interface IAsset {

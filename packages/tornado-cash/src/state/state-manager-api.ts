@@ -2,6 +2,8 @@ import { EthereumProvider, TxData } from '@kohaku-eth/provider';
 import type { Storage, Keystore } from '@kohaku-eth/plugins';
 import { SecretManager } from '../account/keys';
 import { DataService } from '../data/data.service';
+import { SyncService } from '../data/sync.service';
+import { ExternalSyncClient } from '../data/interfaces/sync.service.interface';
 import { IRelayerClient } from '../relayer/interfaces/relayer-client.interface';
 import { makeLazyProverFactory } from '../utils/prover-factory';
 import { storeStateManager } from './state-manager';
@@ -26,6 +28,7 @@ export interface WorkerInitOptions {
   relayerConfig?: IRelayerFeeConfig,
   accountIndex: number,
   paymasterConfig: IChainsPaymastersConfig,
+  minExternalSyncBlocksAmount?: number,
 }
 
 let _stateManager: IStateManager | null = null;
@@ -47,14 +50,17 @@ export const workerApi = {
     rawStorage: Omit<Storage, '_brand'>,
     initialState: () => Promise<Record<string, PublicRootState>>,
     artifactsLoader: () => Promise<ITornadoArtifacts>,
-    { protocolConfig, accountIndex, relayerConfig, paymasterConfig }: WorkerInitOptions,
+    externalSyncProvider: ExternalSyncClient | undefined,
+    { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount }: WorkerInitOptions,
   ): Promise<void> {
     const storage = rawStorage as Storage;
+    const dataService = new DataService({ provider });
 
     _stateManager = await storeStateManager({
       paymasterConfig,
       secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
-      dataService: new DataService({ provider }),
+      dataService,
+      syncService: new SyncService({ dataService, externalSyncProvider, minExternalSyncBlocksAmount }),
       relayerClient,
       proverFactory: makeLazyProverFactory(artifactsLoader),
       storageToSyncTo: storage,

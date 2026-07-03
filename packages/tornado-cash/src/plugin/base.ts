@@ -3,9 +3,11 @@ import {
   AccountId,
   AssetAmount,
   ERC20AssetId,
+  ExternalRawEvent,
   Host,
 } from "@kohaku-eth/plugins";
 import { proxy } from 'comlink';
+import { ExternalSyncClient } from "../data/interfaces/sync.service.interface";
 import { loadStateManagerWorker } from '#worker-loader';
 import { RelayerClient } from '../relayer/relayer-client';
 
@@ -48,6 +50,7 @@ export class TornadoCashProtocol implements TCInstance {
       relayerConfig,
       paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host),
+      minExternalSyncBlocksAmount,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
     this.stateManager = (async () => {
@@ -60,6 +63,23 @@ export class TornadoCashProtocol implements TCInstance {
         });
       });
 
+      // Adapt the host's streaming provider to a materialized-array client on the
+      // main thread: async iterators can't cross the Comlink worker boundary, so
+      // we drain the stream here before proxying the result into the worker.
+      const { externalSyncProvider } = host;
+      const externalSyncClient: ExternalSyncClient | undefined = externalSyncProvider && {
+        getEvents: async (params) => {
+          const events: ExternalRawEvent[] = [];
+
+          for await (const event of externalSyncProvider.streamEvents(params)) {
+            events.push(event);
+          }
+
+          return events;
+        },
+        lastCoveredBlock: (params) => externalSyncProvider.lastCoveredBlock(params),
+      };
+
       await Promise.race([
         remote.init(
           proxy(host.provider),
@@ -68,7 +88,8 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.storage),
           proxy(initialState),
           proxy(artifactsLoader),
-          { protocolConfig, accountIndex, relayerConfig, paymasterConfig },
+          externalSyncClient ? proxy(externalSyncClient) : undefined,
+          { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount },
         ),
         workerReady,
       ]);

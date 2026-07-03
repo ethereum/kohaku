@@ -1,6 +1,6 @@
 import { HDNodeWallet, Mnemonic } from 'ethers';
 import { viem } from '@kohaku-eth/provider/viem';
-import { Host, Keystore, Storage as PluginStorage } from '@kohaku-eth/plugins';
+import { ExternalSyncProvider, Host, Keystore, Storage as PluginStorage } from '@kohaku-eth/plugins';
 import { createPublicClient, http } from 'viem';
 import { EthereumProvider } from '@kohaku-eth/provider';
 
@@ -39,12 +39,21 @@ const createEthProvider = (rpcUrl = 'http://127.0.0.1:8545'): EthereumProvider =
   return viem(publicClient);
 };
 
-export function createMockHost({ mnemonic, rpcUrl = 'http://127.0.0.1:8545' }: { mnemonic?: string; rpcUrl?: string; } = {}): Host {
+export function createMockHost({
+  mnemonic,
+  rpcUrl = 'http://127.0.0.1:8545',
+  externalSyncProvider,
+}: {
+  mnemonic?: string;
+  rpcUrl?: string;
+  externalSyncProvider?: ExternalSyncProvider;
+} = {}): Host {
   return {
     keystore: createMockKeystore(mnemonic),
     network: { fetch },
     storage: createMockStorage(),
     provider: createEthProvider(rpcUrl),
+    ...(externalSyncProvider ? { externalSyncProvider } : {}),
     // log: console
   };
 }

@@ -1,4 +1,4 @@
-import { ChainId } from "@kohaku-eth/plugins";
+import { ChainId, ExternalRawEvent } from "@kohaku-eth/plugins";
 import { ParseAbiItem } from "viem";
 import { Address } from "../../interfaces/types.interface";
 import {
@@ -71,6 +71,14 @@ export interface IRelayerAggregatorData {
 
 export interface IDataService {
   getPoolEvents: GetEventsFn<typeof POOL_EVENTS_SIGNATURES, IPoolEvents>;
+  getBlockNumber(): Promise<bigint>;
+  parsePoolEvents(events: ExternalRawEvent[]): {
+    Deposited: IRawDepositEvent[];
+    Withdrawn: IRawWithdrawalEvent[];
+  };
+  parseRelayerRegistryEvents(events: ExternalRawEvent[]): {
+    RelayerRegistered: IRelayerRegisteredEvent[];
+  };
   getRelayerRegistryEvents: GetEventsFn<
     typeof RELAYER_REGISTRY_EVENTS_SIGNATURES,
     IRelayerRegistryEvents

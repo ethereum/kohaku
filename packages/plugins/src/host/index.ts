@@ -8,6 +8,61 @@ export type Host = {
     storage: Storage;
     keystore: Keystore;
     provider: EthereumProvider;
+    /**
+     * Optional source of pre-scraped, integrity-verified protocol events used to
+     * speed up cold syncs. When present (and a plugin's sync range is large enough),
+     * plugins stream the bulk of a pool's events from here instead of the chain,
+     * then fetch only the remaining tail from `provider`.
+     */
+    externalSyncProvider?: ExternalSyncProvider;
+};
+
+/**
+ * A raw, unparsed on-chain event as served by an {@link ExternalSyncProvider}.
+ *
+ * The shape mirrors the fields a consumer needs to decode a log
+ * (`contractAddress`, `topics`, `data`) plus its position (`blockNumber`,
+ * `logIndex`). Every field is 0x-prefixed, lowercased hex; `eventTopic` equals
+ * `topics[0]`. Transaction hash / block hash are intentionally omitted — plugins
+ * that need them must not rely on this source for them.
+ */
+export type ExternalRawEvent = {
+    contractAddress: Hex;
+    eventTopic: Hex;
+    topics: Hex[];
+    data: Hex;
+    blockNumber: Hex;
+    logIndex: Hex;
+};
+
+/**
+ * Identifies a single pool/instance to an {@link ExternalSyncProvider}. The
+ * provider is responsible for mapping this to its own internal keying.
+ */
+export type ExternalSyncPoolId = {
+    chainId: Hex;
+    address: Hex;
+};
+
+/**
+ * Host-supplied source of pre-scraped protocol events, keyed per pool. A typical
+ * implementation wraps a CDN-backed client that maps `(chainId, address)` to its
+ * own protocol id.
+ */
+export type ExternalSyncProvider = {
+    /**
+     * Streams the raw events this provider has for the pool within the inclusive
+     * block range `[fromBlock, toBlock]`, in ascending block order.
+     */
+    streamEvents(
+        params: ExternalSyncPoolId & { fromBlock: Hex; toBlock: Hex },
+    ): AsyncIterable<ExternalRawEvent>;
+
+    /**
+     * The highest block this provider has data for on the given pool, or `null`
+     * if it has none. Consumers use this to decide where the chain must take over.
+     */
+    lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex | null>;
 };
 
 /**

@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { EthereumProvider, TxLog } from "@kohaku-eth/provider";
+import { ExternalRawEvent } from "@kohaku-eth/plugins";
 import {
   GetEventsFn,
   IDataService,
@@ -9,6 +10,7 @@ import {
   IPoolEvents,
 } from "./interfaces/data.service.interface";
 import { parseEventLogs, pad, toHex, type RpcLog, type Hex, hexToBigInt } from "viem";
+import { IRawDepositEvent, IRawWithdrawalEvent, IRelayerRegisteredEvent } from "./interfaces/events.interface";
 import {
   RELAYER_REGISTRY_EVENTS_SIGNATURES,
   EVENTS_SIGNATURES,
@@ -35,6 +37,27 @@ const txLogToRpcLog = ({
   blockHash: '0x0',
   blockNumber: toHex(blockNumber),
   logIndex: toHex(index),
+  removed: false,
+});
+
+// Events served by an ExternalSyncProvider already carry hex block/log positions
+// and drop tx/block hashes; faked here to match the existing (hash-agnostic) parse
+// path used for on-chain logs.
+const externalRawToRpcLog = ({
+  contractAddress,
+  data,
+  topics,
+  blockNumber,
+  logIndex,
+}: ExternalRawEvent): RpcLog => ({
+  address: contractAddress as Hex,
+  data: data as Hex,
+  topics: topics as [Hex, ...Hex[]],
+  transactionHash: '0x0',
+  transactionIndex: '0x0',
+  blockHash: '0x0',
+  blockNumber: blockNumber as Hex,
+  logIndex: logIndex as Hex,
   removed: false,
 });
 
@@ -99,6 +122,49 @@ export class DataService implements IDataService {
   > = this.getEvents;
 
   getInstanceRegistryEvents = this.getEvents;
+
+  async getBlockNumber(): Promise<bigint> {
+    return this.ethClient.getBlockNumber();
+  }
+
+  /**
+   * Parses the given event types out of raw events served by an
+   * ExternalSyncProvider. Callers pass events for a single contract (the provider
+   * is queried per contract), so no address routing is done here — `parseEventLogs`
+   * filters by each event signature's topic.
+   */
+  private parseExternalEvents<T extends keyof typeof EVENTS_SIGNATURES>(
+    events: ExternalRawEvent[],
+    eventNames: readonly T[],
+  ) {
+    const logs = events.map(externalRawToRpcLog);
+
+    return eventNames.reduce(
+      (parsed, eventType) => ({
+        ...parsed,
+        [eventType]: parseEventLogs({
+          logs,
+          abi: [EVENTS_SIGNATURES[eventType]] as const,
+          eventName: EVENTS_SIGNATURES[eventType].name as never,
+          strict: true,
+        } as const).map((parsedLog) => EVENTS_PARSERS[eventType](parsedLog as never)),
+      }),
+      {} as { [K in T]: ReturnType<(typeof EVENTS_PARSERS)[K]>[] },
+    );
+  }
+
+  parsePoolEvents(events: ExternalRawEvent[]): {
+    Deposited: IRawDepositEvent[];
+    Withdrawn: IRawWithdrawalEvent[];
+  } {
+    return this.parseExternalEvents(events, ["Deposited", "Withdrawn"]);
+  }
+
+  parseRelayerRegistryEvents(events: ExternalRawEvent[]): {
+    RelayerRegistered: IRelayerRegisteredEvent[];
+  } {
+    return this.parseExternalEvents(events, ["RelayerRegistered"]);
+  }
 
   async getAsset(address: Address): Promise<IAsset> {
     if (address === BigInt(E_ADDRESS) || address === 0n) {
