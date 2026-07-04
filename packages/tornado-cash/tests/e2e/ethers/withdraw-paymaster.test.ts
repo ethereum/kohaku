@@ -58,17 +58,13 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     // }));
 
     // Start alto bundler connected to this fork
-    const { bundlerServerEventEmitter, ...rest } = await startServers({
+    ({ bundlerRpcUrl, stop: stopBundler } = await startServers({
       execRpcUrl: pool.rpcUrl,
       entrypoint: entryPointAddress,
       executorPrivateKey: EXECUTOR_PK,
       utilityPrivateKey: UTILITY_PK,
       port: 8546
-    });
-
-    ({ bundlerRpcUrl, stop: stopBundler } = rest);
-
-    bundlerServerEventEmitter('stdout', (a) => console.log(a));
+    }));
 
     ({ protocol, broadcaster } = await getProtocolWithState({
       chainId,

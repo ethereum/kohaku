@@ -2,6 +2,7 @@
 import { Host } from "~/host";
 import { AssetAmount, PrivateOperation, PublicOperation } from "~/shared";
 import { Address } from "ox/Address";
+import { TxData } from "@kohaku-eth/provider";
 
 export type AssetAmounts<
     TxAssetAmountInput extends AssetAmount = AssetAmount,
@@ -15,6 +16,10 @@ export type AssetAmounts<
     read: TxAssetAmountRead;
 }
 
+export interface UnshieldOptions {
+    tailCalls?: (address: Address) => Promise<TxData[]>;
+}
+
 export type TxFeatureMap<
     TAccountId extends string,
     TAssetAmounts extends AssetAmounts,
@@ -25,7 +30,7 @@ export type TxFeatureMap<
     prepareShieldMulti(assets: Array<AssetAmount>, to?: TAccountId): Promise<TPublicOperation>;
     prepareTransfer(asset: TAssetAmounts['internal'], to: TAccountId): Promise<TPrivateOperation>;
     prepareTransferMulti(assets: Array<TAssetAmounts['internal']>, to: TAccountId): Promise<TPrivateOperation>;
-    prepareUnshield(asset: TAssetAmounts['output'], to: Address): Promise<TPrivateOperation>;
+    prepareUnshield(asset: TAssetAmounts['output'], to: Address, options?: UnshieldOptions): Promise<TPrivateOperation>;
     prepareUnshieldMulti(assets: Array<AssetAmount>, to: Address): Promise<TPrivateOperation>;
 };
 
