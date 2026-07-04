@@ -1,5 +1,11 @@
 # @kohaku-eth/plugins
 
+## 0.0.1-alpha.11
+
+### Patch Changes
+
+- a3fc0f4: latest plugins
+
 ## 0.0.1-alpha.10
 
 ### Patch Changes

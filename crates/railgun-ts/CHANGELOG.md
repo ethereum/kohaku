@@ -1,5 +1,13 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.28
+
+### Patch Changes
+
+- a3fc0f4: latest plugins
+- Updated dependencies [a3fc0f4]
+  - @kohaku-eth/plugins@0.0.1-alpha.11
+
 ## 0.0.1-alpha.27
 
 ### Patch Changes
