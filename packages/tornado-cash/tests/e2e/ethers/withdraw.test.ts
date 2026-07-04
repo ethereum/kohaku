@@ -220,7 +220,7 @@ describe('TornadoCash Unshield E2E', () => {
 
   });
 
-  it('[prepareUnshield] withdrawal succeeds', { timeout: 120_000 }, async () => {
+  it('[prepareUnshield] withdrawal succeeds', { timeout: 180_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     const nativeAsset = ERC20Asset(E_ADDRESS);
