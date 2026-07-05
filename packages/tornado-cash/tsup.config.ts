@@ -68,20 +68,31 @@ export default defineConfig([
     outDir: 'dist',
     format: ['esm'],
     sourcemap,
-    dts: true,
+    dts: { resolve: true },
     clean: false,
     target: 'es2022',
     platform: 'browser',
+    treeshake: false,
+    noExternal: [/.*/],
+    esbuildOptions(options) {
+      options.ignoreAnnotations = true;
+    },
   },
   {
     entry: { 'merkle-tree.node': 'src/utils/merkle-tree/merkle-tree.util.node.ts' },
     outDir: 'dist',
     format: ['esm'],
     sourcemap,
-    dts: true,
+    dts: { resolve: true },
     clean: false,
     target: 'es2022',
     platform: 'node',
+    treeshake: false,
+    noExternal: [/^(?!(node:worker_threads|worker_threads|node:os|os)$)/],
+    external: ['node:worker_threads', 'worker_threads', 'node:os', 'os'],
+    esbuildOptions(options) {
+      options.ignoreAnnotations = true;
+    },
   },
   {
     entry: { 'worker-loader.node': 'src/plugin/worker-loader.node.ts' },
@@ -163,8 +174,9 @@ export default defineConfig([
       options.ignoreAnnotations = true;
     },
   },
-    {
-    entry: { 'merkle-tree-worker.browser': 'src/merkle-tree-worker.browser.ts' },
+  // Names match mimc-tree's bundled worker URL resolution (MimcMerkleTreeBrowserWorker.js / MimcMerkleTreeWorker.js).
+  {
+    entry: { MimcMerkleTreeBrowserWorker: 'src/merkle-tree-worker.browser.ts' },
     outDir: 'dist',
     format: ['esm'],
     sourcemap,
@@ -175,9 +187,12 @@ export default defineConfig([
     treeshake: false,
     splitting: false,
     noExternal: [/.*/],
+    esbuildOptions(options) {
+      options.ignoreAnnotations = true;
+    },
   },
-    {
-    entry: { 'merkle-tree-worker.node': 'src/merkle-tree-worker.node.ts' },
+  {
+    entry: { MimcMerkleTreeWorker: 'src/merkle-tree-worker.node.ts' },
     outDir: 'dist',
     format: ['esm'],
     sourcemap,
@@ -187,6 +202,10 @@ export default defineConfig([
     platform: 'node',
     treeshake: false,
     splitting: false,
-    noExternal: [/.*/],
+    noExternal: [/^(?!(node:worker_threads|worker_threads)$)/],
+    external: ['node:worker_threads', 'worker_threads'],
+    esbuildOptions(options) {
+      options.ignoreAnnotations = true;
+    },
   },
 ]);
