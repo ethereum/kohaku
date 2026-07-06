@@ -16,20 +16,6 @@ const sourcemap: boolean | 'inline' = false;
 // platform:'node' (uses worker_threads' parentPort), which breaks in browser Web Workers.
 // This plugin rewrites that reference to msm-worker.browser.js, which is built with
 // platform:'browser' (uses globalThis.addEventListener), so the sub-workers work correctly.
-const fixMimcWorkerUrlNode: Plugin = {
-  name: 'fix-mimc-worker-url-node',
-  setup(build) {
-    build.onLoad({ filter: /mimc-tree[/\\]src[/\\]MimcMerkleTree\.ts$/ }, (args) => {
-      const source = readFileSync(args.path, 'utf8');
-      const contents = source
-        .replace('./MimcMerkleTreeWorker.ts', './merkle-tree-worker.node.ts')
-        .replace('./MimcMerkleTreeWorker.js', './merkle-tree-worker.node.js');
-
-      return { contents, loader: 'ts' };
-    });
-  },
-};
-
 const fixMsmWorkerUrlBrowser: Plugin = {
   name: 'fix-msm-worker-url-browser',
   setup(build) {
@@ -86,11 +72,6 @@ export default defineConfig([
     clean: false,
     target: 'es2022',
     platform: 'browser',
-    treeshake: false,
-    noExternal: [/.*/],
-    esbuildOptions(options) {
-      options.ignoreAnnotations = true;
-    },
   },
   {
     entry: { 'merkle-tree.node': 'src/utils/merkle-tree/merkle-tree.util.node.ts' },
@@ -101,13 +82,6 @@ export default defineConfig([
     clean: false,
     target: 'es2022',
     platform: 'node',
-    treeshake: false,
-    noExternal: [/^(?!(node:worker_threads|worker_threads|node:os|os)$)/],
-    external: ['node:worker_threads', 'worker_threads', 'node:os', 'os'],
-    esbuildPlugins: [fixMimcWorkerUrlNode],
-    esbuildOptions(options) {
-      options.ignoreAnnotations = true;
-    },
   },
   {
     entry: { 'worker-loader.node': 'src/plugin/worker-loader.node.ts' },
@@ -189,7 +163,7 @@ export default defineConfig([
       options.ignoreAnnotations = true;
     },
   },
-  {
+    {
     entry: { 'merkle-tree-worker.browser': 'src/merkle-tree-worker.browser.ts' },
     outDir: 'dist',
     format: ['esm'],
@@ -201,11 +175,8 @@ export default defineConfig([
     treeshake: false,
     splitting: false,
     noExternal: [/.*/],
-    esbuildOptions(options) {
-      options.ignoreAnnotations = true;
-    },
   },
-  {
+    {
     entry: { 'merkle-tree-worker.node': 'src/merkle-tree-worker.node.ts' },
     outDir: 'dist',
     format: ['esm'],
@@ -216,10 +187,6 @@ export default defineConfig([
     platform: 'node',
     treeshake: false,
     splitting: false,
-    noExternal: [/^(?!(node:worker_threads|worker_threads)$)/],
-    external: ['node:worker_threads', 'worker_threads'],
-    esbuildOptions(options) {
-      options.ignoreAnnotations = true;
-    },
+    noExternal: [/.*/],
   },
 ]);
