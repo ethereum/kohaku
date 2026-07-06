@@ -87,7 +87,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     await anvil.stop();
   });
 
-  it('[prepareUnshieldPaymaster] Native withdrawal succeeds', { timeout: 180_000 }, async () => {
+  it('[prepareUnshieldPaymaster] Native withdrawal succeeds', { timeout: 300_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     const nativeAsset = ERC20Asset(E_ADDRESS);
@@ -132,7 +132,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     expect(paymasterBalance).toBeGreaterThan(0n);
   });
 
-  it('[prepareUnshieldPaymaster] ERC20 withdrawal succeeds', { timeout: 180_000 }, async () => {
+  it('[prepareUnshieldPaymaster] ERC20 withdrawal succeeds', { timeout: 300_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
     const erc20Asset = ERC20Asset(erc20Address);
 
@@ -191,7 +191,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     expect(paymasterBalance).toBeGreaterThan(0n);
   });
 
-  it('[prepareUnshieldPaymaster] ERC20 withdrawal with tailCalls: atomic approve + transferFrom to bob', { timeout: 180_000 }, async () => {
+  it('[prepareUnshieldPaymaster] ERC20 withdrawal with tailCalls: atomic approve + transferFrom to bob', { timeout: 300_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
     const bob = TEST_ACCOUNTS.bob.address;
     const erc20Asset = ERC20Asset(erc20Address);

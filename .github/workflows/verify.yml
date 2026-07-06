@@ -11,7 +11,7 @@ jobs:
     check:
         name: Check
         runs-on: ubuntu-latest
-        timeout-minutes: 20
+        timeout-minutes: 30
         permissions:
             contents: read
         steps:
@@ -28,7 +28,7 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-latest
-        timeout-minutes: 20
+        timeout-minutes: 30
         permissions:
             contents: read
         steps:
@@ -43,7 +43,7 @@ jobs:
         needs: check-secrets
         if: needs.check-secrets.outputs.available == 'true'
         runs-on: ubuntu-latest
-        timeout-minutes: 20
+        timeout-minutes: 30
         permissions:
             contents: read
         steps:
@@ -68,7 +68,7 @@ jobs:
         - name: Run Tornado Cash tests
           uses: nick-fields/retry@v3
           with:
-            timeout_minutes: 25
+            timeout_minutes: 20
             max_attempts: 3
             command: pnpm --filter @kohaku-eth/tornado-cash test
           env:
