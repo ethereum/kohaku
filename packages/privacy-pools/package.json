@@ -40,6 +40,8 @@
     "test:sync:mainnet": ". ./.env.e2e.tests && vitest run --project=sync-mainnet",
     "test:sync:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=sync",
     "test:watch": "vitest",
+    "test:unit:v2": "vitest run --project=unit-v2",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -65,6 +67,7 @@
     "@fatsolutions/privacy-pools-core-circuits": "1.0.5",
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
+    "@privacy-pools-v2/sdk": "link:../../../../0xbow/v2-monorepo/packages/sdk",
     "@reduxjs/toolkit": "^2.11.2",
     "@zk-kit/lean-imt": "^2.2.4",
     "maci-crypto": "2.5.0",
