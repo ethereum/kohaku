@@ -1,3 +1,9 @@
+## 0.0.2-alpha.14
+
+### Patch Changes
+
+- e5aca8c: chore: bump for mimc-tree
+
 ## 0.0.2-alpha.13
 
 ### Patch Changes
