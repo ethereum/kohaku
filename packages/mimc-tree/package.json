@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/mimc-tree",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "author": "",
   "description": "MiMC Merkle tree helpers built on merkle-tree",
@@ -32,7 +32,9 @@
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "sideEffects": [
     "./dist/MimcMerkleTreeWorker.js",
