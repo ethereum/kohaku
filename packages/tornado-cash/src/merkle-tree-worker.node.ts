@@ -1,1 +1,1 @@
-import 'mimc-tree/worker.js';
+import '@kohaku-eth/mimc-tree/worker.js';

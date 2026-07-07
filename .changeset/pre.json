@@ -9,7 +9,7 @@
     "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
     "@kohaku-eth/plugins": "0.0.1-alpha.1",
     "@kohaku-eth/tornado-cash": "0.0.2-alpha.8",
-    "mimc-tree": "0.1.0"
+    "@kohaku-eth/mimc-tree": "0.0.1"
   },
   "changesets": [
     "add-privacy-pools-demo",

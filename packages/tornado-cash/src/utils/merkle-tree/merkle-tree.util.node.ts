@@ -1,4 +1,4 @@
-import { generateMimcMerkleProof, createMimcMerkleTreeNodejsParallel, type MerkleTree } from 'mimc-tree';
+import { generateMimcMerkleProof, createMimcMerkleTreeNodejsParallel, type MerkleTree } from '@kohaku-eth/mimc-tree';
 
 export const buildTree = async (leaves: bigint[]): Promise<MerkleTree> => {
     return createMimcMerkleTreeNodejsParallel(leaves);
