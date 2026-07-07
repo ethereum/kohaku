@@ -19,7 +19,10 @@ export type ExternalSyncClient = {
   getEvents(
     params: ExternalSyncPoolId & { fromBlock: Hex; toBlock: Hex },
   ): Promise<ExternalRawEvent[]>;
-  lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex | null>;
+  /** @throws if the provider has no data for the pool. */
+  firstCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
+  /** @throws if the provider has no data for the pool. */
+  lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
 };
 
 export interface SyncServiceParams {
@@ -71,4 +74,11 @@ export interface ISyncService {
   getRelayerRegistryEvents(
     params: IGetEventsParams,
   ): Promise<IGetRelayerRegistryEventsResult>;
+
+  /**
+   * Resolves a pool's scan-start block. Uses the external provider's first
+   * covered block when available (an O(1) lookup), else falls back to the
+   * on-chain deployment-block binary search.
+   */
+  getPoolDeploymentBlock(params: { chainId: bigint; address: Address }): Promise<bigint>;
 }

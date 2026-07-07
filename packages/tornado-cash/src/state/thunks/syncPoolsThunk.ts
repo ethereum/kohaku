@@ -3,19 +3,22 @@ import { IPool } from '../../data/interfaces/events.interface';
 import { registerPools } from '../slices/poolsSlice';
 import { RootState } from '../store';
 import { IDataService } from '../../data/interfaces/data.service.interface';
+import { ISyncService } from '../../data/interfaces/sync.service.interface';
 import { instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
 
 export interface SyncPoolsThunkParams {
   dataService: IDataService;
+  syncService: ISyncService;
 }
 
 export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { state: RootState }>(
   'sync/pools',
   async ({
-    dataService
+    dataService,
+    syncService,
   }, { dispatch, getState }) => {
     const state = getState();
-    const { instanceRegistry: { address: instanceRegistryAddress } } = instanceRegistryInfoSelector(state);
+    const { chainId, instanceRegistry: { address: instanceRegistryAddress } } = instanceRegistryInfoSelector(state);
     const existingPools = poolsSelector(state);
 
     const poolsAddressses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
@@ -25,7 +28,7 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       unsyncedPools.map(async (poolAddress) => {
         const [config, registeredBlock] = await Promise.all([
           dataService.getPoolConfig(instanceRegistryAddress, poolAddress),
-          dataService.getContractDeploymentBlock(poolAddress),
+          syncService.getPoolDeploymentBlock({ chainId, address: poolAddress }),
         ]);
 
         return { config, registeredBlock };

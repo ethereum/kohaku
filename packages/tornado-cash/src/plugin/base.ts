@@ -77,6 +77,7 @@ export class TornadoCashProtocol implements TCInstance {
 
           return events;
         },
+        firstCoveredBlock: (params) => externalSyncProvider.firstCoveredBlock(params),
         lastCoveredBlock: (params) => externalSyncProvider.lastCoveredBlock(params),
       };
 

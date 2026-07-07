@@ -29,6 +29,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
 
     unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
+      syncService,
     })));
 
     unwrapResult(await dispatch(syncRelayersThunk({ dataService, syncService })));

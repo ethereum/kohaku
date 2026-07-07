@@ -59,10 +59,18 @@ export type ExternalSyncProvider = {
     ): AsyncIterable<ExternalRawEvent>;
 
     /**
-     * The highest block this provider has data for on the given pool, or `null`
-     * if it has none. Consumers use this to decide where the chain must take over.
+     * The lowest block this provider has data for on the given pool — roughly the
+     * pool's deployment/registration block. Consumers use it as a scan-start hint.
+     * @throws if the provider has no data for the pool.
      */
-    lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex | null>;
+    firstCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
+
+    /**
+     * The highest block this provider has data for on the given pool. Consumers
+     * use it to decide where the chain must take over.
+     * @throws if the provider has no data for the pool.
+     */
+    lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
 };
 
 /**

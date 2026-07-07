@@ -1,5 +1,6 @@
 import { ExternalRawEvent } from "@kohaku-eth/plugins";
 import { toHex } from "viem";
+import { Address } from "../interfaces/types.interface";
 import {
   ExternalSyncClient,
   IGetEventsParams,
@@ -100,6 +101,33 @@ export class SyncService implements ISyncService {
     };
   }
 
+  async getPoolDeploymentBlock({
+    chainId,
+    address,
+  }: {
+    chainId: bigint;
+    address: Address;
+  }): Promise<bigint> {
+    const provider = this.externalSyncProvider;
+
+    if (provider) {
+      try {
+        // The provider's first covered block ≈ the pool's registration block, at
+        // O(1) — much cheaper than the on-chain deployment-block binary search.
+        return BigInt(
+          await provider.firstCoveredBlock({
+            chainId: toHex(chainId),
+            address: toHex(address, { size: 20 }),
+          }),
+        );
+      } catch {
+        // Provider has no data for this pool — fall through to on-chain discovery.
+      }
+    }
+
+    return this.dataService.getContractDeploymentBlock(address);
+  }
+
   /**
    * Decides whether to use the external provider and, if so, streams its raw
    * events for `[fromBlock, coverage]`. Event-agnostic: callers parse the raw
@@ -123,13 +151,15 @@ export class SyncService implements ISyncService {
 
     const chainId = toHex(rawChainId);
     const hexAddress = toHex(address, { size: 20 });
-    const rawCoverage = await provider.lastCoveredBlock({ chainId, address: hexAddress });
 
-    if (!rawCoverage) {
+    let coverage: bigint;
+
+    try {
+      coverage = BigInt(await provider.lastCoveredBlock({ chainId, address: hexAddress }));
+    } catch {
+      // Provider has no data for this pool (or failed) — fall back to chain-only.
       return null;
     }
-
-    const coverage = BigInt(rawCoverage);
 
     if (coverage <= fromBlock) {
       return null;

@@ -66,27 +66,50 @@ const makeDataService = () => {
     RelayerRegistered: events.map((e) => relayerRegistered(BigInt(e.blockNumber))),
   }));
 
+  const getContractDeploymentBlock = vi.fn(async () => 42n);
+
   return {
     getBlockNumber: vi.fn(async () => HEAD),
     getPoolEvents,
     parsePoolEvents,
     getRelayerRegistryEvents,
     parseRelayerRegistryEvents,
+    getContractDeploymentBlock,
   } as unknown as IDataService & {
     getPoolEvents: typeof getPoolEvents;
     parsePoolEvents: typeof parsePoolEvents;
     getRelayerRegistryEvents: typeof getRelayerRegistryEvents;
     parseRelayerRegistryEvents: typeof parseRelayerRegistryEvents;
+    getContractDeploymentBlock: typeof getContractDeploymentBlock;
   };
 };
 
-const makeProvider = (coverage: bigint | null, events: ExternalRawEvent[] = []) => {
+const makeProvider = (
+  coverage: bigint | null,
+  events: ExternalRawEvent[] = [],
+  firstBlock: bigint | null = null,
+) => {
   const getEvents = vi.fn(async () => events);
 
   return {
-    lastCoveredBlock: vi.fn(async () => (coverage == null ? null : toHex(coverage))),
+    // Coverage methods throw (rather than return null) when the provider has no
+    // data for the pool.
+    lastCoveredBlock: vi.fn(async () => {
+      if (coverage == null) throw new Error('no coverage');
+
+      return toHex(coverage);
+    }),
+    firstCoveredBlock: vi.fn(async () => {
+      if (firstBlock == null) throw new Error('no coverage');
+
+      return toHex(firstBlock);
+    }),
     getEvents,
-  } as unknown as ExternalSyncClient & { getEvents: typeof getEvents };
+  } as unknown as ExternalSyncClient & {
+    getEvents: typeof getEvents;
+    lastCoveredBlock: ReturnType<typeof vi.fn>;
+    firstCoveredBlock: ReturnType<typeof vi.fn>;
+  };
 };
 
 const rawAt = (block: bigint): ExternalRawEvent => ({
@@ -233,5 +256,50 @@ describe('SyncService.getRelayerRegistryEvents', () => {
       expect.objectContaining({ fromBlock: 100n }),
     );
     expect(result.RelayerRegistered.map((r) => r.blockNumber)).toEqual([100n]);
+  });
+});
+
+describe('SyncService.getPoolDeploymentBlock', () => {
+  it("uses the provider's first covered block, skipping the on-chain search", async () => {
+    const dataService = makeDataService();
+    const provider = makeProvider(600n, [], 12345n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(12345n);
+    expect(provider.firstCoveredBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: toHex(CHAIN_ID) }),
+    );
+    expect(dataService.getContractDeploymentBlock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the on-chain deployment block when the provider has no coverage', async () => {
+    const dataService = makeDataService();
+    const provider = makeProvider(600n, [], null); // firstCoveredBlock throws
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(42n);
+    expect(dataService.getContractDeploymentBlock).toHaveBeenCalledWith(POOL);
+  });
+
+  it('falls back to the on-chain deployment block when no provider is configured', async () => {
+    const dataService = makeDataService();
+    const service = new SyncService({ dataService });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(42n);
+    expect(dataService.getContractDeploymentBlock).toHaveBeenCalledWith(POOL);
   });
 });
