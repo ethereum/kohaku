@@ -1,7 +1,11 @@
+/* eslint-disable max-lines */
+// The plugin class holds every verb + read; matches the v1 `PrivacyPoolsV1Protocol`
+// precedent. If it grows unwieldy, extract verbs into an `operations/` module.
 import type { CreatePluginFn, Host } from "@kohaku-eth/plugins";
+import type { TxData } from "@kohaku-eth/provider";
 import type { INoteManager, PoolSession } from "@privacy-pools-v2/sdk";
 import { deriveKeystoreManager } from "./account/derivation";
-import { NotImplementedError } from "./interfaces/errors";
+import { mapSdkError, NotImplementedError } from "./interfaces/errors";
 import type {
     PPv2AccountId,
     PPv2AssetAmount,
@@ -14,7 +18,7 @@ import type {
     PPv2PublicOperation,
 } from "./interfaces/operations.interface";
 import type { PPv2AssetId } from "./mapping/assets";
-import { assetToTokenId, hexToAmount, tokenIdToAsset } from "./mapping/assets";
+import { amountToHex, assetToTokenId, hexToAmount, tokenIdToAsset } from "./mapping/assets";
 import { isExcluded, labelStateFor, statusLabel, statusToReport } from "./mapping/status";
 import { assemblePoolSession } from "./session";
 
@@ -131,8 +135,45 @@ export class PPv2Plugin implements PPv2Instance {
     // method bivariance keeps them assignable to PPv2Instance); the real
     // signatures are restored as each verb is implemented in its US task.
 
-    async prepareShield(): Promise<PPv2PublicOperation> {
-        throw new NotImplementedError("prepareShield", "US1/T033");
+    /**
+     * Shield a public balance into the pool (US1, FR-020). Maps to
+     * `PoolSession.prepareDeposit` and returns ready-to-sign `TxData[]`: an ERC20
+     * approve (only when the SDK reports one needed) followed by the deposit call,
+     * with `msgValue` set for native ETH. The plugin sends nothing (INV-1).
+     */
+    async prepareShield(asset: PPv2AssetAmount, to?: PPv2AccountId): Promise<PPv2PublicOperation> {
+        if (to !== undefined) {
+            // deposit-for (shield to another recipient) is a follow-up; US1 is self-shield.
+            throw new NotImplementedError("prepareShield(to) deposit-for", "US1 follow-up");
+        }
+
+        await this.sync();
+
+        try {
+            const result = await this.session.prepareDeposit({
+                tokenId: assetToTokenId(asset.asset),
+                value: amountToHex(asset.amount),
+            });
+
+            const txs: TxData[] = [];
+
+            if (result.approvalTx) {
+                txs.push({
+                    to: result.approvalTx.to,
+                    data: result.approvalTx.data,
+                    value: BigInt(result.approvalTx.value),
+                });
+            }
+
+            txs.push({ to: result.to, data: result.callData, value: BigInt(result.msgValue) });
+
+            // TODO(T034): persist result.pendingNote at prepare time (crash-safe,
+            // FR-032). Deferred pending a deposit integration test that pins the
+            // pre-persist vs discovery-reconciliation interaction.
+            return { __type: "publicOperation", txs };
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
     async prepareTransfer(): Promise<PPv2PrivateOperation> {
