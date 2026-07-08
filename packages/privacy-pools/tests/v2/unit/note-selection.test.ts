@@ -42,23 +42,33 @@ describe("selectInputNotes", () => {
         expect(sel.total).toBe(200n);
     });
 
-    it("takes largest-first to minimize input count", () => {
+    it("takes the 4 largest notes of the label (largest-first)", () => {
         const big = note({ value: 500n, label: LABEL_A });
         const small = note({ value: 1n, label: LABEL_A });
         const sel = selectInputNotes({ notes: [small, big], tokenId: TOKEN, required: 400n });
 
-        expect(sel.commitments).toEqual([big.commitment]);
-        expect(sel.total).toBe(500n);
+        // uses all of the label's notes (both) — largest-first, to maximize change
+        expect(sel.commitments).toEqual([big.commitment, small.commitment]);
+        expect(sel.total).toBe(501n);
     });
 
-    it("prefers the tightest-fitting covering label", () => {
+    it("caps at the 4 largest, dropping smaller notes", () => {
+        const values = [50n, 40n, 30n, 20n, 10n]; // 5 notes; top-4 = 50+40+30+20 = 140
+        const notes = values.map((v) => note({ value: v, label: LABEL_A }));
+        const sel = selectInputNotes({ notes, tokenId: TOKEN, required: 100n });
+
+        expect(sel.commitments).toHaveLength(4);
+        expect(sel.total).toBe(140n);
+    });
+
+    it("prefers the label with the greatest 4-note sum", () => {
         const notes = [
             note({ value: 1000n, label: LABEL_A }),
             note({ value: 300n, label: LABEL_B }),
         ];
         const sel = selectInputNotes({ notes, tokenId: TOKEN, required: 250n });
 
-        expect(sel.label).toBe(LABEL_B); // 300 covers 250 tighter than 1000
+        expect(sel.label).toBe(LABEL_A); // 1000 is the greatest single-label spend
     });
 
     it("ignores non-ACTIVE notes and other assets", () => {
@@ -91,11 +101,11 @@ describe("selectInputNotes", () => {
         }
     });
 
-    it("rejects a label that cannot cover within the 5-input cap", () => {
-        // six small notes in one label: total 600 >= 500, but needs 6 inputs > cap
-        const notes = Array.from({ length: 6 }, () => note({ value: 100n, label: LABEL_A }));
+    it("rejects when the 4 largest can't cover (cannot spend more than 4)", () => {
+        // five 100-notes in one label: total 500, but the top-4 sum is only 400
+        const notes = Array.from({ length: 5 }, () => note({ value: 100n, label: LABEL_A }));
 
-        expect(() => selectInputNotes({ notes, tokenId: TOKEN, required: 550n })).toThrowError(
+        expect(() => selectInputNotes({ notes, tokenId: TOKEN, required: 450n })).toThrowError(
             LabelFragmentationError,
         );
     });

@@ -4,6 +4,7 @@
  * — never on `@privacy-pools-v2/sdk` directly (SC-001).
  */
 export { createPPv2Plugin, PPv2Plugin } from "./plugin";
+export { createPPv2Broadcaster } from "./broadcaster";
 
 export type {
     PPv2AccountId,
@@ -27,4 +28,3 @@ export type { PPv2AssetId } from "./mapping/assets";
 // Typed error hierarchy + SDK→plugin mapping (FR-060).
 export * from "./interfaces/errors";
 
-// createPPv2Broadcaster lands with US2 (T039).

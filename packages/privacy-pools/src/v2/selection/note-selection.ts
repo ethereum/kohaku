@@ -3,11 +3,12 @@ import { LabelFragmentationError } from "../interfaces/errors";
 import { hexToAmount } from "../mapping/assets";
 
 /**
- * Maximum input notes a single `transact` proof can spend (the `N` in
- * `transact_NxM`, 1..5). A label whose notes cannot cover the target within this
- * many inputs is not usable for the operation.
+ * Maximum input notes a single `transact` spends. Capped at 4 (not the SDK's
+ * circuit max of 5): a transfer's outputs are 1 recipient note + change, so the
+ * spend side is bounded to 4 to fit the "1 + 4 (or vice-versa)" note budget.
+ * NOTE: the SDK's `MAX_INPUTS` is 5 — this 4-cap is a deliberate plugin choice.
  */
-const MAX_INPUTS = 5;
+const MAX_INPUTS = 4;
 
 /** The chosen input notes for a transact, all from one label (INV-5). */
 export type SelectedInputs = {
@@ -30,14 +31,13 @@ function byValueDesc(a: Note, b: Note): number {
 /**
  * Select input notes for a transfer/withdraw, enforcing per-label value
  * conservation (INV-5, FR-023): all inputs share one label and are ACTIVE (i.e.
- * their label is ASP-approved). Within a label, notes are taken largest-first to
- * stay within the {@link MAX_INPUTS} circuit cap.
- *
- * When no single approved label can cover `required` (amount + relayer fee)
- * within the input cap, throws {@link LabelFragmentationError} with the per-label
- * spendable breakdown — never silently mixing labels and degrading privacy.
- *
- * @param required amount + relayer fee, in base units.
+ * their label is ASP-approved). Strategy: take the **4 largest** notes of the
+ * label with the highest 4-note sum. Because that is the most any single label
+ * can put into one `transact`, if those 4 cannot cover `required` then no single
+ * label can — so we fail with {@link LabelFragmentationError} carrying each
+ * label's 4-note spendable. The caller sizes `required` (e.g. amount only) and
+ * verifies the relayer fee against the resulting change after the SDK returns its
+ * quotes.
  */
 export function selectInputNotes(params: {
     notes: readonly Note[];
@@ -63,26 +63,16 @@ export function selectInputNotes(params: {
     let best: SelectedInputs | null = null;
 
     for (const [label, group] of byLabel) {
-        const spendable = group.reduce((sum, n) => sum + hexToAmount(n.value), 0n);
+        // The 4 largest notes: the most this label can spend in one transact.
+        const top = [...group].sort(byValueDesc).slice(0, MAX_INPUTS);
+        const total = top.reduce((sum, n) => sum + hexToAmount(n.value), 0n);
 
-        perLabel.push({ label, spendable });
+        perLabel.push({ label, spendable: total });
 
-        // Largest-first keeps the input count minimal (honors the 5x5 cap).
-        const picked: Note[] = [];
-        let acc = 0n;
-
-        for (const note of [...group].sort(byValueDesc)) {
-            if (acc >= required || picked.length >= MAX_INPUTS) break;
-
-            picked.push(note);
-            acc += hexToAmount(note.value);
-        }
-
-        if (acc >= required) {
-            // Prefer the tightest-fitting covering label to reduce fragmentation over time.
-            if (!best || acc < best.total) {
-                best = { label, commitments: picked.map((n) => n.commitment), total: acc };
-            }
+        // Pick the label whose 4-largest sum is greatest — the global best a single
+        // label can do, so "if these can't cover, none can" holds.
+        if (total >= required && (!best || total > best.total)) {
+            best = { label, commitments: top.map((n) => n.commitment), total };
         }
     }
 

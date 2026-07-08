@@ -3,9 +3,15 @@
 // precedent. If it grows unwieldy, extract verbs into an `operations/` module.
 import type { CreatePluginFn, Host } from "@kohaku-eth/plugins";
 import type { TxData } from "@kohaku-eth/provider";
-import type { INoteManager, PoolSession } from "@privacy-pools-v2/sdk";
+import { type Address, type INoteManager, type PoolSession } from "@privacy-pools-v2/sdk";
 import { deriveKeystoreManager } from "./account/derivation";
-import { mapSdkError, NotImplementedError } from "./interfaces/errors";
+import {
+    LabelFragmentationError,
+    mapSdkError,
+    NotImplementedError,
+    NotRegisteredError,
+    RelayerUnavailableError,
+} from "./interfaces/errors";
 import type {
     PPv2AccountId,
     PPv2AssetAmount,
@@ -17,9 +23,11 @@ import type {
     PPv2PrivateOperation,
     PPv2PublicOperation,
 } from "./interfaces/operations.interface";
+import { registerSession } from "./internal/session-registry";
 import type { PPv2AssetId } from "./mapping/assets";
 import { amountToHex, assetToTokenId, hexToAmount, tokenIdToAsset } from "./mapping/assets";
 import { isExcluded, labelStateFor, statusLabel, statusToReport } from "./mapping/status";
+import { selectInputNotes } from "./selection/note-selection";
 import { assemblePoolSession } from "./session";
 
 /** Constructor dependencies for {@link PPv2Plugin}; assembled by {@link createPPv2Plugin}. */
@@ -28,6 +36,11 @@ type PPv2PluginDeps = {
     noteManager: INoteManager;
     params: PPv2PluginParameters;
 };
+
+/** Whether a fee commitment (unix-seconds expiry) is still live. */
+function isQuoteLive(expirationSeconds: number): boolean {
+    return expirationSeconds * 1000 > Date.now();
+}
 
 /**
  * The Privacy Pools v2 plugin. Reads flow through the plugin-owned
@@ -176,8 +189,76 @@ export class PPv2Plugin implements PPv2Instance {
         }
     }
 
-    async prepareTransfer(): Promise<PPv2PrivateOperation> {
-        throw new NotImplementedError("prepareTransfer", "US2/T038");
+    /**
+     * Private cold-start transfer to any EVM address (US2, FR-021). Quote-first: the
+     * plugin fetches relayer quotes, picks the cheapest live one, selects input notes
+     * covering amount + that fee (single label, INV-5), then maps to
+     * `PoolSession.prepareColdStartTransfer` and wraps the matching relay option. The
+     * proof/relay run inside the shared session at broadcast; the plugin never signs
+     * (INV-1). Requires registration (FR-026, INV-8).
+     */
+    async prepareTransfer(asset: PPv2AssetAmount, to: PPv2AccountId): Promise<PPv2PrivateOperation> {
+        await this.sync();
+
+        if (!(await this.isRegistered())) throw new NotRegisteredError();
+
+        try {
+            const tokenId = assetToTokenId(asset.asset);
+
+            // Select the 4 largest notes of a single label covering the amount (INV-5).
+            // No separate quote fetch: prepareColdStartTransfer generates the relayer
+            // quotes itself, and the fee is verified against the resulting change below.
+            const selected = selectInputNotes({
+                notes: this.noteManager.getNotes(),
+                tokenId,
+                required: asset.amount,
+            });
+
+            const result = await this.session.prepareColdStartTransfer({
+                inputCommitments: selected.commitments,
+                amount: amountToHex(asset.amount),
+                tokenId,
+                recipientEvmAddress: to as unknown as Address,
+            });
+
+            // Pick the cheapest live relay option whose fee fits the change. If a
+            // relayer replied but none is live, that's a relayer/liveness problem;
+            // if live options exist but none fits the change, the 4 largest notes
+            // can't cover amount + fee — and no single label could (LabelFragmentation).
+            const changeMax = selected.total - asset.amount;
+            const live = result.relayOptions.filter((o) =>
+                isQuoteLive(o.selectedQuote.quote.feeCommitment.expiration),
+            );
+
+            if (live.length === 0) {
+                throw new RelayerUnavailableError("No live relayer quote available for the transfer.");
+            }
+
+            const affordable = live.filter(
+                (o) => BigInt(o.selectedQuote.quote.feeAmount) <= changeMax,
+            );
+
+            if (affordable.length === 0) {
+                throw new LabelFragmentationError(asset.amount, [
+                    { label: selected.label, spendable: selected.total },
+                ]);
+            }
+
+            const relayParams = affordable.reduce((a, b) =>
+                BigInt(a.selectedQuote.quote.feeAmount) <= BigInt(b.selectedQuote.quote.feeAmount)
+                    ? a
+                    : b,
+            );
+
+            return {
+                __type: "privateOperation",
+                kind: "transfer",
+                chainId: this.params.chainId,
+                relayParams,
+            };
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
     async prepareUnshield(): Promise<PPv2PrivateOperation> {
@@ -220,5 +301,11 @@ export const createPPv2Plugin: CreatePluginFn<PPv2Instance, PPv2PluginParameters
 
     const { session, noteManager } = await assemblePoolSession(host, params, keystoreManager);
 
-    return new PPv2Plugin({ session, noteManager, params });
+    const plugin = new PPv2Plugin({ session, noteManager, params });
+
+    // Link instance → session so createPPv2Broadcaster shares it (FR-053) without
+    // leaking the SDK session on the public type.
+    registerSession(plugin, session);
+
+    return plugin;
 };

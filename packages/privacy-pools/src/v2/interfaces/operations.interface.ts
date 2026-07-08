@@ -1,12 +1,10 @@
 import type { PrivateOperation, PublicOperation } from "@kohaku-eth/plugins";
 import type { TxData } from "@kohaku-eth/provider";
 import type {
+    ExecuteWithdrawRelayerParams,
     Hex,
     NoteStatus,
-    PrepareTransferResult,
-    PrepareWithdrawResult,
-    TransferRelayerQuote,
-    WithdrawalRelayerQuote,
+    RelayTransferParams,
 } from "@privacy-pools-v2/sdk";
 import type { PPv2AssetId } from "../mapping/assets";
 
@@ -22,22 +20,23 @@ export type PPv2PublicOperation = PublicOperation & {
 
 /**
  * A private operation, opaque to the wallet and consumed by {@link PPv2Broadcaster}.
- * Carries the prepared SDK result plus the single relayer quote chosen at prepare
- * time. Routing is bound into the proof and never re-derived after (INV-7).
- * Discriminated on `kind`.
+ * Carries the exact SDK relay argument (the single chosen relayer option, including
+ * its live fee commitment) so the broadcaster just forwards it to the shared
+ * session's relay path — which re-proves with the quoted fee, submits, and persists
+ * note updates itself (FR-053). Routing is bound into the proof (INV-7). Discriminated
+ * on `kind`; the fee-commitment expiry lives at
+ * `relayParams.selectedQuote.quote.feeCommitment.expiration`.
  */
 export type PPv2PrivateOperation =
     | (PrivateOperation & {
           kind: "transfer";
           chainId: bigint;
-          prepared: PrepareTransferResult;
-          quote: TransferRelayerQuote;
+          relayParams: RelayTransferParams;
       })
     | (PrivateOperation & {
           kind: "withdrawal";
           chainId: bigint;
-          prepared: PrepareWithdrawResult;
-          quote: WithdrawalRelayerQuote;
+          relayParams: ExecuteWithdrawRelayerParams;
       });
 
 /**
