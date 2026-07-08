@@ -1,3 +1,9 @@
+## 0.0.2-alpha.15
+
+### Patch Changes
+
+- 9e8a25d: chore: add mainnet addrs to config
+
 ## 0.0.2-alpha.14
 
 ### Patch Changes
