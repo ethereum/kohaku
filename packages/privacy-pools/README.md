@@ -10,3 +10,51 @@ Cross-platform Privacy Pools Typescript SDK with support for kohaku's standard i
 ```sh
 pnpm add @kohaku-eth/privacy-pools
 ```
+
+## Privacy Pools v2 plugin (alpha, UNAUDITED)
+
+`src/v2/` ships a Kohaku plugin for [Privacy Pools v2](https://privacypools.com),
+adapting the wallet's `Host` capabilities onto `@privacy-pools-v2/sdk`. The plugin
+**never signs or submits transactions**: public flows (shield, registration, ragequit)
+return ready-to-sign `TxData[]`; private flows (transfer, unshield) return operations a
+`PPv2Broadcaster` relays.
+
+```ts
+import { createPPv2Plugin, createPPv2Broadcaster } from "@kohaku-eth/privacy-pools";
+
+const plugin = await createPPv2Plugin(host, {
+    chainId: 11155111n,
+    ownerAddress,                                    // wallet account that sends public ops
+    asp: { baseUrl, publicKey },                     // pin the ASP key
+    relayers,                                        // at least one active relayer
+    artifacts: { gatewayUrls, manifest },            // pinned circuit CIDs (mandatory)
+});
+const broadcaster = createPPv2Broadcaster(plugin);   // shares the plugin's session
+
+await plugin.prepareShield({ asset: { __type: "native" }, amount });   // TxData[] for the wallet
+const op = await plugin.prepareTransfer({ asset, amount }, recipient); // private op
+const { txHash, coldStartPayload } = await broadcaster.broadcast(op);  // deliver payload out-of-band
+```
+
+Verbs: `prepareShield`, `prepareTransfer` (cold-start, any EVM address),
+`prepareUnshield` (recipient receives `amount` net; relayer fee on top), `balance`,
+`notes`; extras: `isRegistered`, `prepareRegisterKeystore`, `prepareRageQuit`
+(unconditional exit), `sync`, `exportAccount`/`importAccount` (no key material — keys
+always re-derive from the wallet keystore at the dedicated `m/28784'/2'` path family).
+
+**Host wallet obligations**: send every public operation from the configured
+`ownerAddress` (registration and ragequit are `msg.sender`-bound), and surface the
+`coldStartPayload` returned by the broadcaster to the user for out-of-band delivery to
+the recipient.
+
+**Status / known gates** (see `.specify/specs/001-privacy-pools-v2/` for the full spec):
+
+- Alpha and **UNAUDITED** (the banner above applies doubly here).
+- `@privacy-pools-v2/sdk` is not yet published — currently consumed via a local link;
+  CI/publishing is gated on its release (and on fixing its d.ts/runtime export mismatch).
+- The SDK's `APP_IDENTIFIER` derivation constant is a placeholder (`TODO(0XB-1065)`);
+  until it is frozen, derived keys are NOT durable — Sepolia only.
+- Circuit-artifact CIDs must be pinned on production infrastructure and match the
+  deployed verifiers; artifact fetches are digest-verified on every load.
+- Targeted (on-chain-discoverable) transfers to registered recipients, deposit-for,
+  multi-asset batches, and note merging are deliberate follow-ups.
