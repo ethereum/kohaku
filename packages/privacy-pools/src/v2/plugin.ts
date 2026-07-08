@@ -7,7 +7,10 @@ import type { TxData } from "@kohaku-eth/provider";
 import type { Address as OxAddress } from "ox/Address";
 import { type Address, type Hex, type INoteManager, type PoolSession } from "@privacy-pools-v2/sdk";
 import { deriveKeystoreManager } from "./account/derivation";
+import { persistRevocableKeyIndex, readRevocableKeyIndex } from "./account/keystore-record";
+import { KohakuStorageService } from "./adapters/storage.adapter";
 import {
+    AccountImportMismatchError,
     AlreadyRegisteredError,
     LabelFragmentationError,
     mapSdkError,
@@ -411,12 +414,39 @@ export class PPv2Plugin implements PPv2Instance {
         }
     }
 
+    /**
+     * Serialize the full account state (notes + sync cursor + payment requests)
+     * into one portable blob (US7, FR-033). The SDK envelope is stamped with
+     * owner + chainId and contains NO raw key material (INV-3) — keys always
+     * re-derive from the keystore (INV-2).
+     */
     async exportAccount(): Promise<string> {
-        throw new NotImplementedError("exportAccount", "US7/T061");
+        try {
+            return JSON.stringify(await this.session.exportAccount());
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
-    async importAccount(): Promise<void> {
-        throw new NotImplementedError("importAccount", "US7/T061");
+    /**
+     * Restore state from an {@link exportAccount} blob. The SDK rejects an
+     * envelope whose owner or chain differs from this instance (FR-033 →
+     * `AccountImportMismatchError`); subsequent syncs continue incrementally.
+     */
+    async importAccount(blob: string): Promise<void> {
+        let parsed: unknown;
+
+        try {
+            parsed = JSON.parse(blob);
+        } catch {
+            throw new AccountImportMismatchError();
+        }
+
+        try {
+            await this.session.importAccount(parsed as never);
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 }
 
@@ -429,16 +459,53 @@ export const createPPv2Plugin: CreatePluginFn<PPv2Instance, PPv2PluginParameters
     host: Host,
     params: PPv2PluginParameters,
 ): Promise<PPv2Instance> => {
-    // TODO(T062): read a persisted revocableKeyIndex and/or run
-    // session.discoverRevocableKeyIndex for fresh-device recovery. Fresh accounts
-    // and the common case derive at index 0.
-    const { keystoreManager } = await deriveKeystoreManager({
+    // Rotation-index recovery (FR-013, T062): derive with the persisted index when
+    // one exists. On a fresh device (no record) with an on-chain registration, run
+    // the SDK's gap scan once and, if the account rotated, re-derive + re-assemble
+    // at the discovered index. Unregistered accounts cannot have rotated — skip the
+    // scan and stay at index 0 without persisting (so a later restore still scans).
+    const recordStorage = new KohakuStorageService(host.storage, params.storeKey);
+    const persistedIndex = await readRevocableKeyIndex(
+        recordStorage,
+        params.chainId,
+        params.ownerAddress,
+    );
+
+    let derived = await deriveKeystoreManager({
         keystore: host.keystore,
         accountIndex: params.accountIndex,
+        ...(persistedIndex ? { revocableKeyIndex: persistedIndex } : {}),
     });
+    let assembled = await assemblePoolSession(host, params, derived.keystoreManager);
 
-    const { session, noteManager } = await assemblePoolSession(host, params, keystoreManager);
+    if (persistedIndex === null && (await assembled.session.isKeystoreRegistered())) {
+        const discovered = await assembled.session.discoverRevocableKeyIndex(
+            {
+                signature: derived.deriveConfig.signature,
+                signerAddress: derived.deriveConfig.signerAddress,
+                addressHash: derived.deriveConfig.addressHash,
+            },
+            params.revocableKeyGapLimit,
+        );
 
+        if (BigInt(discovered) !== 0n) {
+            derived = await deriveKeystoreManager({
+                keystore: host.keystore,
+                accountIndex: params.accountIndex,
+                revocableKeyIndex: discovered,
+            });
+            assembled = await assemblePoolSession(host, params, derived.keystoreManager);
+        }
+
+        await persistRevocableKeyIndex(
+            recordStorage,
+            params.chainId,
+            params.ownerAddress,
+            discovered,
+        );
+    }
+
+    const { session, noteManager } = assembled;
     const plugin = new PPv2Plugin({ session, noteManager, params });
 
     // Link instance → session so createPPv2Broadcaster shares it (FR-053) without

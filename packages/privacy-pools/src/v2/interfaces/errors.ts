@@ -110,6 +110,8 @@ export function mapSdkError(err: unknown): PluginError {
             return new NotRegisteredError();
         case "AlreadyRegistered":
             return new AlreadyRegisteredError();
+        case "AccountExportMismatch":
+            return new AccountImportMismatchError();
         case "FeeCommitmentExpired":
             return new QuoteExpiredError();
         case "CircuitArtifactMultihashMismatch":
