@@ -22,6 +22,13 @@ export class NotRegisteredError extends PPv2Error {
     }
 }
 
+/** Registration requested for an account that is already registered on-chain (US5). */
+export class AlreadyRegisteredError extends PPv2Error {
+    constructor() {
+        super("Account is already registered on-chain; no registration needed.");
+    }
+}
+
 /** No single label covers amount + fee; carries the per-label breakdown (FR-023, INV-5). */
 export class LabelFragmentationError extends PPv2Error {
     constructor(
@@ -101,6 +108,8 @@ export function mapSdkError(err: unknown): PluginError {
     switch (name) {
         case "KeystoreNotRegistered":
             return new NotRegisteredError();
+        case "AlreadyRegistered":
+            return new AlreadyRegisteredError();
         case "FeeCommitmentExpired":
             return new QuoteExpiredError();
         case "CircuitArtifactMultihashMismatch":

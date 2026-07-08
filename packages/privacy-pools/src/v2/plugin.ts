@@ -5,9 +5,10 @@ import { InsufficientBalanceError } from "@kohaku-eth/plugins";
 import type { CreatePluginFn, Host, UnshieldOptions } from "@kohaku-eth/plugins";
 import type { TxData } from "@kohaku-eth/provider";
 import type { Address as OxAddress } from "ox/Address";
-import { type Address, type INoteManager, type PoolSession } from "@privacy-pools-v2/sdk";
+import { type Address, type Hex, type INoteManager, type PoolSession } from "@privacy-pools-v2/sdk";
 import { deriveKeystoreManager } from "./account/derivation";
 import {
+    AlreadyRegisteredError,
     LabelFragmentationError,
     mapSdkError,
     NotImplementedError,
@@ -362,12 +363,52 @@ export class PPv2Plugin implements PPv2Instance {
             .reduce((sum, note) => sum + hexToAmount(note.value), 0n);
     }
 
+    /**
+     * One-time on-chain keystore registration (US5, FR-025). Returns a public
+     * operation with `Keystore.setAuthPolicy` followed by `setViewingKey` (the
+     * published viewing key makes future incoming transfers discoverable). The
+     * wallet MUST send both from `ownerAddress` — the calls bind to `msg.sender`
+     * (FR-014, DEP-6).
+     */
     async prepareRegisterKeystore(): Promise<PPv2PublicOperation> {
-        throw new NotImplementedError("prepareRegisterKeystore", "US5/T053");
+        try {
+            const result = await this.session.prepareRegisterKeystore();
+
+            if (result.alreadyRegistered) throw new AlreadyRegisteredError();
+
+            const txs: TxData[] = [];
+
+            for (const call of [result.keystoreCalldata, result.viewingKeyCalldata]) {
+                if (call) txs.push({ to: call.to, data: call.data, value: BigInt(call.value) });
+            }
+
+            return { __type: "publicOperation", txs };
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
-    async prepareRageQuit(): Promise<PPv2PublicOperation> {
-        throw new NotImplementedError("prepareRageQuit", "US6/T057");
+    /**
+     * Public escape hatch for a note whose label was revoked (US6, FR-025).
+     * Returns a public operation encoding `PoolVault.ragequit`; the circuit forces
+     * the recipient to the note's owner, and the wallet MUST send it from
+     * `ownerAddress` (`msg.sender`-bound, DEP-6). Full note value, no ASP proof —
+     * deliberately NO registration guard (guaranteed exit is unconditional). The
+     * note flips to `exited` when sync observes the ragequit event.
+     */
+    async prepareRageQuit(commitment: Hex): Promise<PPv2PublicOperation> {
+        await this.sync();
+
+        try {
+            const result = await this.session.prepareRageQuit({ commitment });
+
+            return {
+                __type: "publicOperation",
+                txs: [{ to: result.to, data: result.callData, value: 0n }],
+            };
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
     async exportAccount(): Promise<string> {
