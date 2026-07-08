@@ -77,6 +77,17 @@ export class AccountImportMismatchError extends PPv2Error {
 }
 
 /**
+ * Scaffolding for a plugin verb not yet implemented. Temporary — each throw is
+ * replaced as its user-story task lands; typed so it never crosses the boundary
+ * as a raw error (FR-060).
+ */
+export class NotImplementedError extends PPv2Error {
+    constructor(method: string, task: string) {
+        super(`${method} is not implemented yet (pending ${task}).`);
+    }
+}
+
+/**
  * Normalize an SDK (or unknown) error thrown inside a plugin method into a typed
  * plugin error. Known SDK error classes map to their plugin equivalents; anything
  * else is wrapped so no raw SDK exception escapes (FR-060).

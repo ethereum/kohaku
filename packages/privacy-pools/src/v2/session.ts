@@ -1,5 +1,12 @@
 import type { Host } from "@kohaku-eth/plugins";
-import { type KeystoreManager, type PoolSession, PoolSessionBuilder } from "@privacy-pools-v2/sdk";
+import {
+    type INoteManager,
+    type KeystoreManager,
+    NoteManager,
+    NoteStorageAdapter,
+    type PoolSession,
+    PoolSessionBuilder,
+} from "@privacy-pools-v2/sdk";
 import type { Address } from "viem";
 import { KohakuHttpClient } from "./adapters/http.adapter";
 import { KohakuRpcInteractor } from "./adapters/rpc.adapter";
@@ -13,6 +20,17 @@ import type { PPv2PluginParameters } from "./interfaces/plugin.interface";
  */
 const PLACEHOLDER_RPC_URL = "http://rpc.invalid";
 
+/** The assembled session plus the note manager the plugin owns for balance/notes reads. */
+export type AssembledSession = {
+    session: PoolSession;
+    /**
+     * Plugin-owned note manager. The `PoolSession` facade exposes no note reads,
+     * so the plugin injects its own manager (`.withNoteManager`) and reads through
+     * it for `balance()`/`notes()`. `create()` calls `loadFromStorage()` on it.
+     */
+    noteManager: INoteManager;
+};
+
 /**
  * Assemble the single SDK {@link PoolSession} for a plugin instance from `Host`
  * capabilities plus parameters (R1, FR-003). Contract addresses default from the
@@ -21,12 +39,27 @@ const PLACEHOLDER_RPC_URL = "http://rpc.invalid";
  * through the injected {@link KohakuHttpClient} (T018). No wallet interactor is
  * wired, so the SDK's self-submission paths stay unavailable and the plugin can
  * never sign a transaction (INV-1).
+ *
+ * The note manager is constructed here (over the same {@link KohakuStorageService})
+ * and injected via `.withNoteManager` so the plugin retains a reference for reads.
  */
 export async function assemblePoolSession(
     host: Host,
     params: PPv2PluginParameters,
     keystoreManager: KeystoreManager,
-): Promise<PoolSession> {
+): Promise<AssembledSession> {
+    const storageService = new KohakuStorageService(host.storage, params.storeKey);
+    const noteManager = new NoteManager(
+        {},
+        {
+            storageAdapter: new NoteStorageAdapter(
+                Number(params.chainId),
+                storageService,
+                params.ownerAddress as Address,
+            ),
+        },
+    );
+
     const builder = PoolSessionBuilder.fromConfig({
         chainId: Number(params.chainId),
         rpcUrl: PLACEHOLDER_RPC_URL,
@@ -40,8 +73,11 @@ export async function assemblePoolSession(
     })
         .withHttpClient(new KohakuHttpClient(host.network))
         .withRpcInteractor(new KohakuRpcInteractor(host.provider))
-        .withStorageService(new KohakuStorageService(host.storage, params.storeKey))
+        .withStorageService(storageService)
+        .withNoteManager(noteManager)
         .withKeystoreManager(keystoreManager);
 
-    return builder.create();
+    const session = await builder.create();
+
+    return { session, noteManager };
 }

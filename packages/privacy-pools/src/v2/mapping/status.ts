@@ -39,3 +39,22 @@ export function isExcluded(status: NoteStatus): boolean {
 export function statusLabel(status: NoteStatus): Lowercase<keyof typeof NoteStatus> {
     return status.toLowerCase() as Lowercase<keyof typeof NoteStatus>;
 }
+
+/**
+ * The note's association-set label state derived from its status: a `REJECTED`
+ * note's label was revoked; `INACTIVE`/`PENDING` are awaiting approval; everything
+ * else (`ACTIVE`/`SPENT`/`EXITED`) had an approved label.
+ */
+export function labelStateFor(status: NoteStatus): "pending" | "approved" | "revoked" {
+    switch (status) {
+        case NoteStatus.REJECTED:
+            return "revoked";
+        case NoteStatus.INACTIVE:
+        case NoteStatus.PENDING:
+            return "pending";
+        case NoteStatus.ACTIVE:
+        case NoteStatus.SPENT:
+        case NoteStatus.EXITED:
+            return "approved";
+    }
+}
