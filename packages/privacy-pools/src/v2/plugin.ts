@@ -1,8 +1,10 @@
 /* eslint-disable max-lines */
 // The plugin class holds every verb + read; matches the v1 `PrivacyPoolsV1Protocol`
 // precedent. If it grows unwieldy, extract verbs into an `operations/` module.
-import type { CreatePluginFn, Host } from "@kohaku-eth/plugins";
+import { InsufficientBalanceError } from "@kohaku-eth/plugins";
+import type { CreatePluginFn, Host, UnshieldOptions } from "@kohaku-eth/plugins";
 import type { TxData } from "@kohaku-eth/provider";
+import type { Address as OxAddress } from "ox/Address";
 import { type Address, type INoteManager, type PoolSession } from "@privacy-pools-v2/sdk";
 import { deriveKeystoreManager } from "./account/derivation";
 import {
@@ -26,7 +28,7 @@ import type {
 import { registerSession } from "./internal/session-registry";
 import type { PPv2AssetId } from "./mapping/assets";
 import { amountToHex, assetToTokenId, hexToAmount, tokenIdToAsset } from "./mapping/assets";
-import { isExcluded, labelStateFor, statusLabel, statusToReport } from "./mapping/status";
+import { isExcluded, isSpendable, labelStateFor, statusLabel, statusToReport } from "./mapping/status";
 import { selectInputNotes } from "./selection/note-selection";
 import { assemblePoolSession } from "./session";
 
@@ -261,8 +263,103 @@ export class PPv2Plugin implements PPv2Instance {
         }
     }
 
-    async prepareUnshield(): Promise<PPv2PrivateOperation> {
-        throw new NotImplementedError("prepareUnshield", "US3/T043");
+    /**
+     * Withdraw to a public address via a relayer (US3, FR-022). Mirrors the
+     * transfer flow: select the 4 largest notes of one label covering the amount,
+     * map to `PoolSession.prepareWithdraw` (the SDK fetches its own quotes, bound
+     * to recipient + amount), then pick the cheapest live relayer option whose fee
+     * fits (`amountSent = amount + fee` is drawn from the pool; the recipient
+     * receives `amount`). Payout routing is bound into the proof (INV-7); relaying
+     * happens in the shared session at broadcast (INV-1).
+     */
+    async prepareUnshield(
+        asset: PPv2AssetAmount,
+        to: OxAddress,
+        options?: UnshieldOptions,
+    ): Promise<PPv2PrivateOperation> {
+        if (options?.tailCalls) {
+            // The relayer executes the withdrawal; appended wallet calls can't ride it.
+            throw new NotImplementedError("prepareUnshield tailCalls", "unsupported by relayer path");
+        }
+
+        await this.sync();
+
+        if (!(await this.isRegistered())) throw new NotRegisteredError();
+
+        try {
+            const tokenId = assetToTokenId(asset.asset);
+
+            // Fail before any proving when the whole spendable balance can't cover
+            // the amount (US3 AC-3).
+            const spendable = this.spendableFor(tokenId);
+
+            if (asset.amount > spendable) {
+                throw new InsufficientBalanceError(asset.asset, asset.amount, spendable);
+            }
+
+            const selected = selectInputNotes({
+                notes: this.noteManager.getNotes(),
+                tokenId,
+                required: asset.amount,
+            });
+
+            const result = await this.session.prepareWithdraw({
+                inputCommitments: selected.commitments,
+                amount: amountToHex(asset.amount),
+                tokenId,
+                recipientAddress: to as unknown as Address,
+            });
+
+            // Cheapest live relayer option whose fee fits: the pool releases
+            // amount + fee, so the selected inputs must cover both.
+            const feeMax = selected.total - asset.amount;
+            const live = result.relayerOptions.filter((o) =>
+                isQuoteLive(o.selectedQuote.quote.feeCommitment.expiration),
+            );
+
+            if (live.length === 0) {
+                throw new RelayerUnavailableError(
+                    "No live relayer quote available for the withdrawal.",
+                );
+            }
+
+            const affordable = live.filter(
+                (o) => BigInt(o.selectedQuote.quote.feeAmount) <= feeMax,
+            );
+
+            if (affordable.length === 0) {
+                throw new LabelFragmentationError(asset.amount, [
+                    { label: selected.label, spendable: selected.total },
+                ]);
+            }
+
+            const relayParams = affordable.reduce((a, b) =>
+                BigInt(a.selectedQuote.quote.feeAmount) <= BigInt(b.selectedQuote.quote.feeAmount)
+                    ? a
+                    : b,
+            );
+
+            return {
+                __type: "privateOperation",
+                kind: "withdrawal",
+                chainId: this.params.chainId,
+                relayParams,
+            };
+        } catch (err) {
+            throw mapSdkError(err);
+        }
+    }
+
+    /** Total spendable (ACTIVE) value for a token id, from the plugin-owned manager. */
+    private spendableFor(tokenId: Address): bigint {
+        return this.noteManager
+            .getNotes()
+            .filter(
+                (note) =>
+                    isSpendable(note.status) &&
+                    note.tokenId.toLowerCase() === tokenId.toLowerCase(),
+            )
+            .reduce((sum, note) => sum + hexToAmount(note.value), 0n);
     }
 
     async prepareRegisterKeystore(): Promise<PPv2PublicOperation> {
