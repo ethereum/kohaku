@@ -79,8 +79,12 @@ export class PPv2Plugin implements PPv2Instance {
      * note); per the SDK contract, call this when no transaction is in flight.
      */
     async sync(): Promise<void> {
-        await this.reconcile();
-        await this.session.purgePhantomNotes();
+        try {
+            await this.reconcile();
+            await this.session.purgePhantomNotes();
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
     /**
@@ -91,11 +95,21 @@ export class PPv2Plugin implements PPv2Instance {
      * the one that signed and broadcast the transaction).
      */
     private async reconcile(): Promise<void> {
-        await this.session.discoverNotes();
+        try {
+            await this.session.discoverNotes();
+        } catch (err) {
+            // No raw SDK exception may cross the plugin boundary (FR-060) — reads
+            // (balance/notes) and prepares all funnel through here.
+            throw mapSdkError(err);
+        }
     }
 
     async isRegistered(): Promise<boolean> {
-        return this.session.isKeystoreRegistered();
+        try {
+            return await this.session.isKeystoreRegistered();
+        } catch (err) {
+            throw mapSdkError(err);
+        }
     }
 
     // ---- reads ------------------------------------------------------------------

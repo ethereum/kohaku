@@ -66,6 +66,16 @@ export class StorageCorruptionError extends PPv2Error {
     }
 }
 
+/** Chain-event sync/discovery failed (RPC or ASP unreachable); retryable. */
+export class SyncFailedError extends PPv2Error {
+    constructor(
+        message = "Note sync failed; retry when the RPC/ASP is reachable.",
+        public override readonly cause?: unknown,
+    ) {
+        super(message);
+    }
+}
+
 /** Relay submission failed at the relayer/network layer (FR-051). */
 export class RelayerUnavailableError extends PPv2Error {
     constructor(
@@ -119,6 +129,11 @@ export function mapSdkError(err: unknown): PluginError {
             return new ArtifactIntegrityError(message);
         case "InvalidStorageStateError":
             return new StorageCorruptionError("<sdk-state>", err);
+        case "NoteDiscoveryScanFailed":
+        case "RPCInteractorBaseError":
+        case "GetBlockNumberFailed":
+        case "EventReadError":
+            return new SyncFailedError(message, err);
         case "RelayerRejected":
         case "RelayerRequestFailed":
         case "RelayTimeout":
