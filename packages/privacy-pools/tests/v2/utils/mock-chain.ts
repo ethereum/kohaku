@@ -115,3 +115,43 @@ export function chainWithLogs(logs: RawLog[]): Record<string, (params: unknown[]
         eth_call: () => pad("0x01"),
     };
 }
+
+/** Local copy of the Keystore auth event (SDK constant not runtime-exported). */
+const AUTH_POLICY_SET_EVENT =
+    "event AuthPolicySet(address indexed _account, uint256 _nullifyingKeyHash, uint256 _authDigest)";
+
+/**
+ * Mint the on-chain registration of the account behind `host.keystore`: an
+ * `AuthPolicySet` log carrying the REAL index-0 auth digest for the derivation
+ * signer address. With this log on the mock chain (plus `chainWithLogs`'s
+ * nonzero `eth_call` for `isKeystoreRegistered`), the fresh-device gap scan
+ * legitimately resolves rotation index 0.
+ */
+export async function mintRegistrationLog(
+    host: Host,
+    blockNumber = 1n,
+): Promise<{ log: RawLog; signerAddress: Address }> {
+    const { keystoreManager, signerAddress } = await deriveKeystoreManager({
+        keystore: host.keystore,
+    });
+    const cryptoService = new CryptoService();
+    const hashService = await PoseidonHashService.create();
+    const noteComputation = new NoteComputationService({ hashService, cryptoService });
+    const authDigest = noteComputation.computeAuthDigest(
+        keystoreManager.getPrivateRevocableKey(),
+    );
+
+    const log: RawLog = {
+        address: pad("0x0e02", { size: 20 }) as Hex,
+        topics: [toEventSelector(AUTH_POLICY_SET_EVENT), pad(signerAddress)],
+        data: encodeAbiParameters(
+            [{ type: "uint256" }, { type: "uint256" }],
+            [1n, BigInt(authDigest)],
+        ),
+        blockNumber: numberToHex(blockNumber),
+        transactionHash: pad("0x4e91") as Hex,
+        logIndex: "0x2",
+    };
+
+    return { log, signerAddress: signerAddress as Address };
+}
