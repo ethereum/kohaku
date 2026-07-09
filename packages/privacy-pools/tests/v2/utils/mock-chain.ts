@@ -160,6 +160,49 @@ export async function mintRegistrationLog(
 const LEAF_INSERTED_EVENT =
     "event LeafInserted(uint256 _newLeaf, uint256 _root, uint256 _leafIndex)";
 
+/** Local copy of the PoolVault batch-leaf event (SDK constant not runtime-exported). */
+const LEAVES_INSERTED_EVENT =
+    "event LeavesInserted(uint256[] _newLeaves, uint256 _root, uint256 _startIndex)";
+
+/**
+ * Pinned protocol commitment leaf tag — mirrors the runtime-recomputed value in
+ * `canonical-vectors.test.ts` (T067); the SDK constant is not runtime-exported (C8).
+ */
+const COMMITMENT_LEAF_TAG =
+    3791694183000795315792098099581407680958131641292811872617553086713867485913n;
+
+/**
+ * Mint the PoolVault state-tree insertion for the given commitments: one
+ * `LeavesInserted` log whose leaves are the domain-tagged timestamped leaves
+ * `Poseidon(COMMITMENT_LEAF_TAG, commitment, timestamp)` — exactly what
+ * `buildTransactWitness` recomputes per input note, so the SDK's local state-tree
+ * merkle proofs resolve. `timestamp` must match the note's `createdAtBlock`
+ * (discovery stores `getCommitmentTimestamp`'s answer — `chainWithLogs` returns 1).
+ */
+export async function mintStateLeavesLog(
+    commitments: Hash[],
+    options: { timestamp?: bigint; blockNumber?: bigint } = {},
+): Promise<{ log: RawLog; leaves: Hex[] }> {
+    const hashService = await PoseidonHashService.create();
+    const timestamp = `0x${(options.timestamp ?? 1n).toString(16)}` as Hex;
+    const tag = `0x${COMMITMENT_LEAF_TAG.toString(16)}` as Hex;
+    const leaves = commitments.map((c) => hashService.hash([tag, c, timestamp]));
+
+    const log: RawLog = {
+        address: pad("0x0e01", { size: 20 }) as Hex,
+        topics: [toEventSelector(LEAVES_INSERTED_EVENT)],
+        data: encodeAbiParameters(
+            [{ type: "uint256[]" }, { type: "uint256" }, { type: "uint256" }],
+            [leaves.map((l) => BigInt(l)), 0n, 0n],
+        ),
+        blockNumber: numberToHex(options.blockNumber ?? 1n),
+        transactionHash: pad("0x57a7e") as Hex,
+        logIndex: "0x4",
+    };
+
+    return { log, leaves };
+}
+
 /**
  * Mint the keystore merkle leaf of the account behind `host.keystore`: a
  * `LeafInserted` log carrying `Poseidon(ownerAddress, Poseidon(privNullifyingKey),

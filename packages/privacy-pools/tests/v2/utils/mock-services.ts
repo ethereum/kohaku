@@ -24,7 +24,7 @@ import type {
     TransferRelayerQuote,
     WithdrawalRelayerQuote,
 } from "@privacy-pools-v2/sdk";
-import { pad } from "viem";
+import { encodeAbiParameters, pad } from "viem";
 
 /**
  * The X25519 base point (u = 9) as the mock ASP public key — a valid, non-low-order
@@ -44,8 +44,10 @@ export function createMockAsp(): IASPClient &
     IASPDataProvider & {
         setLabelStatus: (label: Hash, status: LabelStatus["status"]) => void;
         snapshot: EventSnapshot;
+        associationLeaves: Hash[];
     } {
     const statuses = new Map<Hash, LabelStatus["status"]>();
+    const associationLeaves: Hash[] = [];
     const snapshot: EventSnapshot = {
         chainId: "0xaa36a7" as Hex,
         snapshotBlockNumber: "0x0" as Hex,
@@ -59,6 +61,9 @@ export function createMockAsp(): IASPClient &
 
     const provider = {
         snapshot,
+        // Mutable association set: tests push approved labelHashes so the SDK's
+        // locally-built ASP merkle proofs resolve during transact/withdraw witnesses.
+        associationLeaves,
         setLabelStatus(label: Hash, status: LabelStatus["status"]) {
             statuses.set(label.toLowerCase() as Hash, status);
         },
@@ -67,7 +72,7 @@ export function createMockAsp(): IASPClient &
             return pad("0x01");
         },
         async getAssociationSetLeaves(): Promise<Hash[]> {
-            return [];
+            return associationLeaves;
         },
         async getMerkleProof(labelHash: Hash): Promise<MerkleProof> {
             return {
@@ -102,6 +107,15 @@ export function createMockAsp(): IASPClient &
     return provider as unknown as ReturnType<typeof createMockAsp>;
 }
 
+/** Build an Error carrying an SDK error-class `name` (matched by `mapSdkError`). */
+function namedError(name: string): Error {
+    const e = new Error(`mock relayer: simulated ${name}`);
+
+    e.name = name;
+
+    return e;
+}
+
 /** A fixed relayer identity for quotes/relays. */
 export const MOCK_RELAYER_INFO: RelayerInfo = {
     url: "https://relayer.mock",
@@ -109,13 +123,17 @@ export const MOCK_RELAYER_INFO: RelayerInfo = {
     chainId: 11155111,
     chainType: "evm",
     status: "active",
-    address: pad("0x0e1a") as RelayerInfo["address"],
-    processorAddress: pad("0x0e1b") as RelayerInfo["address"],
+    address: pad("0x0e1a", { size: 20 }) as RelayerInfo["address"],
+    processorAddress: pad("0x0e1b", { size: 20 }) as RelayerInfo["address"],
 };
 
-/** Mock relayer: controllable fee + expiry; relay returns a fixed tx hash. */
+/**
+ * Mock relayer: controllable fee + expiry; relay returns a fixed tx hash.
+ * `relayError` makes both relay calls throw an Error with that `name` (e.g.
+ * "RelayerRejected") to simulate an execute-time rejection.
+ */
 export function createMockRelayer(
-    options: { feeAmount?: bigint; expiresInSeconds?: number } = {},
+    options: { feeAmount?: bigint; expiresInSeconds?: number; relayError?: string } = {},
 ): IRelayerInteractor & { relayedTxHash: Hex } {
     const feeAmount = (options.feeAmount ?? 5n).toString();
     const expiration = Math.floor(Date.now() / 1000) + (options.expiresInSeconds ?? 3600);
@@ -147,24 +165,56 @@ export function createMockRelayer(
         },
         async getWithdrawalQuote(_relayer, params): Promise<WithdrawalRelayerQuote> {
             const base = transferQuote(params.asset as Hex);
+            // Real payout routing: `relayWithdraw` decodes the commitment data and
+            // cross-checks recipient/feeAmount/nativeGas against the caller's params.
+            const data = encodeAbiParameters(
+                [
+                    {
+                        type: "tuple",
+                        components: [
+                            { name: "recipient", type: "address" },
+                            { name: "feeRecipient", type: "address" },
+                            { name: "feeAmount", type: "uint256" },
+                            { name: "nativeGas", type: "uint256" },
+                        ],
+                    },
+                ],
+                [
+                    {
+                        recipient: params.recipient as `0x${string}`,
+                        feeRecipient: MOCK_RELAYER_INFO.address,
+                        feeAmount: BigInt(feeAmount),
+                        nativeGas: 0n,
+                    },
+                ],
+            );
+
+            // The pool releases amount + fee; the recipient nets the amount.
+            const amountSent = (BigInt(params.amount) + BigInt(feeAmount)).toString();
+            const amountReceived = params.amount;
 
             return {
                 ...base,
-                amountSent: "0",
-                amountReceived: "0",
+                amountSent,
+                amountReceived,
                 feeCommitment: {
                     ...base.feeCommitment,
-                    recipient: pad("0x0c") as Hex,
-                    amountSent: "0",
-                    amountReceived: "0",
+                    data,
+                    recipient: params.recipient as Hex,
+                    amountSent,
+                    amountReceived,
                     extraGas: false,
                 },
             } as unknown as WithdrawalRelayerQuote;
         },
         async relayTransfer() {
+            if (options.relayError) throw namedError(options.relayError);
+
             return relayedTxHash;
         },
         async relayWithdrawal() {
+            if (options.relayError) throw namedError(options.relayError);
+
             return relayedTxHash;
         },
         async waitForRelayedTx() {
@@ -186,7 +236,9 @@ export function createMockProofService(): IProofService {
             protocol: "groth16",
             curve: "bn128",
         },
-        publicSignals: ["0x1"],
+        // Long enough for any circuit's flat signal layout (transact: nInputs
+        // nullifiers + mOutputs commitments + 6 tail signals; max 4+5+6).
+        publicSignals: Array<string>(16).fill("0x1"),
     };
 
     return {
