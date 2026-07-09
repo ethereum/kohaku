@@ -155,3 +155,44 @@ export async function mintRegistrationLog(
 
     return { log, signerAddress: signerAddress as Address };
 }
+
+/** Local copy of the Keystore merkle-leaf event (SDK constant not runtime-exported). */
+const LEAF_INSERTED_EVENT =
+    "event LeafInserted(uint256 _newLeaf, uint256 _root, uint256 _leafIndex)";
+
+/**
+ * Mint the keystore merkle leaf of the account behind `host.keystore`: a
+ * `LeafInserted` log carrying `Poseidon(ownerAddress, Poseidon(privNullifyingKey),
+ * authDigest)` — the exact leaf `buildRagequitWitness` recomputes, so the SDK's
+ * local keystore-tree merkle proof resolves against this single-leaf tree.
+ */
+export async function mintKeystoreLeafLog(
+    host: Host,
+    ownerAddress: Address,
+    blockNumber = 1n,
+): Promise<{ log: RawLog; leaf: Hex }> {
+    const { keystoreManager } = await deriveKeystoreManager({ keystore: host.keystore });
+    const cryptoService = new CryptoService();
+    const hashService = await PoseidonHashService.create();
+    const noteComputation = new NoteComputationService({ hashService, cryptoService });
+
+    const authDigest = noteComputation.computeAuthDigest(
+        keystoreManager.getPrivateRevocableKey(),
+    );
+    const nullKeyHash = hashService.hash([keystoreManager.getPrivateNullifyingKey()]);
+    const leaf = hashService.hash([ownerAddress, nullKeyHash, authDigest]);
+
+    const log: RawLog = {
+        address: pad("0x0e02", { size: 20 }) as Hex,
+        topics: [toEventSelector(LEAF_INSERTED_EVENT)],
+        data: encodeAbiParameters(
+            [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+            [BigInt(leaf), 0n, 0n],
+        ),
+        blockNumber: numberToHex(blockNumber),
+        transactionHash: pad("0x1eaf") as Hex,
+        logIndex: "0x3",
+    };
+
+    return { log, leaf };
+}

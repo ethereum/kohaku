@@ -6,10 +6,12 @@
  */
 import type {
     AssetConfig,
+    EventSnapshot,
     EVMProof,
     Hash,
     Hex,
     IASPClient,
+    IASPDataProvider,
     IEntrypointInteractor,
     IProofService,
     IRelayerInteractor,
@@ -34,15 +36,29 @@ const MOCK_ASP_PUBKEY = `0x09${"00".repeat(31)}` as Hex;
  * Mock ASP implementing BOTH seams over one shared label map: `IASPClient`
  * (deposit-side: pubkey, merkle proofs) and `IASPDataProvider` (discovery-side:
  * per-label statuses, event snapshot). `getNoteEvents` throws so discovery falls
- * back to chain logs (`eth_getLogs`) — the mock chain is the event source.
+ * back to chain logs (`eth_getLogs`) — the mock chain is the event source. The
+ * exposed `snapshot` is mutable so tests can inject transact/ragequit events
+ * (the real `syncNotesStatus` path consumes it verbatim).
  */
 export function createMockAsp(): IASPClient &
     IASPDataProvider & {
         setLabelStatus: (label: Hash, status: LabelStatus["status"]) => void;
+        snapshot: EventSnapshot;
     } {
     const statuses = new Map<Hash, LabelStatus["status"]>();
+    const snapshot: EventSnapshot = {
+        chainId: "0xaa36a7" as Hex,
+        snapshotBlockNumber: "0x0" as Hex,
+        generatedAt: "1970-01-01T00:00:00Z",
+        deposits: [],
+        transacts: [],
+        ragequits: [],
+        leaves: [],
+        keystoreLeaves: [],
+    };
 
     const provider = {
+        snapshot,
         setLabelStatus(label: Hash, status: LabelStatus["status"]) {
             statuses.set(label.toLowerCase() as Hash, status);
         },
@@ -75,16 +91,7 @@ export function createMockAsp(): IASPClient &
             return [];
         },
         async getEventSnapshot() {
-            return {
-                chainId: "0xaa36a7" as Hex,
-                snapshotBlockNumber: "0x0" as Hex,
-                generatedAt: "1970-01-01T00:00:00Z",
-                deposits: [],
-                transacts: [],
-                ragequits: [],
-                leaves: [],
-                keystoreLeaves: [],
-            };
+            return snapshot;
         },
         async getNoteEvents(): Promise<never> {
             // Swallowed by discovery → falls back to chain eth_getLogs.

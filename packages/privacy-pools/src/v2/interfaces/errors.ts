@@ -49,7 +49,14 @@ export class QuoteExpiredError extends PPv2Error {
     }
 }
 
-/** A fetched circuit artifact failed its pinned-digest check (FR-040). */
+/**
+ * No verified circuit artifact could be produced (FR-040): every gateway's bytes
+ * failed the pinned-digest check or could not be fetched. The SDK aggregates
+ * per-gateway digest mismatches into `CircuitArtifactLoadFailed` (the raw
+ * `CircuitArtifactMultihashMismatch` escapes only on the cached-bytes path), so
+ * both map here — either way the artifact layer fails closed and the message
+ * carries the per-gateway detail.
+ */
 export class ArtifactIntegrityError extends PPv2Error {
     constructor(message = "Circuit artifact failed integrity verification.") {
         super(message);
@@ -126,6 +133,7 @@ export function mapSdkError(err: unknown): PluginError {
             return new QuoteExpiredError();
         case "CircuitArtifactMultihashMismatch":
         case "CIDDigestMismatch":
+        case "CircuitArtifactLoadFailed":
             return new ArtifactIntegrityError(message);
         case "InvalidStorageStateError":
             return new StorageCorruptionError("<sdk-state>", err);
