@@ -4,6 +4,10 @@ import type {
     CircuitManifest,
     DeploymentAddresses,
     Hex,
+    IASPClient,
+    IEntrypointInteractor,
+    IProofService,
+    IRelayerInteractor,
     PublicKey,
     RelayerInfo,
 } from "@privacy-pools-v2/sdk";
@@ -41,13 +45,20 @@ export type PPv2Extras = {
 export type PPv2Broadcaster = Broadcaster<PPv2PrivateOperation, PPv2BroadcastResult>;
 
 /**
- * Optional test seams, mirroring the v1 plugin's factory overrides. Kept
- * intentionally open at this stage; concrete factory shapes are pinned as the
- * session/adapters land.
+ * Optional test seams, mirroring the v1 plugin's factory overrides (FR-002).
+ * Each maps onto the corresponding `PoolSessionBuilder.withX()` override; when
+ * one is supplied, the conflicting declarative config field is omitted
+ * automatically (see `assemblePoolSession`). Production wallets never set these.
  */
 export type PPv2Factories = {
-    /** Override the assembled SDK session (unit/integration tests inject a fake). */
-    sessionFactory?: unknown;
+    /** Replaces the HTTP ASP client (label statuses, ASP public key, merkle proofs). */
+    aspClient?: IASPClient;
+    /** Replaces the relayer client (quotes + relay submission). */
+    relayerInteractor?: IRelayerInteractor;
+    /** Replaces Groth16 proving/verification (skips artifact fetch + real proving). */
+    proofService?: IProofService;
+    /** Replaces Entrypoint reads/encoding (asset config, allowance, deposit calldata). */
+    entrypointInteractor?: IEntrypointInteractor;
 };
 
 /**

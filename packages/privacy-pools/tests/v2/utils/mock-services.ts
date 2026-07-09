@@ -1,0 +1,234 @@
+/**
+ * T027 fixtures: controllable in-memory implementations of the SDK seams the
+ * plugin injects via `PPv2Factories` — ASP client, relayer interactor, proof
+ * service, and entrypoint interactor. All imports are type-only (the unpublished
+ * SDK build's runtime exports are unreliable — see CORRECTIONS C8).
+ */
+import type {
+    AssetConfig,
+    EVMProof,
+    Hash,
+    Hex,
+    IASPClient,
+    IEntrypointInteractor,
+    IProofService,
+    IRelayerInteractor,
+    LabelStatus,
+    MerkleProof,
+    NoteData,
+    PreparedTransaction,
+    ProofResult,
+    RelayerInfo,
+    TransferRelayerQuote,
+    WithdrawalRelayerQuote,
+} from "@privacy-pools-v2/sdk";
+import { pad } from "viem";
+
+/**
+ * The X25519 base point (u = 9) as the mock ASP public key — a valid, non-low-order
+ * curve point, so the SDK's real ECDH encryption of the ASP ciphertext succeeds.
+ */
+const MOCK_ASP_PUBKEY = `0x09${"00".repeat(31)}` as Hex;
+
+/** Mock ASP client: per-label status control; everything else fixed. */
+export function createMockAsp(): IASPClient & {
+    setLabelStatus: (label: Hash, status: LabelStatus["status"]) => void;
+} {
+    const statuses = new Map<Hash, LabelStatus["status"]>();
+
+    return {
+        setLabelStatus(label, status) {
+            statuses.set(label, status);
+        },
+        async getAssociationSetRoot(): Promise<Hash> {
+            return pad("0x01");
+        },
+        async getAssociationSetLeaves(): Promise<Hash[]> {
+            return [];
+        },
+        async getMerkleProof(labelHash: Hash): Promise<MerkleProof> {
+            return {
+                leaf: labelHash,
+                root: pad("0x01"),
+                siblings: [],
+                index: 0,
+            } as unknown as MerkleProof;
+        },
+        async getLabelStatus(label: Hash): Promise<LabelStatus> {
+            return { status: statuses.get(label) ?? "approved" };
+        },
+        async getASPPublicKey(): Promise<Hex> {
+            return MOCK_ASP_PUBKEY;
+        },
+    };
+}
+
+/** A fixed relayer identity for quotes/relays. */
+export const MOCK_RELAYER_INFO: RelayerInfo = {
+    url: "https://relayer.mock",
+    name: "mock-relayer",
+    chainId: 11155111,
+    chainType: "evm",
+    status: "active",
+    address: pad("0x0e1a") as RelayerInfo["address"],
+    processorAddress: pad("0x0e1b") as RelayerInfo["address"],
+};
+
+/** Mock relayer: controllable fee + expiry; relay returns a fixed tx hash. */
+export function createMockRelayer(
+    options: { feeAmount?: bigint; expiresInSeconds?: number } = {},
+): IRelayerInteractor & { relayedTxHash: Hex } {
+    const feeAmount = (options.feeAmount ?? 5n).toString();
+    const expiration = Math.floor(Date.now() / 1000) + (options.expiresInSeconds ?? 3600);
+    const relayedTxHash = pad("0xbeef") as Hex;
+
+    const transferQuote = (asset: Hex): TransferRelayerQuote => ({
+        txCost: "0",
+        gasPrice: "0",
+        feeAmount,
+        feeCommitment: {
+            data: "0x" as Hex,
+            asset,
+            expiration,
+            feeAmount,
+            signedRelayerCommitment: "0x" as Hex,
+        },
+    });
+
+    return {
+        relayedTxHash,
+        async getRelayers() {
+            return [MOCK_RELAYER_INFO];
+        },
+        async getRelayerFees() {
+            return { baseFee: "0x0", provider: undefined } as never;
+        },
+        async getTransferQuote(_relayer, params) {
+            return transferQuote(params.asset);
+        },
+        async getWithdrawalQuote(_relayer, params): Promise<WithdrawalRelayerQuote> {
+            const base = transferQuote(params.asset as Hex);
+
+            return {
+                ...base,
+                amountSent: "0",
+                amountReceived: "0",
+                feeCommitment: {
+                    ...base.feeCommitment,
+                    recipient: pad("0x0c") as Hex,
+                    amountSent: "0",
+                    amountReceived: "0",
+                    extraGas: false,
+                },
+            } as unknown as WithdrawalRelayerQuote;
+        },
+        async relayTransfer() {
+            return relayedTxHash;
+        },
+        async relayWithdrawal() {
+            return relayedTxHash;
+        },
+        async waitForRelayedTx() {
+            return { txHash: relayedTxHash, status: "confirmed" } as never;
+        },
+    };
+}
+
+/** Mock proof service: instant dummy Groth16 shapes, no artifacts, no proving. */
+export function createMockProofService(): IProofService {
+    const dummy: ProofResult = {
+        proof: {
+            pi_a: ["0x1", "0x1"],
+            pi_b: [
+                ["0x1", "0x1"],
+                ["0x1", "0x1"],
+            ],
+            pi_c: ["0x1", "0x1"],
+            protocol: "groth16",
+            curve: "bn128",
+        },
+        publicSignals: ["0x1"],
+    };
+
+    return {
+        async proveDeposit() {
+            return dummy;
+        },
+        async proveTransact() {
+            return dummy;
+        },
+        async proveRagequit() {
+            return dummy;
+        },
+        async verifyDeposit() {
+            return true;
+        },
+        async verifyTransact() {
+            return true;
+        },
+        async verifyRagequit() {
+            return true;
+        },
+        async loadCircuit() {
+            /* no artifacts to load */
+        },
+        formatForEVM(): EVMProof {
+            return {
+                pA: [1n, 1n],
+                pB: [
+                    [1n, 1n],
+                    [1n, 1n],
+                ],
+                pC: [1n, 1n],
+                pubSignals: [1n],
+            };
+        },
+    };
+}
+
+const ENTRYPOINT_ADDRESS = pad("0x0e00", { size: 20 }) as `0x${string}`;
+
+/** Mock entrypoint: enabled asset config, controllable allowance, fixed encodings. */
+export function createMockEntrypoint(
+    options: { allowance?: bigint } = {},
+): IEntrypointInteractor {
+    const assetConfig: AssetConfig = {
+        enabled: true,
+        minAmount: "0x0",
+        vettingFeeBPS: "0x0",
+        maxRelayFee: `0x${(10n ** 18n).toString(16)}`,
+    };
+
+    return {
+        getAddress() {
+            return ENTRYPOINT_ADDRESS;
+        },
+        async getPoolVaultAddress() {
+            return pad("0x0e01", { size: 20 }) as `0x${string}`;
+        },
+        async getASPRegistryAddress() {
+            return pad("0x0e02", { size: 20 }) as `0x${string}`;
+        },
+        async getAssetConfig() {
+            return assetConfig;
+        },
+        async getAllowance(): Promise<Hash> {
+            return `0x${(options.allowance ?? 0n).toString(16)}` as Hash;
+        },
+        encodeDeposit(
+            _proof: EVMProof,
+            _noteData: NoteData,
+            _aspCiphertext: Hex,
+            msgValue: Hex,
+        ): PreparedTransaction {
+            return { to: ENTRYPOINT_ADDRESS, data: "0xde9051", value: msgValue };
+        },
+        encodeApprove(token: `0x${string}`, amount: Hex): PreparedTransaction {
+            return { to: token, data: `0x095ea7b3${amount.slice(2)}` as Hex, value: "0x0" };
+        },
+        async submitTransaction(): Promise<Hex> {
+            // The plugin must never reach a submission path (INV-1).
+            throw new Error("mock entrypoint: submitTransaction must not be called by the plugin");
+        },
+    };
+}

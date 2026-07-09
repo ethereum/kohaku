@@ -72,10 +72,26 @@ export class PPv2Plugin implements PPv2Instance {
 
     // ---- extras -----------------------------------------------------------------
 
-    /** Discover new notes from chain and purge never-broadcast phantoms (FR-005/032). */
+    /**
+     * Full sync: discover note state from chain events, then purge phantom notes
+     * (reorg-orphaned records, INV-9). Purge lives here rather than in the
+     * read-path sync so reads stay cheap (purge does one chain read per pending
+     * note); per the SDK contract, call this when no transaction is in flight.
+     */
     async sync(): Promise<void> {
-        await this.session.discoverNotes();
+        await this.reconcile();
         await this.session.purgePhantomNotes();
+    }
+
+    /**
+     * Read-path sync (FR-005): discover notes from chain events. Deposits appear
+     * here once their transaction mines — the plugin persists nothing at prepare
+     * time (C16): storage is a cache of chain state (INV-2), and pre-mine
+     * visibility of an in-flight deposit is the wallet's responsibility (it is
+     * the one that signed and broadcast the transaction).
+     */
+    private async reconcile(): Promise<void> {
+        await this.session.discoverNotes();
     }
 
     async isRegistered(): Promise<boolean> {
@@ -86,7 +102,7 @@ export class PPv2Plugin implements PPv2Instance {
 
     /** Per-asset spendable/unspendable balances; never overstates (INV-4, US4). */
     async balance(assets: Array<PPv2AssetId> | undefined): Promise<Array<PPv2AssetAmount>> {
-        await this.sync();
+        await this.reconcile();
 
         const totals = new Map<string, { asset: PPv2AssetId; spendable: bigint; unspendable: bigint }>();
 
@@ -130,7 +146,7 @@ export class PPv2Plugin implements PPv2Instance {
         assets?: Array<PPv2AssetId>,
         includeSpent?: boolean,
     ): Promise<Array<PPv2Note>> {
-        await this.sync();
+        await this.reconcile();
 
         const wanted = assets
             ? new Set(assets.map((a) => assetToTokenId(a).toLowerCase()))
@@ -166,7 +182,7 @@ export class PPv2Plugin implements PPv2Instance {
             throw new NotImplementedError("prepareShield(to) deposit-for", "US1 follow-up");
         }
 
-        await this.sync();
+        await this.reconcile();
 
         try {
             const result = await this.session.prepareDeposit({
@@ -186,9 +202,10 @@ export class PPv2Plugin implements PPv2Instance {
 
             txs.push({ to: result.to, data: result.callData, value: BigInt(result.msgValue) });
 
-            // TODO(T034): persist result.pendingNote at prepare time (crash-safe,
-            // FR-032). Deferred pending a deposit integration test that pins the
-            // pre-persist vs discovery-reconciliation interaction.
+            // Nothing is persisted at prepare time (C16): the note becomes visible
+            // through sync discovery once the deposit mines (INV-2 — storage is a
+            // cache of chain state). The wallet owns pre-mine visibility of the
+            // transaction it signs and broadcasts.
             return { __type: "publicOperation", txs };
         } catch (err) {
             throw mapSdkError(err);
@@ -204,7 +221,7 @@ export class PPv2Plugin implements PPv2Instance {
      * (INV-1). Requires registration (FR-026, INV-8).
      */
     async prepareTransfer(asset: PPv2AssetAmount, to: PPv2AccountId): Promise<PPv2PrivateOperation> {
-        await this.sync();
+        await this.reconcile();
 
         if (!(await this.isRegistered())) throw new NotRegisteredError();
 
@@ -286,7 +303,7 @@ export class PPv2Plugin implements PPv2Instance {
             throw new NotImplementedError("prepareUnshield tailCalls", "unsupported by relayer path");
         }
 
-        await this.sync();
+        await this.reconcile();
 
         if (!(await this.isRegistered())) throw new NotRegisteredError();
 
@@ -400,7 +417,7 @@ export class PPv2Plugin implements PPv2Instance {
      * note flips to `exited` when sync observes the ragequit event.
      */
     async prepareRageQuit(commitment: Hex): Promise<PPv2PublicOperation> {
-        await this.sync();
+        await this.reconcile();
 
         try {
             const result = await this.session.prepareRageQuit({ commitment });

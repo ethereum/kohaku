@@ -60,14 +60,26 @@ export async function assemblePoolSession(
         },
     );
 
+    // Test-seam overrides (PPv2Factories) map onto builder `.withX()` calls; each
+    // override makes its declarative config counterpart a builder conflict, so the
+    // conflicting field is omitted here (aspClient ↔ aspUrl/aspPublicKey,
+    // relayerInteractor ↔ relayers, entrypointInteractor ↔ deployment).
+    const factories = params.factories ?? {};
+
     const builder = PoolSessionBuilder.fromConfig({
         chainId: Number(params.chainId),
         rpcUrl: PLACEHOLDER_RPC_URL,
         ownerAddress: params.ownerAddress as Address,
-        ...(params.deployment ? { deployment: params.deployment } : {}),
+        ...(params.deployment && !factories.entrypointInteractor
+            ? { deployment: params.deployment }
+            : {}),
+        // aspUrl stays even with an aspClient override: the builder always resolves
+        // a (then-unused) data provider from it. Only aspPublicKey conflicts.
         aspUrl: params.asp.baseUrl,
-        ...(params.asp.publicKey ? { aspPublicKey: params.asp.publicKey } : {}),
-        relayers: params.relayers,
+        ...(params.asp.publicKey && !factories.aspClient
+            ? { aspPublicKey: params.asp.publicKey }
+            : {}),
+        ...(factories.relayerInteractor ? {} : { relayers: params.relayers }),
         circuitGatewayUrls: params.artifacts.gatewayUrls,
         circuitManifest: params.artifacts.manifest,
     })
@@ -76,6 +88,16 @@ export async function assemblePoolSession(
         .withStorageService(storageService)
         .withNoteManager(noteManager)
         .withKeystoreManager(keystoreManager);
+
+    if (factories.aspClient) builder.withAspClient(factories.aspClient);
+
+    if (factories.relayerInteractor) builder.withRelayerInteractor(factories.relayerInteractor);
+
+    if (factories.proofService) builder.withProofService(factories.proofService);
+
+    if (factories.entrypointInteractor) {
+        builder.withEntrypointInteractor(factories.entrypointInteractor);
+    }
 
     const session = await builder.create();
 
