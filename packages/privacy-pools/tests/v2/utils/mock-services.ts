@@ -30,16 +30,23 @@ import { pad } from "viem";
  */
 const MOCK_ASP_PUBKEY = `0x09${"00".repeat(31)}` as Hex;
 
-/** Mock ASP client: per-label status control; everything else fixed. */
-export function createMockAsp(): IASPClient & {
-    setLabelStatus: (label: Hash, status: LabelStatus["status"]) => void;
-} {
+/**
+ * Mock ASP implementing BOTH seams over one shared label map: `IASPClient`
+ * (deposit-side: pubkey, merkle proofs) and `IASPDataProvider` (discovery-side:
+ * per-label statuses, event snapshot). `getNoteEvents` throws so discovery falls
+ * back to chain logs (`eth_getLogs`) — the mock chain is the event source.
+ */
+export function createMockAsp(): IASPClient &
+    IASPDataProvider & {
+        setLabelStatus: (label: Hash, status: LabelStatus["status"]) => void;
+    } {
     const statuses = new Map<Hash, LabelStatus["status"]>();
 
-    return {
-        setLabelStatus(label, status) {
-            statuses.set(label, status);
+    const provider = {
+        setLabelStatus(label: Hash, status: LabelStatus["status"]) {
+            statuses.set(label.toLowerCase() as Hash, status);
         },
+        // ---- IASPClient ----
         async getAssociationSetRoot(): Promise<Hash> {
             return pad("0x01");
         },
@@ -55,12 +62,37 @@ export function createMockAsp(): IASPClient & {
             } as unknown as MerkleProof;
         },
         async getLabelStatus(label: Hash): Promise<LabelStatus> {
-            return { status: statuses.get(label) ?? "approved" };
+            return { status: statuses.get(label.toLowerCase() as Hash) ?? "approved" };
         },
         async getASPPublicKey(): Promise<Hex> {
             return MOCK_ASP_PUBKEY;
         },
+        // ---- IASPDataProvider ----
+        async getRoot(): Promise<Hash> {
+            return pad("0x01");
+        },
+        async getLeaves(): Promise<Hash[]> {
+            return [];
+        },
+        async getEventSnapshot() {
+            return {
+                chainId: "0xaa36a7" as Hex,
+                snapshotBlockNumber: "0x0" as Hex,
+                generatedAt: "1970-01-01T00:00:00Z",
+                deposits: [],
+                transacts: [],
+                ragequits: [],
+                leaves: [],
+                keystoreLeaves: [],
+            };
+        },
+        async getNoteEvents(): Promise<never> {
+            // Swallowed by discovery → falls back to chain eth_getLogs.
+            throw new Error("mock ASP: no note-event cache (use chain logs)");
+        },
     };
+
+    return provider as unknown as ReturnType<typeof createMockAsp>;
 }
 
 /** A fixed relayer identity for quotes/relays. */

@@ -1,0 +1,117 @@
+/**
+ * Mock-chain fixture: mints a REAL protocol note (Poseidon hash chain + AEAD
+ * payload encrypted to the account's own viewing key, all via the SDK's own
+ * services) and encodes it as a raw `Note(bytes32 indexed hint, bytes data)`
+ * event log that `discoverNotes` can find, decode, and decrypt through the
+ * plugin's RPC adapter.
+ */
+import type { Host } from "@kohaku-eth/plugins";
+import {
+    type Address,
+    CryptoService,
+    type Hash,
+    type Hex,
+    NoteComputationService,
+    PoseidonHashService,
+} from "@privacy-pools-v2/sdk";
+import { encodeAbiParameters, numberToHex, pad, toEventSelector } from "viem";
+import { deriveKeystoreManager } from "../../../src/v2/account/derivation";
+
+/** Local copy of the PoolVault Note event (the SDK's constant is not runtime-exported). */
+const NOTE_EVENT = "event Note(bytes32 indexed hint, bytes data)";
+
+/** A raw eth_getLogs entry, as the mock provider serves it. */
+export type RawLog = {
+    address: Hex;
+    topics: [Hex, ...Hex[]];
+    data: Hex;
+    blockNumber: Hex;
+    transactionHash: Hex;
+    logIndex: Hex;
+};
+
+export type MintedNote = {
+    log: RawLog;
+    commitment: Hash;
+    label: Hash;
+    /** `computeLabelHash(label)` — the key the ASP is queried by for label status. */
+    labelHash: Hash;
+    value: Hex;
+};
+
+/**
+ * Mint an owned note for the account behind `host.keystore` (same derivation the
+ * plugin uses) and return the encoded event log. The payload is produced by the
+ * real `NoteComputationService.generateNoteData` (ephemeral ECDH + AEAD), so the
+ * plugin's catch-all discovery genuinely decrypts it.
+ */
+export async function mintOwnedNoteLog(params: {
+    host: Host;
+    ownerAddress: Address;
+    tokenId: Address;
+    value: bigint;
+    blockNumber?: bigint;
+}): Promise<MintedNote> {
+    const { keystoreManager } = await deriveKeystoreManager({ keystore: params.host.keystore });
+    const viewingPubKey = keystoreManager.getViewingKeyPair().publicKey;
+
+    const cryptoService = new CryptoService();
+    const hashService = await PoseidonHashService.create();
+    const noteComputation = new NoteComputationService({ hashService, cryptoService });
+
+    const noteSecret = cryptoService.generateSecret();
+    const depositSecret = cryptoService.generateSecret();
+    const value = numberToHex(params.value, { size: 32 }) as Hex;
+
+    const noteAddressHash = noteComputation.computeNoteAddressHash(
+        params.ownerAddress,
+        noteSecret,
+    );
+    const precommitment = noteComputation.computePrecommitment(
+        noteAddressHash,
+        params.tokenId,
+        value,
+    );
+    const label = noteComputation.computeLabel(precommitment, depositSecret);
+    const commitment = noteComputation.computeFullCommitment({
+        noteAddressHash,
+        tokenId: params.tokenId,
+        value,
+        label,
+    });
+
+    const noteData = noteComputation.generateNoteData(
+        { noteSecret, value, tokenId: params.tokenId, label },
+        viewingPubKey,
+    );
+
+    const log: RawLog = {
+        address: pad("0x0e01", { size: 20 }) as Hex,
+        topics: [toEventSelector(NOTE_EVENT), noteData.hint],
+        data: encodeAbiParameters([{ type: "bytes" }], [noteData.data]),
+        blockNumber: numberToHex(params.blockNumber ?? 1n),
+        transactionHash: pad("0x7357") as Hex,
+        logIndex: "0x0",
+    };
+
+    return {
+        log,
+        commitment,
+        label,
+        labelHash: noteComputation.computeLabelHash(label),
+        value,
+    };
+}
+
+/**
+ * RPC handlers for a chain holding the given note logs: `eth_getLogs` serves
+ * them (the RPC adapter's decode filters by requested ABI), and `eth_call`
+ * returns a nonzero word so `getCommitmentTimestamp` is authoritative —
+ * discovery refuses to persist a note without an on-chain timestamp.
+ */
+export function chainWithLogs(logs: RawLog[]): Record<string, (params: unknown[]) => unknown> {
+    return {
+        eth_getLogs: () => logs,
+        eth_call: () => pad("0x01"),
+    };
+}

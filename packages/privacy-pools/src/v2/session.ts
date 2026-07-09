@@ -73,9 +73,9 @@ export async function assemblePoolSession(
         ...(params.deployment && !factories.entrypointInteractor
             ? { deployment: params.deployment }
             : {}),
-        // aspUrl stays even with an aspClient override: the builder always resolves
-        // a (then-unused) data provider from it. Only aspPublicKey conflicts.
-        aspUrl: params.asp.baseUrl,
+        // aspUrl conflicts with a data-provider override; with only an aspClient
+        // override it must stay (the builder still resolves a data provider from it).
+        ...(factories.aspDataProvider ? {} : { aspUrl: params.asp.baseUrl }),
         ...(params.asp.publicKey && !factories.aspClient
             ? { aspPublicKey: params.asp.publicKey }
             : {}),
@@ -88,6 +88,8 @@ export async function assemblePoolSession(
         .withStorageService(storageService)
         .withNoteManager(noteManager)
         .withKeystoreManager(keystoreManager);
+
+    if (factories.aspDataProvider) builder.withAspDataProvider(factories.aspDataProvider);
 
     if (factories.aspClient) builder.withAspClient(factories.aspClient);
 

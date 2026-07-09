@@ -30,7 +30,11 @@ export type RpcHandlers = Partial<Record<string, (params: unknown[]) => unknown>
  * plugin can construct and sync against an account with no history. Override any
  * method via {@link RpcHandlers}.
  */
-export function createMockProvider(handlers: RpcHandlers = {}): EthereumProvider {
+export function createMockProvider(
+    handlers: RpcHandlers = {},
+    options: { blockNumber?: bigint } = {},
+): { provider: EthereumProvider; setBlockNumber: (n: bigint) => void } {
+    let currentBlock = options.blockNumber ?? 0n;
     const ZERO32 = `0x${"00".repeat(32)}` as const;
     const request = vi.fn(async (req: { method: string; params?: unknown[] }) => {
         const handler = handlers[req.method];
@@ -51,11 +55,11 @@ export function createMockProvider(handlers: RpcHandlers = {}): EthereumProvider
         }
     });
 
-    return {
+    const provider = {
         _internal: undefined,
         request,
         getChainId: vi.fn(async () => 11155111n),
-        getBlockNumber: vi.fn(async () => 0n),
+        getBlockNumber: vi.fn(async () => currentBlock),
         waitForTransaction: vi.fn(async () => undefined),
         getTransactionReceipt: vi.fn(async () => null),
         getLogs: vi.fn(async () => []),
@@ -66,12 +70,21 @@ export function createMockProvider(handlers: RpcHandlers = {}): EthereumProvider
         getGasPrice: vi.fn(async () => 0n),
         getTransactionCount: vi.fn(async () => 0),
     } as unknown as EthereumProvider;
+
+    return {
+        provider,
+        setBlockNumber: (n: bigint) => {
+            currentBlock = n;
+        },
+    };
 }
 
 /** Optional overrides when building a mock host. */
 export type MockHostOptions = {
     mnemonic?: string;
     rpc?: RpcHandlers;
+    /** Latest block the mock chain reports (discovery scans up to it). */
+    blockNumber?: bigint;
     fetch?: Host["network"]["fetch"];
 };
 
@@ -85,8 +98,12 @@ export function createMockHost(options: MockHostOptions = {}): {
     host: Host;
     provider: EthereumProvider;
     storage: ReturnType<typeof createMemoryStorage>;
+    /** Advance the mock chain head (discovery re-scans only past the cursor). */
+    setBlockNumber: (n: bigint) => void;
 } {
-    const provider = createMockProvider(options.rpc);
+    const { provider, setBlockNumber } = createMockProvider(options.rpc, {
+        blockNumber: options.blockNumber,
+    });
     const storage = createMemoryStorage();
     const fetchImpl =
         options.fetch ??
@@ -101,5 +118,5 @@ export function createMockHost(options: MockHostOptions = {}): {
         provider,
     };
 
-    return { host, provider, storage };
+    return { host, provider, storage, setBlockNumber };
 }

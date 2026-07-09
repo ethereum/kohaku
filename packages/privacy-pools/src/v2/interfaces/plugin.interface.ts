@@ -5,6 +5,7 @@ import type {
     DeploymentAddresses,
     Hex,
     IASPClient,
+    IASPDataProvider,
     IEntrypointInteractor,
     IProofService,
     IRelayerInteractor,
@@ -51,8 +52,10 @@ export type PPv2Broadcaster = Broadcaster<PPv2PrivateOperation, PPv2BroadcastRes
  * automatically (see `assemblePoolSession`). Production wallets never set these.
  */
 export type PPv2Factories = {
-    /** Replaces the HTTP ASP client (label statuses, ASP public key, merkle proofs). */
+    /** Replaces the HTTP ASP client (deposit-side pubkey, merkle proofs). */
     aspClient?: IASPClient;
+    /** Replaces the ASP data provider (discovery-side label statuses + event snapshot). */
+    aspDataProvider?: IASPDataProvider;
     /** Replaces the relayer client (quotes + relay submission). */
     relayerInteractor?: IRelayerInteractor;
     /** Replaces Groth16 proving/verification (skips artifact fetch + real proving). */
