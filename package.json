@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm -r --filter '!@kohaku-eth/privacy-pools' build",
+    "build:all": "pnpm -r build",
+    "build:privacy-pools": "pnpm --filter @kohaku-eth/privacy-pools build",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "test": "pnpm -r test",

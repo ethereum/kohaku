@@ -7,6 +7,15 @@ allowBuilds:
   protobufjs: true
 autoInstallPeers: false
 blockExoticSubdeps: false
+# @0xbow-io/privacy-pools-v2-sdk lives on GitHub Packages, which requires auth
+# even for reads. It is an optionalDependency of @kohaku-eth/privacy-pools so a
+# tokenless `pnpm install` succeeds (the SDK is skipped); working on
+# packages/privacy-pools requires a GH token with read:packages in ~/.npmrc.
+# trustLockfile skips the supply-chain re-verification pass, which would
+# otherwise fetch GitHub Packages metadata unauthenticated and fail with a 401.
+trustLockfile: true
+minimumReleaseAgeExclude:
+  - "@0xbow-io/privacy-pools-v2-sdk"
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
