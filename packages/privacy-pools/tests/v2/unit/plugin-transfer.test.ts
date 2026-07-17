@@ -4,8 +4,8 @@ import type {
     PoolSession,
     PrepareTransferRelayerQuotes,
     PrepareTransferResult,
-} from "@privacy-pools-v2/sdk";
-import { NoteStatus } from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
+import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { LabelFragmentationError, NotRegisteredError, RelayerUnavailableError } from "../../../src/v2/interfaces/errors";

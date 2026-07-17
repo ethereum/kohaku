@@ -67,7 +67,7 @@
     "@fatsolutions/privacy-pools-core-circuits": "1.0.5",
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
-    "@privacy-pools-v2/sdk": "link:../../../../0xbow/v2-monorepo/packages/sdk",
+    "@0xbow-io/privacy-pools-v2-sdk": "beta",
     "@reduxjs/toolkit": "^2.11.2",
     "@zk-kit/lean-imt": "^2.2.4",
     "maci-crypto": "2.5.0",

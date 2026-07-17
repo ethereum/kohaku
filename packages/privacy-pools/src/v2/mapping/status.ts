@@ -1,4 +1,4 @@
-import { NoteStatus } from "@privacy-pools-v2/sdk";
+import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 
 /** How a note's value is reported to the wallet. */
 export type SpendTag = "spendable" | "unspendable";

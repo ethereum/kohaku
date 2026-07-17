@@ -1,4 +1,4 @@
-import type { Note, PoolSession } from "@privacy-pools-v2/sdk";
+import type { Note, PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import { QuoteExpiredError, mapSdkError } from "./interfaces/errors";
 import { getSession } from "./internal/session-registry";
 import type {

@@ -1,5 +1,5 @@
 import type { Network } from "@kohaku-eth/plugins";
-import type { HTTPRequestOptions, IHTTPClient } from "@privacy-pools-v2/sdk";
+import type { HTTPRequestOptions, IHTTPClient } from "@0xbow-io/privacy-pools-v2-sdk";
 
 /**
  * Adapts the Kohaku {@link Network} (`fetch`) onto the SDK's {@link IHTTPClient}

@@ -5,7 +5,7 @@ import { InsufficientBalanceError } from "@kohaku-eth/plugins";
 import type { CreatePluginFn, Host, UnshieldOptions } from "@kohaku-eth/plugins";
 import type { TxData } from "@kohaku-eth/provider";
 import type { Address as OxAddress } from "ox/Address";
-import { type Address, type Hex, type INoteManager, type PoolSession } from "@privacy-pools-v2/sdk";
+import { type Address, type Hex, type INoteManager, type PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import { deriveKeystoreManager } from "./account/derivation";
 import { persistRevocableKeyIndex, readRevocableKeyIndex } from "./account/keystore-record";
 import { KohakuStorageService } from "./adapters/storage.adapter";

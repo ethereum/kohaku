@@ -1,4 +1,4 @@
-import { type Hash, type Note, NoteStatus } from "@privacy-pools-v2/sdk";
+import { type Hash, type Note, NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it } from "vitest";
 import { LabelFragmentationError } from "../../../src/v2/interfaces/errors";

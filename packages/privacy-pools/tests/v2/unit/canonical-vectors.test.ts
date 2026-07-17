@@ -11,7 +11,7 @@ import {
     type Hex,
     NoteComputationService,
     PoseidonHashService,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, stringToHex } from "viem";
 import { describe, expect, it } from "vitest";
 

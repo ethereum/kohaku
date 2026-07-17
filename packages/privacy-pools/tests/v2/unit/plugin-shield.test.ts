@@ -1,4 +1,4 @@
-import type { INoteManager, PoolSession, PrepareDepositResult } from "@privacy-pools-v2/sdk";
+import type { INoteManager, PoolSession, PrepareDepositResult } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { NotImplementedError } from "../../../src/v2/interfaces/errors";

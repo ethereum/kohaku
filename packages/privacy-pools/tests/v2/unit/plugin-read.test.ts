@@ -1,5 +1,5 @@
-import type { Hash, INoteManager, Note, PoolSession } from "@privacy-pools-v2/sdk";
-import { NoteStatus } from "@privacy-pools-v2/sdk";
+import type { Hash, INoteManager, Note, PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
+import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import type { PPv2PluginParameters } from "../../../src/v2/interfaces/plugin.interface";

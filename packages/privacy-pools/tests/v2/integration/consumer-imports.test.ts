@@ -1,7 +1,7 @@
 /**
  * SC-001: a wallet integrates shield/transfer/unshield using ONLY
  * `@kohaku-eth/privacy-pools` (here: its public v2 barrel) and
- * `@kohaku-eth/plugins` types — zero imports from `@privacy-pools-v2/sdk`.
+ * `@kohaku-eth/plugins` types — zero imports from `@0xbow-io/privacy-pools-v2-sdk`.
  *
  * This file IS the sample wallet integration: it imports nothing from the SDK
  * (asserted by a source scan below), and the type-level usage compiles under
@@ -61,13 +61,13 @@ describe("consumer imports (SC-001)", () => {
         }
     });
 
-    it("this sample integration imports nothing from @privacy-pools-v2/sdk", async () => {
+    it("this sample integration imports nothing from @0xbow-io/privacy-pools-v2-sdk", async () => {
         const self = await readFile(fileURLToPath(import.meta.url), "utf8");
         const importLines = self
             .split("\n")
             .filter((line) => /^\s*import[\s{]/.test(line) || /from\s+["']/.test(line));
 
-        expect(importLines.some((line) => line.includes("@privacy-pools-v2/sdk"))).toBe(false);
+        expect(importLines.some((line) => line.includes("@0xbow-io/privacy-pools-v2-sdk"))).toBe(false);
     });
 
     it("the public parameter type is expressible without SDK value imports", () => {

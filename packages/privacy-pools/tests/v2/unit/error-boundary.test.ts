@@ -4,7 +4,7 @@
  * The audit's finding (read paths were unwrapped) is locked in here.
  */
 import { PluginError } from "@kohaku-eth/plugins";
-import type { INoteManager, PoolSession } from "@privacy-pools-v2/sdk";
+import type { INoteManager, PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import { describe, expect, it, vi } from "vitest";
 import { SyncFailedError } from "../../../src/v2/interfaces/errors";
 import type { PPv2PluginParameters } from "../../../src/v2/interfaces/plugin.interface";

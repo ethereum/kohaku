@@ -5,7 +5,7 @@ import type {
     Hex,
     NoteStatus,
     RelayTransferParams,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import type { PPv2AssetId } from "../mapping/assets";
 
 /**

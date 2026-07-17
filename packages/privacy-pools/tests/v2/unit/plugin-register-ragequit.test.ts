@@ -3,7 +3,7 @@ import type {
     PoolSession,
     PrepareRageQuitResult,
     RegisterKeystoreResult,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import { pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { AlreadyRegisteredError } from "../../../src/v2/interfaces/errors";

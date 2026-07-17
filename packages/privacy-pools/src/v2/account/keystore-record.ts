@@ -1,4 +1,4 @@
-import type { Hex } from "@privacy-pools-v2/sdk";
+import type { Hex } from "@0xbow-io/privacy-pools-v2-sdk";
 import type { KohakuStorageService } from "../adapters/storage.adapter";
 
 /**

@@ -23,7 +23,7 @@ import type {
     RelayerInfo,
     TransferRelayerQuote,
     WithdrawalRelayerQuote,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import { encodeAbiParameters, pad } from "viem";
 
 /**

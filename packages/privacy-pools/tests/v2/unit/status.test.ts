@@ -1,4 +1,4 @@
-import { NoteStatus } from "@privacy-pools-v2/sdk";
+import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { describe, expect, it } from "vitest";
 import {
     isExcluded,

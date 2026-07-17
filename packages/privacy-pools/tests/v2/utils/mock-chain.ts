@@ -13,7 +13,7 @@ import {
     type Hex,
     NoteComputationService,
     PoseidonHashService,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import { encodeAbiParameters, numberToHex, pad, toEventSelector } from "viem";
 import { deriveKeystoreManager } from "../../../src/v2/account/derivation";
 

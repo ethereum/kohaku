@@ -1,4 +1,4 @@
-import type { PoolSession } from "@privacy-pools-v2/sdk";
+import type { PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import type { PPv2Instance } from "../interfaces/plugin.interface";
 
 /**

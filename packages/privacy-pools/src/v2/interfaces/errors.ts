@@ -1,8 +1,8 @@
 import { PluginError } from "@kohaku-eth/plugins";
-import type { Hex } from "@privacy-pools-v2/sdk";
+import type { Hex } from "@0xbow-io/privacy-pools-v2-sdk";
 
 // NOTE: SDK error classes are matched by their `.name` string rather than
-// `instanceof`. The unpublished SDK build (`@privacy-pools-v2/sdk` 0.0.0) declares
+// `instanceof`. The unpublished SDK build (`@0xbow-io/privacy-pools-v2-sdk` 0.0.0) declares
 // these classes in its `.d.ts` but does NOT re-export them from its runtime JS
 // bundle, so importing them as values yields `undefined` and `instanceof` throws.
 // Every SDK error sets `this.name = "<ClassName>"`, so name matching is reliable

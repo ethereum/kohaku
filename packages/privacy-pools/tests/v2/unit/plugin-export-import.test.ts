@@ -1,4 +1,4 @@
-import type { INoteManager, PoolSession } from "@privacy-pools-v2/sdk";
+import type { INoteManager, PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import { describe, expect, it, vi } from "vitest";
 import {
     persistRevocableKeyIndex,

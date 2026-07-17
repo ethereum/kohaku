@@ -11,7 +11,7 @@ import type {
     IRelayerInteractor,
     PublicKey,
     RelayerInfo,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import type { Address } from "ox/Address";
 import type { PPv2AssetId } from "../mapping/assets";
 import type {

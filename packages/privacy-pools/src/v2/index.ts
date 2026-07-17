@@ -1,7 +1,7 @@
 /**
  * Public surface of the Privacy Pools v2 plugin (`@kohaku-eth/privacy-pools`).
  * Consumers depend only on these `@kohaku-eth/*` types plus `@kohaku-eth/plugins`
- * — never on `@privacy-pools-v2/sdk` directly (SC-001).
+ * — never on `@0xbow-io/privacy-pools-v2-sdk` directly (SC-001).
  */
 export { createPPv2Plugin, PPv2Plugin } from "./plugin";
 export { createPPv2Broadcaster } from "./broadcaster";

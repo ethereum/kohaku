@@ -5,7 +5,7 @@ import {
     type DeriveFromSignatureConfig,
     type Hex,
     KeystoreManager,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import { type Address, keccak256, toBytes, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 

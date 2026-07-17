@@ -1,4 +1,4 @@
-import { type Address, type Hash, type Note, NoteStatus } from "@privacy-pools-v2/sdk";
+import { type Address, type Hash, type Note, NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { LabelFragmentationError } from "../interfaces/errors";
 import { hexToAmount } from "../mapping/assets";
 

@@ -8,7 +8,7 @@
  * that is the resync-and-retry path. The on-chain revert itself is contract
  * territory, observed in the manual Sepolia pass (T068).
  */
-import type { PoolSession } from "@privacy-pools-v2/sdk";
+import type { PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import { pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { createPPv2Broadcaster } from "../../../src/v2/broadcaster";

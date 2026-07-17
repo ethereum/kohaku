@@ -6,7 +6,7 @@ import type {
     IRPCInteractor,
     ReadContractParams,
     TxReceipt,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import {
     type Abi,
     type AbiEvent,

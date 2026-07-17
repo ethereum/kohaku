@@ -1,4 +1,4 @@
-import type { PoolSession } from "@privacy-pools-v2/sdk";
+import type { PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
 import { pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { createPPv2Broadcaster } from "../../../src/v2/broadcaster";

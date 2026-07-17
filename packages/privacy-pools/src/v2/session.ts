@@ -6,7 +6,7 @@ import {
     NoteStorageAdapter,
     type PoolSession,
     PoolSessionBuilder,
-} from "@privacy-pools-v2/sdk";
+} from "@0xbow-io/privacy-pools-v2-sdk";
 import type { Address } from "viem";
 import { KohakuHttpClient } from "./adapters/http.adapter";
 import { KohakuRpcInteractor } from "./adapters/rpc.adapter";
