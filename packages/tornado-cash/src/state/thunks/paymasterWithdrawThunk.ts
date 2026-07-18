@@ -6,10 +6,11 @@ import { ISecretManager } from "../../account/keys";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
 import { encodePaymasterData, encodeTornadoAdapterData } from "@privacy-paymasters/sdk";
-import { generatePrivateKey } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
-import { buildSignedTornadoUserOp, createPaymasterBundlerClient, ephemeralSenderAddress, getUserOperationGasPrice } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, createPaymasterBundlerClient, getUserOperationGasPrice } from "../../paymaster/utils";
+import { DelegatorAccount } from "../../account/delegation.interface";
 import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
@@ -19,6 +20,16 @@ import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.select
 import { TornadoProveOutput } from "../../utils/tornado-prover";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { SerializedUserOperation } from "../../interfaces/user-ops.interface";
+
+// A BIP-32 path: `m` followed by one or more `/index` segments, each optionally
+// hardened with a trailing apostrophe (e.g. m/44'/60'/0'/0/0).
+const BIP32_PATH = /^m(\/\d+'?)+$/;
+
+function assertValidDelegatorPath(path: string): void {
+  if (!BIP32_PATH.test(path)) {
+    throw new Error(`Invalid delegation path "${path}": expected a BIP-32 path like m/44'/60'/0'/0/0`);
+  }
+}
 
 export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
   dataService: IDataService;
@@ -98,11 +109,33 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const bigintChainId = await dataService.getChainId();
   const { recipient: originalRecipient, ...restWithoutRecipient } = rest;
 
-  // When tailCalls are present, all deposits in this batch share one ephemeral
-  // key so every withdrawal lands in the same EOA. The last userOp then runs
-  // tailCalls against the full accumulated balance. Deterministic derivation is
-  // skipped in this path — reproducibility of a shared batch key is meaningless.
-  const sharedPrivateKey = tailCalls ? generatePrivateKey() : null;
+  const ephemeralSigner = async (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> =>
+    privateKeyToAccount(await secretManager.deriveEphemeralSigner({
+      depositIndex: deposit.index,
+      chainId: bigintChainId,
+      poolAddress: deposit.pool,
+    }));
+
+  // Tail calls: every deposit shares one delegator so all withdrawals land in the
+  // same EOA (the recipient), and the last userOp spends the accumulated balance.
+  // That EOA holds the funds, so it is recoverable by default (`random` opts out).
+  const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
+    if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
+    if (delegation?.mode === 'deterministic' && delegation.path) {
+      assertValidDelegatorPath(delegation.path);
+      return privateKeyToAccount(await secretManager.deriveDelegatorSigner({ path: delegation.path }));
+    }
+    return ephemeralSigner(deposits[0]!);
+  };
+
+  // No tail calls: a per-deposit sender that never holds funds (the withdrawal
+  // goes to the user's `recipient`), so a random default is fine.
+  const resolveIndependentSigner = (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> =>
+    delegation?.mode === 'deterministic'
+      ? ephemeralSigner(deposit)
+      : Promise.resolve(privateKeyToAccount(generatePrivateKey()));
+
+  const sharedDelegator = tailCalls ? await resolveBatchDelegator() : null;
 
   const proofOutputs: (TornadoProveOutput & { poolAddress: bigint })[] = [];
   const userOperations: SerializedUserOperation[] = [];
@@ -111,17 +144,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const deposit = deposits[i]!;
     const isLast = i === deposits.length - 1;
 
-    const privateKey = sharedPrivateKey
-      ?? (delegation?.mode === 'deterministic'
-          ? await secretManager.deriveEphemeralSigner({
-              depositIndex: deposit.index,
-              chainId: bigintChainId,
-              poolAddress: deposit.pool,
-            })
-          : generatePrivateKey());
+    const signer = sharedDelegator ?? await resolveIndependentSigner(deposit);
 
-    const recipient = sharedPrivateKey
-      ? BigInt(ephemeralSenderAddress(privateKey)) as Address
+    const recipient = sharedDelegator
+      ? BigInt(signer.address) as Address
       : originalRecipient;
 
     // Only the final userOp in a tailCalls batch carries the execution phase.
@@ -161,7 +187,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
     userOperations.push(
       await buildSignedTornadoUserOp({
-        privateKey,
+        signer,
         chainId,
         paymasterAddress,
         paymasterData,
@@ -169,9 +195,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         maxFeePerGas,
         maxPriorityFeePerGas,
         tailCalls: effectiveTailCalls,
-        // When sharing one ephemeral key across multiple deposits each userOp
-        // needs a distinct nonce (0, 1, 2 …) on the shared sender.
-        nonce: sharedPrivateKey ? BigInt(i) : 0n,
+        // When sharing one delegator across multiple deposits each userOp needs
+        // a distinct nonce (0, 1, 2 …) on the shared sender.
+        nonce: sharedDelegator ? BigInt(i) : 0n,
       }),
     );
   }

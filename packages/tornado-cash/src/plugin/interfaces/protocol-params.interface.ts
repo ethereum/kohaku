@@ -13,10 +13,9 @@ import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
+import type { DelegationConfig } from '../../account/delegation.interface';
 
-export type DelegationConfig =
-  | { mode: 'deterministic'; path?: string }
-  | { mode: 'random' };
+export type { DelegationConfig };
 
 type StringAddress = `0x${string}`
 export interface IPaymasterConfig {

@@ -100,7 +100,7 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
  * required — gas limits and fees are supplied by the caller.
  */
 export async function buildSignedTornadoUserOp({
-  privateKey,
+  signer,
   chainId,
   paymasterAddress,
   paymasterData,
@@ -111,7 +111,7 @@ export async function buildSignedTornadoUserOp({
   nonce = 0n,
 }: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
-  const owner = privateKeyToAccount(privateKey);
+  const owner = signer;
 
   const calls = await tailCalls(owner.address);
   let callData: Hex = '0x';

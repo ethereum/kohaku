@@ -1,6 +1,7 @@
 import { TxData } from "@kohaku-eth/provider";
 import { Address } from "ox/Address";
 import { Hex } from "ox/Hex";
+import { DelegatorAccount } from "../account/delegation.interface";
 
 export interface SerializedAuth {
     address: Address;
@@ -43,7 +44,12 @@ export interface UserOpGasLimits {
 }
 
 export interface BuildSignedTornadoUserOpParams {
-  privateKey: Hex;
+  /**
+   * The account that becomes the userOp sender: it signs both the EIP-7702
+   * authorization and the userOp hash. Injection seam — a viem `LocalAccount`
+   * (via `privateKeyToAccount`) or a host-supplied hardware/remote signer.
+   */
+  signer: DelegatorAccount;
   chainId: number;
   paymasterAddress: Address;
   paymasterData: Hex;
