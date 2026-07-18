@@ -1,3 +1,9 @@
+## 0.0.2-alpha.16
+
+### Patch Changes
+
+- d86e4a1: feat: arbitrary delegator paths
+
 ## 0.0.2-alpha.15
 
 ### Patch Changes
