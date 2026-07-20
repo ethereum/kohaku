@@ -5,7 +5,7 @@
  * or proving work, and with no note state touched.
  */
 import type { Address } from "viem";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { persistRevocableKeyIndex } from "../../../src/v2/account/keystore-record";
 import { KohakuStorageService } from "../../../src/v2/adapters/storage.adapter";
 import { LabelFragmentationError } from "../../../src/v2/interfaces/errors";
@@ -28,10 +28,17 @@ const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const RECIPIENT = "0x00000000000000000000000000000000000000bb" as PPv2AccountId;
 const CHAIN_ID = 11155111n;
 
-function params(): PPv2PluginParameters {
+function params(): PPv2PluginParameters & {
+    proofService: ReturnType<typeof createMockProofService>;
+    relayerInteractor: ReturnType<typeof createMockRelayer>;
+} {
     const asp = createMockAsp();
+    const proofService = createMockProofService();
+    const relayerInteractor = createMockRelayer();
 
     return {
+        proofService,
+        relayerInteractor,
         chainId: CHAIN_ID,
         ownerAddress: OWNER,
         asp: { baseUrl: "https://asp.mock" },
@@ -49,8 +56,8 @@ function params(): PPv2PluginParameters {
         factories: {
             aspClient: asp,
             aspDataProvider: asp,
-            relayerInteractor: createMockRelayer(),
-            proofService: createMockProofService(),
+            relayerInteractor,
+            proofService,
             entrypointInteractor: createMockEntrypoint(),
         },
     };
@@ -89,7 +96,14 @@ describe("transfer label fragmentation (T036/US2 AC-3)", () => {
             "0x0",
         );
 
-        const plugin = await createPPv2Plugin(rig.host, params());
+        const p = params();
+        const plugin = await createPPv2Plugin(rig.host, p);
+
+        // Fragmentation must be detected BEFORE any proving or relayer traffic:
+        // spy on the collaborators the transfer path would hit next.
+        const prove = vi.spyOn(p.proofService, "proveTransact");
+        const quote = vi.spyOn(p.relayerInteractor, "getTransferQuote");
+        const relay = vi.spyOn(p.relayerInteractor, "relayTransfer");
 
         // 800 total is spendable, but no SINGLE label covers 700 (INV-5).
         const failure = await plugin
@@ -107,7 +121,12 @@ describe("transfer label fragmentation (T036/US2 AC-3)", () => {
             [noteA.label, noteB.label].sort(),
         );
 
-        // Selection failed before proving/relaying: both notes still active.
+        // Selection failed before proving/relaying: no collaborator was invoked
+        // and both notes are still active.
+        expect(prove).not.toHaveBeenCalled();
+        expect(quote).not.toHaveBeenCalled();
+        expect(relay).not.toHaveBeenCalled();
+
         const balances = await plugin.balance(undefined);
 
         expect(balances.find((b) => b.tag === "spendable")?.amount).toBe(800n);

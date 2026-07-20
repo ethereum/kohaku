@@ -80,20 +80,24 @@ describe("error boundary (T069/FR-060)", () => {
             importAccount: raw,
         } as unknown as Partial<PoolSession>);
 
-        const attempts: Array<Promise<unknown>> = [
-            plugin.balance(undefined),
-            plugin.notes(),
-            plugin.sync(),
-            plugin.isRegistered(),
-            plugin.prepareShield({ asset: { __type: "native" }, amount: 1n }),
-            plugin.prepareRegisterKeystore(),
-            plugin.prepareRageQuit("0x01"),
-            plugin.exportAccount(),
-            plugin.importAccount("{}"),
+        // Thunks, not live promises: eagerly-created rejections would trip the
+        // unhandled-rejection detector before the loop attaches their handlers.
+        const attempts: Array<() => Promise<unknown>> = [
+            () => plugin.balance(undefined),
+            () => plugin.notes(),
+            () => plugin.sync(),
+            () => plugin.isRegistered(),
+            () => plugin.prepareShield({ asset: { __type: "native" }, amount: 1n }),
+            () => plugin.prepareTransfer({ asset: { __type: "native" }, amount: 1n }, OWNER),
+            () => plugin.prepareUnshield({ asset: { __type: "native" }, amount: 1n }, OWNER),
+            () => plugin.prepareRegisterKeystore(),
+            () => plugin.prepareRageQuit("0x01"),
+            () => plugin.exportAccount(),
+            () => plugin.importAccount("{}"),
         ];
 
         for (const attempt of attempts) {
-            await expect(attempt).rejects.toBeInstanceOf(PluginError);
+            await expect(attempt()).rejects.toBeInstanceOf(PluginError);
         }
     });
 });

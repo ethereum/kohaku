@@ -49,7 +49,9 @@ export function createMockProvider(
             case "eth_call":
                 return ZERO32;
             case "eth_blockNumber":
-                return "0x0";
+                // Track setBlockNumber() so JSON-RPC and getBlockNumber() agree
+                // on the chain head regardless of which API the adapter uses.
+                return `0x${currentBlock.toString(16)}`;
             default:
                 return ZERO32;
         }

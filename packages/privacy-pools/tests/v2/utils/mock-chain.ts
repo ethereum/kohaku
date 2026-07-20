@@ -9,6 +9,7 @@ import type { Host } from "@kohaku-eth/plugins";
 import {
     type Address,
     CryptoService,
+    DEPLOYMENTS,
     type Hash,
     type Hex,
     NoteComputationService,
@@ -16,6 +17,11 @@ import {
 } from "@0xbow-io/privacy-pools-v2-sdk";
 import { encodeAbiParameters, numberToHex, pad, toEventSelector } from "viem";
 import { deriveKeystoreManager } from "../../../src/v2/account/derivation";
+
+// The SDK resolves contract addresses from DEPLOYMENTS[chainId] when the tests'
+// params omit `deployment` — minted logs must carry the SAME addresses or the
+// mock chain's address filter (below) would hide them from discovery.
+const SEPOLIA = DEPLOYMENTS[11155111]!;
 
 /** Local copy of the PoolVault Note event (the SDK's constant is not runtime-exported). */
 const NOTE_EVENT = "event Note(bytes32 indexed hint, bytes data)";
@@ -86,7 +92,7 @@ export async function mintOwnedNoteLog(params: {
     );
 
     const log: RawLog = {
-        address: pad("0x0e01", { size: 20 }) as Hex,
+        address: SEPOLIA.poolAddress as Hex,
         topics: [toEventSelector(NOTE_EVENT), noteData.hint],
         data: encodeAbiParameters([{ type: "bytes" }], [noteData.data]),
         blockNumber: numberToHex(params.blockNumber ?? 1n),
@@ -103,15 +109,58 @@ export async function mintOwnedNoteLog(params: {
     };
 }
 
+/** The `eth_getLogs` filter object, as the RPC adapter sends it. */
+type LogFilter = {
+    address?: Hex | Hex[];
+    topics?: Array<Hex | Hex[] | null>;
+    fromBlock?: Hex;
+    toBlock?: Hex | "latest";
+};
+
+/** True when `log` matches an Ethereum `eth_getLogs` filter (address/topics/range). */
+function matchesFilter(log: RawLog, filter: LogFilter): boolean {
+    if (filter.address !== undefined) {
+        const wanted = (Array.isArray(filter.address) ? filter.address : [filter.address]).map(
+            (a) => a.toLowerCase(),
+        );
+
+        if (!wanted.includes(log.address.toLowerCase())) return false;
+    }
+
+    for (const [i, wanted] of (filter.topics ?? []).entries()) {
+        if (wanted === null) continue;
+
+        const options = (Array.isArray(wanted) ? wanted : [wanted]).map((t) => t.toLowerCase());
+
+        if (!options.includes(log.topics[i]?.toLowerCase() ?? "")) return false;
+    }
+
+    const block = BigInt(log.blockNumber);
+
+    if (filter.fromBlock !== undefined && block < BigInt(filter.fromBlock)) return false;
+    if (
+        filter.toBlock !== undefined &&
+        filter.toBlock !== "latest" &&
+        block > BigInt(filter.toBlock)
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
 /**
  * RPC handlers for a chain holding the given note logs: `eth_getLogs` serves
- * them (the RPC adapter's decode filters by requested ABI), and `eth_call`
- * returns a nonzero word so `getCommitmentTimestamp` is authoritative —
- * discovery refuses to persist a note without an on-chain timestamp.
+ * only the logs matching the requested address/topics/block-range filter (so
+ * incremental-sync tests exercise real cursor construction, not dedup), and
+ * `eth_call` returns a nonzero word so `getCommitmentTimestamp` is
+ * authoritative — discovery refuses to persist a note without an on-chain
+ * timestamp.
  */
 export function chainWithLogs(logs: RawLog[]): Record<string, (params: unknown[]) => unknown> {
     return {
-        eth_getLogs: () => logs,
+        eth_getLogs: (params: unknown[]) =>
+            logs.filter((log) => matchesFilter(log, (params[0] ?? {}) as LogFilter)),
         eth_call: () => pad("0x01"),
     };
 }
@@ -142,7 +191,7 @@ export async function mintRegistrationLog(
     );
 
     const log: RawLog = {
-        address: pad("0x0e02", { size: 20 }) as Hex,
+        address: SEPOLIA.keystoreAddress as Hex,
         topics: [toEventSelector(AUTH_POLICY_SET_EVENT), pad(signerAddress)],
         data: encodeAbiParameters(
             [{ type: "uint256" }, { type: "uint256" }],
@@ -189,7 +238,7 @@ export async function mintStateLeavesLog(
     const leaves = commitments.map((c) => hashService.hash([tag, c, timestamp]));
 
     const log: RawLog = {
-        address: pad("0x0e01", { size: 20 }) as Hex,
+        address: SEPOLIA.poolAddress as Hex,
         topics: [toEventSelector(LEAVES_INSERTED_EVENT)],
         data: encodeAbiParameters(
             [{ type: "uint256[]" }, { type: "uint256" }, { type: "uint256" }],
@@ -226,7 +275,7 @@ export async function mintKeystoreLeafLog(
     const leaf = hashService.hash([ownerAddress, nullKeyHash, authDigest]);
 
     const log: RawLog = {
-        address: pad("0x0e02", { size: 20 }) as Hex,
+        address: SEPOLIA.keystoreAddress as Hex,
         topics: [toEventSelector(LEAF_INSERTED_EVENT)],
         data: encodeAbiParameters(
             [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }],

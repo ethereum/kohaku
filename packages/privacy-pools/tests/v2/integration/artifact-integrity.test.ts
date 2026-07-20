@@ -1,9 +1,10 @@
 /**
  * T064 (F5, FR-040): with NO proof-service override, the builder wires the REAL
  * `ProofService` + `IpfsCircuitArtifacts` over the plugin's `KohakuHttpClient`
- * (host fetch). A gateway serving tampered bytes fails the pinned-CID multihash
- * check, which escapes fail-closed (no gateway fallback) and crosses the plugin
- * boundary as a typed `ArtifactIntegrityError` — with no note state mutated.
+ * (host fetch). Every gateway's bytes are digest-checked against the pinned CID:
+ * the SDK falls back through gateways for availability, but tampered bytes are
+ * accepted from none, and the aggregate failure crosses the plugin boundary as a
+ * typed `ArtifactIntegrityError` — with no note state mutated.
  *
  * Uses the ragequit flow: it is the only proving flow whose witness needs just
  * the keystore leaf tree (minted on the mock chain), no relayer quotes.
@@ -40,7 +41,9 @@ function params(): PPv2PluginParameters {
         asp: { baseUrl: "https://asp.mock" },
         relayers: [],
         artifacts: {
-            gatewayUrls: ["https://ipfs.mock/ipfs"],
+            // Two gateways so the fail-closed assertion is real: tampered bytes
+            // must be rejected from EVERY gateway, not just the first.
+            gatewayUrls: ["https://ipfs.mock/ipfs", "https://fallback.mock/ipfs"],
             manifest: { transact_1x1: CIDS, ragequit: CIDS },
         },
         // No proofService override: the REAL artifact-fetch + integrity path runs.
@@ -97,8 +100,16 @@ describe("artifact integrity (T064/F5, FR-040)", () => {
             ArtifactIntegrityError,
         );
 
-        // It really went through the gateway (host fetch), not a stub prover.
-        expect(gatewayFetch).toHaveBeenCalled();
+        // It really went through the gateways (host fetch), not a stub prover.
+        // The SDK falls back through EVERY gateway for availability, digest-checks
+        // each one's bytes, and only then fails closed — so both gateways were
+        // tried and the tampered bytes were accepted from neither.
+        const fetchedUrls = (gatewayFetch as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+            ([input]) => String(input),
+        );
+
+        expect(fetchedUrls.some((u) => u.startsWith("https://ipfs.mock/ipfs"))).toBe(true);
+        expect(fetchedUrls.some((u) => u.startsWith("https://fallback.mock/ipfs"))).toBe(true);
 
         // Fail-closed: nothing marked, nothing lost.
         const after = await plugin.notes(undefined, true);

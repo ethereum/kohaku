@@ -30,7 +30,7 @@ describe("assets mapping", () => {
         expect(tokenIdToAsset(NATIVE_ASSET_ADDRESS)).toEqual({ __type: "native" });
         expect(tokenIdToAsset(assetToTokenId({ __type: "erc20", contract: ERC20 }))).toEqual({
             __type: "erc20",
-            contract: expect.stringMatching(/^0x1234/i),
+            contract: ERC20,
         });
     });
 

@@ -17,6 +17,7 @@ import {
     ArtifactIntegrityError,
     createPPv2Broadcaster,
     createPPv2Plugin,
+    InsufficientFundsError,
     LabelFragmentationError,
     NotRegisteredError,
     type PPv2AssetAmount,
@@ -50,6 +51,7 @@ describe("consumer imports (SC-001)", () => {
         for (const errorClass of [
             NotRegisteredError,
             AlreadyRegisteredError,
+            InsufficientFundsError,
             LabelFragmentationError,
             QuoteExpiredError,
             ArtifactIntegrityError,

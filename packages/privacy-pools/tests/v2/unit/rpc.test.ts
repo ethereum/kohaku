@@ -2,6 +2,7 @@ import type { EthereumProvider } from "@kohaku-eth/provider";
 import {
     type AbiEvent,
     encodeAbiParameters,
+    encodeFunctionData,
     numberToHex,
     pad,
     toEventSelector,
@@ -47,8 +48,19 @@ function mockProvider(request: (m: string, p: unknown[]) => unknown): EthereumPr
 describe("KohakuRpcInteractor", () => {
     it("readContract encodes the call and decodes the result", async () => {
         const rpc = new KohakuRpcInteractor(
-            mockProvider((method) => {
+            mockProvider((method, params) => {
                 expect(method).toBe("eth_call");
+                // The full outbound call: destination + ABI-encoded calldata, so
+                // encoding regressions fail instead of returning a valid response.
+                expect(params[0]).toEqual({
+                    to: ADDR,
+                    data: encodeFunctionData({
+                        abi: balanceOfAbi,
+                        functionName: "balanceOf",
+                        args: [ADDR],
+                    }),
+                });
+                expect(params[1]).toBe("latest");
 
                 return numberToHex(1000n, { size: 32 });
             }),
@@ -81,9 +93,15 @@ describe("KohakuRpcInteractor", () => {
         const rpc = new KohakuRpcInteractor(
             mockProvider((method, params) => {
                 expect(method).toBe("eth_getLogs");
-                const filter = params[0] as { topics: unknown[] };
 
-                expect(filter.topics[0]).toEqual([toEventSelector(transferEvent)]);
+                // The full outbound filter: address and block range too, so
+                // range-cursor regressions fail instead of returning all logs.
+                expect(params[0]).toEqual({
+                    address: ADDR,
+                    topics: [[toEventSelector(transferEvent)]],
+                    fromBlock: numberToHex(0n),
+                    toBlock: numberToHex(100n),
+                });
 
                 return [rawLog];
             }),

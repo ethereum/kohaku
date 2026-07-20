@@ -4,6 +4,7 @@ import {
     AccountImportMismatchError,
     AlreadyRegisteredError,
     ArtifactIntegrityError,
+    InsufficientFundsError,
     mapSdkError,
     NotRegisteredError,
     QuoteExpiredError,
@@ -37,14 +38,17 @@ describe("mapSdkError (FR-060)", () => {
             StorageCorruptionError,
         );
 
-        for (const relayName of [
-            "RelayerRejected",
-            "RelayerRequestFailed",
-            "RelayTimeout",
-            "InsufficientTransactValue",
-            "InsufficientChangeValueForFee",
-        ]) {
+        for (const relayName of ["RelayerRejected", "RelayerRequestFailed", "RelayTimeout"]) {
             expect(mapSdkError(sdkError(relayName))).toBeInstanceOf(RelayerUnavailableError);
+        }
+
+        // Funds shortfalls are terminal, not relayer-retryable: they must NOT be
+        // RelayerUnavailableError or wallet retry loops would spin forever.
+        for (const fundsName of ["InsufficientTransactValue", "InsufficientChangeValueForFee"]) {
+            const mapped = mapSdkError(sdkError(fundsName));
+
+            expect(mapped).toBeInstanceOf(InsufficientFundsError);
+            expect(mapped).not.toBeInstanceOf(RelayerUnavailableError);
         }
     });
 

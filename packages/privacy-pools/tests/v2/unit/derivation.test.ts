@@ -16,7 +16,13 @@ function fixedKeystore(): Keystore {
     };
 
     return {
-        deriveAt: async (path: string) => byPath[path] ?? KEY_0,
+        deriveAt: async (path: string) => {
+            const key = byPath[path];
+
+            if (!key) throw new Error(`Unexpected derivation path: ${path}`);
+
+            return key;
+        },
     };
 }
 

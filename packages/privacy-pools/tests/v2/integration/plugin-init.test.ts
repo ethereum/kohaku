@@ -62,10 +62,24 @@ describe("createPPv2Plugin (offline assembly)", () => {
         expect(await plugin.instanceId()).toBe(OWNER);
     });
 
-    it("derives deterministically: same mnemonic → same instance", async () => {
-        const a = await createPPv2Plugin(createMockHost().host, params());
-        const b = await createPPv2Plugin(createMockHost().host, params());
+    it("derives deterministically: same mnemonic → same keys, different → different", async () => {
+        // instanceId() only echoes the configured owner; the registration calldata
+        // embeds the DERIVED public key material, so it witnesses real derivation.
+        const registrationCalldata = async (mnemonic?: string) => {
+            const { host } = createMockHost(mnemonic ? { mnemonic } : {});
+            const plugin = await createPPv2Plugin(host, params());
+            const op = await plugin.prepareRegisterKeystore();
 
-        expect(await a.instanceId()).toBe(await b.instanceId());
+            return op.txs.map((tx) => tx.data).join("");
+        };
+
+        const a = await registrationCalldata();
+        const b = await registrationCalldata();
+        const other = await registrationCalldata(
+            "legal winner thank year wave sausage worth useful legal winner thank yellow",
+        );
+
+        expect(a).toBe(b);
+        expect(other).not.toBe(a);
     });
 });
