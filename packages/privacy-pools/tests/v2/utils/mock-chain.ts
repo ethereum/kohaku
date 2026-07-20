@@ -138,6 +138,7 @@ function matchesFilter(log: RawLog, filter: LogFilter): boolean {
     const block = BigInt(log.blockNumber);
 
     if (filter.fromBlock !== undefined && block < BigInt(filter.fromBlock)) return false;
+
     if (
         filter.toBlock !== undefined &&
         filter.toBlock !== "latest" &&

@@ -1,16 +1,17 @@
 /**
  * T059 (US7 AC-2, FR-033, INV-3): a real export→import round-trip between two
  * devices. Device B's chain does NOT serve device A's note — the imported blob is
- * provably the source of that state — and B's next read continues incremental
- * sync from the imported cursor, picking up a newer on-chain note on top.
+ * provably the source of that state — and a newer on-chain note appears only
+ * AFTER the import, so its discovery proves incremental sync resumed from the
+ * imported cursor (asserted against the actual eth_getLogs fromBlock).
  */
-import type { Address } from "viem";
-import { describe, expect, it } from "vitest";
+import { type Address, type Hex, toEventSelector } from "viem";
+import { describe, expect, it, type Mock } from "vitest";
 import { persistRevocableKeyIndex } from "../../../src/v2/account/keystore-record";
 import { KohakuStorageService } from "../../../src/v2/adapters/storage.adapter";
 import type { PPv2PluginParameters } from "../../../src/v2/interfaces/plugin.interface";
 import { createPPv2Plugin } from "../../../src/v2/plugin";
-import { chainWithLogs, mintOwnedNoteLog } from "../utils/mock-chain";
+import { chainWithLogs, mintOwnedNoteLog, type RawLog } from "../utils/mock-chain";
 import { createMockHost } from "../utils/mock-host";
 import {
     createMockAsp,
@@ -89,16 +90,26 @@ describe("account export/import across devices (T059/US7 AC-2)", () => {
 
         expect(typeof blob).toBe("string");
 
-        // Device B: fresh storage; its chain serves ONLY the newer noteB — so any
-        // knowledge of noteA can come exclusively from the imported blob.
-        const devB = createMockHost({ rpc: chainWithLogs([noteB.log]), blockNumber: 102n });
+        // Device B: fresh storage, EMPTY chain at head 0 — construction-time
+        // recovery discovery can cache nothing, so noteA's state can come only
+        // from the imported blob, and B's own cursor is 0 (not A's 100).
+        const logsB: RawLog[] = [];
+        const devB = createMockHost({ rpc: chainWithLogs(logsB), blockNumber: 0n });
 
         await seedIndex(devB.host.storage);
         const pluginB = await createPPv2Plugin(devB.host, params());
 
         await pluginB.importAccount(blob);
 
-        // Imported state + incremental discovery of the post-export deposit.
+        // Only AFTER the import does B's chain serve the newer note.
+        logsB.push(noteB.log);
+        devB.setBlockNumber(102n);
+
+        const requestMock = devB.provider.request as unknown as Mock;
+
+        requestMock.mockClear();
+
+        // Imported state + incremental discovery of the post-import deposit.
         const balances = await pluginB.balance(undefined);
 
         expect(balances.find((b) => b.tag === "spendable")?.amount).toBe(1500n);
@@ -108,5 +119,27 @@ describe("account export/import across devices (T059/US7 AC-2)", () => {
         expect(notes.map((n) => n.commitment).sort()).toEqual(
             [noteA.commitment, noteB.commitment].sort(),
         );
+
+        // Note discovery genuinely RESUMED from the imported cursor (A exported
+        // at head 100): had import not restored it, B (own cursor 0) would rescan
+        // note logs from genesis. (Other event categories — leaves, registration —
+        // keep their own cursors and may scan from 0.)
+        const noteTopic = toEventSelector("event Note(bytes32 indexed hint, bytes data)");
+        const noteScans = requestMock.mock.calls
+            .map(
+                ([req]: [{ method: string; params?: [{ fromBlock?: Hex; topics?: unknown[] }] }]) =>
+                    req,
+            )
+            .filter(
+                (req) =>
+                    req.method === "eth_getLogs" &&
+                    JSON.stringify(req.params?.[0]?.topics ?? []).includes(noteTopic),
+            );
+
+        expect(noteScans.length).toBeGreaterThan(0);
+
+        for (const scan of noteScans) {
+            expect(BigInt(scan.params?.[0]?.fromBlock ?? 0n)).toBeGreaterThanOrEqual(100n);
+        }
     });
 });
