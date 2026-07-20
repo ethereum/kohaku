@@ -502,38 +502,49 @@ export const createPPv2Plugin: CreatePluginFn<PPv2Instance, PPv2PluginParameters
         params.ownerAddress,
     );
 
-    let derived = await deriveKeystoreManager({
-        keystore: host.keystore,
-        accountIndex: params.accountIndex,
-        ...(persistedIndex ? { revocableKeyIndex: persistedIndex } : {}),
-    });
-    let assembled = await assemblePoolSession(host, params, derived.keystoreManager);
+    // The factory is a public boundary like the instance methods: session assembly,
+    // registration checks, and the gap scan all call into the SDK, so their
+    // failures are normalized through mapSdkError (FR-060). Already-typed plugin
+    // errors (e.g. storage corruption) pass through unchanged.
+    let assembled;
 
-    if (persistedIndex === null && (await assembled.session.isKeystoreRegistered())) {
-        const discovered = await assembled.session.discoverRevocableKeyIndex(
-            {
-                signature: derived.deriveConfig.signature,
-                signerAddress: derived.deriveConfig.signerAddress,
-                addressHash: derived.deriveConfig.addressHash,
-            },
-            params.revocableKeyGapLimit,
-        );
+    try {
+        let derived = await deriveKeystoreManager({
+            keystore: host.keystore,
+            accountIndex: params.accountIndex,
+            ...(persistedIndex ? { revocableKeyIndex: persistedIndex } : {}),
+        });
 
-        if (BigInt(discovered) !== 0n) {
-            derived = await deriveKeystoreManager({
-                keystore: host.keystore,
-                accountIndex: params.accountIndex,
-                revocableKeyIndex: discovered,
-            });
-            assembled = await assemblePoolSession(host, params, derived.keystoreManager);
+        assembled = await assemblePoolSession(host, params, derived.keystoreManager);
+
+        if (persistedIndex === null && (await assembled.session.isKeystoreRegistered())) {
+            const discovered = await assembled.session.discoverRevocableKeyIndex(
+                {
+                    signature: derived.deriveConfig.signature,
+                    signerAddress: derived.deriveConfig.signerAddress,
+                    addressHash: derived.deriveConfig.addressHash,
+                },
+                params.revocableKeyGapLimit,
+            );
+
+            if (BigInt(discovered) !== 0n) {
+                derived = await deriveKeystoreManager({
+                    keystore: host.keystore,
+                    accountIndex: params.accountIndex,
+                    revocableKeyIndex: discovered,
+                });
+                assembled = await assemblePoolSession(host, params, derived.keystoreManager);
+            }
+
+            await persistRevocableKeyIndex(
+                recordStorage,
+                params.chainId,
+                params.ownerAddress,
+                discovered,
+            );
         }
-
-        await persistRevocableKeyIndex(
-            recordStorage,
-            params.chainId,
-            params.ownerAddress,
-            discovered,
-        );
+    } catch (err) {
+        throw mapSdkError(err);
     }
 
     const { session, noteManager } = assembled;

@@ -93,6 +93,20 @@ export class RelayerUnavailableError extends PPv2Error {
     }
 }
 
+/**
+ * Selected inputs cannot cover the transfer amount and/or the relayer fee
+ * (FR-052). Not retryable against another relayer — the account needs more
+ * spendable value, so it must stay distinct from `RelayerUnavailableError`.
+ */
+export class InsufficientFundsError extends PPv2Error {
+    constructor(
+        message = "Insufficient funds for this operation.",
+        public override readonly cause?: unknown,
+    ) {
+        super(message);
+    }
+}
+
 /** An account import blob did not match this instance's owner/chain (FR-033). */
 export class AccountImportMismatchError extends PPv2Error {
     constructor() {
@@ -145,9 +159,10 @@ export function mapSdkError(err: unknown): PluginError {
         case "RelayerRejected":
         case "RelayerRequestFailed":
         case "RelayTimeout":
+            return new RelayerUnavailableError(message, err);
         case "InsufficientTransactValue":
         case "InsufficientChangeValueForFee":
-            return new RelayerUnavailableError(message, err);
+            return new InsufficientFundsError(message, err);
         default:
             return new UnexpectedSdkError(err);
     }
