@@ -13,6 +13,7 @@ import type { Address } from "ox/Address";
  */
 const NATIVE_ASSET_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as SdkAddress;
 
+/** 32-byte left-padded 0x-hex, mirroring the SDK's `bigintToHex` exactly. */
 function bigintToHex(value: bigint): Hex {
     return `0x${value.toString(16).padStart(64, "0")}` as Hex;
 }

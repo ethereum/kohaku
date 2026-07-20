@@ -11,6 +11,7 @@ const LABEL = pad("0x0a") as Hash;
 
 let seq = 0;
 
+/** Note fixture with a unique commitment in the given status. */
 function note(value: bigint, status: NoteStatus, tokenId: string = TOKEN): Note {
     seq += 1;
 

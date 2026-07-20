@@ -14,6 +14,7 @@ export type KeystoreRecord = {
     revocableKeyIndex: Hex;
 };
 
+/** Storage key scoped by chain + owner so co-resident instances stay disjoint (INV-6). */
 function recordKey(chainId: bigint, ownerAddress: string): string {
     return `keystore:${chainId}:${ownerAddress.toLowerCase()}`;
 }

@@ -24,6 +24,7 @@ const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
 const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const CHAIN_ID = 11155111n;
 
+/** Offline plugin params wired to fresh mock ASP/relayer/proof/entrypoint seams. */
 function params(): PPv2PluginParameters {
     const asp = createMockAsp();
 
@@ -52,6 +53,7 @@ function params(): PPv2PluginParameters {
     };
 }
 
+/** Persist rotation index 0 so plugin construction skips the fresh-device gap scan. */
 async function seedIndex(storage: ReturnType<typeof createMockHost>["host"]["storage"]) {
     await persistRevocableKeyIndex(new KohakuStorageService(storage), CHAIN_ID, OWNER, "0x0");
 }

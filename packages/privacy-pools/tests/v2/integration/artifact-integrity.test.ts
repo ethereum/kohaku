@@ -32,6 +32,7 @@ const CIDS = {
     verificationKey: "bafkreiai35msryolmahocnquqsjunrqnnqex3f5fuu4x23fkvbchl5xt5m",
 };
 
+/** Plugin params with real artifact fetching (no proofService override) over mock seams. */
 function params(): PPv2PluginParameters {
     const asp = createMockAsp();
 

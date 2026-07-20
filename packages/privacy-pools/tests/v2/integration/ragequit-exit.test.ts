@@ -25,6 +25,7 @@ const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
 const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const CHAIN_ID = 11155111n;
 
+/** Offline plugin params over the caller's mock ASP (kept for label-status control). */
 function paramsWith(asp: ReturnType<typeof createMockAsp>): PPv2PluginParameters {
     return {
         chainId: CHAIN_ID,

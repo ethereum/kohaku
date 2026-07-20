@@ -41,6 +41,7 @@ const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const RECIPIENT = "0x00000000000000000000000000000000000000bb" as PPv2AccountId;
 const CHAIN_ID = 11155111n;
 
+/** Offline plugin params over the caller's mock relayer, exposing the shared ASP. */
 function params(relayer: ReturnType<typeof createMockRelayer>): {
     asp: ReturnType<typeof createMockAsp>;
     pluginParams: PPv2PluginParameters;

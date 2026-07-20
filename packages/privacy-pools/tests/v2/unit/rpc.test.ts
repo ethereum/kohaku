@@ -35,6 +35,7 @@ const ADDR = "0x1111111111111111111111111111111111111111" as const;
 const FROM = "0x2222222222222222222222222222222222222222" as const;
 const TO = "0x3333333333333333333333333333333333333333" as const;
 
+/** Provider whose raw JSON-RPC `request` is delegated to the given handler. */
 function mockProvider(request: (m: string, p: unknown[]) => unknown): EthereumProvider {
     return {
         request: vi.fn(async (r: { method: string; params?: unknown[] }) =>

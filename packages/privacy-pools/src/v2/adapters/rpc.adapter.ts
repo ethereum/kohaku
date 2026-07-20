@@ -27,6 +27,7 @@ type RawLog = {
     logIndex: Hex;
 };
 
+/** Raw `eth_getTransactionReceipt` payload (only the fields the SDK receipt needs). */
 type RawReceipt = {
     status: Hex;
     blockNumber: Hex;
@@ -41,8 +42,10 @@ type RawReceipt = {
  * `TxReceipt` require. No write/wallet path (INV-1).
  */
 export class KohakuRpcInteractor implements IRPCInteractor {
+    /** @param provider - the wallet's EIP-1193 provider (read-only use). */
     constructor(private readonly provider: EthereumProvider) {}
 
+    /** `eth_call` a view function and ABI-decode the result. */
     async readContract(params: ReadContractParams): Promise<unknown> {
         const abi = params.abi as unknown as Abi;
         const data = encodeFunctionData({
@@ -62,10 +65,12 @@ export class KohakuRpcInteractor implements IRPCInteractor {
         });
     }
 
+    /** Latest block number, 0x-hex per the SDK convention. */
     async getBlockNumber(): Promise<Hex> {
         return numberToHex(await this.provider.getBlockNumber());
     }
 
+    /** Wait until the transaction mines, then return the SDK-shaped receipt with full logs. */
     async waitForTransactionReceipt(hash: Hex): Promise<TxReceipt> {
         await this.provider.waitForTransaction(hash);
         const receipt = (await this.provider.request({
@@ -92,6 +97,7 @@ export class KohakuRpcInteractor implements IRPCInteractor {
         };
     }
 
+    /** Fetch and decode logs for the given event set in a single `eth_getLogs` call. */
     async getLogs(params: GetLogsParams): Promise<DecodedEventLog[]> {
         const events = params.events as unknown as AbiEvent[];
         const topic0s = events.map((event) => toEventSelector(event));
@@ -110,6 +116,7 @@ export class KohakuRpcInteractor implements IRPCInteractor {
         return raw.flatMap((log) => this.decodeLog(log, events));
     }
 
+    /** {@link getLogs} over the whole range in 5000-block windows (provider size caps). */
     async getLogsPaginated(params: GetLogsParams): Promise<DecodedEventLog[]> {
         const from = params.fromBlock ?? 0n;
         const to = params.toBlock ?? (await this.provider.getBlockNumber());

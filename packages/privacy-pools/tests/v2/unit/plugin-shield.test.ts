@@ -9,6 +9,7 @@ const OWNER = "0x00000000000000000000000000000000000000aa" as const;
 const ERC20 = "0x1111111111111111111111111111111111111111" as const;
 const ENTRYPOINT = "0x2222222222222222222222222222222222222222" as const;
 
+/** Plugin whose session returns the given prepareDeposit result; exposes the spy. */
 function pluginWithDeposit(result: PrepareDepositResult) {
     const prepareDeposit = vi.fn(async () => result);
     const session = {

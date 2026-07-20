@@ -10,10 +10,12 @@ import type { PPv2Instance } from "../interfaces/plugin.interface";
  */
 const sessions = new WeakMap<PPv2Instance, PoolSession>();
 
+/** Link an instance to its session; called only by `createPPv2Plugin`. */
 export function registerSession(instance: PPv2Instance, session: PoolSession): void {
     sessions.set(instance, session);
 }
 
+/** The session registered for an instance, or `undefined` if it never was. */
 export function getSession(instance: PPv2Instance): PoolSession | undefined {
     return sessions.get(instance);
 }

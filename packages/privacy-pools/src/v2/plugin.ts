@@ -59,6 +59,7 @@ export class PPv2Plugin implements PPv2Instance {
     private readonly noteManager: INoteManager;
     private readonly params: PPv2PluginParameters;
 
+    /** Wire the factory-owned dependencies (session, note manager, parameters). */
     constructor(deps: PPv2PluginDeps) {
         this.session = deps.session;
         this.noteManager = deps.noteManager;
@@ -104,6 +105,7 @@ export class PPv2Plugin implements PPv2Instance {
         }
     }
 
+    /** Whether the account's keystore is registered on-chain (FR-026, INV-8). */
     async isRegistered(): Promise<boolean> {
         try {
             return await this.session.isKeystoreRegistered();

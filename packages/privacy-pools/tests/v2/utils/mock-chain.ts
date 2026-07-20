@@ -36,6 +36,7 @@ export type RawLog = {
     logIndex: Hex;
 };
 
+/** A minted note fixture: its event log plus the identifiers tests assert on. */
 export type MintedNote = {
     log: RawLog;
     commitment: Hash;

@@ -10,6 +10,7 @@ import { registerSession } from "../../../src/v2/internal/session-registry";
 const FUTURE = Math.floor(Date.now() / 1000) + 3600;
 const PAST = Math.floor(Date.now() / 1000) - 10;
 
+/** Minimal transfer operation carrying only the fee-commitment expiry under test. */
 function transferOp(expiration: number): PPv2PrivateOperation {
     return {
         __type: "privateOperation",

@@ -21,6 +21,7 @@ import {
 const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
 const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 
+/** Offline plugin params wired to fresh mock ASP/relayer/proof/entrypoint seams. */
 function params(): PPv2PluginParameters {
     return {
         chainId: 11155111n,

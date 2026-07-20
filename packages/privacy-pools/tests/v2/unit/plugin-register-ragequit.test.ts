@@ -14,6 +14,7 @@ const OWNER = "0x00000000000000000000000000000000000000aa" as const;
 const KEYSTORE = "0x1111111111111111111111111111111111111111" as const;
 const POOL_VAULT = "0x2222222222222222222222222222222222222222" as const;
 
+/** Plugin over a no-op sync session with the given method overrides. */
 function makePlugin(session: Partial<PoolSession>) {
     const full = {
         discoverNotes: vi.fn(async () => []),

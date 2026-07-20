@@ -28,6 +28,7 @@ const PAST = Math.floor(Date.now() / 1000) - 10;
 
 let seq = 100;
 
+/** ACTIVE native-token note fixture with a unique commitment. */
 function activeNote(value: bigint): Note {
     seq += 1;
 
@@ -44,6 +45,7 @@ function activeNote(value: bigint): Note {
     } as unknown as Note;
 }
 
+/** Relayer withdrawal quote with the given fee and fee-commitment expiry. */
 function withdrawQuote(name: string, feeAmount: bigint, expiration: number): PrepareWithdrawRelayerQuotes {
     return {
         relayerInfo: {
@@ -76,6 +78,7 @@ function withdrawQuote(name: string, feeAmount: bigint, expiration: number): Pre
     } as unknown as PrepareWithdrawRelayerQuotes;
 }
 
+/** Plugin over fixed notes whose prepareWithdraw echoes the given quotes. */
 function makePlugin(opts: {
     notes: Note[];
     quotes: PrepareWithdrawRelayerQuotes[];
@@ -113,6 +116,7 @@ function makePlugin(opts: {
     return { plugin: new PPv2Plugin({ session, noteManager, params }), prepareWithdraw };
 }
 
+/** Native-asset amount shorthand. */
 const asset = (amount: bigint): PPv2AssetAmount => ({ asset: { __type: "native" }, amount });
 
 describe("PPv2Plugin.prepareUnshield", () => {

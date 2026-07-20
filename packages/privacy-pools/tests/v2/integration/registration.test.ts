@@ -22,6 +22,7 @@ import {
 const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
 const CHAIN_ID = 11155111n;
 
+/** Offline plugin params wired to fresh mock ASP/relayer/proof/entrypoint seams. */
 function params(): PPv2PluginParameters {
     const asp = createMockAsp();
 

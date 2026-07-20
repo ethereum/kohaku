@@ -11,6 +11,7 @@ const LABEL_B = pad("0x0b") as Hash;
 
 let seq = 0;
 
+/** ACTIVE note fixture with a unique commitment (defaults overridable per test). */
 function note(partial: {
     value: bigint;
     label: Hash;

@@ -17,6 +17,7 @@ export abstract class PPv2Error extends PluginError {}
 
 /** transfer/unshield attempted before the account is registered on-chain (FR-026, INV-8). */
 export class NotRegisteredError extends PPv2Error {
+    /** Fixed message pointing the caller at `prepareRegisterKeystore()`. */
     constructor() {
         super("Account is not registered. Run prepareRegisterKeystore() first.");
     }
@@ -24,6 +25,7 @@ export class NotRegisteredError extends PPv2Error {
 
 /** Registration requested for an account that is already registered on-chain (US5). */
 export class AlreadyRegisteredError extends PPv2Error {
+    /** Fixed message — registration is a no-op to skip, not to retry. */
     constructor() {
         super("Account is already registered on-chain; no registration needed.");
     }
@@ -31,6 +33,7 @@ export class AlreadyRegisteredError extends PPv2Error {
 
 /** No single label covers amount + fee; carries the per-label breakdown (FR-023, INV-5). */
 export class LabelFragmentationError extends PPv2Error {
+    /** @param perLabel - each label's 4-note spendable total, for wallet guidance. */
     constructor(
         public readonly required: bigint,
         public readonly perLabel: ReadonlyArray<{ label: Hex; spendable: bigint }>,
@@ -44,6 +47,7 @@ export class LabelFragmentationError extends PPv2Error {
 
 /** Relayer fee commitment expired between prepare and broadcast (FR-052). */
 export class QuoteExpiredError extends PPv2Error {
+    /** Fixed message telling the wallet to re-prepare the operation. */
     constructor() {
         super("Relayer fee commitment has expired. Re-prepare the operation.");
     }
@@ -58,6 +62,7 @@ export class QuoteExpiredError extends PPv2Error {
  * carries the per-gateway detail.
  */
 export class ArtifactIntegrityError extends PPv2Error {
+    /** @param message - per-gateway failure detail from the SDK, when available. */
     constructor(message = "Circuit artifact failed integrity verification.") {
         super(message);
     }
@@ -65,6 +70,7 @@ export class ArtifactIntegrityError extends PPv2Error {
 
 /** Persisted state was unreadable/corrupt; fail closed, never silent-reset (Principle I). */
 export class StorageCorruptionError extends PPv2Error {
+    /** @param key - the (un-prefixed) storage key whose value was unreadable. */
     constructor(
         public readonly key: string,
         public override readonly cause?: unknown,
@@ -75,6 +81,7 @@ export class StorageCorruptionError extends PPv2Error {
 
 /** Chain-event sync/discovery failed (RPC or ASP unreachable); retryable. */
 export class SyncFailedError extends PPv2Error {
+    /** Carries the underlying RPC/ASP failure as `cause`. */
     constructor(
         message = "Note sync failed; retry when the RPC/ASP is reachable.",
         public override readonly cause?: unknown,
@@ -85,6 +92,7 @@ export class SyncFailedError extends PPv2Error {
 
 /** Relay submission failed at the relayer/network layer (FR-051). */
 export class RelayerUnavailableError extends PPv2Error {
+    /** Carries the relayer/network failure as `cause`. */
     constructor(
         message = "Relayer is unavailable or rejected the request.",
         public override readonly cause?: unknown,
@@ -99,6 +107,7 @@ export class RelayerUnavailableError extends PPv2Error {
  * spendable value, so it must stay distinct from `RelayerUnavailableError`.
  */
 export class InsufficientFundsError extends PPv2Error {
+    /** Carries the SDK's value-shortfall error as `cause`. */
     constructor(
         message = "Insufficient funds for this operation.",
         public override readonly cause?: unknown,
@@ -109,6 +118,7 @@ export class InsufficientFundsError extends PPv2Error {
 
 /** An account import blob did not match this instance's owner/chain (FR-033). */
 export class AccountImportMismatchError extends PPv2Error {
+    /** Fixed message — the blob is unusable on this instance, not retryable. */
     constructor() {
         super("Account export does not match this instance's owner/chain.");
     }
@@ -120,6 +130,7 @@ export class AccountImportMismatchError extends PPv2Error {
  * as a raw error (FR-060).
  */
 export class NotImplementedError extends PPv2Error {
+    /** @param task - the spec task that will replace this stub. */
     constructor(method: string, task: string) {
         super(`${method} is not implemented yet (pending ${task}).`);
     }
@@ -170,6 +181,7 @@ export function mapSdkError(err: unknown): PluginError {
 
 /** Fallback wrapper for an SDK error with no specific mapping (FR-060). */
 export class UnexpectedSdkError extends PPv2Error {
+    /** Preserves the original error as `cause`; its message passes through. */
     constructor(public override readonly cause: unknown) {
         super(cause instanceof Error ? cause.message : String(cause));
     }

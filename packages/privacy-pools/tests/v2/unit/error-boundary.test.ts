@@ -12,6 +12,7 @@ import { PPv2Plugin } from "../../../src/v2/plugin";
 
 const OWNER = "0x00000000000000000000000000000000000000aa" as const;
 
+/** Async stub that throws an Error carrying an SDK error-class `name`. */
 function rawError(name: string): () => Promise<never> {
     return async () => {
         const e = new Error(`${name} boom`);
@@ -21,6 +22,7 @@ function rawError(name: string): () => Promise<never> {
     };
 }
 
+/** Plugin over a benign stub session with the given method overrides. */
 function pluginWith(session: Partial<PoolSession>) {
     const noteManager = { getNotes: () => [] } as unknown as INoteManager;
     const params = { chainId: 11155111n, ownerAddress: OWNER } as unknown as PPv2PluginParameters;

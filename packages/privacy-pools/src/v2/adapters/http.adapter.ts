@@ -8,14 +8,17 @@ import type { HTTPRequestOptions, IHTTPClient } from "@0xbow-io/privacy-pools-v2
  * `getBinary` (circuit artifacts).
  */
 export class KohakuHttpClient implements IHTTPClient {
+    /** @param network - the wallet's network stack (all traffic routes through it). */
     constructor(private readonly network: Network) {}
 
+    /** GET returning parsed JSON. */
     async get<T>(url: string, options?: HTTPRequestOptions): Promise<T> {
         const res = await this.request(url, { method: "GET" }, options);
 
         return (await res.json()) as T;
     }
 
+    /** POST a JSON body, returning parsed JSON. */
     async post<T>(url: string, body: unknown, options?: HTTPRequestOptions): Promise<T> {
         const res = await this.request(
             url,
@@ -30,12 +33,14 @@ export class KohakuHttpClient implements IHTTPClient {
         return (await res.json()) as T;
     }
 
+    /** GET returning raw bytes (circuit artifacts). */
     async getBinary(url: string, options?: HTTPRequestOptions): Promise<Uint8Array> {
         const res = await this.request(url, { method: "GET" }, options);
 
         return new Uint8Array(await res.arrayBuffer());
     }
 
+    /** Shared fetch path: merge headers, apply signal/timeout, throw on non-2xx. */
     private async request(
         url: string,
         init: RequestInit,

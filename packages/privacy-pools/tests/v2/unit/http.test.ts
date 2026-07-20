@@ -2,6 +2,7 @@ import type { Network } from "@kohaku-eth/plugins";
 import { describe, expect, it, vi } from "vitest";
 import { KohakuHttpClient } from "../../../src/v2/adapters/http.adapter";
 
+/** Host network whose fetch resolves to an OK response with the given overrides. */
 function networkWith(response: Partial<Response>): { network: Network; fetch: ReturnType<typeof vi.fn> } {
     const fetch = vi.fn(async () => ({ ok: true, status: 200, statusText: "OK", ...response }) as Response);
 

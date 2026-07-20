@@ -28,6 +28,7 @@ const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const RECIPIENT = "0x00000000000000000000000000000000000000bb" as PPv2AccountId;
 const CHAIN_ID = 11155111n;
 
+/** Offline plugin params, also exposing the proof/relayer mocks for call assertions. */
 function params(): PPv2PluginParameters & {
     proofService: ReturnType<typeof createMockProofService>;
     relayerInteractor: ReturnType<typeof createMockRelayer>;

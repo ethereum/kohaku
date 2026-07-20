@@ -12,6 +12,7 @@ import { createMemoryStorage } from "../utils/mock-host";
 
 const OWNER = "0x00000000000000000000000000000000000000aa" as const;
 
+/** Plugin over a no-op sync session with the given method overrides. */
 function makePlugin(session: Partial<PoolSession>) {
     const full = {
         discoverNotes: vi.fn(async () => []),

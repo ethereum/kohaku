@@ -6,10 +6,12 @@ import { createMockHost } from "../utils/mock-host";
 
 const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
 
+/** Syntactically valid address made of one repeated hex digit. */
 function dummyAddr(byte: string): Address {
     return `0x${byte.repeat(40)}` as Address;
 }
 
+/** Construction-only plugin params: dummy deployment/relayer/CIDs, no factories. */
 function params(): PPv2PluginParameters {
     return {
         chainId: 11155111n,

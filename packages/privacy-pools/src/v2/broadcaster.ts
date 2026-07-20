@@ -23,8 +23,10 @@ function serializeColdStartPayload(recipientNotes: Note[] | undefined): string {
  * (FR-053) — so there is no manual reconciliation here. Never signs (INV-1).
  */
 class SharedSessionBroadcaster implements PPv2Broadcaster {
+    /** @param session - the plugin instance's shared `PoolSession` (FR-053). */
     constructor(private readonly session: PoolSession) {}
 
+    /** Relay a prepared transfer/withdrawal; rejects on an expired fee commitment (FR-052). */
     async broadcast(operation: PPv2PrivateOperation): Promise<PPv2BroadcastResult> {
         const expiration = operation.relayParams.selectedQuote.quote.feeCommitment.expiration;
 

@@ -19,6 +19,7 @@ const LABEL = pad("0x0a") as `0x${string}`;
 
 let seq = 0;
 
+/** ACTIVE native-token note fixture with a unique commitment. */
 function activeNote(value: bigint): Note {
     seq += 1;
 
@@ -35,6 +36,7 @@ function activeNote(value: bigint): Note {
     } as unknown as Note;
 }
 
+/** Relayer transfer quote with the given fee and fee-commitment expiry. */
 function quote(relayer: string, feeAmount: bigint, expiration: number): PrepareTransferRelayerQuotes {
     return {
         relayerInfo: {
@@ -63,6 +65,7 @@ function quote(relayer: string, feeAmount: bigint, expiration: number): PrepareT
 
 const FUTURE = Math.floor(Date.now() / 1000) + 3600;
 
+/** Plugin over fixed notes whose prepareColdStartTransfer echoes the given quotes. */
 function makePlugin(opts: {
     notes: Note[];
     quotes: PrepareTransferRelayerQuotes[];
@@ -97,6 +100,7 @@ function makePlugin(opts: {
     };
 }
 
+/** Native-asset amount shorthand. */
 const asset = (amount: bigint): PPv2AssetAmount => ({ asset: { __type: "native" }, amount });
 
 describe("PPv2Plugin.prepareTransfer", () => {

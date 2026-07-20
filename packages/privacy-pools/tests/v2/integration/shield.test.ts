@@ -19,9 +19,11 @@ import {
 } from "../utils/mock-services";
 
 const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
+/** Native-asset amount shorthand. */
 const native = (amount: bigint): PPv2AssetAmount => ({ asset: { __type: "native" }, amount });
 const ERC20 = "0x1111111111111111111111111111111111111111" as Address;
 
+/** Offline plugin params; `allowance` steers the mock entrypoint's approve path. */
 function params(overrides: { allowance?: bigint } = {}): PPv2PluginParameters {
     return {
         chainId: 11155111n,
