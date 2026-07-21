@@ -30,7 +30,7 @@ export class AlreadyRegisteredError extends PPv2Error {
 
 /** No single label covers amount + fee; carries the per-label breakdown (FR-023, INV-5). */
 export class LabelFragmentationError extends PPv2Error {
-    /** @param perLabel - each label's 4-note spendable total, for wallet guidance. */
+    /** @param perLabel - each label's capped-set (MAX_INPUTS) spendable total. */
     constructor(
         public readonly required: bigint,
         public readonly perLabel: ReadonlyArray<{ label: Hex; spendable: bigint }>,

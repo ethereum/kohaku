@@ -4,7 +4,7 @@
  * this with encrypted browser storage). Values may reference on-chain private
  * state; the file is gitignored.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { Storage as PluginStorage } from "@kohaku-eth/plugins";
 
 export function createFileStorage(filePath: string): PluginStorage {
@@ -16,11 +16,19 @@ export function createFileStorage(filePath: string): PluginStorage {
 
     return {
         _brand: "Storage",
+        // The read-modify-write is fully synchronous (no await points), so
+        // concurrent set() calls cannot interleave on the event loop. The
+        // tmp+rename makes the write atomic against a crash mid-write — a torn
+        // file would otherwise fail every later load().
         async set(key, value) {
             const data = load();
 
             data[key] = value;
-            writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+            const tmpPath = `${filePath}.tmp`;
+
+            writeFileSync(tmpPath, JSON.stringify(data, null, 2));
+            renameSync(tmpPath, filePath);
         },
         async get(key) {
             return load()[key] ?? null;

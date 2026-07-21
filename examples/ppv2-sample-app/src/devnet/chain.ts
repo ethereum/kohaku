@@ -73,17 +73,15 @@ export class DevnetChain {
 
     /** The Host `EthereumProvider` view of this chain. */
     provider(): EthereumProvider {
-        const chain = this;
-
         const getLogs = (params: unknown[]): RawLog[] => {
             const filter = (params[0] ?? {}) as { fromBlock?: Hex; toBlock?: Hex };
             const from = filter.fromBlock ? BigInt(filter.fromBlock) : 0n;
             const to =
                 filter.toBlock && filter.toBlock !== ("latest" as string)
                     ? BigInt(filter.toBlock)
-                    : chain.head;
+                    : this.head;
 
-            return chain.logs.filter((log) => {
+            return this.logs.filter((log) => {
                 const block = BigInt(log.blockNumber);
 
                 return block >= from && block <= to;
@@ -100,15 +98,15 @@ export class DevnetChain {
             // Keystore reads answer the registration state; every other read
             // (e.g. the pool's commitment-timestamp check during discovery)
             // returns a nonzero word, mirroring the plugin's integration rigs.
-            if (request.to?.toLowerCase() === chain.keystoreAddress) {
-                return chain.keystoreRegistered ? ONE_WORD : ZERO_WORD;
+            if (request.to?.toLowerCase() === this.keystoreAddress) {
+                return this.keystoreRegistered ? ONE_WORD : ZERO_WORD;
             }
 
             return ONE_WORD;
         };
 
         const receipt = (txHash: string) => {
-            const mined = chain.receipts.get(txHash.toLowerCase());
+            const mined = this.receipts.get(txHash.toLowerCase());
 
             if (!mined) return null;
 
@@ -122,7 +120,8 @@ export class DevnetChain {
 
         return {
             _internal: undefined,
-            async request(req: { method: string; params?: unknown[] }) {
+            // Arrow property (not method shorthand) so `this` stays the chain.
+            request: async (req: { method: string; params?: unknown[] }) => {
                 const params = req.params ?? [];
 
                 switch (req.method) {
@@ -133,7 +132,7 @@ export class DevnetChain {
                     case "eth_getTransactionReceipt":
                         return receipt(params[0] as string);
                     case "eth_blockNumber":
-                        return numberToHex(chain.head);
+                        return numberToHex(this.head);
                     case "eth_chainId":
                         return numberToHex(11155111n);
                     default:
@@ -141,10 +140,10 @@ export class DevnetChain {
                 }
             },
             getChainId: async () => 11155111n,
-            getBlockNumber: async () => chain.head,
+            getBlockNumber: async () => this.head,
             waitForTransaction: async () => undefined,
             getTransactionReceipt: async (txHash: string) => {
-                const mined = chain.receipts.get(txHash.toLowerCase());
+                const mined = this.receipts.get(txHash.toLowerCase());
 
                 if (!mined) return null;
 

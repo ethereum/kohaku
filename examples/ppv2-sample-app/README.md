@@ -39,7 +39,7 @@ The demo drives the full lifecycle through the public plugin surface only:
 
 - **`src/wallet/`** — the integration a wallet would actually ship. Imports
   only `@kohaku-eth/plugins`, `@kohaku-eth/privacy-pools`, and
-  `@kohaku-eth/provider` — never `@privacy-pools-v2/sdk` (SC-001). Host
+  `@kohaku-eth/provider` — never `@0xbow-io/privacy-pools-v2-sdk` (SC-001). Host
   assembly, transacting-account signing, plugin parameters.
 - **`src/devnet/`** — demo plumbing standing in for Sepolia, the ASP, the
   relayer, and the Groth16 prover so the demo runs offline and in
