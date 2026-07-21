@@ -22,7 +22,8 @@ export function ppv2SignerKeyPath(accountIndex = 0): string {
 /**
  * Human-readable EIP-712 purpose string. Byte-for-byte stable across releases —
  * it is part of the typed-data hash and therefore part of the derived key.
- * Mirrors the 0xbow reference payload (`apps/sample-web/secretDerivationPayload.ts`).
+ * Mirrors the 0xbow reference payload (`apps/sample-web/secretDerivationPayload.ts`
+ * in the 0xbow v2-monorepo — an upstream provenance pointer, not a path here).
  */
 const SECRET_DERIVATION_PURPOSE =
     "This signature is used to deterministically derive application-specific secrets " +

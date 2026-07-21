@@ -1,17 +1,14 @@
 import { PluginError } from "@kohaku-eth/plugins";
 import type { Hex } from "@0xbow-io/privacy-pools-v2-sdk";
 
-// NOTE: SDK error classes are matched by their `.name` string rather than
-// `instanceof`. The unpublished SDK build (`@0xbow-io/privacy-pools-v2-sdk` 0.0.0) declares
-// these classes in its `.d.ts` but does NOT re-export them from its runtime JS
-// bundle, so importing them as values yields `undefined` and `instanceof` throws.
-// Every SDK error sets `this.name = "<ClassName>"`, so name matching is reliable
-// and avoids depending on the broken runtime exports. (Flag for DEP-1.)
+// NOTE: SDK error classes are matched by their `.name` string, not `instanceof`:
+// the SDK declares them in its `.d.ts` but does not re-export them from its
+// runtime bundle, so importing them as values yields `undefined`. Every SDK
+// error sets `this.name = "<ClassName>"`, so name matching is reliable. (DEP-1.)
 
 /**
  * Base for Privacy Pools v2 plugin errors with no matching `@kohaku-eth/plugins`
- * type. No raw SDK exception may cross the plugin boundary (FR-060); everything
- * is normalized to a `PluginError` subclass so the wallet can classify failures.
+ * type. No raw SDK exception crosses the plugin boundary (FR-060).
  */
 export abstract class PPv2Error extends PluginError {}
 
@@ -54,12 +51,10 @@ export class QuoteExpiredError extends PPv2Error {
 }
 
 /**
- * No verified circuit artifact could be produced (FR-040): every gateway's bytes
- * failed the pinned-digest check or could not be fetched. The SDK aggregates
- * per-gateway digest mismatches into `CircuitArtifactLoadFailed` (the raw
- * `CircuitArtifactMultihashMismatch` escapes only on the cached-bytes path), so
- * both map here — either way the artifact layer fails closed and the message
- * carries the per-gateway detail.
+ * No verified circuit artifact could be produced (FR-040): every gateway's
+ * bytes failed the pinned-digest check or could not be fetched. The SDK
+ * aggregates per-gateway digest mismatches into `CircuitArtifactLoadFailed`
+ * (both map here) — the artifact layer fails closed either way.
  */
 export class ArtifactIntegrityError extends PPv2Error {
     /** @param message - per-gateway failure detail from the SDK, when available. */
@@ -102,9 +97,22 @@ export class RelayerUnavailableError extends PPv2Error {
 }
 
 /**
- * Selected inputs cannot cover the transfer amount and/or the relayer fee
- * (FR-052). Not retryable against another relayer — the account needs more
- * spendable value, so it must stay distinct from `RelayerUnavailableError`.
+ * Operation parameters failed SDK validation — including the withdraw
+ * anti-theft checks (relayer quote's payout routing/fee mismatch). Nothing was
+ * sent; do NOT retry the same quote — it may be malformed or malicious.
+ */
+export class InvalidOperationError extends PPv2Error {
+    constructor(
+        message = "Operation parameters failed validation (possibly a malformed or malicious relayer quote).",
+        public override readonly cause?: unknown,
+    ) {
+        super(message);
+    }
+}
+
+/**
+ * Selected inputs cannot cover the amount and/or the relayer fee (FR-052).
+ * Needs more spendable value — distinct from the retryable relayer errors.
  */
 export class InsufficientFundsError extends PPv2Error {
     /** Carries the SDK's value-shortfall error as `cause`. */
@@ -125,9 +133,8 @@ export class AccountImportMismatchError extends PPv2Error {
 }
 
 /**
- * Scaffolding for a plugin verb not yet implemented. Temporary — each throw is
- * replaced as its user-story task lands; typed so it never crosses the boundary
- * as a raw error (FR-060).
+ * Scaffolding for a plugin verb not yet implemented (FR-060). Temporary —
+ * each throw is replaced as its user-story task lands.
  */
 export class NotImplementedError extends PPv2Error {
     /** @param task - the spec task that will replace this stub. */
@@ -162,11 +169,16 @@ export function mapSdkError(err: unknown): PluginError {
             return new ArtifactIntegrityError(message);
         case "InvalidStorageStateError":
             return new StorageCorruptionError("<sdk-state>", err);
+        // TransactNoteNotActive = an input note is no longer ACTIVE at proving
+        // time: stale local state (e.g. a concurrent spend) — resync and retry.
         case "NoteDiscoveryScanFailed":
         case "RPCInteractorBaseError":
         case "GetBlockNumberFailed":
         case "EventReadError":
+        case "TransactNoteNotActive":
             return new SyncFailedError(message, err);
+        case "InvalidTransactParams":
+            return new InvalidOperationError(message, err);
         case "RelayerRejected":
         case "RelayerRequestFailed":
         case "RelayTimeout":

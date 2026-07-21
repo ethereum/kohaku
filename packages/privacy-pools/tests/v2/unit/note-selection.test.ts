@@ -43,7 +43,7 @@ describe("selectInputNotes", () => {
         expect(sel.total).toBe(200n);
     });
 
-    it("takes the 4 largest notes of the label (largest-first)", () => {
+    it("takes the largest notes of the label (largest-first)", () => {
         const big = note({ value: 500n, label: LABEL_A });
         const small = note({ value: 1n, label: LABEL_A });
         const sel = selectInputNotes({ notes: [small, big], tokenId: TOKEN, required: 400n });
@@ -53,16 +53,26 @@ describe("selectInputNotes", () => {
         expect(sel.total).toBe(501n);
     });
 
-    it("caps at the 4 largest, dropping smaller notes", () => {
-        const values = [50n, 40n, 30n, 20n, 10n]; // 5 notes; top-4 = 50+40+30+20 = 140
+    it("caps at the 5 largest (the circuit max), dropping smaller notes", () => {
+        const values = [60n, 50n, 40n, 30n, 20n, 10n]; // 6 notes; top-5 = 200
         const notes = values.map((v) => note({ value: v, label: LABEL_A }));
-        const sel = selectInputNotes({ notes, tokenId: TOKEN, required: 100n });
+        const sel = selectInputNotes({ notes, tokenId: TOKEN, required: 150n });
 
-        expect(sel.commitments).toHaveLength(4);
-        expect(sel.total).toBe(140n);
+        expect(sel.commitments).toHaveLength(5);
+        expect(sel.total).toBe(200n);
     });
 
-    it("prefers the label with the greatest 4-note sum", () => {
+    it("spends 5 notes when only the full circuit-max set covers", () => {
+        // Titi's review case: top-4 = 400 < required, top-5 = 500 covers. A 4-cap
+        // would throw LabelFragmentationError on this fully provable operation.
+        const notes = Array.from({ length: 5 }, () => note({ value: 100n, label: LABEL_A }));
+        const sel = selectInputNotes({ notes, tokenId: TOKEN, required: 450n });
+
+        expect(sel.commitments).toHaveLength(5);
+        expect(sel.total).toBe(500n);
+    });
+
+    it("prefers the label with the greatest capped-set sum", () => {
         const notes = [
             note({ value: 1000n, label: LABEL_A }),
             note({ value: 300n, label: LABEL_B }),
@@ -102,11 +112,11 @@ describe("selectInputNotes", () => {
         }
     });
 
-    it("rejects when the 4 largest can't cover (cannot spend more than 4)", () => {
-        // five 100-notes in one label: total 500, but the top-4 sum is only 400
-        const notes = Array.from({ length: 5 }, () => note({ value: 100n, label: LABEL_A }));
+    it("rejects when the 5 largest can't cover (cannot spend more than the circuit max)", () => {
+        // six 100-notes in one label: total 600, but the top-5 sum is only 500
+        const notes = Array.from({ length: 6 }, () => note({ value: 100n, label: LABEL_A }));
 
-        expect(() => selectInputNotes({ notes, tokenId: TOKEN, required: 450n })).toThrowError(
+        expect(() => selectInputNotes({ notes, tokenId: TOKEN, required: 550n })).toThrowError(
             LabelFragmentationError,
         );
     });

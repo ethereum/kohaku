@@ -8,7 +8,8 @@ import type {
 import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
-import { LabelFragmentationError, NotRegisteredError, RelayerUnavailableError } from "../../../src/v2/interfaces/errors";
+import { InsufficientBalanceError } from "@kohaku-eth/plugins";
+import { InsufficientFundsError, NotRegisteredError, RelayerUnavailableError } from "../../../src/v2/interfaces/errors";
 import type { PPv2AssetAmount, PPv2PluginParameters } from "../../../src/v2/interfaces/plugin.interface";
 import { PPv2Plugin } from "../../../src/v2/plugin";
 
@@ -157,20 +158,23 @@ describe("PPv2Plugin.prepareTransfer", () => {
         );
     });
 
-    it("throws LabelFragmentation when the 4 largest can't cover the amount", async () => {
+    it("throws InsufficientBalance when the whole spendable balance can't cover", async () => {
+        // The cross-label pre-check (mirroring prepareUnshield) fires before
+        // selection: 50 total spendable < 100 requested.
         const { plugin } = makePlugin({ notes: [activeNote(50n)], quotes: [quote("11", 5n, FUTURE)] });
 
         await expect(plugin.prepareTransfer(asset(100n), RECIPIENT)).rejects.toBeInstanceOf(
-            LabelFragmentationError,
+            InsufficientBalanceError,
         );
     });
 
-    it("throws LabelFragmentation when change can't cover the fee (amount+fee)", async () => {
-        // 101 covers amount 100 (change 1) but the fee (50) exceeds the change
+    it("throws InsufficientFunds when change can't cover the fee (amount+fee)", async () => {
+        // 101 covers amount 100 (change 1) but the fee (50) exceeds the change —
+        // a funds shortfall, not label fragmentation.
         const { plugin } = makePlugin({ notes: [activeNote(101n)], quotes: [quote("11", 50n, FUTURE)] });
 
         await expect(plugin.prepareTransfer(asset(100n), RECIPIENT)).rejects.toBeInstanceOf(
-            LabelFragmentationError,
+            InsufficientFundsError,
         );
     });
 });

@@ -3,12 +3,13 @@ import { LabelFragmentationError } from "../interfaces/errors";
 import { hexToAmount } from "../mapping/assets";
 
 /**
- * Maximum input notes a single `transact` spends. Capped at 4 (not the SDK's
- * circuit max of 5): a transfer's outputs are 1 recipient note + change, so the
- * spend side is bounded to 4 to fit the "1 + 4 (or vice-versa)" note budget.
- * NOTE: the SDK's `MAX_INPUTS` is 5 — this 4-cap is a deliberate plugin choice.
+ * Maximum input notes a single `transact` spends — the SDK's circuit max.
+ * Inputs and outputs are independent circuit dimensions: selection is
+ * single-label (INV-5), so outputs are at most 2 (recipient + change)
+ * regardless of input count, and the `transact_5x2`/`5x1` artifacts ship in
+ * the default manifest.
  */
-const MAX_INPUTS = 4;
+const MAX_INPUTS = 5;
 
 /** The chosen input notes for a transact, all from one label (INV-5). */
 export type SelectedInputs = {

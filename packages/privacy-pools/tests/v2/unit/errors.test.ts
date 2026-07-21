@@ -5,11 +5,13 @@ import {
     AlreadyRegisteredError,
     ArtifactIntegrityError,
     InsufficientFundsError,
+    InvalidOperationError,
     mapSdkError,
     NotRegisteredError,
     QuoteExpiredError,
     RelayerUnavailableError,
     StorageCorruptionError,
+    SyncFailedError,
     UnexpectedSdkError,
 } from "../../../src/v2/interfaces/errors";
 
@@ -50,6 +52,17 @@ describe("mapSdkError (FR-060)", () => {
             expect(mapped).toBeInstanceOf(InsufficientFundsError);
             expect(mapped).not.toBeInstanceOf(RelayerUnavailableError);
         }
+
+        // The withdraw anti-theft checks throw InvalidTransactParams (payout
+        // routing / fee mismatch against the signed quote) — it must surface
+        // typed, never as a generic UnexpectedSdkError.
+        const invalid = mapSdkError(sdkError("InvalidTransactParams"));
+
+        expect(invalid).toBeInstanceOf(InvalidOperationError);
+        expect(invalid).not.toBeInstanceOf(UnexpectedSdkError);
+
+        // A no-longer-active input note means stale local state: resync + retry.
+        expect(mapSdkError(sdkError("TransactNoteNotActive"))).toBeInstanceOf(SyncFailedError);
     });
 
     it("passes through existing PluginErrors untouched", () => {

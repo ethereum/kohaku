@@ -1,8 +1,9 @@
 /* eslint-disable max-lines */
 // The plugin class holds every verb + read; matches the v1 `PrivacyPoolsV1Protocol`
 // precedent. If it grows unwieldy, extract verbs into an `operations/` module.
-import { InsufficientBalanceError } from "@kohaku-eth/plugins";
+import { InsufficientBalanceError, InvalidAddressError } from "@kohaku-eth/plugins";
 import type { CreatePluginFn, Host, UnshieldOptions } from "@kohaku-eth/plugins";
+import { isAddress } from "viem";
 import type { TxData } from "@kohaku-eth/provider";
 import type { Address as OxAddress } from "ox/Address";
 import { type Address, type Hex, type INoteManager, type PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
@@ -12,7 +13,7 @@ import { KohakuStorageService } from "./adapters/storage.adapter";
 import {
     AccountImportMismatchError,
     AlreadyRegisteredError,
-    LabelFragmentationError,
+    InsufficientFundsError,
     mapSdkError,
     NotImplementedError,
     NotRegisteredError,
@@ -198,8 +199,8 @@ export class PPv2Plugin implements PPv2Instance {
             throw new NotImplementedError("prepareShield(to) deposit-for", "US1 follow-up");
         }
 
-        await this.reconcile();
-
+        // No reconcile(): deposit calldata doesn't depend on note state, so a
+        // network sync here would be a wasted round-trip.
         try {
             const result = await this.session.prepareDeposit({
                 tokenId: assetToTokenId(asset.asset),
@@ -237,6 +238,10 @@ export class PPv2Plugin implements PPv2Instance {
      * (INV-1). Requires registration (FR-026, INV-8).
      */
     async prepareTransfer(asset: PPv2AssetAmount, to: PPv2AccountId): Promise<PPv2PrivateOperation> {
+        // Fail fast with a typed error before any network work — the SDK would
+        // otherwise surface a malformed recipient deep inside proving.
+        if (!isAddress(to, { strict: false })) throw new InvalidAddressError(to);
+
         await this.reconcile();
 
         if (!(await this.isRegistered())) throw new NotRegisteredError();
@@ -244,7 +249,16 @@ export class PPv2Plugin implements PPv2Instance {
         try {
             const tokenId = assetToTokenId(asset.asset);
 
-            // Select the 4 largest notes of a single label covering the amount (INV-5).
+            // Fail before selection when the whole spendable balance can't cover
+            // the amount — the same cross-label pre-check as prepareUnshield, so
+            // both verbs report plain insufficiency identically (US2/US3 AC-3).
+            const spendable = this.spendableFor(tokenId);
+
+            if (asset.amount > spendable) {
+                throw new InsufficientBalanceError(asset.asset, asset.amount, spendable);
+            }
+
+            // Select the largest notes of a single label covering the amount (INV-5).
             // No separate quote fetch: prepareColdStartTransfer generates the relayer
             // quotes itself, and the fee is verified against the resulting change below.
             const selected = selectInputNotes({
@@ -262,8 +276,8 @@ export class PPv2Plugin implements PPv2Instance {
 
             // Pick the cheapest live relay option whose fee fits the change. If a
             // relayer replied but none is live, that's a relayer/liveness problem;
-            // if live options exist but none fits the change, the 4 largest notes
-            // can't cover amount + fee — and no single label could (LabelFragmentation).
+            // if live options exist but none fits the change, the label covered the
+            // amount but not amount + fee — a funds shortfall, not fragmentation.
             const changeMax = selected.total - asset.amount;
             const live = result.relayOptions.filter((o) =>
                 isQuoteLive(o.selectedQuote.quote.feeCommitment.expiration),
@@ -278,9 +292,10 @@ export class PPv2Plugin implements PPv2Instance {
             );
 
             if (affordable.length === 0) {
-                throw new LabelFragmentationError(asset.amount, [
-                    { label: selected.label, spendable: selected.total },
-                ]);
+                throw new InsufficientFundsError(
+                    `Selected notes cover the ${asset.amount} transfer but not the relayer fee ` +
+                        `(label spendable: ${selected.total}).`,
+                );
             }
 
             const relayParams = affordable.reduce((a, b) =>
@@ -318,6 +333,8 @@ export class PPv2Plugin implements PPv2Instance {
             // The relayer executes the withdrawal; appended wallet calls can't ride it.
             throw new NotImplementedError("prepareUnshield tailCalls", "unsupported by relayer path");
         }
+
+        if (!isAddress(to, { strict: false })) throw new InvalidAddressError(to);
 
         await this.reconcile();
 
@@ -365,9 +382,12 @@ export class PPv2Plugin implements PPv2Instance {
             );
 
             if (affordable.length === 0) {
-                throw new LabelFragmentationError(asset.amount, [
-                    { label: selected.label, spendable: selected.total },
-                ]);
+                // The label covered the amount but not amount + fee — a funds
+                // shortfall, not fragmentation.
+                throw new InsufficientFundsError(
+                    `Selected notes cover the ${asset.amount} withdrawal but not the relayer fee ` +
+                        `(label spendable: ${selected.total}).`,
+                );
             }
 
             const relayParams = affordable.reduce((a, b) =>

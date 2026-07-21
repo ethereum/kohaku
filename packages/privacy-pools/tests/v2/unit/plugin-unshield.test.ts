@@ -10,7 +10,7 @@ import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import {
-    LabelFragmentationError,
+    InsufficientFundsError,
     NotImplementedError,
     NotRegisteredError,
     RelayerUnavailableError,
@@ -182,15 +182,16 @@ describe("PPv2Plugin.prepareUnshield", () => {
         );
     });
 
-    it("throws LabelFragmentation when no live fee fits amount + fee", async () => {
-        // 101 covers amount 100 but the only live fee (50) exceeds total - amount (1)
+    it("throws InsufficientFunds when no live fee fits amount + fee", async () => {
+        // 101 covers amount 100 but the only live fee (50) exceeds total - amount
+        // (1) — a funds shortfall, not label fragmentation.
         const { plugin } = makePlugin({
             notes: [activeNote(101n)],
             quotes: [withdrawQuote("11", 50n, FUTURE)],
         });
 
         await expect(plugin.prepareUnshield(asset(100n), RECIPIENT)).rejects.toBeInstanceOf(
-            LabelFragmentationError,
+            InsufficientFundsError,
         );
     });
 
