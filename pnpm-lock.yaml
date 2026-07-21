@@ -101,6 +101,35 @@ importers:
         specifier: ^2.51.3
         version: 2.54.1(typescript@7.0.2)(zod@4.4.3)
 
+  examples/ppv2-sample-app:
+    dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
+      '@kohaku-eth/privacy-pools':
+        specifier: workspace:*
+        version: link:../../packages/privacy-pools
+      '@kohaku-eth/provider':
+        specifier: workspace:*
+        version: link:../../packages/provider
+      dotenv:
+        specifier: ^17.2.1
+        version: 17.4.2
+      viem:
+        specifier: ^2.51.3
+        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
+    devDependencies:
+      tsx:
+        specifier: ^4.17.0
+        version: 4.22.5
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+    optionalDependencies:
+      '@0xbow-io/privacy-pools-v2-sdk':
+        specifier: 0.1.0-beta.0
+        version: 0.1.0-beta.0(typescript@5.9.3)
+
   examples/pq-account:
     dependencies:
       '@noble/hashes':

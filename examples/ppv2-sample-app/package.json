@@ -1,0 +1,26 @@
+{
+  "name": "@kohaku-eth/ppv2-sample-app",
+  "version": "0.0.1",
+  "description": "Sample wallet integration of the Privacy Pools v2 Kohaku plugin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "start:devnet": "tsx src/devnet-main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/privacy-pools": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*",
+    "viem": "^2.51.3"
+  },
+  "optionalDependencies": {
+    "@0xbow-io/privacy-pools-v2-sdk": "0.1.0-beta.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.17.0",
+    "typescript": "^5.9.2"
+  }
+}

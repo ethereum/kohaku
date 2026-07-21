@@ -23,5 +23,6 @@ packages:
   - "packages/tornado-cash"
   - "packages/mimc-tree"
   - "examples/pq-account"
+  - "examples/ppv2-sample-app"
   - "crates/railgun-ts"
   - "docs"
