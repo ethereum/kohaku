@@ -10,8 +10,9 @@ import { encodePaymasterData, encodeTornadoAdapterData } from "@privacy-paymaste
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
-import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
-import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
+import { reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { buildSponsoredUserOpWithGasRefinement } from "../../paymaster/refine-sponsored-gas";
+import { buildSignedTornadoUserOp, createPaymasterBundlerClient, getUserOperationGasPrice } from "../../paymaster/utils";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
 import { UserOpGasLimits } from "../../interfaces/user-ops.interface";
@@ -113,6 +114,28 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       ? dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee)
       : ethFee;
 
+  const refineSponsoredOp = (params: {
+    baselineGas: UserOpGasLimits;
+    buildSignedOp: (
+      gas: UserOpGasLimits,
+      fee: bigint,
+      paymasterData: `0x${string}`,
+    ) => ReturnType<typeof buildSignedTornadoUserOp>;
+    proveAtFee: (fee: bigint) => Promise<{
+      paymasterData: `0x${string}`;
+      proof: TornadoProveOutput;
+    }>;
+  }) =>
+    buildSponsoredUserOpWithGasRefinement({
+      bundlerClient,
+      entryPointAddress,
+      baselineGas: params.baselineGas,
+      maxFeePerGas,
+      quoteFee,
+      proveAtFee: params.proveAtFee,
+      buildSignedOp: params.buildSignedOp,
+    });
+
   const prove = async (
     deposit: (typeof deposits)[number],
     recipient: Address,
@@ -179,20 +202,29 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   if (!needsConsolidation) {
     const deposit = deposits[0]!;
     const signer = await resolveIndependentSigner(deposit);
+    const baselineGas = reasonableGasUnits(poolInfo.isERC20);
 
-    const gasUnits = reasonableGasUnits(poolInfo.isERC20);
-    const fee = await quoteFee(computeMinimumViableFee(gasUnits, maxFeePerGas));
-    const proof = await prove(deposit, originalRecipient, relayerAddress, fee);
+    const { userOperation, proof } = await refineSponsoredOp({
+      baselineGas,
+      proveAtFee: async (fee) => {
+        const p = await prove(deposit, originalRecipient, relayerAddress, fee);
 
-    const userOperation = await buildSignedTornadoUserOp({
-      signer,
-      chainId,
-      paymasterAddress,
-      paymasterData: buildPaymasterData(deposit.pool, proof),
-      gas: { ...gasUnits, callGasLimit: 0n },
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-      nonce: 0n,
+        return {
+          proof: p,
+          paymasterData: buildPaymasterData(deposit.pool, p),
+        };
+      },
+      buildSignedOp: (gas, _fee, paymasterData) =>
+        buildSignedTornadoUserOp({
+          signer,
+          chainId,
+          paymasterAddress,
+          paymasterData,
+          gas,
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+          nonce: 0n,
+        }),
     });
 
     return [{
@@ -280,40 +312,21 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       nonce: 0n,
     });
 
-  // Baseline (generous) gas + fee, sized by deposit count. Deposit[0] is proved
-  // at this fee and a provisional op assembled; the bundler then refines the
-  // limits. We re-prove deposit[0] once at the estimate-derived fee so the
-  // sponsoring proof matches the tight limits (the baseline fee is a generous
-  // ceiling, so it always clears the paymaster's fee check during estimation).
-  // Estimation is best-effort — on any failure we keep the safe baseline.
   const baselineGas = reasonableGasUnitsForBatch(poolInfo.isERC20, directDeposits.length, tailCalls != null);
-  let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
-  let gas: UserOpGasLimits = baselineGas;
-  let sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
-  let userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
-  try {
-    const estimated = await estimateUserOperationGas(bundlerClient, userOperation, entryPointAddress);
-    // The bundler's estimate is authoritative; apply a 20% buffer and fall back
-    // to the baseline only for any field it leaves at 0.
-    const buffer = (x: bigint) => (x * 12n) / 10n;
-    const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+  const { userOperation, proof: sponsoringProof } = await refineSponsoredOp({
+    baselineGas,
+    proveAtFee: async (fee) => {
+      const p = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
 
-    const refinedGas: UserOpGasLimits = {
-      callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
-      verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
-      preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
-      paymasterVerificationGasLimit: orBaseline(estimated.paymasterVerificationGasLimit, baselineGas.paymasterVerificationGasLimit),
-      paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
-    };
-
-    fee = await quoteFee(computeMinimumViableFee(refinedGas, maxFeePerGas));
-    gas = refinedGas;
-    sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
-    userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
-  } catch {
-    // Bundler estimation unavailable/failed — keep the baseline-sized op.
-  }
+      return {
+        proof: p,
+        paymasterData: buildPaymasterData(sponsoringDeposit.pool, p),
+      };
+    },
+    buildSignedOp: (gas, fee, paymasterData) =>
+      buildOp(gas, fee, paymasterData),
+  });
 
   return [{
     mode: 'paymaster' as const,

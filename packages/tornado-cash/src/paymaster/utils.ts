@@ -121,6 +121,27 @@ export async function estimateUserOperationGas(
   };
 }
 
+export async function estimateUserOperationGasWithRetry(
+  client: BundlerClient,
+  op: SerializedUserOperation,
+  entryPoint: Address,
+): Promise<UserOpGasLimits> {
+  try {
+    return await estimateUserOperationGas(client, op, entryPoint);
+  } catch (firstError) {
+    try {
+      return await estimateUserOperationGas(client, op, entryPoint);
+    } catch (secondError) {
+      const message = secondError instanceof Error ? secondError.message : String(secondError);
+      const first = firstError instanceof Error ? firstError.message : String(firstError);
+
+      throw new Error(
+        `eth_estimateUserOperationGas failed after retry (first: ${first}; second: ${message})`,
+      );
+    }
+  }
+}
+
 /**
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
  * 7702 sender, returning it serialized for the broadcast phase.

@@ -13,6 +13,8 @@ import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setUniswapV3PoolPrice, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 import { getChainConfigSetup } from '../../constants';
+import { assertPaymasterUserOpGasInvariants } from '../../utils/paymaster-gas-assertions';
+import { createPaymasterBundlerClient, getUserOperationGasPrice } from '../../../src/paymaster/utils';
 import { TCBroadcaster, TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
 import { Serializable } from '../../../src/state/interfaces/utils.interface';
 import { IPool } from '../../../src/data/interfaces/events.interface';
@@ -87,6 +89,23 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     await anvil.stop();
   });
 
+  async function assertPreparedPaymasterGas(
+    unshieldOp: Awaited<ReturnType<TornadoCashProtocol['prepareUnshield']>>,
+    proofFeeWei?: bigint,
+  ) {
+    const bundlerClient = createPaymasterBundlerClient(bundlerRpcUrl);
+    const { standard: { maxFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
+    const withdrawal = unshieldOp.withdrawals[0]!;
+
+    await assertPaymasterUserOpGasInvariants({
+      bundlerClient,
+      entryPointAddress,
+      userOperation: withdrawal.userOperation,
+      maxFeePerGas,
+      proofFeeWei,
+    });
+  }
+
   it('[prepareUnshieldPaymaster] Native withdrawal succeeds', { timeout: 180_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
@@ -114,6 +133,13 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
       { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
       alice.address as AccountId,
       { mode: 'paymaster' },
+    );
+
+    const nativeWithdrawal = unshieldOp.withdrawals[0]!;
+
+    await assertPreparedPaymasterGas(
+      unshieldOp,
+      BigInt(nativeWithdrawal.proof.args[4]!),
     );
 
     const preWithdrawalBalance = await pool.getBalance(alice.address);
@@ -179,6 +205,8 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     // authorization); the second note is withdrawn as a direct pool.withdraw in
     // callData and the accumulated balance is forwarded to alice.
     expect(unshieldOp.withdrawals.length).toBe(1);
+
+    await assertPreparedPaymasterGas(unshieldOp);
 
     const preWithdrawalBalance = await getERC20Balance(pool.rpcUrl, erc20Address, alice.address);
 
@@ -282,6 +310,8 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     // EIP-7702 authorization, with the tailCalls appended after the direct
     // withdraw of the second note.
     expect(unshieldOp.withdrawals.length).toBe(1);
+
+    await assertPreparedPaymasterGas(unshieldOp);
 
     // Broadcast — the userOp executes both tailCalls atomically; Bob receives tokens
     const preBobBalance = await getERC20Balance(pool.rpcUrl, erc20Address, bob);

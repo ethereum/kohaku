@@ -8,13 +8,21 @@ export function estimatePaymasterFee(_gasPrice?: bigint): bigint {
   return 700_000n * (_gasPrice || (5n * 10n ** 9n));
 }
 
-interface UserOperationGasLimits {
-  preVerificationGas: bigint;
-  verificationGasLimit: bigint;
-  callGasLimit: bigint;
-  paymasterVerificationGasLimit: bigint;
-  paymasterPostOpGasLimit: bigint;
+import type { UserOpGasLimits } from '../interfaces/user-ops.interface';
 
+export type UserOperationGasLimits = UserOpGasLimits;
+
+/**
+ * 10% headroom for variable execution/validation gas limits
+ * (`callGasLimit`, `verificationGasLimit`, `paymasterVerificationGasLimit`).
+ * Not applied to `preVerificationGas` / `paymasterPostOpGasLimit`, which are
+ * more stable once sized from the bundler or baseline.
+ */
+export const GAS_HEADROOM_NUM = 11n;
+export const GAS_HEADROOM_DEN = 10n;
+
+export function applyGasHeadroom(value: bigint): bigint {
+  return (value * GAS_HEADROOM_NUM) / GAS_HEADROOM_DEN;
 }
 
 const ERC20_TRANSFER_GAS = 100_000n;
@@ -31,12 +39,11 @@ const PER_DIRECT_WITHDRAW_GAS_ERC20 = 500_000n;
 const FORWARD_GAS = 60_000n;
 
 const baseGasUnits: UserOperationGasLimits = {
-  preVerificationGas: 80_000n,
+  preVerificationGas: 85_000n,
   verificationGasLimit: 50_000n,
   callGasLimit: 300_000n,
-
   paymasterVerificationGasLimit: 350_000n,
-  paymasterPostOpGasLimit: 10_000n,
+  paymasterPostOpGasLimit: 50_000n,
 };
 
 export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
@@ -72,6 +79,53 @@ export function reasonableGasUnitsForBatch(
   return {
     ...base,
     callGasLimit: BigInt(extraWithdrawals) * perWithdraw + executionTail,
+  };
+}
+
+/** Prefer estimate when > 0, else baseline (no headroom). */
+function maxEstimateOrBaseline(estimate: bigint, base: bigint): bigint {
+  return estimate > 0n ? estimate : base;
+}
+
+/**
+ * Per-field merge of bundler estimate vs baseline. Variable fields get 10%
+ * headroom on both sides and take the max; stable fields take max(estimate, baseline)
+ * without buffering.
+ */
+export function mergeEstimatedGasLimits(
+  baseline: UserOperationGasLimits,
+  estimated: UserOperationGasLimits,
+): UserOperationGasLimits {
+  const mergeVariable = (estimate: bigint, base: bigint) => {
+    const fromEstimate = estimate > 0n ? applyGasHeadroom(estimate) : 0n;
+    const fromBaseline = applyGasHeadroom(base);
+
+    return fromEstimate > fromBaseline ? fromEstimate : fromBaseline;
+  };
+
+  return {
+    callGasLimit: mergeVariable(estimated.callGasLimit, baseline.callGasLimit),
+    verificationGasLimit: mergeVariable(estimated.verificationGasLimit, baseline.verificationGasLimit),
+    paymasterVerificationGasLimit: mergeVariable(
+      estimated.paymasterVerificationGasLimit,
+      baseline.paymasterVerificationGasLimit,
+    ),
+    preVerificationGas: maxEstimateOrBaseline(estimated.preVerificationGas, baseline.preVerificationGas),
+    paymasterPostOpGasLimit: maxEstimateOrBaseline(
+      estimated.paymasterPostOpGasLimit,
+      baseline.paymasterPostOpGasLimit,
+    ),
+  };
+}
+
+/** Headroom on variable baseline fields when bundler estimation is unavailable. */
+export function gasLimitsWithBaselineHeadroom(baseline: UserOperationGasLimits): UserOperationGasLimits {
+  return {
+    callGasLimit: applyGasHeadroom(baseline.callGasLimit),
+    verificationGasLimit: applyGasHeadroom(baseline.verificationGasLimit),
+    paymasterVerificationGasLimit: applyGasHeadroom(baseline.paymasterVerificationGasLimit),
+    preVerificationGas: baseline.preVerificationGas,
+    paymasterPostOpGasLimit: baseline.paymasterPostOpGasLimit,
   };
 }
 
