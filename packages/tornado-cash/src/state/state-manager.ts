@@ -262,6 +262,7 @@ export const storeStateManager = async ({
               },
               secretManager,
               tailCalls: params.tailCalls,
+              callGasLimitEstimate: params.callGasLimitEstimate,
             }),
           ),
         );

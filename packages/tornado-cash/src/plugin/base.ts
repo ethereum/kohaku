@@ -248,6 +248,7 @@ export class TornadoCashProtocol implements TCInstance {
         mode: 'paymaster',
         delegation: options.delegation,
         tailCalls: options.tailCalls,
+        callGasLimitEstimate: options.callGasLimitEstimate,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

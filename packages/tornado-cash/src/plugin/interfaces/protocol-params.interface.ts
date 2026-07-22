@@ -92,6 +92,12 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
   mode: 'paymaster';
   delegation?: DelegationConfig;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
+  /**
+   * Optional baseline for the execution-phase gas of user `tailCalls` (not
+   * including per-note direct withdraws). Used when bundler estimation fails;
+   * when estimation succeeds the bundler estimate still wins.
+   */
+  callGasLimitEstimate?: bigint;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
