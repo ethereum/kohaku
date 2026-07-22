@@ -39,6 +39,13 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     mode: 'paymaster';
     delegation?: DelegationConfig;
+    /**
+     * Optional baseline for the execution-phase gas of user `tailCalls` (not
+     * including per-note direct withdraws). Used as the batch execution-tail
+     * baseline when bundler estimation fails; when estimation succeeds the
+     * bundler estimate still wins. Defaults to the SDK's static callGasLimit.
+     */
+    tailCallsGasEstimate?: bigint;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;

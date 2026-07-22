@@ -44,6 +44,7 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   };
   secretManager: ISecretManager;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
+  tailCallsGasEstimate?: bigint;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -60,6 +61,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   },
   secretManager,
   tailCalls,
+  tailCallsGasEstimate,
   ...rest
 }, { getState, dispatch }) => {
   const state = getState();
@@ -286,7 +288,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // sponsoring proof matches the tight limits (the baseline fee is a generous
   // ceiling, so it always clears the paymaster's fee check during estimation).
   // Estimation is best-effort — on any failure we keep the safe baseline.
-  const baselineGas = reasonableGasUnitsForBatch(poolInfo.isERC20, directDeposits.length, tailCalls != null);
+  const baselineGas = reasonableGasUnitsForBatch(
+    poolInfo.isERC20,
+    directDeposits.length,
+    tailCalls != null,
+    tailCallsGasEstimate,
+  );
   let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
   let gas: UserOpGasLimits = baselineGas;
   let sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
