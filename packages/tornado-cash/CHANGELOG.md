@@ -1,3 +1,9 @@
+## 0.0.2-alpha.18
+
+### Patch Changes
+
+- dfa61fe: feat: bump tornado base gas estimates
+
 ## 0.0.2-alpha.17
 
 ### Patch Changes
