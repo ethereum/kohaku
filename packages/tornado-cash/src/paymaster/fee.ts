@@ -31,12 +31,12 @@ const PER_DIRECT_WITHDRAW_GAS_ERC20 = 500_000n;
 const FORWARD_GAS = 60_000n;
 
 const baseGasUnits: UserOperationGasLimits = {
-  preVerificationGas: 80_000n,
+  preVerificationGas: 85_000n,
   verificationGasLimit: 50_000n,
-  callGasLimit: 300_000n,
+  callGasLimit: 900_000n,
 
   paymasterVerificationGasLimit: 350_000n,
-  paymasterPostOpGasLimit: 10_000n,
+  paymasterPostOpGasLimit: 50_000n,
 };
 
 export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
