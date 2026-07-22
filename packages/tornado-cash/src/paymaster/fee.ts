@@ -58,19 +58,19 @@ export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
  * `extraWithdrawals` deposits run as direct `pool.withdraw` calls in the
  * execution phase, so their gas belongs to callGasLimit. When the caller
  * supplied tailCalls we budget an execution tail for them — prefer a consumer
- * `callGasLimitEstimate` when provided, otherwise the default base callGasLimit;
+ * `tailCallsGasEstimate` when provided, otherwise the default base callGasLimit;
  * without user tailCalls we only need the synthesized forward transfer.
  */
 export function reasonableGasUnitsForBatch(
   isERC20: boolean,
   extraWithdrawals: number,
   hasUserTailCalls: boolean,
-  callGasLimitEstimate?: bigint,
+  tailCallsGasEstimate?: bigint,
 ): UserOperationGasLimits {
   const base = reasonableGasUnits(isERC20);
   const perWithdraw = isERC20 ? PER_DIRECT_WITHDRAW_GAS_ERC20 : PER_DIRECT_WITHDRAW_GAS;
   const executionTail = hasUserTailCalls
-    ? (callGasLimitEstimate ?? base.callGasLimit)
+    ? (tailCallsGasEstimate ?? base.callGasLimit)
     : FORWARD_GAS;
 
   return {

@@ -44,7 +44,7 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   };
   secretManager: ISecretManager;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
-  callGasLimitEstimate?: bigint;
+  tailCallsGasEstimate?: bigint;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -61,7 +61,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   },
   secretManager,
   tailCalls,
-  callGasLimitEstimate,
+  tailCallsGasEstimate,
   ...rest
 }, { getState, dispatch }) => {
   const state = getState();
@@ -292,7 +292,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,
-    callGasLimitEstimate,
+    tailCallsGasEstimate,
   );
   let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
   let gas: UserOpGasLimits = baselineGas;

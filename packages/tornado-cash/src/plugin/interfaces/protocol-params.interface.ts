@@ -97,7 +97,7 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
    * including per-note direct withdraws). Used when bundler estimation fails;
    * when estimation succeeds the bundler estimate still wins.
    */
-  callGasLimitEstimate?: bigint;
+  tailCallsGasEstimate?: bigint;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;

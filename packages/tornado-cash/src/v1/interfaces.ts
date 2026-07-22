@@ -45,7 +45,7 @@ export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
      * baseline when bundler estimation fails; when estimation succeeds the
      * bundler estimate still wins. Defaults to the SDK's static callGasLimit.
      */
-    callGasLimitEstimate?: bigint;
+    tailCallsGasEstimate?: bigint;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;
