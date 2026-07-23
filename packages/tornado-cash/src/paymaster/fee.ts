@@ -31,7 +31,7 @@ const PER_DIRECT_WITHDRAW_GAS_ERC20 = 500_000n;
 const FORWARD_GAS = 60_000n;
 
 const baseGasUnits: UserOperationGasLimits = {
-  preVerificationGas: 85_000n,
+  preVerificationGas: 100_000n,
   verificationGasLimit: 50_000n,
   callGasLimit: 300_000n,
 
