@@ -4,5 +4,8 @@
     "noEmit": true,
     "verbatimModuleSyntax": false
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "checks"
+  ]
 }

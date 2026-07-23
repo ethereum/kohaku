@@ -3,13 +3,15 @@
 A runnable walkthrough of how a Kohaku-based wallet (e.g. the extension)
 integrates the Privacy Pools v2 plugin from `@kohaku-eth/privacy-pools`.
 
-Two entry points share the same wallet-side integration code:
+Two modes share the same wallet-side integration code:
 
-- `src/main.ts` (`pnpm start`) — **live Sepolia**: real contracts, real ASP,
-  real relayer, real Groth16 proofs. Needs a funded key in `.env`.
-- `src/devnet-main.ts` (`pnpm start:devnet`) — **offline demo**: an
-  in-process devnet stands in for the chain and services; runs in
-  milliseconds with no configuration.
+- **`checks/` (`pnpm check:<name>`) — live Sepolia**, one standalone script
+  per plugin verb (mirroring the v2-monorepo's `apps/sample/checks` layout):
+  real contracts, real ASP, real relayer, real Groth16 proofs, with explicit
+  post-condition assertions. Needs a funded key in `.env`.
+- **`src/devnet-main.ts` (`pnpm start:devnet`) — offline demo**: the full
+  lifecycle in one run against an in-process devnet; runs in milliseconds
+  with no configuration.
 
 ```sh
 # from the repo root
@@ -49,28 +51,40 @@ The demo drives the full lifecycle through the public plugin surface only:
   plugin's documented seam. This side *does* import the SDK — it plays the
   protocol infrastructure, not the wallet.
 
-## Live Sepolia mode (`src/main.ts`, helpers in `src/live/`)
+## Live Sepolia checks (`checks/`, shared wiring in `src/live/session.ts`)
 
-Runs the lifecycle against the real V2 Sepolia deployment (proxies pinned in
-`src/main.ts`, matching the SDK's `DEPLOYMENTS` map), the real 0xbow staging
-ASP (`api-dev.0xbow.io`) and staging relayer, with real Groth16 proofs from
-the locally built circuits in the v2-monorepo:
+Each check is a standalone script against the real V2 Sepolia deployment
+(proxies pinned in `src/live/session.ts`, matching the SDK's `DEPLOYMENTS`
+map), the real 0xbow staging ASP (`api-dev.0xbow.io`) and staging relayer,
+with real Groth16 proofs from the locally built circuits in the v2-monorepo:
 
 ```sh
 cp .env.example .env        # then set SEPOLIA_PRIVATE_KEY (funded key)
-pnpm --filter @kohaku-eth/ppv2-sample-app start
+pnpm check:read                       # read path only; sends nothing
+pnpm check:register                   # one-time keystore registration
+pnpm check:shield 1000                # deposit (amount in wei)
+pnpm check:unshield 1000000000000000  # relayed withdrawal (needs approved note)
+pnpm check:transfer                   # relayed cold-start transfer (see note below)
+pnpm check:ragequit                   # public exit of one note
+pnpm check:exportImport               # backup/restore onto a fresh device
 ```
 
-- `READ_ONLY=1` validates the whole read path (plugin construction, live
-  registration check, event discovery) without sending anything.
+- Each check asserts its post-conditions (registration visible, note
+  discovered, input spent, restored balance equal, …) and exits nonzero on
+  violation — `✓ <name> ok` otherwise.
 - State (sync cursor, discovered notes, key-rotation index) persists in
   `.ppv2-live-store.json` (gitignored), so re-runs are incremental. When the
   deployment addresses change, delete the store — its notes and cursor refer
   to the old contracts.
-- The one dev seam left is proving (`src/live/live-seams.ts`): circuits load
-  from the local v2-monorepo build (`CIRCUITS_DIR`) instead of the IPFS
-  gateways. Deposits are screened by the actual ASP and become spendable once
-  approved; withdrawals relay through the actual relayer (`WITHDRAW_WEI`).
+- Proving artifacts fetch from IPFS by default (digest-checked against the
+  full pinned Sepolia manifest in `src/wallet/config.ts` — no dev seams
+  left). Set `CIRCUITS_DIR` to a local v2-monorepo circuits build to skip
+  the multi-MB proving-key downloads on every run. Deposits are screened by
+  the actual ASP and become spendable once approved.
+- **Known-blocked upstream**: `check:transfer` currently fails at the relayer
+  with `PoolVault_ProofContextMismatch()` — a transfer-payload encoding skew
+  between SDK 0.1.0-beta.0 and the deployed staging stack (withdrawals relay
+  fine, which isolates it). The check documents the expected failure.
 
 ## Devnet approximations (things a real chain does differently)
 

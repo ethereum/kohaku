@@ -5,8 +5,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/main.ts",
     "start:devnet": "tsx src/devnet-main.ts",
+    "check:read": "tsx checks/read/readAccount.ts",
+    "check:register": "tsx checks/keystore/registerKeystore.ts",
+    "check:shield": "tsx checks/deposit/shield.ts",
+    "check:transfer": "tsx checks/transfer/transfer.ts",
+    "check:unshield": "tsx checks/withdraw/unshield.ts",
+    "check:ragequit": "tsx checks/ragequit/ragequit.ts",
+    "check:exportImport": "tsx checks/account/exportImport.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
