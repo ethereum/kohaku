@@ -9,7 +9,7 @@ import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { InsufficientBalanceError } from "@kohaku-eth/plugins";
-import { InsufficientFundsError, NotRegisteredError, RelayerUnavailableError } from "../../../src/v2/interfaces/errors";
+import { InsufficientFundsError, InvalidOperationError, NotRegisteredError, RelayerUnavailableError } from "../../../src/v2/interfaces/errors";
 import type { PPv2AssetAmount, PPv2PluginParameters } from "../../../src/v2/interfaces/plugin.interface";
 import { PPv2Plugin } from "../../../src/v2/plugin";
 
@@ -165,6 +165,21 @@ describe("PPv2Plugin.prepareTransfer", () => {
 
         await expect(plugin.prepareTransfer(asset(100n), RECIPIENT)).rejects.toBeInstanceOf(
             InsufficientBalanceError,
+        );
+    });
+
+    it("throws InvalidOperation when the chosen quote is for a different asset", async () => {
+        // Quote sanity before proving: the fee commitment must be denominated
+        // in the transacted asset (the SDK only checks this at relay time).
+        const wrongAsset = quote("11", 5n, FUTURE);
+
+        (wrongAsset.quote.feeCommitment as { asset: string }).asset =
+            "0x9999999999999999999999999999999999999999";
+
+        const { plugin } = makePlugin({ notes: [activeNote(1000n)], quotes: [wrongAsset] });
+
+        await expect(plugin.prepareTransfer(asset(100n), RECIPIENT)).rejects.toBeInstanceOf(
+            InvalidOperationError,
         );
     });
 

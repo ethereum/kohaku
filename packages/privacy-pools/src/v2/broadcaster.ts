@@ -1,4 +1,5 @@
 import type { Note, PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
+import { isFeeCommitmentLive } from "./internal/quotes";
 import { QuoteExpiredError, mapSdkError } from "./interfaces/errors";
 import { getSession } from "./internal/session-registry";
 import type {
@@ -30,7 +31,7 @@ class SharedSessionBroadcaster implements PPv2Broadcaster {
     async broadcast(operation: PPv2PrivateOperation): Promise<PPv2BroadcastResult> {
         const expiration = operation.relayParams.selectedQuote.quote.feeCommitment.expiration;
 
-        if (expiration * 1000 <= Date.now()) {
+        if (!isFeeCommitmentLive(expiration)) {
             throw new QuoteExpiredError();
         }
 

@@ -56,6 +56,18 @@ describe("createPPv2Broadcaster", () => {
         const b = broadcasterWith({ relayTransfer } as unknown as Partial<PoolSession>);
 
         await expect(b.broadcast(transferOp(PAST))).rejects.toBeInstanceOf(QuoteExpiredError);
+    });
+
+    it("rejects an expired MILLISECOND fee commitment (staging relayer unit)", async () => {
+        const relayTransfer = vi.fn();
+        const b = broadcasterWith({ relayTransfer } as unknown as Partial<PoolSession>);
+
+        // Already-ms expiry in the past: naively treated as seconds it would
+        // read as ~250,000 years in the future and slip through.
+        await expect(b.broadcast(transferOp(Date.now() - 60_000))).rejects.toBeInstanceOf(
+            QuoteExpiredError,
+        );
+        expect(relayTransfer).not.toHaveBeenCalled();
         expect(relayTransfer).not.toHaveBeenCalled();
     });
 

@@ -14,6 +14,7 @@ import {
     AccountImportMismatchError,
     AlreadyRegisteredError,
     InsufficientFundsError,
+    InvalidOperationError,
     mapSdkError,
     NotImplementedError,
     NotRegisteredError,
@@ -30,6 +31,7 @@ import type {
     PPv2PrivateOperation,
     PPv2PublicOperation,
 } from "./interfaces/operations.interface";
+import { isFeeCommitmentLive } from "./internal/quotes";
 import { registerSession } from "./internal/session-registry";
 import type { PPv2AssetId } from "./mapping/assets";
 import { amountToHex, assetToTokenId, hexToAmount, tokenIdToAsset } from "./mapping/assets";
@@ -43,11 +45,6 @@ type PPv2PluginDeps = {
     noteManager: INoteManager;
     params: PPv2PluginParameters;
 };
-
-/** Whether a fee commitment (unix-seconds expiry) is still live. */
-function isQuoteLive(expirationSeconds: number): boolean {
-    return expirationSeconds * 1000 > Date.now();
-}
 
 /**
  * The Privacy Pools v2 plugin. Reads flow through the plugin-owned
@@ -280,7 +277,7 @@ export class PPv2Plugin implements PPv2Instance {
             // amount but not amount + fee — a funds shortfall, not fragmentation.
             const changeMax = selected.total - asset.amount;
             const live = result.relayOptions.filter((o) =>
-                isQuoteLive(o.selectedQuote.quote.feeCommitment.expiration),
+                isFeeCommitmentLive(o.selectedQuote.quote.feeCommitment.expiration),
             );
 
             if (live.length === 0) {
@@ -303,6 +300,10 @@ export class PPv2Plugin implements PPv2Instance {
                     ? a
                     : b,
             );
+
+            // Quote sanity before any proving: a commitment quoted for another
+            // asset can only produce an on-chain rejection later (FR-052).
+            assertQuoteAsset(relayParams.selectedQuote.quote.feeCommitment.asset, tokenId);
 
             return {
                 __type: "privateOperation",
@@ -368,7 +369,7 @@ export class PPv2Plugin implements PPv2Instance {
             // amount + fee, so the selected inputs must cover both.
             const feeMax = selected.total - asset.amount;
             const live = result.relayerOptions.filter((o) =>
-                isQuoteLive(o.selectedQuote.quote.feeCommitment.expiration),
+                isFeeCommitmentLive(o.selectedQuote.quote.feeCommitment.expiration),
             );
 
             if (live.length === 0) {
@@ -395,6 +396,8 @@ export class PPv2Plugin implements PPv2Instance {
                     ? a
                     : b,
             );
+
+            assertQuoteAsset(relayParams.selectedQuote.quote.feeCommitment.asset, tokenId);
 
             return {
                 __type: "privateOperation",
@@ -500,6 +503,18 @@ export class PPv2Plugin implements PPv2Instance {
         } catch (err) {
             throw mapSdkError(err);
         }
+    }
+}
+
+/**
+ * The chosen quote's fee commitment must be denominated in the transacted
+ * asset — the SDK only enforces this at relay time, AFTER proving.
+ */
+function assertQuoteAsset(quotedAsset: string, tokenId: Address): void {
+    if (quotedAsset.toLowerCase() !== tokenId.toLowerCase()) {
+        throw new InvalidOperationError(
+            `Relayer quote is for asset ${quotedAsset}, not the transacted ${tokenId}.`,
+        );
     }
 }
 
