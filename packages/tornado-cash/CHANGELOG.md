@@ -1,3 +1,9 @@
+## 0.0.2-alpha.19
+
+### Patch Changes
+
+- 0d64c07: chore: preverification gas bump
+
 ## 0.0.2-alpha.18
 
 ### Patch Changes
