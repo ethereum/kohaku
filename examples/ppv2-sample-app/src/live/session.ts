@@ -66,15 +66,16 @@ const STAGING_RELAYER = {
     status: "active",
     address: "0x4Ba5fF376865b370790A56276C63e7984DCFf1f7",
     // The proof binds `processor` into its context, and the staging relayer
-    // submits the two operations differently, so the right binding is
-    // PER-OPERATION (verified against the relayer's actual on-chain calls):
-    //   - transfers are submitted DIRECTLY from the relayer's EOA (0x4Ba5…,
-    //     the default below);
-    //   - withdrawals route through PrivacyPoolRelay (0x762665…, msg.sender
-    //     of PoolVault.transact) — the unshield check overrides with it.
-    // RelayerInfo has a single processorAddress — an SDK/relayer contract gap
-    // reported upstream.
-    processorAddress: "0x4Ba5fF376865b370790A56276C63e7984DCFf1f7",
+    // submits the two operations from different on-chain callers (verified
+    // against its actual submissions):
+    //   - withdrawals route through PrivacyPoolRelay (0x762665…, msg.sender of
+    //     PoolVault.transact) — the default below, read by relayWithdraw;
+    //   - transfers are submitted DIRECTLY from the relayer's EOA (`address`),
+    //     which the plugin broadcaster stamps as `processorAddress` per call.
+    //     Honored once the SDK's relayTransfer reads it (pending upstream
+    //     feat/sdk/allow-custom-processor); the current beta ignores the stamp
+    //     and transfers revert with PoolVault_ProofContextMismatch.
+    processorAddress: "0x762665Dc7aAeeA25DC1759AEBef1F61730497f6e",
 };
 
 export type LiveSession = {
@@ -92,8 +93,6 @@ export type LiveSessionOptions = {
      * app root. Pass a fresh in-memory store to simulate a new device.
      */
     storage?: PluginStorage;
-    /** Override the processor bound into proof contexts (see STAGING_RELAYER). */
-    processorAddress?: string;
 };
 
 /** Build the live plugin session the checks share. */
@@ -319,12 +318,7 @@ export async function createLiveSession(options: LiveSessionOptions = {}): Promi
         deployment: DEPLOYMENT as PPv2PluginParameters["deployment"],
         // No publicKey: the SDK's ASPClient fetches it from the ASP itself.
         asp: { baseUrl: process.env["ASP_URL"] ?? ASP_BASE_URL },
-        relayers: [
-            {
-                ...STAGING_RELAYER,
-                processorAddress: options.processorAddress ?? STAGING_RELAYER.processorAddress,
-            } as PPv2PluginParameters["relayers"][number],
-        ],
+        relayers: [ STAGING_RELAYER as PPv2PluginParameters["relayers"][number] ],
         artifacts: {
             // The SDK's default gateway plus a public fallback; every gateway's
             // bytes are digest-checked against the pinned manifest.

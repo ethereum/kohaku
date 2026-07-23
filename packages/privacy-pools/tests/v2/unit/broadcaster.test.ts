@@ -10,14 +10,20 @@ import { registerSession } from "../../../src/v2/internal/session-registry";
 const FUTURE = Math.floor(Date.now() / 1000) + 3600;
 const PAST = Math.floor(Date.now() / 1000) - 10;
 
-/** Minimal transfer operation carrying only the fee-commitment expiry under test. */
+/** The relayer identity carried by the quote (its EOA submits transfers). */
+const RELAYER_EOA = "0x00000000000000000000000000000000000e1a00";
+
+/** Minimal transfer operation carrying the fee-commitment expiry under test. */
 function transferOp(expiration: number): PPv2PrivateOperation {
     return {
         __type: "privateOperation",
         kind: "transfer",
         chainId: 11155111n,
         relayParams: {
-            selectedQuote: { quote: { feeCommitment: { expiration } } },
+            selectedQuote: {
+                relayerInfo: { address: RELAYER_EOA },
+                quote: { feeCommitment: { expiration } },
+            },
         },
     } as unknown as PPv2PrivateOperation;
 }
@@ -45,6 +51,13 @@ describe("createPPv2Broadcaster", () => {
         const b = broadcasterWith({ relayTransfer } as unknown as Partial<PoolSession>);
 
         const result = await b.broadcast(transferOp(FUTURE));
+
+        // The transfer route binds the quoting relayer's EOA as the processor
+        // (it submits PoolVault.transact directly); honored by the SDK once
+        // relayTransfer reads params.processorAddress (pending upstream).
+        expect(relayTransfer).toHaveBeenCalledWith(
+            expect.objectContaining({ processorAddress: RELAYER_EOA }),
+        );
 
         expect(relayTransfer).toHaveBeenCalledOnce();
         expect(result.txHash).toBe(pad("0xfeed"));

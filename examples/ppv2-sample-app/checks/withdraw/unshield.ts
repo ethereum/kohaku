@@ -20,9 +20,7 @@ async function main(): Promise<void> {
     // Withdrawals route through PrivacyPoolRelay — that contract is the
     // msg.sender of PoolVault.transact, so the proof must bind it as the
     // processor (transfers bind the relayer's EOA instead; see the transfer check).
-    const { plugin, ownerAddress } = await createLiveSession({
-        processorAddress: "0x762665Dc7aAeeA25DC1759AEBef1F61730497f6e",
-    });
+    const { plugin, ownerAddress } = await createLiveSession();
     const payout = (process.argv[3] ?? process.env["PAYOUT_ADDRESS"] ?? ownerAddress) as Address;
 
     step(`unshield ${amount} wei → ${payout}`);

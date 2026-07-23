@@ -18,10 +18,11 @@ async function main(): Promise<void> {
 
     // Transfers are submitted by the relayer DIRECTLY from its EOA (verified
     // on-chain), so the proof context must bind that EOA as the processor —
-    // unlike withdrawals, which route through the PrivacyPoolRelay contract.
-    const { plugin, ownerAddress } = await createLiveSession({
-        processorAddress: "0x4Ba5fF376865b370790A56276C63e7984DCFf1f7",
-    });
+    // the plugin broadcaster stamps it from the quote's relayerInfo.address.
+    // KNOWN-PENDING: works once the SDK honors params.processorAddress
+    // (feat/sdk/allow-custom-processor); the current published beta ignores
+    // it and this check fails with PoolVault_ProofContextMismatch.
+    const { plugin, ownerAddress } = await createLiveSession();
     const recipient = (process.argv[3] ??
         process.env["TRANSFER_TO"] ??
         ownerAddress) as PPv2AccountId;

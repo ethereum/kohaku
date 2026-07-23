@@ -37,7 +37,10 @@ class SharedSessionBroadcaster implements PPv2Broadcaster {
 
         try {
             if (operation.kind === "transfer") {
-                const result = await this.session.relayTransfer(operation.relayParams);
+                const result = await this.session.relayTransfer({
+                    ...operation.relayParams,
+                    processorAddress: operation.relayParams.selectedQuote.relayerInfo.address, // the relayer that will sign the quote (FR-021)
+                });
 
                 return {
                     txHash: result.txReceipt.txHash,
