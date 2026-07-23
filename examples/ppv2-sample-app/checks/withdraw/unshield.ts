@@ -33,7 +33,14 @@ async function main(): Promise<void> {
 
     // Same warm-up rationale as the transfer check (60s fee-quote TTL).
     console.log("  warm-up prepare (fills leaf-scan + circuit caches)…");
-    await plugin.prepareUnshield({ asset: { __type: "native" }, amount }, payout);
+    // The warm-up's only job is filling the leaf-scan/circuit caches; its own
+    // quotes routinely expire mid-prepare (60s TTL vs a cold prove), which now
+    // throws since the plugin enforces expiry — expected, swallow it.
+    try {
+        await plugin.prepareUnshield({ asset: { __type: "native" }, amount }, payout);
+    } catch {
+        /* caches are warm; the hot prepare below gets fresh quotes */
+    }
 
     console.log("  hot prepare + relay…");
 

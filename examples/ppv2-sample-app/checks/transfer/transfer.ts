@@ -33,7 +33,14 @@ async function main(): Promise<void> {
     // exceeds that. Run prepare once to fill the log/artifact caches, then
     // prepare fresh and broadcast immediately so quote→relay fits the TTL.
     console.log("  warm-up prepare (fills leaf-scan + circuit caches)…");
-    await plugin.prepareTransfer({ asset: { __type: "native" }, amount }, recipient);
+    // The warm-up's only job is filling the leaf-scan/circuit caches; its own
+    // quotes routinely expire mid-prepare (60s TTL vs a cold prove), which now
+    // throws since the plugin enforces expiry — expected, swallow it.
+    try {
+        await plugin.prepareTransfer({ asset: { __type: "native" }, amount }, recipient);
+    } catch {
+        /* caches are warm; the hot prepare below gets fresh quotes */
+    }
 
     console.log("  hot prepare + relay…");
 
