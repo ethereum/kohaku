@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arkhe.cathedral/substrato-870/block.schema.json",
+  "title": "Coherence Block",
+  "description": "Estrutura de um bloco da Blockchain Z (GLM), medida em coerência Kuramoto.",
+  "type": "object",
+  "properties": {
+    "block_number":          { "type": "integer", "minimum": 0 },
+    "parent_hash":           { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "timestamp":             { "type": "number" },
+    "phi_c":                 { "type": "number", "minimum": 0, "maximum": 1 },
+    "order_parameter":       { "type": "number", "minimum": 0, "maximum": 1 },
+    "n_validators":          { "type": "integer", "minimum": 1, "maximum": 128 },
+    "coupling_k":            { "type": "number", "minimum": 0 },
+    "difficulty":            { "type": "number", "minimum": 0.1 },
+    "transactions":          { "type": "integer", "minimum": 0 },
+    "gas_used":              { "type": "number" },
+    "total_gas":             { "type": "number" },
+    "iterations":            { "type": "integer" },
+    "phase_bins":            { "type": "array", "items": { "type": "integer" }, "minItems": 8, "maxItems": 8 },
+    "phase_variance":        { "type": "number" },
+    "total_steps":           { "type": "integer" },
+    "fork_detected":         { "type": "boolean" },
+    "seal":                  { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "required": [
+    "block_number", "phi_c", "order_parameter", "n_validators",
+    "coupling_k", "iterations", "fork_detected", "seal"
+  ]
+}

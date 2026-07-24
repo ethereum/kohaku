@@ -1,0 +1,10 @@
+[package]
+name = "arkhe-moat"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sha3 = "0.12.0"
+
+[lints]
+workspace = true

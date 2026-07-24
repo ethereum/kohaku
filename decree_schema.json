@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arkhe.cathedral/schemas/decree-receipt.json",
+  "title": "Decreto de Ancoragem (Receipt) da Glosa 245",
+  "type": "object",
+  "properties": {
+    "substrate": {
+      "type": "string",
+      "pattern": "^870-B-GLOSA245$"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["ANCHORED"]
+    },
+    "tx_hash": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "sequence_hash": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "sequence": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36,
+      "pattern": "^[01]{36}$"
+    },
+    "block_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "phi_c": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "ghost_threshold": {
+      "type": "number",
+      "const": 0.577
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "keeper": {
+      "type": "string",
+      "const": "ψ"
+    }
+  },
+  "required": ["substrate", "action", "tx_hash", "sequence_hash", "sequence", "block_number", "phi_c", "keeper"]
+}

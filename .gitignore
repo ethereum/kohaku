@@ -13,4 +13,15 @@ packages/pq-account/foundry.lock
 .claude
 .direnv
 .vscode
-target/
+target/venv/
+crates/stim_qec/venv/
+crates/stim_qec/sinter_decoder_cpp
+crates/stim_qec/sinter_decoder_sv
+crates/stim_qec/sinter_decoder_sv_exec
+target
+terraform-arkhe-infra/.terraform
+venv/
+bin/
+bin/
+arkhe_world_model/__pycache__/
+arkhe_world_model/checkpoints/

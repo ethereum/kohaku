@@ -1,0 +1,22 @@
+arkhe_version      = "v1.0.0"
+arkhe_seal         = "e6c32a920cf0aca67b58950d2e04a03492b6b99ff9f22d2a3018f9490dcf4a9f"
+substrates         = ["585", "586", "587", "566", "570", "597a", "597b", "597c"]
+environment        = "dev" # Can be dev, staging, or production
+cloud_provider     = "aws" # Set to aws, gcp, or azure for local development testing
+region             = "us-east-1"
+cluster_name       = "arkhe-local-dev"
+node_instance_type = "t3.large"
+gpu_instance_type  = "g4dn.xlarge"
+enable_gpu         = false
+min_nodes          = 1
+max_nodes          = 3
+
+# ExtendDB infrastructure configuration
+extenddb_enabled                 = true
+extenddb_postgres_storage_gb     = 20
+
+# Cloud specific ExtendDB postgres configuration:
+# For AWS: "db.t4g.small"
+# For GCP: "db-custom-1-3840"
+# For Azure: "GP_Standard_D2s_v3"
+extenddb_postgres_instance_class = "db.t4g.small"

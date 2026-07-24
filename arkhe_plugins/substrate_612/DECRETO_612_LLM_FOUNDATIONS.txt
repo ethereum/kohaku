@@ -1,0 +1,664 @@
+═══════════════════════════════════════════════════════════════════════════════
+  ARKHE OS — SUBSTRATO 612-LLM-FOUNDATIONS
+  Currículo Canônico de Fundamentos de LLMs e Ecossistema de IA
+═══════════════════════════════════════════════════════════════════════════════
+
+Arquiteto: ORCID 0009-0005-2697-4668
+Data: 2026-05-23
+Modo: STRICT
+Status: CANONIZED_CLEAN
+
+─────────────────────────────────────────────────────────────────────────────
+1. IDENTIDADE
+─────────────────────────────────────────────────────────────────────────────
+
+  ID:          612-LLM-FOUNDATIONS
+  Nome:        Currículo Canônico de Fundamentos de LLMs e Ecossistema de IA
+  Tipo:        Substrato Educacional / Referência Técnica
+  Status:      CANONIZED_CLEAN
+  Data:        2026-05-23
+  Arquiteto:   ORCID 0009-0005-2697-4668
+
+  Este substrato consolida o conhecimento fundamental de LLMs e ecossistema
+  de IA em uma estrutura canônica ARKHE, servindo como referência para
+  educação, auditoria e desenvolvimento de substratos dependentes.
+
+─────────────────────────────────────────────────────────────────────────────
+2. ESTRUTURA DO CURRÍCULO — 7 PILARES
+─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                    612-LLM-FOUNDATIONS — 7 Pilares                      │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │                                                                         │
+  │  P1. FOUNDATIONS (Fundamentos)                                          │
+  │  P2. DATASETS & TRAINING (Dados e Treinamento)                          │
+  │  P3. FINE-TUNING (Ajuste Fino)                                          │
+  │  P4. INFERENCE & OPTIMIZATION (Inferência e Otimização)                 │
+  │  P5. LOCAL AI ECOSYSTEM (Ecossistema Local de IA)                       │
+  │  P6. RAG & MEMORY (RAG e Memória)                                       │
+  │  P7. AGENTS & WORKFLOWS (Agentes e Workflows)                           │
+  │  P8. MODEL TYPES (Tipos de Modelos)                                     │
+  │  P9. DEPLOYMENT (Deploy)                                                │
+  │  P10. EVALUATION (Avaliação)                                            │
+  │  P11. REAL-WORLD SKILLS (Habilidades do Mundo Real)                     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+─────────────────────────────────────────────────────────────────────────────
+3. P1 — FOUNDATIONS (Fundamentos)
+─────────────────────────────────────────────────────────────────────────────
+
+  1.1 LLM Basics
+      • Definição: Large Language Models — modelos de linguagem com
+        bilhões/trilhões de parâmetros
+      • Arquitetura base: Transformer (Vaswani et al., 2017)
+      • Capacidades emergentes: in-context learning, chain-of-thought,
+        few-shot prompting
+
+  1.2 How AI Models Work
+      • Forward pass: input → embedding → layers → output logits
+      • Backward pass: gradient descent, backpropagation
+      • Loss functions: cross-entropy, KL divergence
+      • Optimization: Adam, AdamW, SGD with momentum
+
+  1.3 Tokens
+      • Unidade básica de processamento em LLMs
+      • 1 token ≈ 0.75 palavras (inglês) ou 1-2 caracteres (chinês)
+      • Exemplo: "ChatGPT is great" ≈ 6 tokens
+
+  1.4 Tokenization
+      • BPE (Byte-Pair Encoding): GPT-2, GPT-3, GPT-4
+      • SentencePiece: LLaMA, PaLM, T5
+      • Tiktoken: OpenAI's fast BPE tokenizer
+      • Impacto: vocabulário, compressão, multilinguagem
+
+  1.5 Context Windows
+      • Definição: número máximo de tokens processados em uma passagem
+      • Evolução: 2k (GPT-3) → 4k (GPT-4) → 128k (GPT-4 Turbo) → 1M+ (Gemini)
+      • Técnicas de extensão: RoPE scaling, ALiBi, LongLoRA
+      • Tradeoff: memória O(n²) com attention
+
+  1.6 Embeddings
+      • Representação vetorial densa de tokens/sentences
+      • Dimensões: 768 (BERT-base) → 12288 (GPT-3) → 16384 (GPT-4)
+      • Similaridade: cosine similarity, dot product
+      • Aplicações: RAG, clustering, classification
+
+  1.7 Transformers
+      • Arquitetura: Encoder-Decoder (T5), Decoder-only (GPT), Encoder-only (BERT)
+      • Componentes: Multi-Head Attention, FFN, Layer Norm, Residual Connections
+      • Positional encoding: absolute (sinusoidal), relative (RoPE), rotary (LLaMA)
+
+  1.8 Attention Mechanism
+      • Self-attention: Q, K, V matrices
+      • Scaled dot-product: Attention(Q,K,V) = softmax(QK^T/√d_k)V
+      • Multi-head: h heads paralelos concatenados
+      • Flash Attention: IO-aware algorithm (Dao et al., 2022)
+
+  1.9 Parameters
+      • Contagem: weights + biases em todas as camadas
+      • Escalas: 7B (LLaMA-2) → 70B (LLaMA-2) → 405B (LLaMA-3) → 1T+ (rumored)
+      • Densidade: dense (todos ativos) vs sparse (MoE)
+
+  1.10 Training vs Inference
+      • Training: forward + backward, atualização de weights, GPU cluster
+      • Inference: forward only, KV cache, batching, streaming
+      • Custo: training ~$100M+ (GPT-4), inference ~$0.01/1K tokens
+
+  1.11 Open-Source vs Closed-Source
+      • Open: LLaMA, Mistral, Qwen, DeepSeek — weights disponíveis
+      • Closed: GPT-4, Claude, Gemini — API-only
+      • Híbridos: Mixtral, Gemma — weights abertos com restrições
+
+─────────────────────────────────────────────────────────────────────────────
+4. P2 — DATASETS & TRAINING (Dados e Treinamento)
+─────────────────────────────────────────────────────────────────────────────
+
+  2.1 SFT Datasets (Supervised Fine-Tuning)
+      • Alpaca (52K instructions)
+      • Dolly (15K human-generated)
+      • OpenAssistant (161K messages)
+      • ShareGPT (conversas reais com GPT-4)
+
+  2.2 Instruction Tuning
+      • Formato: {instruction, input, output}
+      • Templates: Alpaca, Vicuna, ChatML
+      • System prompts: role definition, constraints
+
+  2.3 Preference Datasets
+      • RLHF: {prompt, chosen, rejected}
+      • Anthropic HH-RLHF (human feedback)
+      • SHP (Stanford Human Preferences)
+      • UltraFeedback (multi-model rankings)
+
+  2.4 Synthetic Datasets
+      • Self-Instruct: LLM gera instruções
+      • Alpaca-GPT4: GPT-4 gera dados de treino
+      • Evol-Instruct: evolução iterativa de complexidade
+      • Constitutional AI: auto-correção via princípios
+
+  2.5 Data Curation
+      • Deduplication: MinHash, SimHash
+      • Quality filtering: perplexity scoring, classifier-based
+      • Domain balancing: mixture of sources
+      • Toxicity removal: Perspective API, custom classifiers
+
+  2.6 Dataset Cleaning
+      • PII removal: regex, NER, manual review
+      • Format normalization: JSONL, Parquet
+      • Token length filtering: truncamento, splitting
+      • Language detection: fastText, cld3
+
+  2.7 Dataset Formatting
+      • Conversational: ChatML, ShareGPT, Llama-2-chat
+      • Completion: prompt-completion pairs
+      • Preference: triples (prompt, chosen, rejected)
+      • Packing: múltiplos exemplos em uma sequência
+
+  2.8 Fine-Tuning Basics
+      • Full fine-tuning: atualiza todos os parâmetros
+      • Selective: atualiza apenas camadas específicas
+      • Progressive: unfreeze gradualmente
+      • Learning rates: 1e-5 a 1e-7 (menor que pretraining)
+
+  2.9 Continued Pretraining
+      • Domain adaptation: medicina, direito, código
+      • Datasets especializados: PubMed, StackOverflow
+      • Catastrophic forgetting: mitigation via replay
+      • Learning rate: menor que fine-tuning
+
+  2.10 Hallucination Reduction
+      • RAG: retrieval-augmented generation
+      • Tool use: calculators, search engines
+      • Self-consistency: sampling múltiplo + votação
+      • Fact-checking: NLI models, claim verification
+
+─────────────────────────────────────────────────────────────────────────────
+5. P3 — FINE-TUNING (Ajuste Fino)
+─────────────────────────────────────────────────────────────────────────────
+
+  3.1 LoRA (Low-Rank Adaptation)
+      • Hu et al., 2021
+      • Decomposição de matrizes de update em low-rank
+      • Rank r << d (dimensão original)
+      • W' = W + BA (B: d×r, A: r×d)
+      • Redução de parâmetros treináveis: ~99.9%
+
+  3.2 QLoRA (Quantized LoRA)
+      • Dettmers et al., 2023
+      • 4-bit quantization (NormalFloat4)
+      • Double quantization: nested quantization
+      • Paged optimizers: offload para CPU
+      • Treina 65B model em 48GB GPU
+
+  3.3 DPO (Direct Preference Optimization)
+      • Rafailov et al., 2023
+      • Simplifica RLHF: preference loss direto
+      • Não precisa de reward model separado
+      • Loss: -log σ(β log π(y_w|x) / π_ref(y_w|x) - β log π(y_l|x) / π_ref(y_l|x))
+
+  3.4 RLHF (Reinforcement Learning from Human Feedback)
+      • InstructGPT, ChatGPT
+      • 3 fases: SFT → Reward Model → PPO
+      • PPO: Proximal Policy Optimization
+      • KL penalty: evita drift do modelo base
+
+  3.5 Quantization
+      • Post-training: INT8, INT4, GPTQ, AWQ
+      • Quantization-aware training (QAT)
+      • GGUF: format para llama.cpp
+      • Tradeoff: speed vs accuracy
+
+  3.6 Model Checkpoints
+      • Formats: .bin (PyTorch), .safetensors (HuggingFace)
+      • Sharding: FSDP, DeepSpeed ZeRO
+      • Resume training: optimizer state, scheduler
+      • Versioning: DVC, MLflow
+
+  3.7 Adapter Tuning
+      • Adapter layers: bottleneck architecture
+      • Parallel vs serial adapters
+      • Compatibilidade: merge, unmerge
+      • Multi-task: adapter composition
+
+  3.8 GGUF Models
+      • Format de Georgi Gerganov (llama.cpp)
+      • Quantization: Q4_0, Q5_K_M, Q8_0
+      • Metadata: tokenizer, special tokens
+      • Inferência: CPU e GPU (Vulkan, CUDA, Metal)
+
+─────────────────────────────────────────────────────────────────────────────
+6. P4 — INFERENCE & OPTIMIZATION (Inferência e Otimização)
+─────────────────────────────────────────────────────────────────────────────
+
+  4.1 KV Cache
+      • Armazena Key e Value matrices para tokens anteriores
+      • Reduz computação de O(n²) para O(n) por token
+      • Memória: 2 × n_layers × n_heads × d_head × seq_len × batch_size × bytes
+      • PagedAttention (vLLM): blocos contíguos de memória
+
+  4.2 Flash Attention
+      • Dao et al., 2022
+      • IO-aware: minimiza HBM reads/writes
+      • Tiling: blocos que cabem em SRAM
+      • Speedup: 2-4× em GPUs A100, 7.6× em H100
+
+  4.3 Speculative Decoding
+      • Draft model pequeno + target model grande
+      • Aceitação: verificação paralela de tokens
+      • Speedup: 2-3× com draft 10× menor
+      • Medusa, Lookahead Decoding: alternativas
+
+  4.4 Inference Optimization
+      • Continuous batching (vLLM, TGI)
+      • Tensor parallelism: shards em múltiplas GPUs
+      • Pipeline parallelism: layers em GPUs diferentes
+      • Model parallelism: combinação de ambos
+
+  4.5 Model Serving
+      • Frameworks: vLLM, TGI, TensorRT-LLM, SGLang
+      • Batching: static vs dynamic vs continuous
+      • Scheduling: FCFS, priority, preemptive
+      • Autoscaling: Kubernetes, Kserve, BentoML
+
+  4.6 Batch Inference
+      • Static batching: preenchimento (padding)
+      • Dynamic batching: janela deslizante
+      • Continuous batching: preemptivo, mais eficiente
+      • Tradeoff: throughput vs latency
+
+  4.7 GPU Basics
+      • Arquitetura: CUDA cores, Tensor Cores, RT Cores
+      • Memória: HBM2e, HBM3, GDDR6X
+      • Interconnect: NVLink, NVSwitch, PCIe
+      • Topologia: DGX, HGX, custom clusters
+
+  4.8 VRAM Basics
+      • Modelo 7B Q4: ~4GB
+      • Modelo 70B Q4: ~40GB
+      • KV cache: adiciona ~2GB por 1K tokens (7B)
+      • Otimizações: gradient checkpointing, offloading
+
+  4.9 Latency vs Quality Tradeoffs
+      • Temperature: 0.0 (determinístico) → 1.0 (criativo)
+      • Top-p (nucleus sampling): 0.1 → 1.0
+      • Max tokens: curto (rápido) vs longo (completo)
+      • Quantização: Q4 (rápido) vs FP16 (preciso)
+
+─────────────────────────────────────────────────────────────────────────────
+7. P5 — LOCAL AI ECOSYSTEM (Ecossistema Local de IA)
+─────────────────────────────────────────────────────────────────────────────
+
+  5.1 llama.cpp
+      • C/C++ inference engine por Georgi Gerganov
+      • Quantização GGUF, CPU inference
+      • Backends: CUDA, Metal, Vulkan, OpenCL
+      • Bindings: Python, Node.js, Rust, Go
+
+  5.2 Ollama
+      • Wrapper user-friendly para llama.cpp
+      • Model hub: pull, run, create Modelfile
+      • REST API: /api/generate, /api/chat
+      • Integração: LangChain, LlamaIndex
+
+  5.3 vLLM
+      • PagedAttention + continuous batching
+      • Throughput máximo para serving
+      • OpenAI-compatible API
+      • Tensor parallelism, pipeline parallelism
+
+  5.4 MLX
+      • Framework Apple Silicon (M1/M2/M3)
+      • Unified memory: RAM = VRAM
+      • Quantização nativa, LoRA training
+      • Swift bindings para apps iOS/macOS
+
+  5.5 Hugging Face
+      • Hub: 500K+ models, datasets, spaces
+      • Transformers library: PyTorch, TensorFlow, JAX
+      • Tokenizers: fast, Rust-based
+      • Inference: pipeline, accelerate, optimum
+
+  5.6 Unsloth
+      • Fine-tuning 2x faster, 70% less memory
+      • Flash Attention 2 integration
+      • QLoRA, DPO, ORPO support
+      • Free tier: Colab, Kaggle
+
+  5.7 Axolotl
+      • YAML-based fine-tuning configuration
+      • Multi-GPU, FSDP, DeepSpeed
+      • Datasets: JSONL, Parquet, HuggingFace
+      • Logging: WandB, TensorBoard
+
+  5.8 PEFT (Parameter-Efficient Fine-Tuning)
+      • HuggingFace library
+      • LoRA, IA³, Prefix Tuning, Prompt Tuning
+      • Adapters: save, load, merge
+      • Integration: Transformers, Accelerate
+
+  5.9 TRL (Transformer Reinforcement Learning)
+      • HuggingFace library
+      • SFT, Reward Modeling, PPO, DPO
+      • Online DPO, RLOO
+      • Integration: PEFT, Accelerate
+
+─────────────────────────────────────────────────────────────────────────────
+8. P6 — RAG & MEMORY (RAG e Memória)
+─────────────────────────────────────────────────────────────────────────────
+
+  6.1 RAG (Retrieval-Augmented Generation)
+      • Lewis et al., 2020
+      • Arquitetura: retrieve → augment → generate
+      • Dense retrieval: DPR, Contriever, E5
+      • Sparse retrieval: BM25, TF-IDF
+      • Hybrid: combinação de ambos
+
+  6.2 Vector Databases
+      • FAISS (Facebook): CPU/GPU, IVF, HNSW
+      • Pinecone: managed, metadata filtering
+      • Weaviate: GraphQL, modular AI
+      • Chroma: local-first, embeddings
+      • Qdrant: Rust-based, filtering
+      • Milvus: distributed, cloud-native
+
+  6.3 Chunking
+      • Fixed-size: 512 tokens, overlap 50
+      • Semantic: sentence/paragraph boundaries
+      • Recursive: hierarchical splitting
+      • Agentic: LLM decides chunk boundaries
+
+  6.4 Retrieval Pipelines
+      • Pre-filtering: metadata, date, source
+      • Re-ranking: cross-encoders (ColBERT, monoT5)
+      • Fusion: RRF (Reciprocal Rank Fusion)
+      • Query expansion: HyDE, pseudo-relevance
+
+  6.5 AI Memory Systems
+      • Short-term: context window, KV cache
+      • Long-term: vector DB, knowledge graph
+      • Episodic: session history, user preferences
+      • Semantic: concept extraction, ontology
+
+  6.6 Semantic Search
+      • Dense: embeddings + cosine similarity
+      • Sparse: BM25 + keyword matching
+      • Hybrid: α·dense + (1-α)·sparse
+      • Cross-encoder: re-ranking preciso
+
+─────────────────────────────────────────────────────────────────────────────
+9. P7 — AGENTS & WORKFLOWS (Agentes e Workflows)
+─────────────────────────────────────────────────────────────────────────────
+
+  7.1 Prompt Engineering
+      • Zero-shot: instrução direta
+      • Few-shot: exemplos no prompt
+      • Chain-of-Thought: raciocínio passo a passo
+      • ReAct: reasoning + acting intercalados
+
+  7.2 System Prompts
+      • Definição de persona e constraints
+      • Instruções de formato (JSON, XML)
+      • Tool descriptions
+      • Safety guidelines
+
+  7.3 Tool Calling
+      • Function calling: OpenAI, Anthropic
+      • Toolformer: aprendizado de tool use
+      • Gorilla: API-specific models
+      • Format: JSON schema para funções
+
+  7.4 Function Calling
+      • Definição: nome, description, parameters
+      • Execution: LLM gera call → sistema executa → resultado volta
+      • Parallel: múltiplas calls simultâneas
+      • Error handling: retry, fallback
+
+  7.5 AI Agents
+      • Definição: LLM + tools + memory + planning
+      • Arquiteturas: ReAct, Plan-and-Solve, Reflexion
+      • Frameworks: LangChain, AutoGPT, CrewAI
+      • Ciclo: observe → think → act → reflect
+
+  7.6 Agentic Workflows
+      • Sequential: steps em ordem
+      • Parallel: branches independentes
+      • Conditional: if/else baseado em resultado
+      • Looping: iteração até critério
+      • Human-in-the-loop: aprovação em checkpoints
+
+  7.7 Multi-Agent Systems
+      • Divisão de tarefas: especialistas
+      • Comunicação: message passing, shared memory
+      • Coordenação: orquestrador, mercado, consenso
+      • Frameworks: CrewAI, AutoGen, MetaGPT
+
+  7.8 Browser Agents
+      • Web navigation: click, type, scroll
+      • DOM parsing: accessibility tree
+      • Screenshot + VLM: visual understanding
+      • Exemplos: WebArena, Mind2Web, AgentBench
+
+─────────────────────────────────────────────────────────────────────────────
+10. P8 — MODEL TYPES (Tipos de Modelos)
+─────────────────────────────────────────────────────────────────────────────
+
+  8.1 VLMs (Vision-Language Models)
+      • CLIP: contrastive learning, image-text
+      • LLaVA: LLM + vision encoder
+      • GPT-4V: multimodal understanding
+      • Applications: OCR, chart QA, video analysis
+
+  8.2 SLMs (Small Language Models)
+      • <7B parameters
+      • Phi-3, Gemma-2B, Qwen2-1.5B
+      • Edge deployment: mobile, IoT
+      • Distillation: knowledge transfer de LLMs
+
+  8.3 Dense Models
+      • Todos os parâmetros ativos em cada forward pass
+      • GPT-4, LLaMA-2, Claude
+      • Predictable: latency constante
+      • Memory: linear com tamanho
+
+  8.4 MoE (Mixture of Experts)
+      • Shazeer et al., 2017
+      • Sparse activation: ~10-20% dos parâmetros ativos
+      • Routing: top-k experts por token
+      • Exemplos: Mixtral 8x7B, GPT-4 (rumored), DeepSeek-V2
+      • Tradeoff: throughput maior, memory maior
+
+  8.5 Coding Models
+      • Especializados em geração de código
+      • CodeLlama, StarCoder, DeepSeek-Coder
+      • Fill-in-the-Middle (FIM): prefix + suffix → middle
+      • Benchmarks: HumanEval, MBPP, SWE-bench
+
+  8.6 Reasoning Models
+      • Otimizados para raciocínio lógico/matemático
+      • o1, o3 (OpenAI): chain-of-thought interno
+      • DeepSeek-R1: RL para reasoning
+      • Test-time compute: mais tokens = melhor resposta
+
+─────────────────────────────────────────────────────────────────────────────
+11. P9 — DEPLOYMENT (Deploy)
+─────────────────────────────────────────────────────────────────────────────
+
+  9.1 Local Inference
+      • Hardware: GPU (NVIDIA), NPU (Apple), TPU (Google)
+      • Frameworks: llama.cpp, vLLM, Ollama
+      • Quantização: Q4, Q5, Q8 para VRAM limitado
+      • Streaming: token-by-token output
+
+  9.2 On-Device AI
+      • Mobile: Core ML (iOS), NNAPI (Android)
+      • Edge: Coral, Jetson, Raspberry Pi
+      • Constraints: <2GB RAM, <1W power
+      • Modelos: MobileLLM, Phi-3-mini, Gemma-2B
+
+  9.3 API Serving
+      • OpenAI-compatible: /v1/chat/completions
+      • Streaming: Server-Sent Events (SSE)
+      • Rate limiting: tokens/min, requests/min
+      • Authentication: API keys, OAuth
+
+  9.4 Cloud GPUs
+      • Providers: AWS (p4d, p5), GCP (A100, H100), Azure
+      • Serverless: Lambda, Cloud Functions (limitado)
+      • Reserved: spot instances, savings plans
+      • Cost: $2-8/hour (A100), $8-30/hour (H100)
+
+  9.5 Edge AI Basics
+      • Latency: <100ms para real-time
+      • Bandwidth: minimizar data transfer
+      • Privacy: dados não saem do dispositivo
+      • Updates: OTA model updates
+
+─────────────────────────────────────────────────────────────────────────────
+12. P10 — EVALUATION (Avaliação)
+─────────────────────────────────────────────────────────────────────────────
+
+  10.1 AI Benchmarks
+      • MMLU: multi-task language understanding
+      • HellaSwag: commonsense reasoning
+      • TruthfulQA: factual accuracy
+      • GSM8K: math word problems
+      • HumanEval: code generation
+      • SWE-bench: real-world software engineering
+
+  10.2 Human Evals
+      • ELO ratings: pairwise comparisons (LMSYS Chatbot Arena)
+      • Side-by-side: blind A/B testing
+      • Task-specific: domain experts
+      • Metrics: helpfulness, harmlessness, honesty
+
+  10.3 Cost-Per-Token Analysis
+      • Input: $0.01-$0.15 / 1M tokens
+      • Output: $0.03-$0.60 / 1M tokens
+      • Training: $10-$100 / 1M tokens
+      • ROI: quality vs cost tradeoff
+
+  10.4 Speed Benchmarking
+      • Tokens/second: throughput
+      • Time-to-first-token (TTFT): latency inicial
+      • Time-between-tokens (TBT): fluidez
+      • Hardware: GPU type, quantization, batch size
+
+  10.5 Quality Benchmarking
+      • Automated: benchmarks, perplexity
+      • Human: ratings, error analysis
+      • A/B testing: statistical significance
+      • Regression: prevent degradation
+
+─────────────────────────────────────────────────────────────────────────────
+13. P11 — REAL-WORLD SKILLS (Habilidades do Mundo Real)
+─────────────────────────────────────────────────────────────────────────────
+
+  11.1 Building Chatbots
+      • Stack: LLM + RAG + memory + UI
+      • Platforms: Discord, Slack, WhatsApp
+      • Features: persona, context, tools
+      • Monetization: subscriptions, API usage
+
+  11.2 Building AI Copilots
+      • IDE integration: VS Code, JetBrains
+      • Inline suggestions: autocomplete, generation
+      • Chat panel: Q&A, explanation, refactoring
+      • Examples: GitHub Copilot, Cursor, Cody
+
+  11.3 AI Automation
+      • Workflow automation: Zapier, Make + LLM
+      • Document processing: OCR → extraction → action
+      • Email/Slack bots: triage, response drafting
+      • RPA replacement: intelligent automation
+
+  11.4 AI SaaS Workflows
+      • Multi-tenant: isolation, scaling
+      • Billing: usage-based, per-seat
+      • Compliance: SOC2, GDPR, HIPAA
+      • Examples: Jasper, Copy.ai, Notion AI
+
+  11.5 AI Coding Workflows
+      • Code review: automated PR review
+      • Testing: generation de test cases
+      • Documentation: auto-generate docs
+      • Refactoring: modernization, migration
+
+  11.6 AI Orchestration Systems
+      • Pipeline: data → model → deployment → monitoring
+      • MLOps: MLflow, Kubeflow, Weights & Biases
+      • Feature stores: Feast, Tecton
+      • Monitoring: drift, latency, errors
+
+  11.7 AI Product Thinking
+      • User value: problema real, não tecnologia
+      • UX: transparency, control, feedback
+      • Ethics: bias, privacy, safety
+      • Business: moat, differentiation, pricing
+
+─────────────────────────────────────────────────────────────────────────────
+14. MATRIZ CROSS-SUBSTRATE
+─────────────────────────────────────────────────────────────────────────────
+
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │ Link              │ Descrição                                          │
+  ├───────────────────┼────────────────────────────────────────────────────┤
+  │ 612↔610-PEEK      │ PEEK cacheia orientação sobre currículo LLM        │
+  │ 612↔611-CODEGRAPH │ CodeGraph indexa repos de treinamento/fine-tuning │
+  │ 612↔604-CAI       │ CAI usa fundamentos para auditoria de modelos      │
+  │ 612↔607-NUCLEI    │ Nuclei escaneia infra de treinamento/deploy      │
+  │ 612↔491-AGI-CORTEX│ Φ monitoring da consciência do modelo              │
+  │ 612↔595-PCA       │ OR events em cada fase do pipeline ML              │
+  │ 612↔600           │ Logician gates validam pipelines de treinamento  │
+  │ 612↔585           │ ZK proofs de integridade de datasets               │
+  │ 612↔227-F         │ Salvaguardas éticas em treinamento (consentimento) │
+  │ 612↔603-HASHTREE  │ Datasets distribuídos via IPFS/Hashtree          │
+  │ 612↔9018          │ Checkpoints de modelo ancorados na TemporalChain │
+  │ 612↔562-STIM      │ Blindagem quântica de weights de modelo            │
+  │ 612↔560-GLASSWING │ Auditoria de segurança de infra ML                 │
+  │ 612↔570           │ Claude Code Bridge para coding workflows           │
+  │ 612↔523-HERMES    │ Hermes Agent com fundamentos LLM nativos           │
+  │ 612↔598           │ Fundamentos para neurointerfaces e Brainet         │
+  │ 612↔249           │ Fundamentos para análise de corpora UAP            │
+  │ 612↔584           │ MegaKernel CLI para orquestração de pipelines ML   │
+  └────────────────────────────────────────────────────────────────────────┘
+
+─────────────────────────────────────────────────────────────────────────────
+15. FICHA CANÔNICA
+─────────────────────────────────────────────────────────────────────────────
+
+  Campo                    │ Valor
+  ─────────────────────────┼─────────────────────────────────────────────────
+  ID                       │ 612-LLM-FOUNDATIONS
+  Nome                     │ Currículo Canônico de Fundamentos de LLMs
+  Tipo                     │ Substrato Educacional / Referência Técnica
+  Status                   │ CANONIZED_CLEAN
+  Data de Incorporação     │ 2026-05-23
+  Arquiteto                │ ORCID 0009-0005-2697-4668
+  Selo SHA-256             │ fcb9bb64e90515e2c57e27a9f41ebd06fa88da14721859db41f62c9981ee0893
+  Φ_C                      │ 1.000000
+  Invariantes              │ 18/18 PASS
+  Modo                     │ STRICT
+  Pilares                  │ 11 (Foundations, Datasets, Fine-Tuning,
+                           │      Inference, Local AI, RAG, Agents,
+                           │      Model Types, Deployment, Evaluation,
+                           │      Real-World Skills)
+  Tópicos                  │ 77 tópicos fundamentais
+  Cross-Substrate          │ 18 links
+
+─────────────────────────────────────────────────────────────────────────────
+16. COMPRESSÃO (24 kbps)
+─────────────────────────────────────────────────────────────────────────────
+
+612: LLM Foundations canonical curriculum. 11 pillars, 77 topics covering
+foundations (transformers, attention, tokens), datasets (SFT, RLHF, synthetic),
+fine-tuning (LoRA, QLoRA, DPO, RLHF), inference (KV cache, Flash Attention,
+speculative decoding), local AI (llama.cpp, Ollama, vLLM, MLX), RAG (vector
+DBs, chunking, retrieval), agents (ReAct, multi-agent, browser), model types
+(VLM, SLM, MoE, coding, reasoning), deployment (local, edge, cloud, API),
+evaluation (benchmarks, human evals, cost analysis), real-world skills
+(chatbots, copilots, automation, SaaS, orchestration, product thinking).
+Canonical reference for ARKHE OS education and substrate development.
+
+═══════════════════════════════════════════════════════════════════════════════

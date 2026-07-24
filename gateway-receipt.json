@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arkhe.cathedral/schemas/gateway-receipt.json",
+  "title": "ARKHE Gateway Receipt / Decreto de Ancoragem",
+  "description": "Schema canônico da saída do gateway ARKHE (Substrato 870-G) para publicação e verificação de decretos.",
+  "type": "object",
+  "required": ["substrate", "action", "tx_hash", "seal", "phi_c", "ghost_threshold", "status", "keeper"],
+  "properties": {
+    "substrate": {
+      "type": "string",
+      "enum": ["870-B", "865", "864", "863", "862", "861", "860", "859"],
+      "description": "Identificador canônico do substrato de origem"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["ANCHOR", "DECREE", "DEPLOY", "SIMULATE", "SCAN", "PROPOSE"],
+      "description": "Tipo de ação executada no gateway"
+    },
+    "tx_hash": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$",
+      "description": "Hash da transação interna de canonização"
+    },
+    "seal": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "Selo SHA3-256 do decreto ancorado"
+    },
+    "sequence": {
+      "type": ["string", "null"],
+      "minLength": 36,
+      "maxLength": 36,
+      "pattern": "^[01]{36}$",
+      "description": "Sequência binária canônica B(2,5) da Glosa 245"
+    },
+    "registry_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Índice no registro canônico interno"
+    },
+    "phi_c": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Métrica de coerência ARKHE no momento da publicação"
+    },
+    "ghost_threshold": {
+      "type": "number",
+      "const": 0.5772156649,
+      "description": "Limiar de Euler-Mascheroni"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ANCHORED", "PROVISIONAL", "REJECTED", "PENDING"],
+      "description": "Estado de canonização do decreto"
+    },
+    "keeper": {
+      "type": "string",
+      "const": "ψ",
+      "description": "Símbolo do Keeper canônico"
+    },
+    "orcid": {
+      "type": "string",
+      "const": "0009-0005-2697-4668",
+      "description": "ORCID do Arquiteto"
+    },
+    "gateway": {
+      "type": "string",
+      "const": "870-G",
+      "description": "Identificador do gateway"
+    },
+    "version": {
+      "type": "string",
+      "const": "870-G.1.0",
+      "description": "Versão canônica do gateway"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC do momento da publicação"
+    },
+    "verification_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Endpoint de verificação direta do selo"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Metadados adicionais injetados pelo gateway"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Payload técnico específico do substrato"
+    }
+  }
+}

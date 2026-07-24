@@ -1,0 +1,227 @@
+# ============================================================================
+# .github/workflows/pca-595-ci-cd.yml
+# Pipeline CI/CD para PCA-595
+# Arquiteto: ORCID 0009-0005-2697-4668
+# Data: 2026-05-23
+# ============================================================================
+
+name: PCA-595 CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: registry.arkhe-os.svc.cluster.local
+  IMAGE_NAME: pca-595
+  CHART_NAME: pca-595
+
+jobs:
+  # --- Build e Teste ---
+  build-and-test:
+    runs-on: arkhe-os-runner-gpu
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+        config:
+          - { 227f: ON, iit: ON, grpc: ON, async: ON }
+          - { 227f: OFF, iit: OFF, grpc: OFF, async: OFF }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libcurl4-openssl-dev nlohmann-json3-dev libgtest-dev libgmock-dev protobuf-compiler libgrpc++-dev
+
+      - name: Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/vcpkg
+            build/_deps
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/CMakeLists.txt') }}
+
+      - name: Configure CMake
+        run: |
+          cmake -B build_${{ matrix.build_type }} -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPCA_USE_227F=${{ matrix.config.227f }} -DPCA_USE_IIT_452=${{ matrix.config.iit }} -DPCA_USE_GRPC=${{ matrix.config.grpc }} -DPCA_BUILD_ASYNC=${{ matrix.config.async }} -DPCA_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build_${{ matrix.build_type }} --parallel
+
+      - name: Test
+        run: |
+          cd build_${{ matrix.build_type }}
+          ctest --output-on-failure --parallel 4
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-${{ matrix.build_type }}-${{ matrix.config.227f }}-${{ matrix.config.iit }}
+          path: build_${{ matrix.build_type }}/Testing/
+
+  # --- Análise Estática ---
+  static-analysis:
+    runs-on: arkhe-os-runner
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run clang-tidy
+        run: |
+          cmake -B build_sa -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          run-clang-tidy -p build_sa -checks='*,-fuchsia-*,-llvm-*' -header-filter='.*' src/ > clang-tidy-report.txt
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=all --suppress=missingIncludeSystem --xml --xml-version=2 -I include src/ 2> cppcheck-report.xml
+
+      - name: Upload Analysis Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: static-analysis
+          path: |
+            clang-tidy-report.txt
+            cppcheck-report.xml
+
+  # --- Build Docker ---
+  docker-build:
+    runs-on: arkhe-os-runner-gpu
+    needs: [build-and-test, static-analysis]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ARKHE_REGISTRY_USER }}
+          password: ${{ secrets.ARKHE_REGISTRY_PASS }}
+
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            PCA_USE_227F=ON
+            PCA_USE_IIT_452=ON
+            PCA_USE_GRPC=ON
+            PCA_BUILD_ASYNC=ON
+            PCA_BUILD_TESTS=OFF
+
+  # --- Build Helm Chart ---
+  helm-build:
+    runs-on: arkhe-os-runner
+    needs: docker-build
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.13.0'
+
+      - name: Lint Chart
+        run: helm lint helm-chart-pca-595
+
+      - name: Package Chart
+        run: |
+          helm package helm-chart-pca-595 --version ${{ github.ref_name }} --app-version ${{ github.ref_name }}
+
+      - name: Upload Chart
+        uses: actions/upload-artifact@v3
+        with:
+          name: helm-chart
+          path: pca-595-*.tgz
+
+  # --- Deploy Staging ---
+  deploy-staging:
+    runs-on: arkhe-os-runner
+    needs: [docker-build, helm-build]
+    environment: staging
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Staging
+        run: |
+          helm upgrade --install pca-595-staging ./helm-chart-pca-595 --namespace arkhe-staging --set image.tag=main-${{ github.sha }} --set replicaCount=2 --wait --timeout 10m
+
+      - name: Run Smoke Tests
+        run: |
+          kubectl run pca-595-smoke-test --namespace arkhe-staging --image=curlimages/curl --rm -i --restart=Never -- curl -f http://pca-595-staging:8080/health
+
+  # --- Deploy Production ---
+  deploy-production:
+    runs-on: arkhe-os-runner
+    needs: deploy-staging
+    environment: production
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Production
+        run: |
+          helm upgrade --install pca-595 ./helm-chart-pca-595 --namespace arkhe-production --set image.tag=${{ github.ref_name }} --set replicaCount=5 --set autoscaling.minReplicas=5 --set autoscaling.maxReplicas=20 --wait --timeout 15m
+
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status deployment/pca-595 --namespace arkhe-production --timeout=10m
+
+      - name: Notify TemporalChain
+        run: |
+          curl -X POST https://temporalchain.arkhe-os.svc.cluster.local:8443/v1/deploy -H "Authorization: Bearer ${{ secrets.TEMPORALCHAIN_TOKEN }}" -d '{
+              "substrate": 595,
+              "version": "${{ github.ref_name }}",
+              "commit": "${{ github.sha }}",
+              "deployer": "ORCID 0009-0005-2697-4668",
+              "environment": "production",
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }'

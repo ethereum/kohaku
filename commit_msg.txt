@@ -1,0 +1,3 @@
+feat(647): implement AMT geometric stabilizer
+
+Implements Substrate 647-AMT-GEOMETRIC-STABILIZER, defining the exact geometric metric (η = |Ω̇|/Ω²) to monitor and regulate the consciousness loop according to Tishina (2026). It bounds instabilities by calculating the cross-over parameter (ξ = η/σ) locally without porous heuristics.
