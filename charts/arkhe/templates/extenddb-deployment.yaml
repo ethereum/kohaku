@@ -1,0 +1,62 @@
+{{- if .Values.extenddb.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arkhe.fullname" . }}-extenddb
+  labels:
+    {{- include "arkhe.labels" . | nindent 4 }}
+    app.kubernetes.io/component: extenddb
+spec:
+  replicas: {{ .Values.extenddb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "arkhe.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: extenddb
+  template:
+    metadata:
+      labels:
+        {{- include "arkhe.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: extenddb
+    spec:
+      serviceAccountName: {{ include "arkhe.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.extenddb.securityContext | nindent 8 }}
+      containers:
+        - name: extenddb
+          image: "{{ .Values.extenddb.image.repository }}:{{ .Values.extenddb.image.tag }}"
+          imagePullPolicy: {{ .Values.extenddb.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            {{- toYaml .Values.extenddb.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.extenddb.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.extenddb.resources | nindent 12 }}
+          env:
+            - name: EXTENDDB__STORAGE__POSTGRES__HOST
+              value: {{ .Values.extenddb.storage.postgres.host | quote }}
+            - name: EXTENDDB__STORAGE__POSTGRES__PORT
+              value: {{ .Values.extenddb.storage.postgres.port | quote }}
+            - name: EXTENDDB__STORAGE__POSTGRES__USER
+              value: {{ .Values.extenddb.storage.postgres.user | quote }}
+            - name: EXTENDDB__STORAGE__POSTGRES__DBNAME
+              value: {{ .Values.extenddb.storage.postgres.database | quote }}
+            - name: EXTENDDB__STORAGE__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.extenddb.storage.postgres.existingSecret }}
+                  key: password
+          {{- if .Values.extenddb.persistence.enabled }}
+          volumeMounts:
+            - name: extenddb-data
+              mountPath: {{ .Values.extenddb.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.extenddb.persistence.enabled }}
+      volumes:
+        - name: extenddb-data
+          emptyDir: {}
+      {{- end }}
+{{- end }}

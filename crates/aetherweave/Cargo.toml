@@ -1,0 +1,12 @@
+[package]
+name = "aetherweave"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { workspace = true }
+tsify = { workspace = true }
+ark-circom = { workspace = true }
+
+[lints]
+workspace = true

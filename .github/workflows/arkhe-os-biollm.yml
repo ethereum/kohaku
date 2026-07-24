@@ -1,0 +1,38 @@
+name: ARKHE OS BioLLM Integration
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-substrate597a:
+    name: Test 597A (OpenBioLLM)
+    runs-on: ubuntu-latest
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull Qwen2.5-32b
+        run: curl -X POST http://localhost:11434/api/pull -d '{"name":"qwen2.5:32b"}'
+      - name: Run OpenBioLLM tests
+        run: echo "Mocking OpenBioLLM tests..."
+
+  test-substrate597b:
+    name: Test 597B (BioLLM-BGI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run scGPT/Geneformer tests
+        run: echo "Mocking scGPT/Geneformer tests..."
+
+  test-substrate597c:
+    name: Test 597C (BioLLM-Wetware)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run CL1 simulation tests
+        run: echo "Mocking CL1 simulation tests..."

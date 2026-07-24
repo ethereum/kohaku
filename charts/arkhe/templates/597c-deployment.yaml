@@ -1,0 +1,28 @@
+{{- if .Values.substrate597c.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arkhe.fullname" . }}-597c
+  labels:
+    {{- include "arkhe.labels" . | nindent 4 }}
+    app.kubernetes.io/component: substrate597c
+spec:
+  replicas: {{ .Values.substrate597c.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "arkhe.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: substrate597c
+  template:
+    metadata:
+      labels:
+        {{- include "arkhe.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: substrate597c
+    spec:
+      containers:
+        - name: biollm-wetware
+          image: "{{ .Values.substrate597c.image.repository }}:{{ .Values.substrate597c.image.tag }}"
+          ports:
+            - containerPort: 8080
+          resources:
+            {{- toYaml .Values.substrate597c.resources | nindent 12 }}
+{{- end }}

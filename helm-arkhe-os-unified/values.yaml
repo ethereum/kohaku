@@ -1,0 +1,113 @@
+# ───────────────────────────────────────────────────────────────────────────────
+# Substrate ExtendDB — DynamoDB-compatible adapter
+# ───────────────────────────────────────────────────────────────────────────────
+extenddb:
+  enabled: true
+  name: extenddb
+  version: "v0.1.0"
+
+  image:
+    repository: ghcr.io/arkhe-os/extenddb
+    tag: "v0.1.0"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  # PostgreSQL backend (obrigatório)
+  storage:
+    postgres:
+      host: ""          # preenchido via Terraform ou values-production.yaml
+      port: 5432
+      user: arkhe_extenddb
+      database: extenddb_catalog
+      existingSecret: extenddb-postgres-credentials
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop: ["ALL"]
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+      scheme: HTTPS
+    initialDelaySeconds: 15
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+      scheme: HTTPS
+    initialDelaySeconds: 5
+    periodSeconds: 15
+
+  # Persistência para certificados TLS
+  persistence:
+    enabled: true
+    size: 1Gi
+    mountPath: /root/.extenddb
+
+  ingress:
+    enabled: false   # Expor via gateway principal
+
+  # Prometheus metrics
+  monitoring:
+    enabled: true
+    metricsPort: 8000
+    metricsPath: /metrics
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Substrate 597 — BioLLM (3-track integration)
+# ───────────────────────────────────────────────────────────────────────────────
+substrate597a:
+  enabled: true
+  name: openbiollm
+  image:
+    repository: ghcr.io/arkhe-os/openbiollm
+    tag: latest
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+  ollama:
+    enabled: true
+    model: qwen2.5-32b
+
+substrate597b:
+  enabled: true
+  name: biollm-bgi
+  image:
+    repository: ghcr.io/arkhe-os/biollm-bgi
+    tag: latest
+  resources:
+    limits:
+      cpu: 8000m
+      memory: 32Gi
+      nvidia.com/gpu: 1
+
+substrate597c:
+  enabled: true
+  name: biollm-wetware
+  image:
+    repository: ghcr.io/arkhe-os/biollm-wetware
+    tag: latest
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi

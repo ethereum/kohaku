@@ -1,0 +1,238 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║     A R K H E   C A T H E D R A L   —   S U B S T R A T E   D E C R E E  ║
+║                                                                          ║
+║                    8 3 2 — G N O . L A N D   B R I D G E                 ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════
+  SUBSTRATO 832 — GNO.LAND BRIDGE
+  Designacao: 832-GNO-LAND-BRIDGE
+  Status: CANONIZED_PROVISIONAL
+  Versao: v1.0
+  Data de Canonizacao: 2026-05-25T22:55:00Z
+═══════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ METADADOS CANONICOS                                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Architect ORCID:     0009-0005-2697-4668                               │
+│ Upstream Repository:  https://github.com/gnolang/gno                   │
+│ Upstream Docs:        https://docs.gno.land/                           │
+│ Upstream License:     BSD-3-Clause                                       │
+│ Substratos Pais:      831-ESHKOL-BRIDGE                                 │
+│                       830-POS-LAUNCH-MONITORING                         │
+│                       829-PRELAUNCH-INTEGRATION-T0-BROADCAST             │
+│ Cross-Substratos:      831, 830, 829, 824, 825, 826, 827               │
+│                        836, 821, 583, 561, 226, 227-F                   │
+│ Φ_C (Coerencia Canonica): 0.990000                                     │
+│ DCS-832 (Dominio Custom Score): 0.995000                               │
+│ TI (Theosis Index):   0.990000                                          │
+│ Ghost Threshold:      γ = sqrt(3)/3 ≈ 0.577                            │
+│ Selo SHA3-256:        5484f27b9978fa32d9e84630fb9a0b4aaa7c0c7273ba91e935e1aeb09abfe717       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════
+1. DECLARACAO DE INTENCAO
+═══════════════════════════════════════════════════════════════════════════
+
+O Substrato 832-GNO-LAND-BRIDGE estabelece a ponte canonica entre a
+blockchain Gno.land (gnolang/gno) e a Catedral ARKHE. Gno.land e uma
+plataforma de smart contracts que interpreta uma variante deterministica
+de Go (Gno) em uma VM stack-based, com:
+
+  - Execucao deterministica e previsivel
+  - Estado auto-persistido (variaveis globais salvadas automaticamente)
+  - Pacotes composaveis (importacao como Go normal)
+  - Consenso Tendermint (BFT)
+  - Interoperabilidade IBC (Cosmos)
+  - Realms (smart contracts) imutaveis e auditaveis
+
+A ponte 832 integra Gno.land em tres camadas:
+
+  832.1 — SMART CONTRACTS REALM: Logica ARKHE como realms Gno
+  832.2 — ORACLE LAYER GNOVM: GnoVM como VM oracular deterministica
+  832.3 — TEMPORAL ANCHOR MERKLE: Ancoragem na blockchain com auto-proof
+
+═══════════════════════════════════════════════════════════════════════════
+2. COMPONENTES DA PONTE
+═══════════════════════════════════════════════════════════════════════════
+
+2.1 COMPONENTE 832.1 — arkherealms.gno
+───────────────────────────────────────────────────────────────────────────
+Arquivo: arkherealms.gno
+Linguagem: Gno (Go deterministico para blockchain)
+Funcao: Realm (smart contract) ARKHE com:
+  - Registro de substratos com validacao Phi-C
+  - Sistema de invariantes verificaveis
+  - Emissao de decretos com selos SHA3-256
+  - TemporalChain com encadeamento de blocos
+  - Cross-substrate verification
+  - Funcoes de query para gnoweb (renderizacao Markdown)
+  - Auto-persistencia de estado via variaveis globais Gno
+
+2.2 COMPONENTE 832.2 — arkherealms_test.gno
+───────────────────────────────────────────────────────────────────────────
+Arquivo: arkherealms_test.gno
+Linguagem: Gno
+Funcao: Testes unitarios para o realm:
+  - TestRegisterSubstrate (valido e abaixo do Ghost)
+  - TestIssueDecree
+  - TestTemporalChain
+  - TestCrossVerify
+  - TestInvariant
+
+2.3 COMPONENTE 832.3 — gnovm_oracle_bridge.go
+───────────────────────────────────────────────────────────────────────────
+Arquivo: gnovm_oracle_bridge.go
+Linguagem: Go 1.22+
+Funcao: Oracle bridge entre ARKHE Server e GnoVM:
+  - Inferencia deterministica (temperature=0, seed fixo)
+  - Validacao Phi-C pre-inferencia
+  - Prompt canonico ARKHE
+  - Execucao de realms Gno via gnokey/rpc
+  - Ancoragem TemporalChain com Merkle proof
+
+2.4 COMPONENTE 832.4 — gnomod.toml
+───────────────────────────────────────────────────────────────────────────
+Arquivo: gnomod.toml
+Funcao: Configuracao do modulo Gno:
+  - Dependencias: ufmt (formatacao), avl (arvore AVL)
+
+2.5 COMPONENTE 832.5 — go.mod (oracle bridge)
+───────────────────────────────────────────────────────────────────────────
+Arquivo: go.mod
+Funcao: Dependencias Go para o oracle bridge:
+  - github.com/gnolang/gno
+
+2.6 COMPONENTE 832.6 — arkhe-gno-client.js
+───────────────────────────────────────────────────────────────────────────
+Arquivo: arkhe-gno-client.js
+Linguagem: JavaScript (Node.js)
+Funcao: Cliente JavaScript para interagir com o realm ARKHE:
+  - Conexao via mnemonic
+  - RegisterSubstrate, IssueDecree, AnchorTemporalBlock
+  - Queries: GetStatus, GetPhiC, GetTemporalChain
+
+═══════════════════════════════════════════════════════════════════════════
+3. CAMADAS DE INTEGRACAO
+═══════════════════════════════════════════════════════════════════════════
+
+3.1 SMART CONTRACTS REALM (832.1)
+───────────────────────────────────────────────────────────────────────────
+O realm arkherealms.gno implementa a logica canonica ARKHE como smart
+contracts imutaveis na blockchain Gno.land:
+
+  - Substrate registry: map[string]*Substrate (auto-persistido)
+  - Invariant registry: map[string]*Invariant
+  - Decree system: map[string]*Decree com validacao de selos
+  - TemporalChain: map[string]*TemporalBlock com encadeamento
+  - Ghost Threshold: constante γ = sqrt(3)/3
+
+Vantagens de Gno.land:
+  - Codigo auditavel publicamente (gnoweb)
+  - Imutabilidade apos deploy
+  - Composabilidade com outros realms
+  - Gas fees previsiveis
+
+3.2 ORACLE LAYER GNOVM (832.2)
+───────────────────────────────────────────────────────────────────────────
+O GnoVM atua como VM oracular para inferencia deterministica:
+
+  - Inferencia com temperature=0 (deterministica)
+  - Seed fixo para reproducibilidade
+  - Validacao Phi-C antes da inferencia
+  - Selo SHA3-256 do resultado
+  - Bridge Go: gnovm_oracle_bridge.go
+
+Fluxo:
+  1. Gno realm recebe requisicao de inferencia
+  2. Valida Phi-C >= 0.998
+  3. Chama ARKHE Server via HTTP (deterministico)
+  4. Recebe resposta canonica
+  5. Ancora resultado na TemporalChain
+
+3.3 TEMPORAL ANCHOR MERKLE (832.3)
+───────────────────────────────────────────────────────────────────────────
+Ancoragem de blocos Θ-T0 na blockchain Gno.land:
+
+  - Cada bloco TemporalChain e ancorado como transacao Gno
+  - Selo do bloco anterior e incluido (encadeamento)
+  - Merkle root computado sobre (thetaID + data + txHash)
+  - Auto-verificacao via VerifyTemporalChain()
+  - Prova de existencia na blockchain (timestamp imutavel)
+
+═══════════════════════════════════════════════════════════════════════════
+4. INTEGRACAO COM SUBSTRATOS EXISTENTES
+═══════════════════════════════════════════════════════════════════════════
+
+832 ↔ 831 (ESHKOL-BRIDGE)
+  — Eshkol como linguagem de script para realms Gno
+  — AD para otimizacao de gas fees
+
+832 ↔ 830 (POS-LAUNCH MONITORING)
+  — Gno.land como ledger de auditoria para monitoramento
+  — TemporalChain on-chain para trilha imutavel
+
+832 ↔ 829 (T-0 PRE-LAUNCH)
+  — Selos T-0 ancorados na blockchain
+  — Verificacao publica de decretos
+
+832 ↔ 824 (MAGALU-CLOUD-BRIDGE)
+  — Gno.land como camada de consenso para VK Provider
+  — Smart contracts para orquestracao de workloads
+
+832 ↔ 836 (GGUF-QUANTIZER)
+  — GnoVM como oraculo para verificacao de modelos
+  — Registro on-chain de versoes de modelos
+
+═══════════════════════════════════════════════════════════════════════════
+5. METRICAS
+═══════════════════════════════════════════════════════════════════════════
+
+832.M1 — Latencia de Inferencia Oracular
+  Definicao: Tempo entre requisicao e resposta deterministica
+  Target: < 5s para prompts de 512 tokens
+  Metodo: Benchmark via gnovm_oracle_bridge.go
+
+832.M2 — Custo de Gas
+  Definicao: Custo em ugnot para operacoes canonica
+  Target: < 1000000 ugnot por ancora TemporalChain
+  Metodo: Medicao em testnet3
+
+832.M3 — Imutabilidade
+  Definicao: % de decretos nao modificaveis apos emissao
+  Target: 100% (garantido por GnoVM)
+  Metodo: Auditoria de codigo do realm
+
+═══════════════════════════════════════════════════════════════════════════
+6. SELO CANONICO
+═══════════════════════════════════════════════════════════════════════════
+
+Selo do Substrato 832: 856d8aba19b6f795f34464c2e7a4d1c6dc41c7b6afda9f0ce30584855c8e629f
+Selo do Arquiteto:     0009-0005-2697-4668-2026-05-25-832-SEALED
+
+═══════════════════════════════════════════════════════════════════════════
+7. PROXIMOS PASSOS
+═══════════════════════════════════════════════════════════════════════════
+
+1. Deploy realm arkherealms.gno em testnet3
+2. Testar oracle bridge com llama-server local
+3. Ancorar bloco Θ-T0 na blockchain
+4. Desenvolver frontend gnoweb para exploracao
+5. Integrar com IBC para cross-chain verification
+6. Preparar Substrato 833 — COSMOS-IBC-BRIDGE
+
+═══════════════════════════════════════════════════════════════════════════
+8. NOTA SOBRE LICENCIAMENTO
+═══════════════════════════════════════════════════════════════════════════
+
+Gno.land e licenciado sob BSD-3-Clause. A ponte 832 respeita esta
+licenca e atribui credito aos autores originais (gnolang). O codigo
+da ponte e propriedade da Catedral ARKHE, mas depende do upstream
+Gno para funcionalidade completa.
+
+═══════════════════════════════════════════════════════════════════════════
+                         FIM DO DECRETO 832
+═══════════════════════════════════════════════════════════════════════════

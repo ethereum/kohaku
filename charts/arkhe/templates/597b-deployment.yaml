@@ -1,0 +1,28 @@
+{{- if .Values.substrate597b.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arkhe.fullname" . }}-597b
+  labels:
+    {{- include "arkhe.labels" . | nindent 4 }}
+    app.kubernetes.io/component: substrate597b
+spec:
+  replicas: {{ .Values.substrate597b.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "arkhe.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: substrate597b
+  template:
+    metadata:
+      labels:
+        {{- include "arkhe.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: substrate597b
+    spec:
+      containers:
+        - name: biollm-bgi
+          image: "{{ .Values.substrate597b.image.repository }}:{{ .Values.substrate597b.image.tag }}"
+          ports:
+            - containerPort: 8080
+          resources:
+            {{- toYaml .Values.substrate597b.resources | nindent 12 }}
+{{- end }}

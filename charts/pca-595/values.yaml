@@ -1,0 +1,194 @@
+# Valores padrao para pca-595
+replicaCount: 3
+
+image:
+  repository: registry.arkhe-os.svc.cluster.local/pca-595
+  pullPolicy: IfNotPresent
+  tag: "v2.3.0"
+
+imagePullSecrets:
+  - name: arkhe-registry-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations:
+    arkhe-os.org/service: pca-595
+    arkhe-os.org/substrate: "595"
+  name: "pca-595-sa"
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+  temporalchain.arkhe-os.org/log: "true"
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsUser: 65534
+  runAsGroup: 65534
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  annotations:
+    arkhe-os.org/protocol: iris-fbp
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: pca-595.arkhe-os.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+    nvidia.com/gpu: 1
+  requests:
+    cpu: 2000m
+    memory: 4Gi
+    nvidia.com/gpu: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Pods
+      pods:
+        metric:
+          name: arkhe_phi_normalized
+        target:
+          type: AverageValue
+          averageValue: "0.8"
+
+nodeSelector:
+  arkhe-os.org/node-type: compute
+  arkhe-os.org/gpu: "true"
+
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "arkhe-os.org/pca-595"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - pca-595
+          topologyKey: kubernetes.io/hostname
+
+pca:
+  phiCritical: 0.7366
+  phiCosmic: 3.5
+  xiMSensitivity: 1.0e-6
+  xiMDecay: 0.95
+
+  alignment:
+    enabled: true
+    endpoint: "http://alignment-227f.arkhe-os.svc.cluster.local:8443"
+    apiKey: "ARKHE-ALIGNMENT-227F"
+    timeoutMs: 5000
+    retryCount: 3
+    minConfidence: 0.95
+    cacheEnabled: true
+    cacheSize: 1024
+    cacheTtlMinutes: 60
+    useGrpc: false
+
+  iit:
+    enabled: true
+    endpoint: "http://iit-452.arkhe-os.svc.cluster.local:8443/v1/phi"
+    apiKey: "ARKHE-IIT-452"
+    timeoutMs: 30000
+    retryCount: 2
+    backgroundValidation: true
+    validationIntervalMs: 5000
+
+  driver:
+    type: "adapter"
+    libPath: "/usr/lib/arkhe/libiris_network_driver.so"
+    endpoint: "http://iris.arkhe-os.svc.cluster.local:8080"
+    apiKey: "ARKHE-IRIS-595"
+    timeoutMs: 30000
+
+  log:
+    level: 2
+    realTimeDisplay: false
+    temporalChainExport: true
+    csvExport: true
+    csvPath: "/var/log/arkhe/pca-595-session.csv"
+
+  monitor:
+    enabled: true
+    overlayWidth: 400
+    overlayHeight: 600
+    positionX: 1
+    positionY: 0
+    updateIntervalMs: 16.67
+    showAttentionMaps: true
+    showPhiHistory: true
+    showXiMField: true
+    showQualiaTexture: true
+
+iris:
+  enabled: true
+
+temporalchain:
+  enabled: true
+
+alignment:
+  enabled: true
+
+iit:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 15s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus
+
+dashboard:
+  enabled: true
+  namespace: monitoring
+  label:
+    grafana_dashboard: "1"

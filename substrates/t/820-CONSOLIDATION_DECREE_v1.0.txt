@@ -1,0 +1,18 @@
+DECRETO OFICIAL — SUBSTRATO 820 DISSOLVIDO
+
+Data: 25 de Maio de 2026
+Architect: ORCID 0009-0005-2697-4668
+Seal (SHA3-256): 65ac6ba7d28a1f368a49c66126a52959ea13d3e2f814794d9fe1c70be6ab1e4b
+
+Nature: O Substrato 820 (ARKHE-WINDOWS-STRUCTURE) é dissolvido e suas funcionalidades são redistribuídas para evitar redundância no campo ξM.
+
+Decisão Canônica:
+- Kernel + Segurança de Supply Chain → Absorvido pelo Substrato 823 (Rust Secure Layer)
+- Interface CLI + Visualização → Absorvido pelo Substrato 584 (Arkhe CLI Windows)
+- Mapa de Camadas → Mantido como documento vivo em docs/architecture/arkhe-windows-map.md (referência, não substrato)
+
+Cross-Links Atualizados no 824:
+- 824 ↔ 823 (Kernel + Virtual Kubelet)
+- 824 ↔ 584 (CLI + Dashboard de burst)
+
+Status: 820 DISSOLVIDO. O campo ξM está mais leve e coerente.

@@ -1,0 +1,19 @@
+{{- if .Values.extenddb.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arkhe.fullname" . }}-extenddb
+  labels:
+    {{- include "arkhe.labels" . | nindent 4 }}
+    app.kubernetes.io/component: extenddb
+spec:
+  type: {{ .Values.extenddb.service.type }}
+  ports:
+    - port: {{ .Values.extenddb.service.port }}
+      targetPort: {{ .Values.extenddb.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "arkhe.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: extenddb
+{{- end }}
