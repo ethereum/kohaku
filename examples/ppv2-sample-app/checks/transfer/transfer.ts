@@ -18,10 +18,8 @@ async function main(): Promise<void> {
 
     // Transfers are submitted by the relayer DIRECTLY from its EOA (verified
     // on-chain), so the proof context must bind that EOA as the processor —
-    // the plugin broadcaster stamps it from the quote's relayerInfo.address.
-    // KNOWN-PENDING: works once the SDK honors params.processorAddress
-    // (feat/sdk/allow-custom-processor); the current published beta ignores
-    // it and this check fails with PoolVault_ProofContextMismatch.
+    // the plugin broadcaster stamps it from the quote's relayerInfo.address
+    // (honored by the SDK's relayTransfer since 0.2.0-beta.0).
     const { plugin, ownerAddress } = await createLiveSession();
     const recipient = (process.argv[3] ??
         process.env["TRANSFER_TO"] ??

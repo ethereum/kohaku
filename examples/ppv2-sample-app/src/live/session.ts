@@ -71,10 +71,8 @@ const STAGING_RELAYER = {
     //   - withdrawals route through PrivacyPoolRelay (0x762665…, msg.sender of
     //     PoolVault.transact) — the default below, read by relayWithdraw;
     //   - transfers are submitted DIRECTLY from the relayer's EOA (`address`),
-    //     which the plugin broadcaster stamps as `processorAddress` per call.
-    //     Honored once the SDK's relayTransfer reads it (pending upstream
-    //     feat/sdk/allow-custom-processor); the current beta ignores the stamp
-    //     and transfers revert with PoolVault_ProofContextMismatch.
+    //     which the plugin broadcaster stamps as `processorAddress` per call
+    //     (honored by the SDK's relayTransfer since 0.2.0-beta.0).
     processorAddress: "0x762665Dc7aAeeA25DC1759AEBef1F61730497f6e",
 };
 
