@@ -1,5 +1,29 @@
 # @kohaku-eth/railgun
 
+## 0.0.1-alpha.28
+
+### Patch Changes
+
+- a3fc0f4: latest plugins
+- Updated dependencies [a3fc0f4]
+  - @kohaku-eth/plugins@0.0.1-alpha.11
+
+## 0.0.1-alpha.27
+
+### Patch Changes
+
+- 30a64b7: feat: unified note by note api for plugins
+- Updated dependencies [30a64b7]
+  - @kohaku-eth/plugins@0.0.1-alpha.10
+
+## 0.0.1-alpha.26
+
+### Patch Changes
+
+- 4bb7e64: fix: plugin iface has async host methods
+- Updated dependencies [4bb7e64]
+  - @kohaku-eth/plugins@0.0.1-alpha.9
+
 ## 0.0.1-alpha.25
 
 ### Patch Changes

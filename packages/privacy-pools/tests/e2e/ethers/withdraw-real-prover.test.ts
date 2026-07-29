@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'v
 
 import { E_ADDRESS } from '../../../src/config';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
-import { chainConfigSetup } from '../../constants';
+import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
 
@@ -24,7 +24,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     forkBlockNumber,
     postman,
     rpcUrl
-  } = chainConfigSetup[chainId];
+  } = getChainConfigSetup(chainId);
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
   const POSTMAN_ADDRESS = BigInt(postman);
@@ -45,7 +45,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
     const pool = anvil.pool(1);
     const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(chainId),
+      initialState: () => loadInitialState(chainId),
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       rpcUrl: pool.rpcUrl,
       postman,
@@ -83,7 +83,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       proverFactory: () => Prover(), // Use real prover
       relayersList: { 'mock-relayer': 'http://mock.relayer' },
       relayerClientFactory: () => mockRelayerClient,
@@ -168,7 +168,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       proverFactory: () => Prover(), // Use real prover
       relayersList: { 'mock-relayer': 'http://mock.relayer' },
       relayerClientFactory: () => mockRelayerClient,
@@ -236,7 +236,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       proverFactory: () => Prover(), // Use real prover
       relayersList: { 'mock-relayer': 'http://mock.relayer' },
       relayerClientFactory: () => mockRelayerClient,

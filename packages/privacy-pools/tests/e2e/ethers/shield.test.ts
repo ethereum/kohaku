@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { E_ADDRESS } from '../../../src/config';
 import { addressToHex } from '../../../src/utils';
-import { chainConfigSetup } from '../../constants';
+import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
@@ -22,7 +22,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     erc20Address,
     erc20WhaleAddress,
     rpcUrl
-  } = chainConfigSetup[chainId];
+  } = getChainConfigSetup(chainId);
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
   const ENTRYPOINT_ADDRESS_HEX = addressToHex(ENTRYPOINT_ADDRESS);
@@ -48,7 +48,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const pool = anvil.pool(1);
     const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(chainId),
+      initialState: () => loadInitialState(chainId),
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       rpcUrl: pool.rpcUrl,
       postman,
@@ -73,7 +73,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const pool = anvil.pool(2);
     const { protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       rpcUrl: pool.rpcUrl,
       postman,
@@ -99,7 +99,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState,
+      initialState: async () => latestState,
       rpcUrl: pool.rpcUrl,
       postman,
     });
@@ -140,7 +140,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const pool = anvil.pool(4);
     const { protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       rpcUrl: pool.rpcUrl,
       postman,
@@ -167,7 +167,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState,
+      initialState: async () => latestState,
       rpcUrl: pool.rpcUrl,
       postman,
     });
@@ -223,7 +223,7 @@ describe('PrivacyPools v1 E2E Flow', () => {
     const { protocol } = await getProtocolWithState({
       entrypoint,
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
-      initialState: latestState,
+      initialState: async () => latestState,
       rpcUrl: pool.rpcUrl,
       postman,
     });

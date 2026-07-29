@@ -12,9 +12,7 @@ packages:
   - "packages/privacy-pools"
   - "packages/plugins"
   - "packages/tornado-cash"
+  - "packages/mimc-tree"
   - "examples/pq-account"
   - "crates/railgun-ts"
   - "docs"
-
-patchedDependencies:
-  snarkjs@0.1.20: patches/snarkjs@0.1.20.patch

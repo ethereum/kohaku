@@ -41,6 +41,13 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
 export interface ISecretManager {
   getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
   deriveEphemeralSigner: (params: DeriveDepositSecretParams) => Promise<`0x${string}`>;
+  /**
+   * Derives a delegator key from a classical wallet BIP-32 `path`, WITHOUT the
+   * `coalesceSecret` privacy transform, so it resolves to a recoverable,
+   * classical Ethereum address. Used for the tail-call batch delegator when the
+   * integrator supplies a wallet path (see `paymasterWithdrawThunk`).
+   */
+  deriveDelegatorSigner: (params: { path: string }) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -115,9 +122,16 @@ export async function SecretManager({
     return `0x${coalesced.toString(16).padStart(64, '0')}` as `0x${string}`;
   };
 
+  // No coalesce: a classical wallet path yields a real private key whose address
+  // is recoverable by the user's wallet, so a stuck delegator can be swept.
+  const deriveDelegatorSigner = async ({ path }: { path: string }) => {
+    return Promise.resolve(keystore.deriveAt(path)) as Promise<`0x${string}`>;
+  };
+
   return {
     getDepositSecrets: (params) => deriveSecrets(params),
     deriveEphemeralSigner,
+    deriveDelegatorSigner,
   };
 }
 

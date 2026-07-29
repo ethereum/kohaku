@@ -1,3 +1,63 @@
+## 0.0.2-alpha.19
+
+### Patch Changes
+
+- 0d64c07: chore: preverification gas bump
+
+## 0.0.2-alpha.18
+
+### Patch Changes
+
+- dfa61fe: feat: bump tornado base gas estimates
+
+## 0.0.2-alpha.17
+
+### Patch Changes
+
+- 3ca504d: feat: multi-withdrawal on TC in one UserOp
+
+## 0.0.2-alpha.16
+
+### Patch Changes
+
+- d86e4a1: feat: arbitrary delegator paths
+
+## 0.0.2-alpha.15
+
+### Patch Changes
+
+- 9e8a25d: chore: add mainnet addrs to config
+
+## 0.0.2-alpha.14
+
+### Patch Changes
+
+- e5aca8c: chore: bump for mimc-tree
+
+## 0.0.2-alpha.13
+
+### Patch Changes
+
+- a3fc0f4: latest plugins
+- Updated dependencies [a3fc0f4]
+  - @kohaku-eth/plugins@0.0.1-alpha.11
+
+## 0.0.2-alpha.12
+
+### Patch Changes
+
+- 30a64b7: feat: unified note by note api for plugins
+- Updated dependencies [30a64b7]
+  - @kohaku-eth/plugins@0.0.1-alpha.10
+
+## 0.0.2-alpha.11
+
+### Patch Changes
+
+- 4bb7e64: fix: plugin iface has async host methods
+- Updated dependencies [4bb7e64]
+  - @kohaku-eth/plugins@0.0.1-alpha.9
+
 ## 0.0.2-alpha.10
 
 ### Patch Changes

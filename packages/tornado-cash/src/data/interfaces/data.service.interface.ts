@@ -1,4 +1,4 @@
-import { ChainId } from "@kohaku-eth/plugins";
+import { ChainId, ExternalRawEvent } from "@kohaku-eth/plugins";
 import { ParseAbiItem } from "viem";
 import { Address } from "../../interfaces/types.interface";
 import {
@@ -57,7 +57,6 @@ export interface IPoolConfig {
   isERC20: boolean;
   token: Address;
   state: 0 | 1;
-  uniswapPoolSwappingFee: number;
   protocolFeePercentage: number;
   denomination: bigint;
   rootHistorySize: number;
@@ -72,6 +71,14 @@ export interface IRelayerAggregatorData {
 
 export interface IDataService {
   getPoolEvents: GetEventsFn<typeof POOL_EVENTS_SIGNATURES, IPoolEvents>;
+  getBlockNumber(): Promise<bigint>;
+  parsePoolEvents(events: ExternalRawEvent[]): {
+    Deposited: IRawDepositEvent[];
+    Withdrawn: IRawWithdrawalEvent[];
+  };
+  parseRelayerRegistryEvents(events: ExternalRawEvent[]): {
+    RelayerRegistered: IRelayerRegisteredEvent[];
+  };
   getRelayerRegistryEvents: GetEventsFn<
     typeof RELAYER_REGISTRY_EVENTS_SIGNATURES,
     IRelayerRegistryEvents
@@ -99,5 +106,5 @@ export interface IDataService {
     subdomains: string[],
   ): Promise<IRelayerAggregatorData[]>;
   getAccountNonce(accountAddress: Address): Promise<number>;
-  quoteEthToToken(amountInWei: bigint, tokenAddress: Address, poolFee: number): Promise<bigint>;
+  quoteWeiInToken(paymasterAddress: Address, feeToken: Address, weiAmount: bigint): Promise<bigint>;
 }

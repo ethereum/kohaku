@@ -50,7 +50,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     readonly host: Host,
     {
       accountIndex = 0,
-      initialState = {},
+      initialState,
       secretManager = SecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       entrypoint,
@@ -70,7 +70,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       accountIndex: this.accountIndex,
     });
     this.stateManager = stateManagerFactory({
-      initialState: { ...initialState },
+      initialState,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
       dataService: new DataService({ provider: host.provider }),
@@ -178,6 +178,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<PPv1PrivateOperation> {
     const { asset, amount } = assets;
+  
     if (asset.__type === 'native') {
       throw new Error("Unshielding native assets is not supported in this version of the protocol");
     }

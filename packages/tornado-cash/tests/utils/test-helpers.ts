@@ -54,6 +54,58 @@ export async function fundAccountWithERC20(
   await provider.send('anvil_setStorageAt', [tokenAddress, slot, value]);
 }
 
+function bigintSqrt(n: bigint): bigint {
+  if (n < 0n) throw new Error('sqrt of negative');
+  if (n < 2n) return n;
+  let x = n;
+  let y = (x + 1n) / 2n;
+  while (y < x) {
+    x = y;
+    y = (x + n / x) / 2n;
+  }
+  return x;
+}
+
+/**
+ * Overrides a Uniswap V3 pool's price on the fork so quotes/TWAPs are sane.
+ *
+ * The real Sepolia WETH/DAI pools are arbitrarily priced (testnet liquidity),
+ * which makes both the SDK fee quote and the paymaster's on-chain TWAP value gas
+ * at absurd rates. This rewrites the pool's `slot0` (sqrtPriceX96 + tick) and a
+ * deep `liquidity` value via storage, then advances time past the TWAP window so
+ * `OracleLibrary.consult` reflects the new tick.
+ *
+ * Assumes token0 = stable (18 decimals), token1 = WETH (18 decimals).
+ */
+export async function setUniswapV3PoolPrice(
+  pool: AnvilPool,
+  poolAddress: string,
+  tokenPerEth: bigint,
+  twapPeriodSeconds = 300,
+): Promise<void> {
+  const provider = new JsonRpcProvider(pool.rpcUrl, undefined, { staticNetwork: true });
+
+  // price = token1/token0 (raw) = WETH per stable = 1 / tokenPerEth (both 18 decimals)
+  const sqrtPriceX96 = bigintSqrt((1n << 192n) / tokenPerEth);
+
+  // tick = floor(log_1.0001(price))
+  const tick = Math.floor(Math.log(1 / Number(tokenPerEth)) / Math.log(1.0001));
+  const tickU = BigInt(tick < 0 ? (1 << 24) + tick : tick) & ((1n << 24n) - 1n);
+
+  // slot0 (storage slot 0) packs: sqrtPriceX96[0:160] | tick[160:184] | <observation/lock bits>
+  const current = BigInt(await provider.send('eth_getStorageAt', [poolAddress, '0x0', 'latest']));
+  const preservedHighBits = current & ~((1n << 184n) - 1n);
+  const newSlot0 = preservedHighBits | sqrtPriceX96 | (tickU << 160n);
+  await provider.send('anvil_setStorageAt', [poolAddress, toBeHex(0, 32), toBeHex(newSlot0, 32)]);
+
+  // liquidity is storage slot 4 — set it deep so a small quote swap has ~no slippage
+  await provider.send('anvil_setStorageAt', [poolAddress, toBeHex(4, 32), toBeHex(10n ** 24n, 32)]);
+
+  // Advance past the TWAP window so consult() extrapolates the new tick
+  await provider.send('evm_increaseTime', [twapPeriodSeconds * 2]);
+  await provider.send('anvil_mine', ['0x1']);
+}
+
 /**
  * Get the ERC20 balance of an account
  */

@@ -1,59 +1,42 @@
 import { createSelector } from "@reduxjs/toolkit";
-import { ISecretManager } from "../../account/keys";
 import { IIndexedWithdrawalEvent } from "../../data/interfaces/events.interface";
-import { Precommitment } from "../../interfaces/types.interface";
-import { createMyDepositsSelector } from "./deposits.selector";
+import { Nullifier, Precommitment } from "../../interfaces/types.interface";
 import {
-  entrypointInfoSelector,
+  depositsSelector,
+  userSecretsSelector,
   withdrawalsSelector,
 } from "./slices.selectors";
 
 export type DepositsWithdrawals = Map<Precommitment, IIndexedWithdrawalEvent[]>;
 
-export const createMyWithdrawalsSelector = ({
-  secretManager,
-  myDepositsSelector,
-}: {
-  secretManager: ISecretManager;
-  myDepositsSelector: ReturnType<typeof createMyDepositsSelector>;
-}) => {
-  /**
-   * Returns the withdrawals grouped by deposit precommitment
-   */
-  return createSelector(
-    [myDepositsSelector, withdrawalsSelector, entrypointInfoSelector],
-    (myDeposits, withdrawalsMap, entrypointInfo): DepositsWithdrawals => {
-      const myWithdrawals: DepositsWithdrawals = new Map();
-      const { chainId, entrypointAddress } = entrypointInfo;
+export const myWithdrawalsSelector = createSelector(
+  [userSecretsSelector, withdrawalsSelector, depositsSelector],
+  (userSecretsMap, withdrawalsMap, depositsMap): DepositsWithdrawals => {
+    const result: DepositsWithdrawals = new Map();
 
-      for (const [, deposit] of myDeposits) {
-        const mapKey = deposit.precommitment;
-        const depositWithdrawals = myWithdrawals.get(mapKey) || [];
+    for (const [precommitment, record] of userSecretsMap) {
+      const deposit = depositsMap.get(precommitment);
 
-        for (let withdrawIndex = 0; ; withdrawIndex++) {
-          const { nullifierHash } = secretManager.getSecrets({
-            entrypointAddress,
-            chainId,
-            depositIndex: deposit.index,
-            withdrawIndex,
-          });
+      if (!deposit) continue;
 
-          const withdrawal = withdrawalsMap.get(nullifierHash);
+      const spentCount = record.noteSecrets.length - 1;
+      const depositWithdrawals: IIndexedWithdrawalEvent[] = [];
 
-          if (!withdrawal) {
-            break;
-          }
+      for (let noteIndex = 0; noteIndex < spentCount; noteIndex++) {
+        const noteSecrets = record.noteSecrets[noteIndex];
 
-          depositWithdrawals.push({
-            ...withdrawal,
-            label: deposit.label,
-            index: withdrawIndex,
-          });
+        if (!noteSecrets) continue;
+
+        const withdrawal = withdrawalsMap.get(noteSecrets.nullifierHash as Nullifier);
+
+        if (withdrawal) {
+          depositWithdrawals.push({ ...withdrawal, label: deposit.label, index: noteIndex });
         }
-        myWithdrawals.set(mapKey, depositWithdrawals);
       }
 
-      return myWithdrawals;
-    },
-  );
-};
+      result.set(precommitment, depositWithdrawals);
+    }
+
+    return result;
+  },
+);

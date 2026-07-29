@@ -1,0 +1,55 @@
+{
+  "name": "@kohaku-eth/mimc-tree",
+  "version": "0.0.3",
+  "license": "MIT",
+  "author": "",
+  "description": "MiMC Merkle tree helpers built on merkle-tree",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/mimc-tree"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker.js": {
+      "node": "./dist/MimcMerkleTreeWorker.js",
+      "browser": "./dist/MimcMerkleTreeBrowserWorker.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc",
+    "benchmark": "npm run build && node benchmark/tree-creation.js"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./dist/MimcMerkleTreeWorker.js",
+    "./dist/MimcMerkleTreeBrowserWorker.js"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "fixed-merkle-tree": "0.7.3",
+    "micro-wrkr": "^0.2.0",
+    "micro-zk-proofs": "^0.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^3.0.0"
+  }
+}

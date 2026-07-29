@@ -1,0 +1,1 @@
+import '@kohaku-eth/mimc-tree/worker.js';

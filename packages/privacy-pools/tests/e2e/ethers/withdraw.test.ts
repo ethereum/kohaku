@@ -4,7 +4,7 @@ import { AccountId } from '@kohaku-eth/plugins';
 
 import { E_ADDRESS } from '../../../src/config';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
-import { chainConfigSetup } from '../../constants';
+import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
 
@@ -25,7 +25,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     forkBlockNumber,
     postman,
     rpcUrl
-  } = chainConfigSetup[chainId];
+  } = getChainConfigSetup(chainId);
 
   const ENTRYPOINT_ADDRESS = entrypoint.address;
   const POSTMAN_ADDRESS = BigInt(postman);
@@ -46,7 +46,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     const pool = anvil.pool(1);
     const { protocol: _protocol } = await getProtocolWithState({
       entrypoint,
-      initialState: await loadInitialState(chainId),
+      initialState: () => loadInitialState(chainId),
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       rpcUrl: pool.rpcUrl,
       postman,
@@ -84,7 +84,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       proverFactory: mockProverFactory,
       relayersList: { 'mock-relayer': 'http://mock.relayer' },
       relayerClientFactory: () => mockRelayerClient,
@@ -177,7 +177,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
         'expensive-relayer': 'http://expensive.relayer',
         'cheap-relayer': 'http://cheap.relayer',
       },
-      initialState: latestState,
+      initialState: async () => latestState,
       proverFactory: mockProverFactory,
       aspServiceFactory: () => mockAspService,
       relayerClientFactory: () => multiRelayerClient,
@@ -243,7 +243,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       relayersList: { 'mock-relayer': 'http://mock.relayer' },
       relayerClientFactory: () => mockRelayerClient,
       proverFactory: mockProverFactory,
@@ -282,7 +282,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: latestState,
+      initialState: async () => latestState,
       relayersList: { 'failing-relayer': 'http://failing.relayer' },
       relayerClientFactory: () => failingRelayer,
       aspServiceFactory: () => mockAspService,

@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/tornado-cash",
-  "version": "0.0.2-alpha.10",
+  "version": "0.0.2-alpha.19",
   "description": "Tornado Cash Shielded Pool Kohaku Plugin",
   "type": "module",
   "private": false,
@@ -20,6 +20,11 @@
     },
     "#circuit-loader": {
       "default": "./dist/circuit-loader.js"
+    },
+    "#merkle-tree": {
+      "node": "./dist/merkle-tree.node.js",
+      "browser": "./dist/merkle-tree.browser.js",
+      "default": "./dist/merkle-tree.browser.js"
     }
   },
   "exports": {
@@ -36,7 +41,6 @@
     },
     "./worker-loader.browser": "./dist/worker-loader.browser.js",
     "./worker-loader.node": "./dist/worker-loader.node.js",
-    "./circuits/*": "./circuits/*",
     "./package.json": "./package.json"
   },
   "engines": {
@@ -47,7 +51,6 @@
     "check": "tsc --noEmit -p ./tsconfig.json",
     "build": "echo Building @kohaku-eth/tornado-cash && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
-    "demo": "tsx demo/simple.ts",
     "test": "vitest run --project=e2e-sepolia",
     "test:unit": "vitest run --project=unit",
     "test:e2e:sepolia": ". ./.env.e2e.tests && vitest run --project=e2e-sepolia",
@@ -87,18 +90,13 @@
     "@kohaku-eth/provider": "workspace:*",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
-    "@privacy-paymasters/sdk": "0.0.2",
+    "@privacy-paymasters/sdk": "0.0.4",
     "@reduxjs/toolkit": "^2.11.2",
-    "buffer": "^6.0.3",
-    "circomlibjs": "0.1.2",
     "comlink": "^4.4.2",
-    "fixed-merkle-tree": "^0.7.3",
-    "maci-crypto": "2.5.0",
-    "micro-zk-proofs": "0.3.0",
+    "micro-zk-proofs": "0.3.1",
+    "@kohaku-eth/mimc-tree": "workspace:*",
     "ox": "^0.12.0",
-    "snarkjs": "git+https://github.com/tornadocash/snarkjs.git#869181cfaf7526fe8972073d31655493a04326d5",
-    "viem": "^2.51.3",
-    "websnark": "git+https://github.com/tornadocash/websnark.git#4c0af6a8b65aabea3c09f377f63c44e7a58afa6d"
+    "viem": "^2.51.3"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

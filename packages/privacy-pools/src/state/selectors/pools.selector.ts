@@ -4,7 +4,7 @@ import { IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
 import { computeMerkleTreeRoot } from "../../utils/proof.util";
 import { RootState } from "../store";
-import { createMyEntrypointDepositsSelector } from "./deposits.selector";
+import { myEntrypointDepositsSelector } from "./deposits.selector";
 import {
   depositsSelector,
   poolsLeavesSelector,
@@ -13,26 +13,18 @@ import {
   withdrawalsSelector,
 } from "./slices.selectors";
 
-export const createMyPoolsSelector = (
-  myEntrypointDepositsSelector: ReturnType<
-    typeof createMyEntrypointDepositsSelector
-  >,
-) => {
-  return createSelector(
-    [myEntrypointDepositsSelector, poolsSelector],
-    (myEntrypointDeposits, pools): IPool[] => {
-      return Array.from(
-        new Set(
-          Array.from(myEntrypointDeposits.values()).map(
-            ({ poolAddress }) => poolAddress,
-          ),
-        ),
-      )
-        .map((poolAddress) => pools.get(poolAddress))
-        .filter((pool) => !!pool);
-    },
-  );
-};
+export const myPoolsSelector = createSelector(
+  [myEntrypointDepositsSelector, poolsSelector],
+  (myEntrypointDeposits, pools): IPool[] => {
+    return Array.from(
+      new Set(
+        Array.from(myEntrypointDeposits.values()).map(({ poolAddress }) => poolAddress),
+      ),
+    )
+      .map((poolAddress) => pools.get(poolAddress))
+      .filter((pool) => !!pool);
+  },
+);
 
 export const selectPoolLeaves = createSelector(
   [poolsLeavesSelector, (_: RootState, poolAddress: Address) => poolAddress],

@@ -4,6 +4,7 @@ import { RootState } from "../store";
 import { AspState } from "../slices/aspSlice";
 import { UpdateRootEventsState } from "../slices/updateRootEventsSlice";
 import { EntrypointInfoState } from "../slices/entrypointInfoSlice";
+import { UserSecretRecord } from "../slices/userSecretsSlice";
 
 import {
   Address,
@@ -87,6 +88,11 @@ export const withdrawalsSelector = selectEntityMap(
 export const ragequitsSelector = selectEntityMap(
   (s) => s.ragequits.ragequitsTuples,
   deserialize as () => [Label, IRagequitEvent],
+);
+
+export const userSecretsSelector = selectEntityMap(
+  (s: RootState) => s.userSecrets.recordsByPrecommitment,
+  deserialize as () => [Precommitment, UserSecretRecord],
 );
 
 export const assetSelector = selectEntityMap(

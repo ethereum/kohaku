@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { PrivacyPoolsV1Protocol } from '../src/index';
 import { addressToHex } from "../src/utils";
 import { generateMerkleProof } from "../src/utils/proof.util";
-import { chainConfigSetup } from "./constants";
+import { getChainConfigSetup } from "./constants";
 import { AnvilPool, defineAnvil, type AnvilInstance } from './utils/anvil';
 import { loadInitialState } from './utils/common';
 import { createMockAspService } from './utils/mock-asp-service';
@@ -47,7 +47,7 @@ describe("Creates the dump state payload", () => {
     rpcUrl,
     forkBlockNumber,
     postman
-  } = chainConfigSetup[chainId];
+  } = getChainConfigSetup(chainId);
 
   let pools: Record<string, AnvilPool>;
 

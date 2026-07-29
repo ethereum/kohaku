@@ -30,8 +30,22 @@ export const poolsSlice = createSlice({
 
       return { poolsTuples: Array.from(newPools) };
     },
+    setPoolSyncedBlock: (
+      { poolsTuples },
+      { payload: { pool, block } }: PayloadAction<{ pool: Address; block: bigint }>,
+    ) => {
+      const newPools = new Map(poolsTuples);
+      const key = serialize(pool);
+      const existing = newPools.get(key);
+
+      if (existing) {
+        newPools.set(key, { ...existing, lastSyncedBlock: serialize(block) });
+      }
+
+      return { poolsTuples: Array.from(newPools) };
+    },
   },
 });
 
-export const { registerPools } = poolsSlice.actions;
+export const { registerPools, setPoolSyncedBlock } = poolsSlice.actions;
 export const poolsReducer = poolsSlice.reducer;

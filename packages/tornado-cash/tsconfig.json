@@ -6,7 +6,8 @@
     "verbatimModuleSyntax": false,
     "paths": {
       "#worker-loader": ["./src/plugin/worker-loader.browser.js"],
-      "#circuit-loader": ["./src/utils/circuit-loader.browser.js"]
+      "#circuit-loader": ["./src/utils/circuit-loader.browser.js"],
+      "#merkle-tree": ["./src/utils/merkle-tree/merkle-tree.util.browser.ts"]
     }
   },
   "include": ["src", "demo"]

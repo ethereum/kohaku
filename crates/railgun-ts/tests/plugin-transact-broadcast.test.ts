@@ -29,8 +29,6 @@ beforeAll(async () => {
     const anvil = await startAnvil(SEPOLIA_RPC_URL, CHAIN.id);
     anvilServer = anvil.server;
     rpcUrl = anvil.rpcUrl;
-    // rpcUrl = "http://localhost:8545";
-
 
     const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
     await fundAddresses(publicClient, [

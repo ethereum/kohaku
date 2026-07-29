@@ -52,8 +52,8 @@ type PPv1InstanceFactory<Credential extends PPv1Credentials> = PluginInstance<
             output: PPv1AssetAmount,
             read: PPv1AssetBalance,
         },
+        note: INote,
         extras: {
-            notes(assets: ERC20AssetId[], includeSpent?: boolean): Promise<INote[]>,
             ragequit(labels: INote['label'][]): Promise<PPv1PublicOperation>,
             sync(): Promise<void>,
         },

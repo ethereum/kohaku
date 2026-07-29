@@ -1,55 +1,50 @@
-import { BundlerClient, GasConfig, TornadoBuilder } from '@privacy-paymasters/sdk';
 import { type Hash } from 'viem';
-import { generatePrivateKey } from 'viem/accounts';
 
 import { EthereumProvider } from '@kohaku-eth/provider';
-import { reasonableGasUnits } from './fee';
-import { signDelegationAuthorization } from './utils';
-import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient, IPaymasterWithdrawalPayload, SignedDelegation } from '../relayer/interfaces/paymaster-client.interface';
+import { createPaymasterBundlerClient, sendSerializedUserOperation } from './utils';
+import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient } from '../relayer/interfaces/paymaster-client.interface';
 import { IPaymasterConfig } from '../plugin/interfaces/protocol-params.interface';
-import { Address } from '../interfaces/types.interface';
 
 export interface PaymasterBroadcastResult {
   userOpHash: Hash;
 }
 
+/**
+ * Relays paymaster-sponsored withdrawals to the bundler. The userOps are fully
+ * built and signed during the prepare phase (see `paymasterWithdrawThunk`), so
+ * this client only forwards them and awaits their receipts.
+ */
 export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
-  constructor(
-    private provider: EthereumProvider,
-    private options: Record<number, IPaymasterConfig>,
-  ) { }
 
   async broadcast(
-    withdrawals: IPaymasterWithdrawalPayload[],
+    withdrawals: IGenericPaymasterWithdrawalPayload[],
   ): Promise<PaymasterBroadcastResult[]> {
-    const chainId = Number(await this.provider.getChainId()) as 1 | 11155111;
+    // Group by sender: ops from the same sender carry sequential nonces and
+    // must be submitted one-at-a-time (each must mine before the next is sent).
+    // Ops from different senders can still run concurrently.
+    const bySender = new Map<string, IGenericPaymasterWithdrawalPayload[]>();
 
-    const {
-      poolsAccountsMap: rawPoolsAccountsMap,
-      bundlerUrl,
-      paymasterAddress,
-      entryPointAddress,
-    } = this.options[chainId]!;
+    for (const w of withdrawals) {
+      const key = w.userOperation.sender.toLowerCase();
+      const group = bySender.get(key) ?? [];
 
-    const poolAcountsMap = new Map(
-      Object.entries(rawPoolsAccountsMap)
-        .map(([poolAccount, tornadoAccount]) => [
-          BigInt(poolAccount) as Address,
-          tornadoAccount
-        ] as const)
-      )
+      group.push(w);
+      bySender.set(key, group);
+    }
 
-    const results = await Promise.allSettled(
-      withdrawals.map((w) => PaymasterBroadcaster.broadcastOne({
-        ...w,
-        bundlerUrl,
-        paymasterAddress,
-        entryPointAddress,
-        accountAddress: poolAcountsMap.get(w.poolAddress)!
-      }, this.provider)),
+    const groupResults = await Promise.allSettled(
+      [...bySender.values()].map(async (group) => {
+        const out: PaymasterBroadcastResult[] = [];
+
+        for (const w of group) {
+          out.push(await PaymasterBroadcaster.broadcastOne(w));
+        }
+
+        return out;
+      }),
     );
 
-    const failed = results.filter((r) => r.status === 'rejected');
+    const failed = groupResults.filter((r) => r.status === 'rejected');
 
     if (failed.length > 0) {
       console.warn(
@@ -58,85 +53,21 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
       );
     }
 
-    return results
+    return groupResults
       .filter((r) => r.status === 'fulfilled')
-      .map((r) => r.value);
+      .flatMap((r) => r.value);
   }
 
   static async broadcastOne(
     withdrawal: IGenericPaymasterWithdrawalPayload,
-    provider: EthereumProvider,
   ): Promise<PaymasterBroadcastResult> {
-    const {
-      proof: { proof: proofHex, args: proofArgs },
-      paymasterAddress,
-      entryPointAddress,
-      bundlerUrl,
-      accountAddress,
-      isERC20,
-    } = withdrawal;
-    const [root, nullifierHash, recipient, _paymasterAddress, feeHex] = proofArgs;
+    const { bundlerUrl, entryPointAddress, userOperation } = withdrawal;
 
-    if (BigInt(paymasterAddress) !== BigInt(_paymasterAddress)) {
-      throw new Error(`relayer must be paymaster when using the 4337 paymaster flow: ${paymasterAddress} != ${_paymasterAddress}`);
-    }
+    const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
+    const userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress);
 
-    // Use pre-computed delegation (deterministic) or generate a random one
-    const delegation = withdrawal.delegation
-      ?? await PaymasterBroadcaster.generateRandomDelegation(accountAddress, provider);
-
-    const { senderAddress, authorization } = delegation;
-
-    const bundlerClient = new BundlerClient(bundlerUrl, entryPointAddress);
-    const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await bundlerClient.getUserOperationGasPrice();
-    const gasMode: "manual" | "auto" = "manual";
-
-    let gas: GasConfig;
-
-    if (gasMode === "manual") {
-      gas = {
-        type: 'manual',
-        ...reasonableGasUnits(isERC20),
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-      };
-    } else {
-      gas = { type: 'auto' };
-    }
-
-    const op = await new TornadoBuilder(senderAddress)
-      .withPaymaster(paymasterAddress)
-      .withAuthorization(authorization)
-      .withWithdraw(
-        proofHex,
-        root,
-        nullifierHash,
-        recipient as `0x${string}`,
-        _paymasterAddress as `0x${string}`,
-        BigInt(feeHex),
-      )
-      .withGas(gas)
-      .build(provider, bundlerClient);
-
-    const userOpHash = await bundlerClient.sendUserOperation(op);
-
-    await bundlerClient.waitForUserOperationReceipt(userOpHash);
+    await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
 
     return { userOpHash };
-  }
-
-  static async generateRandomDelegation(
-    accountAddress: `0x${string}`,
-    provider: EthereumProvider
-  ): Promise<SignedDelegation> {
-    const privateKey = generatePrivateKey();
-    const chainId = Number(await provider.getChainId());
-
-    return signDelegationAuthorization({
-      privateKey,
-      accountAddress,
-      chainId,
-      nonce: 0,
-    });
   }
 }

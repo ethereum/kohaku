@@ -5,6 +5,10 @@ use eip_1193_provider::js::JsEip1193Provider;
 use userop_kit::smart_account::simple_smart_account::SimpleSmartAccount;
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
+/// Creates a simple smart account.
+///
+/// Defaults to the v0.8 EntryPoint and the eth-infinitism Simple7702Account implementation at
+/// `0xe6Cae83BdE06E4c305530e199D7217f42808555B`.
 #[wasm_bindgen(js_name = "SimpleSmartAccount")]
 pub struct JsSimpleSmartAccount {
     inner: SimpleSmartAccount,

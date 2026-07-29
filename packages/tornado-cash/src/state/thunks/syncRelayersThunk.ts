@@ -2,13 +2,15 @@ import { createAsyncThunk } from '@reduxjs/toolkit';
 import { namehash } from 'viem/ens';
 
 import { IDataService } from '../../data/interfaces/data.service.interface';
+import { ISyncService } from '../../data/interfaces/sync.service.interface';
 import { RootState } from '../store';
 import { instanceRegistryInfoSelector } from '../selectors/slices.selectors';
 import { IRelayerInfo, registerRelayers } from '../slices/relayersSlice';
-import { selectLastSyncedBlock } from '../selectors/last-synced-block.selector';
+import { setRelayerRegistrySyncedBlock } from '../slices/syncSlice';
 
 export interface SyncRelayersThunkParams {
   dataService: IDataService;
+  syncService: ISyncService;
 }
 
 const MIN_STAKE_BALANCE = 40n * 10n ** 18n;
@@ -16,9 +18,10 @@ const MAINNET_SUBDOMAIN = 'mainnet-tornado';
 
 export const syncRelayersThunk = createAsyncThunk<void, SyncRelayersThunkParams, { state: RootState }>(
   'sync/relayers',
-  async ({ dataService }, { dispatch, getState }) => {
+  async ({ dataService, syncService }, { dispatch, getState }) => {
     const state = getState();
     const {
+      chainId,
       relayerRegistry: {
         address: relayerRegistryAddress,
         deploymentBlock: relayerRegistryDeploymentBlock,
@@ -29,13 +32,17 @@ export const syncRelayersThunk = createAsyncThunk<void, SyncRelayersThunkParams,
       ensSubdomainKey,
     } = instanceRegistryInfoSelector(state);
 
-    const lastSyncedBlock = selectLastSyncedBlock(state);
+    const registrySyncedBlock = BigInt(state.sync.relayerRegistrySyncedBlock ?? '0');
 
-    const { RelayerRegistered: events } = await dataService.getRelayerRegistryEvents({
-      events: 'RelayerRegistered',
+    const { RelayerRegistered: events, toBlock } = await syncService.getRelayerRegistryEvents({
+      chainId,
       address: relayerRegistryAddress,
-      fromBlock: lastSyncedBlock || relayerRegistryDeploymentBlock,
+      fromBlock: registrySyncedBlock || relayerRegistryDeploymentBlock,
     });
+
+    // Record how far the registry is synced even when no new relayers appeared,
+    // so the next sync resumes from here instead of the deployment block.
+    dispatch(setRelayerRegistrySyncedBlock(toBlock));
 
     if (events.length === 0) {
       return;

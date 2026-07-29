@@ -7,7 +7,7 @@ import { IAspService } from "../../data/asp.interface.js";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { Address } from "../../interfaces/types.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
-import { RootState } from "../../state";
+import { PublicRootState } from "../../state/store";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { WithdrawProveOutput } from "../../state/thunks/withdrawThunk";
@@ -46,7 +46,7 @@ export interface PrivacyPoolsV1ProtocolParams {
   aspServiceFactory: () => IAspService;
   proverFactory: () => ReturnType<typeof Prover>;
   relayersList: Record<string, string>;
-  initialState?: Record<string, RootState>;
+  initialState?: () => Promise<Record<string, PublicRootState>>;
   ipfsUrl?: string;
 }
 
@@ -144,7 +144,7 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
-  dumpState: () => Record<StoreStorageKey, RootState>;
+  dumpState: () => Record<StoreStorageKey, PublicRootState>;
   /**
    * Gets all notes for the account.
    * @param includeSpent - If true, include notes with zero balance

@@ -21,6 +21,7 @@ import { ragequitsReducer } from "./slices/ragequitsSlice";
 import { syncReducer } from "./slices/syncSlice";
 import { updateRootEventsReducer } from "./slices/updateRootEventsSlice";
 import { withdrawalsReducer } from "./slices/withdrawalsSlice";
+import { userSecretsReducer } from "./slices/userSecretsSlice";
 
 const reducers = {
   deposits: depositsReducer,
@@ -34,9 +35,11 @@ const reducers = {
   asp: aspReducer,
   updateRootEvents: updateRootEventsReducer,
   sync: syncReducer,
+  userSecrets: userSecretsReducer,
  } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
+export type PublicRootState = Omit<RootState, 'userSecrets'>;
 type LogLevel = 'error' | 'verbose' | 'off';
 
 const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (logLevel) => (api) => (next) => (action) => {

@@ -15,6 +15,9 @@ const E2E_SUITES = [
   { suiteName: 'sync',            include: ['tests/sync.test.ts'],                        timeout: 1_200_000 },
 ];
 
+// Per-chain e2e projects are only run when explicitly invoked (e.g.
+// `--project=e2e-sepolia`); mainnet runs require the dev to set up an RPC and a
+// synced state snapshot, so they're never part of the default suite.
 const chainProjects = CHAINS.flatMap(chain =>
   E2E_SUITES.map(suite => ({
     extends: true as const,

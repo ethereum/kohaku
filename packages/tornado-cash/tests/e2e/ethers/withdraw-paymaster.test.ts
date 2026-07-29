@@ -4,14 +4,14 @@ import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 // import { deployPaymaster } from 'privacy-paymaster/deploy-paymaster';
 import { Wallet } from 'ethers';
-import { parseEther, type Hex } from 'viem';
+import { encodeFunctionData, parseEther, parseUnits, type Hex } from 'viem';
 
 import { E_ADDRESS } from '../../../src/config';
 import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
+import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setUniswapV3PoolPrice, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 import { getChainConfigSetup } from '../../constants';
 import { TCBroadcaster, TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
 import { Serializable } from '../../../src/state/interfaces/utils.interface';
@@ -160,12 +160,25 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
 
     expect(amount).toBe(DEPOSIT_AMOUNT);
 
+    // Sepolia's WETH/DAI pools are arbitrarily priced, so both the SDK fee quote
+    // and the paymaster's on-chain TWAP value gas at absurd rates. Override the
+    // configured (0.05%) DAI/WETH pool to a realistic 3000 DAI/ETH so the fee
+    // fits under the note denomination and the paymaster accepts it.
+    const DAI_WETH_500_POOL = '0x122450AE55BD9B74768A128Bda99906351F81827';
+
+    await setUniswapV3PoolPrice(pool, DAI_WETH_500_POOL, 3000n);
+
     // 3. Prepare paymaster withdrawal
     const unshieldOp = await protocol.prepareUnshield(
       { asset: erc20Asset, amount: WITHDRAW_AMOUNT },
       alice.address as AccountId,
       { mode: 'paymaster' },
     );
+
+    // The 2-note batch is consolidated into a single userOp (one EIP-7702
+    // authorization); the second note is withdrawn as a direct pool.withdraw in
+    // callData and the accumulated balance is forwarded to alice.
+    expect(unshieldOp.withdrawals.length).toBe(1);
 
     const preWithdrawalBalance = await getERC20Balance(pool.rpcUrl, erc20Address, alice.address);
 
@@ -181,5 +194,106 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     expect(postTCBalance).toBe(DEPOSIT_AMOUNT - WITHDRAW_AMOUNT);
     expect(postWithdrawalBalance).toBeGreaterThan(preWithdrawalBalance);
     expect(paymasterBalance).toBeGreaterThan(0n);
+  });
+
+  it('[prepareUnshieldPaymaster] ERC20 withdrawal with tailCalls: atomic approve + transferFrom to bob', { timeout: 180_000 }, async () => {
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+    const bob = TEST_ACCOUNTS.bob.address;
+    const erc20Asset = ERC20Asset(erc20Address);
+
+    const baseDepositAmount = BigInt(erc20Pool.denomination);
+    const DEPOSIT_AMOUNT = baseDepositAmount * 3n;
+    const WITHDRAW_AMOUNT = baseDepositAmount * 2n;
+    const TAIL_AMOUNT = parseUnits('1', 18);
+
+    const ERC20_ABI = [
+      {
+        name: 'approve',
+        type: 'function',
+        inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+        outputs: [{ name: '', type: 'bool' }],
+        stateMutability: 'nonpayable',
+      },
+      {
+        name: 'transferFrom',
+        type: 'function',
+        inputs: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'amount', type: 'uint256' },
+        ],
+        outputs: [{ name: '', type: 'bool' }],
+        stateMutability: 'nonpayable',
+      },
+    ] as const;
+
+    // Sepolia's WETH/DAI pools are arbitrarily priced — override to 3000 DAI/ETH
+    // so the fee fits under the note denomination and the paymaster accepts it.
+    const DAI_WETH_500_POOL = '0x122450AE55BD9B74768A128Bda99906351F81827';
+    
+    await setUniswapV3PoolPrice(pool, DAI_WETH_500_POOL, 3000n);
+
+    // Fund alice and deposit
+
+    const [{ amount: preDepositBalance }] = await protocol.balance([erc20Asset]);
+
+    await transferERC20FromWhale(pool.rpcUrl, erc20Address, erc20WhaleAddress, alice.address, DEPOSIT_AMOUNT);
+    const { txns } = await protocol.prepareShield({ asset: erc20Asset, amount: DEPOSIT_AMOUNT });
+    const receipts = await sendMultipleTxsAndWait(alice, txns);
+
+    for (const receipt of receipts) {
+      expect(receipt?.status).toEqual(1);
+    }
+    await pool.mine(1);
+
+    // Prepare paymaster withdrawal.
+    // tailCalls are executed BY the ephemeral sender (msg.sender = sender throughout).
+    // The sender self-approves first so that the subsequent transferFrom to Bob can
+    // consume that allowance — both calls execute atomically inside the userOp.
+    const unshieldOp = await protocol.prepareUnshield(
+      { asset: erc20Asset, amount: WITHDRAW_AMOUNT },
+      alice.address as AccountId,
+      {
+        mode: 'paymaster',
+        tailCalls: async (sender) => [
+          {
+            to: erc20Address,
+            data: encodeFunctionData({
+              abi: ERC20_ABI,
+              functionName: 'approve',
+              args: [sender, TAIL_AMOUNT],
+            }),
+            value: 0n,
+          },
+          {
+            to: erc20Address,
+            data: encodeFunctionData({
+              abi: ERC20_ABI,
+              functionName: 'transferFrom',
+              args: [sender, bob as `0x${string}`, TAIL_AMOUNT],
+            }),
+            value: 0n,
+          },
+        ],
+      },
+    );
+
+    // The 2-note batch is consolidated into a single userOp carrying one
+    // EIP-7702 authorization, with the tailCalls appended after the direct
+    // withdraw of the second note.
+    expect(unshieldOp.withdrawals.length).toBe(1);
+
+    // Broadcast — the userOp executes both tailCalls atomically; Bob receives tokens
+    const preBobBalance = await getERC20Balance(pool.rpcUrl, erc20Address, bob);
+
+    await broadcaster.broadcast(unshieldOp);
+    await pool.mine(1);
+
+    // Assert: alice got her withdrawal, bob got tokens via the in-userOp transferFrom
+    const [{ amount: postTCBalance }] = await protocol.balance([erc20Asset]);
+    const postBobBalance = await getERC20Balance(pool.rpcUrl, erc20Address, bob);
+
+    expect(postTCBalance).toBe( preDepositBalance + DEPOSIT_AMOUNT - WITHDRAW_AMOUNT);
+    expect(postBobBalance - preBobBalance).toBe(TAIL_AMOUNT);
   });
 });

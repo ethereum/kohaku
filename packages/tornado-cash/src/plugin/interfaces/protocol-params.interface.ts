@@ -1,22 +1,21 @@
-import { PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
+import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
-import { TornadoProveOutput } from "../../utils/tornado-prover";
-import { ITornadoProver } from "../../utils/tornado-prover";
-import { TxData } from '@kohaku-eth/provider';
+import { TornadoProveOutput } from "../../utils/tornado-prover.js";
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
-import { IPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
+import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
+import type { DelegationConfig } from '../../account/delegation.interface';
 
-export type DelegationConfig =
-  | { mode: 'deterministic'; path?: string }
-  | { mode: 'random' };
+export type { DelegationConfig };
 
 type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
@@ -35,7 +34,7 @@ export interface IRelayerWithdrawalPayload {
   relayerUrl: string;
 }
 
-export type IWithdrawalPayload = IRelayerWithdrawalPayload | IPaymasterWithdrawalPayload;
+export type IWithdrawalPayload = IRelayerWithdrawalPayload | IGenericPaymasterWithdrawalPayload;
 
 export interface TCPrivateOperation<Mode extends IWithdrawalPayload['mode'] = 'relayer' | 'paymaster'> extends PrivateOperation {
   withdrawals: (IWithdrawalPayload & {mode: Mode})[];
@@ -52,7 +51,7 @@ export interface ITornadoArtifacts {
 
 export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
 
-export interface PrivacyPoolsV1ProtocolParams {
+export interface TCProtocolParams {
   accountIndex?: number;
   paymasterConfig: IChainsPaymastersConfig;
   secretManagerFactory: (params: SecretManagerParams) => Promise<ISecretManager>;
@@ -61,9 +60,14 @@ export interface PrivacyPoolsV1ProtocolParams {
   protocolConfig: TCProtocolConfig;
   relayerConfig?: IRelayerFeeConfig;
   artifactsLoader?: () => Promise<ITornadoArtifacts>;
-  proverFactory?: () => Promise<ITornadoProver>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
   stateManagerWorkerUrl?: string;
+  /**
+   * When a pool is at least this many blocks behind, use the host's
+   * `externalSyncProvider` (if any) for the bulk of the sync instead of the
+   * chain. Omit to always sync from the chain.
+   */
+  minExternalSyncBlocksAmount?: number;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -87,6 +91,13 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
   mode: 'paymaster';
   delegation?: DelegationConfig;
+  tailCalls?: (address: AccountId) => Promise<TxData[]>;
+  /**
+   * Optional baseline for the execution-phase gas of user `tailCalls` (not
+   * including per-note direct withdraws). Used when bundler estimation fails;
+   * when estimation succeeds the bundler estimate still wins.
+   */
+  tailCallsGasEstimate?: bigint;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
@@ -99,6 +110,15 @@ export interface IGetNotesParams extends IBaseOperationParams {
   includeSpent?: boolean;
   assets?: Address[];
 }
+
+export type TCNote = Pick<
+  IDepositWithBalance,
+  'commitment' | 'balance' | 'assetAddress' | 'timestamp' | 'leafIndex' | 'pool'
+> & {
+  /** Fixed pool denomination for this note. */
+  amount: bigint;
+  depositIndex: number;
+};
 
 export type StoreKey = `${string}-${string}`;
 export type StoreStorageKey = `tornado-cash-state-${StoreKey}`;
@@ -121,5 +141,11 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
+  /**
+   * Gets all notes for the account.
+   * @param includeSpent - If true, include notes with zero balance
+   * @param assets - Optional filter by specific assets
+   */
+  getNotes: (params: IGetNotesParams) => Promise<TCNote[]>;
   dumpState: () => Record<StoreStorageKey, PublicRootState>;
 }

@@ -26,6 +26,8 @@ pub enum TxidVersion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(js, derive(tsify::Tsify))]
+#[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
 pub enum BlindedCommitmentType {
     Shield,
     Transact,
@@ -81,8 +83,6 @@ pub struct GetMerkleProofsParams {
 pub struct ValidatedRailgunTxidStatus {
     #[serde(rename = "validatedTxidIndex")]
     pub index: u32,
-    #[serde(rename = "validatedMerkleroot")]
-    pub merkleroot: MerkleRoot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

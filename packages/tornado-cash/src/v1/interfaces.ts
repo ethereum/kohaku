@@ -1,12 +1,14 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
-import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { TCPrivateOperation, TCPublicOperation, PrivacyPoolsV1ProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig } from '../plugin/interfaces/protocol-params.interface.js';
+import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
+import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote } from '../plugin/interfaces/protocol-params.interface.js';
+import { TxData } from '@kohaku-eth/provider';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
 import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
 import { IRelayerFeeConfig } from "../state/slices/relayersSlice.js";
 import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface.js";
 export { DepositStrategy };
+export type { TCNote };
 
 export type TCBroadcasterParameters = {
     relayerClientFactory?: () => IRelayerClient;
@@ -17,12 +19,11 @@ export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResp
 interface TCBaseCredential {
     accountIndex: number;
 }
-export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential {
+export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential, Pick<TCProtocolParams, 'initialState' | 'minExternalSyncBlocksAmount'> {
     protocolConfig: TCProtocolConfig;
     relayerConfig?: IRelayerFeeConfig;
-    initialState?: PrivacyPoolsV1ProtocolParams['initialState'];
-    artifacts: ITornadoArtifacts;
     stateManagerWorkerUrl?: string;
+    artifactsLoader?: () => Promise<ITornadoArtifacts>;
 };
 
 export type TCAddress = Address;
@@ -30,13 +31,21 @@ export type TCAddress = Address;
 export type TCAssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
 export type TCAssetBalance = TCAssetAmount;
 
-export interface TCRelayerUnshieldOptions {
-    mode: 'relayer'; preferredRelayersEns?: string[];
+export interface TCRelayerUnshieldOptions extends UnshieldOptions {
+    mode: 'relayer';
+    preferredRelayersEns?: string[];
 }
 
-export interface TCPaymasterUnshieldOptions {
+export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     mode: 'paymaster';
     delegation?: DelegationConfig;
+    /**
+     * Optional baseline for the execution-phase gas of user `tailCalls` (not
+     * including per-note direct withdraws). Used as the batch execution-tail
+     * baseline when bundler estimation fails; when estimation succeeds the
+     * bundler estimate still wins. Defaults to the SDK's static callGasLimit.
+     */
+    tailCallsGasEstimate?: bigint;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;
@@ -58,6 +67,7 @@ export type TCInstance = PluginInstance<
             output: TCAssetAmount,
             read: TCAssetBalance,
         },
+        note: TCNote,
         extras: {
             sync(): Promise<void>,
             prepareShield(asset: TCAssetAmount, options: TCPrepareShieldOptions): Promise<TCPublicOperation>;

@@ -19,21 +19,63 @@ interface UserOperationGasLimits {
 
 const ERC20_TRANSFER_GAS = 100_000n;
 
+// Execution-phase (callData) gas budgets used when a batch is consolidated into
+// a single userOp. Each extra deposit becomes a direct `pool.withdraw` call
+// executed by the ephemeral 7702 account — a groth16 verify plus the payout
+// (ERC20 pools add a token transfer to the sender). `FORWARD_GAS` covers the
+// final transfer of the accumulated balance to the recipient when the caller
+// supplied no tailCalls. These are conservative ceilings; the actual limits are
+// refined via bundler estimation when available.
+const PER_DIRECT_WITHDRAW_GAS = 400_000n;
+const PER_DIRECT_WITHDRAW_GAS_ERC20 = 500_000n;
+const FORWARD_GAS = 60_000n;
+
 const baseGasUnits: UserOperationGasLimits = {
-  preVerificationGas: 80_000n,
+  preVerificationGas: 100_000n,
   verificationGasLimit: 50_000n,
   callGasLimit: 300_000n,
 
   paymasterVerificationGasLimit: 350_000n,
-  paymasterPostOpGasLimit: 10_000n,
+  paymasterPostOpGasLimit: 50_000n,
 };
 
 export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
   if (!isERC20) return baseGasUnits;
 
+  // The fee-paying unshield (incl. ERC20 transfers) runs inside the adapter's
+  // collectFee during paymaster validation, so the extra ERC20 cost belongs to
+  // paymasterVerificationGasLimit — not callGasLimit (which is 0 in this flow).
   return {
     ...baseGasUnits,
-    callGasLimit: baseGasUnits.callGasLimit + ERC20_TRANSFER_GAS,
+    paymasterVerificationGasLimit: baseGasUnits.paymasterVerificationGasLimit + ERC20_TRANSFER_GAS,
+  };
+}
+
+/**
+ * Gas units for a consolidated batch withdrawal (one userOp for the whole
+ * batch). deposit[0] is sponsored by the paymaster (its verify/payout stays in
+ * paymasterVerificationGasLimit, as in `reasonableGasUnits`); the remaining
+ * `extraWithdrawals` deposits run as direct `pool.withdraw` calls in the
+ * execution phase, so their gas belongs to callGasLimit. When the caller
+ * supplied tailCalls we budget an execution tail for them — prefer a consumer
+ * `tailCallsGasEstimate` when provided, otherwise the default base callGasLimit;
+ * without user tailCalls we only need the synthesized forward transfer.
+ */
+export function reasonableGasUnitsForBatch(
+  isERC20: boolean,
+  extraWithdrawals: number,
+  hasUserTailCalls: boolean,
+  tailCallsGasEstimate?: bigint,
+): UserOperationGasLimits {
+  const base = reasonableGasUnits(isERC20);
+  const perWithdraw = isERC20 ? PER_DIRECT_WITHDRAW_GAS_ERC20 : PER_DIRECT_WITHDRAW_GAS;
+  const executionTail = hasUserTailCalls
+    ? (tailCallsGasEstimate ?? base.callGasLimit)
+    : FORWARD_GAS;
+
+  return {
+    ...base,
+    callGasLimit: BigInt(extraWithdrawals) * perWithdraw + executionTail,
   };
 }
 
@@ -64,11 +106,6 @@ export function computeMinimumViableFee(reasonableGasUnits: UserOperationGasLimi
     reasonableGasUnits.paymasterPostOpGasLimit
   );
   const requiredPrefund = requiredGas * maxFeePerGas;
-
-  console.log("totalGasUnits", requiredGas);
-  console.log("maxFeePerGas", maxFeePerGas);
-  console.log("requiredPrefund", requiredPrefund);
-  console.log("multiply", 1.2);
 
   return multiply(requiredPrefund);
 }
