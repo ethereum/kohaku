@@ -145,7 +145,7 @@ fn log_to_sync_events(log: RawLog) -> Result<Vec<SyncEvent>, RpcSyncerError> {
 }
 
 fn handle_shield_event(log: &RawLog, block_number: u64) -> Result<Vec<SyncEvent>, RpcSyncerError> {
-    let event = RailgunSmartWallet::Shield::decode_log(&log.inner())?;
+    let event = RailgunSmartWallet::Shield::decode_log(&log.clone().into())?;
 
     let tree_number = event.treeNumber.saturating_to();
     let start_position = event.startPosition.saturating_to::<u32>();
@@ -178,7 +178,7 @@ fn handle_transact_event(
     log: &RawLog,
     block_timestamp: u64,
 ) -> Result<Vec<SyncEvent>, RpcSyncerError> {
-    let event = RailgunSmartWallet::Transact::decode_log(&log.inner())?;
+    let event = RailgunSmartWallet::Transact::decode_log(&log.clone().into())?;
 
     let tree_number = event.treeNumber.saturating_to();
     let start_position = event.startPosition.saturating_to::<u32>();
@@ -210,7 +210,7 @@ fn handle_nullified_event(
     log: &RawLog,
     block_timestamp: u64,
 ) -> Result<Vec<SyncEvent>, RpcSyncerError> {
-    let event = RailgunSmartWallet::Nullified::decode_log(&log.inner())?;
+    let event = RailgunSmartWallet::Nullified::decode_log(&log.clone().into())?;
 
     let tree_number = event.treeNumber as u32;
 

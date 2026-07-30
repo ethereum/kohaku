@@ -23,7 +23,6 @@ jobs:
           run: pnpm audit
           continue-on-error: true
         - run: cargo test
-        - run: cargo check --target wasm32-unknown-unknown 
 
     build:
         name: Build

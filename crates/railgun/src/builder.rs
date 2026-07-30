@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use eip_1193_provider::provider::{Eip1193Provider, IntoEip1193Provider};
+use kohaku_db::{Database, memory::MemoryDatabase};
 
 use crate::{
     chain_config::ChainConfig,
     circuit::groth16_prover::Groth16Prover,
-    database::{Database, memory::MemoryDatabase},
     indexer::{
         syncer::{ChainedSyncer, RpcSyncer, SubsquidSyncer, UtxoSyncer},
         utxo_indexer::UtxoIndexer,

@@ -1,6 +1,6 @@
-use alloy::hex;
-use railgun::database::{Database, DatabaseError};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
+
+use crate::{Database, DatabaseError};
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_INTERFACE: &str = r#"

@@ -2,7 +2,7 @@
   description = "Kohaku dev shell";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -31,7 +31,7 @@
           inherit system;
         };
 
-        rustToolchain = pkgs.rust-bin.stable."1.93.0".default.override {
+        rustToolchain = pkgs.rust-bin.stable."1.94.0".default.override {
           extensions = [
             "rust-src"
             "llvm-tools"

@@ -1,0 +1,67 @@
+[package]
+name = "tornadocash"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib"]
+
+[features]
+default = []
+parallel = ["websnark-rs/parallel", "crypto/parallel"]
+bench = []
+
+[dependencies]
+alloy = { workspace = true, features = [
+    "rpc",
+    "rpc-types",
+    "network",
+    "providers",
+    "transports",
+    "sol-types",
+    "reqwest",
+] }
+ark-ff = { workspace = true }
+ark-bn254 = { workspace = true }
+async-trait = { workspace = true }
+common = { workspace = true }
+ruint = { workspace = true, features = ["ark-ff-06", "num-bigint"] }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true, features = ["rustls"] }
+crypto = { workspace = true }
+kohaku-db = { workspace = true }
+web-time = { workspace = true }
+hex = { workspace = true }
+websnark-rs = { workspace = true }
+brotli = { workspace = true }
+anyhow = { workspace = true }
+rand = { workspace = true }
+postcard = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom_04 = { package = "getrandom", version = "0.4", features = [
+    "wasm_js",
+] }
+
+[dev-dependencies]
+insta = { workspace = true }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+alloy = { workspace = true, features = ["signers", "signer-local"] }
+kohaku-test-utils = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "merkle"
+harness = false
+
+[[bench]]
+name = "prove"
+harness = false
+
+[build-dependencies]
+cfg_aliases = { workspace = true }

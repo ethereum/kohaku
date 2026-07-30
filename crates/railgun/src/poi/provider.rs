@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy::primitives::ChainId;
+use kohaku_db::{Database, DatabaseError};
 use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -15,7 +16,6 @@ use crate::{
         keys::{NullifyingKey, SpendingPublicKey},
         railgun_txid::Txid,
     },
-    database::{Database, DatabaseError, RailgunDB},
     indexer::{
         syncer::TxidSyncer,
         txid_indexer::{TxidIndexer, TxidIndexerError},
@@ -27,6 +27,7 @@ use crate::{
         note::PoiNote,
         types::{BlindedCommitment, BlindedCommitmentType, ListKey, PoiStatus, TransactProofData},
     },
+    railgun_database::RailgunDB,
     transact::proved_transaction::ProvedOperation,
 };
 

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use eip_1193_provider::js::JsEip1193Provider;
+use kohaku_db::js::JsDatabase;
 use railgun::{builder::RailgunBuilder, chain_config::ChainConfig};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
-use crate::{database::JsDatabase, provider::JsRailgunProvider, utxo_syncer::JsUtxoSyncer};
+use crate::{provider::JsRailgunProvider, utxo_syncer::JsUtxoSyncer};
 
 /// Builder for constructing a `RailgunProvider`.
 #[wasm_bindgen(js_name = "RailgunBuilder")]

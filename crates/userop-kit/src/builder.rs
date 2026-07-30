@@ -10,15 +10,39 @@ use crate::{
     user_operation::{UserOperation, UserOperationGasEstimate},
 };
 
-pub struct UserOperationBuilder {
+pub struct UserOperationBuilder<S> {
     user_op: UserOperation,
 
     gas_set: bool,
     entry_point: Address,
     domain: Eip712Domain,
+    smart_account_type: std::marker::PhantomData<S>,
 }
 
-impl UserOperationBuilder {
+impl<S: SmartAccount> UserOperationBuilder<S> {
+    /// Create a new UserOperationBuilder with a smart account
+    pub async fn new_with_smart_account(smart_account: &S) -> Result<Self, SmartAccountError> {
+        Ok(Self::new(
+            smart_account.address(),
+            smart_account.entry_point(),
+            smart_account.domain(),
+        )
+        .with_nonce(smart_account.nonce().await?)
+        .with_authorization(smart_account.authorization().await?)
+        .with_signature(smart_account.dummy_signature()))
+    }
+
+    /// Sets the call data for this UserOperation by encoding the provided call using the smart
+    /// account's ABI encoding.
+    pub fn with_call(mut self, call: &S::Call) -> Self {
+        self.user_op.call_data = S::abi_encode_call(call);
+        self
+    }
+}
+
+impl<S> UserOperationBuilder<S> {
+    /// Creates a new UserOperationBuilder with the specified sender, entry point, and EIP-712
+    /// domain.
     pub fn new(sender: Address, entry_point: Address, domain: Eip712Domain) -> Self {
         Self {
             user_op: UserOperation {
@@ -42,23 +66,12 @@ impl UserOperationBuilder {
             entry_point,
             domain,
             gas_set: false,
+            smart_account_type: std::marker::PhantomData,
         }
     }
+}
 
-    /// Create a new UserOperationBuilder with a smart account
-    pub async fn new_with_smart_account(
-        smart_account: &impl SmartAccount,
-    ) -> Result<Self, SmartAccountError> {
-        Ok(Self::new(
-            smart_account.address(),
-            smart_account.entry_point(),
-            smart_account.domain(),
-        )
-        .with_nonce(smart_account.nonce().await?)
-        .with_authorization(smart_account.authorization().await?)
-        .with_signature(smart_account.dummy_signature()))
-    }
-
+impl<S> UserOperationBuilder<S> {
     /// Sets the calldata for this UserOperation.
     pub fn with_calldata(mut self, calldata: Bytes) -> Self {
         self.user_op.call_data = calldata;
@@ -66,7 +79,7 @@ impl UserOperationBuilder {
     }
 
     /// Sets the paymaster address and data for this UserOperation.
-    pub fn with_paymaster(mut self, paymaster: Address, paymaster_data: Vec<u8>) -> Self {
+    pub fn with_paymaster_and_data(mut self, paymaster: Address, paymaster_data: Vec<u8>) -> Self {
         self.user_op.paymaster = Some(paymaster);
         self.user_op.paymaster_data = Some(paymaster_data.into());
         self

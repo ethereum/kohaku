@@ -1,0 +1,13 @@
+[package]
+name = "kohaku-test-utils"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+alloy = { workspace = true, features = ["provider-anvil-api"] }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }

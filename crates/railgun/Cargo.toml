@@ -19,13 +19,7 @@ js = ["dep:tsify", "dep:wasm-bindgen"]
 
 # Feature for integration tests that require additional exposed methods.
 testing = []
-parallel = [
-    "ark-circom/parallel",
-    "ark-groth16/parallel",
-    "ark-ff/parallel",
-    "ark-relations/parallel",
-    "ark-serialize/parallel",
-]
+parallel = ["ark-groth16/parallel", "ark-ff/parallel", "ark-serialize/parallel"]
 
 # Feature that enables benchmarks
 bench = []
@@ -54,7 +48,7 @@ hex = { workspace = true }
 num-bigint = { workspace = true, features = ["serde"] }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
-ruint = { workspace = true }
+ruint = { workspace = true, features = ["num-bigint"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -66,6 +60,7 @@ wasm-bindgen = { workspace = true, optional = true }
 web-time = { workspace = true }
 brotli = { workspace = true }
 anyhow = { workspace = true }
+kohaku-db = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 reqwest = { workspace = true, features = ["json", "rustls"] }
@@ -76,6 +71,9 @@ wasmer = { workspace = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom_04 = { package = "getrandom", version = "0.4", features = [
+    "wasm_js",
+] }
 gloo-timers = { workspace = true, features = ["futures"] }
 js-sys = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
@@ -85,16 +83,15 @@ wasmer = { workspace = true, features = ["js-default"] }
 [build-dependencies]
 cfg_aliases = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-alloy = { workspace = true, default-features = true, features = [
-    "provider-anvil-api",
-] }
+[dev-dependencies]
+alloy = { workspace = true, default-features = true }
 insta = { workspace = true }
 railgun = { path = ".", features = ["testing"] }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing-test = { workspace = true }
 criterion = { workspace = true }
+kohaku-test-utils = { workspace = true }
 
 [[bench]]
 name = "indexed_account"

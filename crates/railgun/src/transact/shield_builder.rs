@@ -1,6 +1,6 @@
 use alloy::{primitives::U256, sol_types::SolCall};
 use eip_1193_provider::tx_data::TxData;
-use rand::Rng;
+use rand::CryptoRng;
 use thiserror::Error;
 
 use crate::{
@@ -51,7 +51,7 @@ impl ShieldBuilder {
     }
 
     /// Builds the shield transaction. Shield txns must be self-broadcast
-    pub fn build<R: Rng>(self, rng: &mut R) -> Result<Vec<TxData>, ShieldError> {
+    pub fn build(self, rng: &mut impl CryptoRng) -> Result<Vec<TxData>, ShieldError> {
         // We return multiple txns here rather than using the RelayAdapt multicall for
         // all shields. This is because when calling the RailgunSmartWallet to shield,
         // it assumes that the caller (msg.sender) holds the assets & has approved
@@ -130,7 +130,7 @@ impl ShieldBuilder {
 #[cfg(all(test, native))]
 mod tests {
     use alloy::primitives::Address;
-    use rand::SeedableRng;
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaChaRng;
 
     use super::*;
