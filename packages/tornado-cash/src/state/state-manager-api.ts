@@ -86,6 +86,10 @@ export const workerApi = {
     return getStateManager().getDepositPayload(params);
   },
 
+  importNotes(params: { notes: string[] }) {
+    return getStateManager().importNotes(params);
+  },
+
   getWithdrawalPayloads(params: IWithdrawapOperationParams, tailCalls?: IPaymasterWithdrawParams['tailCalls']): Promise<IWithdrawalPayload[]> {
     const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster' && tailCalls
       ? { ...params, tailCalls }

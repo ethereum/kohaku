@@ -30,6 +30,7 @@ import {
   TCPublicOperation,
   TCProtocolParams,
   TCNote,
+  ImportNoteResult,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
 import { defaultArtifactsLoader } from "../utils/default-artifacts-loader";
@@ -100,6 +101,7 @@ export class TornadoCashProtocol implements TCInstance {
         getBalances: ((assets: bigint[] | undefined) => remote.getBalances(assets)) as unknown as IStateManager['getBalances'],
         getNotes: (params) => remote.getNotes(params),
         getDepositPayload: (params) => remote.getDepositPayload(params),
+        importNotes: (params) => remote.importNotes(params),
         getWithdrawalPayloads: (params) => {
           if (params.mode === 'paymaster') {
             const { tailCalls, ...rest } = params as IPaymasterWithdrawParams;
@@ -182,6 +184,18 @@ export class TornadoCashProtocol implements TCInstance {
       includeSpent,
       assets: assetAddresses.length > 0 ? assetAddresses : undefined,
     });
+  }
+
+  /**
+   * Parses legacy (pre-SDK) Tornado Cash note strings and registers any that
+   * match a synced on-chain deposit on the current chain as user secrets.
+   */
+  async importNotes(notes: string | string[]): Promise<ImportNoteResult[]> {
+    const stateManager = await this.stateManager;
+
+    await stateManager.sync();
+
+    return stateManager.importNotes({ notes: Array.isArray(notes) ? notes : [notes] });
   }
 
   async prepareShield(

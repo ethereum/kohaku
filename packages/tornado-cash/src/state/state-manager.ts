@@ -27,6 +27,7 @@ import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
+import { importLegacyNotesThunk } from "./thunks/importLegacyNotesThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { ISyncService } from "../data/interfaces/sync.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
@@ -282,6 +283,13 @@ export const storeStateManager = async ({
         ),
       );
 
+    },
+    importNotes: async ({ notes }) => {
+      const store = await getChainStore(await getChainInfo());
+
+      return unwrapResult(
+        await store.dispatch(importLegacyNotesThunk({ notes })),
+      );
     },
     dumpState: () => getAllStores(),
   };

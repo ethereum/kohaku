@@ -9,13 +9,14 @@ import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover.js";
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
+import { ImportNoteResult } from '../../state/thunks/importLegacyNotesThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import type { DelegationConfig } from '../../account/delegation.interface';
 
-export type { DelegationConfig };
+export type { DelegationConfig, ImportNoteResult };
 
 type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
@@ -147,5 +148,11 @@ export interface IStateManager {
    * @param assets - Optional filter by specific assets
    */
   getNotes: (params: IGetNotesParams) => Promise<TCNote[]>;
+  /**
+   * Parses legacy (pre-SDK) Tornado Cash note strings and, for any that match
+   * a synced on-chain deposit on the current chain, registers them as
+   * importable user secrets.
+   */
+  importNotes: (params: { notes: string[] }) => Promise<ImportNoteResult[]>;
   dumpState: () => Record<StoreStorageKey, PublicRootState>;
 }

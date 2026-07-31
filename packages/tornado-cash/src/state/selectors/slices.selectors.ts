@@ -16,7 +16,7 @@ import {
 import { createSelector } from "@reduxjs/toolkit";
 import { ProtocolConfigState } from "../slices/protocolConfigSlice";
 import { IRelayerInfo } from "../slices/relayersSlice";
-import { UserSecretRecord } from "../slices/userSecretsSlice";
+import { LegacyUserSecretRecord, UserSecretEntry, UserSecretRecord } from "../slices/userSecretsSlice";
 
 export const depositsSelector = createSelector(
   [(s: RootState) => s.deposits.depositsTuples],
@@ -70,7 +70,41 @@ export const relayersSelector = createSelector(
 
 export const relayerFeeConfigSelector = (state: RootState) => state.relayers.feeConfig;
 
-export const userSecretsSelector = selectEntityMap(
+export const derivedUserSecretsSelector = selectEntityMap(
   (s) => s.userSecrets.byPool,
   deserialize as () => [Address, UserSecretRecord[]]
+);
+
+export const legacyUserSecretsSelector = selectEntityMap(
+  (s) => s.userSecrets.legacyByPool,
+  deserialize as () => [Address, LegacyUserSecretRecord[]]
+);
+
+/**
+ * Merges derived (HD-keystore) and legacy (imported note) secrets into a
+ * single per-pool map, tagging each record with its `kind` so consumers can
+ * branch (e.g. paymaster ephemeral signer derivation). Discovery
+ * (`discoverUserEventsThunk`) intentionally reads `derivedUserSecretsSelector`
+ * directly instead of this merged view — it relies on array length to resume
+ * sequential HD derivation, an invariant legacy imports must not disturb.
+ * Merges imported secrets first so they are spent first if any exists
+ */
+export const userSecretsSelector = createSelector(
+  [derivedUserSecretsSelector, legacyUserSecretsSelector],
+  (derived, legacy): Map<Address, UserSecretEntry[]> => {
+    const result = new Map<Address, UserSecretEntry[]>();
+    
+    for (const [poolAddress, records] of legacy) {
+      const existing = result.get(poolAddress) ?? [];
+
+      result.set(poolAddress, [...existing, ...records.map((record) => ({ kind: 'legacy' as const, ...record }))]);
+    }
+
+    for (const [poolAddress, records] of derived) {
+      result.set(poolAddress, records.map((record) => ({ kind: 'derived' as const, ...record })));
+    }
+
+
+    return result;
+  },
 );
