@@ -1,6 +1,6 @@
 import { EthereumProvider, TxData } from '@kohaku-eth/provider';
 import type { Storage, Keystore } from '@kohaku-eth/plugins';
-import { SecretManager } from '../account/keys';
+import { ISecretManager, SecretManager } from '../account/keys';
 import { DataService } from '../data/data.service';
 import { SyncService } from '../data/sync.service';
 import { ExternalSyncClient } from '../data/interfaces/sync.service.interface';
@@ -50,6 +50,7 @@ export const workerApi = {
     rawStorage: Omit<Storage, '_brand'>,
     initialState: () => Promise<Record<string, PublicRootState>>,
     artifactsLoader: () => Promise<ITornadoArtifacts>,
+    secretManager: ISecretManager | undefined,
     externalSyncProvider: ExternalSyncClient | undefined,
     { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount }: WorkerInitOptions,
   ): Promise<void> {
@@ -58,7 +59,9 @@ export const workerApi = {
 
     _stateManager = await storeStateManager({
       paymasterConfig,
-      secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
+      secretManagerFactory: () => secretManager
+        ? Promise.resolve(secretManager)
+        : SecretManager({ host: { keystore }, accountIndex }),
       dataService,
       syncService: new SyncService({ dataService, externalSyncProvider, minExternalSyncBlocksAmount }),
       relayerClient,

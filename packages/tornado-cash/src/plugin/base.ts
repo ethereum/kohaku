@@ -52,6 +52,7 @@ export class TornadoCashProtocol implements TCInstance {
       paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host),
       minExternalSyncBlocksAmount,
+      secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
     this.stateManager = (async () => {
@@ -82,6 +83,10 @@ export class TornadoCashProtocol implements TCInstance {
         lastCoveredBlock: (params) => externalSyncProvider.lastCoveredBlock(params),
       };
 
+      const resolvedSecretManager = secretManagerFactory
+        ? await secretManagerFactory({ host: { keystore: host.keystore }, accountIndex })
+        : undefined;
+
       await Promise.race([
         remote.init(
           proxy(host.provider),
@@ -90,6 +95,7 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.storage),
           proxy(initialState),
           proxy(artifactsLoader),
+          resolvedSecretManager ? proxy(resolvedSecretManager) : undefined,
           externalSyncClient ? proxy(externalSyncClient) : undefined,
           { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount },
         ),

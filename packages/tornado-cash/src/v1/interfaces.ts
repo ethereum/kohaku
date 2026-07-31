@@ -19,6 +19,7 @@ interface TCBaseCredential {
     accountIndex: number;
 }
 export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential, Pick<TCProtocolParams, 'initialState' | 'minExternalSyncBlocksAmount'> {
+    secretManagerFactory?: TCProtocolParams['secretManagerFactory'];
     protocolConfig: TCProtocolConfig;
     relayerConfig?: IRelayerFeeConfig;
     stateManagerWorkerUrl?: string;

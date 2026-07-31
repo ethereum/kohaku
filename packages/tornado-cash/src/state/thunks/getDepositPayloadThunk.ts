@@ -5,7 +5,7 @@ import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { RootState } from '../store';
-import { instanceRegistryInfoSelector, poolsSelector, userSecretsSelector } from '../selectors/slices.selectors';
+import { derivedUserSecretsSelector, instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
 import { IPool } from '../../data/interfaces/events.interface';
 
 export enum DepositStrategy {
@@ -76,7 +76,7 @@ export const getDepositPayloadThunk = createAsyncThunk<
     const state = getState();
     const pools = poolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
-    const userSecrets = userSecretsSelector(state);
+    const userSecrets = derivedUserSecretsSelector(state);
 
     // Pick the pool with the lowest denomination for the requested asset
     const poolsCandidates = Array.from(pools.values())
