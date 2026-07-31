@@ -1,8 +1,15 @@
 import initWasm, { initLogging, type LogLevel } from "../pkg";
 import { setTsLogLevel } from "./logger.js";
 export * from '../pkg/index';
-export type { RailgunPlugin, RailgunPluginConfig, BundlerConfig, RGInstance, RGNote } from "./plugin.js";
+export type { RailgunPlugin, RailgunPluginConfig, BundlerConfig, RGInstance, RGNote, RGPrivateOperation } from "./plugin.js";
 export { createRailgunPlugin } from "./plugin.js";
+export {
+    buildUnshieldExecutionCalls,
+    txDataToCall,
+    toHexQuantity,
+    type ExecutionCall,
+    type BuildUnshieldExecutionCallsParams,
+} from "./unshield-calls.js";
 
 let initPromise: Promise<void> | null = null;
 
