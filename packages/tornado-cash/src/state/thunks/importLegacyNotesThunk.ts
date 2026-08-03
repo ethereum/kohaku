@@ -2,7 +2,7 @@ import { createAsyncThunk } from '@reduxjs/toolkit';
 
 import { parseLegacyNote } from '../../account/legacyNote';
 import { Address } from '../../interfaces/types.interface';
-import { addLegacyUserSecret } from '../slices/userSecretsSlice';
+import { addLegacyUserSecret } from '../slices/legacySecretsSlice';
 import { depositsSelector, instanceRegistryInfoSelector } from '../selectors/slices.selectors';
 import { RootState } from '../store';
 

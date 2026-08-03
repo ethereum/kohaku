@@ -186,6 +186,18 @@ export const storeStateManager = async ({
     };
   }
 
+  const persistStateIfAvailable = async (
+    chainInfo: GetChainStoreParams,
+    store: Awaited<ReturnType<typeof getChainStore>>,
+  ): Promise<void> => {
+    if (storageToSyncTo) {
+      await storageToSyncTo.set(
+        getStoreStorageKey(chainInfo),
+        JSON.stringify(store.getPublicState()),
+      );
+    }
+  };
+
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
@@ -203,12 +215,7 @@ export const storeStateManager = async ({
         ),
       );
 
-      if (storageToSyncTo) {
-        await storageToSyncTo.set(
-          getStoreStorageKey(chainInfo),
-          JSON.stringify(store.getPublicState()),
-        );
-      }
+      await persistStateIfAvailable(chainInfo, store);
     },
     getBalances: async (assets) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -285,11 +292,16 @@ export const storeStateManager = async ({
 
     },
     importNotes: async ({ notes }) => {
-      const store = await getChainStore(await getChainInfo());
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
 
-      return unwrapResult(
+      const result = unwrapResult(
         await store.dispatch(importLegacyNotesThunk({ notes })),
       );
+
+      await persistStateIfAvailable(chainInfo, store);
+
+      return result;
     },
     dumpState: () => getAllStores(),
   };
