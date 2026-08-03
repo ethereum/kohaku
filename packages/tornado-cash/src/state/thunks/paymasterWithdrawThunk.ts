@@ -101,6 +101,38 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
 
+  // The static baselines in `reasonableGasUnits`/`reasonableGasUnitsForBatch` are
+  // ceilings for a "typical" case, not a guarantee — a real groth16 verify +
+  // merkle proof can land within a few thousand gas of paymasterVerificationGasLimit's
+  // baseline, and the surrounding paymaster/adapter overhead plus EIP-150's 63/64
+  // forwarding rule on the try/catch external call can then push the actual need
+  // just over it, causing a silent (empty-reason) out-of-gas revert. The bundler's
+  // own simulation knows the real cost, so refine against it whenever possible —
+  // callers still get the baseline if the bundler can't be reached.
+  const refineGasWithBundler = async (
+    baselineGas: UserOpGasLimits,
+    provisionalUserOperation: Awaited<ReturnType<typeof buildSignedTornadoUserOp>>,
+  ): Promise<UserOpGasLimits> => {
+    try {
+      const estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOperation, entryPointAddress);
+      // The bundler's estimate is authoritative; apply a 20% buffer and fall back
+      // to the baseline only for any field it leaves at 0.
+      const buffer = (x: bigint) => (x * 12n) / 10n;
+      const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+
+      return {
+        callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
+        verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
+        preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
+        paymasterVerificationGasLimit: orBaseline(estimated.paymasterVerificationGasLimit, baselineGas.paymasterVerificationGasLimit),
+        paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
+      };
+    } catch {
+      // Bundler estimation unavailable/failed — keep the safe baseline.
+      return baselineGas;
+    }
+  };
+
   // The relayer address in the sponsoring proof is the paymaster — it receives
   // the fee that reimburses the sponsored gas for the whole userOp.
   const relayerAddress = BigInt(paymasterAddress) as Address;
@@ -186,20 +218,43 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const deposit = deposits[0]!;
     const signer = await resolveIndependentSigner(deposit);
 
-    const gasUnits = reasonableGasUnits(poolInfo.isERC20);
-    const fee = await quoteFee(computeMinimumViableFee(gasUnits, maxFeePerGas));
-    const proof = await prove(deposit, originalRecipient, relayerAddress, fee);
-
-    const userOperation = await buildSignedTornadoUserOp({
+    // No execution phase in this flow (funds go straight to the recipient
+    // during paymaster validation) — callGasLimit must stay 0 regardless of
+    // what the bundler estimates for it (a nonzero value here would trip
+    // TornadoFeeAdapter's `recipient != sender` check).
+    const baselineGas: UserOpGasLimits = { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n };
+    let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
+    let gas = baselineGas;
+    let proof = await prove(deposit, originalRecipient, relayerAddress, fee);
+    let userOperation = await buildSignedTornadoUserOp({
       signer,
       chainId,
       paymasterAddress,
       paymasterData: buildPaymasterData(deposit.pool, proof),
-      gas: { ...gasUnits, callGasLimit: 0n },
+      gas,
       maxFeePerGas,
       maxPriorityFeePerGas,
       nonce: 0n,
     });
+
+    const estimatedGas = await refineGasWithBundler(baselineGas, userOperation);
+
+    if (estimatedGas !== baselineGas) {
+      // callGasLimit stays forced to 0 even after refinement — see note above.
+      gas = { ...estimatedGas, callGasLimit: 0n };
+      fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
+      proof = await prove(deposit, originalRecipient, relayerAddress, fee);
+      userOperation = await buildSignedTornadoUserOp({
+        signer,
+        chainId,
+        paymasterAddress,
+        paymasterData: buildPaymasterData(deposit.pool, proof),
+        gas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce: 0n,
+      });
+    }
 
     return [{
       mode: 'paymaster' as const,
@@ -303,27 +358,13 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   let sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
   let userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
-  try {
-    const estimated = await estimateUserOperationGas(bundlerClient, userOperation, entryPointAddress);
-    // The bundler's estimate is authoritative; apply a 20% buffer and fall back
-    // to the baseline only for any field it leaves at 0.
-    const buffer = (x: bigint) => (x * 12n) / 10n;
-    const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+  const refinedGas = await refineGasWithBundler(baselineGas, userOperation);
 
-    const refinedGas: UserOpGasLimits = {
-      callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
-      verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
-      preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
-      paymasterVerificationGasLimit: orBaseline(estimated.paymasterVerificationGasLimit, baselineGas.paymasterVerificationGasLimit),
-      paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
-    };
-
-    fee = await quoteFee(computeMinimumViableFee(refinedGas, maxFeePerGas));
+  if (refinedGas !== baselineGas) {
     gas = refinedGas;
+    fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
     sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
     userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
-  } catch {
-    // Bundler estimation unavailable/failed — keep the baseline-sized op.
   }
 
   return [{
