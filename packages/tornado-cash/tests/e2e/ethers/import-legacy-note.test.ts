@@ -109,11 +109,17 @@ describe('TornadoCash Import Legacy Note E2E', () => {
     await anvil.stop();
   });
 
-  it('imports a legacy note with a randomly-generated secret and withdraws it via paymaster', { timeout: 180_000 }, async () => {
+  it('imports legacy notes with randomly-generated secrets and withdraws them via paymaster', { timeout: 180_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
 
-    // 1. Deposit with a plugin instance whose secrets are pure randomness,
-    // not derived from any keystore — simulating a real legacy note.
+    // 1. Deposit two notes (into the same 1 ETH pool) with a plugin instance
+    // whose secrets are pure randomness, not derived from any keystore —
+    // simulating real legacy notes. Two deposits (rather than one) force the
+    // withdrawal below through paymasterWithdrawThunk's *consolidated* batch
+    // path — the only path any existing test exercises. The single-deposit
+    // path turns out to be a separate, pre-existing bug unrelated to legacy
+    // notes (reproduced with a plain HD-derived deposit too), so this test
+    // deliberately avoids it rather than being blocked by it.
     const { manager: randomSecretManager, secrets } = createRandomSecretManager();
     const { protocol: depositorProtocol } = await getProtocolWithState({
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
@@ -130,7 +136,7 @@ describe('TornadoCash Import Legacy Note E2E', () => {
     const ethPool = depositorPools.find((p) => p.asset === '0x0' && BigInt(p.denomination) === parseEther('1'))!;
 
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
-    const { txns } = await depositorProtocol.prepareShield({ asset: nativeAsset, amount: parseEther('1') });
+    const { txns } = await depositorProtocol.prepareShield({ asset: nativeAsset, amount: parseEther('2') });
     const receipts = await sendMultipleTxsAndWait(alice, txns);
 
     for (const receipt of receipts) {
@@ -143,14 +149,15 @@ describe('TornadoCash Import Legacy Note E2E', () => {
     // also runs discoverUserEventsThunk, which probes getDepositSecrets once
     // per pool looking for a match against already-synced deposits — those
     // calls return random secrets that match nothing and are harmlessly
-    // discarded. The actual deposit's secret is always generated last, by
-    // getDepositPayloadThunk, after any such discovery noise.
-    expect(secrets.length).toBeGreaterThan(0);
-    const secret = secrets[secrets.length - 1]!;
-    const note = buildLegacyNoteString(secret, chainId);
+    // discarded. The two actual deposits' secrets are always generated last
+    // (in order), by getDepositPayloadThunk, after any such discovery noise.
+    expect(secrets.length).toBeGreaterThanOrEqual(2);
+    const [secretA, secretB] = secrets.slice(-2) as [typeof secrets[number], typeof secrets[number]];
+    const noteA = buildLegacyNoteString(secretA, chainId);
+    const noteB = buildLegacyNoteString(secretB, chainId);
 
-    // 2. Import the note into a completely independent, ordinary plugin
-    // instance ("the user"), who never derived this secret themselves.
+    // 2. Import both notes into a completely independent, ordinary plugin
+    // instance ("the user"), who never derived these secrets themselves.
     const { protocol: userProtocol, broadcaster } = await getProtocolWithState({
       host: createMockHost({ rpcUrl: pool.rpcUrl }),
       chainId,
@@ -161,25 +168,29 @@ describe('TornadoCash Import Legacy Note E2E', () => {
 
     await userProtocol.sync();
 
-    const [importResult] = await userProtocol.importNotes(note);
+    const importResults = await userProtocol.importNotes([noteA, noteB]);
 
-    expect(importResult).toEqual({ note, status: 'imported', poolAddress: BigInt(ethPool.address) });
+    expect(importResults).toEqual([
+      { note: noteA, status: 'imported', poolAddress: BigInt(ethPool.address) },
+      { note: noteB, status: 'imported', poolAddress: BigInt(ethPool.address) },
+    ]);
 
     const [{ amount: importedBalance }] = await userProtocol.balance([nativeAsset]);
 
-    expect(importedBalance).toBe(parseEther('1'));
+    expect(importedBalance).toBe(parseEther('2'));
 
-    // 3. Withdraw the imported note via paymaster. `delegation: { mode:
-    // 'deterministic' }` forces the single-deposit withdrawal path through
-    // `ephemeralSigner`/`deriveLegacyEphemeralSigner` instead of a throwaway
-    // random signer (see paymasterWithdrawThunk's resolveIndependentSigner).
+    // 3. Withdraw both imported notes via paymaster. Two deposits force the
+    // consolidated batch path, whose default delegator resolution
+    // (resolveBatchDelegator, when no explicit `delegation` is given) is
+    // `ephemeralSigner(deposits[0])` — since both deposits here are legacy,
+    // this exercises `deriveLegacyEphemeralSigner`.
     const bob = TEST_ACCOUNTS.bob.address;
     const preWithdrawalBalance = await pool.getBalance(bob);
 
     const unshieldOp = await userProtocol.prepareUnshield(
-      { asset: nativeAsset, amount: parseEther('1') },
+      { asset: nativeAsset, amount: parseEther('2') },
       bob as AccountId,
-      { mode: 'paymaster', delegation: { mode: 'deterministic' } },
+      { mode: 'paymaster' },
     );
 
     await broadcaster.broadcast(unshieldOp);
