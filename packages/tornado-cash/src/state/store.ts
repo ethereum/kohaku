@@ -18,6 +18,7 @@ import { relayersReducer } from "./slices/relayersSlice";
 import { syncReducer } from "./slices/syncSlice";
 import { withdrawalsReducer } from "./slices/withdrawalsSlice";
 import { userSecretsReducer } from "./slices/userSecretsSlice";
+import { legacySecretsReducer } from "./slices/legacySecretsSlice";
 
 const reducers = {
   deposits: depositsReducer,
@@ -28,6 +29,7 @@ const reducers = {
   instanceRegistryInfo: protocolConfigReducer,
   sync: syncReducer,
   userSecrets: userSecretsReducer,
+  legacySecrets: legacySecretsReducer,
 } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;

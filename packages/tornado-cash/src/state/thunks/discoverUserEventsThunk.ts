@@ -1,7 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { ISecretManager } from '../../account/keys';
 import { RootState } from '../store';
-import { depositsSelector, instanceRegistryInfoSelector, poolsSelector, userSecretsSelector } from '../selectors/slices.selectors';
+import { depositsSelector, derivedUserSecretsSelector, instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
 import { addUserSecret } from '../slices/userSecretsSlice';
 
 export interface DiscoverUserEventsThunkParams {
@@ -19,7 +19,7 @@ export const discoverUserEventsThunk = createAsyncThunk<
     const deposits = depositsSelector(state);
     const pools = poolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
-    const userSecrets = userSecretsSelector(state);
+    const userSecrets = derivedUserSecretsSelector(state);
 
     for (const [poolAddress] of pools) {
       const startIndex = userSecrets.get(poolAddress)?.length ?? 0;
