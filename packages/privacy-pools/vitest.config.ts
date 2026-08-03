@@ -43,6 +43,24 @@ export default defineConfig({
           testTimeout: 5_000,
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'unit-v2',
+          include: ['tests/v2/unit/**/*.test.ts'],
+          testTimeout: 5_000,
+          passWithNoTests: true,
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'integration-v2',
+          include: ['tests/v2/integration/**/*.test.ts'],
+          testTimeout: 60_000,
+          passWithNoTests: true,
+        }
+      },
 ...chainProjects,
     ]
   },

@@ -40,6 +40,8 @@
     "test:sync:mainnet": ". ./.env.e2e.tests && vitest run --project=sync-mainnet",
     "test:sync:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=sync",
     "test:watch": "vitest",
+    "test:unit:v2": "vitest run --project=unit-v2",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -70,6 +72,9 @@
     "maci-crypto": "2.5.0",
     "ox": "^0.12.0",
     "viem": "^2.51.3"
+  },
+  "optionalDependencies": {
+    "@0xbow-io/privacy-pools-v2-sdk": "0.2.0-beta.0"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",
