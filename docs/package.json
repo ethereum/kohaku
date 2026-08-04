@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/react": "latest",
     "ethers": "^6",
-    "typescript": "latest",
+    "typescript": "6.0.3",
     "viem": "^2.51.3"
   }
 }

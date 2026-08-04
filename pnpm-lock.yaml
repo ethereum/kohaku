@@ -95,7 +95,7 @@ importers:
         specifier: ^6
         version: 6.17.0
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       viem:
         specifier: ^2.51.3
