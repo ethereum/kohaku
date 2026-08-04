@@ -7,6 +7,21 @@ allowBuilds:
   protobufjs: true
 autoInstallPeers: false
 blockExoticSubdeps: false
+minimumReleaseAgeExclude:
+  - '@privacy-paymasters/sdk@0.0.5'
+overrides:
+  '@wagmi/connectors': 8.0.20
+  '@wagmi/core': 3.5.5
+  baseline-browser-mapping: 2.10.41
+  dompurify: 3.4.11
+  electron-to-chromium: 1.5.384
+  hono: 4.12.27
+  node-releases: 2.0.50
+  rolldown: 1.2.1
+  seroval: 1.5.4
+  seroval-plugins: 1.5.4
+  tailwind-variants: 3.2.2
+  wagmi: 3.6.21
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
