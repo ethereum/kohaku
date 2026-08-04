@@ -1,5 +1,5 @@
 import { Host } from '@kohaku-eth/plugins';
-import { bytesToNumberLE, concatBytes as concat, numberToBytesLE } from "@noble/curves/utils.js";
+import { asciiToBytes, bytesToHex, bytesToNumberLE, concatBytes as concat, numberToBytesLE } from "@noble/curves/utils.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 
 import { Commitment, Nullifier, NullifierHash } from '../interfaces/types.interface';
@@ -48,6 +48,12 @@ export interface ISecretManager {
    * integrator supplies a wallet path (see `paymasterWithdrawThunk`).
    */
   deriveDelegatorSigner: (params: { path: string }) => Promise<`0x${string}`>;
+  /**
+   * Derives the ephemeral signer for an imported legacy note. Legacy secrets
+   * have no keystore-derived `depositIndex`, so this is a pure function of
+   * the note's own nullifier instead of a BIP-32 derivation.
+   */
+  deriveLegacyEphemeralSigner: (params: { nullifier: Nullifier }) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -119,6 +125,7 @@ export async function SecretManager({
     const path = tcPath({ accountIndex, secretType: "signer", depositIndex });
     const raw = await Promise.resolve(keystore.deriveAt(path));
     const coalesced = coalesceSecret({ secret: raw, chainId, poolAddress });
+
     return `0x${coalesced.toString(16).padStart(64, '0')}` as `0x${string}`;
   };
 
@@ -128,10 +135,21 @@ export async function SecretManager({
     return Promise.resolve(keystore.deriveAt(path)) as Promise<`0x${string}`>;
   };
 
+  const LEGACY_EPHEMERAL_SALT = asciiToBytes('KOHAKU7702');
+
+  // Pure function of the note's own nullifier — no keystore path exists for
+  // an imported legacy note, so there is nothing to derive it from.
+  const deriveLegacyEphemeralSigner = async ({ nullifier }: { nullifier: Nullifier }) => {
+    const hash = keccak_256(concat(numberToBytesLE(nullifier, 31), LEGACY_EPHEMERAL_SALT));
+
+    return `0x${bytesToHex(hash)}` as `0x${string}`;
+  };
+
   return {
     getDepositSecrets: (params) => deriveSecrets(params),
     deriveEphemeralSigner,
     deriveDelegatorSigner,
+    deriveLegacyEphemeralSigner,
   };
 }
 
@@ -147,5 +165,6 @@ function tcPath({ accountIndex, secretType, depositIndex }: TorandoCashDerivatio
     "salt": 1,
     "signer": 2,
   }[secretType];
+
   return `${TORNADO_CASH_PATH}/${accountIndex}'/${_secretType}'/${depositIndex}'`;
 }

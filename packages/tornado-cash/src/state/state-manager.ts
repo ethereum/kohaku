@@ -27,6 +27,7 @@ import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
+import { importLegacyNotesThunk } from "./thunks/importLegacyNotesThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { ISyncService } from "../data/interfaces/sync.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
@@ -185,6 +186,18 @@ export const storeStateManager = async ({
     };
   }
 
+  const persistStateIfAvailable = async (
+    chainInfo: GetChainStoreParams,
+    store: Awaited<ReturnType<typeof getChainStore>>,
+  ): Promise<void> => {
+    if (storageToSyncTo) {
+      await storageToSyncTo.set(
+        getStoreStorageKey(chainInfo),
+        JSON.stringify(store.getPublicState()),
+      );
+    }
+  };
+
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
@@ -202,12 +215,7 @@ export const storeStateManager = async ({
         ),
       );
 
-      if (storageToSyncTo) {
-        await storageToSyncTo.set(
-          getStoreStorageKey(chainInfo),
-          JSON.stringify(store.getPublicState()),
-        );
-      }
+      await persistStateIfAvailable(chainInfo, store);
     },
     getBalances: async (assets) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -282,6 +290,18 @@ export const storeStateManager = async ({
         ),
       );
 
+    },
+    importNotes: async ({ notes }) => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+
+      const result = unwrapResult(
+        await store.dispatch(importLegacyNotesThunk({ notes })),
+      );
+
+      await persistStateIfAvailable(chainInfo, store);
+
+      return result;
     },
     dumpState: () => getAllStores(),
   };

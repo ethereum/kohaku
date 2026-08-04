@@ -20,7 +20,10 @@ export interface IIndexedDepositEvent extends IDepositEvent {
   index: number;
 }
 
-export type IIndexedDepositWithSecrets = IIndexedDepositEvent & Secret;
+export type IIndexedDepositWithSecrets = IIndexedDepositEvent & Secret & (
+  | { kind: 'derived'; depositIndex: number }
+  | { kind: 'legacy' }
+);
 
 export interface IDepositWithAsset extends IIndexedDepositEvent {
   assetAddress: Address;

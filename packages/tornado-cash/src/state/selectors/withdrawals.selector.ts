@@ -3,7 +3,7 @@ import { IIndexedDepositWithSecrets, IIndexedWithdrawalEvent } from "../../data/
 import { Address, Commitment, NullifierHash } from "../../interfaces/types.interface";
 import { addressToHex } from "../../utils";
 import { RootState } from "../store";
-import { UserSecretRecord } from "../slices/userSecretsSlice";
+import { UserSecretEntry } from "../slices/userSecretsSlice";
 import { myDepositsSelector } from "./deposits.selector";
 import {
   poolsSelector,
@@ -59,7 +59,7 @@ const getUnspentDepositsByPool = createSelector(
   (deposits, withdrawals, pools, userSecrets) => {
     // Build a fast lookup: commitmentHex → full secret record
     const unspentDepositsByPool = new Map<Address, IIndexedDepositWithSecrets[]>([...pools.keys()].map((address) => [address, []]));
-    const secretByCommitment = new Map<Commitment, UserSecretRecord>();
+    const secretByCommitment = new Map<Commitment, UserSecretEntry>();
 
     for (const records of userSecrets.values()) {
       for (const r of records) {

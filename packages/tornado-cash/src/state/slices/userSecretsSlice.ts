@@ -11,6 +11,17 @@ export interface UserSecretRecord {
   depositIndex: number;
 }
 
+/**
+ * A secret imported from a legacy (pre-SDK) Tornado Cash note. There is no
+ * keystore-derived `depositIndex` for these — they were never derived from
+ * our BIP32 path.
+ */
+export type LegacyUserSecretRecord = Omit<UserSecretRecord, 'depositIndex'>
+
+export type UserSecretEntry =
+  | ({ kind: 'derived' } & UserSecretRecord)
+  | ({ kind: 'legacy' } & LegacyUserSecretRecord);
+
 export interface UserSecretsState {
   byPool: [Address, UserSecretRecord[]][];
 }

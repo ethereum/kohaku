@@ -8,7 +8,7 @@ import { IRelayerClient } from '../../src/relayer/interfaces/relayer-client.inte
 import { createMockRelayerClient } from './mock-relayer';
 import { poolAbi } from '../../src/data/abis/pool.abi';
 import { TornadoPaymasterConfigs } from '../../src/config';
-import { ITornadoArtifacts } from '../../src/plugin/interfaces/protocol-params.interface';
+import { ITornadoArtifacts, TCProtocolParams } from '../../src/plugin/interfaces/protocol-params.interface';
 import { defaultArtifactsLoader } from '../../src/utils/default-artifacts-loader';
 /**
  * Fund an account with ETH using anvil pool's setBalance
@@ -56,13 +56,17 @@ export async function fundAccountWithERC20(
 
 function bigintSqrt(n: bigint): bigint {
   if (n < 0n) throw new Error('sqrt of negative');
+
   if (n < 2n) return n;
+
   let x = n;
   let y = (x + 1n) / 2n;
+
   while (y < x) {
     x = y;
     y = (x + n / x) / 2n;
   }
+
   return x;
 }
 
@@ -96,6 +100,7 @@ export async function setUniswapV3PoolPrice(
   const current = BigInt(await provider.send('eth_getStorageAt', [poolAddress, '0x0', 'latest']));
   const preservedHighBits = current & ~((1n << 184n) - 1n);
   const newSlot0 = preservedHighBits | sqrtPriceX96 | (tickU << 160n);
+
   await provider.send('anvil_setStorageAt', [poolAddress, toBeHex(0, 32), toBeHex(newSlot0, 32)]);
 
   // liquidity is storage slot 4 — set it deep so a small quote swap has ~no slippage
@@ -236,6 +241,7 @@ interface SimplifiedProtocolParams {
   rpcUrl: string;
   chainId: 1 | 11155111;
   relayerClientFactory?: () => IRelayerClient
+  secretManagerFactory?: TCProtocolParams['secretManagerFactory'];
 }
 
 const cachedArtifactsLoader = () => {
