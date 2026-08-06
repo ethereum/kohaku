@@ -43,7 +43,7 @@ async fn test_tornadocash_paymaster() -> Result<(), anyhow::Error> {
     let db = Arc::new(MemoryDatabase::new());
     let rpc_syncer = Arc::new(RpcSyncer::new(provider.clone()).with_batch_size(10_000));
     let syncer = Arc::new(
-        ChainedSyncer::new().then( RemoteSyncer::new("https://raw.githubusercontent.com/Robert-MacWha/privacy-protocols/refs/heads/sync-state/tornadocash-sync"))
+        ChainedSyncer::new().then(RemoteSyncer::new("https://raw.githubusercontent.com/Robert-MacWha/privacy-protocols/refs/heads/sync-state/tornadocash-sync"))
         .then_arc(rpc_syncer.clone()));
 
     let mut tornado_provider =
