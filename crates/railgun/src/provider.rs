@@ -11,7 +11,7 @@ use thiserror::Error;
 use tracing::{info, warn};
 use userop_kit::{
     builder::UserOperationBuilder,
-    bundler::{Bundler, BundlerError},
+    bundler::{Bundler, BundlerError, BundlerExt},
     signable_user_operation::SignableUserOperation,
     smart_account::SmartAccount,
 };
@@ -288,7 +288,7 @@ impl RailgunProvider {
                 .await
                 .map_err(|e| RailgunProviderError::Other(Box::new(e)))?
                 .with_call(&calldata)
-                .with_paymaster_and_data(privacy_paymaster, paymaster_data)
+                .with_paymaster_and_data(privacy_paymaster, paymaster_data.into())
                 .with_gas_estimate(bundler)
                 .await?
                 .build();
