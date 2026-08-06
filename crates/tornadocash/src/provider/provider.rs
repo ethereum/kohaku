@@ -10,9 +10,10 @@ use crate::{
     abis::tornado::Tornado,
     indexer::{syncer::Syncer, verifier::Verifier},
     provider::{
+        call::Call,
         note::Note,
         pool::Pool,
-        pool_provider::{PoolProvider, PoolProviderError, TxData},
+        pool_provider::{PoolProvider, PoolProviderError},
     },
 };
 
@@ -79,7 +80,7 @@ impl TornadoProvider {
         &self,
         pool: Pool,
         rng: &mut impl CryptoRng,
-    ) -> Result<(TxData, Note), TornadoProviderError> {
+    ) -> Result<(Call, Note), TornadoProviderError> {
         let provider = self
             .pools
             .iter()
@@ -101,7 +102,7 @@ impl TornadoProvider {
         fee: Option<U256>,
         refund: Option<U256>,
         rng: &mut impl CryptoRng,
-    ) -> Result<TxData, TornadoProviderError> {
+    ) -> Result<Call, TornadoProviderError> {
         let pool = self.pool_from_note(note)?;
 
         let data = self
@@ -109,11 +110,11 @@ impl TornadoProvider {
             .await?
             .abi_encode();
 
-        Ok(TxData {
-            to: pool.address,
-            data: data.into(),
-            value: refund.unwrap_or_default(),
-        })
+        Ok(Call::new(
+            pool.address,
+            data.into(),
+            refund.unwrap_or_default(),
+        ))
     }
 
     /// Create withdrawal calldata.

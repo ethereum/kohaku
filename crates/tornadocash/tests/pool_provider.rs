@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use alloy::{
-    network::TransactionBuilder,
     primitives::Address,
     providers::{Provider, ProviderBuilder},
-    rpc::types::TransactionRequest,
     signers::local::PrivateKeySigner,
 };
 use kohaku_db::memory::MemoryDatabase;
@@ -48,17 +46,12 @@ async fn test_pool_provider() -> Result<(), anyhow::Error> {
     pool_provider.sync().await?;
 
     info!("Depositing into pool");
-    let (tx_data, note) = pool_provider.deposit(&mut rand::rng());
-    info!("Deposit tx data: {tx_data:?}");
+    let (deposit_call, note) = pool_provider.deposit(&mut rand::rng());
+    info!("Deposit call: {deposit_call:?}");
     info!("Deposit note: {note:?}");
 
-    let deposit_tx = TransactionRequest::default()
-        .with_to(tx_data.to)
-        .with_value(tx_data.value)
-        .input(tx_data.data.into());
-
     let receipt = provider
-        .send_transaction(deposit_tx)
+        .send_transaction(deposit_call.into())
         .await?
         .get_receipt()
         .await?;
@@ -68,18 +61,13 @@ async fn test_pool_provider() -> Result<(), anyhow::Error> {
 
     info!("Withdrawing from pool");
     let recipient: Address = PrivateKeySigner::random().address();
-    let tx_data = pool_provider
+    let withdraw_call = pool_provider
         .withdraw(&note, recipient, None, None, None, &mut rand::rng())
         .await?;
-    info!("Withdraw tx data: {tx_data:?}");
-
-    let withdraw_tx = TransactionRequest::default()
-        .with_to(tx_data.to)
-        .with_value(tx_data.value)
-        .input(tx_data.data.into());
+    info!("Withdraw call: {withdraw_call:?}");
 
     let receipt = provider
-        .send_transaction(withdraw_tx)
+        .send_transaction(withdraw_call.into())
         .await?
         .get_receipt()
         .await?;

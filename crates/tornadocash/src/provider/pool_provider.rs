@@ -23,6 +23,7 @@ use crate::{
         verifier::Verifier,
     },
     provider::{
+        call::Call,
         note::Note,
         pool::{Asset, Pool},
     },
@@ -35,13 +36,6 @@ use crate::{
 pub struct PoolProvider {
     indexer: Indexer,
     artifact_loader: RemoteArtifactLoader,
-}
-
-#[derive(Debug, Clone)]
-pub struct TxData {
-    pub to: Address,
-    pub data: Bytes,
-    pub value: U256,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -102,7 +96,7 @@ impl PoolProvider {
     }
 
     /// Create a deposit transaction and note for this pool.
-    pub fn deposit(&self, rng: &mut impl CryptoRng) -> (TxData, Note) {
+    pub fn deposit(&self, rng: &mut impl CryptoRng) -> (Call, Note) {
         let note = Note::random(
             &self.pool().symbol(),
             &self.pool().amount(),
@@ -119,11 +113,7 @@ impl PoolProvider {
             Asset::Erc20 { .. } => 0,
         };
 
-        let tx_data = TxData {
-            to: self.pool().address,
-            data: calldata.into(),
-            value: U256::from(value),
-        };
+        let tx_data = Call::new(self.pool().address, calldata.into(), U256::from(value));
         (tx_data, note)
     }
 
@@ -137,17 +127,17 @@ impl PoolProvider {
         fee: Option<U256>,
         refund: Option<U256>,
         rng: &mut impl CryptoRng,
-    ) -> Result<TxData, PoolProviderError> {
+    ) -> Result<Call, PoolProviderError> {
         let call = self
             .withdraw_call(note, recipient, relayer, fee, refund, rng)
             .await?
             .abi_encode();
 
-        Ok(TxData {
-            to: self.pool().address,
-            data: call.into(),
-            value: refund.unwrap_or_default(),
-        })
+        Ok(Call::new(
+            self.pool().address,
+            call.into(),
+            refund.unwrap_or_default(),
+        ))
     }
 
     /// Create the withdrawal calldata for the given note to the recipient address.
