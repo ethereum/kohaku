@@ -7,7 +7,8 @@ edition = "2024"
 crate-type = ["rlib"]
 
 [features]
-default = []
+default = ["bundler"]
+bundler = []
 js = ["dep:tsify", "dep:wasm-bindgen"]
 
 [dependencies]
