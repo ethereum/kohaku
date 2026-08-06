@@ -20,11 +20,7 @@ use websnark_rs::{
 use crate::{
     abis::tornado::Tornado,
     circuit::{artifacts::RemoteArtifactLoader, input::CircuitInputs},
-    indexer::{
-        indexer::{Indexer, IndexerError},
-        syncer::Syncer,
-        verifier::Verifier,
-    },
+    indexer::{Indexer, IndexerError, syncer::Syncer, verifier::Verifier},
     provider::{
         call::Call,
         note::Note,
@@ -65,6 +61,10 @@ pub enum PoolProviderError {
 }
 
 impl PoolProvider {
+    /// Creates a new pool provider for the given pool.
+    ///
+    /// # Errors
+    /// Returns an error if the indexer cannot be created.
     pub async fn new(
         pool: Pool,
         provider: DynProvider,
@@ -82,11 +82,15 @@ impl PoolProvider {
     }
 
     /// Get the pool associated with this provider.
+    #[must_use]
     pub fn pool(&self) -> &Pool {
         self.indexer.pool()
     }
 
     /// Sync the provider to the latest block and verify the tree state.
+    ///
+    /// # Errors
+    /// Returns an error if the syncer or verifier fails.
     pub async fn sync(&mut self) -> Result<(), PoolProviderError> {
         self.indexer.sync().await?;
         self.verify().await
@@ -96,11 +100,17 @@ impl PoolProvider {
     ///
     /// Will not verify the tree state after syncing because tornadocash
     /// only stores the merkle root for the past ~100 blocks.
+    ///
+    /// # Errors
+    /// Returns an error if the syncer fails.
     pub async fn sync_to(&mut self, block: u64) -> Result<(), PoolProviderError> {
         Ok(self.indexer.sync_to(block).await?)
     }
 
     /// Verify the tree state of the provider.
+    ///
+    /// # Errors
+    /// Returns an error if the verifier fails.
     pub async fn verify(&self) -> Result<(), PoolProviderError> {
         Ok(self.indexer.verify().await?)
     }
@@ -130,6 +140,9 @@ impl PoolProvider {
 
     /// Create a withdrawal transaction for the given note to the recipient
     /// address.
+    ///
+    /// # Errors
+    /// Returns an error if the withdrawal call cannot be created.
     pub async fn withdraw(
         &self,
         note: &Note,
@@ -152,6 +165,9 @@ impl PoolProvider {
     }
 
     /// Create the withdrawal calldata for the given note to the recipient address.
+    ///
+    /// # Errors
+    /// Returns an error if the note is invalid or the merkle proof cannot be generated.
     #[tracing::instrument(skip_all)]
     pub async fn withdraw_call(
         &self,

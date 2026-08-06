@@ -9,7 +9,7 @@ use kohaku_db::memory::MemoryDatabase;
 use kohaku_test_utils::AltoBuilder;
 use tornadocash::{
     indexer::{chained::ChainedSyncer, remote::RemoteSyncer, rpc::RpcSyncer},
-    provider::{pool::Pool, provider::TornadoProvider},
+    provider::{pool::Pool, tornado_provider::TornadoProvider},
     userop_provider::TornadoPaymasterExt,
 };
 use tracing::info;

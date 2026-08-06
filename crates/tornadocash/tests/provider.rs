@@ -8,7 +8,7 @@ use alloy::{
 use kohaku_db::memory::MemoryDatabase;
 use tornadocash::{
     indexer::rpc::RpcSyncer,
-    provider::{pool::Pool, provider::TornadoProvider},
+    provider::{pool::Pool, tornado_provider::TornadoProvider},
 };
 use tracing::info;
 

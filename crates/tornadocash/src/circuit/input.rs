@@ -17,7 +17,7 @@ pub struct CircuitInputs {
 }
 
 impl CircuitInputs {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::large_types_passed_by_value)]
     pub fn new(
         root: U256,
         nullifier_hash: U256,

@@ -9,7 +9,7 @@ use ruint::{aliases::U256, uint};
 const FIELD_SIZE: U256 =
     uint!(21888242871839275222246405745257275088548364400416034343698204186575808495617_U256);
 
-/// TC's Merkle tree parameters: depth 20, MiMC sponge hash, keccak256("tornado") zero leaf.
+/// TC's Merkle tree parameters: depth 20, `MiMC` sponge hash, keccak256("tornado") zero leaf.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TornadoMerkleConfig;
 
@@ -22,7 +22,7 @@ impl MerkleConfig for TornadoMerkleConfig {
         mimc_sponge_hash(l, r).into_bigint().into()
     }
 
-    /// keccak256("tornado") % FIELD_SIZE.
+    /// keccak256("tornado") % `FIELD_SIZE`.
     fn zero() -> U256 {
         static ZERO: OnceLock<U256> = OnceLock::new();
         *ZERO.get_or_init(|| {

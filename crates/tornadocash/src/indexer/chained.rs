@@ -17,6 +17,7 @@ pub struct ChainedSyncer {
 }
 
 impl ChainedSyncer {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             syncers: Vec::new(),
@@ -24,12 +25,14 @@ impl ChainedSyncer {
     }
 
     /// Adds a syncer to the chain. Syncers are queried in the order they are added.
+    #[must_use]
     pub fn then<S: Syncer + 'static>(mut self, syncer: S) -> Self {
         self.syncers.push(Arc::new(syncer));
         self
     }
 
     /// Adds a syncer to the chain. Syncers are queried in the order they are added.
+    #[must_use]
     pub fn then_arc(mut self, syncer: Arc<dyn Syncer>) -> Self {
         self.syncers.push(syncer);
         self

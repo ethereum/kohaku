@@ -61,7 +61,11 @@ impl TornadoProvider {
         Self::new(provider, db, syncer.clone(), syncer)
     }
 
+    #[allow(clippy::missing_panics_doc)]
     /// Get a mutable reference to the provider for a given pool, creating it if it doesn't exist.
+    ///
+    /// # Errors
+    /// Returns an error if the pool cannot be initialized.
     pub async fn pool(&mut self, pool: Pool) -> Result<&mut PoolProvider, PoolProviderError> {
         if let Some(i) = self.pools.iter().position(|p| *p.pool() == pool) {
             return Ok(&mut self.pools[i]);
@@ -78,6 +82,7 @@ impl TornadoProvider {
 
         self.pools.retain(|p| *p.pool() != pool);
         self.pools.push(provider);
+        // SAFETY: We just pushed a new provider, so the last element is guaranteed to be available.
         Ok(self.pools.last_mut().unwrap())
     }
 
@@ -85,6 +90,9 @@ impl TornadoProvider {
     ///
     /// The pool must already be initialized (e.g. via [`TornadoProvider::pool`]); otherwise
     /// returns [`TornadoProviderError::PoolNotInitialized`].
+    ///
+    /// # Errors
+    /// Returns an error if the pool is not initialized.
     pub fn deposit(
         &self,
         pool: Pool,
@@ -165,21 +173,28 @@ impl TornadoProvider {
     }
 
     /// Manually trigger a sync of the provider for all pools.
+    ///
+    /// # Errors
+    /// Returns an error if the pool cannot be synced.
     pub async fn sync(&mut self) -> Result<(), TornadoProviderError> {
-        for provider in self.pools.iter_mut() {
+        for provider in &mut self.pools {
             provider.sync().await?;
         }
         Ok(())
     }
 
     /// Manually trigger a sync of the provider for all pools up to the given block.
+    ///
+    /// # Errors
+    /// Returns an error if the pool cannot be synced.
     pub async fn sync_to(&mut self, block: u64) -> Result<(), TornadoProviderError> {
-        for provider in self.pools.iter_mut() {
+        for provider in &mut self.pools {
             provider.sync_to(block).await?;
         }
         Ok(())
     }
 
+    #[allow(clippy::unused_self)]
     /// Get the pool for a given note.
     pub(crate) fn pool_from_note(&self, note: &Note) -> Result<Pool, TornadoProviderError> {
         Pool::from_id(&note.amount, &note.symbol, note.chain_id).ok_or_else(|| {

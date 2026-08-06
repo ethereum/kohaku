@@ -41,6 +41,7 @@ pub const POOLS: &[Pool] = &[
     Pool::POLYGON_MATIC_1000,
 ];
 
+#[allow(clippy::unreadable_literal)]
 impl Pool {
     pub const SEPOLIA_ETHER_01: Pool = Pool {
         chain_id: 11155111,
@@ -50,7 +51,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(17),
-        deployed_block: 5594400,
+        deployed_block: 5_594_400,
         paymaster_address: Some(address!("0x1c5aCCb9c09D72945b79EC986776136bE01d7B2F")),
         adapter_address: Some(address!("0xa616aAE443FCCABfc2F1EA2Afe001E5046FFDCe0")),
     };
@@ -63,7 +64,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(18),
-        deployed_block: 5594401,
+        deployed_block: 5_594_401,
         paymaster_address: Some(address!("0x1c5aCCb9c09D72945b79EC986776136bE01d7B2F")),
         adapter_address: Some(address!("0x67a898343F32641206d0f30CB3367944a8919A3A")),
     };
@@ -76,7 +77,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(19),
-        deployed_block: 5594402,
+        deployed_block: 5_594_402,
         paymaster_address: None,
         adapter_address: None,
     };
@@ -102,7 +103,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(18),
-        deployed_block: 9117609,
+        deployed_block: 9_117_609,
         paymaster_address: None,
         adapter_address: None,
     };
@@ -115,7 +116,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(19),
-        deployed_block: 9117720,
+        deployed_block: 9_117_720,
         paymaster_address: None,
         adapter_address: None,
     };
@@ -128,7 +129,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(20),
-        deployed_block: 9161895,
+        deployed_block: 9_161_895,
         paymaster_address: None,
         adapter_address: None,
     };
@@ -141,7 +142,7 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(20),
-        deployed_block: 16258013,
+        deployed_block: 16_258_013,
         paymaster_address: None,
         adapter_address: None,
     };
@@ -154,40 +155,43 @@ impl Pool {
             decimals: 18,
         },
         amount_wei: 10_u128.pow(21),
-        deployed_block: 16258032,
+        deployed_block: 16_258_032,
         paymaster_address: None,
         adapter_address: None,
     };
 
+    #[must_use]
     pub fn from_note(note: &Note) -> Option<Self> {
         Self::from_id(&note.amount, &note.symbol, note.chain_id)
     }
 
+    #[must_use]
     pub fn from_id(amount: &str, symbol: &str, chain_id: u64) -> Option<Self> {
         POOLS
             .iter()
             .find(|pool| {
                 pool.chain_id == chain_id && pool.symbol() == symbol && pool.amount() == amount
             })
-            .cloned()
+            .copied()
     }
 
+    #[must_use]
     pub fn from_address(address: Address) -> Option<Self> {
-        POOLS.iter().find(|pool| pool.address == address).cloned()
+        POOLS.iter().find(|pool| pool.address == address).copied()
     }
 
+    #[must_use]
     pub fn symbol(&self) -> String {
         match &self.asset {
-            Asset::Native { symbol, .. } => symbol.to_string(),
-            Asset::Erc20 { symbol, .. } => symbol.to_string(),
+            Asset::Native { symbol, .. } | Asset::Erc20 { symbol, .. } => symbol.to_string(),
         }
     }
 
     /// Decimal amount as a string, e.g. "0.1"
+    #[must_use]
     pub fn amount(&self) -> String {
         let decimals = match &self.asset {
-            Asset::Native { decimals, .. } => *decimals,
-            Asset::Erc20 { decimals, .. } => *decimals,
+            Asset::Native { decimals, .. } | Asset::Erc20 { decimals, .. } => *decimals,
         };
 
         format_amount(self.amount_wei, decimals)
@@ -211,8 +215,7 @@ fn format_amount(amount: u128, decimals: u8) -> String {
         return amount.to_string();
     }
 
-    let decimals = decimals as usize;
-    let divisor = 10u128.pow(decimals as u32);
+    let divisor = 10u128.pow(u32::from(decimals));
 
     let whole = amount / divisor;
     let frac = amount % divisor;
@@ -222,7 +225,8 @@ fn format_amount(amount: u128, decimals: u8) -> String {
     }
 
     // Pad fractional part with leading zeros
-    let mut frac_str = format!("{:0width$}", frac, width = decimals);
+    let decimals = decimals as usize;
+    let mut frac_str = format!("{frac:0decimals$}");
 
     // Trim trailing zeros
     while frac_str.ends_with('0') {

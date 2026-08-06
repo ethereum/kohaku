@@ -67,3 +67,6 @@ harness = false
 
 [build-dependencies]
 cfg_aliases = { workspace = true }
+
+[lints]
+workspace = true

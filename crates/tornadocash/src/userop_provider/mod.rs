@@ -13,7 +13,7 @@ use crate::{
     provider::{
         note::Note,
         pool::Pool,
-        provider::{TornadoProvider, TornadoProviderError},
+        tornado_provider::{TornadoProvider, TornadoProviderError},
     },
 };
 
@@ -111,6 +111,7 @@ impl<S: Sized + Send + Sync> TornadoPaymasterExt for UserOperationBuilder<S> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Builds the tornadocash paymaster data with the specified fee.
 async fn build_with_fee<S, R>(
     builder: UserOperationBuilder<S>,
