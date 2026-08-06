@@ -6289,6 +6289,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "userop-kit",
  "web-time",
  "websnark-rs",
 ]
