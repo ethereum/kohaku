@@ -3838,6 +3838,7 @@ name = "kohaku-test-utils"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "async-trait",
  "tokio",
  "tracing",
  "userop-kit",

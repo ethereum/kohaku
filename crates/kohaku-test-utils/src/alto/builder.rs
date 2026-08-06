@@ -1,21 +1,10 @@
-use std::{future::Future, process::Stdio};
+use std::process::Stdio;
 
 use alloy::providers::{Provider, ext::AnvilApi};
 use tracing::info;
 use userop_kit::bundler::pimlico::PimlicoBundler;
 
-pub trait AltoBundlerExt: Sized {
-    fn connect_alto_with_config<F, Fut>(f: F) -> impl Future<Output = (Self, Alto)> + Send
-    where
-        F: FnOnce(AltoBuilder) -> Fut + Send,
-        Fut: Future<Output = AltoBuilder> + Send;
-}
-
-/// Helper for spawning an Alto process in tests
-pub struct Alto {
-    process: std::process::Child,
-    bundler_url: String,
-}
+use super::bundler::AltoBundler;
 
 pub struct AltoBuilder {
     entrypoints: Vec<String>,
@@ -25,19 +14,6 @@ pub struct AltoBuilder {
     safe_mode: bool,
     port: u16,
     log: bool,
-}
-
-impl AltoBundlerExt for PimlicoBundler {
-    async fn connect_alto_with_config<F, Fut>(f: F) -> (Self, Alto)
-    where
-        F: FnOnce(AltoBuilder) -> Fut + Send,
-        Fut: Future<Output = AltoBuilder> + Send,
-    {
-        let alto = f(AltoBuilder::new()).await.spawn().await;
-        let bundler_url = alto.bundler_url.parse().unwrap();
-        let bundler = PimlicoBundler::new(bundler_url);
-        (bundler, alto)
-    }
 }
 
 impl AltoBuilder {
@@ -74,6 +50,8 @@ impl AltoBuilder {
         self
     }
 
+    /// Prefund the executor and utility accounts with 1 ETH each. Assumes the
+    /// provider is anvil or has the `anvil_set_balance` method implemented.
     pub async fn prefund(self, provider: &impl Provider) -> Self {
         let mut pks = self.executor_private_keys.clone();
         if let Some(key) = &self.utility_private_key {
@@ -120,7 +98,7 @@ impl AltoBuilder {
         self
     }
 
-    pub async fn spawn(self) -> Alto {
+    pub async fn spawn(self) -> AltoBundler {
         let mut args = vec!["--port".to_string(), self.port.to_string()];
         if !self.entrypoints.is_empty() {
             args.extend(["--entrypoints".to_string(), self.entrypoints.join(",")]);
@@ -167,16 +145,8 @@ impl AltoBuilder {
             .expect("Failed to start Alto process");
 
         let rpc_url = format!("http://localhost:{}", self.port);
+        let bundler = PimlicoBundler::new(rpc_url.parse().unwrap());
 
-        Alto {
-            process,
-            bundler_url: rpc_url,
-        }
-    }
-}
-
-impl Drop for Alto {
-    fn drop(&mut self) {
-        let _ = self.process.kill();
+        AltoBundler { process, bundler }
     }
 }

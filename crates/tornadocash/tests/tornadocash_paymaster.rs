@@ -6,7 +6,7 @@ use alloy::{
     signers::local::PrivateKeySigner,
 };
 use kohaku_db::memory::MemoryDatabase;
-use kohaku_test_utils::AltoBundlerExt;
+use kohaku_test_utils::AltoBuilder;
 use tornadocash::{
     indexer::{chained::ChainedSyncer, remote::RemoteSyncer, rpc::RpcSyncer},
     provider::{pool::Pool, provider::TornadoProvider},
@@ -15,7 +15,7 @@ use tornadocash::{
 use tracing::info;
 use userop_kit::{
     builder::UserOperationBuilder,
-    bundler::{Bundler, pimlico::PimlicoBundler},
+    bundler::Bundler,
     entry_point::ENTRY_POINT_08,
     smart_account::simple_7702_smart_account::{Call, Simple7702SmartAccount},
 };
@@ -70,20 +70,15 @@ async fn test_tornadocash_paymaster() -> Result<(), anyhow::Error> {
     let owner: PrivateKeySigner = PrivateKeySigner::random();
     let smart_account = Simple7702SmartAccount::new(provider.clone(), owner.address(), chain_id);
 
-    let bundler_provider = provider.clone();
-    let (bundler, _alto) = PimlicoBundler::connect_alto_with_config(|alto| async move {
-        alto.rpc_url("http://localhost:8545")
-            .entrypoint(ENTRY_POINT_08.to_string())
-            .executor_private_key(
-                "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5",
-            )
-            .utility_private_key(
-                "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6",
-            )
-            .prefund(&bundler_provider)
-            .await
-    })
-    .await;
+    let bundler = AltoBuilder::new()
+        .rpc_url("http://localhost:8545")
+        .entrypoint(ENTRY_POINT_08.to_string())
+        .executor_private_key("0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5")
+        .utility_private_key("0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6")
+        .prefund(&provider)
+        .await
+        .spawn()
+        .await;
 
     let userop = UserOperationBuilder::new_with_smart_account(&smart_account)
         .await?

@@ -1,3 +1,3 @@
 mod alto;
 
-pub use alto::{Alto, AltoBuilder, AltoBundlerExt};
+pub use alto::{AltoBuilder, AltoBundler};
