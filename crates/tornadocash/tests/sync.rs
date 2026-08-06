@@ -9,7 +9,7 @@ use tornadocash::{
 use tracing::info;
 
 #[tokio::test]
-#[ignore]
+#[ignore = "run with `cargo test --release -- --ignored`"]
 async fn test_sync() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -32,8 +32,7 @@ async fn test_sync() -> Result<(), anyhow::Error> {
         .then_arc(rpc_syncer.clone()));
 
     let db = Arc::new(MemoryDatabase::new());
-    let mut pool_provider =
-        PoolProvider::new(db, pool, syncer.clone(), rpc_syncer.clone()).await?;
+    let mut pool_provider = PoolProvider::new(db, pool, syncer.clone(), rpc_syncer.clone()).await?;
     info!("Syncing pool provider");
     pool_provider.sync().await?;
 

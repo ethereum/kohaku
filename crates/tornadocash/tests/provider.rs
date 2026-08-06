@@ -16,7 +16,7 @@ use tornadocash::{
 use tracing::info;
 
 #[tokio::test]
-#[ignore]
+#[ignore = "run with `cargo test --release -- --ignored`"]
 async fn test_provider() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
