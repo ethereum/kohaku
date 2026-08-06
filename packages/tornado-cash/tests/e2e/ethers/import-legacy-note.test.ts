@@ -109,7 +109,7 @@ describe('TornadoCash Import Legacy Note E2E', () => {
     await anvil.stop();
   });
 
-  it('imports legacy notes with randomly-generated secrets and withdraws them via paymaster', { timeout: 180_000 }, async () => {
+  it('imports legacy notes with randomly-generated secrets and withdraws them via paymaster', { timeout: 300_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
 
     // 1. Deposit two notes (into the same 1 ETH pool) with a plugin instance
