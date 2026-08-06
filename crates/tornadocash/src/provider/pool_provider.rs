@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use alloy::{
+    network::TransactionBuilder,
     primitives::{Address, Bytes},
+    providers::{DynProvider, Provider},
+    rpc::types::TransactionRequest,
     sol_types::SolCall,
 };
 use anyhow::Context;
@@ -35,6 +38,7 @@ use crate::{
 /// creating deposit and withdrawal transactions.
 pub struct PoolProvider {
     indexer: Indexer,
+    provider: DynProvider,
     artifact_loader: RemoteArtifactLoader,
 }
 
@@ -52,14 +56,19 @@ pub enum PoolProviderError {
     Circuit(#[from] websnark_rs::circuit::CircuitError),
     #[error("Proof generation error: {0}")]
     Proof(#[from] websnark_rs::proof::ProofError),
+    #[error("Provider error: {0}")]
+    Provider(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    #[error("Sol error: {0}")]
+    Sol(#[from] alloy::sol_types::Error),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
 impl PoolProvider {
     pub async fn new(
-        db: Arc<dyn Database>,
         pool: Pool,
+        provider: DynProvider,
+        db: Arc<dyn Database>,
         syncer: Arc<dyn Syncer>,
         verifier: Arc<dyn Verifier>,
     ) -> Result<Self, PoolProviderError> {
@@ -67,6 +76,7 @@ impl PoolProvider {
         let indexer = Indexer::new(db, pool, syncer, verifier).await?;
         Ok(Self {
             indexer,
+            provider,
             artifact_loader,
         })
     }
@@ -218,6 +228,37 @@ impl PoolProvider {
         };
 
         Ok(call)
+    }
+
+    pub async fn quote_wei_in_fee_token(
+        &self,
+        wei_amount: U256,
+    ) -> Result<U256, PoolProviderError> {
+        match self.pool().asset {
+            Asset::Native { .. } => Ok(wei_amount),
+            Asset::Erc20 { address, .. } => self.quote_wei_in_token(address, wei_amount).await,
+        }
+    }
+
+    async fn quote_wei_in_token(
+        &self,
+        token_address: Address,
+        wei_amount: U256,
+    ) -> Result<U256, PoolProviderError> {
+        let call = Tornado::quoteWeiInTokenCall::new((token_address, wei_amount)).abi_encode();
+
+        let result = self
+            .provider
+            .call(
+                TransactionRequest::default()
+                    .with_to(self.pool().address)
+                    .input(call.into()),
+            )
+            .await?;
+
+        let result = Tornado::quoteWeiInTokenCall::abi_decode_returns(&result)?;
+
+        Ok(result)
     }
 }
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy::{primitives::Address, sol_types::SolCall};
+use alloy::{primitives::Address, providers::DynProvider, sol_types::SolCall};
 use kohaku_db::Database;
 use rand::CryptoRng;
 use ruint::aliases::U256;
@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::{
     abis::tornado::Tornado,
-    indexer::{syncer::Syncer, verifier::Verifier},
+    indexer::{rpc::RpcSyncer, syncer::Syncer, verifier::Verifier},
     provider::{
         call::Call,
         note::Note,
@@ -22,6 +22,7 @@ use crate::{
 /// The provider manages multiple `PoolProvider`s for requested pools, providing a unified
 /// interface.
 pub struct TornadoProvider {
+    provider: DynProvider,
     db: Arc<dyn Database>,
     syncer: Arc<dyn Syncer>,
     verifier: Arc<dyn Verifier>,
@@ -41,16 +42,23 @@ pub enum TornadoProviderError {
 
 impl TornadoProvider {
     pub fn new(
+        provider: DynProvider,
         db: Arc<dyn Database>,
         syncer: Arc<dyn Syncer>,
         verifier: Arc<dyn Verifier>,
     ) -> Self {
         Self {
+            provider,
             db,
             syncer,
             verifier,
             pools: Vec::new(),
         }
+    }
+
+    pub fn from_rpc(provider: DynProvider, db: Arc<dyn Database>) -> Self {
+        let syncer = Arc::new(RpcSyncer::new(provider.clone()));
+        Self::new(provider, db, syncer.clone(), syncer)
     }
 
     /// Get a mutable reference to the provider for a given pool, creating it if it doesn't exist.
@@ -60,8 +68,9 @@ impl TornadoProvider {
         }
 
         let provider = PoolProvider::new(
-            self.db.clone(),
             pool,
+            self.provider.clone(),
+            self.db.clone(),
             self.syncer.clone(),
             self.verifier.clone(),
         )
@@ -138,6 +147,15 @@ impl TornadoProvider {
         Ok(provider
             .withdraw_call(note, recipient, relayer, fee, refund, rng)
             .await?)
+    }
+
+    pub async fn quote_wei_in_fee_token(
+        &mut self,
+        pool: Pool,
+        wei_amount: U256,
+    ) -> Result<U256, TornadoProviderError> {
+        let provider = self.pool(pool).await?;
+        Ok(provider.quote_wei_in_fee_token(wei_amount).await?)
     }
 
     /// Manually trigger a sync of the provider for all pools.
