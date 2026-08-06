@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use alloy::primitives::Address;
+use alloy::{primitives::Address, sol_types::SolCall};
 use kohaku_db::Database;
 use rand::CryptoRng;
 use ruint::aliases::U256;
 use thiserror::Error;
 
 use crate::{
+    abis::tornado::Tornado,
     indexer::{syncer::Syncer, verifier::Verifier},
     provider::{
         note::Note,
@@ -87,7 +88,11 @@ impl TornadoProvider {
         Ok(provider.deposit(rng))
     }
 
-    /// Create a withdrawal transaction.
+    /// Create a withdrawal transaction for the given note to the recipient address.
+    ///
+    /// # Errors
+    /// Returns an error if the pool cannot be found, is not initialized, or if the withdrawal
+    /// cannot be created.
     pub async fn withdraw(
         &mut self,
         note: &Note,
@@ -97,18 +102,40 @@ impl TornadoProvider {
         refund: Option<U256>,
         rng: &mut impl CryptoRng,
     ) -> Result<TxData, TornadoProviderError> {
-        let pool = Pool::from_id(&note.amount, &note.symbol, note.chain_id).ok_or_else(|| {
-            TornadoProviderError::UnknownPool(
-                note.amount.clone(),
-                note.symbol.clone(),
-                note.chain_id,
-            )
-        })?;
+        let pool = self.pool_from_note(note)?;
+
+        let data = self
+            .withdraw_call(note, recipient, relayer, fee, refund, rng)
+            .await?
+            .abi_encode();
+
+        Ok(TxData {
+            to: pool.address,
+            data: data.into(),
+            value: refund.unwrap_or_default(),
+        })
+    }
+
+    /// Create withdrawal calldata.
+    ///
+    /// # Errors
+    /// Returns an error if the pool cannot be found, is not initialized, or if the withdrawal
+    /// calldata cannot be created.
+    pub async fn withdraw_call(
+        &mut self,
+        note: &Note,
+        recipient: Address,
+        relayer: Option<Address>,
+        fee: Option<U256>,
+        refund: Option<U256>,
+        rng: &mut impl CryptoRng,
+    ) -> Result<Tornado::withdrawCall, TornadoProviderError> {
+        let pool = self.pool_from_note(note)?;
 
         let provider = self.pool(pool).await?;
         provider.sync().await?;
         Ok(provider
-            .withdraw(note, recipient, relayer, fee, refund, rng)
+            .withdraw_call(note, recipient, relayer, fee, refund, rng)
             .await?)
     }
 
@@ -126,5 +153,16 @@ impl TornadoProvider {
             provider.sync_to(block).await?;
         }
         Ok(())
+    }
+
+    /// Get the pool for a given note.
+    pub(crate) fn pool_from_note(&self, note: &Note) -> Result<Pool, TornadoProviderError> {
+        Pool::from_id(&note.amount, &note.symbol, note.chain_id).ok_or_else(|| {
+            TornadoProviderError::UnknownPool(
+                note.amount.clone(),
+                note.symbol.clone(),
+                note.chain_id,
+            )
+        })
     }
 }

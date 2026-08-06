@@ -139,7 +139,7 @@ impl PoolProvider {
         rng: &mut impl CryptoRng,
     ) -> Result<TxData, PoolProviderError> {
         let call = self
-            .withdraw_calldata(note, recipient, relayer, fee, refund, rng)
+            .withdraw_call(note, recipient, relayer, fee, refund, rng)
             .await?
             .abi_encode();
 
@@ -150,8 +150,8 @@ impl PoolProvider {
         })
     }
 
-    /// Create the calldata for a withdrawal transaction
-    async fn withdraw_calldata(
+    /// Create the withdrawal calldata for the given note to the recipient address.
+    pub async fn withdraw_call(
         &self,
         note: &Note,
         recipient: Address,
@@ -276,11 +276,3 @@ fn solidity_proof(proof: &Proof) -> Bytes {
 
     proof_bytes.into()
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_
-// }
