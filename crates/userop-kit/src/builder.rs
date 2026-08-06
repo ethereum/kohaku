@@ -5,7 +5,7 @@ use alloy::{
 
 use crate::{
     signable_user_operation::SignableUserOperation,
-    smart_account::smart_account::{SmartAccount, SmartAccountError},
+    smart_account::{SmartAccount, SmartAccountError},
     user_operation::{UserOperation, UserOperationGasEstimate},
 };
 
