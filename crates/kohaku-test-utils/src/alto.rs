@@ -5,7 +5,7 @@ use tracing::info;
 use userop_kit::bundler::pimlico::PimlicoBundler;
 
 pub trait AltoBundlerExt: Sized {
-    fn connect_alto_with_config<F, Fut>(f: F) -> impl Future<Output = Self> + Send
+    fn connect_alto_with_config<F, Fut>(f: F) -> impl Future<Output = (Self, Alto)> + Send
     where
         F: FnOnce(AltoBuilder) -> Fut + Send,
         Fut: Future<Output = AltoBuilder> + Send;
@@ -28,14 +28,15 @@ pub struct AltoBuilder {
 }
 
 impl AltoBundlerExt for PimlicoBundler {
-    async fn connect_alto_with_config<F, Fut>(f: F) -> Self
+    async fn connect_alto_with_config<F, Fut>(f: F) -> (Self, Alto)
     where
         F: FnOnce(AltoBuilder) -> Fut + Send,
         Fut: Future<Output = AltoBuilder> + Send,
     {
         let alto = f(AltoBuilder::new()).await.spawn().await;
         let bundler_url = alto.bundler_url.parse().unwrap();
-        PimlicoBundler::new(bundler_url)
+        let bundler = PimlicoBundler::new(bundler_url);
+        (bundler, alto)
     }
 }
 
@@ -120,17 +121,6 @@ impl AltoBuilder {
     }
 
     pub async fn spawn(self) -> Alto {
-        info!(
-            "Spawning Alto with entrypoints={:?}, executor_private_keys={:?}, utility_private_key={:?}, rpc_url={:?}, safe_mode={}, port={}, log={}",
-            self.entrypoints,
-            self.executor_private_keys,
-            self.utility_private_key,
-            self.rpc_url,
-            self.safe_mode,
-            self.port,
-            self.log
-        );
-
         let mut args = vec!["--port".to_string(), self.port.to_string()];
         if !self.entrypoints.is_empty() {
             args.extend(["--entrypoints".to_string(), self.entrypoints.join(",")]);
@@ -159,6 +149,8 @@ impl AltoBuilder {
         //? alto orphaned
         let alto =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../node_modules/.bin/alto");
+        info!("Spawning program: {:?} with args: {:?}", alto, args);
+
         let process = std::process::Command::new(alto)
             .args(&args)
             .stdout(if self.log {

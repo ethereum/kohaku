@@ -11,7 +11,7 @@ use anyhow::Context;
 use kohaku_db::Database;
 use rand::CryptoRng;
 use ruint::aliases::U256;
-use tracing::info;
+use tracing::{debug, info};
 use websnark_rs::{
     circuit::generate_witness,
     proof::{Proof, generate_random_proof},
@@ -106,6 +106,7 @@ impl PoolProvider {
     }
 
     /// Create a deposit transaction and note for this pool.
+    #[tracing::instrument(skip_all)]
     pub fn deposit(&self, rng: &mut impl CryptoRng) -> (Call, Note) {
         let note = Note::random(
             &self.pool().symbol(),
@@ -151,6 +152,7 @@ impl PoolProvider {
     }
 
     /// Create the withdrawal calldata for the given note to the recipient address.
+    #[tracing::instrument(skip_all)]
     pub async fn withdraw_call(
         &self,
         note: &Note,
@@ -182,15 +184,11 @@ impl PoolProvider {
         let refund = refund.unwrap_or_default();
 
         let (path_elements, path_indices) = generate_merkle_proof(note, merkle_tree)?;
-        info!(
-            "Generated merkle proof for note: path_elements={:?}, path_indices={:?}",
-            path_elements, path_indices
-        );
         let circuit_inputs = CircuitInputs::new(
             root,
             nullifier_hash,
-            U256::from_be_slice(recipient.as_slice()),
-            U256::from_be_slice(relayer.as_slice()),
+            recipient.into_word().into(),
+            relayer.into_word().into(),
             fee,
             refund,
             U256::from_le_slice(&note.nullifier),
@@ -199,8 +197,9 @@ impl PoolProvider {
             path_indices,
         );
 
+        info!("Generating circuit inputs for withdrawal");
         let input_signals = circuit_inputs.as_signals();
-        info!("Generated circuit inputs: {:?}", input_signals);
+        debug!("Generated circuit inputs: {:?}", input_signals);
 
         let circuit = self
             .artifact_loader
@@ -214,7 +213,10 @@ impl PoolProvider {
             .context("Error loading proving key")?;
 
         let witness = generate_witness(circuit, input_signals)?;
+        info!("Generated witness");
+
         let (proof, _public_inputs) = generate_random_proof(proving_key, witness, rng)?;
+        info!("Generated proof");
 
         let proof = solidity_proof(&proof);
         let call = Tornado::withdrawCall {
@@ -230,6 +232,11 @@ impl PoolProvider {
         Ok(call)
     }
 
+    /// Quote the amount of fee token from a given wei amount. If the pool is native, this is a
+    /// no-op.
+    ///
+    /// # Errors
+    /// Returns an error if the quote cannot be queried.
     pub async fn quote_wei_in_fee_token(
         &self,
         wei_amount: U256,

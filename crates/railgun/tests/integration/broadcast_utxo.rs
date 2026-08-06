@@ -69,6 +69,7 @@ async fn test_broadcast_utxo() -> Result<(), anyhow::Error> {
                 .fork(fork_url)
                 .fork_block_number(fork_block)
                 .port(8545u16)
+                .host("0.0.0.0")
         })
         .erased();
     info!("Setting up railgun signer");
@@ -81,21 +82,20 @@ async fn test_broadcast_utxo() -> Result<(), anyhow::Error> {
 
     info!("Setting up alto");
     let bundler_provider = provider.clone();
-    let bundler = Arc::new(
-        PimlicoBundler::connect_alto_with_config(|alto| async move {
-            alto.rpc_url("http://localhost:8545")
-                .entrypoint(ENTRY_POINT_08.to_string())
-                .executor_private_key(
-                    "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5",
-                )
-                .utility_private_key(
-                    "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6",
-                )
-                .prefund(&bundler_provider)
-                .await
-        })
-        .await,
-    );
+    let (bundler, _alto) = PimlicoBundler::connect_alto_with_config(|alto| async move {
+        alto.rpc_url("http://localhost:8545")
+            .entrypoint(ENTRY_POINT_08.to_string())
+            .executor_private_key(
+                "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5",
+            )
+            .utility_private_key(
+                "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6",
+            )
+            .prefund(&bundler_provider)
+            .await
+    })
+    .await;
+    let bundler = Arc::new(bundler);
 
     info!("Setting up railgun");
     let syncer = Arc::new(

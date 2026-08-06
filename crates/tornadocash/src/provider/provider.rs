@@ -149,6 +149,12 @@ impl TornadoProvider {
             .await?)
     }
 
+    /// Quote the amount of fee token from a given wei amount. If the pool is native, this is a
+    /// no-op.
+    ///
+    /// # Errors
+    /// Returns an error if the pool cannot be found or if the quote cannot be
+    /// queried.
     pub async fn quote_wei_in_fee_token(
         &mut self,
         pool: Pool,

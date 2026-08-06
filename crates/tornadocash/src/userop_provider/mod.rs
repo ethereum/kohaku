@@ -27,7 +27,7 @@ pub trait TornadoPaymasterExt: Sized {
         rng: &mut R,
     ) -> impl std::future::Future<Output = Result<Self, TornadoPaymasterError>>
     where
-        R: rand::CryptoRng + Send;
+        R: rand::CryptoRng;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -37,7 +37,7 @@ pub enum TornadoPaymasterError {
     #[error("Bundler error: {0}")]
     Bundler(#[from] userop_kit::bundler::BundlerError),
     #[error(transparent)]
-    Provider(#[from] TornadoProviderError),
+    TornadoProvider(#[from] TornadoProviderError),
 }
 
 const FEE_BUFFER_BPS: u128 = 100; // 1% buffer
@@ -60,6 +60,7 @@ sol!(
 );
 
 impl<S: Sized + Send + Sync> TornadoPaymasterExt for UserOperationBuilder<S> {
+    #[tracing::instrument(skip_all)]
     async fn with_tornadocash_paymaster<R>(
         self,
         note: &Note,
@@ -69,12 +70,15 @@ impl<S: Sized + Send + Sync> TornadoPaymasterExt for UserOperationBuilder<S> {
         rng: &mut R,
     ) -> Result<Self, TornadoPaymasterError>
     where
-        R: rand::CryptoRng + Send,
+        R: rand::CryptoRng,
     {
         let mut builder = self;
         let pool = tornado_provider.pool_from_note(note)?;
         let paymaster = pool
             .paymaster_address
+            .ok_or(TornadoPaymasterError::PoolMissingPaymasterAddress(pool))?;
+        let adapter = pool
+            .adapter_address
             .ok_or(TornadoPaymasterError::PoolMissingPaymasterAddress(pool))?;
 
         let mut fee_estimate = U256::from(pool.amount_wei);
@@ -83,68 +87,56 @@ impl<S: Sized + Send + Sync> TornadoPaymasterExt for UserOperationBuilder<S> {
             builder = build_with_fee(
                 builder,
                 paymaster,
+                adapter,
                 fee_estimate,
                 note,
                 recipient,
                 tornado_provider,
-                bundler,
                 rng,
             )
             .await?;
-            let max_gas_estimate = max_gas(&builder);
+            builder = builder.with_gas_estimate(bundler).await?;
 
-            // TODO: Implement buffer, so extra fee is added to the estimate to account for
-            // fluctuations
-            //
-            // TODO: Call `quoteWeiInToken` to get the fee in token, since this only works for ETH
-            // rn.
-            if max_gas_estimate <= fee_estimate {
+            let wei = max_gas(&builder);
+            let new_fee_estimate = tornado_provider.quote_wei_in_fee_token(pool, wei).await?;
+            if new_fee_estimate <= fee_estimate {
                 break;
             }
 
-            let fee_buffer = max_gas_estimate * U256::from(FEE_BUFFER_BPS) / U256::from(10_000);
-            fee_estimate = max_gas_estimate + fee_buffer;
+            let fee_buffer = new_fee_estimate * U256::from(FEE_BUFFER_BPS) / U256::from(10_000);
+            fee_estimate = new_fee_estimate + fee_buffer;
         }
 
         Ok(builder)
     }
 }
 
+/// Builds the tornadocash paymaster data with the specified fee.
 async fn build_with_fee<S, R>(
     builder: UserOperationBuilder<S>,
     paymaster: Address,
+    adapter: Address,
     fee: U256,
     note: &Note,
     recipient: Address,
     tornado_provider: &mut TornadoProvider,
-    bundler: &dyn Bundler,
     rng: &mut R,
 ) -> Result<UserOperationBuilder<S>, TornadoPaymasterError>
 where
-    R: rand::CryptoRng + Send,
+    R: rand::CryptoRng,
 {
     let withdraw_call = tornado_provider
         .withdraw_call(note, recipient, Some(paymaster), Some(fee), None, rng)
         .await?;
-    let paymaster_data = encode_paymaster_data(paymaster, withdraw_call);
-
+    let paymaster_data = encode_paymaster_data(adapter, withdraw_call);
     let builder = builder.with_paymaster_and_data(paymaster, paymaster_data);
-    let builder = builder.with_gas_estimate(bundler).await?;
 
     Ok(builder)
 }
 
+/// Encodes the paymaster data for a Tornado Cash withdrawal call.
 fn encode_paymaster_data(adapter: Address, withdraw_call: Tornado::withdrawCall) -> Bytes {
-    let adapter_data = encode_tornado_adapter_data(withdraw_call);
-    let data = PaymasterData {
-        adapter,
-        adapterData: adapter_data,
-    };
-    data.abi_encode_params().into()
-}
-
-fn encode_tornado_adapter_data(withdraw_call: Tornado::withdrawCall) -> Bytes {
-    let data = TornadoAdapterData {
+    let adapter_data = TornadoAdapterData {
         proof: withdraw_call._proof,
         root: withdraw_call._root,
         nullifierHash: withdraw_call._nullifierHash,
@@ -153,7 +145,11 @@ fn encode_tornado_adapter_data(withdraw_call: Tornado::withdrawCall) -> Bytes {
         fee: withdraw_call._fee,
         refund: withdraw_call._refund,
     };
-    data.abi_encode_params().into()
+    let data = PaymasterData {
+        adapter,
+        adapterData: adapter_data.abi_encode().into(),
+    };
+    data.abi_encode().into()
 }
 
 /// Returns the maximum gas cost of a user operation builder.
