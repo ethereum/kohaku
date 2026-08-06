@@ -26,6 +26,7 @@ pub struct Pool {
     pub amount_wei: u128,
     pub deployed_block: u64,
     pub paymaster_address: Option<Address>,
+    pub adapter_address: Option<Address>,
 }
 
 pub const POOLS: &[Pool] = &[
@@ -43,7 +44,7 @@ pub const POOLS: &[Pool] = &[
 impl Pool {
     pub const SEPOLIA_ETHER_01: Pool = Pool {
         chain_id: 11155111,
-        address: address!("0xa616aAE443FCCABfc2F1EA2Afe001E5046FFDCe0"),
+        address: address!("0x8C4A04d872a6C1BE37964A21ba3a138525dFF50b"),
         asset: Asset::Native {
             symbol: "ETH",
             decimals: 18,
@@ -51,11 +52,12 @@ impl Pool {
         amount_wei: 10_u128.pow(17),
         deployed_block: 5594400,
         paymaster_address: Some(address!("0x1c5aCCb9c09D72945b79EC986776136bE01d7B2F")),
+        adapter_address: Some(address!("0xa616aAE443FCCABfc2F1EA2Afe001E5046FFDCe0")),
     };
 
     pub const SEPOLIA_ETHER_1: Pool = Pool {
         chain_id: 11155111,
-        address: address!("0x67a898343F32641206d0f30CB3367944a8919A3A"),
+        address: address!("0x8cc930096B4Df705A007c4A039BDFA1320Ed2508"),
         asset: Asset::Native {
             symbol: "ETH",
             decimals: 18,
@@ -63,6 +65,7 @@ impl Pool {
         amount_wei: 10_u128.pow(18),
         deployed_block: 5594401,
         paymaster_address: Some(address!("0x1c5aCCb9c09D72945b79EC986776136bE01d7B2F")),
+        adapter_address: Some(address!("0x67a898343F32641206d0f30CB3367944a8919A3A")),
     };
 
     pub const SEPOLIA_ETHER_10: Pool = Pool {
@@ -75,6 +78,7 @@ impl Pool {
         amount_wei: 10_u128.pow(19),
         deployed_block: 5594402,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub const ETHEREUM_ETHER_01: Pool = Pool {
@@ -87,6 +91,7 @@ impl Pool {
         amount_wei: 10_u128.pow(17),
         deployed_block: 9116966,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub const ETHEREUM_ETHER_1: Pool = Pool {
@@ -99,6 +104,7 @@ impl Pool {
         amount_wei: 10_u128.pow(18),
         deployed_block: 9117609,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub const ETHEREUM_ETHER_10: Pool = Pool {
@@ -111,6 +117,7 @@ impl Pool {
         amount_wei: 10_u128.pow(19),
         deployed_block: 9117720,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub const ETHEREUM_ETHER_100: Pool = Pool {
@@ -123,6 +130,7 @@ impl Pool {
         amount_wei: 10_u128.pow(20),
         deployed_block: 9161895,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub const POLYGON_MATIC_100: Pool = Pool {
@@ -135,6 +143,7 @@ impl Pool {
         amount_wei: 10_u128.pow(20),
         deployed_block: 16258013,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub const POLYGON_MATIC_1000: Pool = Pool {
@@ -147,6 +156,7 @@ impl Pool {
         amount_wei: 10_u128.pow(21),
         deployed_block: 16258032,
         paymaster_address: None,
+        adapter_address: None,
     };
 
     pub fn from_note(note: &Note) -> Option<Self> {
