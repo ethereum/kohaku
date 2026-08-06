@@ -1,10 +1,20 @@
-use std::process::Stdio;
+use std::{future::Future, process::Stdio};
 
+use alloy::providers::{Provider, ext::AnvilApi};
 use tracing::info;
+use userop_kit::bundler::pimlico::PimlicoBundler;
+
+pub trait AltoBundlerExt: Sized {
+    fn connect_alto_with_config<F, Fut>(f: F) -> impl Future<Output = Self> + Send
+    where
+        F: FnOnce(AltoBuilder) -> Fut + Send,
+        Fut: Future<Output = AltoBuilder> + Send;
+}
 
 /// Helper for spawning an Alto process in tests
 pub struct Alto {
     process: std::process::Child,
+    bundler_url: String,
 }
 
 pub struct AltoBuilder {
@@ -15,6 +25,18 @@ pub struct AltoBuilder {
     safe_mode: bool,
     port: u16,
     log: bool,
+}
+
+impl AltoBundlerExt for PimlicoBundler {
+    async fn connect_alto_with_config<F, Fut>(f: F) -> Self
+    where
+        F: FnOnce(AltoBuilder) -> Fut + Send,
+        Fut: Future<Output = AltoBuilder> + Send,
+    {
+        let alto = f(AltoBuilder::new()).await.spawn().await;
+        let bundler_url = alto.bundler_url.parse().unwrap();
+        PimlicoBundler::new(bundler_url)
+    }
 }
 
 impl AltoBuilder {
@@ -48,6 +70,34 @@ impl AltoBuilder {
 
     pub fn rpc_url(mut self, url: impl Into<String>) -> Self {
         self.rpc_url = Some(url.into());
+        self
+    }
+
+    pub async fn prefund(self, provider: &impl Provider) -> Self {
+        let mut pks = self.executor_private_keys.clone();
+        if let Some(key) = &self.utility_private_key {
+            pks.push(key.clone());
+        }
+
+        let addresses = pks
+            .iter()
+            .map(|key| {
+                key.parse::<alloy::signers::local::PrivateKeySigner>()
+                    .unwrap()
+                    .address()
+            })
+            .collect::<Vec<_>>();
+
+        for address in addresses {
+            provider
+                .anvil_set_balance(
+                    address,
+                    alloy::primitives::U256::from(1_000_000_000_000_000_000u128),
+                )
+                .await
+                .unwrap();
+        }
+
         self
     }
 
@@ -124,9 +174,12 @@ impl AltoBuilder {
             .spawn()
             .expect("Failed to start Alto process");
 
-        crate::wait_for_port(self.port).await;
+        let rpc_url = format!("http://localhost:{}", self.port);
 
-        Alto { process }
+        Alto {
+            process,
+            bundler_url: rpc_url,
+        }
     }
 }
 

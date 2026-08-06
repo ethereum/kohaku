@@ -6,7 +6,6 @@ use alloy::{
     signers::local::PrivateKeySigner,
 };
 use kohaku_db::memory::MemoryDatabase;
-use kohaku_test_utils::AnvilBuilder;
 use tornadocash::{
     indexer::rpc::RpcSyncer,
     provider::{pool::Pool, pool_provider::PoolProvider},
@@ -26,22 +25,17 @@ async fn test_pool_provider() -> Result<(), anyhow::Error> {
     let fork_block = pool.deployed_block + 10_000;
     let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
 
-    let _anvil = AnvilBuilder::new()
-        .fork_url(&fork_url)
-        .fork_block(fork_block)
-        .spawn()
-        .await;
-
     let signer: PrivateKeySigner =
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?;
     let provider = ProviderBuilder::new()
         .wallet(signer)
-        .connect("http://localhost:8545")
-        .await?;
-    let syncer = Arc::new(RpcSyncer::new(provider.clone()).with_batch_size(10_000));
+        .connect_anvil_with_config(|anvil| anvil.fork(fork_url).fork_block_number(fork_block))
+        .erased();
 
+    let syncer = Arc::new(RpcSyncer::new(provider.clone()).with_batch_size(10_000));
     let db = Arc::new(MemoryDatabase::new());
-    let mut pool_provider = PoolProvider::new(db, pool, syncer.clone(), syncer.clone()).await?;
+    let mut pool_provider =
+        PoolProvider::new(pool, provider.clone(), db, syncer.clone(), syncer.clone()).await?;
     info!("Syncing pool provider");
     pool_provider.sync().await?;
 

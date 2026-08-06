@@ -1,13 +1,11 @@
 use std::{str::FromStr, sync::Arc};
 
 use alloy::{
-    network::Ethereum,
     primitives::{U256, address},
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
     sol,
 };
-use kohaku_test_utils::AnvilBuilder;
 use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
@@ -60,18 +58,9 @@ async fn test_transact_utxo() {
     let fork_url = std::env::var("RPC_URL_SEPOLIA").expect("RPC_URL_SEPOLIA must be set");
 
     info!("Setting up alloy provider");
-    let _anvil = AnvilBuilder::new()
-        .fork_url(&fork_url)
-        .fork_block(fork_block)
-        .spawn()
-        .await;
-
     let provider = ProviderBuilder::new()
-        .network::<Ethereum>()
         .wallet(signer)
-        .connect("http://localhost:8545")
-        .await
-        .unwrap()
+        .connect_anvil_with_config(|anvil| anvil.fork(fork_url).fork_block_number(fork_block))
         .erased();
 
     let weth_contract = WETH::new(chain.wrapped_base_token, provider.clone());
