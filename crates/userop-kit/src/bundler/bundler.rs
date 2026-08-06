@@ -1,10 +1,16 @@
 use thiserror::Error;
 
 use crate::{
+    builder::UserOperationBuilder,
     signable_user_operation::SignableUserOperation,
     signed_user_operation::SignedUserOperation,
     user_operation::{UserOperationGasEstimate, UserOperationHash, UserOperationReceipt},
 };
+
+pub trait BundlerExt: Sized {
+    /// Fetches a gas estimate from the provider for the current UserOp.
+    async fn with_gas_estimate(self, bundler: &dyn Bundler) -> Result<Self, BundlerError>;
+}
 
 /// A bundler provider for 4337 UserOperation JSON-RPC methods.
 #[cfg_attr(native, async_trait::async_trait)]
@@ -30,4 +36,13 @@ pub enum BundlerError {
     Timeout,
     #[error("Other: {0}")]
     Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl<S> BundlerExt for UserOperationBuilder<S> {
+    async fn with_gas_estimate(self, bundler: &dyn Bundler) -> Result<Self, BundlerError> {
+        let op = self.build();
+        let est = bundler.estimate_gas(&op).await?;
+
+        Ok(self.with_gas(est))
+    }
 }

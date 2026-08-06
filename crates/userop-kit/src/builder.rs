@@ -4,7 +4,6 @@ use alloy::{
 };
 
 use crate::{
-    bundler::{Bundler, BundlerError},
     signable_user_operation::SignableUserOperation,
     smart_account::smart_account::{SmartAccount, SmartAccountError},
     user_operation::{UserOperation, UserOperationGasEstimate},
@@ -79,9 +78,9 @@ impl<S> UserOperationBuilder<S> {
     }
 
     /// Sets the paymaster address and data for this UserOperation.
-    pub fn with_paymaster_and_data(mut self, paymaster: Address, paymaster_data: Vec<u8>) -> Self {
+    pub fn with_paymaster_and_data(mut self, paymaster: Address, paymaster_data: Bytes) -> Self {
         self.user_op.paymaster = Some(paymaster);
-        self.user_op.paymaster_data = Some(paymaster_data.into());
+        self.user_op.paymaster_data = Some(paymaster_data);
         self
     }
 
@@ -101,15 +100,6 @@ impl<S> UserOperationBuilder<S> {
     pub fn with_gas(mut self, gas: UserOperationGasEstimate) -> Self {
         self.set_gas(gas);
         self
-    }
-
-    /// Fetches a gas estimate from the provider for the current UserOp.
-    pub async fn with_gas_estimate(mut self, bundler: &dyn Bundler) -> Result<Self, BundlerError> {
-        let op = self.build();
-        let est = bundler.estimate_gas(&op).await?;
-
-        self.set_gas(est);
-        Ok(self)
     }
 
     /// Sets the factory and factory data for this UserOperation.
