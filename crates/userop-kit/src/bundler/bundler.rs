@@ -9,7 +9,10 @@ use crate::{
 
 pub trait BundlerExt: Sized {
     /// Fetches a gas estimate from the provider for the current UserOp.
-    async fn with_gas_estimate(self, bundler: &dyn Bundler) -> Result<Self, BundlerError>;
+    fn with_gas_estimate(
+        self,
+        bundler: &dyn Bundler,
+    ) -> impl Future<Output = Result<Self, BundlerError>>;
 }
 
 /// A bundler provider for 4337 UserOperation JSON-RPC methods.
