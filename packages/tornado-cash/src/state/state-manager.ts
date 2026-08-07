@@ -75,6 +75,12 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { userSecrets, legacySecrets, ...publicState } = store.getState();
+
+    return publicState;
+  },
+  getPrivateState: () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { userSecrets, ...publicState } = store.getState();
 
     return publicState;
@@ -193,7 +199,7 @@ export const storeStateManager = async ({
     if (storageToSyncTo) {
       await storageToSyncTo.set(
         getStoreStorageKey(chainInfo),
-        JSON.stringify(store.getPublicState()),
+        JSON.stringify(store.getPrivateState()),
       );
     }
   };

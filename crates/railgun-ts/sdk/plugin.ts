@@ -18,6 +18,11 @@
  *    - Shield returns raw `TxData` (user signs & sends directly).
  *    - Transfer/Unshield return `RGPrivateOperation` — a proved tx bundled
  *      with a selected broadcaster, ready for relay.
+ *    - Unshield accepts optional `UnshieldOptions.tailCalls`; the callback is
+ *      stored on the op and resolved at broadcast with the AA/`to` address.
+ *      Native unshield always prefixes `WETH.withdraw` before user tails.
+ *      (Unlike Tornado: funds already land at `to` via the privacy paymaster —
+ *      do not bake leftover-forward ETH transfers into Railgun tails.)
  *
  * 4. **Broadcast**: relays the proved tx through the selected Waku broadcaster. 
  *    The operation is consumed; rebuild on failure.
@@ -39,7 +44,7 @@
  * restores from storage automatically.
  */
 
-import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation } from "@kohaku-eth/plugins";
+import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateOperation, UnshieldOptions } from "@kohaku-eth/plugins";
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
@@ -48,7 +53,7 @@ import { ensureInitialized } from "./lib";
 import { tsLog } from "./logger";
 import { EthereumProviderAdapter } from "./ethereum-provider";
 import { DatabaseAdapter } from "./database";
-import { encodeFunctionData } from "viem";
+import { buildUnshieldExecutionCalls, txDataToCall } from "./unshield-calls";
 
 const BPS_DENOMINATOR = 10_000n;
 
@@ -66,6 +71,13 @@ export type RGNote = {
 
 /**
  * A proved private transaction ready for relay.
+ *
+ * For unshield ops, optional execution-phase fields are persisted so `broadcast`
+ * can compose calls without the caller re-passing options:
+ * - `nativeAmount` / `to`: when set, broadcast prepends `WETH.withdraw(nativeAmount)`
+ * - `tailCalls`: lazy callback resolved at broadcast with the AA / unshield `to`
+ *   address (same address used for EIP-7702). Prefer storing the callback over
+ *   pre-resolved calls so the AA address is authoritative at send time.
  */
 export type RGPrivateOperation = PrivateOperation & {
     builder: TransactionBuilder,
@@ -73,6 +85,12 @@ export type RGPrivateOperation = PrivateOperation & {
     // Optional fields for native unshield support
     nativeAmount?: bigint,
     to?: `0x${string}`,
+
+    /**
+     * User execution-phase calls after the system WETH unwrap (if any).
+     * Resolved at `broadcast` with the smart-account / unshield `to` address.
+     */
+    tailCalls?: UnshieldOptions["tailCalls"],
 };
 
 /**
@@ -306,11 +324,11 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         return builder;
     }
 
-    async prepareUnshield(token: AssetAmount, to: `0x${string}`): Promise<RGPrivateOperation> {
-        return this.prepareUnshieldMulti([token], to);
+    async prepareUnshield(token: AssetAmount, to: `0x${string}`, options?: UnshieldOptions): Promise<RGPrivateOperation> {
+        return this.prepareUnshieldMulti([token], to, options);
     }
 
-    async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`): Promise<RGPrivateOperation> {
+    async prepareUnshieldMulti(tokens: AssetAmount[], to: `0x${string}`, options?: UnshieldOptions): Promise<RGPrivateOperation> {
         let erc20Unshields: AssetAmount<ERC20AssetId>[] = [];
         let nativeAmount: bigint = 0n;
         for (const token of tokens) {
@@ -345,7 +363,14 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
             builder = builder.unshield(e.signer, to, e.asset, e.amount);
         }
 
-        return { __type: 'privateOperation', builder, nativeAmount, to };
+        return {
+            __type: 'privateOperation',
+            builder,
+            nativeAmount,
+            to,
+            // Persist the callback so broadcast can compose without re-passing options.
+            tailCalls: options?.tailCalls,
+        };
     }
 
     async prepareTransfer(token: AssetAmount, to: RailgunAddress): Promise<RGPrivateOperation> {
@@ -370,31 +395,29 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
 
     /**
      * Broadcast a private operation to the network.
+     *
+     * Execution calldata is composed before `prepareUserOp` so bundler gas
+     * estimation / WETH fee-note convergence sees the full unwrap + user tails
+     * batch. Fee token remains WETH only; user ERC-20 tails do not change it.
      */
     async broadcast(op: RGPrivateOperation): Promise<void> {
         if (!this.bundler) throw new Error("No bundler configured for broadcast");
         if (!this.smartAccount) throw new Error("No smart account configured for broadcast");
         if (!this.smartAccountSigner) throw new Error("No smart account signer configured for broadcast");
 
-        //? If there's a native unshield, add the unwrap tail call
-        let calls: Call[] = [];
-        if (op.nativeAmount && op.to) {
-            const data = encodeFunctionData({
-                abi: [{
-                    name: "withdraw",
-                    type: "function",
-                    inputs: [{ name: "wad", type: "uint256" }],
-                }],
-                functionName: "withdraw",
-                args: [op.nativeAmount],
-            });
-
-            calls.push({
-                target: this.chain.wrappedBaseToken,
-                value: "0x00",
-                data: data
-            });
+        // Resolve user tails with the AA / unshield recipient address.
+        let userTxs: TxData[] = [];
+        if (op.tailCalls) {
+            if (!op.to) throw new Error("tailCalls require an unshield `to` address");
+            userTxs = await op.tailCalls(op.to);
         }
+
+        const calls: Call[] = buildUnshieldExecutionCalls({
+            wrappedBaseToken: this.chain.wrappedBaseToken,
+            nativeAmount: op.nativeAmount,
+            to: op.to,
+            userTailCalls: userTxs.map(txDataToCall),
+        }) as Call[];
 
         const signableUserOp = await this.provider.prepareUserOp(
             op.builder,

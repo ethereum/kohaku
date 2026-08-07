@@ -31,7 +31,7 @@ export type TxFeatureMap<
     prepareTransfer(asset: TAssetAmounts['internal'], to: TAccountId): Promise<TPrivateOperation>;
     prepareTransferMulti(assets: Array<TAssetAmounts['internal']>, to: TAccountId): Promise<TPrivateOperation>;
     prepareUnshield(asset: TAssetAmounts['output'], to: Address, options?: UnshieldOptions): Promise<TPrivateOperation>;
-    prepareUnshieldMulti(assets: Array<AssetAmount>, to: Address): Promise<TPrivateOperation>;
+    prepareUnshieldMulti(assets: Array<AssetAmount>, to: Address, options?: UnshieldOptions): Promise<TPrivateOperation>;
 };
 
 type EnabledKeys<
