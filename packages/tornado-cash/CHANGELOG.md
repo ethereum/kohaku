@@ -1,3 +1,11 @@
+## 0.0.2-alpha.20
+
+### Patch Changes
+
+- 66c603f: bump versions to latest
+- Updated dependencies [66c603f]
+  - @kohaku-eth/plugins@0.0.1-alpha.12
+
 ## 0.0.2-alpha.19
 
 ### Patch Changes
