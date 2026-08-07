@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, parseAbi } from "viem";
+import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -19,6 +19,7 @@ if (!SEPOLIA_RPC_URL)
 
 const erc20Abi = parseAbi([
     "function balanceOf(address) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
 ]);
 
 let rpcUrl: string;
@@ -149,6 +150,62 @@ test("plugin-transact-broadcast", async () => {
         });
 
         expect(wethBalanceAfter - wethBalanceBefore).toBe(5_000n);
+    }
+
+    console.log("Testing ERC20 unshield with user tailCalls via broadcast");
+    {
+        // Unshield WETH to the AA, then forward a slice to bob in the same UserOp
+        // via user tailCalls (no system WETH unwrap — asset is erc20, not native).
+        const delegatorAddress = privateKeyToAccount(DELEGATOR_PK).address;
+        const bob = privateKeyToAccount(WALLET_PK).address;
+        const unshieldAmount = 5_000n;
+        const forwardAmount = 1_000n;
+
+        const aaWethBefore = await publicClient.readContract({
+            abi: erc20Abi,
+            address: CHAIN.wrappedBaseToken,
+            functionName: "balanceOf",
+            args: [delegatorAddress],
+        });
+        const bobWethBefore = await publicClient.readContract({
+            abi: erc20Abi,
+            address: CHAIN.wrappedBaseToken,
+            functionName: "balanceOf",
+            args: [bob],
+        });
+
+        const op = await plugin1.prepareUnshield(
+            { asset: { __type: 'erc20', contract: CHAIN.wrappedBaseToken }, amount: unshieldAmount },
+            delegatorAddress,
+            {
+                tailCalls: async () => [{
+                    to: CHAIN.wrappedBaseToken,
+                    data: encodeFunctionData({
+                        abi: erc20Abi,
+                        functionName: "transfer",
+                        args: [bob, forwardAmount],
+                    }),
+                    value: 0n,
+                }],
+            },
+        );
+        await plugin1.broadcast(op);
+
+        const aaWethAfter = await publicClient.readContract({
+            abi: erc20Abi,
+            address: CHAIN.wrappedBaseToken,
+            functionName: "balanceOf",
+            args: [delegatorAddress],
+        });
+        const bobWethAfter = await publicClient.readContract({
+            abi: erc20Abi,
+            address: CHAIN.wrappedBaseToken,
+            functionName: "balanceOf",
+            args: [bob],
+        });
+
+        expect(aaWethAfter - aaWethBefore).toBe(unshieldAmount - forwardAmount);
+        expect(bobWethAfter - bobWethBefore).toBe(forwardAmount);
     }
 
     console.log("Testing native unshield via broadcast");
