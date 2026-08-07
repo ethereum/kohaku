@@ -30,12 +30,20 @@ const PER_DIRECT_WITHDRAW_GAS = 400_000n;
 const PER_DIRECT_WITHDRAW_GAS_ERC20 = 500_000n;
 const FORWARD_GAS = 60_000n;
 
+// A single pool.withdraw (groth16 verify + merkle path) measured at ~347.5k
+// gas on its own — within a few thousand gas of the previous 350_000n
+// baseline here, leaving no room for the surrounding paymaster/adapter
+// overhead or the try/catch external call's EIP-150 63/64 forwarding, and
+// causing a silent (empty-reason) out-of-gas revert in `collectFee`. Bundler
+// estimation (see `refineGasWithBundler` in paymasterWithdrawThunk) doesn't
+// reliably fill in paymaster-specific fields for this custom paymaster, so
+// this baseline has to be sufficient on its own, not just a starting point.
 const baseGasUnits: UserOperationGasLimits = {
   preVerificationGas: 100_000n,
   verificationGasLimit: 50_000n,
   callGasLimit: 300_000n,
 
-  paymasterVerificationGasLimit: 350_000n,
+  paymasterVerificationGasLimit: 450_000n,
   paymasterPostOpGasLimit: 50_000n,
 };
 
