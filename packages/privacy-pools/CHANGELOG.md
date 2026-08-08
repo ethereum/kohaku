@@ -1,5 +1,13 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.15
+
+### Patch Changes
+
+- 66c603f: bump versions to latest
+- Updated dependencies [66c603f]
+  - @kohaku-eth/plugins@0.0.1-alpha.12
+
 ## 0.0.2-alpha.14
 
 ### Patch Changes
