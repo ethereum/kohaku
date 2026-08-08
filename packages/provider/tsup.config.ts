@@ -9,6 +9,7 @@ export default defineConfig([
       viem: 'src/viem/index.ts',
       colibri: 'src/colibri/index.ts',
       helios: 'src/helios/index.ts',
+      nvp: 'src/nimbus-verified-proxy/index.ts',
       raw: 'src/raw/index.ts',
     },
     format: ['esm', 'cjs'],
@@ -26,6 +27,7 @@ export default defineConfig([
     external: [
       'ethers',
       '@a16z/helios',
+      '@status-im/nimbus-verified-proxy',
       '@noble/ed25519',
       'ethereum-cryptography',
       'snarkjs',
