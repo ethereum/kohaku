@@ -16,5 +16,6 @@ packages:
   - "packages/tornado-cash"
   - "packages/mimc-tree"
   - "examples/pq-account"
+  - "examples/anon-rpc-poc"
   - "crates/railgun-ts"
   - "docs"
