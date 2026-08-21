@@ -1,5 +1,13 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.16
+
+### Patch Changes
+
+- Updated dependencies [8d5a29e]
+  - @kohaku-eth/provider@0.1.0-alpha.9
+  - @kohaku-eth/plugins@0.0.1-alpha.13
+
 ## 0.0.2-alpha.15
 
 ### Patch Changes
