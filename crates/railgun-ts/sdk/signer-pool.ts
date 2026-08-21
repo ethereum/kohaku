@@ -30,12 +30,17 @@ export class SignerPool {
      * Drain UTXOs across all signers to satisfy requested token amounts.
      * Returns a list of (signer, asset, amount) contributions.
      * Throws if any token can't be fully covered.
+     *
+     * Contract addresses are compared case-insensitively: WASM note keys are
+     * lowercase while callers often pass EIP-55 checksummed `asset.contract`.
      */
     async drain(
         provider: RailgunProvider,
         tokens: AssetAmount<ERC20AssetId>[],
     ): Promise<DrainEntry[]> {
-        const remaining = new Map(tokens.map(t => [t.asset.contract, t.amount]));
+        const remaining = new Map(
+            tokens.map(t => [t.asset.contract.toLowerCase(), t.amount]),
+        );
         const entries: DrainEntry[] = [];
 
         for (const signer of this.signers) {
@@ -49,12 +54,13 @@ export class SignerPool {
                 if (asset.type !== "Erc20") continue;
                 if (poiStatus !== undefined && poiStatus !== "Valid") continue;
 
-                const need = remaining.get(asset.value);
+                const key = asset.value.toLowerCase();
+                const need = remaining.get(key);
                 if (!need || need <= 0n) continue;
 
                 const take = need < balance ? need : balance;
                 entries.push({ signer, asset: asset, amount: take });
-                remaining.set(asset.value, need - take);
+                remaining.set(key, need - take);
             }
         }
 
