@@ -52,6 +52,7 @@ import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, S
 import { ensureInitialized } from "./lib";
 import { tsLog } from "./logger";
 import { EthereumProviderAdapter } from "./ethereum-provider";
+import { ExternalSyncProviderAdapter } from "./external-sync-provider";
 import { DatabaseAdapter } from "./database";
 import { buildUnshieldExecutionCalls, txDataToCall } from "./unshield-calls";
 
@@ -128,7 +129,16 @@ export type RailgunPluginConfig = {
     /** Optional POI toggle (default: true) */
     poi?: boolean,
     /** Optional bundler config */
-    bundler?: BundlerConfig
+    bundler?: BundlerConfig,
+    /**
+     * Optional toggle for the Subsquid remote-indexer syncer (default: true).
+     * Set to `false` when `host.provider` points at a local/forked chain: Subsquid's
+     * `latest_block()` reports the real chain's tip, which is always far above a local
+     * fork's block height, so `ChainedSyncer` assigns it the entire requested range —
+     * the local RPC syncer never gets queried, even though it's the only one that can
+     * see private local-fork state.
+     */
+    subsquid?: boolean,
 };
 
 export type BundlerConfig = {
@@ -164,14 +174,17 @@ export async function createRailgunPlugin(host: Host, config?: RailgunPluginConf
     const database = new DatabaseAdapter(chainId.toString(), host.storage);
 
     tsLog("Building Railgun provider");
+    const syncers = [
+        ...(host.externalSyncProvider
+            ? [UtxoSyncer.external(chain, new ExternalSyncProviderAdapter(host.externalSyncProvider))]
+            : []),
+        ...(config?.subsquid !== false ? [UtxoSyncer.subsquid(chain)] : []),
+        UtxoSyncer.rpc(chain, eip1193Provider, BigInt(config?.rpcBatchSize ?? 10)),
+    ];
     let builder = new RailgunBuilder(chain, eip1193Provider)
         .withDatabase(database)
-        .withUtxoSyncer(
-            UtxoSyncer.chained([
-                UtxoSyncer.subsquid(chain),
-                UtxoSyncer.rpc(chain, eip1193Provider, BigInt(config?.rpcBatchSize ?? 10))
-            ])
-        );
+        .withUtxoSyncer(UtxoSyncer.chained(syncers));
+        
     if (config?.poi !== false) {
         tsLog("Enabling POI");
         builder = builder.withPoi();
