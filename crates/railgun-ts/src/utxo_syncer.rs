@@ -7,6 +7,8 @@ use railgun::{
 };
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use crate::external_syncer::{HostSyncer, JsExternalSyncProvider};
+
 #[wasm_bindgen(js_name = "UtxoSyncer")]
 pub struct JsUtxoSyncer {
     inner: Arc<dyn UtxoSyncer>,
@@ -31,6 +33,13 @@ impl JsUtxoSyncer {
             inner: Arc::new(
                 RpcSyncer::new(chain.clone(), Arc::new(provider)).with_batch_size(batch_size),
             ),
+        }
+    }
+
+    #[wasm_bindgen(js_name = "external")]
+    pub fn new_external(chain: &ChainConfig, provider: JsExternalSyncProvider) -> Self {
+        Self {
+            inner: Arc::new(HostSyncer::new(chain, provider)),
         }
     }
 

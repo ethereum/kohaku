@@ -22,9 +22,12 @@ console_error_panic_hook = { workspace = true }
 alloy = { workspace = true }
 async-trait = { workspace = true }
 eip-1193-provider = { workspace = true, features = ["js"] }
+js-sys = { workspace = true }
 railgun = { workspace = true, features = ["js"] }
 rand = { workspace = true }
 serde = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-wasm = { workspace = true }
 tsify = { workspace = true, features = ["js"] }

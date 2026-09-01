@@ -3,6 +3,7 @@
 pub mod builder;
 pub mod caip;
 pub mod chain_config;
+pub mod external_syncer;
 pub mod log;
 pub mod provider;
 pub mod shield_builder;

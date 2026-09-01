@@ -53,7 +53,13 @@ impl UtxoSyncer for ChainedSyncer {
                 break;
             }
 
-            let syncer_latest = syncer.latest_block().await?;
+            let syncer_latest = match syncer.latest_block().await {
+                Ok(block) => block,
+                Err(e) => {
+                    tracing::warn!("Syncer {} failed: {}", i, e);
+                    continue;
+                }
+            };
             if syncer_latest < current_from {
                 continue;
             }
