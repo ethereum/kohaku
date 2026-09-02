@@ -182,7 +182,7 @@ impl SpendingKey {
 
     pub fn sign(&self, message: U256) -> SpendingSignature {
         let sk = crypto::babyjubjub::PrivateKey::new(self.0);
-        let sig = sk.sign(&message.into()).unwrap();
+        let sig = sk.sign(message.into()).unwrap();
 
         SpendingSignature {
             r8_x: U256::from_be_bytes(fr_to_be_bytes(sig.r_b8.x)),
