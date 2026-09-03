@@ -11,6 +11,8 @@ const E2E_SUITES = [
   { suiteName: 'shield',          include: ['tests/e2e/**/shield.test.ts'],               timeout: 600_000 },
   { suiteName: 'withdraw-mocked', include: ['tests/e2e/**/withdraw.test.ts'],             timeout: 600_000 },
   { suiteName: 'withdraw-live',   include: ['tests/e2e/**/withdraw-real-prover.test.ts'], timeout: 600_000 },
+  { suiteName: 'withdraw-paymaster', include: ['tests/e2e/**/withdraw-paymaster.test.ts'], timeout: 600_000 },
+  { suiteName: 'saga-reconstruction', include: ['tests/e2e/**/saga-reconstruction.test.ts'], timeout: 300_000 },
   { suiteName: 'ragequit',        include: ['tests/e2e/**/ragequit.test.ts'],             timeout: 600_000 },
   { suiteName: 'sync',            include: ['tests/sync.test.ts'],                        timeout: 1_200_000 },
   { suiteName: 'asp-integration', include: ['tests/e2e/asp-services.test.ts'],            timeout: 60_000 },
