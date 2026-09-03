@@ -8,8 +8,10 @@ import {
 } from "@kohaku-eth/plugins";
 
 import { ISecretManager, SecretManager } from "../account/keys";
+import { PrivacyPoolsPaymasterConfigs } from "../config.js";
 import { IPFSAspService } from "../data/ipfsAsp.service.js";
 import { DataService } from "../data/data.service";
+import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
 import { storeStateManager } from "../state/state-manager";
@@ -25,8 +27,11 @@ import {
   IEntrypoint,
   INote,
   IStateManager,
+  PPv1PaymasterPrivateOperation,
   PPv1PrivateOperation,
   PPv1PublicOperation,
+  PPv1RelayerPrivateOperation,
+  PPv1UnshieldOptions,
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
 import { TxData } from "@kohaku-eth/provider";
@@ -35,6 +40,7 @@ type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
 export interface PPv1RelayerConstructorParams extends PPv1BroadcasterParameters {
   relayerClientFactory?: () => IRelayerClient;
+  paymasterClientFactory?: () => IPaymasterBroadcasterClient;
   host: Host;
 }
 
@@ -59,6 +65,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       aspServiceFactory = () => new IPFSAspService({ network: host.network, ipfsUrl }),
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = Prover,
+      paymasterConfig = PrivacyPoolsPaymasterConfigs,
+      dataService = new DataService({ provider: host.provider }),
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, "entrypoint">,
   ) {
     this.accountIndex = accountIndex;
@@ -73,12 +81,13 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       initialState,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
-      dataService: new DataService({ provider: host.provider }),
+      dataService,
       relayerClient: this.relayerClient,
       relayersList: this.relayersList,
       proverFactory,
       storageToSyncTo: host.storage,
       entrypoint,
+      paymasterConfig,
     });
   }
 
@@ -176,9 +185,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     return { txns: ragequitTxs } as PPv1PublicOperation;
   }
 
-  async prepareUnshield(assets: AssetAmount, to: AccountId): Promise<PPv1PrivateOperation> {
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     const { asset, amount } = assets;
-  
+
     if (asset.__type === 'native') {
       throw new Error("Unshielding native assets is not supported in this version of the protocol");
     }
@@ -187,6 +196,19 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     const assetAddress = BigInt(asset.contract);
 
     await this.stateManager.sync();
+
+    if (options?.mode === 'paymaster') {
+      const [withdrawal] = await this.stateManager.getPaymasterWithdrawalPayloads({
+        asset: assetAddress,
+        amount,
+        recipient: BigInt(to),
+        delegation: options.delegation,
+      });
+
+      if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
+
+      return { mode: 'paymaster', withdrawal } as PPv1PaymasterPrivateOperation;
+    }
 
     const [result] = await this.stateManager.getWithdrawalPayloads({
       asset: assetAddress,
@@ -219,6 +241,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     );
 
     return {
+      mode: 'relayer',
       rawData,
       txData: {
         to: `0x${entrypoint.address.toString(16).padStart(40, "0")}`,
@@ -226,7 +249,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         value: 0n,
       },
       quoteData,
-    } as PPv1PrivateOperation;
+    } as PPv1RelayerPrivateOperation;
   }
 
   sync() {

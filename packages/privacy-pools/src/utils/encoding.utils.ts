@@ -14,15 +14,23 @@ const definedOrThrow = <T>(i: T | undefined) => {
 };
 
 type WithdrawSignals = [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-export function encodeWithdrawalPayload(
-  withdraw: WithdrawalPayload,
-  proveOutput: WithdrawProveOutput,
-  scope: bigint
-) {
 
+export interface WithdrawProofStruct {
+  pA: [bigint, bigint];
+  pB: [[bigint, bigint], [bigint, bigint]];
+  pC: [bigint, bigint];
+  pubSignals: WithdrawSignals;
+}
+
+/**
+ * Maps a groth16 prove output into the on-chain `WithdrawProof` struct shape
+ * (`{ pA, pB, pC, pubSignals }`). Note the pB coordinates are swapped, as the
+ * Solidity verifier expects.
+ */
+export function toWithdrawProof(proveOutput: WithdrawProveOutput): WithdrawProofStruct {
   const {
     proof: { pi_a, pi_b, pi_c },
-    publicSignals
+    publicSignals,
   } = proveOutput;
 
   if (publicSignals.length !== 8) {
@@ -30,7 +38,6 @@ export function encodeWithdrawalPayload(
   }
 
   const pubSignals = publicSignals.map(BigInt) as WithdrawSignals;
-
   const pA = [pi_a[0], pi_a[1]].map(definedOrThrow).map(BigInt) as [bigint, bigint];
   const pB = [
     [definedOrThrow(pi_b[0])[1], definedOrThrow(pi_b[0])[0]].map(definedOrThrow).map(BigInt),
@@ -38,10 +45,18 @@ export function encodeWithdrawalPayload(
   ] as [[bigint, bigint], [bigint, bigint]];
   const pC = [pi_c[0], pi_c[1]].map(definedOrThrow).map(BigInt) as [bigint, bigint];
 
+  return { pA, pB, pC, pubSignals };
+}
+
+export function encodeWithdrawalPayload(
+  withdraw: WithdrawalPayload,
+  proveOutput: WithdrawProveOutput,
+  scope: bigint
+) {
   return encodeFunctionData({
     abi: entrypointAbi,
     functionName: "relay",
-    args: [withdraw, { pubSignals, pA, pB, pC }, scope]
+    args: [withdraw, toWithdrawProof(proveOutput), scope]
   });
 
 }
