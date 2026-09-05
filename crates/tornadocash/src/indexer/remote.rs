@@ -48,6 +48,7 @@ pub enum RemoteSyncerError {
 }
 
 impl RemoteSyncer {
+    #[must_use] 
     pub fn new(base_url: &str) -> Self {
         Self {
             client: Client::new(),

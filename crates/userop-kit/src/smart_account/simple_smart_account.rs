@@ -30,7 +30,7 @@ pub struct SimpleSmartAccount {
     dummy_signature: Bytes,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(js, derive(tsify::Tsify))]
 #[cfg_attr(js, tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]

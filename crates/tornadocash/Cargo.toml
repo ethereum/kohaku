@@ -7,7 +7,8 @@ edition = "2024"
 crate-type = ["rlib"]
 
 [features]
-default = []
+default = ["paymaster"]
+paymaster = ["dep:userop-kit"]
 parallel = ["websnark-rs/parallel", "crypto/parallel"]
 bench = []
 
@@ -40,6 +41,7 @@ brotli = { workspace = true }
 anyhow = { workspace = true }
 rand = { workspace = true }
 postcard = { workspace = true }
+userop-kit = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
@@ -65,3 +67,6 @@ harness = false
 
 [build-dependencies]
 cfg_aliases = { workspace = true }
+
+[lints]
+workspace = true

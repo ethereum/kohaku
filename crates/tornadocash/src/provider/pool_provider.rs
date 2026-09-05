@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
 use alloy::{
+    network::TransactionBuilder,
     primitives::{Address, Bytes},
+    providers::{DynProvider, Provider},
+    rpc::types::TransactionRequest,
     sol_types::SolCall,
 };
 use anyhow::Context;
 use kohaku_db::Database;
 use rand::CryptoRng;
 use ruint::aliases::U256;
-use tracing::info;
+use tracing::{debug, info};
 use websnark_rs::{
     circuit::generate_witness,
     proof::{Proof, generate_random_proof},
@@ -17,12 +20,9 @@ use websnark_rs::{
 use crate::{
     abis::tornado::Tornado,
     circuit::{artifacts::RemoteArtifactLoader, input::CircuitInputs},
-    indexer::{
-        indexer::{Indexer, IndexerError},
-        syncer::Syncer,
-        verifier::Verifier,
-    },
+    indexer::{Indexer, IndexerError, syncer::Syncer, verifier::Verifier},
     provider::{
+        call::Call,
         note::Note,
         pool::{Asset, Pool},
     },
@@ -34,14 +34,8 @@ use crate::{
 /// creating deposit and withdrawal transactions.
 pub struct PoolProvider {
     indexer: Indexer,
+    provider: DynProvider,
     artifact_loader: RemoteArtifactLoader,
-}
-
-#[derive(Debug, Clone)]
-pub struct TxData {
-    pub to: Address,
-    pub data: Bytes,
-    pub value: U256,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -58,14 +52,23 @@ pub enum PoolProviderError {
     Circuit(#[from] websnark_rs::circuit::CircuitError),
     #[error("Proof generation error: {0}")]
     Proof(#[from] websnark_rs::proof::ProofError),
+    #[error("Provider error: {0}")]
+    Provider(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    #[error("Sol error: {0}")]
+    Sol(#[from] alloy::sol_types::Error),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
 impl PoolProvider {
+    /// Creates a new pool provider for the given pool.
+    ///
+    /// # Errors
+    /// Returns an error if the indexer cannot be created.
     pub async fn new(
-        db: Arc<dyn Database>,
         pool: Pool,
+        provider: DynProvider,
+        db: Arc<dyn Database>,
         syncer: Arc<dyn Syncer>,
         verifier: Arc<dyn Verifier>,
     ) -> Result<Self, PoolProviderError> {
@@ -73,16 +76,21 @@ impl PoolProvider {
         let indexer = Indexer::new(db, pool, syncer, verifier).await?;
         Ok(Self {
             indexer,
+            provider,
             artifact_loader,
         })
     }
 
     /// Get the pool associated with this provider.
+    #[must_use]
     pub fn pool(&self) -> &Pool {
         self.indexer.pool()
     }
 
     /// Sync the provider to the latest block and verify the tree state.
+    ///
+    /// # Errors
+    /// Returns an error if the syncer or verifier fails.
     pub async fn sync(&mut self) -> Result<(), PoolProviderError> {
         self.indexer.sync().await?;
         self.verify().await
@@ -92,17 +100,24 @@ impl PoolProvider {
     ///
     /// Will not verify the tree state after syncing because tornadocash
     /// only stores the merkle root for the past ~100 blocks.
+    ///
+    /// # Errors
+    /// Returns an error if the syncer fails.
     pub async fn sync_to(&mut self, block: u64) -> Result<(), PoolProviderError> {
         Ok(self.indexer.sync_to(block).await?)
     }
 
     /// Verify the tree state of the provider.
+    ///
+    /// # Errors
+    /// Returns an error if the verifier fails.
     pub async fn verify(&self) -> Result<(), PoolProviderError> {
         Ok(self.indexer.verify().await?)
     }
 
     /// Create a deposit transaction and note for this pool.
-    pub fn deposit(&self, rng: &mut impl CryptoRng) -> (TxData, Note) {
+    #[tracing::instrument(skip_all)]
+    pub fn deposit(&self, rng: &mut impl CryptoRng) -> (Call, Note) {
         let note = Note::random(
             &self.pool().symbol(),
             &self.pool().amount(),
@@ -119,16 +134,15 @@ impl PoolProvider {
             Asset::Erc20 { .. } => 0,
         };
 
-        let tx_data = TxData {
-            to: self.pool().address,
-            data: calldata.into(),
-            value: U256::from(value),
-        };
+        let tx_data = Call::new(self.pool().address, calldata.into(), U256::from(value));
         (tx_data, note)
     }
 
     /// Create a withdrawal transaction for the given note to the recipient
     /// address.
+    ///
+    /// # Errors
+    /// Returns an error if the withdrawal call cannot be created.
     pub async fn withdraw(
         &self,
         note: &Note,
@@ -137,21 +151,25 @@ impl PoolProvider {
         fee: Option<U256>,
         refund: Option<U256>,
         rng: &mut impl CryptoRng,
-    ) -> Result<TxData, PoolProviderError> {
+    ) -> Result<Call, PoolProviderError> {
         let call = self
-            .withdraw_calldata(note, recipient, relayer, fee, refund, rng)
+            .withdraw_call(note, recipient, relayer, fee, refund, rng)
             .await?
             .abi_encode();
 
-        Ok(TxData {
-            to: self.pool().address,
-            data: call.into(),
-            value: refund.unwrap_or_default(),
-        })
+        Ok(Call::new(
+            self.pool().address,
+            call.into(),
+            refund.unwrap_or_default(),
+        ))
     }
 
-    /// Create the calldata for a withdrawal transaction
-    async fn withdraw_calldata(
+    /// Create the withdrawal calldata for the given note to the recipient address.
+    ///
+    /// # Errors
+    /// Returns an error if the note is invalid or the merkle proof cannot be generated.
+    #[tracing::instrument(skip_all)]
+    pub async fn withdraw_call(
         &self,
         note: &Note,
         recipient: Address,
@@ -182,15 +200,11 @@ impl PoolProvider {
         let refund = refund.unwrap_or_default();
 
         let (path_elements, path_indices) = generate_merkle_proof(note, merkle_tree)?;
-        info!(
-            "Generated merkle proof for note: path_elements={:?}, path_indices={:?}",
-            path_elements, path_indices
-        );
         let circuit_inputs = CircuitInputs::new(
             root,
             nullifier_hash,
-            U256::from_be_slice(recipient.as_slice()),
-            U256::from_be_slice(relayer.as_slice()),
+            recipient.into_word().into(),
+            relayer.into_word().into(),
             fee,
             refund,
             U256::from_le_slice(&note.nullifier),
@@ -199,8 +213,9 @@ impl PoolProvider {
             path_indices,
         );
 
+        info!("Generating circuit inputs for withdrawal");
         let input_signals = circuit_inputs.as_signals();
-        info!("Generated circuit inputs: {:?}", input_signals);
+        debug!("Generated circuit inputs: {:?}", input_signals);
 
         let circuit = self
             .artifact_loader
@@ -214,7 +229,10 @@ impl PoolProvider {
             .context("Error loading proving key")?;
 
         let witness = generate_witness(circuit, input_signals)?;
+        info!("Generated witness");
+
         let (proof, _public_inputs) = generate_random_proof(proving_key, witness, rng)?;
+        info!("Generated proof");
 
         let proof = solidity_proof(&proof);
         let call = Tornado::withdrawCall {
@@ -228,6 +246,42 @@ impl PoolProvider {
         };
 
         Ok(call)
+    }
+
+    /// Quote the amount of fee token from a given wei amount. If the pool is native, this is a
+    /// no-op.
+    ///
+    /// # Errors
+    /// Returns an error if the quote cannot be queried.
+    pub async fn quote_wei_in_fee_token(
+        &self,
+        wei_amount: U256,
+    ) -> Result<U256, PoolProviderError> {
+        match self.pool().asset {
+            Asset::Native { .. } => Ok(wei_amount),
+            Asset::Erc20 { address, .. } => self.quote_wei_in_token(address, wei_amount).await,
+        }
+    }
+
+    async fn quote_wei_in_token(
+        &self,
+        token_address: Address,
+        wei_amount: U256,
+    ) -> Result<U256, PoolProviderError> {
+        let call = Tornado::quoteWeiInTokenCall::new((token_address, wei_amount)).abi_encode();
+
+        let result = self
+            .provider
+            .call(
+                TransactionRequest::default()
+                    .with_to(self.pool().address)
+                    .input(call.into()),
+            )
+            .await?;
+
+        let result = Tornado::quoteWeiInTokenCall::abi_decode_returns(&result)?;
+
+        Ok(result)
     }
 }
 
@@ -276,11 +330,3 @@ fn solidity_proof(proof: &Proof) -> Bytes {
 
     proof_bytes.into()
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_
-// }

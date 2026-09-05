@@ -3,6 +3,7 @@
 
 pub mod abis;
 pub mod builder;
+#[cfg(feature = "bundler")]
 pub mod bundler;
 pub mod entry_point;
 pub mod signable_user_operation;

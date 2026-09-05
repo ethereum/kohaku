@@ -4,10 +4,7 @@ use serde::Deserialize;
 use tracing::info;
 
 use crate::{
-    bundler::{
-        bundler::{Bundler, BundlerError},
-        rpc_client::RpcClient,
-    },
+    bundler::{Bundler, BundlerError, rpc_client::RpcClient},
     signable_user_operation::SignableUserOperation,
     signed_user_operation::SignedUserOperation,
     user_operation::{UserOperationGasEstimate, UserOperationHash, UserOperationReceipt},

@@ -1,12 +1,11 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
 use alloy::{
-    network::Ethereum,
     primitives::U256,
-    providers::{DynProvider, Provider, ProviderBuilder},
+    providers::{Provider, ProviderBuilder},
     sol,
 };
-use kohaku_test_utils::{Alto, AltoBuilder, Anvil, AnvilBuilder, set_pk_balances};
+use kohaku_test_utils::AltoBuilder;
 use railgun::{
     account::signer::RailgunSigner,
     builder::RailgunBuilder,
@@ -20,7 +19,7 @@ use tokio::time::sleep;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use userop_kit::{
-    bundler::{Bundler, pimlico::PimlicoBundler},
+    bundler::Bundler,
     entry_point::ENTRY_POINT_08,
     smart_account::simple_smart_account::{self, SimpleSmartAccount},
 };
@@ -63,8 +62,16 @@ async fn test_broadcast_utxo() -> Result<(), anyhow::Error> {
     let signer_key = std::env::var("DEV_KEY").expect("DEV_KEY must be set");
     let signer = alloy::signers::local::PrivateKeySigner::from_str(&signer_key)?;
 
-    let (provider, _anvil) = setup_provider(&fork_url, fork_block, signer, true).await?;
-
+    let provider = ProviderBuilder::new()
+        .wallet(signer)
+        .connect_anvil_with_config(|anvil| {
+            anvil
+                .fork(fork_url)
+                .fork_block_number(fork_block)
+                .port(8545u16)
+                .host("0.0.0.0")
+        })
+        .erased();
     info!("Setting up railgun signer");
     let spending_key = std::env::var("DEV_SPENDING_KEY").expect("DEV_SPENDING_KEY must be set");
     let spending_key = SpendingKey::from_hex(&spending_key)?;
@@ -74,8 +81,16 @@ async fn test_broadcast_utxo() -> Result<(), anyhow::Error> {
         railgun::account::signer::PrivateKeySigner::new_evm(spending_key, viewing_key, chain.id);
 
     info!("Setting up alto");
-    let pimlico_url = format!("https://public.pimlico.io/v2/{}/rpc", chain.id);
-    let (bundler, _alto) = setup_bundler(provider.clone(), &pimlico_url, true).await?;
+    let bundler = AltoBuilder::new()
+        .rpc_url("http://localhost:8545")
+        .entrypoint(ENTRY_POINT_08.to_string())
+        .executor_private_key("0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5")
+        .utility_private_key("0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6")
+        .prefund(&provider)
+        .await
+        .spawn()
+        .await;
+    let bundler = Arc::new(bundler);
 
     info!("Setting up railgun");
     let syncer = Arc::new(
@@ -180,69 +195,4 @@ async fn test_broadcast_utxo() -> Result<(), anyhow::Error> {
     info!("Pre-unshield EOA balance: {}", pre_eoa_balance);
     info!("Post-unshield EOA balance: {}", post_eoa_balance);
     Ok(())
-}
-
-async fn setup_provider(
-    rpc_url: &str,
-    block_number: u64,
-    signer: alloy::signers::local::PrivateKeySigner,
-    local: bool,
-) -> Result<(DynProvider, Option<Anvil>), anyhow::Error> {
-    if !local {
-        let provider = ProviderBuilder::new()
-            .network::<Ethereum>()
-            .wallet(signer)
-            .connect(rpc_url)
-            .await?
-            .erased();
-        return Ok((provider, None));
-    }
-
-    let anvil = AnvilBuilder::new()
-        .fork_url(rpc_url)
-        .fork_block(block_number)
-        .spawn()
-        .await;
-
-    let provider = ProviderBuilder::new()
-        .network::<Ethereum>()
-        .wallet(signer)
-        .connect(&"http://localhost:8545")
-        .await?
-        .erased();
-
-    Ok((provider, Some(anvil)))
-}
-
-async fn setup_bundler(
-    provider: DynProvider,
-    pimlico_url: &str,
-    local: bool,
-) -> Result<(Arc<dyn Bundler>, Option<Alto>), anyhow::Error> {
-    if !local {
-        let pimlico_url = pimlico_url.parse()?;
-        let bundler = Arc::new(PimlicoBundler::new(pimlico_url));
-        return Ok((bundler, None));
-    }
-
-    let alto_executor_pk = "0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5";
-    let alto_utility_pk = "0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6";
-    set_pk_balances(
-        &provider,
-        &[alto_executor_pk, alto_utility_pk],
-        U256::from(1000000000000000000000u128),
-    )
-    .await;
-
-    let _alto = AltoBuilder::new()
-        .entrypoint(ENTRY_POINT_08.to_string())
-        .executor_private_key(alto_executor_pk)
-        .utility_private_key(alto_utility_pk)
-        .rpc_url("http://localhost:8545")
-        .spawn()
-        .await;
-
-    let alto_url = "http://localhost:3000".parse()?;
-    let bundler = Arc::new(PimlicoBundler::new(alto_url));
-    Ok((bundler, Some(_alto)))
 }

@@ -8,6 +8,8 @@ publish = false
 crate-type = ["rlib"]
 
 [dependencies]
-alloy = { workspace = true, features = ["provider-anvil-api"] }
+alloy = { workspace = true, features = ["provider-anvil-api", "node-bindings"] }
+async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
+userop-kit = { workspace = true }

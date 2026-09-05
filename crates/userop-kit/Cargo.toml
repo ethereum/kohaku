@@ -7,7 +7,8 @@ edition = "2024"
 crate-type = ["rlib"]
 
 [features]
-default = []
+default = ["bundler"]
+bundler = []
 js = ["dep:tsify", "dep:wasm-bindgen"]
 
 [dependencies]
@@ -22,7 +23,7 @@ async-trait = { workspace = true }
 common = { workspace = true }
 eip-1193-provider = { workspace = true }
 futures = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

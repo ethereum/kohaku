@@ -1,11 +1,10 @@
 use std::process::Stdio;
 
+use alloy::providers::{Provider, ext::AnvilApi};
 use tracing::info;
+use userop_kit::bundler::pimlico::PimlicoBundler;
 
-/// Helper for spawning an Alto process in tests
-pub struct Alto {
-    process: std::process::Child,
-}
+use super::bundler::AltoBundler;
 
 pub struct AltoBuilder {
     entrypoints: Vec<String>,
@@ -51,6 +50,36 @@ impl AltoBuilder {
         self
     }
 
+    /// Prefund the executor and utility accounts with 1 ETH each. Assumes the
+    /// provider is anvil or has the `anvil_set_balance` method implemented.
+    pub async fn prefund(self, provider: &impl Provider) -> Self {
+        let mut pks = self.executor_private_keys.clone();
+        if let Some(key) = &self.utility_private_key {
+            pks.push(key.clone());
+        }
+
+        let addresses = pks
+            .iter()
+            .map(|key| {
+                key.parse::<alloy::signers::local::PrivateKeySigner>()
+                    .unwrap()
+                    .address()
+            })
+            .collect::<Vec<_>>();
+
+        for address in addresses {
+            provider
+                .anvil_set_balance(
+                    address,
+                    alloy::primitives::U256::from(1_000_000_000_000_000_000u128),
+                )
+                .await
+                .unwrap();
+        }
+
+        self
+    }
+
     #[allow(dead_code)]
     pub fn safe_mode(mut self, safe_mode: bool) -> Self {
         self.safe_mode = safe_mode;
@@ -69,18 +98,7 @@ impl AltoBuilder {
         self
     }
 
-    pub async fn spawn(self) -> Alto {
-        info!(
-            "Spawning Alto with entrypoints={:?}, executor_private_keys={:?}, utility_private_key={:?}, rpc_url={:?}, safe_mode={}, port={}, log={}",
-            self.entrypoints,
-            self.executor_private_keys,
-            self.utility_private_key,
-            self.rpc_url,
-            self.safe_mode,
-            self.port,
-            self.log
-        );
-
+    pub async fn spawn(self) -> AltoBundler {
         let mut args = vec!["--port".to_string(), self.port.to_string()];
         if !self.entrypoints.is_empty() {
             args.extend(["--entrypoints".to_string(), self.entrypoints.join(",")]);
@@ -109,6 +127,8 @@ impl AltoBuilder {
         //? alto orphaned
         let alto =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../node_modules/.bin/alto");
+        info!("Spawning program: {:?} with args: {:?}", alto, args);
+
         let process = std::process::Command::new(alto)
             .args(&args)
             .stdout(if self.log {
@@ -124,14 +144,9 @@ impl AltoBuilder {
             .spawn()
             .expect("Failed to start Alto process");
 
-        crate::wait_for_port(self.port).await;
+        let rpc_url = format!("http://localhost:{}", self.port);
+        let bundler = PimlicoBundler::new(rpc_url.parse().unwrap());
 
-        Alto { process }
-    }
-}
-
-impl Drop for Alto {
-    fn drop(&mut self) {
-        let _ = self.process.kill();
+        AltoBundler { process, bundler }
     }
 }

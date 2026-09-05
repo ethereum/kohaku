@@ -49,12 +49,14 @@ impl<P: Provider> RpcSyncer<P> {
         }
     }
 
+    #[must_use]
     /// Sets the batch size for `eth_getLogs` calls.
     pub fn with_batch_size(mut self, batch_size: u64) -> Self {
         self.batch_size = batch_size;
         self
     }
 
+    #[must_use]
     /// Sets the delay between `eth_getLogs` calls.
     pub fn with_batch_delay(mut self, batch_delay: web_time::Duration) -> Self {
         self.batch_delay = batch_delay;
@@ -141,7 +143,7 @@ impl<P: Provider> RpcSyncer<P> {
             let logs = self.provider.get_logs(&filter).await?;
             common::sleep(self.batch_delay).await;
 
-            for log in logs {
+            for log in &logs {
                 match log_to_sync_events(log) {
                     Ok(events) => all_events.extend(events),
                     Err(e) => warn!("Failed to decode log: {}", e),
@@ -156,7 +158,7 @@ impl<P: Provider> RpcSyncer<P> {
     }
 }
 
-fn log_to_sync_events(log: Log) -> Result<Vec<SyncEvent>, RpcSyncerError> {
+fn log_to_sync_events(log: &Log) -> Result<Vec<SyncEvent>, RpcSyncerError> {
     match log.topics().first() {
         Some(&Deposit::SIGNATURE_HASH) => Ok(vec![SyncEvent::Deposit(
             Deposit::decode_log(&log.inner)?.data,

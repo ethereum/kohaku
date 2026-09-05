@@ -24,5 +24,10 @@ sol!(
 
         // @dev whether an array of notes is already spent
         function isSpentArray(bytes32[] calldata _nullifierHashes) external view returns(bool[] memory spent);
+
+        function quoteWeiInToken(
+            address feeToken,
+            uint256 weiAmount
+        ) external view returns (uint256 tokenAmount);
     }
 );

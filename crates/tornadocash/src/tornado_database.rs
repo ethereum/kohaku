@@ -19,7 +19,7 @@ pub(crate) trait TornadoDB: Database + common::MaybeSend {
     async fn get_indexer(&self, pool: &Pool) -> Result<IndexerState, DatabaseError> {
         let key = indexer_key(pool);
         let Some(bytes) = self.get(&key).await? else {
-            return Ok(Default::default());
+            return Ok(IndexerState::default());
         };
 
         let envelope: Envelope = serde_json::from_slice(&bytes).map_err(DatabaseError::other)?;

@@ -47,7 +47,7 @@ impl SignableUserOperation {
         };
 
         Ok(SignedUserOperation {
-            user_op: user_op,
+            user_op,
             entry_point: self.entry_point,
         })
     }

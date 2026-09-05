@@ -29,6 +29,7 @@ pub enum NoteError {
 }
 
 impl Note {
+    #[must_use] 
     pub fn new(
         nullifier: [u8; 31],
         secret: [u8; 31],
@@ -56,6 +57,7 @@ impl Note {
         }
     }
 
+    #[must_use] 
     pub fn preimage(&self) -> [u8; 62] {
         let mut buf = [0u8; 62];
         buf[..31].copy_from_slice(&self.nullifier);
@@ -63,10 +65,12 @@ impl Note {
         buf
     }
 
+    #[must_use] 
     pub fn commitment(&self) -> U256 {
         pedersen_hash(&self.preimage())
     }
 
+    #[must_use] 
     pub fn nullifier_hash(&self) -> U256 {
         pedersen_hash(&self.nullifier)
     }

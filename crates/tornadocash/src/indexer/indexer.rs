@@ -86,7 +86,7 @@ impl Indexer {
         self.sync_to(latest).await
     }
 
-    #[tracing::instrument(name = "sync", skip_all)]
+    #[tracing::instrument(skip(self))]
     pub async fn sync_to(&mut self, to_block: u64) -> Result<(), IndexerError> {
         let from_block = self.synced_block.max(self.pool.deployed_block);
         if from_block >= to_block {
