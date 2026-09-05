@@ -27,6 +27,12 @@ export interface AnvilInstance {
 
   raw(): AnvilPool;
 
+  /**
+   * Buffered stdout/stderr lines captured by prool for a pool's anvil process
+   * (last `messageBuffer` messages, default 20).
+   */
+  messages(poolId: number): Promise<string[]>;
+
 }
 
 function createPool(baseUrl: string, poolId: number): AnvilPool {
@@ -93,11 +99,21 @@ export async function defineAnvil(params: DefineAnvilParameters): Promise<AnvilI
 
       stopFn = await server.start();
     },
-
     async stop() {
       if (stopFn) {
         await stopFn();
         stopFn = undefined;
+      }
+    },
+
+    async messages(poolId: number) {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/${poolId}/messages`);
+        if (!res.ok) return [];
+
+        return (await res.json()) as string[];
+      } catch {
+        return [];
       }
     },
 

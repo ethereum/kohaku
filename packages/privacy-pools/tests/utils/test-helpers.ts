@@ -140,7 +140,12 @@ export async function pushNewAspRoot(
     const impersonatedSigner = await provider.getSigner(normalizedPostman);
     const entrypoint = new Contract(getAddress(entrypointAddress), postmanAbi, impersonatedSigner);
 
-    return (await entrypoint.updateRoot(_root, _ipfsCID)) as ContractTransactionResponse;
+    const tx = await entrypoint.updateRoot(_root, _ipfsCID);
+    // Wait for the receipt: the sync that follows scans up to the current head,
+    // and an unmined push would fall outside the scan range (flaky root mismatch).
+    await tx.wait();
+
+    return tx as ContractTransactionResponse;
   });
 
   return { hash, txData: { data, to, from: normalizedPostman } };
