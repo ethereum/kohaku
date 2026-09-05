@@ -1,5 +1,14 @@
-# Private Proof of Innocence
+# Private Proofs of Innocence
 
 :::info
-TODO
+Privacy Pools does not describe this compliance flow through Railgun's PPOI terminology.
+In the official Privacy Pools docs, the equivalent model is described through the Association Set Provider (ASP), approved labels, private withdrawal eligibility, and `ragequit`.
+
+In the current Kohaku package:
+
+- balances are surfaced as an approved entry plus a `pending` entry for unapproved deposits
+- private withdrawals depend on approved deposits
+- unapproved deposits can be exited with `ragequit`
+
+For the canonical protocol model, see the [Privacy Pools overview](https://docs.privacypools.com/) and the [ASP Layer documentation](https://docs.privacypools.com/layers/asp).
 :::
