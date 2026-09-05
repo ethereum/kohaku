@@ -95,7 +95,10 @@ test("plugin-sync queries the external provider when it has coverage", async () 
             // fabricate real RailgunSmartWallet log payloads.
         },
         firstCoveredBlock: async () => "0x0",
-        lastCoveredBlock: async () => "0x0",
+        // Must overlap the sync range (pool registration → head): ChainedSyncer
+        // skips any syncer whose latest covered block precedes the range, so
+        // "0x0" coverage is correctly never queried. u64::MAX overlaps any chain.
+        lastCoveredBlock: async () => "0xffffffffffffffff",
     };
 
     const plugin = await createRailgunPlugin(buildHost(emptyCoverageProvider), { rpcBatchSize: 10_000 });
