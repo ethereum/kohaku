@@ -40,6 +40,16 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
 export interface ISecretManager {
   getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
   getSecrets: (params: DeriveWithdrawalSecretsParams) => Promise<Secret>;
+  /**
+   * Derives the private key of the ephemeral EOA that sends a paymaster-sponsored
+   * withdrawal userOp. Deterministic per (accountIndex, chainId, entrypoint,
+   * depositIndex, withdrawIndex), so a stuck sender is recoverable. The
+   * withdrawIndex is required because privacy pools supports partial withdrawals:
+   * the same deposit is spent across multiple userOps, each of which must use a
+   * fresh single-use sender (nonce 0, one EIP-7702 authorization). The value is a
+   * poseidon field element, which is always a valid secp256k1 scalar.
+   */
+  deriveEphemeralSigner: (params: DeriveWithdrawalSecretsParams) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -71,9 +81,17 @@ export function SecretManager({
     return deriveSecrets({ entrypointAddress, chainId, depositIndex, secretIndex: withdrawIndex });
   };
 
+  const deriveEphemeralSigner = async ({ chainId, entrypointAddress, depositIndex, withdrawIndex }: DeriveWithdrawalSecretsParams) => {
+    const raw = await keystore.deriveAt(ppSignerPath({ accountIndex, depositIndex, withdrawIndex }));
+    const key = hashToSnarkField([chainId.toString(), BigInt(entrypointAddress), BigInt(raw)]);
+
+    return `0x${key.toString(16).padStart(64, "0")}` as `0x${string}`;
+  };
+
   return {
     getDepositSecrets,
-    getSecrets
+    getSecrets,
+    deriveEphemeralSigner,
   };
 
 }
@@ -85,10 +103,18 @@ type PrivacyPoolsDerivationPath = {
   secretIndex: number;
 };
 
+// secretType index 2 (0 = nullifier, 1 = salt) reserved for the paymaster
+// ephemeral signer, disjoint from the note-secret lineage.
+const SIGNER_SECRET_TYPE = 2;
+
 function ppPath({ accountIndex, secretType, depositIndex, secretIndex }: PrivacyPoolsDerivationPath) {
   const _secretType = secretType === "nullifier" ? 0 : 1;
 
   return `${PRIVACY_POOLS_PATH}/${accountIndex}'/${_secretType}'/${depositIndex}'/${secretIndex}'`;
+}
+
+function ppSignerPath({ accountIndex, depositIndex, withdrawIndex }: { accountIndex: number; depositIndex: number; withdrawIndex: number }) {
+  return `${PRIVACY_POOLS_PATH}/${accountIndex}'/${SIGNER_SECRET_TYPE}'/${depositIndex}'/${withdrawIndex}'`;
 }
 
 function hashToSnarkField(numberLikes: (string | bigint)[]) {

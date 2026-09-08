@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import {
   GetEventsFn,
@@ -13,7 +14,7 @@ import {
   POOL_EVENTS_SIGNATURES,
 } from "./abis/events.abi";
 import { EVENTS_PARSERS } from "./utils/events-parsers.util";
-import { EthClient } from "./eth-client";
+import { EthClient, GetLogsParams } from "./eth-client";
 import type { IAsset } from "./interfaces/events.interface";
 import { Address } from "../interfaces/types.interface";
 import { E_ADDRESS } from "../config";
@@ -38,6 +39,13 @@ const txLogToRpcLog = ({
 
 export interface DataServiceParams {
   provider: EthereumProvider;
+  /**
+   * Optional override for event-log fetching. Lets a test (or an alternative
+   * hydration source such as saga-sync) supply logs without changing how the
+   * rest of the service reads chain state via the provider. Defaults to the
+   * provider-backed `EthClient.getLogs`.
+   */
+  getLogs?: (params: GetLogsParams) => Promise<TxLog[]>;
 }
 
 const depositEvents = new Set(["PoolDeposited", "EntrypointDeposited"]);
@@ -49,9 +57,11 @@ type GenericGetEvents = GetEventsFn<
 
 export class DataService implements IDataService {
   private readonly ethClient!: EthClient;
+  private readonly getLogs: (params: GetLogsParams) => Promise<TxLog[]>;
 
-  constructor({ provider }: DataServiceParams) {
+  constructor({ provider, getLogs }: DataServiceParams) {
     this.ethClient = new EthClient(provider);
+    this.getLogs = getLogs ?? ((params) => this.ethClient.getLogs(params));
   }
 
   private getEvents: GenericGetEvents = async ({
@@ -61,7 +71,7 @@ export class DataService implements IDataService {
     toBlock,
   }) => {
 
-    const logs = await this.ethClient.getLogs({
+    const logs = await this.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
       ...(toBlock ? { toBlock } : {}),
@@ -178,6 +188,20 @@ export class DataService implements IDataService {
 
   async getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint> {
     return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "rootByIndex", BigInt(index));
+  }
+
+  async quoteWeiInToken(
+    paymasterAddress: Address,
+    feeToken: Address,
+    weiAmount: bigint,
+  ): Promise<bigint> {
+    return this.ethClient.makeContractRequest(
+      paymasterAddress,
+      "paymaster",
+      "quoteWeiInToken",
+      toHex(feeToken, { size: 20 }),
+      weiAmount,
+    );
   }
 
   async getLatestBlockTimestamp(): Promise<bigint> {

@@ -274,6 +274,12 @@ importers:
         specifier: ^2.51.3
         version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
     devDependencies:
+      '@privacy-paymasters/sdk':
+        specifier: 0.0.5
+        version: 0.0.5(typescript@5.9.3)(zod@4.4.3)
+      '@saga-sync/client':
+        specifier: ^0.1.4
+        version: 0.1.4
       '@types/node':
         specifier: ^24.1.0
         version: 24.13.2
@@ -2897,6 +2903,13 @@ packages:
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
+  '@saga-sync/client@0.1.4':
+    resolution: {integrity: sha512-q/5rxQOGB2ShYNxsQggfd6KGZ4BAF2z4wSUdWmiRjN/8CXStbyVYgjupdCLbZ8jbtOdvKKEu1dhZDO7/o5gCEg==}
+    hasBin: true
+
+  '@saga-sync/core@0.1.4':
+    resolution: {integrity: sha512-eGO87WP57D4CulvLUHfrhj0SpQEYC6UX8rBowkai0UG8dz3X/uHfOMu7TVuIvKdvjhWOaKxeYpwecx2G+k1ntA==}
+
   '@scure/base@1.2.6':
     resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
 
@@ -4804,6 +4817,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -6644,6 +6658,7 @@ packages:
   prom-client@14.2.0:
     resolution: {integrity: sha512-sF308EhTenb/pDRPakm+WgiN+VdM/T1RaHj1x+MvAuT8UiQP8JmOEbxVqtkbfR4LrvOg5n7ic01kRBDGXjYikA==}
     engines: {node: '>=10'}
+    deprecated: prom-client has been replaced by @prometheus-io/client
 
   prool@0.0.24:
     resolution: {integrity: sha512-L0EGUF5vK1XAQtceaiwfGxf0LGeJwurUizzc3i6JESsUyMROzGxTSMSBiajF8AoQaDYWIX2s1m00sC36CATrvQ==}
@@ -10623,6 +10638,15 @@ snapshots:
     optional: true
 
   '@rtsao/scc@1.1.0': {}
+
+  '@saga-sync/client@0.1.4':
+    dependencies:
+      '@saga-sync/core': 0.1.4
+
+  '@saga-sync/core@0.1.4':
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
 
   '@scure/base@1.2.6': {}
 
