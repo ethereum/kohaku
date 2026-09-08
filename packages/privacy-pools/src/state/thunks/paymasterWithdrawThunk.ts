@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
+import { TxData } from "@kohaku-eth/provider";
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
@@ -8,7 +9,7 @@ import { E_ADDRESS } from "../../config";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
 import { DelegationConfig, DelegatorAccount, UserOpGasLimits } from "../../interfaces/user-ops.interface";
-import { computeMinimumViableFee, reasonableGasUnits } from "../../paymaster/fee";
+import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../../paymaster/fee";
 import { encodeFeeData, encodePaymasterData, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
 import {
   buildSignedUserOp,
@@ -38,6 +39,15 @@ export interface PaymasterWithdrawThunkParams {
   recipient: Address;
   paymasterConfig: IPaymasterConfig;
   delegation?: DelegationConfig;
+  /**
+   * Optional execution-phase calls the ephemeral sender runs after the
+   * withdrawal. When present, the withdrawn funds (minus fee) are paid to the
+   * sender and these calls spend them atomically; `recipient` is ignored for the
+   * payout (it stays the sender, as the adapter requires for a non-zero
+   * callGasLimit).
+   */
+  tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
+  tailCallsGasEstimate?: bigint;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -47,7 +57,19 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 >(
   "withdraw/executePaymasterWithdrawals",
   async (
-    { getNextNote, proverFactory, dataService, secretManager, asset, amount, recipient, paymasterConfig, delegation },
+    {
+      getNextNote,
+      proverFactory,
+      dataService,
+      secretManager,
+      asset,
+      amount,
+      recipient,
+      paymasterConfig,
+      delegation,
+      tailCalls,
+      tailCallsGasEstimate,
+    },
     { getState, dispatch },
   ) => {
     const state = getState();
@@ -108,12 +130,19 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return fee;
     };
 
+    // With tail calls the adapter must pay the sender (it enforces
+    // `recipient == sender` whenever callGasLimit != 0), and the execution phase
+    // spends those funds; otherwise the withdrawal pays the user's recipient
+    // directly and there is no execution phase.
+    const payoutRecipient = tailCalls ? signer.address : addressToHex(recipient);
+    const executionGas = tailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : 0n;
+
     const buildWithdrawal = (fee: bigint): WithdrawalPayload => ({
       // The adapter is the withdrawal `processooor`: it calls pool.withdraw
       // directly during paymaster validation and enforces `processooor == self`.
       processooor: adapterAddress,
       data: encodeFeeData({
-        recipient: addressToHex(recipient),
+        recipient: payoutRecipient,
         feeRecipient: paymasterAddress,
         fee,
       }),
@@ -124,9 +153,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         withdrawThunk({ getNextNote, proverFactory, asset, amount: withdrawnValue, recipient, context }),
       ).then(unwrapResult);
 
-    // No execution phase: callGasLimit stays 0 (funds are released to the
-    // recipient during paymaster validation).
-    const withGas = (base: UserOpGasLimits): UserOpGasLimits => ({ ...base, callGasLimit: 0n });
+    // callGasLimit sizes the execution phase (0 when there are no tail calls).
+    const withGas = (base: UserOpGasLimits): UserOpGasLimits => ({ ...base, callGasLimit: executionGas });
 
     const buildUserOp = async (gas: UserOpGasLimits) => {
       const fee = await feeFor(computeMinimumViableFee(gas, maxFeePerGas));
@@ -146,6 +174,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         maxFeePerGas,
         maxPriorityFeePerGas,
         nonce: 0n,
+        tailCalls,
       });
 
       return { proof, userOperation };

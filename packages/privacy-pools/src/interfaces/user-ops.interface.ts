@@ -1,3 +1,4 @@
+import type { TxData } from "@kohaku-eth/provider";
 import type { LocalAccount } from "viem/accounts";
 
 /**
@@ -71,4 +72,10 @@ export interface BuildSignedUserOpParams {
   maxPriorityFeePerGas: bigint;
   /** EntryPoint nonce for this sender. Defaults to 0 (fresh single-use EOA). */
   nonce?: bigint;
+  /**
+   * Optional execution-phase calls run by the Simple7702 sender after the
+   * withdrawal (which pays the sender during validation). Empty → callData `0x`;
+   * one call → `execute`; many → `executeBatch`.
+   */
+  tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
 }

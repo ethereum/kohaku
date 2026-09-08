@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import { ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
@@ -57,6 +58,8 @@ export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
 export interface PPv1UnshieldOptions extends UnshieldOptions {
   mode?: 'relayer' | 'paymaster';
   delegation?: DelegationConfig;
+  /** Gas budget for the paymaster execution phase when `tailCalls` are supplied. */
+  tailCallsGasEstimate?: bigint;
 }
 
 export interface PPv1PublicOperation extends PublicOperation {
@@ -103,6 +106,8 @@ export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams
 
 export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {
   delegation?: DelegationConfig;
+  tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
+  tailCallsGasEstimate?: bigint;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {

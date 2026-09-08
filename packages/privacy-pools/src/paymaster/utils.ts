@@ -1,8 +1,11 @@
+/* eslint-disable max-lines */
 import {
+  encodeFunctionData,
   http,
   toHex,
   type Address,
   type Hash,
+  type Hex,
   type SignedAuthorization,
 } from "viem";
 import {
@@ -12,6 +15,7 @@ import {
   type BundlerClient,
 } from "viem/account-abstraction";
 
+import { SIMPLE_7702_EXECUTE_ABI } from "../data/abis/account.abi";
 import {
   BuildSignedUserOpParams,
   SerializedAuth,
@@ -107,9 +111,11 @@ export async function estimateUserOperationGas(
 
 /**
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
- * 7702 sender, returning it serialized for the broadcast phase. In the
- * single-note flow the execution phase is empty (callData `0x`): the withdrawal
- * happens during paymaster validation and funds go straight to the recipient.
+ * 7702 sender, returning it serialized for the broadcast phase. Without
+ * `tailCalls` the execution phase is empty (callData `0x`) and the withdrawal
+ * pays the recipient during paymaster validation. With `tailCalls`, the
+ * withdrawal pays the sender and the execution phase (`execute`/`executeBatch`)
+ * runs the caller's calls atomically.
  *
  * The sender is a fresh EOA (EntryPoint nonce 0) delegated to the Simple7702
  * implementation; the owner signs the userOp. No RPC access is required.
@@ -123,8 +129,28 @@ export async function buildSignedUserOp({
   maxFeePerGas,
   maxPriorityFeePerGas,
   nonce = 0n,
+  tailCalls,
 }: BuildSignedUserOpParams): Promise<SerializedUserOperation> {
   const owner = signer;
+
+  const calls = tailCalls ? await tailCalls(owner.address) : [];
+  let callData: Hex = "0x";
+
+  if (calls.length === 1) {
+    const call = calls[0]!;
+
+    callData = encodeFunctionData({
+      abi: SIMPLE_7702_EXECUTE_ABI,
+      functionName: "execute",
+      args: [call.to as Address, call.value, call.data as Hex],
+    });
+  } else if (calls.length > 1) {
+    callData = encodeFunctionData({
+      abi: SIMPLE_7702_EXECUTE_ABI,
+      functionName: "executeBatch",
+      args: [calls.map((c) => ({ target: c.to as Address, value: c.value, data: c.data as Hex }))],
+    });
+  }
 
   // The EIP-7702 authorization nonce must equal the sender's EOA nonce at bundle
   // time; a fresh single-use sender has nonce 0.
@@ -137,7 +163,7 @@ export async function buildSignedUserOp({
   const userOperation = {
     sender: owner.address,
     nonce,
-    callData: "0x" as const,
+    callData,
     callGasLimit: gas.callGasLimit,
     verificationGasLimit: gas.verificationGasLimit,
     preVerificationGas: gas.preVerificationGas,

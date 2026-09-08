@@ -287,6 +287,8 @@ export const storeStateManager = (
       amount,
       recipient,
       delegation,
+      tailCalls,
+      tailCallsGasEstimate,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -308,6 +310,8 @@ export const storeStateManager = (
             recipient,
             paymasterConfig,
             delegation,
+            tailCalls,
+            tailCallsGasEstimate,
           }),
         ),
       );

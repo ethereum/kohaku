@@ -203,6 +203,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         amount,
         recipient: BigInt(to),
         delegation: options.delegation,
+        tailCalls: options.tailCalls,
+        tailCallsGasEstimate: options.tailCallsGasEstimate,
       });
 
       if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");

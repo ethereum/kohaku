@@ -2,6 +2,11 @@ import { UserOpGasLimits } from "../interfaces/user-ops.interface";
 
 const ERC20_TRANSFER_GAS = 100_000n;
 
+// Default execution-phase (callData) budget when a withdrawal carries tail calls
+// and the caller supplies no estimate. Covers a simple forward/transfer; complex
+// tail calls should pass an explicit `tailCallsGasEstimate`.
+export const TAIL_CALLS_DEFAULT_GAS = 300_000n;
+
 // Conservative ceilings for a single-note paymaster withdrawal. The groth16
 // verify + 2-depth state/ASP merkle path plus the adapter's inline
 // entrypoint.relay run inside paymaster validation, so their cost lives in
