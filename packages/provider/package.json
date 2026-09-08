@@ -43,6 +43,11 @@
       "import": "./dist/raw.js",
       "require": "./dist/raw.cjs"
     },
+    "./anon": {
+      "types": "./dist/anon.d.ts",
+      "import": "./dist/anon.js",
+      "require": "./dist/anon.cjs"
+    },
     "./package.json": "./package.json"
   },
   "browser": {
@@ -113,6 +118,7 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
+    "@anon-rpc/browser-harness": "^0.3.0",
     "ox": "^0.12.0"
   }
 }
