@@ -22,6 +22,8 @@ export interface WithdrawThunkParams {
   amount: bigint;
   recipient: Address;
   context: bigint;
+  /** Prove this specific note instead of auto-selecting the smallest sufficient one (batch withdrawals). */
+  note?: INote;
 }
 
 export const withdrawThunk = createAsyncThunk<
@@ -35,8 +37,8 @@ export const withdrawThunk = createAsyncThunk<
 
     const { chainId, entrypointAddress } = entrypointInfoSelector(state);
 
-    // 1. Get existing note (smallest sufficient)
-    const existingNote = getNoteSelector(state, params.asset, params.amount);
+    // 1. Get existing note (a specific one for batch, else the smallest sufficient)
+    const existingNote = params.note ?? getNoteSelector(state, params.asset, params.amount);
 
     if (!existingNote) {
       throw new Error("No note with sufficient balance for withdrawal");

@@ -60,6 +60,8 @@ export interface PPv1UnshieldOptions extends UnshieldOptions {
   delegation?: DelegationConfig;
   /** Gas budget for the paymaster execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
+  /** Consolidate multiple approved notes to reach the amount in one sponsored userOp. */
+  batch?: boolean;
 }
 
 export interface PPv1PublicOperation extends PublicOperation {
@@ -108,6 +110,7 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   delegation?: DelegationConfig;
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
+  batch?: boolean;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
