@@ -464,6 +464,7 @@ export const storeStateManager = (
       delegation,
       tailCalls,
       tailCallsGasEstimate,
+      batch,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -487,6 +488,7 @@ export const storeStateManager = (
             delegation,
             tailCalls,
             tailCallsGasEstimate,
+            batch,
           }),
         ),
       );

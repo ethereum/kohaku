@@ -70,6 +70,8 @@ export interface PPv1UnshieldOptions extends UnshieldOptions {
    * fees. See {@link PPv1ExactUnshieldOptions}.
    */
   exact?: PPv1ExactUnshieldOptions;
+  /** Consolidate multiple approved notes to reach the amount in one sponsored userOp. */
+  batch?: boolean;
 }
 
 /** Cost of a shield (deposit). Amounts are in the pool asset's base units; network gas is not included. */
@@ -207,6 +209,7 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   delegation?: DelegationConfig;
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
+  batch?: boolean;
 }
 
 export interface IExactWithdrawalOperationParams extends Omit<IWithdrawapOperationParams, 'amount'> {
