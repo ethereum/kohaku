@@ -1,18 +1,24 @@
+/* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import { ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { IAspService } from "../../data/asp.interface.js";
+import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { Address } from "../../interfaces/types.interface";
+import { DelegationConfig } from "../../interfaces/user-ops.interface";
+import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
 import { PublicRootState } from "../../state/store";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { WithdrawProveOutput } from "../../state/thunks/withdrawThunk";
 
-export interface PPv1PrivateOperation extends PrivateOperation {
+/** Withdrawal via a relayer that fronts gas (the default path). */
+export interface PPv1RelayerPrivateOperation extends PrivateOperation {
+  mode?: 'relayer';
   rawData: {
     context: bigint,
     relayData: IRelayData,
@@ -26,6 +32,34 @@ export interface PPv1PrivateOperation extends PrivateOperation {
     quote: IQuoteResponse;
     relayerId: string;
   };
+}
+
+/** Withdrawal sponsored by a paymaster via an ERC-4337 userOp. */
+export interface PPv1PaymasterPrivateOperation extends PrivateOperation {
+  mode: 'paymaster';
+  withdrawal: IGenericPaymasterWithdrawalPayload;
+}
+
+export type PPv1PrivateOperation =
+  | PPv1RelayerPrivateOperation
+  | PPv1PaymasterPrivateOperation;
+
+/** Per-chain paymaster wiring. `poolsAccountsMap` routes a pool address (lowercase hex) to its adapter. */
+export interface IPaymasterConfig {
+  bundlerUrl: string;
+  entryPointAddress: `0x${string}`;
+  paymasterAddress: `0x${string}`;
+  poolsAccountsMap: Record<string, `0x${string}`>;
+}
+
+export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
+
+/** Extra `prepareUnshield` options: choose the broadcast path and, for paymaster, the sender derivation. */
+export interface PPv1UnshieldOptions extends UnshieldOptions {
+  mode?: 'relayer' | 'paymaster';
+  delegation?: DelegationConfig;
+  /** Gas budget for the paymaster execution phase when `tailCalls` are supplied. */
+  tailCallsGasEstimate?: bigint;
 }
 
 export interface PPv1PublicOperation extends PublicOperation {
@@ -48,6 +82,9 @@ export interface PrivacyPoolsV1ProtocolParams {
   relayersList: Record<string, string>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
   ipfsUrl?: string;
+  paymasterConfig?: IChainsPaymastersConfig;
+  /** Optional pre-built data service (e.g. a saga-sync-backed one used to speed up hydration in tests). */
+  dataService?: IDataService;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -65,6 +102,12 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
 export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
   amount?: bigint;
   recipient: Address;
+}
+
+export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {
+  delegation?: DelegationConfig;
+  tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
+  tailCallsGasEstimate?: bigint;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
@@ -129,6 +172,13 @@ export interface IStateManager {
    * Generates the relayer quotes and withdrawals payloads for the specified amount
    */
   getWithdrawalPayloads: (params: IWithdrawapOperationParams) => Promise<StateWithdrawalPayload[]>;
+  /**
+   * Generates paymaster-sponsored withdrawal payloads (fully built + signed userOps)
+   * for the specified amount. No relayer is involved.
+   */
+  getPaymasterWithdrawalPayloads: (
+    params: IPaymasterWithdrawapOperationParams,
+  ) => Promise<IGenericPaymasterWithdrawalPayload[]>;
   /**
    * Generates the ragequit payloads for the specified assets. Only unapproved
    * amount will be ragequitted.
