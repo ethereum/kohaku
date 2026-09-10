@@ -1,22 +1,41 @@
 # Privacy in Ethereum [Where are we at?]
 
+Privacy in Ethereum is often framed as an extra feature. In practice, many wallet privacy problems are data leaks.
+This page focuses on where those leaks happen. It is a diagnosis, not a list of mitigations.
+
+## Onchain Data Leaks
+
+Ethereum transactions are transparent by default. Amounts, senders, recipients, timing, and contract interactions are all visible onchain.
+
+That means wallet activity is easy to turn into an identity graph over time. Privacy tooling can reduce exposure, but the baseline is still public.
+
 ## One account to rule them all
 
-When you connect to a dApp today you are typically asked connect your wallet.
-This allows for anyone to see exactly what you have interacted with, when, and how.
+When you connect to a dApp today you are typically asked to connect the same wallet account you use everywhere else.
+That makes it easy to link one address to everything you do.
 
-Spreading your identity across multiple accounts, by for example having one address per dApp could already be a good start.
-Unfortunately not many wallets operate this way, most have a user experience designed for "a single active account at a time".
+One address can reveal where you trade, bridge, donate, vote, and experiment. Many wallets still optimize for a single active account, which makes identity reuse the default.
 
-## Default RPC
+## RPCs & Indexers
 
-A lot of wallets today use a default hardcoded RPC endpoint. Some even hitting the endpoint before the user has had a chance to setup their preferred configuration.
+A lot of wallets still use a default hardcoded RPC endpoint. Some even hit that endpoint before the user has had a chance to set up their preferred configuration.
 
-In addition to introducing centralization, this also introduced the risk of associating you with your wallet activity.
+This introduces centralization, but it also leaks intent. An RPC provider can see the balances you check, the contracts you inspect, and the chain activity you are interested in before anything is signed.
 
-## Token Discovery
+Token discovery can create a similar problem. Many wallets rely on a centralized indexer to monitor transfer events and enrich wallet state.
 
-Due to the nature of how token discovery works the majority of wallets today use a centralized indexer to monitor "all transfer events" on-chain.
+That convenience comes with a privacy cost. A third party can learn what assets a wallet receives and what activity the wallet is trying to surface.
 
-This allows for the discovery of new tokens right as theyre sent to your wallet.
-Although this is a nice-to-have it does have privacy drawbacks.
+## Network Metadata
+
+Even when the requested data is minimal, network metadata can still leak. IP address, timing, and request patterns can help associate wallet activity with a person, device, or location.
+
+Wallet privacy is not only about what gets requested. It is also about where requests come from and how those requests can be correlated over time.
+
+## UI-side Leakage
+
+Some leaks happen before a request even leaves the interface. Fingerprintable settings, installed capabilities, and other client-side behavior can make one wallet instance easier to distinguish from another.
+
+This is a broader wallet ecosystem problem, and not every protocol library can solve it on its own. It is still part of the privacy model.
+
+For mitigations and wallet design choices, see [Wallet Best Practices](./practices.mdx).
