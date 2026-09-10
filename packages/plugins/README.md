@@ -56,7 +56,7 @@ export type PluginInstance = {
 
 When initializing a plugin, the host (the consuming app) provides a set of standardized interfaces. Plugins uses these interfaces to interact with the host environment, store data, and perform actions on behalf of the user.
 
-[File: src/host.ts](./src/host.ts)
+[File: src/host/index.ts](./src/host/index.ts)
 ```ts
 export type Host = {
     network: Network;
