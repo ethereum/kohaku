@@ -1,3 +1,4 @@
+import net from "node:net";
 import { Instance } from "prool";
 import type { PublicClient } from "viem";
 
@@ -9,8 +10,30 @@ export const ENTRY_POINT_08 = "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108" as `0
 
 const ALTO_BINARY = new URL("../../../node_modules/.bin/alto", import.meta.url).pathname;
 
-export async function startAnvil(forkUrl: string, chainId: number) {
-    const server = Instance.anvil({ forkUrl, chainId });
+// Probes the kernel for a free TCP port: bind port 0, take the assigned
+// number, close. A tiny TOCTOU window exists between close and the node's
+// bind, so pass an explicit port when determinism matters.
+async function findFreePort(): Promise<number> {
+    const { promise, resolve, reject } = Promise.withResolvers<number>();
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen({ host: "127.0.0.1", port: 0 }, () => {
+        const address = server.address();
+        if (address === null || typeof address === "string") {
+            reject(new Error("Failed to probe for a free port"));
+            return;
+        }
+        server.close(() => resolve(address.port));
+    });
+    return promise;
+}
+
+// Vitest runs test files in parallel, so callers must not assume prool's
+// shared default ports (anvil 8545 / alto 3000) — when `port` is omitted a
+// free one is probed instead, so each node gets a unique port.
+export async function startAnvil(forkUrl: string, chainId: number, port?: number) {
+    port ??= await findFreePort();
+    const server = Instance.anvil({ forkUrl, chainId, port });
     await server.start();
     return { server, rpcUrl: `http://127.0.0.1:${server.port}` };
 }
@@ -30,9 +53,11 @@ export async function fundAddresses(
     }
 }
 
-export async function startAlto(rpcUrl: string) {
+export async function startAlto(rpcUrl: string, port?: number) {
+    port ??= await findFreePort();
     const server = Instance.alto({
         binary: ALTO_BINARY,
+        port,
         rpcUrl,
         entrypoints: [ENTRY_POINT_08],
         executorPrivateKeys: [ALTO_EXECUTOR_PK],

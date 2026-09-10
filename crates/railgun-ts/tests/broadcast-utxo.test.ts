@@ -76,7 +76,7 @@ test("broadcast-utxo", async () => {
     console.log("Setup Railgun");
     const syncer = UtxoSyncer.chained([UtxoSyncer.subsquid(CHAIN), UtxoSyncer.rpc(CHAIN, viemClient, 1000n)]);
     const railgun = await new RailgunBuilder(CHAIN, viemClient).withUtxoSyncer(syncer).build();
-    const bundler = Bundler.pimlico("http://127.0.0.1:3000");
+    const bundler = Bundler.pimlico(`http://127.0.0.1:${altoServer.port}`);
     const smartAccountSigner = Signer.privateKey(DELEGATOR_PK);
     const smartAccount = new SimpleSmartAccount(smartAccountSigner.address, BigInt(CHAIN.id), viemClient);
 
