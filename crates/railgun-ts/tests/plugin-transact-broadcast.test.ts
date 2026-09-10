@@ -81,7 +81,7 @@ test("plugin-transact-broadcast", async () => {
     await railgunProvider.sync();
 
     const plugin1 = new RailgunPlugin(CHAIN, railgunProvider, new SignerPool(signer1));
-    plugin1.setBundler(Bundler.pimlico("http://127.0.0.1:3000"));
+    plugin1.setBundler(Bundler.pimlico(`http://127.0.0.1:${altoServer.port}`));
 
     const smartAccountSigner = Signer.privateKey(DELEGATOR_PK);
     const smartAccount = new SimpleSmartAccount(
