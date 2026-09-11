@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@kohaku-eth/privacy-pools": "workspace:*",
-    "@kohaku-eth/railgun": "workspace:*",
     "react": "latest",
     "react-dom": "latest",
     "vocs": "1.4.1"

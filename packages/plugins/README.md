@@ -120,40 +120,6 @@ export class MultiAssetsNotSupportedError extends PluginError {
 
 Plugins will derive all new key material from the `Keystore` interface and therefore the host's mnemonic. This makes all such material portable. For example:
 
-- The Railgun plugin may attempt to claim the lowest key in the `m/420'/1984'/0'/0'/x` + `m/44'/1984'/0'/0'/x` paths.
 - The TC Classic plugin might claim all keys in the `m/44'/tc'/0/0/x` path until it reaches its gap limit.
 
 Plugins can also import key material through their `options` . This imported material is not derived from `Keystore.deriveAt` and, therefore, it is not portable. When a wallet is backed up or transferred it will either need to copy the plugin's state (IE for cross-device syncs) or backup the key material from the plugin's exposed `options` (IE for manual end-user backups).
-
-## Example Usage
-
-```ts
-import { createRailgunPlugin } from '@kohaku-eth/railgun';
-
-// Setup host & plugin
-const host: Host = {
-    storage,
-    network,
-    provider,
-};
-const config: RGPluginParameters = {};
-const railgun = await createRailgunPlugin(host, config);
-
-// Get balance
-const balances = await railgun.balance();
-
-// Shield
-const tokenToShield = {
-    asset: 'erc20:0x0000000000000000000000000000000000000000',
-    amount: 100n,
-};
-const publicTx = await railgun.prepareShield(tokenToShield);
-
-await myWallet.sendTransaction(publicTx);
-
-// Unshield
-const recipient = '0x0000000000000000000000000000000000000000';
-const myPrivateTx = await railgun.prepareUnshield(balances[0], recipient);
-
-await railgun.broadcastPrivateOperation(myPrivateTx);
-```

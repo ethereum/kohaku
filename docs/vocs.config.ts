@@ -25,53 +25,6 @@ export default defineConfig({
       link: '/practices',
     },
     {
-      text: '@kohaku-eth/railgun',
-      items: [
-        {
-          text: 'Introduction',
-          link: '/railgun/intro'
-        },
-        {
-          text: 'Accounts',
-          link: '/railgun/accounts'
-        },
-        {
-          text: 'Shielding',
-          link: '/railgun/shielding',
-          collapsed: true,
-          items: [
-            {
-              text: 'Shielding',
-              link: '/railgun/shielding'
-            },
-            {
-              text: 'Unshielding',
-              link: '/railgun/unshielding'
-            },
-          ]
-        },
-        {
-          text: 'Transacting',
-          link: '/railgun/txs',
-          collapsed: true,
-          items: [
-            {
-              text: 'Internal Transfer',
-              link: '/railgun/txs#internal-transfer'
-            },
-            {
-              text: 'Defi & Other Smart Contracts',
-              link: '/railgun/txs#defi--other-smart-contracts'
-            }
-          ]
-        },
-        {
-          text: 'Proof of Innocence',
-          link: '/railgun/ppoi'
-        }
-      ]
-    },
-    {
       text: '@kohaku-eth/privacy-pools (WIP)',
       disabled: true,
       collapsed: true,
