@@ -21,7 +21,6 @@ Privacy-first tooling for the Ethereum ecosystem
 
 | Package                                             | Status | Description                                  |
 | ----------------------------------------------------| ------ | -------------------------------------------- |
-| [@kohaku-eth/railgun](crates/railgun-ts)             | ✅     | railgun shielded pool protocol lib                 |
 | [@kohaku-eth/tornado-cash](packages/tornado-cash) | ✅     | tornado cash shielded pool protocol lib           |
 | [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools shielded pool protocol lib           |
 | [@kohaku-eth/plugins](packages/plugins) | ✅     | shielded pool protocols standardized plugin interface          |

@@ -3,11 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -15,8 +10,6 @@
     {
       self,
       nixpkgs,
-      unstable,
-      rust-overlay,
       flake-utils,
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -24,66 +17,23 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ rust-overlay.overlays.default ];
         };
-
-        unstablePkgs = import unstable {
-          inherit system;
-        };
-
-        rustToolchain = pkgs.rust-bin.stable."1.94.0".default.override {
-          extensions = [
-            "rust-src"
-            "llvm-tools"
-          ];
-          targets = [ "wasm32-unknown-unknown" ];
-        };
-
-        rustfmtNightly = pkgs.rust-bin.nightly.latest.rustfmt;
       in
       {
         devShells = {
           default = pkgs.mkShell {
             packages = [
-              # Rust toolchain and extensions
-              rustfmtNightly
-              rustToolchain
-              pkgs.rust-analyzer
               pkgs.just
-              unstablePkgs.foundry
-
-              # Wasm tools
-              pkgs.binaryen
-              pkgs.wasm-pack
+              pkgs.foundry
               pkgs.nodejs_24
               pkgs.pnpm
-              pkgs.wasm-bindgen-cli_0_2_108
-              # pkgs.twiggy
-
-              # Playwright browser
-              # pkgs.chromium
-
-              # Cargo tools
-              # pkgs.cargo-bloat
-              # pkgs.cargo-machete
-              # pkgs.cargo-insta
-              # pkgs.cargo-sort
-              # pkgs.cargo-llvm-cov
-              # pkgs.cargo-flamegraph
-
-              pkgs.sops
             ];
-
-            env.WASM_BINDGEN = "${pkgs.wasm-bindgen-cli_0_2_108}/bin/wasm-bindgen";
           };
 
           ci = pkgs.mkShell {
             packages = [
-              rustToolchain
               pkgs.just
               pkgs.foundry
-              pkgs.binaryen
-              pkgs.wasm-pack
               pkgs.nodejs_24
               pkgs.pnpm
             ];
