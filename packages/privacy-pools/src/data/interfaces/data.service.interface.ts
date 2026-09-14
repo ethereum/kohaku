@@ -84,4 +84,14 @@ export interface IDataService {
   getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint>;
   getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint>;
   getLatestBlockTimestamp(): Promise<bigint>;
+  /**
+   * Prices a wei-denominated gas fee in `feeToken` via the paymaster's own
+   * oracle (same pool/TWAP it enforces during validation), so feePaid >= required
+   * holds by construction for paymaster-sponsored withdrawals.
+   */
+  quoteWeiInToken(
+    paymasterAddress: Address,
+    feeToken: Address,
+    weiAmount: bigint,
+  ): Promise<bigint>;
 }
