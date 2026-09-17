@@ -2,6 +2,7 @@ import type { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { ContractFunctionName, decodeFunctionResult, DecodeFunctionResultReturnType, encodeFunctionData, EncodeFunctionDataParameters, erc20Abi, toHex } from 'viem';
 import { Address } from "../interfaces/types.interface";
 import { entrypointAbi } from "./abis/entrypoint.abi";
+import { paymasterAbi } from "./abis/paymaster.abi";
 import { poolAbi } from "./abis/pool.abi";
 
 export interface GetLogsParams {
@@ -15,6 +16,7 @@ const abis = {
     erc20: erc20Abi,
     pool: poolAbi,
     entrypoint: entrypointAbi,
+    paymaster: paymasterAbi,
 } as const;
 
 export class EthClient {
