@@ -83,7 +83,10 @@ export interface PrivacyPoolsV1ProtocolParams {
   initialState?: () => Promise<Record<string, PublicRootState>>;
   ipfsUrl?: string;
   paymasterConfig?: IChainsPaymastersConfig;
-  /** Optional pre-built data service (e.g. a saga-sync-backed one used to speed up hydration in tests). */
+  /**
+   * Optional pre-built data service. Pass a saga-sync-backed one (see
+   * `createSagaDataService`) to hydrate pool state without a full RPC log crawl.
+   */
   dataService?: IDataService;
 }
 
