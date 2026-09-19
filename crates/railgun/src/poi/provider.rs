@@ -17,7 +17,7 @@ use crate::{
         railgun_txid::Txid,
     },
     indexer::{
-        syncer::TxidSyncer,
+        syncer::{Operation, TxidSyncer},
         txid_indexer::{TxidIndexer, TxidIndexerError},
     },
     merkle_tree::{MerkleProof, TOTAL_LEAVES, TxidMerkleTree, UtxoTreeIndex},
@@ -25,6 +25,7 @@ use crate::{
     poi::{
         client::{PoiClient, PoiClientError, PoiNodeClient},
         note::PoiNote,
+        recovery::RecoveryAccount,
         types::{BlindedCommitment, BlindedCommitmentType, ListKey, PoiStatus, TransactProofData},
     },
     railgun_database::RailgunDB,
@@ -42,6 +43,9 @@ pub struct PoiProvider {
 pub(crate) struct PoiProviderState {
     pub pending: Vec<PendingPoiEntry>,
     pub pois: HashMap<BlindedCommitment, HashMap<ListKey, PoiInfo>>,
+    /// Past operations already seen as `Valid`, not probed again.
+    #[serde(default)]
+    pub recovered_valid: std::collections::HashSet<Txid>,
 }
 
 #[derive(Debug, Error)]
@@ -123,9 +127,24 @@ impl PoiProvider {
         &mut self,
         prover: &Groth16Prover,
         to_block: u64,
+        accounts: &[RecoveryAccount],
     ) -> Result<(), PoiProviderError> {
+        // Keep the full record of the operations spending our notes.
+        self.txid_indexer.watch_nullifiers(
+            accounts
+                .iter()
+                .flat_map(|a| a.spent.iter().map(|n| n.nullifier))
+                .collect(),
+        );
+
         let poi_client = self.poi_client.clone();
         self.txid_indexer.sync_to(to_block, &poi_client).await?;
+
+        let recovered = self.recover_missing(accounts).await;
+        if recovered > 0 {
+            info!("Queued {recovered} past operation(s) for POI proof generation");
+        }
+
         self.submit_pending(prover).await;
         self.save().await?;
         Ok(())
@@ -166,6 +185,68 @@ impl PoiProvider {
             worst = worst.max(status);
         }
         Ok(worst)
+    }
+
+    /// Queues a POI proof for every past operation of `accounts` whose outputs
+    /// the POI node does not know yet.
+    ///
+    /// `register_ops` only covers operations built by this process. A wallet restored from its
+    /// keys, or one whose pending entries were lost, has change notes stuck in `Missing`: the
+    /// proof is rebuilt here from chain data (spent inputs, decrypted outputs, operation record).
+    /// Returns the number of entries queued. Never fails: a note that cannot be recovered is
+    /// logged and left as is.
+    async fn recover_missing(&mut self, accounts: &[RecoveryAccount]) -> usize {
+        let list_keys = self.poi_client.list_keys();
+        let own_ops: Vec<(Txid, Operation)> = self
+            .txid_indexer
+            .own_ops()
+            .map(|(t, o)| (*t, o.clone()))
+            .collect();
+
+        let mut queued: Vec<(u64, PendingPoiEntry)> = Vec::new();
+        for (txid, op) in own_ops {
+            if self.inner.pending.iter().any(|e| e.txid == txid)
+                || self.inner.recovered_valid.contains(&txid)
+            {
+                continue;
+            }
+            let Some(entry) = accounts
+                .iter()
+                .find_map(|account| recovery_entry(account, txid, &op, &list_keys))
+            else {
+                debug!("Own operation {txid:?} is not fully known locally, skipping POI recovery");
+                continue;
+            };
+
+            // All outputs of an operation share one proof: probing the first one is enough.
+            let Some(probe) = blinded_commitments(
+                &entry,
+                op.utxo_tree_out,
+                op.utxo_out_start_index,
+            )
+            .into_iter()
+            .next() else {
+                continue;
+            };
+            match self.status(probe, BlindedCommitmentType::Transact).await {
+                Ok(PoiStatus::Missing) => {
+                    info!("POI missing for past operation {txid:?}, rebuilding its proof");
+                    queued.push((op.block_number, entry));
+                }
+                Ok(PoiStatus::Valid) => {
+                    self.inner.recovered_valid.insert(txid);
+                }
+                Ok(status) => debug!("Past operation {txid:?} has POI status {status:?}"),
+                Err(e) => warn!("Could not read POI status of past operation {txid:?}: {e}"),
+            }
+        }
+
+        // `submit_pending` walks the list backwards: newest first here means oldest submitted
+        // first, which matters when an operation spends the change of a previous one.
+        queued.sort_by(|a, b| b.0.cmp(&a.0));
+        let count = queued.len();
+        self.inner.pending.extend(queued.into_iter().map(|(_, e)| e));
+        count
     }
 
     fn register(&mut self, op: &ProvedOperation, list_keys: Vec<ListKey>) {
@@ -328,6 +409,72 @@ impl PoiProvider {
         self.db.set_poi_provider(&self.inner).await?;
         Ok(())
     }
+}
+
+/// Rebuilds the pending entry of `op` if `account` owns every input and every
+/// output is known (received, or sent and decrypted as sender).
+fn recovery_entry(
+    account: &RecoveryAccount,
+    txid: Txid,
+    op: &Operation,
+    list_keys: &[ListKey],
+) -> Option<PendingPoiEntry> {
+    // Inputs, in on-chain nullifier order: the txid commits to that order.
+    let in_notes = op
+        .nullifiers
+        .iter()
+        .map(|nullifier| {
+            account
+                .spent
+                .iter()
+                .find(|n| n.tree_number == op.utxo_tree_in && n.nullifier == *nullifier)
+                .cloned()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let token_hash = in_notes.first()?.asset.hash();
+
+    // An unshield is the last commitment hash and has no UTXO leaf.
+    let leaf_outputs = op
+        .commitment_hashes
+        .len()
+        .checked_sub(usize::from(op.has_unshield))?;
+    let mut out_npks = Vec::with_capacity(leaf_outputs);
+    let mut out_values = Vec::with_capacity(leaf_outputs);
+    for (i, hash) in op.commitment_hashes.iter().take(leaf_outputs).enumerate() {
+        let leaf = op.utxo_out_start_index.checked_add(i as u32)?;
+        let at = |t: u32, l: u32| t == op.utxo_tree_out && l == leaf;
+        let received = account
+            .unspent
+            .iter()
+            .chain(account.spent.iter())
+            .find(|n| at(n.tree_number, n.leaf_index) && <U256 as From<_>>::from(n.hash) == *hash)
+            .map(|n| (n.note_public_key, U256::from(n.value)));
+        let sent = || {
+            account
+                .sent
+                .iter()
+                .find(|n| at(n.tree_number, n.leaf_index) && n.hash == *hash)
+                .map(|n| (n.note_public_key, U256::from(n.value)))
+        };
+        let (npk, value) = received.or_else(sent)?;
+        out_npks.push(npk);
+        out_values.push(value);
+    }
+
+    Some(PendingPoiEntry {
+        txid,
+        spending_pubkey: account.spending_pubkey,
+        nullifying_key: account.nullifying_key,
+        utxo_tree_in: op.utxo_tree_in,
+        bound_params_hash: op.bound_params_hash,
+        in_notes,
+        out_commitments: op.commitment_hashes.clone(),
+        out_npks,
+        out_values,
+        token_hash,
+        has_unshield: op.has_unshield,
+        list_keys: list_keys.to_vec(),
+    })
 }
 
 fn blinded_commitments(
