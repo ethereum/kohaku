@@ -26,6 +26,7 @@ Privacy-first tooling for the Ethereum ecosystem
 | [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools shielded pool protocol lib           |
 | [@kohaku-eth/plugins](packages/plugins) | ✅     | shielded pool protocols standardized plugin interface          |
 | [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, helios, colibri) |
+| [@kohaku-eth/social-recovery](packages/social-recovery) | 🚧     | social recovery SDK (interfaces only)        |
 | [@kohaku-eth/pq-account](packages/pq-account)       | ✅     | post-quantum 4337 account implementation     |
 
 ## Development

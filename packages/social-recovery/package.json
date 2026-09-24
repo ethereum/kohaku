@@ -1,0 +1,65 @@
+{
+  "name": "@kohaku-eth/social-recovery",
+  "version": "0.0.1",
+  "description": "Social recovery SDK: prepared calls, reads and proof gathering for the recovery kit's contracts.",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/social-recovery"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./recovery-methods": {
+      "types": "./dist/recovery-methods.d.ts",
+      "import": "./dist/recovery-methods.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "echo Building @kohaku-eth/social-recovery && tsup --config tsup.config.ts",
+    "dev": "tsup --config tsup.config.ts --watch",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@anon-aadhaar/core": "2.4.3",
+    "@zkpassport/sdk": "0.17.1"
+  },
+  "peerDependenciesMeta": {
+    "@anon-aadhaar/core": {
+      "optional": true
+    },
+    "@zkpassport/sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "fast-check": "^4.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.0.0"
+  }
+}
