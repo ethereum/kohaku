@@ -1,5 +1,6 @@
 import type {
   Address,
+  ApproverRequest,
   EnrollFailure,
   EnrollInput,
   Hex,
@@ -8,7 +9,6 @@ import type {
   Params,
   Reply,
   ReplyFailure,
-  Request,
   RequestDescription,
   Verdict,
 } from './records';
@@ -18,13 +18,13 @@ import type {
  * chain (D-201, D-206). `MethodsOrchestrator` is the shipped implementation.
  */
 export interface IMethodsOrchestrator {
-  describeRequest(request: Request): RequestDescription;
+  describeRequest(request: ApproverRequest): RequestDescription;
   /** The local verdict for one place; an answer, never a refusal. */
-  verify(request: Request, place: number, proof: Hex): Promise<Verdict>;
+  verify(request: ApproverRequest, place: number, proof: Hex): Promise<Verdict>;
   /** Throws when it refuses, before any device is asked. */
-  signingInput(request: Request, params?: Params): Input;
+  signingInput(request: ApproverRequest, params?: Params): Input;
   /** A refusal comes back as `ReplyFailure`, never as a thrown error. */
-  replyFrom(request: Request, input: Input, material: Material): Promise<Reply | ReplyFailure>;
+  replyFrom(request: ApproverRequest, input: Input, material: Material): Promise<Reply | ReplyFailure>;
   /** Throws when it refuses. */
   enrollInput(method: Address, params: Params): EnrollInput;
   /** A refusal comes back as `EnrollFailure`, never as a thrown error. */

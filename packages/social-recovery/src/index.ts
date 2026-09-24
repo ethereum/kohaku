@@ -1,2 +1,3 @@
-// Core entry: the interfaces and the value records they take and return.
-export type * from './interfaces';
+// Core entry: the interfaces, the value records they take and return, and the
+// build's own constants.
+export * from './interfaces';

@@ -1,4 +1,4 @@
-import type { AccountFilterOptions, BlockRange, FilterSpec, Notification, RawLog } from './records';
+import type { AccountFilterOptions, BlockRange, FilterSpec, KitNotification, RawLog } from './records';
 
 /**
  * The shared part for the logs, bound to one chain, one account and one action
@@ -12,7 +12,7 @@ export interface IEventManager {
   /** The account's own privilege writes. */
   privilegeFilter(): FilterSpec;
   /** Reads the range in chunks and returns the decoded notifications in log order. */
-  fetch(filter: FilterSpec, range: BlockRange): Promise<readonly Notification[]>;
+  fetch(filter: FilterSpec, range: BlockRange): Promise<readonly KitNotification[]>;
   /** Nothing for a log the reader does not own. */
-  decodeLog(log: RawLog): Notification | undefined;
+  decodeLog(log: RawLog): KitNotification | undefined;
 }

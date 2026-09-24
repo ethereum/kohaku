@@ -2,6 +2,7 @@ import type { IEventManager } from './event-manager';
 import type {
   AddResult,
   Address,
+  ApproverRequest,
   Assessment,
   Attempt,
   AttemptRequest,
@@ -16,7 +17,6 @@ import type {
   PrepareOptions,
   RecoveryState,
   Reply,
-  Request,
   Selection,
   ValidityWindow,
 } from './records';
@@ -36,7 +36,7 @@ export interface IRecoveryClient {
   ): Promise<Gathering>;
   /** Throws when it refuses. */
   initCancelGathering(source: ConfigurationSource, window: ValidityWindow): Promise<Gathering>;
-  getApproverRequests(gathering: Gathering): readonly Request[];
+  getApproverRequests(gathering: Gathering): readonly ApproverRequest[];
   /** A refusal comes back as the typed result, never as a thrown error. */
   addApproverReply(gathering: Gathering, reply: Reply): AddResult;
   assess(gathering: Gathering, now: Moment): Assessment;
