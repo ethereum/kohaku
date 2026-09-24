@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, expectTypeOf, it } from 'vitest';
+import type { Address, BlockTag, Hex, IProvider } from '../../src/index';
 import { createSourceProgram, findInterfaces, type InterfaceShape, type MemberKind, shapeOf } from '../helpers/source';
 
 // Each list below was derived from design/offchain/sdk.md before src/ was read.
@@ -120,12 +121,15 @@ const EXPECTED: Readonly<Record<string, Readonly<Record<string, MemberKind>>>> =
     describe: 'method', // D-206 1226
     vector: 'property', // D-206 1227
   },
-  // Freeze list 528 "the four reads D-208 fixes": D-208 1638-1643, drawing 215-221.
+  // Freeze list 528 "the four reads D-208 fixes": D-208 1638-1643, drawing 215-221,
+  // plus a fifth read by the owner ruling of 2026-09-24 (a recorded delta that
+  // extends D-208 1638-1643; the design text still says four).
   IProvider: {
     chainId: 'method', // D-208 1640; named in drawing 217
     call: 'method', // D-208 1641; named in drawing 218
     logs: 'method', // D-208 1642; named in drawing 219
     block: 'method', // D-208 1643
+    code: 'method', // owner ruling 2026-09-24, extending D-208 1638-1643: one eth_getCode
   },
 };
 
@@ -176,5 +180,16 @@ describe.each(Object.entries(EXPECTED))('%s', (name, expected) => {
       constructSignatures: 0,
       indexSignatures: 0,
     });
+  });
+});
+
+// Owner ruling 2026-09-24, extending D-208 1638-1643: the fifth read is one
+// eth_getCode, taking an address and a block tag and giving the bytecode
+// ('0x' for none) as Hex.
+describe('IProvider.code (owner ruling 2026-09-24)', () => {
+  it('takes (Address, BlockTag) and returns Promise<Hex>', () => {
+    expectTypeOf<IProvider['code']>().parameters.toEqualTypeOf<[address: Address, block: BlockTag]>();
+    expectTypeOf<IProvider['code']>().returns.toEqualTypeOf<Promise<Hex>>();
+    expectTypeOf<IProvider>().toHaveProperty('code');
   });
 });

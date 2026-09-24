@@ -1,6 +1,14 @@
 import ts from 'typescript';
-import { beforeAll, describe, expect, it } from 'vitest';
-import { ADD_OUTCOMES, NO_BACKUP_CASES, RESTORE_CAUSE_CODES } from '../../src/index';
+import { beforeAll, describe, expect, expectTypeOf, it } from 'vitest';
+import {
+  ADD_OUTCOMES,
+  type ApproverRequest,
+  type Configuration,
+  type Ctx,
+  type ConfigurationSource,
+  NO_BACKUP_CASES,
+  RESTORE_CAUSE_CODES,
+} from '../../src/index';
 import {
   constituents,
   exportedType,
@@ -14,6 +22,7 @@ import {
   stringLiterals,
   visitType,
 } from '../helpers/records';
+import { compileProbes, PROBE_IMPORT_FROM } from '../helpers/probe';
 
 // Field lists derived from design/offchain/sdk.md before src/ was read; each
 // carries the line it comes from. "usage" lines are D-201's illustrative
@@ -165,10 +174,13 @@ describe('the prepared call and the prepared batch of D-202', () => {
   });
 });
 
-// D-207 lines 1494-1500, 1503, 1508-1514, 1519-1529.
+// D-207 lines 1494-1500, 1503, 1508-1514, 1519-1529. 'credentialHoldsCode' is
+// added by the owner ruling of 2026-09-24 (a recorded delta extending D-207
+// 1494-1500 and D-206 1260), on both the approval and cancellation branches.
 const REQUEST_FIELDS = [
   'kind', 'version', 'purpose', 'chainId', 'manager', 'digestVersion', 'account', 'action', 'attemptId', 'setupNonce',
   'setupBodyHash', 'payload', 'order', 'validUntil', 'place', 'method', 'config', 'salt',
+  'credentialHoldsCode', // owner ruling 2026-09-24, extending D-207 1494-1500
 ];
 const REPLY_FIELDS = [
   'kind', 'version', 'chainId', 'manager', 'account', 'action', 'attemptId', 'purpose', 'place', 'method', 'config',
@@ -212,6 +224,33 @@ describe('the three gathering records of D-207', () => {
 
     expect(cancellation).toHaveLength(1);
     expect(fieldsOf(cancellation[0] as ts.Type)).toEqual(sorted(without(REQUEST_FIELDS, 'payload', 'order')));
+  });
+
+  // Owner ruling 2026-09-24, extending D-207 1494-1500 and 1503: every request
+  // says whether its credential's config address holds code, as a required boolean.
+  it.each(['approval', 'cancellation'])(
+    'a %s ApproverRequest carries credentialHoldsCode as a required boolean (owner ruling 2026-09-24)',
+    (purpose) => {
+      const branch = constituents(typeOf('ApproverRequest')).filter(
+        (shape) => stringLiterals(field(shape, 'purpose'))?.[0] === purpose,
+      );
+
+      expect(branch).toHaveLength(1);
+      const shape = branch[0] as ts.Type;
+
+      expect(optional(shape, 'credentialHoldsCode')).toBe(false);
+      expect(context.checker.typeToString(field(shape, 'credentialHoldsCode'))).toBe('boolean');
+    },
+  );
+
+  it('credentialHoldsCode is a required boolean on both branches, type-level (owner ruling 2026-09-24)', () => {
+    type Approval = Extract<ApproverRequest, { purpose: 'approval' }>;
+    type Cancellation = Extract<ApproverRequest, { purpose: 'cancellation' }>;
+
+    expectTypeOf<Approval['credentialHoldsCode']>().toEqualTypeOf<boolean>();
+    expectTypeOf<Cancellation['credentialHoldsCode']>().toEqualTypeOf<boolean>();
+    expectTypeOf<Pick<Approval, 'credentialHoldsCode'>>().toEqualTypeOf<{ readonly credentialHoldsCode: boolean }>();
+    expectTypeOf<Pick<Cancellation, 'credentialHoldsCode'>>().toEqualTypeOf<{ readonly credentialHoldsCode: boolean }>();
   });
 
   it('ApproverRequest carries the six binding fields of line 1514 and the digest version its digest derives under (line 1495)', () => {
@@ -370,11 +409,8 @@ describe('the other records whose fields the chapter names', () => {
     expect(fieldsOf(field(configuration, 'blockTags'))).toEqual(sorted(['read', 'watch']));
   });
 
-  it('a configuration source is the password or the configuration itself (D-202 line 654, usage line 467)', () => {
-    const shapes = constituents(typeOf('ConfigurationSource')).map((shape) => fieldsOf(shape).join(','));
-
-    expect(sorted(shapes)).toEqual(['configuration', 'password']);
-  });
+  // The configuration source (D-202 line 654) is judged by assignability in
+  // "the configuration source of D-202 line 654" below.
 
   it("ReplyFailure is kind reply-failure with its cause (usage line 482)", () => {
     const failure = typeOf('ReplyFailure');
@@ -385,6 +421,13 @@ describe('the other records whose fields the chapter names', () => {
 
   it('the ctx carries the place and its digest beside the request (D-206 line 1229)', () => {
     expect(fieldsOf(typeOf('Ctx'))).toEqual(expect.arrayContaining(['place', 'digest']));
+  });
+
+  // Owner ruling 2026-09-24, extending D-206 1229 and 1260: the flag reaches a
+  // method's verify through ctx.request, with no field of its own on Ctx.
+  it('ctx.request.credentialHoldsCode reaches verify as a boolean (owner ruling 2026-09-24)', () => {
+    expectTypeOf<Ctx['request']['credentialHoldsCode']>().toEqualTypeOf<boolean>();
+    expect(fieldsOf(field(typeOf('Ctx'), 'request'))).toContain('credentialHoldsCode');
   });
 
   it('the setup draft carries the wait, the clauses, the pause choice and the privacy dial (usage lines 434-442)', () => {
@@ -545,5 +588,116 @@ describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union
     expect(fieldsOf(mismatch).filter((name) => optional(mismatch, name))).toEqual([]);
     expect(isAddressLike(field(mismatch, 'recomputed'))).toBe(true);
     expect(isAddressLike(field(mismatch, 'committed'))).toBe(true);
+  });
+});
+
+// D-202 line 654: "The source is `{ password }` or the configuration itself",
+// the configuration "cached by a wallet or read off a clear backup". So a
+// cached Configuration is passed as it is, with no wrapper around it, and the
+// two forms are told apart by the password alone.
+describe('the configuration source of D-202 line 654', () => {
+  const MINIMAL_CONFIGURATION: Configuration = {
+    clauses: [{ threshold: 1, credentials: [{ method: '0x00000000000000000000000000000000000000a1', config: '0x01' }] }],
+    wait: 86_400,
+    ignoresPause: false,
+  };
+
+  const header = `import type { Configuration, ConfigurationSource } from '${PROBE_IMPORT_FROM}';
+const configuration: Configuration = {
+  clauses: [{ threshold: 1, credentials: [{ method: '0x00000000000000000000000000000000000000a1', config: '0x01' }] }],
+  wait: 86400,
+  ignoresPause: false,
+};
+`;
+
+  let probes: Map<string, string[]>;
+
+  beforeAll(() => {
+    probes = compileProbes({
+      'source-password': `${header}export const source: ConfigurationSource = { password: 'correct horse' };\nvoid configuration;\n`,
+      'source-configuration-literal': `${header}export const source: ConfigurationSource = configuration;\n`,
+      'source-configuration-inline': `import type { ConfigurationSource } from '${PROBE_IMPORT_FROM}';
+export const source: ConfigurationSource = { clauses: [], wait: 0, ignoresPause: true };
+`,
+      'source-wrapper-literal': `${header}export const source: ConfigurationSource = { configuration };\n`,
+      'source-wrapper-value': `${header}const wrapped = { configuration };\nexport const source: ConfigurationSource = wrapped;\n`,
+      'narrow-password': `${header}export function read(source: ConfigurationSource): string | Configuration {
+  if ('password' in source) {
+    const only: { readonly password: string } = source;
+
+    return only.password;
+  }
+
+  const cached: Configuration = source;
+
+  return cached;
+}
+void configuration;
+`,
+      'narrow-password-excludes-configuration': `${header}export function read(source: ConfigurationSource): number {
+  if ('password' in source) return source.wait;
+
+  return 0;
+}
+void configuration;
+`,
+    });
+  });
+
+  const errorsOf = (name: string): string[] => {
+    const errors = probes.get(name);
+
+    if (errors === undefined) throw new Error(`no probe ${name}`);
+
+    return errors;
+  };
+
+  it('a { password } literal is a source', () => {
+    expectTypeOf<{ password: string }>().toExtend<ConfigurationSource>();
+    expect(errorsOf('source-password')).toEqual([]);
+  });
+
+  it('a Configuration value is a source as it is, with no wrapper', () => {
+    expectTypeOf(MINIMAL_CONFIGURATION).toExtend<ConfigurationSource>();
+    expect(errorsOf('source-configuration-literal')).toEqual([]);
+    expect(errorsOf('source-configuration-inline')).toEqual([]);
+  });
+
+  it('a { configuration } wrapper is not a source, as a literal or as a value', () => {
+    expectTypeOf<{ configuration: Configuration }>().not.toExtend<ConfigurationSource>();
+    // @ts-expect-error the wrapper is the shape line 654 does not name
+    const rejected: ConfigurationSource = { configuration: MINIMAL_CONFIGURATION };
+
+    expect(rejected).toBeDefined();
+    expect(errorsOf('source-wrapper-literal').join('\n')).toMatch(/TS2353: .*'configuration' does not exist/);
+    expect(errorsOf('source-wrapper-value').join('\n')).toMatch(/TS2322: /);
+  });
+
+  it("'password' in source narrows to the password branch, and its negation to the configuration", () => {
+    const describeSource = (source: ConfigurationSource): string =>
+      'password' in source ? `password ${source.password.length}` : `configuration ${source.clauses.length}`;
+
+    expect(describeSource({ password: 'pw' })).toBe('password 2');
+    expect(describeSource(MINIMAL_CONFIGURATION)).toBe('configuration 1');
+    expect(errorsOf('narrow-password')).toEqual([]);
+    expect(errorsOf('narrow-password-excludes-configuration').join('\n')).toMatch(/TS2339: Property 'wait' does not exist/);
+  });
+
+  it.each(['Configuration', 'Clause', 'Credential'])(
+    '%s has no index signature and no password field, so nothing on the configuration side swallows password',
+    (name) => {
+      const type = typeOf(name);
+
+      expect(context.checker.getIndexInfosOfType(type)).toHaveLength(0);
+      expect(fieldsOf(type)).not.toContain('password');
+    },
+  );
+
+  it('the source has exactly two members: the password one and Configuration itself', () => {
+    const members = constituents(typeOf('ConfigurationSource'));
+
+    expect(members).toHaveLength(2);
+    expect(members.filter((member) => mutuallyAssignable(member, typeOf('Configuration')))).toHaveLength(1);
+    expect(members.filter((member) => fieldsOf(member).join() === 'password')).toHaveLength(1);
   });
 });

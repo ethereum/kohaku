@@ -50,10 +50,12 @@ export type Configuration = {
   readonly ignoresPause: boolean;
 };
 
-/** A restore's source: the password that opens the backup, or the configuration itself (D-202 l.654, usage l.465-467). */
-export type ConfigurationSource =
-  | { readonly password: string }
-  | { readonly configuration: Configuration };
+/**
+ * A restore's source: the password that opens the backup, or the configuration
+ * itself (D-202 l.654, usage l.465-467). `Configuration` has no `password` field
+ * and no index signature, so `'password' in source` tells the two apart.
+ */
+export type ConfigurationSource = { readonly password: string } | Configuration;
 
 /** What `confirmSetup` yields (D-202 l.597). */
 export type SetupConfirmation = {

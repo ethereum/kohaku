@@ -33,8 +33,12 @@ export type RequestDescription = {
   readonly order?: DescribedOrder;
   readonly validUntil: number;
   readonly place: number;
-  /** The method, config and salt a submission publishes on chain (l.1134). */
-  readonly identityPublic: { readonly method: Address; readonly config: Hex; readonly salt: Hex };
+  /**
+   * That a submission publishes this credential's method, config and salt on
+   * chain (l.1134): the method and config as a screen shows them, the salt as
+   * the fact alone, since salts never enter a description (l.1151).
+   */
+  readonly identityPublic: { readonly method: Address; readonly config: Hex; readonly saltPublished: true };
   /** The implementation's facts, or that no registered implementation serves the method (l.1135). */
   readonly device: DeviceFacts | 'no-implementation';
 };

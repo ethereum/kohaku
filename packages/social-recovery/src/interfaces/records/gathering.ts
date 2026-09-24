@@ -33,6 +33,13 @@ type ApproverRequestMembers = {
   readonly method: Address;
   readonly config: Hex;
   readonly salt: Hex;
+  /**
+   * Whether the config address of this request's credential holds code, filled
+   * by the recovery client from `IProvider.code` when it builds the request,
+   * so the orchestrator's `ctx` carries it to a method's `verify`, which reads
+   * no chain (owner ruling 2026-09-24, a delta to D-207 l.1494 and D-206 l.1260).
+   */
+  readonly credentialHoldsCode: boolean;
 };
 
 /**

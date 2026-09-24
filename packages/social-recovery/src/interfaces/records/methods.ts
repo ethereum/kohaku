@@ -72,10 +72,12 @@ export type Input = { readonly [name: string]: unknown };
 
 /**
  * What a ceremony needs, or nothing to perform for a method whose config the
- * integrator already holds (D-206 l.1220, l.1254).
+ * integrator already holds (D-206 l.1220, l.1254). Both branches carry the
+ * method's own data, which `configFrom` reads back, such as the wallet
+ * method's address (l.1254-1255).
  */
 export type EnrollInput =
-  | { readonly kind: 'nothing-to-perform' }
+  | { readonly kind: 'nothing-to-perform'; readonly [name: string]: unknown }
   | { readonly kind: 'ceremony'; readonly [name: string]: unknown };
 
 /** What the device or the ceremony produced, the implementation's own shape, or none (D-206 l.1245, l.1255). */
