@@ -6,6 +6,7 @@ import {
   type Configuration,
   type Ctx,
   type ConfigurationSource,
+  type GatheringPlace,
   NO_BACKUP_CASES,
   RESTORE_CAUSE_CODES,
 } from '../../src/index';
@@ -270,12 +271,94 @@ describe('the three gathering records of D-207', () => {
     for (const shape of constituents(typeOf('Gathering'))) {
       expect(fieldsOf(shape)).toEqual(sorted(['kind', 'version', 'purpose', 'request', 'places', 'replies']));
       expect(fieldsOf(elementOf(shape, 'places'))).toEqual(
-        sorted(['place', 'method', 'config', 'salt', 'label', 'standing', 'stoppable']),
+        // 'credentialHoldsCode': owner ruling 2026-09-24 completing the
+        // credentialHoldsCode ruling, a delta to D-207 1524; the init stores it
+        // so a reopened gathering holds it (1529) and getApproverRequests copies
+        // it without a read (1533).
+        sorted(['place', 'method', 'config', 'salt', 'label', 'standing', 'stoppable', 'credentialHoldsCode']),
       );
       expect(mutuallyAssignable(elementOf(shape, 'replies'), typeOf('Reply'))).toBe(true);
       expect(fieldsOf(field(field(shape, 'request'), 'block'))).toEqual(sorted(['number', 'timestamp', 'hash']));
     }
   });
+
+  // Owner ruling 2026-09-24 completing the credentialHoldsCode ruling: the
+  // place stores the flag (D-207 1529) and the request copies it (1533).
+  it('the gathering place and the request hold credentialHoldsCode as the same required boolean, type-level (owner ruling 2026-09-24)', () => {
+    expectTypeOf<GatheringPlace['credentialHoldsCode']>().toEqualTypeOf<boolean>();
+    expectTypeOf<ApproverRequest['credentialHoldsCode']>().toEqualTypeOf<boolean>();
+    expectTypeOf<GatheringPlace['credentialHoldsCode']>().toEqualTypeOf<ApproverRequest['credentialHoldsCode']>();
+    expectTypeOf<Pick<GatheringPlace, 'credentialHoldsCode'>>().toEqualTypeOf<{ readonly credentialHoldsCode: boolean }>();
+
+    for (const shape of constituents(typeOf('Gathering'))) {
+      const place = elementOf(shape, 'places');
+
+      expect(optional(place, 'credentialHoldsCode')).toBe(false);
+      expect(context.checker.typeToString(field(place, 'credentialHoldsCode'))).toBe('boolean');
+    }
+  });
+
+  // Pure record construction, no client: place, then the request cut from it
+  // by copying the flag (D-207 1533, no read), then the ctx around it (D-206 1229).
+  it.each([true, false])(
+    'credentialHoldsCode %s travels from the gathering place to the request to the ctx (owner ruling 2026-09-24)',
+    (holdsCode) => {
+      const place: GatheringPlace = {
+        place: 0,
+        method: '0x00000000000000000000000000000000000000e1',
+        config: '0x00000000000000000000000000000000000000a1',
+        salt: '0x',
+        standing: 'not-stopped',
+        stoppable: false,
+        credentialHoldsCode: holdsCode,
+      };
+      const request: ApproverRequest = {
+        kind: 'recovery-proof-request',
+        version: 1,
+        chainId: '1',
+        manager: '0x0000000000000000000000000000000000000001',
+        digestVersion: '1',
+        account: '0x0000000000000000000000000000000000000002',
+        action: '0x0000000000000000000000000000000000000003',
+        attemptId: '1',
+        setupNonce: '1',
+        setupBodyHash: '0x00',
+        validUntil: '1790000000',
+        place: place.place,
+        method: place.method,
+        config: place.config,
+        salt: place.salt,
+        credentialHoldsCode: place.credentialHoldsCode,
+        purpose: 'cancellation',
+      };
+      const ctx: Ctx = {
+        request,
+        place: request.place,
+        digest: '0x00',
+        typedData: {
+          domain: { name: 'PolicyManager', version: '1', chainId: 1, verifyingContract: request.manager },
+          types: {},
+          primaryType: 'Cancellation',
+          message: {
+            account: request.account,
+            action: request.action,
+            attemptId: 1n,
+            setupNonce: 1n,
+            setupBodyHash: request.setupBodyHash,
+            validUntil: 1790000000,
+            place: request.place,
+          },
+        },
+      };
+      // The place survives a closed tab as JSON (D-207 1529).
+      const reopened = JSON.parse(JSON.stringify(place)) as GatheringPlace;
+
+      expect(place.credentialHoldsCode).toBe(holdsCode);
+      expect(reopened.credentialHoldsCode).toBe(holdsCode);
+      expect(request.credentialHoldsCode).toBe(holdsCode);
+      expect(ctx.request.credentialHoldsCode).toBe(holdsCode);
+    },
+  );
 
   it("an approval gathering's request block is the members of lines 1520-1523", () => {
     const [approval] = constituents(typeOf('Gathering')).filter(

@@ -15,6 +15,20 @@ export type SerializedPaymentOrder = {
   readonly payee: Address;
 };
 
+/**
+ * Whether the config address of one credential holds code, declared once for
+ * the gathering's place and the request cut from it. The init fills it from
+ * `IProvider.code` at the pinned block and stores it on the place, so a
+ * gathering reopened after a closed tab still holds it (D-207 l.1529);
+ * `getApproverRequests` copies it from the place into the request with no read
+ * (D-207 l.1533), and the orchestrator's `ctx` carries it to a method's
+ * `verify`, which reads no chain (owner ruling 2026-09-24, a delta to D-207
+ * l.1494, l.1524 and D-206 l.1260).
+ */
+type CredentialCodeStatus = {
+  readonly credentialHoldsCode: boolean;
+};
+
 /** The members every request of one gathering shares (D-207 l.1494-1500, l.1503). */
 type ApproverRequestMembers = {
   readonly kind: 'recovery-proof-request';
@@ -33,14 +47,7 @@ type ApproverRequestMembers = {
   readonly method: Address;
   readonly config: Hex;
   readonly salt: Hex;
-  /**
-   * Whether the config address of this request's credential holds code, filled
-   * by the recovery client from `IProvider.code` when it builds the request,
-   * so the orchestrator's `ctx` carries it to a method's `verify`, which reads
-   * no chain (owner ruling 2026-09-24, a delta to D-207 l.1494 and D-206 l.1260).
-   */
-  readonly credentialHoldsCode: boolean;
-};
+} & CredentialCodeStatus;
 
 /**
  * The request one approver receives, carrying their own credential alone and
@@ -108,7 +115,7 @@ export type GatheringPlace = {
   readonly standing: Standing;
   /** Whether the method carries a pause at all, from a nonzero `pauseHolder`. */
   readonly stoppable: boolean;
-};
+} & CredentialCodeStatus;
 
 /**
  * The record the assembling wallet holds, storing only what cannot be
