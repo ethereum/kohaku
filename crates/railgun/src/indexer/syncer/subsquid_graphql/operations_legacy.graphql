@@ -12,6 +12,5 @@ query OperationsQuery($blockNumber_gte: BigInt, $blockNumber_lte: BigInt, $id_gt
     utxoTreeIn
     utxoTreeOut
     utxoBatchStartPositionOut
-    hasUnshield
   }
 }

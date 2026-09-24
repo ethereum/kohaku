@@ -157,6 +157,8 @@ pub struct Operation {
         deserialize_with = "deserialize_string_to_u32"
     )]
     pub utxo_batch_start_position_out: u32,
+    #[serde(rename = "hasUnshield", default)]
+    pub has_unshield: bool,
 }
 
 #[derive(Deserialize)]
@@ -280,6 +282,7 @@ impl From<Operation> for syncer::Operation {
             utxo_tree_in: value.utxo_tree_in,
             utxo_tree_out,
             utxo_out_start_index,
+            has_unshield: value.has_unshield,
         }
     }
 }

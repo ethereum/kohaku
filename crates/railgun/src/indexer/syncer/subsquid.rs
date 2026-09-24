@@ -35,6 +35,9 @@ enum SubsquidSyncerError {
 const COMMITMENTS_QUERY: &str = include_str!("./subsquid_graphql/commitments.graphql");
 const NULLIFIERS_QUERY: &str = include_str!("./subsquid_graphql/nullifiers.graphql");
 const OPERATIONS_QUERY: &str = include_str!("./subsquid_graphql/operations.graphql");
+/// Same query without `hasUnshield`, used if the indexer schema lacks the field.
+const OPERATIONS_LEGACY_QUERY: &str =
+    include_str!("./subsquid_graphql/operations_legacy.graphql");
 const BLOCK_NUMBER_QUERY: &str = include_str!("./subsquid_graphql/block_number.graphql");
 
 impl SubsquidSyncer {
@@ -181,9 +184,26 @@ impl SubsquidSyncer {
         from: u64,
         to: u64,
     ) -> Result<Vec<syncer::Operation>, SubsquidSyncerError> {
+        match self.operations_with(OPERATIONS_QUERY, from, to).await {
+            // Never let the extra field break txid sync. Without it, POI recovery
+            // treats every operation as having no unshield.
+            Err(SubsquidSyncerError::GraphQL(msg)) if msg.contains("hasUnshield") => {
+                tracing::warn!("Indexer schema has no hasUnshield field, falling back: {msg}");
+                self.operations_with(OPERATIONS_LEGACY_QUERY, from, to).await
+            }
+            other => other,
+        }
+    }
+
+    async fn operations_with(
+        &self,
+        query: &'static str,
+        from: u64,
+        to: u64,
+    ) -> Result<Vec<syncer::Operation>, SubsquidSyncerError> {
         self.fetch_paged(
             "operations",
-            OPERATIONS_QUERY,
+            query,
             from,
             to,
             |data: OperationsResponse| {

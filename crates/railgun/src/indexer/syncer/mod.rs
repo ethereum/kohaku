@@ -91,6 +91,9 @@ pub(crate) struct Operation {
     pub utxo_tree_in: u32,
     pub utxo_tree_out: u32,
     pub utxo_out_start_index: u32,
+    /// Whether the last commitment hash is an unshield (no UTXO leaf).
+    #[serde(default)]
+    pub has_unshield: bool,
 }
 
 #[derive(Debug, Error)]

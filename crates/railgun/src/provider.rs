@@ -149,7 +149,12 @@ impl RailgunProvider {
         self.utxo_indexer.sync_to(to_block).await?;
 
         if let Some(poi_provider) = &mut self.poi_provider {
-            poi_provider.sync_to(&self.prover, to_block).await?;
+            // The account history lets the POI provider rebuild proofs for
+            // operations it did not build itself.
+            let accounts = self.utxo_indexer.recovery_accounts();
+            poi_provider
+                .sync_to(&self.prover, to_block, &accounts)
+                .await?;
         }
 
         Ok(())

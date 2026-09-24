@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use kohaku_db::{Database, DatabaseError};
+use ruint::aliases::U256;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{info, warn};
@@ -16,6 +17,9 @@ use crate::{
 pub struct TxidIndexer {
     trees: HashMap<u32, TxidMerkleTree>,
     inner: TxidIndexerState,
+    /// Nullifiers of the registered accounts. Operations spending one of them are
+    /// kept in full in `inner.own_ops`, the others are reduced to a txid leaf as before.
+    watched: std::collections::HashSet<U256>,
 
     db: Arc<dyn Database>,
     txid_syncer: Arc<dyn TxidSyncer>,
@@ -28,6 +32,9 @@ pub(crate) struct TxidIndexerState {
     pub pending: Vec<Operation>,
     pub txid_to_utxo_position: HashMap<Txid, (u32, u32)>,
     pub txid_to_txid_position: HashMap<Txid, (u32, u32)>,
+    /// Operations that spend a watched nullifier.
+    #[serde(default)]
+    pub own_ops: HashMap<Txid, Operation>,
 }
 
 #[derive(Debug, Error)]
@@ -66,9 +73,27 @@ impl TxidIndexer {
         Ok(TxidIndexer {
             inner,
             trees: txid_trees,
+            watched: Default::default(),
             db,
             txid_syncer,
         })
+    }
+
+    /// Sets the nullifiers whose operations must be retained.
+    pub fn watch_nullifiers(&mut self, nullifiers: std::collections::HashSet<U256>) {
+        self.watched = nullifiers;
+    }
+
+    /// Retained operations of the registered accounts.
+    pub fn own_ops(&self) -> impl Iterator<Item = (&Txid, &Operation)> {
+        self.inner.own_ops.iter()
+    }
+
+    fn retain_own(&mut self, op: &Operation) {
+        if op.nullifiers.iter().any(|n| self.watched.contains(n)) {
+            let txid = Txid::new(&op.nullifiers, &op.commitment_hashes, op.bound_params_hash);
+            self.inner.own_ops.entry(txid).or_insert_with(|| op.clone());
+        }
     }
 
     pub fn tree(&self, tree_number: u32) -> Option<&TxidMerkleTree> {
@@ -97,7 +122,12 @@ impl TxidIndexer {
 
         let ops = syncer.sync(from_block, to_block).await?;
         info!("Fetched {} operations from syncer", ops.len());
+        // Operations fetched by an earlier sync and still waiting for validation.
+        for op in self.inner.pending.clone() {
+            self.retain_own(&op);
+        }
         for op in ops {
+            self.retain_own(&op);
             self.inner.pending.push(op);
         }
         self.inner.synced_block = to_block;
@@ -212,6 +242,7 @@ impl TxidIndexer {
             pending: self.inner.pending.clone(),
             txid_to_utxo_position: self.inner.txid_to_utxo_position.clone(),
             txid_to_txid_position: self.inner.txid_to_txid_position.clone(),
+            own_ops: self.inner.own_ops.clone(),
         };
         self.db.set_txid_indexer(&state).await?;
 
