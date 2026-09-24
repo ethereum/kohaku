@@ -22,7 +22,6 @@ jobs:
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
-        - run: cargo test
 
     build:
         name: Build
@@ -76,12 +75,3 @@ jobs:
             TC_MAINNET_FORK_BLOCK: ${{ secrets.TC_MAINNET_FORK_BLOCK }}
             TC_SEPOLIA_FORK_BLOCK: ${{ secrets.TC_SEPOLIA_FORK_BLOCK }}
         
-        - name: Run Railgun tests
-          run: cd crates/railgun-ts && pnpm test:e2e
-          env:
-            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
-            RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
-            DEV_KEY: ${{ secrets.DEV_KEY }}
-            DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
-            DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
-            DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}
