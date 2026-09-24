@@ -97,6 +97,28 @@ describe('the earlier placeholder record names', () => {
   });
 });
 
+/** The well-known ECMAScript symbols a built-in type such as `ReadonlyMap` is keyed on. */
+const WELL_KNOWN_SYMBOLS = new Set([
+  'asyncDispose', 'asyncIterator', 'dispose', 'hasInstance', 'isConcatSpreadable', 'iterator', 'match', 'matchAll',
+  'replace', 'search', 'species', 'split', 'toPrimitive', 'toStringTag', 'unscopables',
+]);
+
+/** Whether the property is declared under a key written `[Symbol.<well-known>]`. */
+const isWellKnownSymbolKey = (property: ts.Symbol): boolean =>
+  (property.declarations ?? []).length > 0 &&
+  (property.declarations ?? []).every((declaration) => {
+    const key = ts.getNameOfDeclaration(declaration);
+
+    return (
+      key !== undefined &&
+      ts.isComputedPropertyName(key) &&
+      ts.isPropertyAccessExpression(key.expression) &&
+      ts.isIdentifier(key.expression.expression) &&
+      key.expression.expression.text === 'Symbol' &&
+      WELL_KNOWN_SYMBOLS.has(key.expression.name.text)
+    );
+  });
+
 /** The paths under a type that reach a symbol-keyed property, the key a brand hides behind. */
 function brandPaths(checker: ts.TypeChecker, type: ts.Type, name: string): string[] {
   const paths: string[] = [];
@@ -105,7 +127,7 @@ function brandPaths(checker: ts.TypeChecker, type: ts.Type, name: string): strin
     checker,
     type,
     (_type, path, via) => {
-      if (via !== undefined && via.getName().startsWith('__@')) paths.push(path);
+      if (via !== undefined && via.getName().startsWith('__@') && !isWellKnownSymbolKey(via)) paths.push(path);
     },
     name,
   );
@@ -120,6 +142,10 @@ describe('the brand detector', () => {
     export type Branded = Placeholder<'Branded'>;
     export type Nested = { readonly inner: readonly Placeholder<'Inner'>[] };
     export type Plain = { readonly kind: 'plain'; readonly value: string };
+    export type Keyed = ReadonlyMap<string, number>;
+    export type Tagged = { readonly [Symbol.toStringTag]: string; readonly [Symbol.asyncIterator]: () => void };
+    declare const iterator: unique symbol;
+    export type Disguised = { readonly [iterator]: 'Disguised' };
   `);
   const types = aliasTypes(checker, sourceFile);
   const judge = (name: string): string[] => brandPaths(checker, types.get(name) as ts.Type, name);
@@ -128,6 +154,15 @@ describe('the brand detector', () => {
     expect(judge('Branded')).toHaveLength(1);
     expect(judge('Nested')).toHaveLength(1);
     expect(judge('Plain')).toEqual([]);
+  });
+
+  it('passes a key that is a well-known symbol, as a ReadonlyMap carries', () => {
+    expect(judge('Keyed')).toEqual([]);
+    expect(judge('Tagged')).toEqual([]);
+  });
+
+  it('still flags a brand whose own symbol is named like a well-known one', () => {
+    expect(judge('Disguised')).toHaveLength(1);
   });
 });
 
