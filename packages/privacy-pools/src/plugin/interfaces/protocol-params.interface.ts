@@ -62,6 +62,50 @@ export interface PPv1UnshieldOptions extends UnshieldOptions {
   tailCallsGasEstimate?: bigint;
 }
 
+/** Cost of a shield (deposit). Amounts are in the pool asset's base units; network gas is not included. */
+export interface PPv1ShieldEstimate {
+  /** Entrypoint vetting fee deducted from the deposit. */
+  fee: bigint;
+  /** Amount credited to the note after the vetting fee. */
+  netAmount: bigint;
+  vettingFeeBPS: bigint;
+  /** Deposits below this amount revert. */
+  minimumDeposit: bigint;
+}
+
+/** Relayer withdrawal cost, from the best relayer quote. The relayer fronts gas; `fee` covers it. */
+export interface PPv1RelayerUnshieldEstimate {
+  mode: 'relayer';
+  /** Fee deducted from the withdrawn amount, in the pool asset's base units. */
+  fee: bigint;
+  /** Amount the recipient receives. */
+  netAmount: bigint;
+  /** Relay fee committed in the relayer's signed withdrawal data. */
+  feeBPS: bigint;
+  relayerId: string;
+  /** Quote expiration timestamp (ms). `prepareUnshield` requests a fresh quote. */
+  expiration: number;
+}
+
+/**
+ * Paymaster withdrawal cost at baseline gas limits and the bundler's current gas
+ * price. `prepareUnshield` refines gas against the bundler, so the final fee may differ slightly.
+ */
+export interface PPv1PaymasterUnshieldEstimate {
+  mode: 'paymaster';
+  /** Sponsored gas fee deducted from the withdrawn amount, in the pool asset's base units. */
+  fee: bigint;
+  /** Amount the recipient receives. */
+  netAmount: bigint;
+  /** The same fee in wei, before pricing it into the pool asset. */
+  gasFeeWei: bigint;
+  maxFeePerGas: bigint;
+}
+
+export type PPv1UnshieldEstimate = PPv1RelayerUnshieldEstimate | PPv1PaymasterUnshieldEstimate;
+
+export type PPv1EstimateUnshieldOptions = Pick<PPv1UnshieldOptions, 'mode' | 'tailCalls' | 'tailCallsGasEstimate'>;
+
 export interface PPv1PublicOperation extends PublicOperation {
   txns: TxData[];
 }
@@ -127,6 +171,14 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   tailCallsGasEstimate?: bigint;
 }
 
+export interface IEstimateUnshieldOperationParams extends IDepositOperationParams {
+  recipient: Address;
+  mode?: PPv1EstimateUnshieldOptions['mode'];
+  /** Whether the withdrawal carries tail calls (they add an execution phase to the paymaster userOp). */
+  hasTailCalls?: boolean;
+  tailCallsGasEstimate?: bigint;
+}
+
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
   assets?: Address[];
 }
@@ -185,6 +237,14 @@ export interface IStateManager {
    * Generates a deposit payload for the signer
    */
   getDepositPayload: (params: IDepositOperationParams) => Promise<TxData>;
+  /**
+   * Computes the vetting fee for a deposit from the Entrypoint's current asset config
+   */
+  getShieldEstimate: (params: IDepositOperationParams) => Promise<PPv1ShieldEstimate>;
+  /**
+   * Computes the withdrawal fee (relayer quote or paymaster gas) without generating a proof
+   */
+  getUnshieldEstimate: (params: IEstimateUnshieldOperationParams) => Promise<PPv1UnshieldEstimate>;
   /**
    * Generates the relayer quotes and withdrawals payloads for the specified amount
    */

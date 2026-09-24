@@ -1,6 +1,6 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
-import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1PrivateOperation, PPv1PublicOperation, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
+import { AccountId, AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
+import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1EstimateUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
 import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
@@ -25,6 +25,14 @@ export interface PPv1PluginWithMnemonicParameters extends PPv1PluginParameters {
 }
 
 export type PPv1Address = Address;
+
+export type {
+    PPv1EstimateUnshieldOptions,
+    PPv1PaymasterUnshieldEstimate,
+    PPv1RelayerUnshieldEstimate,
+    PPv1ShieldEstimate,
+    PPv1UnshieldEstimate,
+} from '../plugin/interfaces/protocol-params.interface.js';
 
 export type PPv1AssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
 export type PPv1AssetBalance = PPv1AssetAmount<'pending'>;
@@ -57,6 +65,8 @@ type PPv1InstanceFactory<Credential extends PPv1Credentials> = PluginInstance<
         note: INote,
         extras: {
             ragequit(labels: INote['label'][]): Promise<PPv1PublicOperation>,
+            estimateShield(asset: PPv1AssetAmount): Promise<PPv1ShieldEstimate>,
+            estimateUnshield(asset: AssetAmount, to: AccountId, options?: PPv1EstimateUnshieldOptions): Promise<PPv1UnshieldEstimate>,
             sync(): Promise<void>,
         },
         publicOp: PPv1PublicOperation,

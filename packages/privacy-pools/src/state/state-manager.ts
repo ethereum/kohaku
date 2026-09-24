@@ -4,6 +4,7 @@ import { ChainId, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
 
 import { ISecretManager } from "../account/keys";
+import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
@@ -11,6 +12,7 @@ import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
   IEntrypoint,
+  IEstimateUnshieldOperationParams,
   IGetNotesParams,
   INote,
   IPaymasterWithdrawapOperationParams,
@@ -19,14 +21,19 @@ import {
   IStateManager,
   IWithdrawapOperationParams,
   PPv1DevOptions,
+  PPv1ShieldEstimate,
+  PPv1UnshieldEstimate,
   StateRagequitPayload,
   StateWithdrawalPayload,
   StoreKey,
   StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
+import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
+import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
 import { decodeRelayData } from "../utils/encoding.utils";
+import { deductFeeBPS } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
   allNotesSelector,
@@ -226,6 +233,76 @@ export const storeStateManager = (
       });
 
       return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
+    },
+    getShieldEstimate: async ({ asset, amount }: IDepositOperationParams): Promise<PPv1ShieldEstimate> => {
+      const { vettingFeeBPS, minimumDepositAmount } =
+        await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const { fee, net } = deductFeeBPS(amount, vettingFeeBPS);
+
+      return { fee, netAmount: net, vettingFeeBPS, minimumDeposit: minimumDepositAmount };
+    },
+    getUnshieldEstimate: async ({
+      asset,
+      amount,
+      recipient,
+      mode = 'relayer',
+      hasTailCalls = false,
+      tailCallsGasEstimate,
+    }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
+      const chainInfo = await getChainInfo();
+
+      if (mode === 'paymaster') {
+        const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+
+        if (!paymasterConfig) {
+          throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
+        }
+
+        const { bundlerUrl, paymasterAddress } = paymasterConfig;
+        const isERC20 = asset !== BigInt(E_ADDRESS);
+        const {
+          standard: { maxFeePerGas },
+        } = await getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl));
+        // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
+        const gas = {
+          ...reasonableGasUnits(isERC20),
+          callGasLimit: hasTailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : 0n,
+        };
+        const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
+        const fee = isERC20
+          ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
+          : gasFeeWei;
+
+        return { mode, fee, netAmount: amount - fee, gasFeeWei, maxFeePerGas };
+      }
+
+      const store = await getChainStore(chainInfo);
+      const {
+        quote: { feeCommitment },
+        relayerId,
+      } = unwrapResult(
+        await store.dispatch(
+          quoteThunk({
+            relayerClient: params.relayerClient,
+            relayers: params.relayersList,
+            asset,
+            amount,
+            recipient,
+          }),
+        ),
+      );
+      // The fee actually charged on-chain is the one in the signed withdrawal data.
+      const { relayFeeBps } = decodeRelayData(feeCommitment.withdrawalData as `0x${string}`);
+      const { fee, net } = deductFeeBPS(amount, relayFeeBps);
+
+      return {
+        mode,
+        fee,
+        netAmount: net,
+        feeBPS: relayFeeBps,
+        relayerId,
+        expiration: feeCommitment.expiration,
+      };
     },
     getWithdrawalPayloads: async ({
       asset,

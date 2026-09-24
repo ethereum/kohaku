@@ -27,10 +27,13 @@ import {
   IEntrypoint,
   INote,
   IStateManager,
+  PPv1EstimateUnshieldOptions,
   PPv1PaymasterPrivateOperation,
   PPv1PrivateOperation,
   PPv1PublicOperation,
   PPv1RelayerPrivateOperation,
+  PPv1ShieldEstimate,
+  PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
   PrivacyPoolsV1ProtocolParams,
 } from "./interfaces/protocol-params.interface";
@@ -146,6 +149,41 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
 
     return { txns: [tx] } as PPv1PublicOperation;
+  }
+
+  /**
+   * Returns the vetting fee and credited amount for a deposit, read from the
+   * Entrypoint's current asset config. Network gas is not included.
+   */
+  async estimateShield({ asset, amount }: PPv1AssetAmount): Promise<PPv1ShieldEstimate> {
+    return this.stateManager.getShieldEstimate({
+      asset: BigInt(asset.contract),
+      amount,
+    });
+  }
+
+  /**
+   * Returns the withdrawal fee and the amount the recipient receives for the
+   * given mode, without generating a proof. Cheap enough to call while a form is
+   * being edited; `prepareUnshield` fetches its own quote when submitting.
+   */
+  async estimateUnshield(
+    { asset, amount }: AssetAmount,
+    to: AccountId,
+    options?: PPv1EstimateUnshieldOptions,
+  ): Promise<PPv1UnshieldEstimate> {
+    if (asset.__type === 'native') {
+      throw new Error("Unshielding native assets is not supported in this version of the protocol");
+    }
+
+    return this.stateManager.getUnshieldEstimate({
+      asset: BigInt(asset.contract),
+      amount,
+      recipient: BigInt(to),
+      mode: options?.mode,
+      hasTailCalls: !!options?.tailCalls,
+      tailCallsGasEstimate: options?.tailCallsGasEstimate,
+    });
   }
 
   /**

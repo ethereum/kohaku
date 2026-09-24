@@ -70,6 +70,33 @@ describe('PrivacyPools v1 Unshield E2E', () => {
   beforeEach(async () => {
   });
 
+  it('[estimateUnshield] computes the relayer fee without generating a proof', async () => {
+    const pool = anvil.pool(10);
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: () => { throw new Error('estimateUnshield must not prove'); },
+      relayersList: { 'mock-relayer': 'http://mock.relayer' },
+      relayerClientFactory: () => createMockRelayerClient({ feeBPS: '100' }),
+    });
+
+    const WITHDRAW_AMOUNT = 500000000000000000n; // 0.5 ETH
+    const estimate = await protocol.estimateUnshield(
+      { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
+      TEST_ACCOUNTS.alice.address as AccountId,
+    );
+
+    expect(estimate).toMatchObject({
+      mode: 'relayer',
+      feeBPS: 100n,
+      fee: 5000000000000000n, // 1% of 0.5 ETH
+      netAmount: 495000000000000000n,
+      relayerId: 'mock-relayer',
+    });
+  });
+
   it('[prepareUnshield] prepares withdrawal after deposit', { timeout: 60_000 }, async () => {
     const pool = anvil.pool(10);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
