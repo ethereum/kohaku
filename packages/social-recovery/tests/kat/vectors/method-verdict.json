@@ -1,0 +1,18 @@
+{
+  "format": "method-verdict-v1",
+  "source": "design/onchain/contracts.md",
+  "derivation": "bytes4(keccak256(\"verify(bytes,bytes32,bytes)\"))",
+  "vectors": [
+    {
+      "id": "magic",
+      "input": {
+        "signature": "verify(bytes,bytes32,bytes)"
+      },
+      "expected": {
+        "selector": "0x024ad318",
+        "abiWord": "0x024ad31800000000000000000000000000000000000000000000000000000000",
+        "managerAcceptance": "exactly 32 returned bytes with this word"
+      }
+    }
+  ]
+}

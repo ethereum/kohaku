@@ -1,0 +1,36 @@
+{
+  "format": "approval-digest-v1",
+  "source": "design/onchain/contracts.md",
+  "derivation": "EIP-712 Approval under PolicyManager domain version 1",
+  "vectors": [
+    {
+      "id": "normal",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "payload": "0xabcdef",
+          "order": {
+            "token": "0x4444444444444444444444444444444444444444",
+            "amount": "1234567890123456789",
+            "payee": "0x5555555555555555555555555555555555555555"
+          },
+          "validUntil": "1800000000",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac040c339"
+      }
+    }
+  ]
+}
