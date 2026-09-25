@@ -113,7 +113,7 @@ describe("Creates the dump state payload", () => {
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: await loadInitialState(chainId),
+      initialState: () => loadInitialState(chainId),
       ...params
     });
 

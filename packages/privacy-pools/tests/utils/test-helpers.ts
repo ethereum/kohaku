@@ -2,6 +2,7 @@ import { ERC20AssetId, Host } from '@kohaku-eth/plugins';
 import { AbiCoder, CallExceptionError, Contract, ContractTransactionResponse, getAddress, JsonRpcProvider, keccak256, SigningKey, toBeHex, Wallet } from "ethers";
 
 import { PrivacyPoolsV1Protocol } from '../../src';
+import { IDataService } from '../../src/data/interfaces/data.service.interface';
 import { IEntrypoint } from '../../src/plugin/interfaces/protocol-params.interface';
 import { type AnvilPool } from './anvil';
 import { InitialState } from './common';
@@ -140,7 +141,12 @@ export async function pushNewAspRoot(
     const impersonatedSigner = await provider.getSigner(normalizedPostman);
     const entrypoint = new Contract(getAddress(entrypointAddress), postmanAbi, impersonatedSigner);
 
-    return (await entrypoint.updateRoot(_root, _ipfsCID)) as ContractTransactionResponse;
+    const tx = await entrypoint.updateRoot(_root, _ipfsCID);
+    // Wait for the receipt: the sync that follows scans up to the current head,
+    // and an unmined push would fall outside the scan range (flaky root mismatch).
+    await tx.wait();
+
+    return tx as ContractTransactionResponse;
   });
 
   return { hash, txData: { data, to, from: normalizedPostman } };
@@ -218,6 +224,7 @@ interface SimplifiedProtocolParams {
   aspServiceFactory?: () => IMockAspService;
   rpcUrl: string;
   postman: string;
+  dataService?: IDataService;
 }
 export const getProtocolWithState = async ({
   entrypoint,
@@ -226,6 +233,7 @@ export const getProtocolWithState = async ({
   aspServiceFactory = createMockAspService,
   rpcUrl,
   postman,
+  dataService,
 }: SimplifiedProtocolParams) => {
   const aspService = aspServiceFactory();
 
@@ -242,6 +250,7 @@ export const getProtocolWithState = async ({
     aspServiceFactory: () => aspService,
     initialState,
     entrypoint,
+    ...(dataService ? { dataService } : {}),
   });
 
   return { aspService, protocol };
@@ -262,6 +271,7 @@ export async function setupMockAspForTest(
     "0x" + BigInt(postman).toString(16),
     { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
   );
+
   return mockAspService;
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/provider",
-  "version": "0.1.0-alpha.8",
+  "version": "0.1.0-alpha.10",
   "description": "Omni provider helpers that wrap Ethers, Viem, and Colibri.",
   "type": "module",
   "private": false,
@@ -77,7 +77,7 @@
   "license": "MIT",
   "peerDependencies": {
     "@a16z/helios": ">=0.11",
-    "@corpus-core/colibri-stateless": ">=1.1.22 <3",
+    "@corpus-core/colibri-stateless": ">=3.0.0 <4",
     "ethers": "^6.13.1"
   },
   "peerDependenciesMeta": {

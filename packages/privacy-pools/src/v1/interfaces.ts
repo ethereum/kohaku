@@ -1,6 +1,6 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IEntrypoint, INote, PPv1PrivateOperation, PPv1PublicOperation, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
+import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1PrivateOperation, PPv1PublicOperation, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
 import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
@@ -17,6 +17,7 @@ export interface PPv1PluginParameters extends PPv1BroadcasterParameters, PPv1Bas
     ipfsUrl?: string;
     aspServiceFactory?: () => IAspService
     initialState?: PrivacyPoolsV1ProtocolParams['initialState']
+    paymasterConfig?: IChainsPaymastersConfig;
 };
 export interface PPv1PluginWithMnemonicParameters extends PPv1PluginParameters {
     mnemonic: string;

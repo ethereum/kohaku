@@ -1,5 +1,4 @@
-import { ExternalRawEvent, ExternalSyncPoolId } from "@kohaku-eth/plugins";
-import { Hex } from "ox/Hex";
+import { ExternalSyncClient } from "@kohaku-eth/plugins";
 import { Address } from "../../interfaces/types.interface";
 import { IDataService } from "./data.service.interface";
 import {
@@ -8,22 +7,7 @@ import {
   IRelayerRegisteredEvent,
 } from "./events.interface";
 
-/**
- * Worker-facing view of the host's `ExternalSyncProvider`. The host exposes a
- * streaming provider (`streamEvents` returning an async iterator), but async
- * iterators cannot cross the Comlink worker boundary. The plugin adapts the
- * provider into this materialized-array shape on the main thread before proxying
- * it into the state-manager worker (see `plugin/base.ts`).
- */
-export type ExternalSyncClient = {
-  getEvents(
-    params: ExternalSyncPoolId & { fromBlock: Hex; toBlock: Hex },
-  ): Promise<ExternalRawEvent[]>;
-  /** @throws if the provider has no data for the pool. */
-  firstCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
-  /** @throws if the provider has no data for the pool. */
-  lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
-};
+export type { ExternalSyncClient };
 
 export interface SyncServiceParams {
   dataService: IDataService;

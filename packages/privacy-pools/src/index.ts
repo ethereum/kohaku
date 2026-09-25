@@ -3,7 +3,11 @@ export * from './v2';
 // Main factory
 export { PrivacyPoolsV1Protocol } from './plugin/base';
 export { IPFSAspService } from './data/ipfsAsp.service.js';
-export { OxBowAspService, OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
+export { OxBowAspService } from './data/0xbowAsp.service';
+export { DataService } from './data/data.service';
+export { createSagaLogSource, createSagaDataService } from './data/saga-log-source';
+export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
+export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
 export { SecretManager } from './account/keys';
 
 // Types

@@ -8,10 +8,12 @@ import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
 import {
+  IChainsPaymastersConfig,
   IDepositOperationParams,
   IEntrypoint,
   IGetNotesParams,
   INote,
+  IPaymasterWithdrawapOperationParams,
   IRagequitAssetsOperationParams,
   IRagequitLabelsOperationParams,
   IStateManager,
@@ -37,7 +39,6 @@ import {
 } from "./selectors/pools.selector";
 import {
   entrypointInfoSelector,
-  userSecretsSelector,
 } from "./selectors/slices.selectors";
 import { buildDepositPayload, myDepositsCountSelector } from "./selectors/deposits.selector";
 import {
@@ -47,6 +48,7 @@ import {
 } from "./selectors/balance.selector";
 import { getNoteSelector } from "./selectors/notes.selector";
 import { PublicRootState, RootState, storeFactory } from "./store";
+import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
@@ -62,6 +64,7 @@ export interface StoreFactoryParams extends SyncAspThunkParams {
   entrypoint: IEntrypoint;
   proverFactory: () => ReturnType<typeof Prover>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
+  paymasterConfig?: IChainsPaymastersConfig;
 }
 
 const initializeSelectors = <const T extends Store>({
@@ -278,6 +281,40 @@ export const storeStateManager = (
         quoteData: { quote, relayerId },
         chainId: chainInfo.chainId,
       }];
+    },
+    getPaymasterWithdrawalPayloads: async ({
+      asset,
+      amount,
+      recipient,
+      delegation,
+      tailCalls,
+      tailCallsGasEstimate,
+    }: IPaymasterWithdrawapOperationParams) => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+      const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+
+      if (!paymasterConfig) {
+        throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
+      }
+
+      return unwrapResult(
+        await store.dispatch(
+          paymasterWithdrawThunk({
+            getNextNote: store.selectors.getNextNote,
+            proverFactory: params.proverFactory,
+            dataService: params.dataService,
+            secretManager,
+            asset,
+            amount,
+            recipient,
+            paymasterConfig,
+            delegation,
+            tailCalls,
+            tailCallsGasEstimate,
+          }),
+        ),
+      );
     },
     getRagequitPayloads: async ({
       assets = [],
