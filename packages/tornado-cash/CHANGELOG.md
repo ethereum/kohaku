@@ -1,3 +1,10 @@
+## 0.0.2-alpha.23
+
+### Patch Changes
+
+- Updated dependencies [8676bb8]
+  - @kohaku-eth/plugins@0.0.1-alpha.15
+
 ## 0.0.2-alpha.22
 
 ### Patch Changes
