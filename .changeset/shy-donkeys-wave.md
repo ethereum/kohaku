@@ -1,5 +1,6 @@
 ---
 "@kohaku-eth/plugins": patch
+"@kohaku-eth/privacy-pools": patch
 "@kohaku-eth/provider": patch
 "@kohaku-eth/railgun": patch
 ---
