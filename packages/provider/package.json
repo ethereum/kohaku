@@ -63,7 +63,8 @@
     "build": "echo Building @kohaku-eth/provider && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run"
   },
   "files": [
     "dist"

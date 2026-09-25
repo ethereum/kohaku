@@ -2,6 +2,9 @@ import { Provider } from 'ox/Provider';
 import { AnonRpcWorker } from '@anon-rpc/browser-harness';
 import { EthereumProvider } from '..';
 import { raw } from '../raw';
+import { DEFAULT_WAIT_FOR_TRANSACTION, WaitForTransactionOptions, waitForReceipt } from './wait';
+
+export type { WaitForTransactionOptions } from './wait';
 
 export type AnonBootstrapProvider = {
     request(args: { method: string; params?: unknown[] }): Promise<unknown>;
@@ -18,6 +21,12 @@ export type AnonConfig = {
     bootstrap: AnonBootstrapProvider;
     /** The harness has no boot timeout of its own; a silent worker would hang forever. */
     bootTimeoutMs?: number;
+    /**
+     * Receipt polling used by `waitForTransaction`. Each poll is a full round
+     * trip through the anonymization network, so the shared defaults
+     * (100ms / 10s) are too tight; see DEFAULT_WAIT_FOR_TRANSACTION.
+     */
+    waitForTransaction?: Partial<WaitForTransactionOptions>;
 };
 
 type RpcErrorBody = { code?: number; message?: string; data?: unknown };
@@ -64,7 +73,18 @@ export const anon = async (config: AnonConfig): Promise<EthereumProvider<AnonRpc
         },
     };
 
-    return { ...raw(client as unknown as Provider), _internal: worker };
+    const base = raw(client as unknown as Provider);
+    const waitOptions: WaitForTransactionOptions = {
+        pollIntervalMs: config.waitForTransaction?.pollIntervalMs ?? DEFAULT_WAIT_FOR_TRANSACTION.pollIntervalMs,
+        timeoutMs: config.waitForTransaction?.timeoutMs ?? DEFAULT_WAIT_FOR_TRANSACTION.timeoutMs,
+    };
+
+    return {
+        ...base,
+        _internal: worker,
+        waitForTransaction: (txHash: string) =>
+            waitForReceipt(txHash, () => base.getTransactionReceipt(txHash), waitOptions),
+    };
 };
 
 const bootWithTimeout = async (worker: AnonRpcWorker, ms: number): Promise<void> => {
