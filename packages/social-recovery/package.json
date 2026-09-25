@@ -56,10 +56,14 @@
     }
   },
   "devDependencies": {
+    "@anon-aadhaar/core": "2.4.3",
     "@types/node": "^24.1.0",
     "fast-check": "^4.10.2",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "viem": "^2.51.3"
   }
 }
