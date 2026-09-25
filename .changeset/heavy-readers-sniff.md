@@ -1,5 +1,4 @@
 ---
-'@kohaku-eth/privacy-pools': patch
 '@kohaku-eth/provider': patch
 ---
 

@@ -56,7 +56,6 @@
   "ignore": [
     "docs",
     "@kohaku-eth/example-*",
-    "@kohaku-eth/privacy-pools",
-    "@kohaku-eth/railgun"
+    "@kohaku-eth/privacy-pools"
   ]
 }
