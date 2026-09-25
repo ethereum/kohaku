@@ -1,6 +1,3 @@
-// Compiles small in-memory files against the package's source under the
-// package's own compiler options, so a record test can state what a caller's
-// code may and may not write and have `vitest run` judge it, not only `tsc`.
 import { join } from 'node:path';
 import ts from 'typescript';
 import { listSourceFiles, PACKAGE_ROOT, SRC_ROOT } from './source';
@@ -23,9 +20,8 @@ function packageOptions(): ts.CompilerOptions {
 }
 
 /**
- * Compiles every probe in one program and returns, per probe name, the
- * semantic and syntactic errors reported in that probe's own file, each as
- * `TS<code>: <message>`. An empty list means the probe compiles.
+ * Compiles every probe against `src/` under the package's compiler options, so `vitest run` judges what callers may write.
+ * Returns each probe's own errors as `TS<code>: <message>`; an empty list means it compiles.
  */
 export function compileProbes(probes: Readonly<Record<string, string>>): Map<string, string[]> {
   const options = packageOptions();

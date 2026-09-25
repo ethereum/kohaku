@@ -1,35 +1,23 @@
-// The three gathering records of D-207, versioned rather than frozen. Every
-// value that can exceed a JavaScript number travels as a decimal string, the
-// place as a number (D-207 l.1489). Line numbers are design/offchain/sdk.md.
 import type { Address, Hex } from './chain';
 
-/** Approval or cancellation, the two acts a proof signs (D-205 l.1129, D-207 l.1494). */
+/** The acts a proof signs. */
 export const PURPOSES = ['approval', 'cancellation'] as const;
 
 export type Purpose = (typeof PURPOSES)[number];
 
-/** A payment order inside a gathering record, its amount as a decimal string (D-207 l.1489, l.1498). */
+/** A payment order inside a gathering record, its amount as a decimal string. */
 export type SerializedPaymentOrder = {
   readonly token: Address;
   readonly amount: string;
   readonly payee: Address;
 };
 
-/**
- * Whether the config address of one credential holds code, declared once for
- * the gathering's place and the request cut from it. The init fills it from
- * `IProvider.code` at the pinned block and stores it on the place, so a
- * gathering reopened after a closed tab still holds it (D-207 l.1529);
- * `getApproverRequests` copies it from the place into the request with no read
- * (D-207 l.1533), and the orchestrator's `ctx` carries it to a method's
- * `verify`, which reads no chain (owner ruling 2026-09-24, a delta to D-207
- * l.1494, l.1524 and D-206 l.1260).
- */
+/** Whether the credential's config address holds code, recorded at init so a method's `verify` reads no chain. */
 type CredentialCodeStatus = {
   readonly credentialHoldsCode: boolean;
 };
 
-/** The members every request of one gathering shares (D-207 l.1494-1500, l.1503). */
+/** The members every request of one gathering shares. */
 type ApproverRequestMembers = {
   readonly kind: 'recovery-proof-request';
   /** This kind's version; a reader refuses one it does not read. */
@@ -49,18 +37,14 @@ type ApproverRequestMembers = {
   readonly salt: Hex;
 } & CredentialCodeStatus;
 
-/**
- * The request one approver receives, carrying their own credential alone and
- * no label; a cancellation carries no payload and no order (D-207 l.1491-1503).
- * Named `ApproverRequest` so it never reads as the DOM's `Request`.
- */
+/** The request one approver receives, carrying their own credential alone and no label. */
 export type ApproverRequest = ApproverRequestMembers &
   (
     | { readonly purpose: 'approval'; readonly payload: Hex; readonly order: SerializedPaymentOrder }
     | { readonly purpose: 'cancellation' }
   );
 
-/** The reply one approver sends back (D-207 l.1505-1514). */
+/** The reply one approver sends back. */
 export type Reply = {
   readonly kind: 'recovery-proof-reply';
   readonly version: number;
@@ -78,14 +62,14 @@ export type Reply = {
   readonly proof: Hex;
 };
 
-/** The block the init pinned, its timestamp as a decimal string (D-207 l.1523, l.1529). */
+/** The block the init pinned, its timestamp as a decimal string. */
 export type GatheringBlock = {
   readonly number: number;
   readonly timestamp: string;
   readonly hash: Hex;
 };
 
-/** The request block's members every digest closes over, the written-out body and the pinned block (D-207 l.1520-1523, l.1529). */
+/** The request members every digest of a gathering closes over, with the pinned block. */
 type GatheringRequestMembers = {
   readonly chainId: string;
   readonly manager: Address;
@@ -99,12 +83,12 @@ type GatheringRequestMembers = {
   readonly block: GatheringBlock;
 };
 
-/** A method's stop under D-111's two-valued rule, read once at init (D-207 l.1525, l.1529). */
+/** A method's pause standing, read once at init. */
 export const STANDINGS = ['stopped', 'not-stopped'] as const;
 
 export type Standing = (typeof STANDINGS)[number];
 
-/** One entry of the place map, always whole and in body order (D-207 l.1524-1525, l.1529). */
+/** One entry of the place map, always whole and in body order. */
 export type GatheringPlace = {
   readonly place: number;
   readonly method: Address;
@@ -118,9 +102,8 @@ export type GatheringPlace = {
 } & CredentialCodeStatus;
 
 /**
- * The record the assembling wallet holds, storing only what cannot be
- * recomputed; a cancellation's request block carries the attempt's
- * `consumableAfter` and no payload or order (D-207 l.1516-1529).
+ * The record the assembling wallet holds, storing only what cannot be recomputed.
+ * Values that can exceed a JavaScript number travel as decimal strings.
  */
 export type Gathering = {
   readonly kind: 'gathering';

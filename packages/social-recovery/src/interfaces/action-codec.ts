@@ -1,9 +1,6 @@
 import type { Address, Handover, Hex } from './records';
 
-/**
- * One action's payload layout, as pure functions (D-201, D-204).
- * `AmbireActionCodec` is the shipped codec.
- */
+/** One action's payload layout, as pure functions. */
 export interface IActionCodec {
   /** The deployed action contracts this codec serves. */
   readonly actions: readonly Address[];

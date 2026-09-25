@@ -1,5 +1,3 @@
-// The value records the twelve interfaces take and return, with the closed
-// sets beside them (PT-071).
 export * from './chain';
 export * from './abi';
 export * from './prepared';

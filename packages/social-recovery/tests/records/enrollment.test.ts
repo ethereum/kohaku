@@ -11,12 +11,6 @@ import {
   type RecordContext,
 } from '../helpers/records';
 
-// D-206 lines 1254-1255, the wallet method's enrollment: `enrollInput({ address })`
-// "returns nothing to perform, since no ceremony runs", and `configFrom(input, material)`
-// with "material: none" "returns the address as config bytes, or `EnrollFailure` on a
-// malformed address". So the nothing-to-perform input carries the address from the
-// first call to the second, and a bare nothing-to-perform input stays legal.
-
 const GUARDIAN = '0x00000000000000000000000000000000000000a1';
 
 let context: RecordContext;
@@ -43,7 +37,7 @@ const walletEnrollment: Pick<IRecoveryMethod, 'enrollInput' | 'configFrom'> = {
   },
 };
 
-describe('the two-call wallet enrollment of D-206 lines 1254-1255', () => {
+describe('the two-call wallet enrollment', () => {
   const header = `import type { EnrollInput, IRecoveryMethod } from '${PROBE_IMPORT_FROM}';\n`;
 
   let probes: Map<string, string[]>;
@@ -98,12 +92,12 @@ describe('the two-call wallet enrollment of D-206 lines 1254-1255', () => {
     return errors;
   };
 
-  it('a nothing-to-perform input carrying the address is an EnrollInput (l.1254)', () => {
+  it('a nothing-to-perform input carrying the address is an EnrollInput', () => {
     expectTypeOf<{ kind: 'nothing-to-perform'; address: `0x${string}` }>().toExtend<EnrollInput>();
     expect(errorsOf('enroll-with-address')).toEqual([]);
   });
 
-  it('after narrowing on kind the address reads back, typed unknown, so configFrom must check it (l.1255)', () => {
+  it('after narrowing on kind the address reads back, typed unknown, so configFrom must check it', () => {
     const input: EnrollInput = { kind: 'nothing-to-perform', address: GUARDIAN };
 
     if (input.kind === 'nothing-to-perform') expectTypeOf(input['address']).toEqualTypeOf<unknown>();

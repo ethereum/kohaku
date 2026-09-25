@@ -15,11 +15,7 @@ import type {
   Verdict,
 } from './records';
 
-/**
- * The client-side half of one method module, one implementation per module
- * (D-201, D-206). `WalletMethod`, `PasskeyMethod`, `ZkPassportMethod` and
- * `AnonAadhaarMethod` are the shipped implementations.
- */
+/** The client-side half of one method module. */
 export interface IRecoveryMethod {
   /** The module addresses this implementation serves on the given deployment. */
   modules(descriptor: DeploymentDescriptor): readonly Address[];
@@ -34,6 +30,6 @@ export interface IRecoveryMethod {
   readonly codec: IMethodCodec;
   readonly deviceBinding: DeviceBinding;
   describe(ctx: Ctx): DeviceFacts;
-  /** The vector files under design/kats/ this implementation's tests replay. */
+  /** The known-answer vector files this implementation's tests replay. */
   readonly vector: readonly string[];
 }

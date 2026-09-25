@@ -1,8 +1,6 @@
-// The two records a client is built from (D-208). Line numbers are
-// design/offchain/sdk.md.
 import type { Address, Hex, NamedBlockTag } from './chain';
 
-/** The record of one deployment, every field required (D-208 l.1602-1620, l.1636). */
+/** The record of one deployment on one chain. */
 export type DeploymentDescriptor = {
   readonly chainId: number;
   readonly manager: Address;
@@ -17,20 +15,20 @@ export type DeploymentDescriptor = {
   readonly digestVersion: string;
   /** The release string, checked against `version()`. */
   readonly managerVersion: string;
-  /** The method addresses the kit audited on this chain. */
+  /** The method addresses audited on this chain. */
   readonly shippedMethods: readonly Address[];
-  /** The action addresses the kit audited on this chain. */
+  /** The action addresses audited on this chain. */
   readonly auditedActions: readonly Address[];
 };
 
-/** A request window's default beside the floor and ceiling of its one entry, in seconds (D-208 l.1624). */
+/** A request window's default and bounds, in seconds. */
 export type RequestWindowBounds = {
   readonly default: number;
   readonly floor: number;
   readonly ceiling: number;
 };
 
-/** The account's creation triple and its creation block (D-208 l.1626, D-203 l.752, usage l.418). */
+/** How and in which block the account was created. */
 export type CreationRecord = {
   readonly factory: Address;
   readonly bytecode: Hex;
@@ -38,18 +36,17 @@ export type CreationRecord = {
   readonly block: number;
 };
 
-/** The tag a read pins at and the tag a watch pins at (D-203 l.829, D-208 l.1629, usage l.419). */
+/** The tag a read pins at and the tag a watch pins at. */
 export type BlockTags = {
   readonly read: NamedBlockTag;
   readonly watch: NamedBlockTag;
 };
 
-/** What a client accepts (D-208 l.1622-1632). */
+/** The configuration a client is built with. */
 export type ClientConfiguration = {
-  // The six numbers of D-107 (l.1624), each an exported default the integrator may override.
   /** The default wait a setup screen proposes, in seconds. */
   readonly defaultWait: number;
-  /** The wait below which the setup screen warns, in seconds (l.1625). */
+  /** The wait below which the setup screen warns, in seconds. */
   readonly shortWait: number;
   /** The largest wait the SDK accepts, in seconds. */
   readonly maxWait: number;
@@ -58,17 +55,17 @@ export type ClientConfiguration = {
   readonly cancelWindow: number;
   /** The rule cost beyond which the SDK refuses, in gas summed over the costliest satisfying set. */
   readonly ruleCostBound: number;
-  /** Where the integrator has one (l.1626). */
+  /** The account's creation record, where the integrator has one. */
   readonly creation?: CreationRecord;
-  /** The account implementation about to be deployed, read by the fit check alone (l.1627). */
+  /** The account implementation about to be deployed. */
   readonly accountImplementation?: Address;
-  /** The integrator's own list, never the account's signer set (l.1628). */
+  /** The integrator's own list, never the account's signer set. */
   readonly candidateKeys: readonly Address[];
   readonly blockTags: BlockTags;
-  /** The block width `fetch` chunks its reads into (l.1629, D-203 l.761). */
+  /** The block width `fetch` chunks its reads into. */
   readonly logChunkSize: number;
-  /** The token allowlist (l.1630). */
+  /** The token allowlist. */
   readonly tokens: readonly Address[];
-  /** The simulation default a prepare's `options.simulate` overrides (l.1631). */
+  /** The simulation default a prepare's `options.simulate` overrides. */
   readonly simulate: boolean;
 };

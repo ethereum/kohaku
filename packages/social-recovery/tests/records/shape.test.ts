@@ -3,14 +3,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { aliasTypes, fixtureProgram, loadRecords, type RecordContext, RECORDS_ROOT, visitType } from '../helpers/records';
 import { hasModifier, listSourceFiles, parseSource, requireSourceFile, toPackagePath, walk } from '../helpers/source';
 
-// D-201 (design/offchain/sdk.md) makes every record the frozen members take
-// and return a value: line 532 "the records the frozen members return ...
-// each frozen with the member that returns it", line 549 "a record with no
-// members of its own" for the prepared call, and the brief's test expectation
-// "Every record is a type alias or interface-free object type with no method
-// members (compiler API walk: no MethodSignature, no function-typed property
-// on a record)".
-
 /** Syntax that declares a call anywhere in a type: a method, a call or construct signature, a function type. */
 const CALL_SYNTAX = new Set([
   ts.SyntaxKind.MethodSignature,

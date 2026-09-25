@@ -4,14 +4,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// VEC-1 (coordination/briefs/VEC-1.md): the files under vectors/ are
-// byte-for-byte copies of the owner-blessed design/kats/*.json of
-// defi-wonderland/mast-social-recovery-2 at the commit PROVENANCE.md names.
-// This test pins each copy to the sha256 PROVENANCE.md lists, so an edit,
-// a reformat or a regeneration of any copy goes red here.
-
 const VECTORS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'vectors');
 const PROVENANCE_PATH = join(VECTORS_DIR, 'PROVENANCE.md');
+/** The commit of defi-wonderland/mast-social-recovery-2 the vectors are byte-for-byte copies from. */
 const SOURCE_COMMIT = '2a12948d47881f43bbe32f3c4b3b82dbdc89efdd';
 const EXPECTED_FILE_COUNT = 22;
 

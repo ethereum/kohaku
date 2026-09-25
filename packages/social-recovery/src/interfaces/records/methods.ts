@@ -1,11 +1,8 @@
-// The records of the approving and enrolling side (D-206). What differs per
-// method is typed as the implementation's own open record (l.1221, l.1245).
-// Line numbers are design/offchain/sdk.md.
 import type { Address, Hex } from './chain';
 import type { ApproverRequest } from './gathering';
 import type { PaymentOrder } from './manager';
 
-/** The domain the request's chain id, manager and digest version build, under the name `PolicyManager` (D-206 l.1213). */
+/** The EIP-712 domain built from the request's chain id, manager and digest version. */
 export type TypedDataDomain = {
   readonly name: 'PolicyManager';
   readonly version: string;
@@ -19,7 +16,7 @@ export type TypedDataField = {
   readonly type: string;
 };
 
-/** The `Approval` message (D-204 l.874, contracts.md l.199-203). */
+/** The `Approval` message. */
 export type ApprovalMessage = {
   readonly account: Address;
   readonly action: Address;
@@ -32,7 +29,7 @@ export type ApprovalMessage = {
   readonly place: number;
 };
 
-/** The `Cancellation` message, no payload and no order (D-204 l.874, contracts.md l.205-208). */
+/** The `Cancellation` message. */
 export type CancellationMessage = {
   readonly account: Address;
   readonly action: Address;
@@ -43,7 +40,7 @@ export type CancellationMessage = {
   readonly place: number;
 };
 
-/** The typed data for one place, as a wallet's signing call takes it (D-204 l.874-879). */
+/** The typed data for one place, as a wallet's signing call takes it. */
 export type TypedData = {
   readonly domain: TypedDataDomain;
   readonly types: { readonly [struct: string]: readonly TypedDataField[] };
@@ -52,11 +49,7 @@ export type TypedData = {
   | { readonly primaryType: 'Cancellation'; readonly message: CancellationMessage }
 );
 
-/**
- * The one record four implementation members take, built by the orchestrator
- * alone: the request's members, the place, its digest and its typed data
- * (D-206 l.1229, l.1234).
- */
+/** The per-place context the orchestrator builds and hands to a method. */
 export type Ctx = {
   readonly request: ApproverRequest;
   readonly place: number;
@@ -64,26 +57,24 @@ export type Ctx = {
   readonly typedData: TypedData;
 };
 
-/** A method's own parameters for one ceremony or one signing input (D-206 l.1220-1221). */
+/** A method's own parameters for one ceremony or one signing input. */
 export type Params = { readonly [name: string]: unknown };
 
-/** What a method needs before anything acts, the implementation's own type (D-206 l.1221). */
+/** What a method needs before anything acts, the implementation's own type. */
 export type Input = { readonly [name: string]: unknown };
 
 /**
- * What a ceremony needs, or nothing to perform for a method whose config the
- * integrator already holds (D-206 l.1220, l.1254). Both branches carry the
- * method's own data, which `configFrom` reads back, such as the wallet
- * method's address (l.1254-1255).
+ * What an enrollment ceremony needs, or nothing to perform when the integrator already holds the config.
+ * Both carry the method's own data, which `configFrom` reads back.
  */
 export type EnrollInput =
   | { readonly kind: 'nothing-to-perform'; readonly [name: string]: unknown }
   | { readonly kind: 'ceremony'; readonly [name: string]: unknown };
 
-/** What the device or the ceremony produced, the implementation's own shape, or none (D-206 l.1245, l.1255). */
+/** What the device or the ceremony produced, the implementation's own shape, or none. */
 export type Material = { readonly [name: string]: unknown } | undefined;
 
-/** The five causes of a reply failure (D-206 l.1239, usage l.482). */
+/** Why a reply could not be produced. */
 export const REPLY_FAILURE_CAUSES = [
   'device-refused',
   'device-unavailable',
@@ -94,26 +85,26 @@ export const REPLY_FAILURE_CAUSES = [
 
 export type ReplyFailureCause = (typeof REPLY_FAILURE_CAUSES)[number];
 
-/** A typed failure naming its cause, never a thrown error (D-206 l.1239, usage l.482). */
+/** A typed failure naming its cause, never a thrown error. */
 export type ReplyFailure = {
   readonly kind: 'reply-failure';
   readonly cause: ReplyFailureCause;
 };
 
-/** The enrollment's failure: one failure type serves both sides (D-206 l.1220, l.1239). */
+/** An enrollment failure, the same type as a reply failure. */
 export type EnrollFailure = ReplyFailure;
 
-/** The local verdict's three answers (D-206 l.1223). */
+/** A method's local verdict on a proof. */
 export const VERDICTS = ['satisfied', 'rejected', 'not-judged'] as const;
 
 export type Verdict = (typeof VERDICTS)[number];
 
-/** Where the approver's device has to be, one of four values and no other (D-206 l.1225). */
+/** Where the approver's device has to be. */
 export const DEVICE_BINDINGS = ['none', 'browser-authenticator', 'external-app', 'in-browser-prover'] as const;
 
 export type DeviceBinding = (typeof DEVICE_BINDINGS)[number];
 
-/** The device kind every implementation states (D-205 l.1135, D-206 l.1226). */
+/** The device kind every implementation states. */
 export const DEVICE_KINDS = [
   'typed-data-wallet',
   'webauthn-authenticator',
@@ -123,7 +114,7 @@ export const DEVICE_KINDS = [
 
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
 
-/** Facts about the approver's device, values and never a judgment (D-206 l.1226). */
+/** Facts about the approver's device, values and never a judgment. */
 export type DeviceFacts = {
   readonly kind: DeviceKind;
   readonly [fact: string]: unknown;
@@ -132,5 +123,5 @@ export type DeviceFacts = {
 /** One decoded value of a method's config or proof layout. */
 export type FieldValue = bigint | number | boolean | string | readonly FieldValue[] | Fields;
 
-/** A method's config or proof fields by name, in the method's own layout (D-204 l.917). */
+/** A method's config or proof fields by name, in the method's own layout. */
 export type Fields = { readonly [name: string]: FieldValue };

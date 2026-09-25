@@ -25,10 +25,6 @@ import {
 } from '../helpers/records';
 import { compileProbes, PROBE_IMPORT_FROM } from '../helpers/probe';
 
-// Field lists derived from design/offchain/sdk.md before src/ was read; each
-// carries the line it comes from. "usage" lines are D-201's illustrative
-// usage (406-519), which fixes a name only where no section's prose does.
-
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
 let context: RecordContext;
@@ -58,33 +54,33 @@ function elementOf(type: ts.Type, name: string): ts.Type {
   return element;
 }
 
-// D-205 lines 1104-1117: the setup description's rows. Thirteen plus removedKey (1111).
+/** SetupDescription's fields besides removedKey, listed independently of src/. */
 const SETUP_DESCRIPTION_FIELDS = [
-  'rule', // 1104
-  'wait', // 1105
-  'failureDomains', // 1106
-  'parties', // 1107
-  'methodStanding', // 1108
-  'passkeyDomains', // 1109
-  'candidateKeys', // 1110
-  'privacy', // 1112
-  'backup', // 1113
-  'reveals', // 1114
-  'cancel', // 1115
-  'upgrade', // 1116
-  'pause', // 1117
+  'rule',
+  'wait',
+  'failureDomains',
+  'parties',
+  'methodStanding',
+  'passkeyDomains',
+  'candidateKeys',
+  'privacy',
+  'backup',
+  'reveals',
+  'cancel',
+  'upgrade',
+  'pause',
 ];
 
-describe('the setup description of D-205 and the recovery state of D-202', () => {
+describe('the setup description and the recovery state', () => {
   it('derives thirteen fields besides removedKey', () => {
     expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(13);
   });
 
-  it('SetupDescription carries exactly the thirteen fields and removedKey (lines 1104-1117)', () => {
+  it('SetupDescription carries exactly the thirteen fields and removedKey', () => {
     expect(fieldsOf(typeOf('SetupDescription'))).toEqual(sorted([...SETUP_DESCRIPTION_FIELDS, 'removedKey']));
   });
 
-  it('removedKey is an address or a value saying no creation triple was given, and is required (lines 644, 1111)', () => {
+  it('removedKey is an address or a value saying no creation triple was given, and is required', () => {
     const removedKey = field(typeOf('SetupDescription'), 'removedKey');
     const members = constituents(removedKey);
     const addressLike = members.filter((member) => hasFlag(member, ts.TypeFlags.TemplateLiteral | ts.TypeFlags.String));
@@ -97,7 +93,7 @@ describe('the setup description of D-205 and the recovery state of D-202', () =>
     expect(markers.every((marker) => !context.checker.isTypeAssignableTo(marker, typeOf('Address')))).toBe(true);
   });
 
-  it('RecoveryState carries removedKey, required and of the same type as the description (line 644)', () => {
+  it('RecoveryState carries removedKey, required and of the same type as the description', () => {
     const recovery = typeOf('RecoveryState');
 
     expect(fieldsOf(recovery)).toContain('removedKey');
@@ -105,7 +101,7 @@ describe('the setup description of D-205 and the recovery state of D-202', () =>
     expect(mutuallyAssignable(field(recovery, 'removedKey'), field(typeOf('SetupDescription'), 'removedKey'))).toBe(true);
   });
 
-  it('RecoveryState is the attempt sub-record, the next id, the current commitment and nonce, removedKey and the block (lines 642-646)', () => {
+  it('RecoveryState is the attempt sub-record, the next id, the current commitment and nonce, removedKey and the block', () => {
     const recovery = typeOf('RecoveryState');
 
     expect(fieldsOf(recovery)).toEqual(
@@ -117,7 +113,7 @@ describe('the setup description of D-205 and the recovery state of D-202', () =>
     expect(fieldsOf(field(recovery, 'block'))).toEqual(sorted(['number', 'timestamp', 'hash']));
   });
 
-  it('SetupState is the chain facts of line 640 and the block of line 646, no removedKey', () => {
+  it('SetupState is the chain facts and the block, no removedKey', () => {
     const setupState = typeOf('SetupState');
 
     expect(fieldsOf(setupState)).toEqual(
@@ -127,8 +123,8 @@ describe('the setup description of D-205 and the recovery state of D-202', () =>
   });
 });
 
-describe('the prepared call and the prepared batch of D-202', () => {
-  it('PreparedCall carries the table of lines 551-560, kind the literal call', () => {
+describe('the prepared call and the prepared batch', () => {
+  it('PreparedCall carries the expected fields, kind the literal call', () => {
     const call = typeOf('PreparedCall');
 
     expect(fieldsOf(call)).toEqual(
@@ -139,14 +135,14 @@ describe('the prepared call and the prepared batch of D-202', () => {
     expect(fieldsOf(field(call, 'block'))).toEqual(sorted(['number', 'hash']));
   });
 
-  it('simulation and describes may be absent, every other field is required (lines 559-560)', () => {
+  it('simulation and describes may be absent, every other field is required', () => {
     const call = typeOf('PreparedCall');
     const absent = fieldsOf(call).filter((name) => optional(call, name));
 
     expect(absent).toEqual(['describes', 'simulation']);
   });
 
-  it('PreparedBatch is kind batch, a list of prepared calls, an atomic flag and the pinned block (line 562)', () => {
+  it('PreparedBatch is kind batch, a list of prepared calls, an atomic flag and the pinned block', () => {
     const batch = typeOf('PreparedBatch');
 
     expect(fieldsOf(batch)).toEqual(sorted(['kind', 'calls', 'atomic', 'block']));
@@ -156,7 +152,7 @@ describe('the prepared call and the prepared batch of D-202', () => {
     expect(mutuallyAssignable(field(batch, 'block'), field(typeOf('PreparedCall'), 'block'))).toBe(true);
   });
 
-  it('prepareCommitSetup and prepareClearSetup answer the union, told apart by kind alone (lines 594-596)', () => {
+  it('prepareCommitSetup and prepareClearSetup answer the union, told apart by kind alone', () => {
     const client = context.entry.get('ISetupClient');
 
     expect(client).toBeDefined();
@@ -175,13 +171,10 @@ describe('the prepared call and the prepared batch of D-202', () => {
   });
 });
 
-// D-207 lines 1494-1500, 1503, 1508-1514, 1519-1529. 'credentialHoldsCode' is
-// added by the owner ruling of 2026-09-24 (a recorded delta extending D-207
-// 1494-1500 and D-206 1260), on both the approval and cancellation branches.
 const REQUEST_FIELDS = [
   'kind', 'version', 'purpose', 'chainId', 'manager', 'digestVersion', 'account', 'action', 'attemptId', 'setupNonce',
   'setupBodyHash', 'payload', 'order', 'validUntil', 'place', 'method', 'config', 'salt',
-  'credentialHoldsCode', // owner ruling 2026-09-24, extending D-207 1494-1500
+  'credentialHoldsCode',
 ];
 const REPLY_FIELDS = [
   'kind', 'version', 'chainId', 'manager', 'account', 'action', 'attemptId', 'purpose', 'place', 'method', 'config',
@@ -191,16 +184,16 @@ const GATHERING_REQUEST_FIELDS = [
   'chainId', 'manager', 'digestVersion', 'account', 'action', 'attemptId', 'setupNonce', 'setupBody', 'payload',
   'order', 'validUntil', 'block',
 ];
-// Line 1514: the six fields that bind a reply to one gathering by inspection.
+/** The fields that bind a reply to one gathering. */
 const BINDING_FIELDS = ['chainId', 'manager', 'account', 'action', 'attemptId', 'purpose'];
 const without = (list: readonly string[], ...drop: string[]): string[] => list.filter((name) => !drop.includes(name));
 
-describe('the three gathering records of D-207', () => {
+describe('the three gathering records', () => {
   it.each([
-    ['ApproverRequest', 'recovery-proof-request'], // 1494
-    ['Reply', 'recovery-proof-reply'], // 1508
-    ['Gathering', 'gathering'], // 1519
-  ])('%s carries a version field and the kind %s on every shape (line 1489)', (name, kind) => {
+    ['ApproverRequest', 'recovery-proof-request'],
+    ['Reply', 'recovery-proof-reply'],
+    ['Gathering', 'gathering'],
+  ])('%s carries a version field and the kind %s on every shape', (name, kind) => {
     for (const shape of constituents(typeOf(name))) {
       expect(fieldsOf(shape)).toContain('version');
       expect(optional(shape, 'version')).toBe(false);
@@ -209,7 +202,7 @@ describe('the three gathering records of D-207', () => {
     }
   });
 
-  it('ApproverRequest, renamed from Request, is the approval record of lines 1494-1500', () => {
+  it('ApproverRequest, renamed from Request, is the approval record', () => {
     const approval = constituents(typeOf('ApproverRequest')).filter(
       (shape) => stringLiterals(field(shape, 'purpose'))?.[0] === 'approval',
     );
@@ -218,7 +211,7 @@ describe('the three gathering records of D-207', () => {
     expect(fieldsOf(approval[0] as ts.Type)).toEqual(sorted(REQUEST_FIELDS));
   });
 
-  it('a cancellation ApproverRequest is the same record with no payload and no order (line 1503)', () => {
+  it('a cancellation ApproverRequest is the same record with no payload and no order', () => {
     const cancellation = constituents(typeOf('ApproverRequest')).filter(
       (shape) => stringLiterals(field(shape, 'purpose'))?.[0] === 'cancellation',
     );
@@ -227,10 +220,8 @@ describe('the three gathering records of D-207', () => {
     expect(fieldsOf(cancellation[0] as ts.Type)).toEqual(sorted(without(REQUEST_FIELDS, 'payload', 'order')));
   });
 
-  // Owner ruling 2026-09-24, extending D-207 1494-1500 and 1503: every request
-  // says whether its credential's config address holds code, as a required boolean.
   it.each(['approval', 'cancellation'])(
-    'a %s ApproverRequest carries credentialHoldsCode as a required boolean (owner ruling 2026-09-24)',
+    'a %s ApproverRequest carries credentialHoldsCode as a required boolean',
     (purpose) => {
       const branch = constituents(typeOf('ApproverRequest')).filter(
         (shape) => stringLiterals(field(shape, 'purpose'))?.[0] === purpose,
@@ -244,7 +235,7 @@ describe('the three gathering records of D-207', () => {
     },
   );
 
-  it('credentialHoldsCode is a required boolean on both branches, type-level (owner ruling 2026-09-24)', () => {
+  it('credentialHoldsCode is a required boolean on both branches, type-level', () => {
     type Approval = Extract<ApproverRequest, { purpose: 'approval' }>;
     type Cancellation = Extract<ApproverRequest, { purpose: 'cancellation' }>;
 
@@ -254,27 +245,23 @@ describe('the three gathering records of D-207', () => {
     expectTypeOf<Pick<Cancellation, 'credentialHoldsCode'>>().toEqualTypeOf<{ readonly credentialHoldsCode: boolean }>();
   });
 
-  it('ApproverRequest carries the six binding fields of line 1514 and the digest version its digest derives under (line 1495)', () => {
+  it('ApproverRequest carries the six binding fields and the digest version its digest derives under', () => {
     for (const shape of constituents(typeOf('ApproverRequest'))) {
       expect(fieldsOf(shape)).toEqual(expect.arrayContaining([...BINDING_FIELDS, 'digestVersion']));
     }
   });
 
-  it('Reply carries the six binding fields, the digest and the proof, and no window and no payload (lines 1508-1514)', () => {
+  it('Reply carries the six binding fields, the digest and the proof, and no window and no payload', () => {
     const reply = typeOf('Reply');
 
     expect(fieldsOf(reply)).toEqual(sorted(REPLY_FIELDS));
     expect(fieldsOf(reply)).toEqual(expect.arrayContaining([...BINDING_FIELDS, 'digest']));
   });
 
-  it('Gathering holds the request block, the place map and the replies, no satisfied, filled or verified field (lines 1516-1529)', () => {
+  it('Gathering holds the request block, the place map and the replies, no satisfied, filled or verified field', () => {
     for (const shape of constituents(typeOf('Gathering'))) {
       expect(fieldsOf(shape)).toEqual(sorted(['kind', 'version', 'purpose', 'request', 'places', 'replies']));
       expect(fieldsOf(elementOf(shape, 'places'))).toEqual(
-        // 'credentialHoldsCode': owner ruling 2026-09-24 completing the
-        // credentialHoldsCode ruling, a delta to D-207 1524; the init stores it
-        // so a reopened gathering holds it (1529) and getApproverRequests copies
-        // it without a read (1533).
         sorted(['place', 'method', 'config', 'salt', 'label', 'standing', 'stoppable', 'credentialHoldsCode']),
       );
       expect(mutuallyAssignable(elementOf(shape, 'replies'), typeOf('Reply'))).toBe(true);
@@ -282,9 +269,7 @@ describe('the three gathering records of D-207', () => {
     }
   });
 
-  // Owner ruling 2026-09-24 completing the credentialHoldsCode ruling: the
-  // place stores the flag (D-207 1529) and the request copies it (1533).
-  it('the gathering place and the request hold credentialHoldsCode as the same required boolean, type-level (owner ruling 2026-09-24)', () => {
+  it('the gathering place and the request hold credentialHoldsCode as the same required boolean, type-level', () => {
     expectTypeOf<GatheringPlace['credentialHoldsCode']>().toEqualTypeOf<boolean>();
     expectTypeOf<ApproverRequest['credentialHoldsCode']>().toEqualTypeOf<boolean>();
     expectTypeOf<GatheringPlace['credentialHoldsCode']>().toEqualTypeOf<ApproverRequest['credentialHoldsCode']>();
@@ -298,10 +283,8 @@ describe('the three gathering records of D-207', () => {
     }
   });
 
-  // Pure record construction, no client: place, then the request cut from it
-  // by copying the flag (D-207 1533, no read), then the ctx around it (D-206 1229).
   it.each([true, false])(
-    'credentialHoldsCode %s travels from the gathering place to the request to the ctx (owner ruling 2026-09-24)',
+    'credentialHoldsCode %s travels from the gathering place to the request to the ctx',
     (holdsCode) => {
       const place: GatheringPlace = {
         place: 0,
@@ -350,7 +333,7 @@ describe('the three gathering records of D-207', () => {
           },
         },
       };
-      // The place survives a closed tab as JSON (D-207 1529).
+      // The place survives a closed tab as JSON.
       const reopened = JSON.parse(JSON.stringify(place)) as GatheringPlace;
 
       expect(place.credentialHoldsCode).toBe(holdsCode);
@@ -360,7 +343,7 @@ describe('the three gathering records of D-207', () => {
     },
   );
 
-  it("an approval gathering's request block is the members of lines 1520-1523", () => {
+  it("an approval gathering's request block holds the expected members", () => {
     const [approval] = constituents(typeOf('Gathering')).filter(
       (shape) => stringLiterals(field(shape, 'purpose'))?.[0] === 'approval',
     );
@@ -369,7 +352,7 @@ describe('the three gathering records of D-207', () => {
     expect(fieldsOf(field(approval as ts.Type, 'request'))).toEqual(sorted(GATHERING_REQUEST_FIELDS));
   });
 
-  it("a cancellation gathering's request block drops payload and order and holds consumableAfter (lines 1503, 1529)", () => {
+  it("a cancellation gathering's request block drops payload and order and holds consumableAfter", () => {
     const [cancellation] = constituents(typeOf('Gathering')).filter(
       (shape) => stringLiterals(field(shape, 'purpose'))?.[0] === 'cancellation',
     );
@@ -381,7 +364,7 @@ describe('the three gathering records of D-207', () => {
   });
 });
 
-describe('the big values inside the gathering records travel as decimal strings (D-207 line 1489)', () => {
+describe('the big values inside the gathering records travel as decimal strings', () => {
   const bigintPaths = (name: string): string[] => {
     const bigints: string[] = [];
 
@@ -446,45 +429,45 @@ describe('the big values inside the gathering records travel as decimal strings 
   });
 });
 
-describe('the other records whose fields the chapter names', () => {
+describe('the other records with named fields', () => {
   it.each(['SetupState', 'RecoveryState', 'Configuration', 'SetupConfirmation', 'AddResult', 'Assessment', 'EnrollFailure'])(
-    '%s, returned by a frozen member, carries no version field of its own (D-201 line 532)',
+    '%s, returned by a frozen member, carries no version field of its own',
     (name) => {
       for (const shape of constituents(typeOf(name))) expect(fieldsOf(shape)).not.toContain('version');
     },
   );
 
   it.each([
-    ['Handover', ['newAuthority', 'removedAuthority'], 'D-202 line 608'],
-    ['SetupConfirmation', ['landed', 'nonce', 'setupCommitment', 'isAuthorized', 'position'], 'D-202 line 597'],
-    ['Assessment', ['filled', 'missing', 'clauses', 'ruleSatisfied', 'findings'], 'D-207 line 1539, usage lines 492-493'],
-    ['BlockRange', ['from', 'to'], 'D-203 line 745, usage line 500'],
-    ['ValidationResult', ['errors', 'warnings'], 'D-205 line 994, usage line 445'],
-    ['ValidityWindow', ['window'], 'usage line 470'],
+    ['Handover', ['newAuthority', 'removedAuthority'], 'the handover'],
+    ['SetupConfirmation', ['landed', 'nonce', 'setupCommitment', 'isAuthorized', 'position'], 'the setup confirmation'],
+    ['Assessment', ['filled', 'missing', 'clauses', 'ruleSatisfied', 'findings'], 'the assessment of a gathering'],
+    ['BlockRange', ['from', 'to'], 'the block range of a fetch'],
+    ['ValidationResult', ['errors', 'warnings'], 'the validation result'],
+    ['ValidityWindow', ['window'], 'the validity window'],
     [
       'DeploymentDescriptor',
       [
         'chainId', 'manager', 'methodEcdsa', 'methodPasskey', 'methodAadhaar', 'methodZkpassport', 'action',
         'servedImplementation', 'deployedAt', 'digestVersion', 'managerVersion', 'shippedMethods', 'auditedActions',
       ],
-      'D-208 lines 1606-1618',
+      'the deployment descriptor',
     ],
-  ] as const)('%s carries exactly the fields the chapter names', (name, expected, source) => {
+  ] as const)('%s carries exactly the expected fields', (name, expected, source) => {
     expect(fieldsOf(typeOf(name)), `${name}, ${source}`).toEqual(sorted(expected));
   });
 
-  it('every descriptor field is required, a partial descriptor being a type error (D-208 line 1636)', () => {
+  it('every descriptor field is required, a partial descriptor being a type error', () => {
     const descriptor = typeOf('DeploymentDescriptor');
 
     expect(fieldsOf(descriptor).filter((name) => optional(descriptor, name))).toEqual([]);
   });
 
-  it('the handover leaves removedAuthority optional and newAuthority required (D-202 line 608, owner ruling)', () => {
+  it('the handover leaves removedAuthority optional and newAuthority required', () => {
     expect(optional(typeOf('Handover'), 'newAuthority')).toBe(false);
     expect(optional(typeOf('Handover'), 'removedAuthority')).toBe(true);
   });
 
-  it('the client configuration carries the fields the usage names (usage lines 417-419)', () => {
+  it('the client configuration carries the expected fields', () => {
     const configuration = typeOf('ClientConfiguration');
 
     expect(fieldsOf(configuration)).toEqual(expect.arrayContaining(['tokens', 'candidateKeys', 'creation', 'blockTags']));
@@ -492,28 +475,23 @@ describe('the other records whose fields the chapter names', () => {
     expect(fieldsOf(field(configuration, 'blockTags'))).toEqual(sorted(['read', 'watch']));
   });
 
-  // The configuration source (D-202 line 654) is judged by assignability in
-  // "the configuration source of D-202 line 654" below.
-
-  it("ReplyFailure is kind reply-failure with its cause (usage line 482)", () => {
+  it("ReplyFailure is kind reply-failure with its cause", () => {
     const failure = typeOf('ReplyFailure');
 
     expect(stringLiterals(field(failure, 'kind'))).toEqual(['reply-failure']);
     expect(fieldsOf(failure)).toContain('cause');
   });
 
-  it('the ctx carries the place and its digest beside the request (D-206 line 1229)', () => {
+  it('the ctx carries the place and its digest beside the request', () => {
     expect(fieldsOf(typeOf('Ctx'))).toEqual(expect.arrayContaining(['place', 'digest']));
   });
 
-  // Owner ruling 2026-09-24, extending D-206 1229 and 1260: the flag reaches a
-  // method's verify through ctx.request, with no field of its own on Ctx.
-  it('ctx.request.credentialHoldsCode reaches verify as a boolean (owner ruling 2026-09-24)', () => {
+  it('ctx.request.credentialHoldsCode reaches verify as a boolean', () => {
     expectTypeOf<Ctx['request']['credentialHoldsCode']>().toEqualTypeOf<boolean>();
     expect(fieldsOf(field(typeOf('Ctx'), 'request'))).toContain('credentialHoldsCode');
   });
 
-  it('the setup draft carries the wait, the clauses, the pause choice and the privacy dial (usage lines 434-442)', () => {
+  it('the setup draft carries the wait, the clauses, the pause choice and the privacy dial', () => {
     const draft = typeOf('SetupDraft');
 
     expect(fieldsOf(draft)).toEqual(sorted(['wait', 'clauses', 'ignoresPause', 'privacy']));
@@ -523,7 +501,7 @@ describe('the other records whose fields the chapter names', () => {
     );
   });
 
-  it('a configuration is not a draft: it carries no privacy dial (D-202 line 652)', () => {
+  it('a configuration is not a draft: it carries no privacy dial', () => {
     expect(fieldsOf(typeOf('Configuration'))).not.toContain('privacy');
     expect(context.checker.isTypeAssignableTo(typeOf('Configuration'), typeOf('SetupDraft'))).toBe(false);
   });
@@ -543,11 +521,7 @@ function memberWith(type: ts.Type, discriminant: string, value: string): ts.Type
 const isAddressLike = (type: ts.Type): boolean => hasFlag(type, ts.TypeFlags.TemplateLiteral | ts.TypeFlags.String);
 const isBigint = (type: ts.Type): boolean => hasFlag(type, ts.TypeFlags.BigInt);
 
-// D-207 line 1538: the result names the reply it displaced, or nothing when the
-// place was empty, and on a refusal carries a `reason` beside the record passed
-// in, unchanged. Owner ruling (PT-071 fix 2): two members discriminated by
-// `outcome`, `filed` and `refused`.
-describe('the add result of D-207 line 1538, a union over outcome', () => {
+describe('the add result, a union over outcome', () => {
   it('has exactly two members, one per outcome filed and refused, matching ADD_OUTCOMES', () => {
     const members = constituents(typeOf('AddResult'));
 
@@ -585,15 +559,13 @@ describe('the add result of D-207 line 1538, a union over outcome', () => {
   });
 });
 
-// D-202 line 660 and D-205 lines 1086-1092: one record per restore code, the
-// values its row names. The spellings of the two no-backup cases and of the
-// setup nonce are the implementation's; the meanings are the chapter's.
+/** Only the meanings are specified; the spellings are the implementation's. */
 const NO_BACKUP = [
-  { meaning: 'no setup stands (l.660, l.1090)', spelling: 'no-setup' },
-  { meaning: 'a standing setup kept no backup (l.660, l.1090)', spelling: 'no-backup-kept' },
+  { meaning: 'no setup stands', spelling: 'no-setup' },
+  { meaning: 'a standing setup kept no backup', spelling: 'no-backup-kept' },
 ] as const;
 
-// D-202 line 654: the five the cipher authenticates under.
+/** The values the backup cipher authenticates under; only the meanings are specified. */
 const AUTHENTICATED = [
   { meaning: 'the account', spelling: 'account' },
   { meaning: 'the action', spelling: 'action' },
@@ -602,7 +574,7 @@ const AUTHENTICATED = [
   { meaning: 'the payload version', spelling: 'payloadVersion' },
 ] as const;
 
-describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union over code', () => {
+describe('the restore cause, a union over code', () => {
   const cause = (code: string): ts.Type => memberWith(typeOf('RestoreCause'), 'code', code);
   const values = (code: string): ts.Type => field(cause(code), 'values');
 
@@ -621,7 +593,7 @@ describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union
     expect(new Set(NO_BACKUP.map((entry) => entry.meaning)).size).toBe(2);
   });
 
-  it('no-backup carries the account, the action, which case fired and an optional nonce (l.1090)', () => {
+  it('no-backup carries the account, the action, which case fired and an optional nonce', () => {
     const noBackup = values('restore.no-backup');
 
     expect(fieldsOf(noBackup)).toEqual(sorted(['account', 'action', 'case', 'nonce']));
@@ -634,7 +606,7 @@ describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union
     expect(isBigint(field(noBackup, 'nonce'))).toBe(true);
   });
 
-  it('the case is exactly the two literals of NO_BACKUP_CASES, one per meaning of line 660', () => {
+  it('the case is exactly the two literals of NO_BACKUP_CASES, one per meaning', () => {
     const expected = sorted(NO_BACKUP.map((entry) => entry.spelling));
 
     expect(stringLiterals(field(values('restore.no-backup'), 'case'))).toEqual(expected);
@@ -642,7 +614,7 @@ describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union
     expect(NO_BACKUP_CASES).toHaveLength(2);
   });
 
-  it('backup-unopened carries the payload size and the five authenticated values (l.654, l.1091)', () => {
+  it('backup-unopened carries the payload size and the five authenticated values', () => {
     const unopened = values('restore.backup-unopened');
 
     expect(fieldsOf(unopened)).toContain('payloadSize');
@@ -664,7 +636,7 @@ describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union
     expect(isNumber(field(five, 'payloadVersion'))).toBe(true);
   });
 
-  it('commitment-mismatch carries the recomputed commitment and the committed one (l.1092)', () => {
+  it('commitment-mismatch carries the recomputed commitment and the committed one', () => {
     const mismatch = values('restore.commitment-mismatch');
 
     expect(fieldsOf(mismatch)).toEqual(sorted(['recomputed', 'committed']));
@@ -674,11 +646,7 @@ describe('the restore cause of D-202 line 660 and D-205 lines 1086-1092, a union
   });
 });
 
-// D-202 line 654: "The source is `{ password }` or the configuration itself",
-// the configuration "cached by a wallet or read off a clear backup". So a
-// cached Configuration is passed as it is, with no wrapper around it, and the
-// two forms are told apart by the password alone.
-describe('the configuration source of D-202 line 654', () => {
+describe('the configuration source', () => {
   const MINIMAL_CONFIGURATION: Configuration = {
     clauses: [{ threshold: 1, credentials: [{ method: '0x00000000000000000000000000000000000000a1', config: '0x01' }] }],
     wait: 86_400,
@@ -748,7 +716,7 @@ void configuration;
 
   it('a { configuration } wrapper is not a source, as a literal or as a value', () => {
     expectTypeOf<{ configuration: Configuration }>().not.toExtend<ConfigurationSource>();
-    // @ts-expect-error the wrapper is the shape line 654 does not name
+    // @ts-expect-error the wrapper is not a source shape
     const rejected: ConfigurationSource = { configuration: MINIMAL_CONFIGURATION };
 
     expect(rejected).toBeDefined();

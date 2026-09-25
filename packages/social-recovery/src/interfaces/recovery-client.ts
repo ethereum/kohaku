@@ -21,11 +21,7 @@ import type {
   ValidityWindow,
 } from './records';
 
-/**
- * The entry built when a key is lost, bound to one chain, one deployment, one
- * account and one action (D-201, D-202, D-207). `RecoveryClient` is the shipped
- * implementation.
- */
+/** The entry an integrator builds when a key is lost, bound to one chain, deployment, account and action. */
 export interface IRecoveryClient {
   /** Throws when it refuses. */
   initRecoveryGathering(

@@ -1,10 +1,3 @@
-// Keccak-256 as Ethereum uses it (the original Keccak padding, 0x01, rather
-// than SHA-3's 0x06), written out here because neither `viem` nor
-// `@noble/hashes` resolves from this package: both sit only in the pnpm store,
-// and the tester may not add a dependency. Node's crypto offers SHA3-256, which
-// is a different function. The constants test replays known vectors through
-// this before trusting it.
-
 const MASK = (1n << 64n) - 1n;
 const RATE_BYTES = 136;
 
@@ -73,7 +66,10 @@ function permute(state: bigint[]): void {
   }
 }
 
-/** Keccak-256 of the bytes, as lowercase 0x-prefixed hex. */
+/**
+ * Keccak-256 of the bytes, as lowercase 0x-prefixed hex, with Ethereum's 0x01 padding rather than SHA-3's 0x06.
+ * Written out because the package has no hashing dependency and Node's SHA3-256 is a different function.
+ */
 export function keccak256(input: Uint8Array): string {
   const padded = new Uint8Array(Math.ceil((input.length + 1) / RATE_BYTES) * RATE_BYTES);
 

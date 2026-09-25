@@ -4,23 +4,6 @@ import { BODY_ENCODER_KEY, DIGEST_VERSION, POLICY_METHOD_VERIFY_ABI, VERDICT_MAG
 import { keccak256Text, selectorOf } from '../helpers/keccak';
 import { loadRecords, type RecordContext } from '../helpers/records';
 
-// The constants PT-071 declares as the build's own (brief, "What this task
-// declares"): the two version constants of D-204 (design/offchain/sdk.md
-// lines 936-943: the digest version, and the body encoder keyed on the
-// manager's address) and the method interface's verify(config, digest, proof)
-// ABI with the magic value a verdict must equal (sdk.md line 917, D-202 line
-// 680). D-104 in design/onchain/contracts.md fixes the ABI, lines 650-651
-// `function verify(bytes calldata config, bytes32 digest, bytes calldata proof)
-// external view returns (bytes4 magicValue)`, and the magic value, line 623
-// "the first four bytes of keccak256("verify(bytes,bytes32,bytes)")", and line
-// 182, a verdict counts only when the call "returns exactly 32 bytes whose
-// whole word equals the magic value, the selector of verify itself,
-// left-aligned".
-//
-// Keccak-256 is computed by tests/helpers/keccak.ts: neither `viem` nor
-// `@noble/hashes` resolves from this package (both live only in the pnpm
-// store), and node's crypto has SHA3-256, a different function.
-
 const CONSTANTS = ['DIGEST_VERSION', 'BODY_ENCODER_KEY', 'POLICY_METHOD_VERIFY_ABI', 'VERDICT_MAGIC_VALUE'] as const;
 const VERIFY_SIGNATURE = 'verify(bytes,bytes32,bytes)';
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -80,7 +63,7 @@ describe('POLICY_METHOD_VERIFY_ABI', () => {
     expect(POLICY_METHOD_VERIFY_ABI[0]).toMatchObject({ type: 'function', name: 'verify' });
   });
 
-  it('takes (bytes config, bytes32 digest, bytes proof), in that order (contracts.md line 650)', () => {
+  it('takes (bytes config, bytes32 digest, bytes proof), in that order', () => {
     const inputs = POLICY_METHOD_VERIFY_ABI[0].inputs.map((input) => [input.type, input.name]);
 
     expect(inputs).toEqual([
@@ -90,7 +73,7 @@ describe('POLICY_METHOD_VERIFY_ABI', () => {
     ]);
   });
 
-  it('is a view returning one bytes4, the magic value (contracts.md line 651)', () => {
+  it('is a view returning one bytes4, the magic value', () => {
     const [entry] = POLICY_METHOD_VERIFY_ABI;
 
     expect(entry.stateMutability).toBe('view');
@@ -106,13 +89,13 @@ describe('POLICY_METHOD_VERIFY_ABI', () => {
   });
 });
 
-describe('the two version constants of D-204', () => {
-  it('DIGEST_VERSION is a non-empty string, the EIP-712 domain version a digest is built under (line 941)', () => {
+describe('the two version constants', () => {
+  it('DIGEST_VERSION is a non-empty string, the EIP-712 domain version a digest is built under', () => {
     expect(typeof DIGEST_VERSION).toBe('string');
     expect(DIGEST_VERSION.length).toBeGreaterThan(0);
   });
 
-  it('BODY_ENCODER_KEY is a list of manager addresses the body encoder is keyed to (line 942)', () => {
+  it('BODY_ENCODER_KEY is a list of manager addresses the body encoder is keyed to', () => {
     expect(Array.isArray(BODY_ENCODER_KEY)).toBe(true);
     expect(BODY_ENCODER_KEY.filter((address) => !ADDRESS.test(address))).toEqual([]);
   });

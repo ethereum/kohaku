@@ -3,10 +3,6 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PACKAGE_ROOT, REPO_ROOT } from '../helpers/source';
 
-// The brief's owner rulings 1-3 and its "Partner conventions" section
-// (coordination/briefs/PT-017.md), which replace D-201's four @kit/* roots
-// (design/offchain/sdk.md lines 393-404) with one package and two entries.
-
 type ExportTarget = { readonly types?: string; readonly import?: string };
 
 type Manifest = {

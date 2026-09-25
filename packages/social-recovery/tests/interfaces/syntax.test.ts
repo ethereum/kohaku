@@ -2,9 +2,6 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { hasModifier, listSourceFiles, parseSource, SRC_ROOT, toPackagePath, walk } from '../helpers/source';
 
-// D-200 (design/offchain/sdk.md line 46): the source keeps to the syntax node
-// runs by stripping types, so it uses no enum, namespace or parameter property.
-
 const PARAMETER_PROPERTY_MODIFIERS = [
   ts.SyntaxKind.PublicKeyword,
   ts.SyntaxKind.PrivateKeyword,
@@ -13,7 +10,10 @@ const PARAMETER_PROPERTY_MODIFIERS = [
   ts.SyntaxKind.OverrideKeyword,
 ];
 
-/** Every enum, namespace or module declaration and constructor parameter property in one file. */
+/**
+ * Every enum, namespace or module declaration and constructor parameter property in one file.
+ * The source avoids them so it runs under Node's type stripping.
+ */
 function forbiddenSyntax(sourceFile: ts.SourceFile): string[] {
   const found: string[] = [];
   const at = (node: ts.Node): string => {

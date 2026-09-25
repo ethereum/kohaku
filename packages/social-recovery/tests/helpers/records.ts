@@ -1,5 +1,3 @@
-// Reads the value records through the type checker, so the record tests judge
-// the types the core entry exports rather than the text that declares them.
 import { join } from 'node:path';
 import ts from 'typescript';
 import { createSourceProgram, requireSourceFile, resolveExports, SRC_ROOT } from './source';
@@ -103,12 +101,7 @@ export function constituentOfKind(checker: ts.TypeChecker, type: ts.Type, kind: 
   return found[0] as ts.Type;
 }
 
-/**
- * Visits a type and everything reachable from it, its union and intersection
- * members, its properties, its index signatures and an array's element, each
- * once, with the path that reached it. An array's own members (`map`,
- * `filter`, ...) are the library's and are not visited.
- */
+/** Visits a type and everything reachable from it once each, with the path that reached it; array methods are skipped. */
 export function visitType(
   checker: ts.TypeChecker,
   root: ts.Type,

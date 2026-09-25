@@ -13,14 +13,7 @@ import {
 } from '../helpers/records';
 import { INTERFACES_ROOT, listSourceFiles, parseSource, SRC_ROOT, toPackagePath, walk } from '../helpers/source';
 
-// Replaces tests/package/placeholders.test.ts, which pinned the Placeholder
-// brand PT-017 left in src/interfaces/records.ts. PT-071's outcome (brief,
-// "Outcome"): the core entry exports real record types and nothing under src/
-// is a Placeholder.
-
-// The 56 names PT-017's records.ts declared, as its interfaces/index.ts
-// re-exported them at e519820. Two were renamed by PT-071 to stop shadowing
-// DOM globals (brief, "What this task declares"): Request and Notification.
+/** The record names the core entry exported at e519820; two were since renamed to stop shadowing DOM globals. */
 const PT017_NAMES = [
   'AccountFilterOptions', 'ActionInfo', 'ActionState', 'AddResult', 'Address', 'Assessment', 'Attempt',
   'AttemptRequest', 'BlockHeader', 'BlockRange', 'BlockTag', 'CancelRequest', 'ClientConfiguration',
@@ -46,7 +39,7 @@ beforeAll(() => {
 const exportedAliases = (): [string, ts.Symbol][] =>
   [...context.entry].filter(([, symbol]) => isTypeAlias(symbol)).sort(([a], [b]) => a.localeCompare(b));
 
-describe('src/ after PT-071', () => {
+describe('src/ without placeholders', () => {
   const files = listSourceFiles(SRC_ROOT);
 
   it('holds files to judge', () => {
@@ -84,7 +77,7 @@ describe('src/ after PT-071', () => {
   });
 });
 
-describe('the PT-017 record names', () => {
+describe('the earlier placeholder record names', () => {
   it('lists 56 distinct names', () => {
     expect(new Set(PT017_NAMES).size).toBe(56);
   });
@@ -139,7 +132,7 @@ describe('the brand detector', () => {
 });
 
 describe('every record type the core entry exports', () => {
-  it('holds records to judge, at least the 56 of PT-017', () => {
+  it('holds records to judge, at least the 56 earlier names', () => {
     expect(exportedAliases().length).toBeGreaterThanOrEqual(56);
   });
 
@@ -160,7 +153,7 @@ describe('every record type the core entry exports', () => {
     expect(vague).toEqual([]);
   });
 
-  it('carries no symbol-keyed brand property at any depth, the shape of the PT-017 Placeholder', () => {
+  it('carries no symbol-keyed brand property at any depth, the shape of the earlier Placeholder', () => {
     const branded = exportedAliases().flatMap(([name, symbol]) =>
       brandPaths(context.checker, context.checker.getDeclaredTypeOfSymbol(symbol), name),
     );
@@ -189,9 +182,6 @@ describe('every record type the core entry exports', () => {
 });
 
 describe('the twelve interface files', () => {
-  // Kept from the retired placeholders test: the interfaces reference records
-  // by name and declare none of their own, now that the records live in
-  // src/interfaces/records/.
   const interfaceFiles = listSourceFiles(INTERFACES_ROOT).filter((path) => dirname(path) === INTERFACES_ROOT);
 
   it('are found beside the records folder', () => {

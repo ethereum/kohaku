@@ -1,5 +1,3 @@
-// Reads the package's TypeScript source through the compiler API, so the
-// structural tests judge declarations rather than text.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';

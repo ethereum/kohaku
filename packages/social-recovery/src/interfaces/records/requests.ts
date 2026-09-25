@@ -1,10 +1,7 @@
-// The calldata structs of D-103 the SDK encodes for a prepared call
-// (D-204 l.883-892, design/onchain/contracts.md l.445-480). Widths: uint48 as
-// number, uint64 as bigint, a place as number (D-207 l.1489).
 import type { Address, Hex } from './chain';
 import type { PaymentOrder } from './manager';
 
-/** One filled place: place, method, config, salt and proof (D-204 l.889, contracts.md l.461-467). */
+/** One filled place of a submission. */
 export type ProofPlace = {
   readonly place: number;
   readonly method: Address;
@@ -13,7 +10,7 @@ export type ProofPlace = {
   readonly proof: Hex;
 };
 
-/** An opening submission, `startAttempt(request)` (D-204 l.887, contracts.md l.445-455). */
+/** An opening submission, `startAttempt(request)`. */
 export type AttemptRequest = {
   readonly account: Address;
   readonly action: Address;
@@ -29,7 +26,7 @@ export type AttemptRequest = {
   readonly proofs: readonly ProofPlace[];
 };
 
-/** A cancellation submission, `cancelByProofs(request)`: no payload and no order (D-204 l.888, contracts.md l.472-480). */
+/** A cancellation submission, `cancelByProofs(request)`. */
 export type CancelRequest = {
   readonly account: Address;
   readonly action: Address;

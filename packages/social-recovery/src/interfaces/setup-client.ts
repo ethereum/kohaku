@@ -12,11 +12,7 @@ import type {
   ValidationResult,
 } from './records';
 
-/**
- * The entry a holder's integrator builds while the holder still holds their key,
- * bound to one chain, one deployment, one account and one action (D-201, D-202).
- * `SetupClient` is the shipped implementation.
- */
+/** The entry an integrator builds while the holder still holds their key, bound to one chain, deployment, account and action. */
 export interface ISetupClient {
   /** Errors and warnings over the draft; never throws on a finding. */
   validateSetup(draft: SetupDraft): Promise<ValidationResult>;
@@ -32,7 +28,7 @@ export interface ISetupClient {
   /** The optional confirmation read after the transaction lands; throws when it refuses. */
   confirmSetup(draft: SetupDraft, prepared: PreparedCall | PreparedBatch): Promise<SetupConfirmation>;
   setupState(): Promise<SetupState>;
-  /** The configuration restore; the thrown value carries the restore cause. */
+  /** Restores the configuration; the thrown value carries a `RestoreCause`. */
   getSetup(source: ConfigurationSource): Promise<Configuration>;
   /** The event manager shared with the recovery client. */
   readonly events: IEventManager;

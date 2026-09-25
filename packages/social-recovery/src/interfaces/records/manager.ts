@@ -1,22 +1,18 @@
-// The manager's own records under the manager's own names, and the reads of
-// the two shared parts. Widths from design/onchain/contracts.md D-103: uint48
-// as number, uint64 and uint256 as bigint, a place as number. Line numbers
-// are design/offchain/sdk.md unless contracts.md is named.
 import type { Address, BlockHeader, Hex } from './chain';
 
-/** The manager's `AttemptState`, in its declaration order (contracts.md l.482). */
+/** The manager's `AttemptState`, in its declaration order. */
 export const ATTEMPT_STATES = ['None', 'Waiting', 'Cancelled', 'Consumed'] as const;
 
 export type AttemptState = (typeof ATTEMPT_STATES)[number];
 
-/** What the account pays and to whom; a zero payee leaves the order open (contracts.md l.436-440, D-204 l.890). */
+/** What the account pays and to whom; a zero payee leaves the order open. */
 export type PaymentOrder = {
   readonly token: Address;
   readonly amount: bigint;
   readonly payee: Address;
 };
 
-/** The manager's `Attempt` in full (contracts.md l.495-504, D-202 l.642). */
+/** The manager's `Attempt`. */
 export type Attempt = {
   readonly attemptId: bigint;
   readonly setupNonce: bigint;
@@ -28,7 +24,7 @@ export type Attempt = {
   readonly ignoresPause: boolean;
 };
 
-/** What `stateOf(account, action)` returns (contracts.md l.485-491, D-202 l.670). */
+/** What `stateOf(account, action)` returns. */
 export type ActionState = {
   readonly setupCommitment: Hex;
   readonly setupNonce: bigint;
@@ -38,7 +34,7 @@ export type ActionState = {
   readonly attempt: Attempt;
 };
 
-/** What `eip712Domain()` returns, per ERC-5267 (contracts.md l.380-382, D-208 l.1651). */
+/** What `eip712Domain()` returns, per ERC-5267. */
 export type Domain = {
   readonly fields: Hex;
   readonly name: string;
@@ -49,10 +45,10 @@ export type Domain = {
   readonly extensions: readonly bigint[];
 };
 
-/** The address a handover would remove, or the value saying no creation triple was given (D-202 l.644, D-205 l.1111). */
+/** The address a handover would remove, or the value saying no creation triple was given. */
 export type RemovedKey = Address | 'no-creation-triple';
 
-/** The recovery-side reading of the bound account at one pinned block (D-202 l.642-646). */
+/** The recovery-side reading of the bound account at one pinned block. */
 export type RecoveryState = {
   readonly attempt: Attempt;
   readonly nextAttemptId: bigint;
@@ -63,36 +59,33 @@ export type RecoveryState = {
   readonly block: BlockHeader;
 };
 
-/**
- * The two addresses a handover moves (D-202 l.608, D-204 l.898, contracts.md
- * l.1090). `removedAuthority` may be absent only on the init's argument, where
- * the client configuration carries a creation triple (D-201 l.106).
- */
+/** The authority a handover adds and the one it removes. */
 export type Handover = {
   readonly newAuthority: Address;
+  /** Absent only on the init's argument, where the client configuration carries a creation record. */
   readonly removedAuthority?: Address;
 };
 
-/** The window a gathering init takes, in seconds past the pinned block's timestamp (usage l.470, l.516, D-202 l.611). */
+/** The window a gathering init takes, in seconds past the pinned block's timestamp. */
 export type ValidityWindow = {
   readonly window: number;
 };
 
-/** A module's name, version and answer to the method interface's ERC-165 probe (D-201 l.112, D-202 l.673). */
+/** A method module's identity; `supportsInterface` answers the method interface's ERC-165 probe. */
 export type ModuleInfo = {
   readonly name: string;
   readonly version: string;
   readonly supportsInterface: boolean;
 };
 
-/** The action's name, version and answer to the policy-action ERC-165 probe (D-201 l.114, D-202 l.672). */
+/** An action's identity; `supportsInterface` answers the policy-action ERC-165 probe. */
 export type ActionInfo = {
   readonly name: string;
   readonly version: string;
   readonly supportsInterface: boolean;
 };
 
-/** The five values a method's `trustedParties()` declares (contracts.md l.670-672, D-201 l.112). */
+/** What a method's `trustedParties()` declares. */
 export type Parties = {
   readonly admin: Address;
   readonly pendingAdmin: Address;
@@ -101,7 +94,7 @@ export type Parties = {
   readonly pendingPauseHolder: Address;
 };
 
-/** Whether a module read was answered at all, beside what it answered (D-201 l.112, D-202 l.678). */
+/** Whether a module read was answered at all, beside what it answered. */
 export type ReadResult<Answer> =
   | { readonly answered: true; readonly value: Answer }
   | { readonly answered: false };

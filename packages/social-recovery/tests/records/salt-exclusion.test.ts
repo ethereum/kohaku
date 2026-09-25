@@ -17,11 +17,6 @@ import {
 } from '../helpers/records';
 import { requireSourceFile, resolveExports } from '../helpers/source';
 
-// D-205 line 1134: `identityPublic` is "that submission publishes this
-// credential's method, config and salt on chain", a disclosure. Line 1151:
-// "Salts never enter a description." So the row states that the salt is
-// published without carrying it, and no description record has a salt field.
-
 const DESCRIPTION_FILES = ['descriptions.ts', 'setup-description.ts'];
 
 let context: RecordContext;
@@ -53,7 +48,7 @@ function saltPaths(root: ts.Type, rootPath: string): string[] {
   return [...new Set(found)];
 }
 
-describe('identityPublic discloses the salt without carrying it (D-205 lines 1134, 1151)', () => {
+describe('identityPublic discloses the salt without carrying it', () => {
   const identityPublic = (): ts.Type => propertyType(context.checker, exportedType(context, 'RequestDescription'), 'identityPublic');
 
   let probes: Map<string, string[]>;
@@ -104,13 +99,13 @@ describe('identityPublic discloses the salt without carrying it (D-205 lines 113
   });
 });
 
-describe('no description record has a salt field (D-205 line 1151)', () => {
+describe('no description record has a salt field', () => {
   it('the walk finds a salt where one stands: Credential and SetupDraft carry the holder\'s salt', () => {
     expect(saltPaths(exportedType(context, 'Credential'), 'Credential')).toEqual(['Credential.salt']);
     expect(saltPaths(exportedType(context, 'SetupDraft'), 'SetupDraft')).toEqual(['SetupDraft.clauses[].credentials[].salt']);
   });
 
-  it('the walk covers the three descriptions the chapter names', () => {
+  it('the walk covers the three description records', () => {
     const names = DESCRIPTION_FILES.flatMap((file) => [...exportedAliases(file).keys()]);
 
     expect(names).toEqual(expect.arrayContaining(['RequestDescription', 'StatusDescription', 'SetupDescription']));

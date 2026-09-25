@@ -30,14 +30,6 @@ import {
   stringLiterals,
 } from '../helpers/records';
 
-// Every list below was derived from design/offchain/sdk.md before src/ was
-// read; the comment on each entry is the line it comes from. Where the chapter
-// fixes a spelling, the test compares spellings. Where it gives a meaning and
-// no spelling, the entry records the meaning with the spelling the
-// implementation chose beside it: the test then compares the count and the
-// set, and the meaning-to-spelling pairing is the tester's judgment, reported
-// under "Spelling notes" rather than taken from the chapter.
-
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
 let context: RecordContext;
@@ -55,27 +47,25 @@ function literalsOf(recordName: string, ...path: string[]): string[] | undefined
   return stringLiterals(type);
 }
 
-// (a) D-203, the event table (lines 708-723) and the sketch's kinds (lines
-// 773-791). The sketch is illustrative, and line 765 says "the exact types
-// freeze with this section", so the kind spellings are the sketch's.
+/** One notification kind per manager and method event, listed independently of src/. */
 const NOTIFICATIONS = [
-  { event: 'SetupCommitted', kind: 'setup-committed', line: 774 }, // table 710
-  { event: 'SetupCleared', kind: 'setup-cleared', line: 776 }, // table 711
-  { event: 'AttemptStarted', kind: 'attempt-started', line: 777 }, // table 712
-  { event: 'AttemptCancelled', kind: 'attempt-cancelled', line: 780 }, // table 713
-  { event: 'AttemptConsumed', kind: 'attempt-consumed', line: 782 }, // table 714
-  { event: 'Paused', kind: 'method-paused', line: 783 }, // table 715
-  { event: 'Unpaused', kind: 'method-unpaused', line: 784 }, // table 716
-  { event: 'TrustedKeysUpdated', kind: 'method-keys-updated', line: 785 }, // table 717
-  { event: 'AdminRenounced', kind: 'method-admin-renounced', line: 786 }, // table 718
-  { event: 'AdminTransferOffered', kind: 'method-admin-transfer-offered', line: 787 }, // table 719
-  { event: 'AdminTransferred', kind: 'method-admin-transferred', line: 788 }, // table 720
-  { event: 'OwnershipTransferStarted', kind: 'method-pause-holder-transfer-started', line: 789 }, // table 721
-  { event: 'OwnershipTransferred', kind: 'method-pause-holder-transferred', line: 790 }, // table 722
-  { event: 'LogPrivilegeChanged', kind: 'privilege-changed', line: 791 }, // table 723
+  { event: 'SetupCommitted', kind: 'setup-committed' },
+  { event: 'SetupCleared', kind: 'setup-cleared' },
+  { event: 'AttemptStarted', kind: 'attempt-started' },
+  { event: 'AttemptCancelled', kind: 'attempt-cancelled' },
+  { event: 'AttemptConsumed', kind: 'attempt-consumed' },
+  { event: 'Paused', kind: 'method-paused' },
+  { event: 'Unpaused', kind: 'method-unpaused' },
+  { event: 'TrustedKeysUpdated', kind: 'method-keys-updated' },
+  { event: 'AdminRenounced', kind: 'method-admin-renounced' },
+  { event: 'AdminTransferOffered', kind: 'method-admin-transfer-offered' },
+  { event: 'AdminTransferred', kind: 'method-admin-transferred' },
+  { event: 'OwnershipTransferStarted', kind: 'method-pause-holder-transfer-started' },
+  { event: 'OwnershipTransferred', kind: 'method-pause-holder-transferred' },
+  { event: 'LogPrivilegeChanged', kind: 'privilege-changed' },
 ] as const;
 
-// The sketch's fields per kind (lines 774-791), `kind` and `at` included.
+/** The fields per kind, besides `kind` and `at`. */
 const NOTIFICATION_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'setup-committed': ['account', 'action', 'nonce', 'setupCommitment', 'publicMetadata', 'privateMetadata'],
   'setup-cleared': ['account', 'action', 'nonce'],
@@ -98,10 +88,9 @@ const NOTIFICATION_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'privilege-changed': ['account', 'addr', 'priv'],
 };
 
-const LOG_POSITION_FIELDS = ['blockNumber', 'blockHash', 'logIndex', 'transactionHash', 'removed']; // 769
+const LOG_POSITION_FIELDS = ['blockNumber', 'blockHash', 'logIndex', 'transactionHash', 'removed'];
 
-// (b) D-206 line 1239: "a typed failure naming one of five causes". The
-// chapter names meanings, not spellings.
+/** Only the meanings are specified; the spellings are the implementation's, so the test compares count and set. */
 const REPLY_FAILURE = [
   { meaning: 'the device refused', spelling: 'device-refused' },
   { meaning: 'the device was unavailable', spelling: 'device-unavailable' },
@@ -110,11 +99,9 @@ const REPLY_FAILURE = [
   { meaning: "the request's kind or version is one this build does not read", spelling: 'request-unsupported' },
 ] as const;
 
-// (c) D-206 line 1225: "one of four values and no other", spelled there.
 const DEVICE_BINDING = ['none', 'browser-authenticator', 'external-app', 'in-browser-prover'];
 
-// (d) D-207 line 1538 and owner ruling cut-q-22: exactly five refusals, no
-// sixth. Meanings from the chapter, spellings the implementation's.
+/** Only the meanings are specified; the spellings are the implementation's, so the test compares count and set. */
 const ADD_REFUSAL = [
   { meaning: 'a kind or version it does not read', spelling: 'kind-or-version-unread' },
   { meaning: 'six binding fields that do not match', spelling: 'binding-mismatch' },
@@ -123,72 +110,70 @@ const ADD_REFUSAL = [
   { meaning: "a method, config or salt that is not exactly the place's", spelling: 'credential-mismatch' },
 ] as const;
 
-// (e) D-205 lines 1090-1092, spelled there.
 const RESTORE_CAUSES = ['restore.no-backup', 'restore.backup-unopened', 'restore.commitment-mismatch'];
 
-// (g) D-205's four finding tables, spelled there.
 const SETUP_ERRORS = [
-  'rule.empty', // 1011
-  'clause.empty', // 1012
-  'rule.all-thresholds-zero', // 1013
-  'clause.threshold-above-count', // 1014
-  'clause.threshold-too-wide', // 1015
-  'rule.too-wide', // 1016
-  'credential.duplicate', // 1017
-  'wait.field-width', // 1018
-  'wait.above-maximum', // 1019
-  'action.unsupported', // 1020
-  'backup.too-wide', // 1021
+  'rule.empty',
+  'clause.empty',
+  'rule.all-thresholds-zero',
+  'clause.threshold-above-count',
+  'clause.threshold-too-wide',
+  'rule.too-wide',
+  'credential.duplicate',
+  'wait.field-width',
+  'wait.above-maximum',
+  'action.unsupported',
+  'backup.too-wide',
 ];
 
 const SETUP_WARNINGS = [
-  'clause.single-point', // 1027
-  'clause.threshold-zero', // 1028
-  'clause.shared-failure', // 1029
-  'clause.secondary-only', // 1030
-  'method.unshipped', // 1031
-  'method.no-declaration', // 1032
-  'method.stopped', // 1033
-  'action.unaudited', // 1034
-  'action.fit-unchecked', // 1035
-  'manager.already-armed', // 1036
-  'setup.wait-short', // 1037
-  'setup.wait-zero', // 1038
-  'backup.clear', // 1039
-  'backup.empty', // 1040
-  'rule.repeated-person', // 1041
+  'clause.single-point',
+  'clause.threshold-zero',
+  'clause.shared-failure',
+  'clause.secondary-only',
+  'method.unshipped',
+  'method.no-declaration',
+  'method.stopped',
+  'action.unaudited',
+  'action.fit-unchecked',
+  'manager.already-armed',
+  'setup.wait-short',
+  'setup.wait-zero',
+  'backup.clear',
+  'backup.empty',
+  'rule.repeated-person',
 ];
 
 const REQUEST_ERRORS = [
-  'request.attempt-id', // 1049
-  'request.expired', // 1050
-  'request.attempt-active', // 1051
-  'request.no-active-attempt', // 1052
-  'request.stale-attempt', // 1053
-  'request.body-mismatch', // 1054
-  'request.rule-unsatisfied', // 1055
-  'request.method-stopped', // 1056
-  'proof.places-unordered', // 1057
-  'handover.removed-not-authority', // 1058
-  'handover.new-holds-privilege', // 1059
-  'handover.same-authority', // 1060
-  'handover.malformed', // 1061
-  'handover.removed-unknown', // 1062
+  'request.attempt-id',
+  'request.expired',
+  'request.attempt-active',
+  'request.no-active-attempt',
+  'request.stale-attempt',
+  'request.body-mismatch',
+  'request.rule-unsatisfied',
+  'request.method-stopped',
+  'proof.places-unordered',
+  'handover.removed-not-authority',
+  'handover.new-holds-privilege',
+  'handover.same-authority',
+  'handover.malformed',
+  'handover.removed-unknown',
 ];
 
 const REQUEST_WARNINGS = [
-  'payment.insufficient', // 1070
-  'method.unshipped', // 1071, the setup code at the second moment
-  'payment.open-payee', // 1072
-  'payment.token-unknown', // 1073
-  'request.window-wide', // 1074
-  'request.window-short', // 1075
-  'request.moment-skew', // 1076
-  'cancel.window-late', // 1077
-  'payment.sponsor-sees', // 1078
+  'payment.insufficient',
+  'method.unshipped', // also a setup warning, so the ValidationWarning union holds it once
+  'payment.open-payee',
+  'payment.token-unknown',
+  'request.window-wide',
+  'request.window-short',
+  'request.moment-skew',
+  'cancel.window-late',
+  'payment.sponsor-sees',
 ];
 
-describe('(a) the fourteen notification shapes of D-203', () => {
+describe('the fourteen notification shapes', () => {
   it('derives fourteen distinct kinds from fourteen distinct events', () => {
     expect(new Set(NOTIFICATIONS.map((entry) => entry.kind)).size).toBe(14);
     expect(new Set(NOTIFICATIONS.map((entry) => entry.event)).size).toBe(14);
@@ -210,8 +195,8 @@ describe('(a) the fourteen notification shapes of D-203', () => {
     expect(literalsOf('NotificationKind')).toEqual(sorted(NOTIFICATION_KINDS));
   });
 
-  it.each(NOTIFICATIONS.map((entry) => [entry.kind, entry.event, entry.line]))(
-    'the %s shape (event %s, sketch line %s) carries the sketch fields, kind and at',
+  it.each(NOTIFICATIONS.map((entry) => [entry.kind, entry.event]))(
+    'the %s shape (event %s) carries the expected fields, kind and at',
     (kind) => {
       const shape = constituentOfKind(context.checker, exportedType(context, 'KitNotification'), kind);
 
@@ -222,7 +207,7 @@ describe('(a) the fourteen notification shapes of D-203', () => {
     },
   );
 
-  it("the attempt-cancelled shape's cancelledBy is the four causes of line 771", () => {
+  it("the attempt-cancelled shape's cancelledBy is the four cancellation causes", () => {
     const expected = sorted(['cancelByOwner', 'cancelByProofs', 'cancelByVeto', 'setupWrite']);
     const shape = constituentOfKind(context.checker, exportedType(context, 'KitNotification'), 'attempt-cancelled');
 
@@ -231,7 +216,7 @@ describe('(a) the fourteen notification shapes of D-203', () => {
   });
 });
 
-describe('(b) the five ReplyFailure causes of D-206 line 1239', () => {
+describe('the five ReplyFailure causes', () => {
   it('derives five distinct meanings', () => {
     expect(new Set(REPLY_FAILURE.map((entry) => entry.meaning)).size).toBe(5);
   });
@@ -245,7 +230,7 @@ describe('(b) the five ReplyFailure causes of D-206 line 1239', () => {
     expect(literalsOf('ReplyFailure', 'cause')).toEqual(sorted(REPLY_FAILURE_CAUSES));
   });
 
-  it('EnrollFailure is of the same shape, one failure type serving both sides (lines 1220, 1239)', () => {
+  it('EnrollFailure is of the same shape, one failure type serving both sides', () => {
     const enroll = exportedType(context, 'EnrollFailure');
     const reply = exportedType(context, 'ReplyFailure');
 
@@ -254,8 +239,8 @@ describe('(b) the five ReplyFailure causes of D-206 line 1239', () => {
   });
 });
 
-describe('(c) the four DeviceBinding values of D-206 line 1225', () => {
-  it('DEVICE_BINDINGS is exactly the four, spelled as the chapter spells them', () => {
+describe('the four DeviceBinding values', () => {
+  it('DEVICE_BINDINGS is exactly the four, with the expected spellings', () => {
     expect(sorted(DEVICE_BINDINGS)).toEqual(sorted(DEVICE_BINDING));
   });
 
@@ -264,7 +249,7 @@ describe('(c) the four DeviceBinding values of D-206 line 1225', () => {
   });
 });
 
-describe('(d) the five AddResult refusals of D-207 line 1538, no sixth (cut-q-22)', () => {
+describe('the five AddResult refusals', () => {
   it('derives five distinct meanings', () => {
     expect(new Set(ADD_REFUSAL.map((entry) => entry.meaning)).size).toBe(5);
   });
@@ -274,7 +259,7 @@ describe('(d) the five AddResult refusals of D-207 line 1538, no sixth (cut-q-22
     expect(sorted(ADD_REFUSAL_CAUSES)).toEqual(sorted(ADD_REFUSAL.map((entry) => entry.spelling)));
   });
 
-  /** The member of AddResult whose outcome is `refused` (D-207 l.1538: on a refusal it carries a reason). */
+  /** The reason type of AddResult's refused member. */
   const refusedReason = (): ts.Type => {
     const refused = constituents(exportedType(context, 'AddResult')).filter(
       (member) => stringLiterals(propertyType(context.checker, member, 'outcome'))?.join() === 'refused',
@@ -285,7 +270,7 @@ describe('(d) the five AddResult refusals of D-207 line 1538, no sixth (cut-q-22
     return propertyType(context.checker, refused[0] as ts.Type, 'reason');
   };
 
-  it("the refused AddResult's reason names exactly those five and no sixth", () => {
+  it("the refused AddResult's reason names exactly those five", () => {
     expect(stringLiterals(propertyType(context.checker, refusedReason(), 'cause'))).toEqual(sorted(ADD_REFUSAL_CAUSES));
     expect(literalsOf('AddRefusal', 'cause')).toEqual(sorted(ADD_REFUSAL_CAUSES));
   });
@@ -298,14 +283,14 @@ describe('(d) the five AddResult refusals of D-207 line 1538, no sixth (cut-q-22
     expect(context.checker.isTypeAssignableTo(refusal, reason)).toBe(true);
   });
 
-  it('the reason is of the same shape as the reply failure of D-206: the same field names', () => {
+  it('the reason is of the same shape as the reply failure: the same field names', () => {
     expect(propertyNames(context.checker, refusedReason())).toEqual(
       propertyNames(context.checker, exportedType(context, 'ReplyFailure')),
     );
   });
 });
 
-describe('(e) the three restore causes of D-205 lines 1090-1092', () => {
+describe('the three restore causes', () => {
   it('RESTORE_CAUSE_CODES is exactly the three', () => {
     expect(sorted(RESTORE_CAUSE_CODES)).toEqual(sorted(RESTORE_CAUSES));
   });
@@ -315,12 +300,12 @@ describe('(e) the three restore causes of D-205 lines 1090-1092', () => {
   });
 });
 
-describe('(g) the finding codes of D-205', () => {
+describe('the finding codes', () => {
   it.each([
-    ['setup errors, lines 1009-1021', SETUP_ERROR_CODES, SETUP_ERRORS, 11],
-    ['setup warnings, lines 1025-1041', SETUP_WARNING_CODES, SETUP_WARNINGS, 15],
-    ['request errors, lines 1047-1062', REQUEST_ERROR_CODES, REQUEST_ERRORS, 14],
-    ['request warnings, lines 1068-1078', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 9],
+    ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 11],
+    ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 15],
+    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 14],
+    ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 9],
   ] as const)('the %s tuple is the table, in its order', (_label, tuple, table, count) => {
     expect(table).toHaveLength(count);
     expect([...tuple]).toEqual(table);
@@ -349,19 +334,19 @@ describe('(g) the finding codes of D-205', () => {
   });
 });
 
-describe('the smaller closed sets the chapter spells', () => {
+describe('the smaller closed sets', () => {
   it.each([
-    ['Sender, D-202 line 557', 'Sender', SENDERS, ['account', 'anyone']],
-    ['Purpose, D-205 line 1129 and D-207 lines 1494, 1503', 'Purpose', PURPOSES, ['approval', 'cancellation']],
-    ['Standing, D-207 lines 1525, 1529', 'Standing', STANDINGS, ['not-stopped', 'stopped']],
-    ['KitErrorSource, D-205 line 1191', 'KitErrorSource', KIT_ERROR_SOURCES, ['manager', 'action', 'account', 'language']],
-    ['BackupChoice, D-202 line 593', 'BackupChoice', BACKUP_CHOICES, ['encrypted', 'clear', 'empty']],
+    ['Sender', 'Sender', SENDERS, ['account', 'anyone']],
+    ['Purpose', 'Purpose', PURPOSES, ['approval', 'cancellation']],
+    ['Standing', 'Standing', STANDINGS, ['not-stopped', 'stopped']],
+    ['KitErrorSource', 'KitErrorSource', KIT_ERROR_SOURCES, ['manager', 'action', 'account', 'language']],
+    ['BackupChoice', 'BackupChoice', BACKUP_CHOICES, ['encrypted', 'clear', 'empty']],
   ] as const)('%s', (_label, typeName, tuple, expected) => {
     expect(sorted(tuple)).toEqual(sorted(expected));
     expect(literalsOf(typeName)).toEqual(sorted(expected));
   });
 
-  it('Verdict has three answers, D-206 line 1223: satisfied, rejected, not judged', () => {
+  it('Verdict has three answers: satisfied, rejected, not judged', () => {
     expect(VERDICTS).toHaveLength(3);
     expect(VERDICTS).toContain('satisfied');
     expect(VERDICTS).toContain('rejected');

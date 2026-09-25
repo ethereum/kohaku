@@ -1,25 +1,18 @@
-// Chain values: what the provider answers and what a pinned read carries.
-// Line numbers are design/offchain/sdk.md.
-
-/**
- * A 20-byte address as 0x-prefixed hex. The SDK's own type rather than a
- * client library's, since the SDK returns raw bytes and no library's objects
- * (D-200 l.42); a viem `Address` is assignable to it and back.
- */
+/** An address as 0x-prefixed hex; a viem `Address` is assignable to it and back. */
 export type Address = `0x${string}`;
 
-/** Raw bytes as 0x-prefixed hex (D-200 l.42). */
+/** Raw bytes as 0x-prefixed hex. */
 export type Hex = `0x${string}`;
 
-/** The two named tags the client configuration defaults to, read and watch (D-203 l.829, D-208 l.1629). */
+/** The named block tags a client configuration pins its reads and watches at. */
 export const NAMED_BLOCK_TAGS = ['latest', 'finalized'] as const;
 
 export type NamedBlockTag = (typeof NAMED_BLOCK_TAGS)[number];
 
-/** A named tag, or the block number a pinned read resolved it to (D-201 l.121, D-203 l.745). */
+/** A named tag, or the block number a pinned read resolved it to. */
 export type BlockTag = NamedBlockTag | number;
 
-/** One block's number, timestamp and hash, what `block(tag)` answers (D-201 l.85, D-208 l.1643). */
+/** What `block(tag)` answers. */
 export type BlockHeader = {
   readonly number: number;
   /** Seconds, the chain time every window and moment is compared against. */
@@ -27,28 +20,28 @@ export type BlockHeader = {
   readonly hash: Hex;
 };
 
-/** The block a prepare pinned its reads to, by number and by hash (D-202 l.558). */
+/** The block a prepare pinned its reads to. */
 export type PinnedBlock = {
   readonly number: number;
   readonly hash: Hex;
 };
 
-/** The two block numbers `fetch` walks, a first and a last, both required (D-203 l.745, usage l.500). */
+/** The first and last block `fetch` reads. */
 export type BlockRange = {
   readonly from: number;
   readonly to: number;
 };
 
-/** One topic position: a value, any of a list, or `null` for a position left open (D-203 l.737, l.739). */
+/** One topic position: a value, any of a list, or `null` for a position left open. */
 export type FilterTopic = Hex | readonly Hex[] | null;
 
-/** Addresses and a topics array of hex strings, no block range (D-203 l.737). */
+/** A log filter without a block range. */
 export type FilterSpec = {
   readonly address: readonly Address[];
   readonly topics: readonly FilterTopic[];
 };
 
-/** Where one log sits, the position every notification carries (D-203 sketch l.769, l.825). */
+/** Where one log sits, the position every notification carries. */
 export type LogPosition = {
   readonly blockNumber: number;
   readonly blockHash: Hex;
@@ -57,7 +50,7 @@ export type LogPosition = {
   readonly removed: boolean;
 };
 
-/** One log as `eth_getLogs` returns it (D-208 l.1642); `removed` where the client library reports one (l.825). */
+/** One log as `eth_getLogs` returns it; `removed` where the client library reports one. */
 export type RawLog = {
   readonly address: Address;
   readonly topics: readonly Hex[];
@@ -69,5 +62,5 @@ export type RawLog = {
   readonly removed?: boolean;
 };
 
-/** The moment a judgment compares against, in seconds; the SDK reads no wall clock (D-201 l.106, D-205 l.987). */
+/** The moment a judgment compares against, in seconds; the SDK reads no wall clock. */
 export type Moment = number;

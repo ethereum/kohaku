@@ -14,25 +14,23 @@ import {
   walk,
 } from '../helpers/source';
 
-// D-201 "What this chapter freezes", design/offchain/sdk.md lines 521-537,
-// derived from the chapter before reading src/.
+/** The interfaces the SDK freezes, listed independently of src/. */
 const FREEZE_LIST = [
-  'ISetupClient', // line 525
-  'IRecoveryClient', // line 525
-  'IMethodsOrchestrator', // line 526
-  'IPolicyManagerInteractor', // line 527
-  'IEventManager', // line 527
-  'IMethodModuleReads', // line 527
-  'IProvider', // line 528
-  'IRecoveryMethod', // line 528
-  'IActionCodec', // line 528
-  'IMethodCodec', // line 528
-  'IRecoveryActionInteractor', // line 537
-  'IRecoveryActionArming', // line 537
+  'ISetupClient',
+  'IRecoveryClient',
+  'IMethodsOrchestrator',
+  'IPolicyManagerInteractor',
+  'IEventManager',
+  'IMethodModuleReads',
+  'IProvider',
+  'IRecoveryMethod',
+  'IActionCodec',
+  'IMethodCodec',
+  'IRecoveryActionInteractor',
+  'IRecoveryActionArming',
 ] as const;
 
-// D-201 line 142: the shipped implementation carries the bare name, or the
-// account's or action's name where it is bound to one (lines 101-122 name them).
+/** The shipped implementations' names, which no type or interface may take. */
 const SHIPPED_IMPLEMENTATIONS = [
   'SetupClient',
   'RecoveryClient',
@@ -62,7 +60,7 @@ beforeAll(() => {
 
 const sitesNamed = (name: string): InterfaceSite[] => sites.filter((site) => site.name === name);
 
-describe('the freeze list of D-201', () => {
+describe('the freeze list', () => {
   it('names twelve distinct interfaces', () => {
     expect(new Set(FREEZE_LIST).size).toBe(12);
   });

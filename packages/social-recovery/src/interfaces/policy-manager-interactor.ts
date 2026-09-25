@@ -11,13 +11,7 @@ import type {
   ReadResult,
 } from './records';
 
-/**
- * The shared part for the manager, bound to the account and the action
- * (D-201, D-202). Its writes are the six prepares the manager's own functions
- * name, each taking the contract's own argument list; its reads are the
- * manager's views and the three method module views. `PolicyManager` is the
- * shipped implementation.
- */
+/** The policy manager's writes as prepared calls and its views as reads, bound to one account and one action. */
 export interface IPolicyManagerInteractor {
   prepareCommitSetup(
     action: Address,
@@ -38,10 +32,7 @@ export interface IPolicyManagerInteractor {
   name(): Promise<string>;
   version(): Promise<string>;
   supportsInterface(interfaceId: Hex): Promise<boolean>;
-  /** Whether the read was answered at all, beside what it answered. */
   moduleInfo(module: Address): Promise<ReadResult<ModuleInfo>>;
-  /** Whether the read was answered at all, beside the two-valued stop reading. */
   paused(module: Address): Promise<ReadResult<boolean>>;
-  /** Whether the read was answered at all, beside the five declared values. */
   trustedParties(module: Address): Promise<ReadResult<Parties>>;
 }
