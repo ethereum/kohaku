@@ -8,6 +8,7 @@
   "baseBranch": "master",
   "updateInternalDependencies": "patch",
   "ignore": [
-    "docs"
+    "docs",
+    "@kohaku-eth/railgun"
   ]
 }
