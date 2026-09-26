@@ -13,6 +13,7 @@
   },
   "changesets": [
     "add-privacy-pools-demo",
+    "anon-rpc-provider",
     "beige-islands-give",
     "bold-moons-train",
     "brown-ears-camp",
