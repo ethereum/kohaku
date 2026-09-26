@@ -43,6 +43,11 @@
       "import": "./dist/raw.js",
       "require": "./dist/raw.cjs"
     },
+    "./anon": {
+      "types": "./dist/anon.d.ts",
+      "import": "./dist/anon.js",
+      "require": "./dist/anon.cjs"
+    },
     "./package.json": "./package.json"
   },
   "browser": {
@@ -58,7 +63,8 @@
     "build": "echo Building @kohaku-eth/provider && tsup --config tsup.config.ts",
     "dev": "tsup --config tsup.config.ts --watch",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run"
   },
   "files": [
     "dist"
@@ -113,6 +119,7 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
+    "@anon-rpc/browser-harness": "^0.3.0",
     "ox": "^0.12.0"
   }
 }

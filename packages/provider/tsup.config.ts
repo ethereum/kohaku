@@ -10,6 +10,7 @@ export default defineConfig([
       colibri: 'src/colibri/index.ts',
       helios: 'src/helios/index.ts',
       raw: 'src/raw/index.ts',
+      anon: 'src/anon/index.ts',
     },
     format: ['esm', 'cjs'],
     dts: {
