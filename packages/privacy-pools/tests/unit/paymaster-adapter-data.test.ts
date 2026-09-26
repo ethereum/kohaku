@@ -1,7 +1,8 @@
-import { decodeAbiParameters, getAddress, parseAbiParameters } from 'viem';
+import { decodeAbiParameters, decodeFunctionData, getAddress, parseAbiParameters } from 'viem';
 import { describe, expect, it } from 'vitest';
 
-import { encodeFeeData, encodePaymasterData, encodePrivacyPoolAdapterData } from '../../src/paymaster/adapter-data';
+import { poolAbi } from '../../src/data/abis/pool.abi';
+import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from '../../src/paymaster/adapter-data';
 import { WithdrawalPayload } from '../../src/relayer/interfaces/relayer-client.interface';
 import { WithdrawProveOutput } from '../../src/state/thunks/withdrawThunk';
 import { mockedGroth16Proof } from '../utils/mock-prover';
@@ -54,5 +55,17 @@ describe('paymaster adapter-data encoding', () => {
     expect(getAddress(decoded.withdrawal.processooor)).toBe(getAddress(ADAPTER));
     expect(decoded.proof.pubSignals.length).toBe(8);
     expect(decoded.proof.pubSignals[0]).toBe(1n);
+  });
+
+  it('encodePoolWithdraw produces a direct pool.withdraw call (for batch extra notes)', () => {
+    const withdrawal: WithdrawalPayload = { processooor: RECIPIENT, data: '0x' };
+    const data = encodePoolWithdraw(withdrawal, proof);
+    const { functionName, args } = decodeFunctionData({ abi: poolAbi, data });
+    const [decodedWithdrawal, decodedProof] = args as unknown as [WithdrawalPayload, { pubSignals: readonly bigint[] }];
+
+    expect(functionName).toBe('withdraw');
+    expect(getAddress(decodedWithdrawal.processooor)).toBe(getAddress(RECIPIENT));
+    expect(decodedWithdrawal.data).toBe('0x');
+    expect(decodedProof.pubSignals.length).toBe(8);
   });
 });
