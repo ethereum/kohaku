@@ -177,11 +177,11 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         tailCalls,
       });
 
-      return { proof, userOperation };
+      return { proof, userOperation, fee };
     };
 
     const baselineGas = withGas(reasonableGasUnits(isERC20));
-    let { proof, userOperation } = await buildUserOp(baselineGas);
+    let { proof, userOperation, fee } = await buildUserOp(baselineGas);
 
     // Refine gas against the bundler's simulation; re-prove once at the refined
     // fee so the proof matches the tighter limits. Best-effort — on failure we
@@ -189,7 +189,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas);
 
     if (refinedGas !== baselineGas) {
-      ({ proof, userOperation } = await buildUserOp(withGas(refinedGas)));
+      ({ proof, userOperation, fee } = await buildUserOp(withGas(refinedGas)));
     }
 
     return [
@@ -198,6 +198,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         proof,
         poolAddress: poolInfo.address,
         isERC20,
+        withdrawnValue,
+        fee,
         paymasterAddress,
         entryPointAddress,
         bundlerUrl,

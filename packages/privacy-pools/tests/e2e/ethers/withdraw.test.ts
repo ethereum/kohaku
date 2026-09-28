@@ -173,6 +173,120 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     expect(withdrawOp.txData).toBeDefined();
   });
 
+  it('[prepareUnshield exact] sizes the gross so the recipient receives the requested output', { timeout: 60_000 }, async () => {
+    const pool = anvil.pool(10);
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' }); // 1%
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: mockProverFactory,
+      relayersList: { 'mock-relayer': 'http://mock.relayer' },
+      relayerClientFactory: () => mockRelayerClient,
+      aspServiceFactory: () => mockAspService,
+    });
+
+    const nativeAsset = ERC20Asset(E_ADDRESS);
+    const DEPOSIT_AMOUNT = 1000000000000000000n; // 1 ETH
+    const REQUESTED_OUTPUT = 500000000000000000n; // recipient must receive exactly 0.5 ETH
+
+    // 1. Deposit and approve
+    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: nativeAsset, amount: DEPOSIT_AMOUNT });
+
+    await sendTxAndWait(alice, shieldTx);
+    await pool.mine(1);
+
+    const [note] = await protocol.notes([nativeAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(pool.rpcUrl,
+      "0x" + ENTRYPOINT_ADDRESS.toString(16),
+      "0x" + POSTMAN_ADDRESS.toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+    );
+
+    // 2. Prepare an exact-output withdrawal via the `exact` option
+    const recipientAccount = alice.address as AccountId;
+    const operation = await protocol.prepareUnshield(
+      { asset: nativeAsset, amount: REQUESTED_OUTPUT },
+      recipientAccount,
+      { exact: {} },
+    );
+
+    // 3. The resolved amounts are attached to the operation; the recipient receives at
+    // least the requested output, and the gross was grossed up to cover the fee.
+    const { exact } = operation;
+
+    expect(exact).toBeDefined();
+    expect(exact!.requestedNet).toBe(REQUESTED_OUTPUT);
+    expect(exact!.expectedNet).toBeGreaterThanOrEqual(REQUESTED_OUTPUT);
+    expect(exact!.grossAmount).toBeGreaterThan(REQUESTED_OUTPUT);
+    expect(exact!.fee).toBe(exact!.grossAmount - exact!.expectedNet);
+    expect(operation.mode).toBe('relayer');
+    expect((operation as { rawData: { relayData: { relayFeeBps: bigint } } }).rawData.relayData.relayFeeBps).toBe(100n);
+  });
+
+  it('[prepareUnshield exact] throws when the committed fee exceeds the slippage allowance', { timeout: 60_000 }, async () => {
+    const pool = anvil.pool(10);
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+
+    // The estimate quote sizes the gross at 1%, but the withdrawal is re-quoted at
+    // 5% — with 0 slippage the built op falls short and must be rejected.
+    let quoteCount = 0;
+    const cheapQuote = createMockRelayerClient({ feeBPS: '100' });
+    const pricyQuote = createMockRelayerClient({ feeBPS: '500' });
+    const driftingRelayer = {
+      ...cheapQuote,
+      getQuote(body: Parameters<typeof cheapQuote.getQuote>[0]) {
+        quoteCount += 1;
+
+        return (quoteCount === 1 ? cheapQuote : pricyQuote).getQuote(body);
+      },
+    };
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: mockProverFactory,
+      relayersList: { 'mock-relayer': 'http://mock.relayer' },
+      relayerClientFactory: () => driftingRelayer,
+      aspServiceFactory: () => mockAspService,
+    });
+
+    const nativeAsset = ERC20Asset(E_ADDRESS);
+    const DEPOSIT_AMOUNT = 1000000000000000000n;
+    const REQUESTED_OUTPUT = 500000000000000000n;
+
+    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: nativeAsset, amount: DEPOSIT_AMOUNT });
+
+    await sendTxAndWait(alice, shieldTx);
+    await pool.mine(1);
+
+    const [note] = await protocol.notes([nativeAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(pool.rpcUrl,
+      "0x" + ENTRYPOINT_ADDRESS.toString(16),
+      "0x" + POSTMAN_ADDRESS.toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+    );
+
+    await expect(
+      protocol.prepareUnshield(
+        { asset: nativeAsset, amount: REQUESTED_OUTPUT },
+        alice.address as AccountId,
+        { exact: {} },
+      ),
+    ).rejects.toThrow(/short by/);
+  });
+
   it('[prepareUnshield] selects lowest fee relayer', { timeout: 60_000 }, async () => {
     const pool = anvil.pool(11);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
