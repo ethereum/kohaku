@@ -27,10 +27,13 @@ export type PPv1Address = Address;
 
 export type {
     PPv1EstimateUnshieldOptions,
+    PPv1ExactUnshieldOptions,
+    PPv1ExactUnshieldResult,
     PPv1PaymasterUnshieldEstimate,
     PPv1RelayerUnshieldEstimate,
     PPv1ShieldEstimate,
     PPv1UnshieldEstimate,
+    PPv1UnshieldOptions,
 } from '../plugin/interfaces/protocol-params.interface.js';
 
 export type PPv1AssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;

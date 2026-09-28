@@ -13,6 +13,10 @@ export interface IGenericPaymasterWithdrawalPayload {
   proof: WithdrawProveOutput;
   poolAddress: Address;
   isERC20: boolean;
+  /** Value withdrawn from the pool, before the sponsored gas fee. */
+  withdrawnValue: bigint;
+  /** Sponsored gas fee committed in the userOp, in the pool asset's base units. The recipient receives `withdrawnValue - fee`. */
+  fee: bigint;
   paymasterAddress: `0x${string}`;
   entryPointAddress: `0x${string}`;
   bundlerUrl: string;

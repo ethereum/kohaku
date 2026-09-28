@@ -17,6 +17,7 @@ import { RelayerClient } from "../relayer/relayer-client";
 import { storeStateManager } from "../state/state-manager";
 import { addressToHex, } from "../utils.js";
 import { encodeRagequitPayload, encodeWithdrawalPayload } from "../utils/encoding.utils.js";
+import { deductFeeBPS, grossForNet, minAcceptableNet } from "../utils/fee.utils.js";
 import {
   PPv1AssetAmount,
   PPv1AssetBalance,
@@ -45,6 +46,39 @@ export interface PPv1RelayerConstructorParams extends PPv1BroadcasterParameters 
   relayerClientFactory?: () => IRelayerClient;
   paymasterClientFactory?: () => IPaymasterBroadcasterClient;
   host: Host;
+}
+
+/** Thrown when an exact-output unshield's built operation would leave the recipient below the requested output plus slippage. */
+export class PPv1ExactOutputSlippageError extends Error {
+  constructor(
+    readonly requestedNet: bigint,
+    readonly expectedNet: bigint,
+    readonly slippageBPS: bigint,
+  ) {
+    super(
+      `Exact-output unshield short by ${requestedNet - expectedNet} (requested ${requestedNet}, ` +
+        `would deliver ${expectedNet}) beyond the ${slippageBPS} bps slippage allowance`,
+    );
+    this.name = "PPv1ExactOutputSlippageError";
+  }
+}
+
+/** Reads the fee actually committed in a built withdrawal and the net it delivers for a given gross. */
+function resolveExactOutput(
+  operation: PPv1PrivateOperation,
+  grossAmount: bigint,
+): { expectedNet: bigint; fee: bigint; } {
+  if (operation.mode === 'paymaster') {
+    const { fee } = operation.withdrawal;
+
+    return { fee, expectedNet: grossAmount - fee };
+  }
+
+  // The relayer signs the fee into its withdrawal data; the on-chain deduction
+  // floors it, matching `deductFeeBPS`.
+  const { fee, net } = deductFeeBPS(grossAmount, operation.rawData.relayData.relayFeeBps);
+
+  return { fee, expectedNet: net };
 }
 
 export class PrivacyPoolsV1Protocol implements PPv1Instance {
@@ -223,15 +257,72 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     return { txns: ragequitTxs } as PPv1PublicOperation;
   }
 
+  /**
+   * Prepares a withdrawal. By default `assets.amount` is the gross withdrawn from
+   * the pool and the recipient receives it minus the relayer/paymaster fee.
+   *
+   * Passing `options.exact` switches to exact-output mode: `assets.amount` is read
+   * as the amount the recipient must *receive*, the gross is sized to cover the
+   * fee, and the built operation is re-checked against the actually committed fee
+   * (the relayer re-quotes and paymaster gas is refined against the bundler, so it
+   * can drift from the estimate). If the delivered amount would fall below the
+   * request beyond `options.exact.slippageBPS` (default 0), it throws
+   * {@link PPv1ExactOutputSlippageError}. On success the resolved gross/net/fee are
+   * attached to the returned operation as `operation.exact`.
+   */
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
-    const { asset, amount } = assets;
+    if (options?.exact) {
+      return this.prepareExactUnshield(assets, to, options);
+    }
 
-    if (asset.__type === 'native') {
+    return this.buildUnshield(assets, assets.amount, to, options);
+  }
+
+  private async prepareExactUnshield(
+    assets: AssetAmount,
+    to: AccountId,
+    options: PPv1UnshieldOptions,
+  ): Promise<PPv1PrivateOperation> {
+    const requestedNet = assets.amount;
+
+    if (requestedNet <= 0n) {
+      throw new Error("Requested output must be greater than zero");
+    }
+
+    const estimate = await this.estimateUnshield(assets, to, options);
+    const grossAmount = estimate.mode === 'relayer'
+      ? grossForNet(requestedNet, estimate.feeBPS)
+      : requestedNet + estimate.fee;
+
+    const operation = await this.buildUnshield(assets, grossAmount, to, options);
+    const { expectedNet, fee } = resolveExactOutput(operation, grossAmount);
+    const slippageBPS = options.exact?.slippageBPS ?? 0n;
+
+    if (expectedNet < minAcceptableNet(requestedNet, slippageBPS)) {
+      throw new PPv1ExactOutputSlippageError(requestedNet, expectedNet, slippageBPS);
+    }
+
+    operation.exact = { grossAmount, requestedNet, expectedNet, fee };
+
+    return operation;
+  }
+
+  private unshieldAssetAddress(assets: AssetAmount): bigint {
+    if (assets.asset.__type === 'native') {
       throw new Error("Unshielding native assets is not supported in this version of the protocol");
     }
 
+    return BigInt(assets.asset.contract);
+  }
+
+  private async buildUnshield(
+    assets: AssetAmount,
+    amount: bigint,
+    to: AccountId,
+    options?: PPv1UnshieldOptions,
+  ): Promise<PPv1PrivateOperation> {
     const entrypoint = this.entrypoint;
-    const assetAddress = BigInt(asset.contract);
+    const assetAddress = this.unshieldAssetAddress(assets);
 
     await this.stateManager.sync();
 

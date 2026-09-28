@@ -32,12 +32,16 @@ export interface PPv1RelayerPrivateOperation extends PrivateOperation {
     quote: IQuoteResponse;
     relayerId: string;
   };
+  /** Present only for exact-output unshields (`options.exact`): the resolved gross/net/fee. */
+  exact?: PPv1ExactUnshieldResult;
 }
 
 /** Withdrawal sponsored by a paymaster via an ERC-4337 userOp. */
 export interface PPv1PaymasterPrivateOperation extends PrivateOperation {
   mode: 'paymaster';
   withdrawal: IGenericPaymasterWithdrawalPayload;
+  /** Present only for exact-output unshields (`options.exact`): the resolved gross/net/fee. */
+  exact?: PPv1ExactUnshieldResult;
 }
 
 export type PPv1PrivateOperation =
@@ -60,6 +64,12 @@ export interface PPv1UnshieldOptions extends UnshieldOptions {
   delegation?: DelegationConfig;
   /** Gas budget for the paymaster execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
+  /**
+   * Opt into exact-output mode: `amount` is read as the amount the recipient must
+   * receive (net), the gross is sized to cover the fee, and the built operation is
+   * re-checked against the committed fee. See {@link PPv1ExactUnshieldOptions}.
+   */
+  exact?: PPv1ExactUnshieldOptions;
 }
 
 /** Cost of a shield (deposit). Amounts are in the pool asset's base units; network gas is not included. */
@@ -105,6 +115,30 @@ export interface PPv1PaymasterUnshieldEstimate {
 export type PPv1UnshieldEstimate = PPv1RelayerUnshieldEstimate | PPv1PaymasterUnshieldEstimate;
 
 export type PPv1EstimateUnshieldOptions = Pick<PPv1UnshieldOptions, 'mode' | 'tailCalls' | 'tailCallsGasEstimate'>;
+
+/** Exact-output settings, passed as `prepareUnshield`'s `options.exact`. Its presence enables exact-output mode. */
+export interface PPv1ExactUnshieldOptions {
+  /**
+   * Maximum shortfall tolerated between the requested output and what the
+   * recipient actually receives, in basis points of the requested output. Fees
+   * can move between estimate and execution (the relayer re-quotes, paymaster gas
+   * is refined against the bundler), so the built operation is re-checked against
+   * this bound and aborts if it would fall short. Defaults to 0 (no shortfall).
+   */
+  slippageBPS?: bigint;
+}
+
+/** Resolved amounts for an exact-output unshield, attached to the returned operation as `exact`. */
+export interface PPv1ExactUnshieldResult {
+  /** Amount withdrawn from the pool (gross). */
+  grossAmount: bigint;
+  /** Requested recipient output (the `amount` passed in). `expectedNet >= requestedNet` on success. */
+  requestedNet: bigint;
+  /** Amount the recipient will receive after fees, read from the built operation. */
+  expectedNet: bigint;
+  /** Fee deducted from the gross, in the pool asset's base units. */
+  fee: bigint;
+}
 
 export interface PPv1PublicOperation extends PublicOperation {
   txns: TxData[];
