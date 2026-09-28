@@ -71,6 +71,18 @@ export interface IEntrypoint {
   deploymentBlock: bigint;
 }
 
+/**
+ * Development-only tuning for Redux Toolkit's dev-mode safety checks. Both checks
+ * are OFF by default (they are slow on large privacy-pool states); opt in per check
+ * when you want the extra safety during development.
+ */
+export interface PPv1DevOptions {
+  /** Enable the immutable-state-invariant middleware (off by default; slow on large states). */
+  enableImmutableCheck?: boolean;
+  /** Enable the serializable-state-invariant middleware (off by default). */
+  enableSerializableCheck?: boolean;
+}
+
 export interface PrivacyPoolsV1ProtocolParams {
   accountIndex?: number;
   secretManager: (params: SecretManagerParams) => ISecretManager;
@@ -85,6 +97,8 @@ export interface PrivacyPoolsV1ProtocolParams {
   paymasterConfig?: IChainsPaymastersConfig;
   /** Optional pre-built data service (e.g. a saga-sync-backed one used to speed up hydration in tests). */
   dataService?: IDataService;
+  /** Development-only Redux tuning. See {@link PPv1DevOptions}. */
+  devOptions?: PPv1DevOptions;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type

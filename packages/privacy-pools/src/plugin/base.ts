@@ -67,6 +67,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       proverFactory = Prover,
       paymasterConfig = PrivacyPoolsPaymasterConfigs,
       dataService = new DataService({ provider: host.provider }),
+      devOptions,
     }: RequireOnly<PrivacyPoolsV1ProtocolParams, "entrypoint">,
   ) {
     this.accountIndex = accountIndex;
@@ -88,6 +89,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       storageToSyncTo: host.storage,
       entrypoint,
       paymasterConfig,
+      devOptions,
     });
   }
 

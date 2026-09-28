@@ -6,6 +6,7 @@ import {
   ReducersMapObject
 } from "@reduxjs/toolkit";
 
+import type { PPv1DevOptions } from "../plugin/interfaces/protocol-params.interface";
 import { aspReducer } from "./slices/aspSlice";
 import { assetsReducer } from "./slices/assetsSlice";
 import { depositsReducer } from "./slices/depositsSlice";
@@ -91,21 +92,24 @@ interface StoreFactoryParams {
   entrypointInfo: EntrypointInfoState;
   initialState?: StoreShape;
   logLevel?: 'verbose' | 'error' | 'off';
+  devOptions?: PPv1DevOptions;
 }
 
 export const storeFactory = ({
   entrypointInfo,
   initialState,
   logLevel = 'error',
+  devOptions,
 }: StoreFactoryParams) => {
   const store = configureStore({
     preloadedState: initialState,
     reducer: reducers,
     middleware: (getDefaultMiddleware) => {
       const defaultMiddleware = getDefaultMiddleware({
-        serializableCheck: {
-          ignoreActions: true,
-        },
+        immutableCheck: devOptions?.enableImmutableCheck ?? false,
+        serializableCheck: devOptions?.enableSerializableCheck
+          ? { ignoreActions: true }
+          : false,
       });
 
       if (logLevel !== 'off') {

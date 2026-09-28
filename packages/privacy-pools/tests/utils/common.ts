@@ -4,7 +4,17 @@ import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { getAddress } from 'viem';
 import { PPv1AssetBalance } from "../../src";
+import type { PPv1DevOptions } from "../../src/plugin/interfaces/protocol-params.interface";
 import type { PublicRootState } from "../../src/state/store";
+
+/**
+ * Redux dev-mode checks are off by default in the plugin (they are slow on large
+ * states). Tests turn them back on so state mutations are caught during CI.
+ */
+export const TEST_STORE_DEV_OPTIONS: PPv1DevOptions = {
+  enableImmutableCheck: true,
+  enableSerializableCheck: true,
+};
 
 // Helper to get environment variable with fallback
 export function getEnv(key: string, fallback?: string): string {

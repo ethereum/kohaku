@@ -18,6 +18,7 @@ import {
   IRagequitLabelsOperationParams,
   IStateManager,
   IWithdrawapOperationParams,
+  PPv1DevOptions,
   StateRagequitPayload,
   StateWithdrawalPayload,
   StoreKey,
@@ -65,6 +66,7 @@ export interface StoreFactoryParams extends SyncAspThunkParams {
   proverFactory: () => ReturnType<typeof Prover>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
   paymasterConfig?: IChainsPaymastersConfig;
+  devOptions?: PPv1DevOptions;
 }
 
 const initializeSelectors = <const T extends Store>({
@@ -115,7 +117,8 @@ const storeByChainAndEntrypoint = ({
   storageToSyncTo,
   initialState: initialStateCallback,
   secretManager,
-}: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState' | 'secretManager'>) => {
+  devOptions,
+}: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState' | 'secretManager' | 'devOptions'>) => {
   let cachedInitialState: Record<string, PublicRootState> | undefined;
 
   const resolveInitialState = initialStateCallback
@@ -151,6 +154,7 @@ const storeByChainAndEntrypoint = ({
         const store = storeFactory({
           entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
           initialState: initialState as RootState | undefined,
+          devOptions,
         });
 
         storeWithSelectors = initializeSelectors({ store, secretManager });
