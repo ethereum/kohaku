@@ -7,6 +7,7 @@ import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { verifyRootsThunk } from '../../src/state/thunks/verifyRootsThunk';
 import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
+import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 import {
   verifyAspRootOnChain,
   verifyStateRootOnChain,
@@ -29,6 +30,7 @@ describe('verifyRootsThunk', () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
       entrypointInfo: {
         chainId: 1n,
         entrypointAddress,
@@ -99,6 +101,7 @@ describe('verifyRootsThunk', () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
       entrypointInfo: {
         chainId: 1n,
         entrypointAddress,
@@ -127,6 +130,7 @@ describe('verifyRootsThunk', () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
       entrypointInfo: {
         chainId: 1n,
         entrypointAddress,
@@ -156,6 +160,7 @@ describe('verifyRootsThunk', () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
       entrypointInfo: {
         chainId: 1n,
         entrypointAddress,
@@ -198,6 +203,7 @@ describe('verifyRootsThunk', () => {
     const poolAddress2 = 2000n as Address;
     const store = storeFactory({
       logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
       entrypointInfo: {
         chainId: 1n,
         entrypointAddress,
@@ -266,6 +272,7 @@ describe('verifyRootsThunk', () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
       entrypointInfo: {
         chainId: 1n,
         entrypointAddress,
