@@ -17,7 +17,7 @@ import { RelayerClient } from "../relayer/relayer-client";
 import { storeStateManager } from "../state/state-manager";
 import { addressToHex, } from "../utils.js";
 import { encodeRagequitPayload, encodeWithdrawalPayload } from "../utils/encoding.utils.js";
-import { deductFeeBPS, grossForNet, minAcceptableNet } from "../utils/fee.utils.js";
+import { deductFeeBPS } from "../utils/fee.utils.js";
 import {
   PPv1AssetAmount,
   PPv1AssetBalance,
@@ -37,6 +37,7 @@ import {
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
   PrivacyPoolsV1ProtocolParams,
+  StateWithdrawalPayload,
 } from "./interfaces/protocol-params.interface";
 import { TxData } from "@kohaku-eth/provider";
 
@@ -48,18 +49,20 @@ export interface PPv1RelayerConstructorParams extends PPv1BroadcasterParameters 
   host: Host;
 }
 
-/** Thrown when an exact-output unshield's built operation would leave the recipient below the requested output plus slippage. */
-export class PPv1ExactOutputSlippageError extends Error {
+/** Default gas headroom for exact-output unshields: 15% over the quote's gas component (bps, 10000 = 100%). */
+export const DEFAULT_EXACT_GAS_BUMP_BPS = 1_500n;
+
+/** Thrown when an exact-output unshield's built operation would leave the recipient below the requested output. */
+export class PPv1ExactOutputError extends Error {
   constructor(
     readonly requestedNet: bigint,
     readonly expectedNet: bigint,
-    readonly slippageBPS: bigint,
   ) {
     super(
-      `Exact-output unshield short by ${requestedNet - expectedNet} (requested ${requestedNet}, ` +
-        `would deliver ${expectedNet}) beyond the ${slippageBPS} bps slippage allowance`,
+      `Exact-output unshield short by ${requestedNet - expectedNet} ` +
+        `(requested ${requestedNet}, would deliver ${expectedNet})`,
     );
-    this.name = "PPv1ExactOutputSlippageError";
+    this.name = "PPv1ExactOutputError";
   }
 }
 
@@ -264,13 +267,13 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * the pool and the recipient receives it minus the relayer/paymaster fee.
    *
    * Passing `options.exact` switches to exact-output mode: `assets.amount` is read
-   * as the amount the recipient must *receive*, the gross is sized to cover the
-   * fee, and the built operation is re-checked against the actually committed fee
-   * (the relayer re-quotes and paymaster gas is refined against the bundler, so it
-   * can drift from the estimate). If the delivered amount would fall below the
-   * request beyond `options.exact.slippageBPS` (default 0), it throws
-   * {@link PPv1ExactOutputSlippageError}. On success the resolved gross/net/fee are
-   * attached to the returned operation as `operation.exact`.
+   * as the amount the recipient must *receive*. For relayer withdrawals the gross is
+   * sized so the recipient gets exactly that after fees, with the embedded fee tipped
+   * `options.exact.tipBPS` above the live quote so the relayer still accepts the
+   * payload if its rate rises before submission (the sender pays the tip on top). For
+   * paymaster withdrawals the gross is sized from the gas estimate and the built
+   * operation is re-checked, throwing {@link PPv1ExactOutputError} if it would fall
+   * short. On success the resolved gross/net/fee are attached as `operation.exact`.
    */
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     if (options?.exact) {
@@ -291,17 +294,54 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       throw new Error("Requested output must be greater than zero");
     }
 
-    const estimate = await this.estimateUnshield(assets, to, options);
-    const grossAmount = estimate.mode === 'relayer'
-      ? grossForNet(requestedNet, estimate.feeBPS)
-      : requestedNet + estimate.fee;
+    if (options.mode === 'paymaster') {
+      return this.prepareExactPaymasterUnshield(assets, to, options, requestedNet);
+    }
 
+    return this.prepareExactRelayerUnshield(assets, to, options, requestedNet);
+  }
+
+  private async prepareExactRelayerUnshield(
+    assets: AssetAmount,
+    to: AccountId,
+    options: PPv1UnshieldOptions,
+    requestedNet: bigint,
+  ): Promise<PPv1PrivateOperation> {
+    await this.stateManager.sync();
+
+    const { payload, exact } = await this.stateManager.getExactWithdrawalPayloads({
+      asset: this.unshieldAssetAddress(assets),
+      recipient: BigInt(to),
+      requestedNet,
+      gasBumpBPS: options.exact?.gasBumpBPS ?? DEFAULT_EXACT_GAS_BUMP_BPS,
+    });
+
+    // The recipient's net is fixed by the gross and embedded fee we chose, so it must
+    // equal the request exactly; guard the invariant defensively.
+    if (exact.expectedNet !== requestedNet) {
+      throw new PPv1ExactOutputError(requestedNet, exact.expectedNet);
+    }
+
+    const operation = this.assembleRelayerOperation(payload);
+
+    operation.exact = exact;
+
+    return operation;
+  }
+
+  private async prepareExactPaymasterUnshield(
+    assets: AssetAmount,
+    to: AccountId,
+    options: PPv1UnshieldOptions,
+    requestedNet: bigint,
+  ): Promise<PPv1PrivateOperation> {
+    const estimate = await this.estimateUnshield(assets, to, options);
+    const grossAmount = requestedNet + estimate.fee;
     const operation = await this.buildUnshield(assets, grossAmount, to, options);
     const { expectedNet, fee } = resolveExactOutput(operation, grossAmount);
-    const slippageBPS = options.exact?.slippageBPS ?? 0n;
 
-    if (expectedNet < minAcceptableNet(requestedNet, slippageBPS)) {
-      throw new PPv1ExactOutputSlippageError(requestedNet, expectedNet, slippageBPS);
+    if (expectedNet < requestedNet) {
+      throw new PPv1ExactOutputError(requestedNet, expectedNet);
     }
 
     operation.exact = { grossAmount, requestedNet, expectedNet, fee };
@@ -323,7 +363,6 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     to: AccountId,
     options?: PPv1UnshieldOptions,
   ): Promise<PPv1PrivateOperation> {
-    const entrypoint = this.entrypoint;
     const assetAddress = this.unshieldAssetAddress(assets);
 
     await this.stateManager.sync();
@@ -351,6 +390,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
     if (!result) throw new Error("We failed to create a withdrawalPayload");
 
+    return this.assembleRelayerOperation(result);
+  }
+
+  /** Assembles a relayer private operation (rawData + entrypoint tx) from a built withdrawal payload. */
+  private assembleRelayerOperation(result: StateWithdrawalPayload): PPv1RelayerPrivateOperation {
     const {
       proofResult,
       quoteData,
@@ -377,7 +421,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       mode: 'relayer',
       rawData,
       txData: {
-        to: `0x${entrypoint.address.toString(16).padStart(40, "0")}`,
+        to: `0x${this.entrypoint.address.toString(16).padStart(40, "0")}`,
         data: encodedWithdrawalData,
         value: 0n,
       },

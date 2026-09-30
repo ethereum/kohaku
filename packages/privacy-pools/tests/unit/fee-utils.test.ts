@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { deductFeeBPS, grossForNet, minAcceptableNet } from '../../src/utils/fee.utils';
+import { deductFeeBPS, grossForNet, sizeExactRelayerWithdrawal } from '../../src/utils/fee.utils';
 
 describe('deductFeeBPS', () => {
   it('charges feeBPS / 10000 of the amount', () => {
@@ -53,12 +53,55 @@ describe('grossForNet', () => {
   });
 });
 
-describe('minAcceptableNet', () => {
-  it('allows no shortfall at 0 bps', () => {
-    expect(minAcceptableNet(1_000_000n, 0n)).toBe(1_000_000n);
+describe('sizeExactRelayerWithdrawal', () => {
+  const base = {
+    requestedNet: 1_000_000n,
+    baseFeeBPS: 50n,      // 0.5% fixed relayer margin
+    gasMoney: 2_000n,     // fixed gas cost, in token units
+    gasBumpBPS: 0n,
+    maxRelayFeeBPS: 1_000n,
+  };
+
+  it('sizes the gross so the recipient nets exactly the requested output', () => {
+    const { grossAmount, feeBPS } = sizeExactRelayerWithdrawal(base);
+
+    expect(deductFeeBPS(grossAmount, feeBPS).net).toBe(base.requestedNet);
+    expect(grossAmount).toBeGreaterThan(base.requestedNet);
   });
 
-  it('subtracts the slippage allowance', () => {
-    expect(minAcceptableNet(1_000_000n, 50n)).toBe(995_000n);
+  it('embeds base + gas, so the fee exceeds the base rate but stays modest', () => {
+    const { feeBPS } = sizeExactRelayerWithdrawal(base);
+
+    // gas of 2000 on a ~1.0025e6 gross is ~20 bps on top of the 50 bps base.
+    expect(feeBPS).toBeGreaterThan(base.baseFeeBPS);
+    expect(feeBPS).toBeLessThan(base.baseFeeBPS + 30n);
+  });
+
+  it('bumps only the gas component, not the base rate', () => {
+    const { feeBPS: plain } = sizeExactRelayerWithdrawal(base);
+    const { feeBPS: bumped } = sizeExactRelayerWithdrawal({ ...base, gasBumpBPS: 5_000n }); // +50% gas
+
+    const plainGas = plain - base.baseFeeBPS;
+    const bumpedGas = bumped - base.baseFeeBPS;
+
+    // The gas portion grows ~50%; a whole-fee bump would have grown by 50% of `plain`.
+    expect(bumpedGas).toBeGreaterThan(plainGas);
+    expect(bumped).toBeLessThan(base.baseFeeBPS + (plain * 15n) / 10n); // < base + 1.5*plain
+    expect(deductFeeBPS(sizeExactRelayerWithdrawal({ ...base, gasBumpBPS: 5_000n }).grossAmount, bumped).net)
+      .toBe(base.requestedNet);
+  });
+
+  it('treats zero/negative gas money as no gas component', () => {
+    const { feeBPS } = sizeExactRelayerWithdrawal({ ...base, gasMoney: 0n });
+
+    expect(feeBPS).toBe(base.baseFeeBPS);
+  });
+
+  it('throws when the required fee exceeds maxRelayFeeBPS', () => {
+    expect(() => sizeExactRelayerWithdrawal({ ...base, maxRelayFeeBPS: 60n })).toThrow(/exceeds maxRelayFeeBPS/);
+  });
+
+  it('rejects a base fee of 100% or more', () => {
+    expect(() => sizeExactRelayerWithdrawal({ ...base, baseFeeBPS: 10_000n })).toThrow();
   });
 });

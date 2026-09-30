@@ -36,11 +36,63 @@ export function grossForNet(net: bigint, feeBPS: bigint): bigint {
   return gross;
 }
 
+export interface ExactRelayerSizing {
+  /** Gross to withdraw so the recipient nets exactly the requested output. */
+  grossAmount: bigint;
+  /** Integer relay fee (bps) to embed in the withdrawal data. */
+  feeBPS: bigint;
+}
+
 /**
- * Minimum output the recipient may receive for a requested exact output, given a
- * slippage allowance in basis points. `slippageBPS` of 0 means no shortfall is
- * tolerated.
+ * Sizes an exact-output relayer withdrawal from a decomposed quote.
+ *
+ * A relayer fee splits into a proportional base rate (`baseFeeBPS`, the relayer's
+ * fixed earn rate, stable between quotes) and a gas cost (`gasMoney`, an absolute
+ * amount in the pool asset's units that is ~constant across withdrawal sizes). So
+ * `net = gross*(1 - baseFeeBPS/10000) - gasMoney`, which inverts to
+ * `gross = (net + gasMoney) / (1 - baseFeeBPS/10000)`.
+ *
+ * Only the gas term is volatile between quote and submission, so `gasBumpBPS` adds
+ * headroom to `gasMoney` alone (not the base rate) to absorb gas spikes without
+ * overpaying the relayer's margin. The embedded rate is then the integer bps that
+ * covers base + bumped gas at that gross; the gross is re-derived with
+ * {@link grossForNet} so the floored on-chain deduction leaves exactly `net`.
+ *
+ * Throws if the required rate exceeds `maxRelayFeeBPS` (the Entrypoint reverts
+ * above it): the withdrawal is infeasible at that size.
  */
-export function minAcceptableNet(requestedNet: bigint, slippageBPS: bigint): bigint {
-  return requestedNet - (requestedNet * slippageBPS) / BPS_DENOMINATOR;
+export function sizeExactRelayerWithdrawal(params: {
+  requestedNet: bigint;
+  baseFeeBPS: bigint;
+  gasMoney: bigint;
+  gasBumpBPS: bigint;
+  maxRelayFeeBPS: bigint;
+}): ExactRelayerSizing {
+  const { requestedNet, baseFeeBPS, gasMoney, gasBumpBPS, maxRelayFeeBPS } = params;
+
+  if (requestedNet <= 0n) throw new Error("requestedNet must be greater than zero");
+
+  if (baseFeeBPS >= BPS_DENOMINATOR) throw new Error("baseFeeBPS must be below 100% (10000 bps)");
+
+  const safeGasMoney = gasMoney > 0n ? gasMoney : 0n;
+  const bumpedGas = gasBumpBPS > 0n
+    ? (safeGasMoney * (BPS_DENOMINATOR + gasBumpBPS)) / BPS_DENOMINATOR
+    : safeGasMoney;
+
+  // Closed-form gross for the bumped fee, then the integer rate that covers the gas
+  // component at that gross (ceil so we never embed below the relayer's cost).
+  const denominator = BPS_DENOMINATOR - baseFeeBPS;
+  const grossEstimate = ((requestedNet + bumpedGas) * BPS_DENOMINATOR + denominator - 1n) / denominator;
+  const gasBPS = grossEstimate > 0n
+    ? (bumpedGas * BPS_DENOMINATOR + grossEstimate - 1n) / grossEstimate
+    : 0n;
+  const feeBPS = baseFeeBPS + gasBPS;
+
+  if (feeBPS > maxRelayFeeBPS) {
+    throw new Error(
+      `Exact-output infeasible: required relay fee ${feeBPS} bps exceeds maxRelayFeeBPS ${maxRelayFeeBPS} bps`,
+    );
+  }
+
+  return { grossAmount: grossForNet(requestedNet, feeBPS), feeBPS };
 }

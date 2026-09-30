@@ -15,6 +15,7 @@ import {
   IEstimateUnshieldOperationParams,
   IGetNotesParams,
   INote,
+  IExactWithdrawalOperationParams,
   IPaymasterWithdrawapOperationParams,
   IRagequitAssetsOperationParams,
   IRagequitLabelsOperationParams,
@@ -23,6 +24,7 @@ import {
   PPv1DevOptions,
   PPv1ShieldEstimate,
   PPv1UnshieldEstimate,
+  StateExactWithdrawalPayload,
   StateRagequitPayload,
   StateWithdrawalPayload,
   StoreKey,
@@ -32,8 +34,8 @@ import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
-import { decodeRelayData } from "../utils/encoding.utils";
-import { deductFeeBPS } from "../utils/fee.utils";
+import { decodeRelayData, encodeRelayData } from "../utils/encoding.utils";
+import { deductFeeBPS, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
   allNotesSelector,
@@ -362,6 +364,98 @@ export const storeStateManager = (
         quoteData: { quote, relayerId },
         chainId: chainInfo.chainId,
       }];
+    },
+    getExactWithdrawalPayloads: async ({
+      asset,
+      recipient,
+      requestedNet,
+      gasBumpBPS,
+    }: IExactWithdrawalOperationParams): Promise<StateExactWithdrawalPayload> => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+
+      const quoteResultAction = await store.dispatch(
+        quoteThunk({
+          relayerClient: params.relayerClient,
+          relayers: params.relayersList,
+          asset,
+          amount: requestedNet,
+          recipient,
+        }),
+      );
+
+      if (quoteResultAction.meta.requestStatus === "rejected") {
+        throw new Error("Failed to get quote from relayers");
+      }
+
+      const { quote, relayerId } = unwrapResult(quoteResultAction);
+      const poolInfo = store.selectors.poolFromAssetSelector(asset);
+
+      if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
+
+      // Reuse the relayer's recipient/feeRecipient, but decompose its quoted fee into
+      // the fixed base rate and the (size-independent) gas cost, then size the gross so
+      // the on-chain deduction leaves exactly `requestedNet`. Because we choose both the
+      // gross and the embedded fee, the recipient's net is fixed here; the relayer can
+      // only accept or reject (it accepts any embedded fee at or above its live rate).
+      //
+      // Only the gas term is volatile between quote and submission, so `gasBumpBPS` adds
+      // headroom to it alone — not the relayer's margin. sizeExactRelayerWithdrawal keeps
+      // the embedded fee at or below the on-chain maxRelayFeeBPS (the Entrypoint reverts
+      // above it).
+      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const quoted = decodeRelayData(quote.feeCommitment.withdrawalData as `0x${string}`);
+      const baseFeeBPS = BigInt(quote.baseFeeBPS);
+      const gasQuoteBPS = quoted.relayFeeBps > baseFeeBPS ? quoted.relayFeeBps - baseFeeBPS : 0n;
+      const gasMoney = deductFeeBPS(requestedNet, gasQuoteBPS).fee;
+      const { grossAmount, feeBPS: relayFeeBps } = sizeExactRelayerWithdrawal({
+        requestedNet,
+        baseFeeBPS,
+        gasMoney,
+        gasBumpBPS,
+        maxRelayFeeBPS,
+      });
+
+      const relayData = {
+        recipient: quoted.recipient,
+        feeRecipient: quoted.feeRecipient,
+        relayFeeBps,
+      };
+      const withdrawal = {
+        processooor: addressToHex(params.entrypoint.address) as `0x${string}`,
+        data: encodeRelayData(relayData),
+      };
+      const context = BigInt(calculateContext(withdrawal, poolInfo.scope));
+
+      const withdrawResultAction = await store.dispatch(
+        withdrawThunk({
+          getNextNote: store.selectors.getNextNote,
+          proverFactory: params.proverFactory,
+          asset,
+          amount: grossAmount,
+          recipient,
+          context,
+        }),
+      );
+
+      const proofResult = unwrapResult(withdrawResultAction);
+      const { fee, net } = deductFeeBPS(grossAmount, relayFeeBps);
+
+      return {
+        payload: {
+          withdrawalInfo: {
+            context,
+            scope: poolInfo.scope,
+            relayDataAbi: JSON.stringify(relayDataAbi),
+            relayDataObject: relayData,
+            withdrawalObject: withdrawal,
+          },
+          proofResult,
+          quoteData: { quote, relayerId },
+          chainId: chainInfo.chainId,
+        },
+        exact: { grossAmount, requestedNet, expectedNet: net, fee },
+      };
     },
     getPaymasterWithdrawalPayloads: async ({
       asset,

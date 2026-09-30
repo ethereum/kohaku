@@ -178,7 +178,9 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
-    const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' }); // 1%
+    // Gas-adjusted relayer: 0.3% base + 0.001 ETH fixed gas. At 0.5 ETH that quotes ~0.5%
+    // total, well below the on-chain cap (maxRelayFeeBPS = 100), so the gas bump has room.
+    const mockRelayerClient = createMockRelayerClient({ baseFeeBPS: '30', gasFee: '1000000000000000' });
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
@@ -209,7 +211,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
       { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
     );
 
-    // 2. Prepare an exact-output withdrawal via the `exact` option
+    // 2. Prepare an exact-output withdrawal via the `exact` option (default 15% gas bump)
     const recipientAccount = alice.address as AccountId;
     const operation = await protocol.prepareUnshield(
       { asset: nativeAsset, amount: REQUESTED_OUTPUT },
@@ -217,46 +219,38 @@ describe('PrivacyPools v1 Unshield E2E', () => {
       { exact: {} },
     );
 
-    // 3. The resolved amounts are attached to the operation; the recipient receives at
-    // least the requested output, and the gross was grossed up to cover the fee.
+    // 3. The recipient receives exactly the requested output; the embedded fee is the
+    // 30 bps base plus the (gas-bumped) gas component, and stays under the 100 bps cap.
     const { exact } = operation;
+    const relayFeeBps = (operation as { rawData: { relayData: { relayFeeBps: bigint } } }).rawData.relayData.relayFeeBps;
 
     expect(exact).toBeDefined();
     expect(exact!.requestedNet).toBe(REQUESTED_OUTPUT);
-    expect(exact!.expectedNet).toBeGreaterThanOrEqual(REQUESTED_OUTPUT);
+    expect(exact!.expectedNet).toBe(REQUESTED_OUTPUT);
     expect(exact!.grossAmount).toBeGreaterThan(REQUESTED_OUTPUT);
     expect(exact!.fee).toBe(exact!.grossAmount - exact!.expectedNet);
     expect(operation.mode).toBe('relayer');
-    expect((operation as { rawData: { relayData: { relayFeeBps: bigint } } }).rawData.relayData.relayFeeBps).toBe(100n);
+    expect(relayFeeBps).toBeGreaterThan(30n); // base + gas
+    expect(relayFeeBps).toBeGreaterThanOrEqual(50n); // ~base + ~0.2% gas
+    expect(relayFeeBps).toBeLessThan(100n); // under the on-chain cap
   });
 
-  it('[prepareUnshield exact] throws when the committed fee exceeds the slippage allowance', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield exact] rejects when the required fee (with gas bump) exceeds maxRelayFeeBPS', { timeout: 60_000 }, async () => {
     const pool = anvil.pool(10);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
     const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    // Quote already at the on-chain cap (maxRelayFeeBPS = 100). Any gas bump pushes the
+    // required fee above the cap, which the Entrypoint would revert — so it must throw.
+    const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' }); // 1% (= cap)
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
-
-    // The estimate quote sizes the gross at 1%, but the withdrawal is re-quoted at
-    // 5% — with 0 slippage the built op falls short and must be rejected.
-    let quoteCount = 0;
-    const cheapQuote = createMockRelayerClient({ feeBPS: '100' });
-    const pricyQuote = createMockRelayerClient({ feeBPS: '500' });
-    const driftingRelayer = {
-      ...cheapQuote,
-      getQuote(body: Parameters<typeof cheapQuote.getQuote>[0]) {
-        quoteCount += 1;
-
-        return (quoteCount === 1 ? cheapQuote : pricyQuote).getQuote(body);
-      },
-    };
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
       initialState: async () => latestState,
       proverFactory: mockProverFactory,
       relayersList: { 'mock-relayer': 'http://mock.relayer' },
-      relayerClientFactory: () => driftingRelayer,
+      relayerClientFactory: () => mockRelayerClient,
       aspServiceFactory: () => mockAspService,
     });
 
@@ -282,9 +276,9 @@ describe('PrivacyPools v1 Unshield E2E', () => {
       protocol.prepareUnshield(
         { asset: nativeAsset, amount: REQUESTED_OUTPUT },
         alice.address as AccountId,
-        { exact: {} },
+        { exact: {} }, // default 15% gas bump pushes the fee over the 100 bps cap
       ),
-    ).rejects.toThrow(/short by/);
+    ).rejects.toThrow(/exceeds maxRelayFeeBPS/);
   });
 
   it('[prepareUnshield] selects lowest fee relayer', { timeout: 60_000 }, async () => {
