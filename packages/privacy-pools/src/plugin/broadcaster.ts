@@ -46,10 +46,13 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
       throw new Error("Specified relayer not found.");
     }
 
+    // Exact-output withdrawals embed a tipped fee in self-built relay data the relayer
+    // never signed, so the quote's commitment would fail its malformity check. Omit it;
+    // the relayer accepts these on the embedded fee alone.
     return this.relayerClient.relay({
       chainId,
       scope,
-      feeCommitment,
+      feeCommitment: operation.exact ? undefined : feeCommitment,
       relayerUrl,
       withdrawal: withdrawalPayload,
       publicSignals,
