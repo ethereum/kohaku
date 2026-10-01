@@ -1,5 +1,6 @@
-import { encodeAbiParameters, parseAbiParameters } from "viem";
+import { encodeAbiParameters, encodeFunctionData, parseAbiParameters } from "viem";
 
+import { poolAbi } from "../data/abis/pool.abi";
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { WithdrawProveOutput } from "../state/thunks/withdrawThunk";
 import { toWithdrawProof } from "../utils/encoding.utils";
@@ -53,4 +54,20 @@ export function encodePrivacyPoolAdapterData(
     ),
     [{ withdrawal, proof: toWithdrawProof(proof) }],
   );
+}
+
+/**
+ * Encodes a direct `pool.withdraw(withdrawal, proof)` call, used for the extra notes
+ * of a batch withdrawal (`processooor = sender`, run in the execution phase). The
+ * pool pushes the withdrawn value to `msg.sender` (the sender).
+ */
+export function encodePoolWithdraw(
+  withdrawal: WithdrawalPayload,
+  proof: WithdrawProveOutput,
+): `0x${string}` {
+  return encodeFunctionData({
+    abi: poolAbi,
+    functionName: "withdraw",
+    args: [withdrawal, toWithdrawProof(proof)],
+  });
 }

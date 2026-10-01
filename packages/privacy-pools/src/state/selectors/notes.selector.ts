@@ -5,9 +5,59 @@ import { ISecretManager, Secret } from '../../account/keys';
 import { Address } from '../../interfaces/types.interface';
 import { INote } from '../../plugin/interfaces/protocol-params.interface';
 import { RootState } from '../store';
-import { myDepositsBalanceSelector } from './balance.selector';
+import { myDepositsBalanceSelector, NotEnoughCommitsToSpendError } from './balance.selector';
 import { userSecretsSelector } from './slices.selectors';
 import { myWithdrawalsSelector } from './withdrawals.selector';
+
+export interface NoteToSpend {
+  note: INote;
+  /** How much of this note to withdraw (full balance, except a partial last note). */
+  withdrawnValue: bigint;
+}
+
+/**
+ * Selects the minimal set of approved notes to withdraw `amount` of an asset, for a
+ * batch (consolidating) withdrawal. Largest-first so the first note (the sponsoring
+ * one, which pays the paymaster fee) is the largest; the last note is withdrawn
+ * partially. Throws if the approved balance is insufficient.
+ */
+export const getNotesToSpendSelector = createSelector(
+  [
+    myDepositsBalanceSelector,
+    myWithdrawalsSelector,
+    (_state: unknown, assetAddress: Address) => assetAddress,
+    (_state: unknown, _assetAddress: Address, amount: bigint) => amount,
+  ],
+  (depositsMap, withdrawalsMap, assetAddress, amount): NoteToSpend[] => {
+    const eligible = Array.from(depositsMap.values())
+      .filter(deposit => deposit.assetAddress === assetAddress && deposit.approved && deposit.balance > 0n)
+      .sort((a, b) => Number(b.balance - a.balance));
+
+    const selected: NoteToSpend[] = [];
+    let remaining = amount;
+
+    for (const deposit of eligible) {
+      if (remaining <= 0n) break;
+
+      const withdrawnValue = deposit.balance < remaining ? deposit.balance : remaining;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { commitment, ...rest } = deposit;
+      const withdrawals = withdrawalsMap.get(rest.precommitment) || [];
+
+      selected.push({
+        note: { ...rest, deposit: rest.index, withdraw: withdrawals.length },
+        withdrawnValue,
+      });
+      remaining -= withdrawnValue;
+    }
+
+    if (remaining > 0n) {
+      throw new NotEnoughCommitsToSpendError(`Remaining ${remaining.toString(10)} to spend.`);
+    }
+
+    return selected;
+  },
+);
 
 /**
  * Finds the smallest sufficient note for a withdrawal.
