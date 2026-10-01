@@ -91,6 +91,25 @@ describe('PrivacyPools v1 E2E Flow', () => {
     expect(tx.data).toMatch(/^0x/);
   });
 
+  it('[estimateShield] returns the on-chain vetting fee and credited amount', async () => {
+    const pool = anvil.pool(2);
+    const { protocol } = await getProtocolWithState({
+      entrypoint,
+      initialState: async () => latestState,
+      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      rpcUrl: pool.rpcUrl,
+      postman,
+    });
+
+    const DEPOSIT_AMOUNT = 1000000000000000000n; // 1 ETH
+    const estimate = await protocol.estimateShield({ asset: nativeAsset, amount: DEPOSIT_AMOUNT });
+
+    expect(estimate.vettingFeeBPS).toBe(vettingFeesNative);
+    expect(estimate.netAmount).toBe(deductVettingFees(DEPOSIT_AMOUNT, vettingFeesNative));
+    expect(estimate.fee + estimate.netAmount).toBe(DEPOSIT_AMOUNT);
+    expect(estimate.minimumDeposit).toBeGreaterThanOrEqual(0n);
+  });
+
   it('[prepareShield] executes successful deposit on forked mainnet', { timeout: 600_000 }, async () => {
     const pool = anvil.pool(3);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);

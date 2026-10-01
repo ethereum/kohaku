@@ -1,4 +1,4 @@
-import { decodeAbiParameters, encodeFunctionData } from "viem";
+import { decodeAbiParameters, encodeAbiParameters, encodeFunctionData } from "viem";
 import { entrypointAbi, relayDataAbi } from "../data/abis/entrypoint.abi";
 import { poolAbi } from "../data/abis/pool.abi";
 import { CommitmentProveOutput } from "../plugin/interfaces/protocol-params.interface";
@@ -94,4 +94,13 @@ export function decodeRelayData(encodedData: `0x${string}`) {
   const [relayData] = decodeAbiParameters([relayDataAbi], encodedData);
 
   return relayData;
+}
+
+/**
+ * Inverse of {@link decodeRelayData}: ABI-encodes a `RelayData` tuple into the
+ * `withdrawalData` blob the Entrypoint reads. Used by exact-output unshields, which
+ * build their own relay data with a tipped fee instead of using the relayer's quote.
+ */
+export function encodeRelayData(relayData: ReturnType<typeof decodeRelayData>): `0x${string}` {
+  return encodeAbiParameters([relayDataAbi], [relayData]);
 }

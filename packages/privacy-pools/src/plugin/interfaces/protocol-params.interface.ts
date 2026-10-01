@@ -32,12 +32,16 @@ export interface PPv1RelayerPrivateOperation extends PrivateOperation {
     quote: IQuoteResponse;
     relayerId: string;
   };
+  /** Present only for exact-output unshields (`options.exact`): the resolved gross/net/fee. */
+  exact?: PPv1ExactUnshieldResult;
 }
 
 /** Withdrawal sponsored by a paymaster via an ERC-4337 userOp. */
 export interface PPv1PaymasterPrivateOperation extends PrivateOperation {
   mode: 'paymaster';
   withdrawal: IGenericPaymasterWithdrawalPayload;
+  /** Present only for exact-output unshields (`options.exact`): the resolved gross/net/fee. */
+  exact?: PPv1ExactUnshieldResult;
 }
 
 export type PPv1PrivateOperation =
@@ -60,6 +64,84 @@ export interface PPv1UnshieldOptions extends UnshieldOptions {
   delegation?: DelegationConfig;
   /** Gas budget for the paymaster execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
+  /**
+   * Opt into exact-output mode: `amount` is read as the amount the recipient must
+   * receive (net) and the gross is sized so the recipient gets exactly that after
+   * fees. See {@link PPv1ExactUnshieldOptions}.
+   */
+  exact?: PPv1ExactUnshieldOptions;
+}
+
+/** Cost of a shield (deposit). Amounts are in the pool asset's base units; network gas is not included. */
+export interface PPv1ShieldEstimate {
+  /** Entrypoint vetting fee deducted from the deposit. */
+  fee: bigint;
+  /** Amount credited to the note after the vetting fee. */
+  netAmount: bigint;
+  vettingFeeBPS: bigint;
+  /** Deposits below this amount revert. */
+  minimumDeposit: bigint;
+}
+
+/** Relayer withdrawal cost, from the best relayer quote. The relayer fronts gas; `fee` covers it. */
+export interface PPv1RelayerUnshieldEstimate {
+  mode: 'relayer';
+  /** Fee deducted from the withdrawn amount, in the pool asset's base units. */
+  fee: bigint;
+  /** Amount the recipient receives. */
+  netAmount: bigint;
+  /** Relay fee committed in the relayer's signed withdrawal data. */
+  feeBPS: bigint;
+  relayerId: string;
+  /** Quote expiration timestamp (ms). `prepareUnshield` requests a fresh quote. */
+  expiration: number;
+}
+
+/**
+ * Paymaster withdrawal cost at baseline gas limits and the bundler's current gas
+ * price. `prepareUnshield` refines gas against the bundler, so the final fee may differ slightly.
+ */
+export interface PPv1PaymasterUnshieldEstimate {
+  mode: 'paymaster';
+  /** Sponsored gas fee deducted from the withdrawn amount, in the pool asset's base units. */
+  fee: bigint;
+  /** Amount the recipient receives. */
+  netAmount: bigint;
+  /** The same fee in wei, before pricing it into the pool asset. */
+  gasFeeWei: bigint;
+  maxFeePerGas: bigint;
+}
+
+export type PPv1UnshieldEstimate = PPv1RelayerUnshieldEstimate | PPv1PaymasterUnshieldEstimate;
+
+export type PPv1EstimateUnshieldOptions = Pick<PPv1UnshieldOptions, 'mode' | 'tailCalls' | 'tailCallsGasEstimate'>;
+
+/** Exact-output settings, passed as `prepareUnshield`'s `options.exact`. Its presence enables exact-output mode. */
+export interface PPv1ExactUnshieldOptions {
+  /**
+   * Headroom added to the quote's gas component, as a percentage in basis points
+   * where `10000` = 100% (so `1500` sizes the gas cost 15% higher). The recipient
+   * always receives the exact requested output; this only raises the embedded fee
+   * so the relayer still accepts the payload if gas ticks up between quote and
+   * submission. Only the gas term is bumped — not the relayer's fixed base rate —
+   * to avoid overpaying. The embedded fee is still capped at the asset's on-chain
+   * `maxRelayFeeBPS`, and the withdrawal is rejected if the required fee exceeds
+   * it. Ignored for paymaster withdrawals. Defaults to
+   * {@link DEFAULT_EXACT_GAS_BUMP_BPS}.
+   */
+  gasBumpBPS?: bigint;
+}
+
+/** Resolved amounts for an exact-output unshield, attached to the returned operation as `exact`. */
+export interface PPv1ExactUnshieldResult {
+  /** Amount withdrawn from the pool (gross): the requested output plus fee and tip. */
+  grossAmount: bigint;
+  /** Requested recipient output (the `amount` passed in). */
+  requestedNet: bigint;
+  /** Amount the recipient will receive after fees. Equals `requestedNet` for the relayer path. */
+  expectedNet: bigint;
+  /** Fee deducted from the gross (relayer fee plus tip), in the pool asset's base units. */
+  fee: bigint;
 }
 
 export interface PPv1PublicOperation extends PublicOperation {
@@ -127,6 +209,21 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   tailCallsGasEstimate?: bigint;
 }
 
+export interface IExactWithdrawalOperationParams extends Omit<IWithdrawapOperationParams, 'amount'> {
+  /** Amount the recipient must receive after fees. */
+  requestedNet: bigint;
+  /** Headroom on the quote's gas component (bps, 10000 = 100%). See {@link PPv1ExactUnshieldOptions.gasBumpBPS}. */
+  gasBumpBPS: bigint;
+}
+
+export interface IEstimateUnshieldOperationParams extends IDepositOperationParams {
+  recipient: Address;
+  mode?: PPv1EstimateUnshieldOptions['mode'];
+  /** Whether the withdrawal carries tail calls (they add an execution phase to the paymaster userOp). */
+  hasTailCalls?: boolean;
+  tailCallsGasEstimate?: bigint;
+}
+
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
   assets?: Address[];
 }
@@ -162,6 +259,12 @@ export type StateWithdrawalPayload = {
   chainId: ChainId;
 };
 
+/** An exact-output withdrawal payload plus the resolved gross/net/fee it delivers. */
+export type StateExactWithdrawalPayload = {
+  payload: StateWithdrawalPayload;
+  exact: PPv1ExactUnshieldResult;
+};
+
 export type ProveOutput = Awaited<ReturnType<Awaited<ReturnType<typeof Prover>>['prove']>>;
 export type CommitmentProveOutput = Omit<ProveOutput, 'mappedSignals'> & {
   mappedSignals: CommitmentPublicSignals;
@@ -186,9 +289,24 @@ export interface IStateManager {
    */
   getDepositPayload: (params: IDepositOperationParams) => Promise<TxData>;
   /**
+   * Computes the vetting fee for a deposit from the Entrypoint's current asset config
+   */
+  getShieldEstimate: (params: IDepositOperationParams) => Promise<PPv1ShieldEstimate>;
+  /**
+   * Computes the withdrawal fee (relayer quote or paymaster gas) without generating a proof
+   */
+  getUnshieldEstimate: (params: IEstimateUnshieldOperationParams) => Promise<PPv1UnshieldEstimate>;
+  /**
    * Generates the relayer quotes and withdrawals payloads for the specified amount
    */
   getWithdrawalPayloads: (params: IWithdrawapOperationParams) => Promise<StateWithdrawalPayload[]>;
+  /**
+   * Builds a relayer withdrawal whose recipient receives exactly `requestedNet`.
+   * Sizes the gross against a fee tipped `tipBPS` above the live quote and embeds
+   * that fee in self-built relay data (so the relayer accepts it without a matching
+   * signed commitment). The returned payload carries no `feeCommitment`.
+   */
+  getExactWithdrawalPayloads: (params: IExactWithdrawalOperationParams) => Promise<StateExactWithdrawalPayload>;
   /**
    * Generates paymaster-sponsored withdrawal payloads (fully built + signed userOps)
    * for the specified amount. No relayer is involved.

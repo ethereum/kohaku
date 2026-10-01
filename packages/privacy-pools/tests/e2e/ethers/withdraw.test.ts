@@ -70,6 +70,33 @@ describe('PrivacyPools v1 Unshield E2E', () => {
   beforeEach(async () => {
   });
 
+  it('[estimateUnshield] computes the relayer fee without generating a proof', async () => {
+    const pool = anvil.pool(10);
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: () => { throw new Error('estimateUnshield must not prove'); },
+      relayersList: { 'mock-relayer': 'http://mock.relayer' },
+      relayerClientFactory: () => createMockRelayerClient({ feeBPS: '100' }),
+    });
+
+    const WITHDRAW_AMOUNT = 500000000000000000n; // 0.5 ETH
+    const estimate = await protocol.estimateUnshield(
+      { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
+      TEST_ACCOUNTS.alice.address as AccountId,
+    );
+
+    expect(estimate).toMatchObject({
+      mode: 'relayer',
+      feeBPS: 100n,
+      fee: 5000000000000000n, // 1% of 0.5 ETH
+      netAmount: 495000000000000000n,
+      relayerId: 'mock-relayer',
+    });
+  });
+
   it('[prepareUnshield] prepares withdrawal after deposit', { timeout: 60_000 }, async () => {
     const pool = anvil.pool(10);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
@@ -144,6 +171,114 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     expect(withdrawOp.rawData).toBeDefined();
     expect(withdrawOp.rawData.proof).toBeDefined();
     expect(withdrawOp.txData).toBeDefined();
+  });
+
+  it('[prepareUnshield exact] sizes the gross so the recipient receives the requested output', { timeout: 60_000 }, async () => {
+    const pool = anvil.pool(10);
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    // Gas-adjusted relayer: 0.3% base + 0.001 ETH fixed gas. At 0.5 ETH that quotes ~0.5%
+    // total, well below the on-chain cap (maxRelayFeeBPS = 100), so the gas bump has room.
+    const mockRelayerClient = createMockRelayerClient({ baseFeeBPS: '30', gasFee: '1000000000000000' });
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: mockProverFactory,
+      relayersList: { 'mock-relayer': 'http://mock.relayer' },
+      relayerClientFactory: () => mockRelayerClient,
+      aspServiceFactory: () => mockAspService,
+    });
+
+    const nativeAsset = ERC20Asset(E_ADDRESS);
+    const DEPOSIT_AMOUNT = 1000000000000000000n; // 1 ETH
+    const REQUESTED_OUTPUT = 500000000000000000n; // recipient must receive exactly 0.5 ETH
+
+    // 1. Deposit and approve
+    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: nativeAsset, amount: DEPOSIT_AMOUNT });
+
+    await sendTxAndWait(alice, shieldTx);
+    await pool.mine(1);
+
+    const [note] = await protocol.notes([nativeAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(pool.rpcUrl,
+      "0x" + ENTRYPOINT_ADDRESS.toString(16),
+      "0x" + POSTMAN_ADDRESS.toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+    );
+
+    // 2. Prepare an exact-output withdrawal via the `exact` option (default 15% gas bump)
+    const recipientAccount = alice.address as AccountId;
+    const operation = await protocol.prepareUnshield(
+      { asset: nativeAsset, amount: REQUESTED_OUTPUT },
+      recipientAccount,
+      { exact: {} },
+    );
+
+    // 3. The recipient receives exactly the requested output; the embedded fee is the
+    // 30 bps base plus the (gas-bumped) gas component, and stays under the 100 bps cap.
+    const { exact } = operation;
+    const relayFeeBps = (operation as { rawData: { relayData: { relayFeeBps: bigint } } }).rawData.relayData.relayFeeBps;
+
+    expect(exact).toBeDefined();
+    expect(exact!.requestedNet).toBe(REQUESTED_OUTPUT);
+    expect(exact!.expectedNet).toBe(REQUESTED_OUTPUT);
+    expect(exact!.grossAmount).toBeGreaterThan(REQUESTED_OUTPUT);
+    expect(exact!.fee).toBe(exact!.grossAmount - exact!.expectedNet);
+    expect(operation.mode).toBe('relayer');
+    expect(relayFeeBps).toBeGreaterThan(30n); // base + gas
+    expect(relayFeeBps).toBeGreaterThanOrEqual(50n); // ~base + ~0.2% gas
+    expect(relayFeeBps).toBeLessThan(100n); // under the on-chain cap
+  });
+
+  it('[prepareUnshield exact] rejects when the required fee (with gas bump) exceeds maxRelayFeeBPS', { timeout: 60_000 }, async () => {
+    const pool = anvil.pool(10);
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    // Quote already at the on-chain cap (maxRelayFeeBPS = 100). Any gas bump pushes the
+    // required fee above the cap, which the Entrypoint would revert — so it must throw.
+    const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' }); // 1% (= cap)
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: mockProverFactory,
+      relayersList: { 'mock-relayer': 'http://mock.relayer' },
+      relayerClientFactory: () => mockRelayerClient,
+      aspServiceFactory: () => mockAspService,
+    });
+
+    const nativeAsset = ERC20Asset(E_ADDRESS);
+    const DEPOSIT_AMOUNT = 1000000000000000000n;
+    const REQUESTED_OUTPUT = 500000000000000000n;
+
+    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: nativeAsset, amount: DEPOSIT_AMOUNT });
+
+    await sendTxAndWait(alice, shieldTx);
+    await pool.mine(1);
+
+    const [note] = await protocol.notes([nativeAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(pool.rpcUrl,
+      "0x" + ENTRYPOINT_ADDRESS.toString(16),
+      "0x" + POSTMAN_ADDRESS.toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+    );
+
+    await expect(
+      protocol.prepareUnshield(
+        { asset: nativeAsset, amount: REQUESTED_OUTPUT },
+        alice.address as AccountId,
+        { exact: {} }, // default 15% gas bump pushes the fee over the 100 bps cap
+      ),
+    ).rejects.toThrow(/exceeds maxRelayFeeBPS/);
   });
 
   it('[prepareUnshield] selects lowest fee relayer', { timeout: 60_000 }, async () => {
