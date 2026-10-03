@@ -44,3 +44,21 @@ export const PrivacyPoolsV1_0xBow = {
     }
   }
 };
+
+/**
+ * zipcoin's $ZC pool (https://www.zipcoin.cash): a Privacy Pools v1 deployment with its own Entrypoint, association-set
+ * provider and relayer, on the same circuits and verifiers as 0xbow's. The ASP writes the IPFS CID of each approved tree in
+ * `updateRoot`, and serves the trees itself; its relayer speaks this package's relayer API (`/details`, `/quote`, `/request`).
+ */
+export const PrivacyPoolsV1_Zipcoin = {
+  1: {
+    entrypoint: {
+      entrypointAddress: "0x7a8dA01d241C3cFcF7803cdb007ECE5663749193",
+      deploymentBlock: 26070387n,
+    },
+    asset: "0x4E67DB19044549fF420860834c91b45BaD298722",
+    relayerUrl: "https://www.zipcoin.cash/relayer",
+    ipfsUrl: "https://www.zipcoin.cash/ipfs/",
+    aspUrl: "https://www.zipcoin.cash/asp",
+  },
+};
