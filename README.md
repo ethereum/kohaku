@@ -12,7 +12,7 @@
 <img src="https://img.shields.io/badge/Packages-2-blue" align="center" />
 </p>
 
-Privacy-first tooling for the Ethereum ecosystem
+Privacy-first js tooling for the Ethereum ecosystem. For rust crates see [sister rust repo](https://github.com/ethereum/kohaku-rs)
 
 > [!IMPORTANT]
 > Some parts of this project are work in progress and NOT READY FOR PRODUCTION USE. Packages contain UNAUDITED CODE. Consult underlying package READMEs for more detailed information.
