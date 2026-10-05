@@ -12,8 +12,8 @@ export interface SagaLogSourceParams {
   sourceUrl: string;
   chainId: number;
   /**
-   * RPC fallback for addresses saga does not publish (e.g. the entrypoint) and
-   * for the tail of blocks past saga's coverage.
+   * RPC fallback for addresses saga does not publish and for the tail of blocks
+   * past saga's coverage.
    */
   fallback: LogsFn;
   /**
@@ -83,8 +83,17 @@ function synthLeafInsertedLog(pool: string, index: bigint, leaf: bigint, blockNu
 /**
  * Builds a `getLogs` function backed by saga-sync: for pool addresses it streams
  * saga's published Deposited/Withdrawn events, synthesizes the missing
- * LeafInserted events, and covers saga's lag with an RPC tail. Addresses saga
- * does not publish (e.g. the entrypoint) fall through to the RPC `fallback`.
+ * LeafInserted events, and covers saga's lag with an RPC tail. The entrypoint is
+ * published too (its events carry no leaves, so the synthesis step no-ops for
+ * them). Addresses saga does not publish fall through to the RPC `fallback`.
+ *
+ * Trust note: pool leaves are self-verifying — the tree we rebuild from saga's
+ * events only hydrates state if its root matches the pool's on-chain currentRoot
+ * (see saga-reconstruction.test.ts), so a dishonest or stale saga is caught.
+ * Entrypoint events (deposits, root updates, pool registrations) have no such
+ * on-chain checkpoint to replay against, so consuming them from saga trades that
+ * verifiability for a degree of trust in the saga source. The RPC tail past
+ * saga's head still comes from the authoritative chain.
  *
  * Drop the result into `new DataService({ provider, getLogs })` (or use
  * {@link createSagaDataService}) to hydrate pool state without a full RPC crawl.
@@ -108,8 +117,8 @@ export async function createSagaLogSource({
     try {
       protocolId = await client.resolveProtocolId({ address, chainId: chainIdHex });
     } catch {
-      // Not published by saga (e.g. the entrypoint) — serve from RPC. The chain
-      // is authoritative and can't return past its own head, so it isn't clamped.
+      // Not published by saga — serve from RPC. The chain is authoritative and
+      // can't return past its own head, so it isn't clamped.
       return fallback(params);
     }
 

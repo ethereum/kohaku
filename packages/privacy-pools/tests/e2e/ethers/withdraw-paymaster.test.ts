@@ -78,9 +78,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster unshield — real orac
     const pool = anvil.pool(1);
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
 
-    // Optionally hydrate the heavy pool-event history from saga-sync; the
-    // entrypoint (not a saga stream) and any blocks past saga's coverage still
-    // come from the fork over RPC — result-identical, just far fewer round trips.
+    // Optionally hydrate the heavy pool + entrypoint event history from
+    // saga-sync; any blocks past saga's coverage still come from the fork over
+    // RPC — result-identical, just far fewer round trips.
     let dataService: DataService | undefined;
 
     if (SAGA_SYNC_URL) {
