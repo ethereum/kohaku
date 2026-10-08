@@ -67,22 +67,6 @@ importers:
         specifier: ^2.51.3
         version: 2.54.1(typescript@6.0.3)(zod@4.4.3)
 
-  examples/anon-rpc-poc:
-    dependencies:
-      '@kohaku-eth/provider':
-        specifier: workspace:*
-        version: link:../../packages/provider
-      viem:
-        specifier: ^2.51.3
-        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
-    devDependencies:
-      esbuild:
-        specifier: ^0.25.0
-        version: 0.25.12
-      playwright:
-        specifier: ^1.62.1
-        version: 1.62.1
-
   examples/pq-account:
     dependencies:
       '@noble/hashes':
@@ -213,8 +197,6 @@ importers:
       vitest:
         specifier: ^3.0.0
         version: 3.2.6(@types/debug@4.1.13)(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(tsx@4.22.5)(yaml@2.9.0)
-
-  packages/railgun: {}
 
   packages/plugins:
     dependencies:
@@ -368,6 +350,8 @@ importers:
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@24.13.2)(lightningcss@1.32.0)(supports-color@8.1.1)
+
+  packages/railgun: {}
 
   packages/tornado-cash:
     dependencies:
@@ -6535,19 +6519,9 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright-core@1.62.1:
-    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
-    engines: {node: '>=20'}
-    hasBin: true
-
   playwright@1.61.1:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.62.1:
-    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
-    engines: {node: '>=20'}
     hasBin: true
 
   pluralize@8.0.0:
@@ -15065,17 +15039,9 @@ snapshots:
 
   playwright-core@1.61.1: {}
 
-  playwright-core@1.62.1: {}
-
   playwright@1.61.1:
     dependencies:
       playwright-core: 1.61.1
-    optionalDependencies:
-      fsevents: 2.3.2
-
-  playwright@1.62.1:
-    dependencies:
-      playwright-core: 1.62.1
     optionalDependencies:
       fsevents: 2.3.2
 

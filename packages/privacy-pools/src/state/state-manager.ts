@@ -465,6 +465,7 @@ export const storeStateManager = (
       tailCalls,
       tailCallsGasEstimate,
       batch,
+      refundRecipient,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -489,6 +490,7 @@ export const storeStateManager = (
             tailCalls,
             tailCallsGasEstimate,
             batch,
+            refundRecipient,
           }),
         ),
       );

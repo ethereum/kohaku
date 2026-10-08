@@ -1,6 +1,6 @@
 /* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
+import { AccountId, ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
@@ -59,20 +59,53 @@ export interface IPaymasterConfig {
 export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
 
 /** Extra `prepareUnshield` options: choose the broadcast path and, for paymaster, the sender derivation. */
-export interface PPv1UnshieldOptions extends UnshieldOptions {
-  mode?: 'relayer' | 'paymaster';
-  delegation?: DelegationConfig;
-  /** Gas budget for the paymaster execution phase when `tailCalls` are supplied. */
+/**
+ * Options shared by both withdrawal modes. `tailCalls` comes from the higher-level
+ * {@link UnshieldOptions} API; relayer mode does not execute them yet but is expected to.
+ */
+interface PPv1CommonUnshieldOptions extends UnshieldOptions {
+  /** Gas budget for the execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
   /**
    * Opt into exact-output mode: `amount` is read as the amount the recipient must
    * receive (net) and the gross is sized so the recipient gets exactly that after
    * fees. See {@link PPv1ExactUnshieldOptions}.
+   *
+   * With `mode: 'paymaster'` a `refundRecipient` is **required**: the paymaster refunds
+   * the gas overcharge in postOp, so the caller must say where it goes. Point it at a
+   * payer/change address and the recipient nets exactly `requestedNet`; point it at the
+   * recipient and they receive *more* than requested (the resolved `expectedNet` is then
+   * a lower bound).
    */
   exact?: PPv1ExactUnshieldOptions;
+}
+
+/** Relayer-mode withdrawal options. */
+export interface PPv1RelayerUnshieldOptions extends PPv1CommonUnshieldOptions {
+  mode?: 'relayer';
+}
+
+/** Paymaster-mode withdrawal options. The fields below only apply when the paymaster
+ * sponsors the withdrawal. */
+export interface PPv1PaymasterUnshieldOptions extends PPv1CommonUnshieldOptions {
+  mode: 'paymaster';
+  delegation?: DelegationConfig;
+  /**
+   * Where the paymaster sends the gas-overcharge refund in postOp (`fee - actualGasCost`).
+   * Defaults to the withdrawal recipient. Set this to a payer/change address to keep the
+   * refund away from the recipient — required for exact-output withdrawals (see `exact`).
+   */
+  refundRecipient?: AccountId;
   /** Consolidate multiple approved notes to reach the amount in one sponsored userOp. */
   batch?: boolean;
 }
+
+/**
+ * Withdrawal options, discriminated on `mode`. Paymaster-only knobs (`delegation`,
+ * `batch`, `refundRecipient`) live on {@link PPv1PaymasterUnshieldOptions} and are a type
+ * error in relayer mode.
+ */
+export type PPv1UnshieldOptions = PPv1RelayerUnshieldOptions | PPv1PaymasterUnshieldOptions;
 
 /** Cost of a shield (deposit). Amounts are in the pool asset's base units; network gas is not included. */
 export interface PPv1ShieldEstimate {
@@ -116,7 +149,11 @@ export interface PPv1PaymasterUnshieldEstimate {
 
 export type PPv1UnshieldEstimate = PPv1RelayerUnshieldEstimate | PPv1PaymasterUnshieldEstimate;
 
-export type PPv1EstimateUnshieldOptions = Pick<PPv1UnshieldOptions, 'mode' | 'tailCalls' | 'tailCallsGasEstimate'>;
+export interface PPv1EstimateUnshieldOptions {
+  mode?: 'relayer' | 'paymaster';
+  tailCalls?: UnshieldOptions['tailCalls'];
+  tailCallsGasEstimate?: bigint;
+}
 
 /** Exact-output settings, passed as `prepareUnshield`'s `options.exact`. Its presence enables exact-output mode. */
 export interface PPv1ExactUnshieldOptions {
@@ -210,6 +247,8 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
   batch?: boolean;
+  /** Gas-overcharge refund target (postOp). Defaults to `recipient`. */
+  refundRecipient?: Address;
 }
 
 export interface IExactWithdrawalOperationParams extends Omit<IWithdrawapOperationParams, 'amount'> {
