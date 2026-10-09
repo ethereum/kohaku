@@ -33,6 +33,7 @@ import {
   PPv1PrivateOperation,
   PPv1PublicOperation,
   PPv1RelayerPrivateOperation,
+  PPv1PaymasterUnshieldOptions,
   PPv1ShieldEstimate,
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
@@ -274,6 +275,12 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * paymaster withdrawals the gross is sized from the gas estimate and the built
    * operation is re-checked, throwing {@link PPv1ExactOutputError} if it would fall
    * short. On success the resolved gross/net/fee are attached as `operation.exact`.
+   *
+   * NOTE: exact output with `mode: 'paymaster'` **requires** `options.refundRecipient`.
+   * The gross is sized from the worst-case gas fee and the paymaster refunds the overcharge
+   * (`fee - actualGasCost`) in postOp, so the caller must choose where it goes: a
+   * payer/change address keeps the recipient at exactly `requestedNet`, while pointing it
+   * at the recipient over-delivers (then `operation.exact.expectedNet` is a lower bound).
    */
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     if (options?.exact) {
@@ -329,12 +336,28 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     return operation;
   }
 
+  /**
+   * Sizes the gross from the worst-case gas fee so the recipient nets at least
+   * `requestedNet`. The paymaster refunds the gas overcharge in postOp, so the caller
+   * MUST supply `options.refundRecipient` to say where it goes: a payer/change address
+   * keeps the recipient at exactly `requestedNet`; the recipient address accepts
+   * over-delivery (then `expectedNet` is a lower bound). See {@link prepareUnshield}.
+   */
   private async prepareExactPaymasterUnshield(
     assets: AssetAmount,
     to: AccountId,
-    options: PPv1UnshieldOptions,
+    options: PPv1PaymasterUnshieldOptions,
     requestedNet: bigint,
   ): Promise<PPv1PrivateOperation> {
+    if (options.refundRecipient == null) {
+      throw new Error(
+        "Exact-output paymaster withdrawals require an explicit `refundRecipient`: the " +
+          "paymaster refunds the gas overcharge in postOp, so the caller must choose where " +
+          "it goes (a payer/change address to keep the recipient at exactly the requested " +
+          "amount, or the recipient to accept over-delivery).",
+      );
+    }
+
     const estimate = await this.estimateUnshield(assets, to, options);
     const grossAmount = requestedNet + estimate.fee;
     const operation = await this.buildUnshield(assets, grossAmount, to, options);
@@ -376,6 +399,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         batch: options.batch,
+        refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });
 
       if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");

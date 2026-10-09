@@ -2,11 +2,10 @@ import { Prover } from '@fatsolutions/privacy-pools-core-circuits';
 import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 import { Wallet } from 'ethers';
-import { decodeFunctionData, getAddress, parseEther, type Hex } from 'viem';
+import { createPublicClient, erc20Abi, http, parseUnits, type Hex } from 'viem';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
-import { E_ADDRESS, PrivacyPoolsPaymasterConfigs } from '../../../src/config';
-import { SIMPLE_7702_EXECUTE_ABI } from '../../../src/data/abis/account.abi';
+import { PrivacyPoolsPaymasterConfigs } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
 import { EthClient } from '../../../src/data/eth-client';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
@@ -20,6 +19,8 @@ import { createMockHost } from '../../utils/mock-host';
 import { createSagaLogSource } from '../../utils/saga-log-source';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import {
+  approveERC20,
+  fundAccountWithERC20,
   getProtocolWithState,
   MOCK_IPFS_CID,
   pushNewAspRoot,
@@ -34,10 +35,11 @@ const UTILITY_PK = '0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f
 const SAGA_SYNC_URL = process['env']['SAGA_SYNC_URL'] ?? 'https://saga.fatsolutions.xyz';
 const chainId = inject('chainId');
 
-// Fresh address (starts at 0 ETH) that only the consolidated forward pays.
-const FINAL_RECIPIENT = '0xfe0fe0fe0fe0fe0fe0fe0fe0fe0fe0fe0fe0fe03';
+const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+// Fresh address (starts empty) that only this withdrawal pays.
+const EXACT_RECIPIENT = '0xec01ec01ec01ec01ec01ec01ec01ec01ec01ec01';
 
-describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — real bundler, real prover)', () => {
+describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bundler, real prover)', () => {
   let anvil: AnvilInstance;
   let pool: AnvilPool;
   let latestState: InitialState;
@@ -53,8 +55,8 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
 
     pool = anvil.pool(1);
 
-    await pool.setBalance(new Wallet(EXECUTOR_PK).address, `0x${parseEther('100').toString(16)}`);
-    await pool.setBalance(new Wallet(UTILITY_PK).address, `0x${parseEther('100').toString(16)}`);
+    await pool.setBalance(new Wallet(EXECUTOR_PK).address, `0x${parseUnits('100', 18).toString(16)}`);
+    await pool.setBalance(new Wallet(UTILITY_PK).address, `0x${parseUnits('100', 18).toString(16)}`);
 
     ({ bundlerRpcUrl, stop: stopBundler } = await startServers({
       execRpcUrl: pool.rpcUrl,
@@ -91,11 +93,14 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
     await anvil.stop();
   });
 
-  it('[paymaster] consolidates three notes into one sponsored withdrawal', { timeout: 300_000 }, async () => {
+  // Exact output with the paymaster flow is discouraged: the paymaster refunds the gas
+  // overcharge to the recipient in postOp, so the recipient nets MORE than the requested
+  // exact amount. This test pins that behavior (see prepareUnshield's docs).
+  it('[paymaster] exact output over-delivers by the postOp gas refund', { timeout: 300_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
-    const provider = await pool.getProvider();
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
-    const nativeAsset = ERC20Asset(E_ADDRESS);
+    const rpc = createPublicClient({ transport: http(pool.rpcUrl) });
+    const usdcAsset = ERC20Asset(USDC);
 
     const paymasterConfig: IChainsPaymastersConfig = {
       1: { ...PrivacyPoolsPaymasterConfigs[1]!, bundlerUrl: bundlerRpcUrl },
@@ -103,29 +108,10 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
 
     const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
 
-    // One shared prover instance — the batch proves N notes, and a fresh Prover()
-    // per note re-downloads circuit artifacts N times (slow + flaky). Retry the
-    // init: artifacts are fetched from raw.githubusercontent.com, which rate-limits.
-    const makeProver = async () => {
-      let lastErr: unknown;
-
-      for (let attempt = 0; attempt < 4; attempt++) {
-        try {
-          return await Prover();
-        } catch (err) {
-          lastErr = err;
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-        }
-      }
-
-      throw lastErr;
-    };
-    const prover = makeProver();
-
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
       initialState: async () => latestState,
-      proverFactory: () => prover,
+      proverFactory: () => Prover(),
       aspServiceFactory: () => mockAspService,
       relayersList: {},
       paymasterConfig,
@@ -133,19 +119,25 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
 
     const broadcaster = new PrivacyPoolsBroadcaster({ host, broadcasterUrl: { default: 'http://unused' } });
 
-    // 1. Three separate native deposits -> three notes.
-    for (const amount of [parseEther('0.6'), parseEther('0.5'), parseEther('0.4')]) {
-      const { txns: [shieldTx] } = await protocol.prepareShield({ asset: nativeAsset, amount });
+    const DEPOSIT_AMOUNT = parseUnits('300', 6); // USDC, 6 decimals
+    const REQUESTED_NET = parseUnits('200', 6);
 
-      expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
-      await pool.mine(1);
-    }
+    const usdcBalance = (address: string) =>
+      rpc.readContract({ address: USDC, abi: erc20Abi, functionName: 'balanceOf', args: [address as `0x${string}`] });
 
-    // 2. Approve all three notes via the mock ASP.
-    const notes = await protocol.notes([nativeAsset]);
+    // 1. Fund + approve + deposit USDC.
+    await fundAccountWithERC20(pool.rpcUrl, USDC, alice.address, DEPOSIT_AMOUNT);
+    expect((await approveERC20(alice, USDC, addressToHex(ENTRYPOINT_ADDRESS), DEPOSIT_AMOUNT))?.status).toBe(1);
 
-    expect(notes.length).toBe(3);
-    notes.forEach((note) => mockAspService.addLabel(note.label));
+    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
+
+    expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
+    await pool.mine(1);
+
+    // 2. Approve the note via the mock ASP.
+    const [note] = await protocol.notes([usdcAsset]);
+
+    mockAspService.addLabel(note.label);
     await pushNewAspRoot(
       pool.rpcUrl,
       '0x' + ENTRYPOINT_ADDRESS.toString(16),
@@ -153,32 +145,34 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
       { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID },
     );
 
-    const approvedBefore = unwrapBalance(await protocol.balance([nativeAsset]), nativeAsset).approved?.amount ?? 0n;
+    const approvedBefore = unwrapBalance(await protocol.balance([usdcAsset]), usdcAsset).approved?.amount ?? 0n;
 
-    // 3. Withdraw the whole approved balance — spans all three notes — with batch.
+    expect(approvedBefore).toBeGreaterThanOrEqual(REQUESTED_NET);
+
+    // 3. Exact + paymaster requires an explicit refund target — omitting it is rejected.
+    await expect(
+      protocol.prepareUnshield(
+        { asset: usdcAsset, amount: REQUESTED_NET },
+        EXACT_RECIPIENT as AccountId,
+        { mode: 'paymaster', exact: {} },
+      ),
+    ).rejects.toThrow(/refundRecipient/);
+
+    // Exact-output withdrawal via the paymaster. The gross is sized so the recipient nets
+    // REQUESTED_NET before the refund; we deliberately point the refund at the recipient
+    // to exercise the over-delivery case.
     const op = await protocol.prepareUnshield(
-      { asset: nativeAsset, amount: approvedBefore },
-      FINAL_RECIPIENT as AccountId,
-      { mode: 'paymaster', batch: true },
+      { asset: usdcAsset, amount: REQUESTED_NET },
+      EXACT_RECIPIENT as AccountId,
+      { mode: 'paymaster', exact: {}, refundRecipient: EXACT_RECIPIENT as AccountId },
     );
 
     if (op.mode !== 'paymaster') throw new Error('expected paymaster operation');
 
-    // callData = executeBatch of [2 direct pool.withdraw, 1 forward].
-    const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: op.withdrawal.userOperation.callData });
+    // The resolved exact figures target the requested net (computed before the refund).
+    expect(op.exact?.expectedNet).toBe(REQUESTED_NET);
 
-    expect(decoded.functionName).toBe('executeBatch');
-
-    const calls = decoded.args[0] as readonly { target: string; value: bigint; data: string }[];
-    const poolHex = getAddress(addressToHex(op.withdrawal.poolAddress));
-    const directWithdraws = calls.filter((c) => getAddress(c.target) === poolHex);
-    const forward = calls.find((c) => getAddress(c.target) === getAddress(FINAL_RECIPIENT));
-
-    expect(calls.length).toBe(3);
-    expect(directWithdraws.length).toBe(2);
-    expect(forward?.value).toBeGreaterThan(0n);
-
-    const recipientBefore = await provider.getBalance(FINAL_RECIPIENT);
+    const recipientBefore = await usdcBalance(EXACT_RECIPIENT);
 
     expect(recipientBefore).toBe(0n);
 
@@ -186,19 +180,14 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
     await broadcaster.broadcast(op);
     await pool.mine(1);
 
-    // 5. The consolidated forward paid the recipient (whole amount minus fee), and
-    //    all three notes were spent.
-    const recipientAfter = await provider.getBalance(FINAL_RECIPIENT);
-    const approvedAfter = unwrapBalance(await protocol.balance([nativeAsset]), nativeAsset).approved?.amount ?? 0n;
+    // 5. The recipient received MORE than the exact/expected net — the paymaster's postOp
+    //    gas-overcharge refund is routed to them on top — bounded above by the gross
+    //    actually withdrawn from the note.
+    const received = (await usdcBalance(EXACT_RECIPIENT)) - recipientBefore;
+    const approvedAfter = unwrapBalance(await protocol.balance([usdcAsset]), usdcAsset).approved?.amount ?? 0n;
 
-    expect(recipientAfter).toBeGreaterThan(0n);
-    expect(recipientAfter).toBeLessThan(approvedBefore);
-    expect(approvedAfter).toBe(0n);
-
-    // The paymaster's postOp refund (fee charged minus actual gas) is routed to the
-    // real recipient via the adapter's `refundRecipient`, so the recipient nets
-    // strictly more than the execution-phase forward alone — proving the overcharge
-    // is no longer stranded on the ephemeral sender.
-    expect(recipientAfter).toBeGreaterThan(forward!.value);
+    expect(received).toBeGreaterThan(op.exact!.expectedNet);
+    expect(received).toBeLessThan(op.exact!.grossAmount);
+    expect(approvedAfter).toBe(approvedBefore - op.exact!.grossAmount);
   });
 });

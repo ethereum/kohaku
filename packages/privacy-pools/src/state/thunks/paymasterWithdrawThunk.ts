@@ -55,6 +55,12 @@ export interface PaymasterWithdrawThunkParams {
    * execution phase and the consolidated balance is forwarded to `recipient`.
    */
   batch?: boolean;
+  /**
+   * Where the paymaster sends the gas-overcharge refund in postOp. Defaults to
+   * `recipient`; set it to route the refund elsewhere (e.g. a payer/change address so
+   * the recipient nets exactly its payout).
+   */
+  refundRecipient?: Address;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -77,6 +83,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       tailCalls,
       tailCallsGasEstimate,
       batch,
+      refundRecipient: refundRecipientOverride,
     },
     { getState, dispatch },
   ) => {
@@ -124,6 +131,13 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     });
 
     const payoutRecipient = hasExecutionPhase ? signer.address : addressToHex(recipient);
+
+    // Where the paymaster sends the gas-overcharge refund in postOp: the caller-supplied
+    // `refundRecipient`, else the real recipient — so the user gets their gas money back
+    // at the address they designated instead of it being stranded on the ephemeral sender
+    // (`payoutRecipient` is the sender whenever there is an execution phase). The
+    // paymaster's postOp refund is failure-safe, so an awkward target can't brick the op.
+    const refundRecipient = addressToHex(refundRecipientOverride ?? recipient);
 
     // The absolute fee (in the pool asset), taken from the sponsoring note's payout:
     // the wei gas cost for native pools, priced into the token via the paymaster's own
@@ -202,7 +216,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       const fee = await feeFor(computeMinimumViableFee(gas, maxFeePerGas));
       const withdrawal: WithdrawalPayload = {
         processooor: adapterAddress,
-        data: encodeFeeData({ recipient: payoutRecipient, feeRecipient: paymasterAddress, fee }),
+        // `recipient` is the validation-phase payout target (the sender when an
+        // execution phase exists); `refundRecipient` carries the postOp gas-overcharge
+        // refund to the real recipient (see its definition above).
+        data: encodeFeeData({
+          recipient: payoutRecipient,
+          feeRecipient: paymasterAddress,
+          fee,
+          refundRecipient,
+        }),
       };
       const proof = await proveNote(sponsoring!, withdrawal);
       const paymasterData = encodePaymasterData(adapterAddress, encodePrivacyPoolAdapterData(withdrawal, proof));

@@ -23,17 +23,24 @@ export function encodePaymasterData(
 
 /**
  * Encodes the paymaster `withdrawal.data` bytes the PrivacyPoolsFeeAdapter
- * expects: `abi.encode(FeeData{ address recipient; address feeRecipient; uint256 fee })`.
- * `fee` is an absolute amount in the pool asset (not basis points); `feeRecipient`
- * must be the paymaster. Bound into the proof's `context` signal.
+ * expects: `abi.encode(FeeData{ address recipient; address feeRecipient; uint256 fee;
+ * address refundRecipient })`. `fee` is an absolute amount in the pool asset (not
+ * basis points); `feeRecipient` must be the paymaster. `refundRecipient` is where the
+ * paymaster sends the gas-overcharge refund in postOp — routed independently of
+ * `recipient` (which is pinned to the sender in an execution-phase withdrawal);
+ * `address(0)` disables the refund. The whole struct is bound into the proof's
+ * `context` signal.
  */
 export function encodeFeeData(feeData: {
   recipient: `0x${string}`;
   feeRecipient: `0x${string}`;
   fee: bigint;
+  refundRecipient: `0x${string}`;
 }): `0x${string}` {
   return encodeAbiParameters(
-    parseAbiParameters("(address recipient, address feeRecipient, uint256 fee)"),
+    parseAbiParameters(
+      "(address recipient, address feeRecipient, uint256 fee, address refundRecipient)",
+    ),
     [feeData],
   );
 }

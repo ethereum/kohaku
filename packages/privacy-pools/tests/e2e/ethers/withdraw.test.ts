@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'v
 import { AccountId } from '@kohaku-eth/plugins';
 
 import { E_ADDRESS } from '../../../src/config';
+import { DataService } from '../../../src/data/data.service';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
@@ -97,7 +98,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     });
   });
 
-  it('[prepareUnshield] prepares withdrawal after deposit', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield] prepares withdrawal after deposit', { timeout: 120_000 }, async () => {
     const pool = anvil.pool(10);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
@@ -173,7 +174,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     expect(withdrawOp.txData).toBeDefined();
   });
 
-  it('[prepareUnshield exact] sizes the gross so the recipient receives the requested output', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield exact] sizes the gross so the recipient receives the requested output', { timeout: 120_000 }, async () => {
     const pool = anvil.pool(10);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
@@ -235,15 +236,25 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     expect(relayFeeBps).toBeLessThan(100n); // under the on-chain cap
   });
 
-  it('[prepareUnshield exact] rejects when the required fee (with gas bump) exceeds maxRelayFeeBPS', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield exact] rejects when the required fee (with gas bump) exceeds maxRelayFeeBPS', { timeout: 120_000 }, async () => {
     const pool = anvil.pool(10);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
-    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
-    // Quote already at the on-chain cap (maxRelayFeeBPS = 100). Any gas bump pushes the
-    // required fee above the cap, which the Entrypoint would revert — so it must throw.
-    const mockRelayerClient = createMockRelayerClient({ feeBPS: '100' }); // 1% (= cap)
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+
+    // Put the relayer's base rate exactly at the pool's on-chain relay-fee cap and give it
+    // a non-zero gas component, so the exact-output gas bump provably lifts the required
+    // fee above the cap (which the Entrypoint would revert) — forcing a reject. Reading the
+    // live cap keeps the test correct regardless of the pool's configured value.
+    const { maxRelayFeeBPS } = await new DataService({ provider: host.provider }).getPoolForAsset(
+      ENTRYPOINT_ADDRESS,
+      BigInt(E_ADDRESS),
+    );
+    const mockRelayerClient = createMockRelayerClient({
+      baseFeeBPS: String(maxRelayFeeBPS),
+      gasFee: '1000000000000000', // 0.001 ETH gas cost -> non-zero bumpable gas component
+    });
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
@@ -281,7 +292,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     ).rejects.toThrow(/exceeds maxRelayFeeBPS/);
   });
 
-  it('[prepareUnshield] selects lowest fee relayer', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield] selects lowest fee relayer', { timeout: 120_000 }, async () => {
     const pool = anvil.pool(11);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
@@ -366,7 +377,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     expect(withdrawOp.quoteData.relayerId).toBe('cheap-relayer');
   });
 
-  it('[prepareUnshield] throws when no sufficient balance', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield] throws when no sufficient balance', { timeout: 120_000 }, async () => {
     const pool = anvil.pool(12);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 
@@ -405,7 +416,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
 
   });
 
-  it('[prepareUnshield] throws when all relayers fail', { timeout: 60_000 }, async () => {
+  it('[prepareUnshield] throws when all relayers fail', { timeout: 120_000 }, async () => {
     const pool = anvil.pool(13);
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
 

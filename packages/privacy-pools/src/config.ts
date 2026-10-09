@@ -21,11 +21,11 @@ export const PrivacyPoolsPaymasterConfigs: IChainsPaymastersConfig = {
     paymasterAddress: "0xe06CB96C57D2442f8F60F5017354BC08F7e91308",
     poolsAccountsMap: {
       // ETH pool -> privacypools_simple_eth adapter
-      "0xf241d57c6debae225c0f2e6ea1529373c9a9c9fb": "0x0a230D83f16209E2692494a0ae139aAD8C96bde9",
+      "0xf241d57c6debae225c0f2e6ea1529373c9a9c9fb": "0x521F578Ac6E894939364Dc27c7e6978Ecf7b7926",
       // USDT pool -> privacypools_complex_usdt_100 adapter
-      "0xe859c0bd25f260baee534fb52e307d3b64d24572": "0xFcA5515D05f372Db8E03Bcc6b1a96BF4aC006f33",
+      "0xe859c0bd25f260baee534fb52e307d3b64d24572": "0x3B33c5cb645690E6b7Df599F58CADA8fA189C36F",
       // USDC pool -> privacypools_complex_usdc_100 adapter
-      "0xb419c2867ab3cbc78921660cb95150d95a94ce86": "0x16B7d484c634985FbafaaaC6f3ee14e9eFDa4889",
+      "0xb419c2867ab3cbc78921660cb95150d95a94ce86": "0x841E8F12FDbB2c55c9E054B4c6d07c2743E09cFC",
     },
   },
 };

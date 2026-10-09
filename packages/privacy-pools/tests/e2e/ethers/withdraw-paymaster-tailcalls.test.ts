@@ -172,12 +172,14 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
     await broadcaster.broadcast(op);
     await pool.mine(1);
 
-    // 5. The tail call delivered exactly FORWARD_AMOUNT to the fresh recipient,
-    //    and the note was spent.
+    // 5. The tail call delivered FORWARD_AMOUNT to the fresh recipient; the paymaster's
+    //    postOp gas-overcharge refund is routed to that same designated recipient, so it
+    //    nets slightly more than the forward alone. The note was spent.
     const recipientAfter = await provider.getBalance(FINAL_RECIPIENT);
     const approvedAfter = unwrapBalance(await protocol.balance([nativeAsset]), nativeAsset).approved?.amount ?? 0n;
 
-    expect(recipientAfter).toBe(FORWARD_AMOUNT);
+    expect(recipientAfter).toBeGreaterThan(FORWARD_AMOUNT);
+    expect(recipientAfter).toBeLessThan(WITHDRAW_AMOUNT);
     expect(approvedAfter).toBe(approvedBefore - WITHDRAW_AMOUNT);
   });
 
@@ -267,11 +269,14 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
     await broadcaster.broadcast(op);
     await pool.mine(1);
 
-    // 5. Both transfers landed for their exact amounts, and the note was spent.
+    // 5. Both transfers landed; recipient A is the designated unshield recipient, so the
+    //    paymaster's postOp gas refund (in USDC) is routed to A on top of its transfer,
+    //    while B receives its exact amount. The note was spent.
     const [a1, b1] = await Promise.all([usdcBalance(TAIL_RECIPIENT_A), usdcBalance(TAIL_RECIPIENT_B)]);
     const approvedAfter = unwrapBalance(await protocol.balance([usdcAsset]), usdcAsset).approved?.amount ?? 0n;
 
-    expect(a1 - a0).toBe(TRANSFER_A);
+    expect(a1 - a0).toBeGreaterThan(TRANSFER_A);
+    expect(a1 - a0).toBeLessThan(WITHDRAW_AMOUNT);
     expect(b1 - b0).toBe(TRANSFER_B);
     expect(approvedAfter).toBe(approvedBefore - WITHDRAW_AMOUNT);
   });

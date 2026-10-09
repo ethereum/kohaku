@@ -10,6 +10,7 @@ import { mockedGroth16Proof } from '../utils/mock-prover';
 const ADAPTER = '0x00112233445566778899aabbccddeeff00112233' as const;
 const RECIPIENT = '0xcccccccccccccccccccccccccccccccccccccccc' as const;
 const PAYMASTER = '0xdddddddddddddddddddddddddddddddddddddddd' as const;
+const SENDER = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const;
 
 const proof: WithdrawProveOutput = {
   proof: mockedGroth16Proof,
@@ -18,16 +19,40 @@ const proof: WithdrawProveOutput = {
 } as unknown as WithdrawProveOutput;
 
 describe('paymaster adapter-data encoding', () => {
-  it('encodeFeeData abi-encodes FeeData(recipient, feeRecipient, fee)', () => {
-    const encoded = encodeFeeData({ recipient: RECIPIENT, feeRecipient: PAYMASTER, fee: 250n });
+  it('encodeFeeData abi-encodes FeeData(recipient, feeRecipient, fee, refundRecipient)', () => {
+    const encoded = encodeFeeData({
+      recipient: RECIPIENT,
+      feeRecipient: PAYMASTER,
+      fee: 250n,
+      refundRecipient: RECIPIENT,
+    });
     const [decoded] = decodeAbiParameters(
-      parseAbiParameters('(address recipient, address feeRecipient, uint256 fee)'),
+      parseAbiParameters('(address recipient, address feeRecipient, uint256 fee, address refundRecipient)'),
       encoded,
     );
 
     expect(getAddress(decoded.recipient)).toBe(getAddress(RECIPIENT));
     expect(getAddress(decoded.feeRecipient)).toBe(getAddress(PAYMASTER));
     expect(decoded.fee).toBe(250n);
+    expect(getAddress(decoded.refundRecipient)).toBe(getAddress(RECIPIENT));
+  });
+
+  it('encodeFeeData routes the refund independently of the payout recipient (batch shape)', () => {
+    // In an execution-phase withdrawal the payout `recipient` is the ephemeral
+    // sender, but the overcharge refund must still reach the real recipient.
+    const encoded = encodeFeeData({
+      recipient: SENDER,
+      feeRecipient: PAYMASTER,
+      fee: 100n,
+      refundRecipient: RECIPIENT,
+    });
+    const [decoded] = decodeAbiParameters(
+      parseAbiParameters('(address recipient, address feeRecipient, uint256 fee, address refundRecipient)'),
+      encoded,
+    );
+
+    expect(getAddress(decoded.recipient)).toBe(getAddress(SENDER));
+    expect(getAddress(decoded.refundRecipient)).toBe(getAddress(RECIPIENT));
   });
 
   it('encodePaymasterData abi-encodes PaymasterData(adapter, adapterData)', () => {
@@ -41,7 +66,7 @@ describe('paymaster adapter-data encoding', () => {
   it('encodePrivacyPoolAdapterData abi-encodes AdapterData(withdrawal, proof)', () => {
     const withdrawal: WithdrawalPayload = {
       processooor: ADAPTER,
-      data: encodeFeeData({ recipient: RECIPIENT, feeRecipient: PAYMASTER, fee: 100n }),
+      data: encodeFeeData({ recipient: RECIPIENT, feeRecipient: PAYMASTER, fee: 100n, refundRecipient: RECIPIENT }),
     };
 
     const adapterData = encodePrivacyPoolAdapterData(withdrawal, proof);
