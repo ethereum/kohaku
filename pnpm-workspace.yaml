@@ -18,3 +18,4 @@ packages:
   - "packages/railgun"
   - "examples/pq-account"
   - "docs"
+  - "packages/security"
