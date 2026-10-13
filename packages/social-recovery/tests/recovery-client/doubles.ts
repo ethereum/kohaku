@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { encodeAbiParameters, getAddress, keccak256 } from 'viem';
 import {
   AmbireActionCodec,
+  PolicyManager,
   RecoveryClient,
   type AccountFilterOptions,
   type ActionState,
@@ -243,6 +244,10 @@ export type World = {
   readonly authorityAnswers?: ReadonlyMap<string, unknown>;
   /** `part.member` names whose calls reject with the value. */
   readonly failures: ReadonlyMap<string, unknown>;
+  /** `part.member` names whose answers wait this many milliseconds, to reorder concurrent reads. */
+  readonly delays?: ReadonlyMap<string, number>;
+  /** Headers the block read answers in turn, `header` once they run out, so a second pin shows. */
+  readonly headers?: readonly BlockHeader[];
 };
 
 /** The happy-path world over `CONFIGURATION`, with the given members replaced. */
@@ -281,6 +286,13 @@ export type Rig = {
   readonly codec: SpyCodec;
   readonly events: IEventManager;
   readonly filterOptions: (AccountFilterOptions | undefined)[];
+  /** The doubles the client was built over, for a reference computation over the same world. */
+  readonly parts: {
+    readonly provider: IProvider;
+    readonly manager: IPolicyManagerInteractor;
+    readonly action: IRecoveryActionInteractor;
+    readonly signerRecovery: ISignerRecovery | undefined;
+  };
 };
 
 type Ctor = ConstructorParameters<typeof RecoveryClient>;
@@ -293,6 +305,10 @@ export type RigOverrides = {
   readonly events?: IEventManager;
   /** The log every double records into, so a construction that throws still shows what it read. */
   readonly seen?: Seen[];
+  /** Passed as the constructor's trailing version-escape flag when given. */
+  readonly escaped?: boolean;
+  /** Answers the provider's `call`, the simulation's `eth_call`; `0x` when absent. */
+  readonly call?: (to: Address, data: Hex, from: Address, block: unknown) => Promise<Hex>;
 };
 
 /** Builds the client from doubles; `configuration` replaces the client configuration. */
@@ -302,24 +318,57 @@ export function rig(given: World = world(), configuration: ClientConfiguration =
   const answer = async <T>(part: Seen['part'], member: string, args: readonly unknown[], value: () => T): Promise<T> => {
     seen.push({ part, member, args });
 
+    const delay = given.delays?.get(`${part}.${member}`);
+
+    if (delay !== undefined) await new Promise((resolve) => setTimeout(resolve, delay));
+
     const failure = given.failures.get(`${part}.${member}`);
 
     if (failure !== undefined) throw failure;
 
     return value();
   };
+  let blockReads = 0;
   const unexpected = (part: Seen['part'], member: string) => async (...args: unknown[]): Promise<never> => {
     seen.push({ part, member, args });
 
     throw new Error(`${part}.${member} is not an init's read`);
   };
   const keyed = (address: unknown): string => String(address).toLowerCase();
+  let realManager: PolicyManager | undefined;
+  /** The shipped manager part encodes the prepares over the recorded provider, built on first use. */
+  const delegated = (member: 'prepareCancelByOwner' | 'prepareStartAttempt' | 'prepareCancelByProofs' | 'prepareCancelByVeto') =>
+    async (...args: unknown[]): Promise<unknown> => {
+      seen.push({ part: 'manager', member, args });
+
+      const failure = given.failures.get(`manager.${member}`);
+
+      if (failure !== undefined) throw failure;
+
+      realManager ??= new PolicyManager(provider, overrides.descriptor ?? DESCRIPTOR, overrides.account ?? ACCOUNT, overrides.action ?? ACTION, configuration.blockTags);
+
+      return (realManager[member] as (...given: unknown[]) => Promise<unknown>)(...args);
+    };
 
   const provider: IProvider = {
     chainId: async () => answer('provider', 'chainId', [], () => DESCRIPTOR.chainId),
-    call: async (...args) => answer('provider', 'call', args, () => '0x' as Hex),
+    call: async (to, data, from, block) => {
+      seen.push({ part: 'provider', member: 'call', args: [to, data, from, block] });
+
+      const failure = given.failures.get('provider.call');
+
+      if (failure !== undefined) throw failure;
+
+      return overrides.call === undefined ? '0x' : overrides.call(to, data, from, block);
+    },
     logs: async (...args) => answer('provider', 'logs', args, () => []),
-    block: async (tag: BlockTag) => answer('provider', 'block', [tag], () => given.header),
+    block: async (tag: BlockTag) => {
+      const header = given.headers?.[blockReads] ?? given.header;
+
+      blockReads += 1;
+
+      return answer('provider', 'block', [tag], () => header);
+    },
     code: async (address, block) => answer('provider', 'code', [address, block], () => given.code.get(keyed(address)) ?? '0x'),
     transaction: async (hash) => answer('provider', 'transaction', [hash], () => given.transactions.get(keyed(hash))),
   };
@@ -332,10 +381,10 @@ export function rig(given: World = world(), configuration: ClientConfiguration =
       answer('manager', 'trustedParties', [module, block], () => given.parties.get(keyed(module)) ?? { answered: true, value: partiesWith(ZERO) }),
     prepareCommitSetup: unexpected('manager', 'prepareCommitSetup'),
     prepareClearSetup: unexpected('manager', 'prepareClearSetup'),
-    prepareCancelByOwner: unexpected('manager', 'prepareCancelByOwner'),
-    prepareStartAttempt: unexpected('manager', 'prepareStartAttempt'),
-    prepareCancelByProofs: unexpected('manager', 'prepareCancelByProofs'),
-    prepareCancelByVeto: unexpected('manager', 'prepareCancelByVeto'),
+    prepareCancelByOwner: delegated('prepareCancelByOwner'),
+    prepareStartAttempt: delegated('prepareStartAttempt'),
+    prepareCancelByProofs: delegated('prepareCancelByProofs'),
+    prepareCancelByVeto: delegated('prepareCancelByVeto'),
     hashApproval: unexpected('manager', 'hashApproval'),
     hashCancel: unexpected('manager', 'hashCancel'),
     eip712Domain: unexpected('manager', 'eip712Domain'),
@@ -402,9 +451,10 @@ export function rig(given: World = world(), configuration: ClientConfiguration =
     new Map() as Ctor[8],
     codec as Ctor[9],
     signerRecovery as Ctor[10],
+    ...((overrides.escaped === undefined ? [] : [overrides.escaped]) as []),
   );
 
-  return { client, seen, codec, events, filterOptions };
+  return { client, seen, codec, events, filterOptions, parts: { provider, manager, action, signerRecovery } };
 }
 
 /** The calls to one member, in order. */

@@ -13,7 +13,7 @@ import type { GatheredSetup, InitReading, RecoveryClientParts } from '../types/r
 import { placeStandings } from './standings';
 
 /** Refuses a state whose attempt members or next attempt id an init reads are malformed. */
-function assertAttemptState(state: ActionState): void {
+export function assertAttemptState(state: ActionState): void {
   assertObject(state, 'state');
   assertUintBigint(state.nextAttemptId, FORMATS_ATTEMPT_ID_BITS, 'state.nextAttemptId');
   assertObject(state.attempt, 'state.attempt');

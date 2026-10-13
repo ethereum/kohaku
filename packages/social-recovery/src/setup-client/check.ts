@@ -1,14 +1,18 @@
 import {
+  BACKUP_PADDING_SIZE,
+  SETUP_CLIENT_BACKUP_TOO_WIDE_MESSAGE,
   SETUP_CLIENT_PASSWORD_MISSING_MESSAGE,
   SETUP_CLIENT_PASSWORD_UNUSED_MESSAGE,
   SETUP_CLIENT_VERSION_ESCAPED_MESSAGE,
 } from '../constants';
 import { KitRefusalError } from '../client-core';
 import { assertPassword } from '../encryption/cipher';
+import { serializedConfigurationSize } from '../encryption/serialize';
 import { assertArray, assertBool, assertDependency, assertObject, normalizeAddress, sameAddress } from '../formats/guards';
 import { checkedConfiguration, checkedDescriptor } from '../formats/records';
-import { type Address, type IActionCodec, type PrepareOptions, type SetupDraft } from '../interfaces';
+import { type Address, type Configuration, type IActionCodec, type PrepareOptions, type SetupDraft } from '../interfaces';
 import type { SetupClientParts } from '../types/setup-client';
+import { addError, emptyFindings } from '../validation/common';
 
 /** Refuses a codec that is not one or does not serve the action. */
 function assertServes(codec: IActionCodec, action: Address): void {
@@ -77,4 +81,22 @@ export function assertBackupPassword(draft: SetupDraft, password: string | undef
   if (encrypted && password === undefined) throw new TypeError(SETUP_CLIENT_PASSWORD_MISSING_MESSAGE);
 
   if (!encrypted && password !== undefined) throw new TypeError(SETUP_CLIENT_PASSWORD_UNUSED_MESSAGE);
+}
+
+/**
+ * Refuses with a `KitRefusalError` carrying one `backup.too-wide` finding an encrypted backup whose serialized configuration
+ * is longer than the padding it is sealed in, so the commit reads nothing for a backup it could not seal.
+ */
+export function assertBackupFits(draft: SetupDraft, configuration: Configuration): void {
+  if (draft.privacy.backup !== 'encrypted') return;
+
+  const plaintextSize = serializedConfigurationSize(configuration);
+
+  if (plaintextSize <= BACKUP_PADDING_SIZE) return;
+
+  const findings = emptyFindings();
+
+  addError(findings, 'backup.too-wide', 'setup', { plaintextSize, paddingSize: BACKUP_PADDING_SIZE });
+
+  throw new KitRefusalError(SETUP_CLIENT_BACKUP_TOO_WIDE_MESSAGE, { findings });
 }

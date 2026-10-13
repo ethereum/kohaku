@@ -28,7 +28,6 @@ import {
   doubles,
   DRAFT,
   HEADER,
-  members,
   METHOD_A,
   METHOD_B,
   position,
@@ -58,7 +57,7 @@ const commitArguments = (seen: ReturnType<typeof build>['seen']): readonly unkno
 const CODEC = codecFor(ACTION);
 
 describe('inputs that slip past a naive setup client', () => {
-  it('refuses an encrypted backup wider than the padding through the findings, not a raw seal error', async () => {
+  it('refuses an encrypted backup wider than the padding with a KitRefusalError carrying backup.too-wide, before any provider call', async () => {
     const { client, seen } = build();
     const thrown = await client.prepareCommitSetup(WIDE_DRAFT, 'pw').then(
       () => undefined,
@@ -66,8 +65,11 @@ describe('inputs that slip past a naive setup client', () => {
     );
 
     expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect((thrown as object).constructor).toBe(KitRefusalError);
+    expect(Object.hasOwn(thrown as object, 'cause')).toBe(false);
     expect((thrown as KitRefusalError).findings?.errors.map((error) => error.code)).toContain('backup.too-wide');
-    expect(members(seen)).not.toContain('manager.prepareCommitSetup');
+    expect(seen.provider).toEqual([]);
+    expect(seen.parts).toEqual([]);
   });
 
   it('commits a clear backup wider than the padding unpadded and unrefused', async () => {

@@ -8,7 +8,7 @@ import { preferredSet } from './choose';
 import { assertGatheringRead, filedPlaces, windowFactsOf } from './edge';
 
 /** The filed place's reply as the proof it submits. */
-const proofOf = (reply: Reply): ProofPlace => ({
+export const proofOf = (reply: Reply): ProofPlace => ({
   place: reply.place,
   method: normalizeAddress(reply.method, 'method'),
   config: reply.config,

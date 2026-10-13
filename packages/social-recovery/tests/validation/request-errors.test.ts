@@ -233,3 +233,21 @@ describe('validateRequest errors', () => {
     expect(errorCodes({ ...OPENING, setupBody: bytes })).toEqual(['request.body-mismatch']);
   });
 });
+
+describe('validateRequest: a proof array with a hole', () => {
+  const [first] = OPENING.proofs;
+  const trailing = [...OPENING.proofs];
+
+  trailing.length += 1;
+
+  it.each<[string, readonly unknown[], number]>([
+    ['an entirely sparse array', new Array(1), 0],
+    // eslint-disable-next-line no-sparse-arrays
+    ['a middle hole', [first, , { ...first, place: (first?.place ?? 0) + 2 }], 1],
+    ['a trailing hole', trailing, OPENING.proofs.length],
+  ])('throws a TypeError naming the first hole for %s, never a finding', (_name, proofs, index) => {
+    expect(() => validateRequest({ ...OPENING, proofs } as Request, REQUEST_CONTEXT)).toThrow(TypeError);
+    expect(() => validateRequest({ ...OPENING, proofs } as Request, REQUEST_CONTEXT)).toThrow(`request.proofs[${index}]`);
+  });
+});
+

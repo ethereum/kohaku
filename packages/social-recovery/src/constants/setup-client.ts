@@ -3,8 +3,8 @@ import type { AttemptState } from '../interfaces/records';
 /** The attempt state in which an attempt is live: started, neither cancelled nor consumed. */
 export const SETUP_CLIENT_LIVE_ATTEMPT_STATE: AttemptState = 'Waiting';
 
-/** The refusal message when the draft reaches at least one validation error; the error carries every finding. */
-export const SETUP_CLIENT_VALIDATION_REFUSED_MESSAGE = 'the setup draft does not validate: its findings name every error';
+/** The refusal message when an encrypted backup's serialized configuration is longer than the padding it is sealed in. */
+export const SETUP_CLIENT_BACKUP_TOO_WIDE_MESSAGE = 'the draft keeps an encrypted backup its configuration is too wide to seal';
 
 /** The refusal message of a prepare on a client built for a deployment version this build does not serve. */
 export const SETUP_CLIENT_VERSION_ESCAPED_MESSAGE =

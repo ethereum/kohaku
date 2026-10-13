@@ -32,6 +32,19 @@ function revealedBody(setupBody: CancelRequest['setupBody']): SetupBody | undefi
   }
 }
 
+/** Checked copies of every proof in array order, refusing a hole in the list. */
+function checkedProofs(proofs: readonly ProofPlace[]): ProofPlace[] {
+  const checked: ProofPlace[] = [];
+
+  for (let index = 0; index < proofs.length; index += 1) {
+    if (!Object.hasOwn(proofs, index)) throw new TypeError(`request.proofs[${index}] is missing`);
+
+    checked.push(checkedProof(proofs[index] as ProofPlace, `request.proofs[${index}]`));
+  }
+
+  return checked;
+}
+
 /** Refuses a request whose members are not the shapes the record declares, and returns a checked copy in array order. */
 export function checkedRequest(request: AttemptRequest | CancelRequest): CheckedRequest {
   assertObject(request, 'request');
@@ -48,7 +61,7 @@ export function checkedRequest(request: AttemptRequest | CancelRequest): Checked
     setupNonce: request.setupNonce,
     setupBody: request.setupBody,
     validUntil: request.validUntil,
-    proofs: request.proofs.map((proof, index) => checkedProof(proof, `request.proofs[${index}]`)),
+    proofs: checkedProofs(request.proofs),
     body: revealedBody(request.setupBody),
   };
 

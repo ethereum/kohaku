@@ -6,6 +6,7 @@ import { inferRemovedKey } from '../removed-key';
 import type { RecoveryClientParts, ResolvedRemovedKey } from '../types/recovery-client';
 import { addError, emptyFindings } from '../validation/common';
 import { handoverFindings } from '../validation/request-handover';
+import { inferenceInputs } from './state';
 
 /**
  * The inference's answer read against the supplied key: the key the handover removes, the action's answer for it where one
@@ -30,20 +31,8 @@ function resolvedKey(key: RemovedKey, supplied: Address | undefined): ResolvedRe
  */
 export async function namedHandover(parts: RecoveryClientParts, handover: Handover, block: PinnedBlock): Promise<Required<Handover>> {
   const { newAuthority, removedAuthority: supplied } = handover;
-  const key = await inferRemovedKey(
-    {
-      events: parts.events,
-      action: parts.recoveryAction,
-      codec: parts.codec,
-      provider: parts.provider,
-      signerRecovery: parts.signerRecovery,
-      supplied,
-      descriptor: parts.descriptor,
-      account: parts.account,
-      actionAddress: parts.action,
-    },
-    block,
-  );
+  const inputs = inferenceInputs(parts, supplied);
+  const key = await inferRemovedKey(inputs, block);
   const holds: unknown = await parts.recoveryAction.holdsAnyPrivilege(newAuthority, block);
 
   assertBool(holds, 'holdsAnyPrivilege');
