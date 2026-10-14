@@ -5,6 +5,7 @@ import {
   concat,
   hexToBigInt,
   keccak256,
+  parseSignature,
   slice,
   stringToBytes,
   stringToHex,
@@ -28,14 +29,22 @@ import {
  * deterministic EIP-712 signature (domain binds chain/entrypoint):
  *
  *   σ         = sign(PrivacyPoolNote(depositIndex, secretIndex))
- *   nullifier = trunc31(keccak256("nullifier" ‖ σ))
- *   salt      = trunc31(keccak256("salt"      ‖ σ))
+ *   rs        = r(32) ‖ lowS(s)(32)   // big-endian, low-s, v dropped — see canonicalRS
+ *   nullifier = trunc31(keccak256("nullifier" ‖ rs))
+ *   salt      = trunc31(keccak256("salt"      ‖ rs))
+ *
+ * Secrets hash the canonical (r, s) of σ, never the packed 65 bytes: signers
+ * disagree on how they frame a signature (Ledger emits v‖r‖s with v in {27,28},
+ * viem r‖s‖v) but all agree on big-endian r and low-s s, so the same key yields
+ * the same note on any compliant signer — software or hardware.
  *
  * The truncated 31-byte values (< BN254 field) become the field elements
  * directly, then feed the usual poseidon commitment pipeline. Determinism needs
  * an RFC-6979 signer (ECDSA); `KeystoreNoteSigner` satisfies this via viem/@noble.
- * Selected by injecting `SignatureSecretManager` at the `secretManager` slot;
- * notes are disjoint from the HD scheme, so the factory choice is the version.
+ * Selected by injecting `SignatureSecretManager` at the `secretManager` slot. The
+ * signing key is the shared account identity (`m/28784'/1'/account'`), but note
+ * secrets come from the signature rather than HD children, so they never collide
+ * with the HD scheme's: the factory choice alone picks which scheme owns a note.
  */
 
 /** The message a note signature is bound to. Deposit and secret (withdrawal)
@@ -47,11 +56,13 @@ export interface NoteMessage {
   secretIndex: number;
 }
 
-// Version 2 of the Privacy Pools derivation tree (version 1 is the HD scheme in
-// `./keys.ts`). The signing identity is a single key at the account root.
-const SIGNATURE_SCHEME_PATH = "m/28784'/2'";
+// The signing identity is the account's canonical key, shared with the HD scheme
+// in `./keys.ts` (`m/28784'/1'/account'`): that scheme derives its secrets from
+// deeper children of this node, never from the node's own key, so binding the
+// signature to this path further isolates it without colliding with any HD secret.
+const SIGNATURE_SCHEME_PATH = "m/28784'/1'";
 
-const DOMAIN_SALT = keccak256(stringToHex('kohaku'));
+const DOMAIN_SALT = keccak256(stringToHex('privacypools'));
 
 // chainId and entrypoint are intentionally NOT in the struct: the EIP-712 domain
 // separator already binds both (domain.chainId / verifyingContract).
@@ -74,10 +85,29 @@ export interface NoteEnvelope {
   };
 }
 
-/** `trunc31(keccak256(tag ‖ σ))` as a field element. 31 bytes keeps the result below
- * BN254 without modular bias; `tag` domain-separates the halves from the one signature. */
+// secp256k1 order; `s` is normalized to its lower half (EIP-2) so a signer that
+// returns the malleable high-s variant still lands on the same field element.
+const SECP256K1_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+const SECP256K1_HALF_N = SECP256K1_N / 2n;
+
+/** The portable core of a signature: `r(32) ‖ lowS(s)(32)`, both big-endian, with
+ * the recovery id `v` dropped. `v` is where signers diverge (position and 27/28 vs
+ * 0/1 encoding) and is redundant given key+message, so excluding it keeps the
+ * derivation identical across software and hardware signers. `parseSignature` also
+ * accepts 64-byte ERC-2098 compact signatures, recovering the real `s`. */
+function canonicalRS(sig: Hex): Uint8Array {
+  const { r, s } = parseSignature(sig);
+  const sValue = hexToBigInt(s);
+  const sLow = sValue > SECP256K1_HALF_N ? SECP256K1_N - sValue : sValue;
+
+  return concat([toBytes(r, { size: 32 }), toBytes(sLow, { size: 32 })]);
+}
+
+/** `trunc31(keccak256(tag ‖ canonicalRS(σ)))` as a field element. 31 bytes keeps the
+ * result below BN254 without modular bias; `tag` domain-separates the derivations
+ * from the one signature. */
 function fieldFromSig(tag: string, sig: Hex): bigint {
-  const digest = keccak256(concat([stringToBytes(tag), toBytes(sig)]));
+  const digest = keccak256(concat([stringToBytes(tag), canonicalRS(sig)]));
 
   return hexToBigInt(slice(digest, 0, 31));
 }
@@ -85,7 +115,8 @@ function fieldFromSig(tag: string, sig: Hex): bigint {
 /** Base note signer: owns the EIP-712 envelope construction, so every concrete
  * signer binds notes to the *same* typed-data standard. The only pluggable seam
  * is {@link signEnvelope} — "sign this envelope with your account"; subclasses
- * choose the key, never the envelope. σ is used verbatim (standard EIP-712, v ∈ {27, 28}). */
+ * choose the key, never the envelope. Only σ's canonical (r, s) is consumed
+ * downstream (see {@link canonicalRS}), so signer-specific framing of σ is irrelevant. */
 export abstract class NoteSigner {
   async signNote(msg: NoteMessage): Promise<Hex> {
     return this.signEnvelope(this.buildEnvelope(msg));

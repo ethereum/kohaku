@@ -11,9 +11,37 @@ const CHAIN_ID = 11155111n;
 const makeManager = () => SignatureSecretManager({ host: createMockHost(), accountIndex: 0 });
 
 describe('SignatureSecretManager', () => {
-  it('pins the EIP-712 domain salt to keccak256("kohaku")', () => {
-    expect(keccak256(stringToHex('kohaku'))).toBe(
-      '0xfa71183e322d5355a0a9a3a501eaa297d3aec60fd991163f5271875f13e08247',
+  it('pins the EIP-712 domain salt to keccak256("privacypools")', () => {
+    expect(keccak256(stringToHex('privacypools'))).toBe(
+      '0xb6894604fd8d2640438ce98c9942ba07efb283528908c5d676845afe2a2edee2',
+    );
+  });
+
+  // Known-answer vector. Pins the full derivation (HD path -> EIP-712 envelope ->
+  // RFC-6979 signature -> tagged keccak/trunc31 -> poseidon) to fixed outputs for
+  // the test mnemonic at account 0. If any of those inputs silently change
+  // (concatenation order, trunc width, salt, domain, path), these values move and
+  // every previously-derived note becomes unrecoverable — so this must stay green.
+  it('matches the known-answer vector for the test mnemonic (account 0)', async () => {
+    const m = makeManager();
+    const base = { entrypointAddress: ENTRYPOINT, chainId: CHAIN_ID, depositIndex: 0 };
+
+    expect(await m.getDepositSecrets(base)).toEqual({
+      nullifier: 79187742434600478394708012678223111747318812937440310089890643671062028158n,
+      salt: 355137781971518834209971558923619123690054102741066378631960578414092705249n,
+      precommitment: 9682061522539847992030542906227424428717656679108288622953328621290101424482n,
+      nullifierHash: 17457538810094556447769473280452095080643703271673546451221632463904426704503n,
+    });
+
+    expect(await m.getSecrets({ ...base, withdrawIndex: 1 })).toEqual({
+      nullifier: 430569006679998547317052511108972011000747861852088111660287613197867860823n,
+      salt: 263263324931655405853738581002991841419047763258419229975096372416118815464n,
+      precommitment: 1355548511706123565208634524997641601436194317169622269669688469991018324252n,
+      nullifierHash: 12129769459415284144393512486170280948271049385098284646753879780963558712777n,
+    });
+
+    expect(await m.deriveEphemeralSigner({ ...base, withdrawIndex: 0 })).toBe(
+      '0x008cd1de1e854d5a1036e3e0f13407284f5331cd1d574923e0505144f563d5dd',
     );
   });
 
@@ -95,7 +123,8 @@ describe('SignatureSecretManager', () => {
 
         if (attempt === 1) throw new Error('signer rejected');
 
-        return `0x${'11'.repeat(65)}` as `0x${string}`;
+        // valid 65-byte sig: r ‖ s ‖ v, with v = 0x1b (27) so parseSignature accepts it
+        return `0x${'11'.repeat(64)}1b` as `0x${string}`;
       },
     };
     const m = SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: flaky });
