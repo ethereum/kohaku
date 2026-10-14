@@ -1,5 +1,15 @@
 # @kohaku-eth/privacy-pools
 
+## 0.0.2-alpha.24
+
+### Patch Changes
+
+- 2b67d9a: Add `history()` returning the account's deposits, withdrawals and ragequits, newest first. Transaction hashes, log indexes and timestamps are fetched on demand for the user's own events and cached in state.
+- 2b67d9a: `TxLog` now carries an optional `logIndex`, filled in by the ethers, viem and raw adapters (and so helios and colibri) and by the privacy-pools saga log source. Synced privacy-pools events store their real log index.
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+  - @kohaku-eth/plugins@0.0.1-alpha.17
+
 ## 0.0.2-alpha.23
 
 ### Patch Changes
