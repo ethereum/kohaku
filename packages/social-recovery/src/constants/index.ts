@@ -15,3 +15,4 @@ export * from './policy-manager';
 export * from './client-core';
 export * from './setup-client';
 export * from './recovery-client';
+export * from './method-zkpassport';
