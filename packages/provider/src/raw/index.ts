@@ -4,8 +4,16 @@ import { HexString, hexToBigInt } from "./hex";
 import { Provider } from 'ox/Provider';
 import { Block, Filter } from "ox";
 import { toHex } from "viem";
+import { resolveWaitForTransactionOptions, waitForReceipt, WaitForTransactionOptions } from './wait';
 
-export const raw = (client: Provider): EthereumProvider<Provider> => {
+export type { WaitForTransactionOptions } from './wait';
+
+export type RawProviderOptions = {
+    waitForTransaction?: Partial<WaitForTransactionOptions>;
+};
+
+export const raw = (client: Provider, options: RawProviderOptions = {}): EthereumProvider<Provider> => {
+    const waitOptions = resolveWaitForTransactionOptions(options.waitForTransaction);
     const getTransactionReceipt = async (txHash: string): Promise<TransactionReceipt | null> => {
         const receipt = await client.request({
             method: 'eth_getTransactionReceipt',
@@ -44,24 +52,8 @@ export const raw = (client: Provider): EthereumProvider<Provider> => {
 
             return hexToBigInt(hex);
         },
-        async waitForTransaction(txHash: string): Promise<void> {
-            const start = Date.now();
-
-            const timeoutMs = 10000;
-            const pollIntervalMs = 100;
-
-            while (true) {
-                const receipt = await getTransactionReceipt(txHash);
-
-                if (receipt) return;
-
-                if (Date.now() - start > timeoutMs) {
-                    throw new Error(`Timed out waiting for transaction: ${txHash}`);
-                }
-
-                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-            }
-        },
+        waitForTransaction: (txHash: string): Promise<void> =>
+            waitForReceipt(txHash, () => getTransactionReceipt(txHash), waitOptions),
         async getBalance(address: Hex, block?: Block.Identifier | Block.Tag): Promise<bigint> {
             const hex = await client.request({
                 method: 'eth_getBalance',

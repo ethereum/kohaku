@@ -1,6 +1,6 @@
 import { createHeliosProvider, HeliosProvider } from "@a16z/helios";
 import type { Config, NetworkKind } from "@a16z/helios";
-import { raw } from "../raw";
+import { raw, RawProviderOptions } from "../raw";
 import type { EthereumProvider } from "../provider";
 import { Provider } from "ox/Provider";
 
@@ -37,9 +37,10 @@ function bypassGetLogs(client: HeliosProvider, rpcUrl: string) {
  *   execution RPC URL instead of going through Helios. When false (default), all requests
  *   go through the light client — note that `eth_getLogs` is only possible for requests
  *   within the latest 8,191 blocks range and it may be very slow. It does not suit tasks like indexer sync.
+ * @param options - Kohaku receipt polling settings, independent of the Helios configuration
  * @returns A promise that resolves to an EthereumProvider instance wrapping the HeliosProvider
  */
-export async function helios(config: Config, kind: NetworkKind, bypassLogs = false): Promise<EthereumProvider<HeliosProvider>> {
+export async function helios(config: Config, kind: NetworkKind, bypassLogs = false, options: RawProviderOptions = {}): Promise<EthereumProvider<HeliosProvider>> {
     if (!config.executionRpc) {
         throw new Error('Unable to initialize Helios provider: executionRpc is required');
     }
@@ -53,7 +54,7 @@ export async function helios(config: Config, kind: NetworkKind, bypassLogs = fal
         : client as unknown as Provider;
 
     return {
-        ...raw(provider),
+        ...raw(provider, options),
         _internal: client,
     };
 }
