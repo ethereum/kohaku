@@ -5,6 +5,7 @@ import { AspState } from "../slices/aspSlice";
 import { UpdateRootEventsState } from "../slices/updateRootEventsSlice";
 import { EntrypointInfoState } from "../slices/entrypointInfoSlice";
 import { UserSecretRecord } from "../slices/userSecretsSlice";
+import { HistoryEventMetadata } from "../slices/historyMetadataSlice";
 
 import {
   Address,
@@ -102,4 +103,9 @@ export const assetSelector = selectEntityMap(
       Address,
       IAsset,
     ],
+);
+
+export const historyMetadataSelector = selectEntityMap(
+  (s) => s.historyMetadata.metadataTuples,
+  deserialize as () => [bigint, HistoryEventMetadata],
 );

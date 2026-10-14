@@ -11,6 +11,7 @@ import { aspReducer } from "./slices/aspSlice";
 import { assetsReducer } from "./slices/assetsSlice";
 import { depositsReducer } from "./slices/depositsSlice";
 import { entrypointDepositsReducer } from "./slices/entrypointDepositsSlice";
+import { historyMetadataReducer } from "./slices/historyMetadataSlice";
 import {
   entrypointInfoReducer,
   EntrypointInfoState,
@@ -37,10 +38,12 @@ const reducers = {
   updateRootEvents: updateRootEventsReducer,
   sync: syncReducer,
   userSecrets: userSecretsReducer,
+  historyMetadata: historyMetadataReducer,
  } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
-export type PublicRootState = Omit<RootState, 'userSecrets'>;
+// User-specific slices: never part of dumps or shared snapshots.
+export type PublicRootState = Omit<RootState, 'userSecrets' | 'historyMetadata'>;
 type LogLevel = 'error' | 'verbose' | 'off';
 
 const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (logLevel) => (api) => (next) => (action) => {

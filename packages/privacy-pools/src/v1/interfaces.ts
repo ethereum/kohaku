@@ -1,6 +1,6 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AccountId, AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1EstimateUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
+import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
 import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
@@ -29,6 +29,7 @@ export type PPv1Address = Address;
 export type {
     PPv1EstimateUnshieldOptions,
     PPv1ExactUnshieldOptions,
+    PPv1HistoryEvent,
     PPv1ExactUnshieldResult,
     PPv1PaymasterUnshieldEstimate,
     PPv1RelayerUnshieldEstimate,
@@ -71,6 +72,7 @@ type PPv1InstanceFactory<Credential extends PPv1Credentials> = PluginInstance<
             estimateShield(asset: PPv1AssetAmount): Promise<PPv1ShieldEstimate>,
             estimateUnshield(asset: AssetAmount, to: AccountId, options?: PPv1EstimateUnshieldOptions): Promise<PPv1UnshieldEstimate>,
             sync(): Promise<void>,
+            history(assets?: ERC20AssetId[]): Promise<PPv1HistoryEvent[]>,
         },
         publicOp: PPv1PublicOperation,
         privateOp: PPv1PrivateOperation,

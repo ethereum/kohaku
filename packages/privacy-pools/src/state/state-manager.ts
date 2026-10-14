@@ -13,6 +13,7 @@ import {
   IDepositOperationParams,
   IEntrypoint,
   IEstimateUnshieldOperationParams,
+  IGetHistoryParams,
   IGetNotesParams,
   INote,
   IExactWithdrawalOperationParams,
@@ -22,6 +23,7 @@ import {
   IStateManager,
   IWithdrawapOperationParams,
   PPv1DevOptions,
+  PPv1HistoryEvent,
   PPv1ShieldEstimate,
   PPv1UnshieldEstimate,
   StateExactWithdrawalPayload,
@@ -57,11 +59,13 @@ import {
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
 import { getNoteSelector } from "./selectors/notes.selector";
+import { myHistoryEventsWithoutMetadataSelector, myHistorySelector } from "./selectors/history.selector";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
+import { syncHistoryMetadataThunk } from "./thunks/syncHistoryMetadataThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 
@@ -93,6 +97,8 @@ const initializeSelectors = <const T extends Store>({
         getNoteSelector(store.getState(), assetAddress, minAmount),
       getNextNote,
       getAllNotes: () => allNotesSelector(store.getState()),
+      getHistory: () => myHistorySelector(store.getState()),
+      getHistoryEventsWithoutMetadata: () => myHistoryEventsWithoutMetadataSelector(store.getState()),
       myPoolsSelector: () => myPoolsSelector(store.getState()),
       poolFromAssetSelector: (assetAddress: Address) => poolFromAssetSelector(store.getState(), assetAddress),
       getUnapprovedNotes: () => unapprovedNotesSelector(store.getState()),
@@ -101,7 +107,7 @@ const initializeSelectors = <const T extends Store>({
     },
     getPublicState: (): PublicRootState => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { userSecrets, ...publicState } = store.getState() as RootState;
+      const { userSecrets, historyMetadata, ...publicState } = store.getState() as RootState;
 
       return publicState;
     },
@@ -121,6 +127,9 @@ const getStoreKey = ({
 const getStoreStorageKey = (
   params: GetChainStoreParams,
 ): StoreStorageKey => `privacy-pool-state-${getStoreKey(params)}`;
+
+// The user's history metadata lives apart from the public state so dumps stay user-neutral.
+const getHistoryStorageKey = (params: GetChainStoreParams) => `privacy-pool-history-${getStoreKey(params)}`;
 
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
@@ -160,9 +169,17 @@ const storeByChainAndEntrypoint = ({
           ? undefined
           : (await resolveInitialState())[storageKey];
         const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
+        const rawHistoryMetadata = storageToSyncTo
+          ? await storageToSyncTo.get(getHistoryStorageKey(getChainStoreParams))
+          : null;
+        const historyMetadata: RootState['historyMetadata'] | undefined = rawHistoryMetadata
+          ? JSON.parse(rawHistoryMetadata)
+          : undefined;
         const store = storeFactory({
           entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
-          initialState: initialState as RootState | undefined,
+          initialState: (historyMetadata
+            ? { ...initialState, historyMetadata }
+            : initialState) as RootState | undefined,
           devOptions,
         });
 
@@ -577,6 +594,28 @@ export const storeStateManager = (
       }
 
       return notes;
+    },
+    getHistory: async ({ assets = [] }: IGetHistoryParams): Promise<PPv1HistoryEvent[]> => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+
+      if (store.selectors.getHistoryEventsWithoutMetadata().length > 0) {
+        unwrapResult(
+          await store.dispatch(syncHistoryMetadataThunk({ dataService: params.dataService })),
+        );
+        await storageToSyncTo?.set(
+          getHistoryStorageKey(chainInfo),
+          JSON.stringify(store.getState().historyMetadata),
+        );
+      }
+
+      const history = store.selectors.getHistory();
+
+      if (assets.length === 0) return history;
+
+      const assetSet = new Set(assets);
+
+      return history.filter(event => assetSet.has(event.assetAddress));
     },
     dumpState: () => getAllStores(),
   };

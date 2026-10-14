@@ -6,6 +6,7 @@ import {
   IEntrypointEvents,
   IPoolConfig,
   IPoolEvents,
+  IPoolEventsWithLogMeta,
 } from "./interfaces/data.service.interface";
 import { parseEventLogs, pad, toHex, type RpcLog, type Hex } from "viem";
 import {
@@ -23,8 +24,9 @@ const txLogToRpcLog = ({
   address,
   data,
   topics,
-  blockNumber
-}: TxLog, index = 0): RpcLog => ({
+  blockNumber,
+  logIndex,
+}: TxLog): RpcLog => ({
   address: address as Hex,
   data: data as Hex,
   topics: topics as [Hex, ...Hex[]],
@@ -33,7 +35,7 @@ const txLogToRpcLog = ({
   blockHash: '0x0',
   blockNumber: toHex(blockNumber),
   blockTimestamp: '0x0',
-  logIndex: `0x${index}` as const,
+  logIndex: logIndex === undefined ? null : toHex(logIndex),
   removed: false,
 });
 
@@ -49,6 +51,30 @@ export interface DataServiceParams {
 }
 
 const depositEvents = new Set(["PoolDeposited", "EntrypointDeposited"]);
+
+type EventName = keyof typeof EVENTS_SIGNATURES;
+
+const parseLogs = <const T extends EventName>(logs: RpcLog[], events: T | T[]) => {
+  const allEvents = events instanceof Array ? events : [events];
+
+  return allEvents.reduce(
+    (parsedEvents, eventType) => ({
+      ...parsedEvents,
+      [eventType]: parseEventLogs({
+        logs,
+        abi: [EVENTS_SIGNATURES[eventType]] as const,
+        eventName: (depositEvents.has(eventType)
+          ? "Deposited"
+          : eventType) as never,
+        strict: true,
+      } as const).map((parsedLog) => ({
+        ...EVENTS_PARSERS[eventType](parsedLog as never),
+        ...(parsedLog.logIndex !== null ? { logIndex: parsedLog.logIndex } : {}),
+      })),
+    }),
+    {} as Record<T, unknown[]>,
+  );
+};
 
 type GenericGetEvents = GetEventsFn<
   typeof EVENTS_SIGNATURES,
@@ -76,30 +102,12 @@ export class DataService implements IDataService {
       fromBlock,
       ...(toBlock ? { toBlock } : {}),
     });
-    const allEvents = events instanceof Array ? events : [events];
 
-    return allEvents.reduce(
-      (parsedEvents, eventType) => ({
-        ...parsedEvents,
-        [eventType]: parseEventLogs({
-          logs: logs.map(txLogToRpcLog),
-          abi: [EVENTS_SIGNATURES[eventType]] as const,
-          eventName: (depositEvents.has(eventType)
-            ? "Deposited"
-            : eventType) as never,
-          strict: true,
-        } as const).map((parsedLog) =>
-          EVENTS_PARSERS[eventType](parsedLog as never),
-        ),
-      }),
-      {
-        fromBlock: fromBlock,
-        toBlock: BigInt(logs.at(-1)?.blockNumber || 0n) || fromBlock,
-      } satisfies Pick<
-        Awaited<ReturnType<GenericGetEvents>>,
-        "fromBlock" | "toBlock"
-      >,
-    ) as Awaited<ReturnType<GenericGetEvents>>;
+    return {
+      ...parseLogs(logs.map(txLogToRpcLog), events),
+      fromBlock: fromBlock,
+      toBlock: BigInt(logs.at(-1)?.blockNumber || 0n) || fromBlock,
+    } as Awaited<ReturnType<GenericGetEvents>>;
   };
 
   getPoolEvents: GetEventsFn<typeof POOL_EVENTS_SIGNATURES, IPoolEvents> =
@@ -205,15 +213,34 @@ export class DataService implements IDataService {
   }
 
   async getLatestBlockTimestamp(): Promise<bigint> {
+    return this.getBlockTimestamp("latest");
+  }
+
+  async getBlockTimestamp(blockNumber: bigint | "latest"): Promise<bigint> {
     const block = await this.ethClient.request({
       method: "eth_getBlockByNumber",
-      params: ["latest", false],
+      params: [typeof blockNumber === "bigint" ? toHex(blockNumber) : blockNumber, false],
     }) as { timestamp?: string } | null;
 
     if (!block?.timestamp) {
-      throw new Error("Failed to fetch latest block timestamp");
+      throw new Error(`Failed to fetch block ${blockNumber} timestamp`);
     }
 
     return BigInt(block.timestamp);
+  }
+
+  async getPoolEventsAtBlock(poolAddress: Address, blockNumber: bigint): Promise<IPoolEventsWithLogMeta> {
+    // Always straight from the RPC: unlike `getLogs` (which may be saga-backed),
+    // these logs carry the real transactionHash and logIndex.
+    const logs = await this.ethClient.request({
+      method: "eth_getLogs",
+      params: [{
+        address: pad(toHex(poolAddress), { size: 20 }),
+        fromBlock: toHex(blockNumber),
+        toBlock: toHex(blockNumber),
+      }],
+    }) as RpcLog[];
+
+    return parseLogs(logs, ["PoolDeposited", "Withdrawn", "Ragequit"]) as IPoolEventsWithLogMeta;
   }
 }

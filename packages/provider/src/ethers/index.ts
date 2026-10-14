@@ -92,5 +92,6 @@ const convertLog = (log: Log): TxLog => {
     topics: [...log.topics],
     data: log.data,
     address: log.address,
+    logIndex: log.index,
   };
 };

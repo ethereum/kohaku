@@ -29,6 +29,7 @@ import {
   INote,
   IStateManager,
   PPv1EstimateUnshieldOptions,
+  PPv1HistoryEvent,
   PPv1PaymasterPrivateOperation,
   PPv1PrivateOperation,
   PPv1PublicOperation,
@@ -239,6 +240,20 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
     return this.stateManager.getNotes({
       includeSpent,
+      assets: assetsAddresses.length > 0 ? assetsAddresses : undefined,
+    });
+  }
+
+  /**
+   * Returns the account's deposits, withdrawals and ragequits, newest first.
+   * @param assets - Filter by specific assets (optional, if empty returns all)
+   */
+  async history(assets: ERC20AssetId[] = []): Promise<PPv1HistoryEvent[]> {
+    await this.stateManager.sync();
+
+    const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
+
+    return this.stateManager.getHistory({
       assets: assetsAddresses.length > 0 ? assetsAddresses : undefined,
     });
   }
