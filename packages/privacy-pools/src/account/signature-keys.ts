@@ -40,7 +40,7 @@ import {
  *
  * The truncated 31-byte values (< BN254 field) become the field elements
  * directly, then feed the usual poseidon commitment pipeline. Determinism needs
- * an RFC-6979 signer (ECDSA); `KeystoreNoteSigner` satisfies this via viem/@noble.
+ * an RFC-6979 signer (ECDSA); `KeystoreEnvelopeSigner` satisfies this via viem/@noble.
  * Selected by injecting `SignatureSecretManager` at the `secretManager` slot. The
  * signing key is the shared account identity (`m/28784'/1'/account'`), but note
  * secrets come from the signature rather than HD children, so they never collide
@@ -73,7 +73,7 @@ const NOTE_TYPES = {
   ],
 } as const;
 
-/** The fully-formed EIP-712 envelope for a note. Built only by {@link NoteSigner}
+/** The fully-formed EIP-712 envelope for a note. Built only by {@link buildNoteEnvelope}
  * so domain/types/primaryType are a single source of truth no signer can diverge from. */
 export interface NoteEnvelope {
   domain: TypedDataDomain;
@@ -112,53 +112,48 @@ function fieldFromSig(tag: string, sig: Hex): bigint {
   return hexToBigInt(slice(digest, 0, 31));
 }
 
-/** Base note signer: owns the EIP-712 envelope construction, so every concrete
- * signer binds notes to the *same* typed-data standard. The only pluggable seam
- * is {@link signEnvelope} — "sign this envelope with your account"; subclasses
- * choose the key, never the envelope. Only σ's canonical (r, s) is consumed
- * downstream (see {@link canonicalRS}), so signer-specific framing of σ is irrelevant. */
-export abstract class NoteSigner {
-  async signNote(msg: NoteMessage): Promise<Hex> {
-    return this.signEnvelope(this.buildEnvelope(msg));
-  }
-
-  private buildEnvelope({ chainId, entrypointAddress, depositIndex, secretIndex }: NoteMessage): NoteEnvelope {
-    return {
-      domain: {
-        name: 'PrivacyPools Keychain',
-        version: '1',
-        chainId: Number(chainId),
-        verifyingContract: toHex(entrypointAddress, { size: 20 }),
-        salt: DOMAIN_SALT,
-      },
-      types: NOTE_TYPES,
-      primaryType: 'PrivacyPoolNote',
-      message: {
-        depositIndex: BigInt(depositIndex),
-        secretIndex: BigInt(secretIndex),
-      },
-    };
-  }
-
-  /** Sign the envelope verbatim with this signer's account; MUST be deterministic (RFC-6979). */
-  protected abstract signEnvelope(envelope: NoteEnvelope): Promise<Hex>;
+/** The one operation that separates a software signer from a hardware one: sign a
+ * fully-formed note envelope. The envelope is built above this seam (see
+ * {@link buildNoteEnvelope}) and handed in, so an implementer signs it and can never
+ * diverge the typed-data standard — the single thing that MUST stay identical across
+ * every signer. The signature MUST be deterministic (RFC-6979); only its canonical
+ * (r, s) is consumed downstream (see {@link canonicalRS}), so signer-specific framing
+ * of the 65 bytes is irrelevant. A hardware wallet is a drop-in implementation. */
+export interface EnvelopeSigner {
+  signEnvelope(envelope: NoteEnvelope): Promise<Hex>;
 }
 
-/** Any note signer the manager can be driven by — satisfied only by
- * {@link NoteSigner} subclasses, which own the envelope. */
-export type PPSigner = Pick<NoteSigner, 'signNote'>;
+/** Builds a note's EIP-712 envelope — the single source of truth for
+ * domain/types/primaryType. Deliberately module-private: signers receive the
+ * envelope, they never construct it, so none can bind a note to a different standard. */
+function buildNoteEnvelope({ chainId, entrypointAddress, depositIndex, secretIndex }: NoteMessage): NoteEnvelope {
+  return {
+    domain: {
+      name: 'PrivacyPools Keychain',
+      version: '1',
+      chainId: Number(chainId),
+      verifyingContract: toHex(entrypointAddress, { size: 20 }),
+      salt: DOMAIN_SALT,
+    },
+    types: NOTE_TYPES,
+    primaryType: 'PrivacyPoolNote',
+    message: {
+      depositIndex: BigInt(depositIndex),
+      secretIndex: BigInt(secretIndex),
+    },
+  };
+}
 
-/** In-process signer backed by the host keystore. Derives one secp256k1
- * identity at the account root, then RFC-6979-signs each note envelope. */
-export class KeystoreNoteSigner extends NoteSigner {
+/** Software {@link EnvelopeSigner}: derives one secp256k1 identity at the account's
+ * canonical path and RFC-6979-signs the envelope in-process. The hardware equivalent
+ * implements the same seam but signs on-device, so the key never leaves it. */
+export class KeystoreEnvelopeSigner implements EnvelopeSigner {
   constructor(
     private readonly keystore: Keystore,
     private readonly accountIndex: number,
-  ) {
-    super();
-  }
+  ) {}
 
-  protected async signEnvelope(envelope: NoteEnvelope): Promise<Hex> {
+  async signEnvelope(envelope: NoteEnvelope): Promise<Hex> {
     const key = await this.keystore.deriveAt(`${SIGNATURE_SCHEME_PATH}/${this.accountIndex}'`);
 
     return privateKeyToAccount(key).signTypedData(envelope);
@@ -166,7 +161,7 @@ export class KeystoreNoteSigner extends NoteSigner {
 }
 
 export interface SignatureSecretManagerParams extends SecretManagerParams {
-  signer?: PPSigner;
+  signer?: EnvelopeSigner;
 }
 
 export function SignatureSecretManager({
@@ -174,7 +169,7 @@ export function SignatureSecretManager({
   accountIndex = 0,
   signer,
 }: SignatureSecretManagerParams): ISecretManager {
-  const noteSigner = signer ?? new KeystoreNoteSigner(host.keystore, accountIndex);
+  const envelopeSigner = signer ?? new KeystoreEnvelopeSigner(host.keystore, accountIndex);
 
   // Memoize the signature per message — signing re-derives the HD key + runs
   // ECDSA, and discovery probes the same keys repeatedly (the keccak/poseidon
@@ -188,7 +183,7 @@ export function SignatureSecretManager({
 
     if (hit) return hit;
 
-    const pending = noteSigner.signNote(msg).catch((err) => {
+    const pending = envelopeSigner.signEnvelope(buildNoteEnvelope(msg)).catch((err) => {
       sigCache.delete(key);
       throw err;
     });

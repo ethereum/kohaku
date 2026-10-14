@@ -2,7 +2,7 @@ import { keccak256, stringToHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it } from 'vitest';
 
-import { SignatureSecretManager, type PPSigner } from '../../src/account/signature-keys';
+import { SignatureSecretManager, KeystoreEnvelopeSigner, type EnvelopeSigner } from '../../src/account/signature-keys';
 import { createMockHost } from '../utils/mock-host';
 
 const ENTRYPOINT = 0x34a2068192b1297f2a7f85d7d8cde66f8f0921cbn;
@@ -92,13 +92,13 @@ describe('SignatureSecretManager', () => {
   });
 
   it('caches the signature per message across derivations and ephemeral-signer calls', async () => {
-    const inner = new (await import('../../src/account/signature-keys')).KeystoreNoteSigner(createMockHost().keystore, 0);
+    const inner = new KeystoreEnvelopeSigner(createMockHost().keystore, 0);
     let calls = 0;
-    const counting: PPSigner = {
-      signNote: (msg) => {
+    const counting: EnvelopeSigner = {
+      signEnvelope: (envelope) => {
         calls++;
 
-        return inner.signNote(msg);
+        return inner.signEnvelope(envelope);
       },
     };
     const m = SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: counting });
@@ -117,8 +117,8 @@ describe('SignatureSecretManager', () => {
 
   it('does not cache a failed signature (stays retryable)', async () => {
     let attempt = 0;
-    const flaky: PPSigner = {
-      signNote: async () => {
+    const flaky: EnvelopeSigner = {
+      signEnvelope: async () => {
         attempt++;
 
         if (attempt === 1) throw new Error('signer rejected');
