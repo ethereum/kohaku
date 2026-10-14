@@ -16,3 +16,5 @@ export * from './client-core';
 export * from './setup-client';
 export * from './recovery-client';
 export * from './method-zkpassport';
+export * from './method-passkey';
+export * from './method-passkey-webauthn';
