@@ -1,5 +1,12 @@
 # @kohaku-eth/plugins
 
+## 0.0.1-alpha.17
+
+### Patch Changes
+
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+
 ## 0.0.1-alpha.16
 
 ### Patch Changes
