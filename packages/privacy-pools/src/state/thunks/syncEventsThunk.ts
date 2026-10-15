@@ -58,10 +58,15 @@ export const syncEventsThunk = createAsyncThunk<
       allWithdrawals.push(...Withdrawn.map((e) => ({ ...e, pool })));
       allRagequits.push(...Ragequit.map((e) => ({ ...e, pool })));
 
-      dispatch(registerPoolLeaves({
-        poolAddress: pool,
-        leaves: LeafInserted,
-      }));
+      // Each registerPoolLeaves dispatch rebuilds and re-serializes the entire
+      // cross-pool leaf structure, so skip pools with no new leaves (the common
+      // case on an already-synced state — otherwise every pool pays that cost).
+      if (LeafInserted.length > 0) {
+        dispatch(registerPoolLeaves({
+          poolAddress: pool,
+          leaves: LeafInserted,
+        }));
+      }
 
       if (toBlock > maxBlock) {
         maxBlock = toBlock;
