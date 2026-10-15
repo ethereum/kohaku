@@ -17,3 +17,4 @@ export * from './removed-key';
 export * from './setup-client';
 export * from './recovery-client';
 export * from './method-passkey';
+export * from './methods-orchestrator';

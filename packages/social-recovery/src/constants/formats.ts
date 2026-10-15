@@ -111,3 +111,6 @@ export const FORMATS_SAFE_INTEGER_BITS = 53;
 
 /** The zero address. */
 export const FORMATS_ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000';
+
+/** Follows an array position's name where the array has no own value there. */
+export const FORMATS_MISSING_MESSAGE = 'is missing';

@@ -14,6 +14,7 @@ import {
   strictCodec,
   ZERO,
 } from './request-fixtures';
+import { flipping, OTHER_HANDOVER, OTHER_PAIR } from '../methods-orchestrator/flipping';
 
 const FACTS = { kind: 'external-proving-app', app: 'fixture' } as const;
 
@@ -140,13 +141,15 @@ describe('describeRequest describes the order', () => {
 });
 
 describe('describeRequest reads the device facts from the method registry', () => {
-  it('returns the registered implementation\'s describe answer, handed this request and place', () => {
+  it('returns the registered implementation\'s describe answer, handed a frozen copy of this request and its place', () => {
     const { method, seen } = registered();
     const description = describeRequest(approval, codecRegistry(), methodRegistry([[approval.method, method]]));
 
     expect(description.device).toEqual(FACTS);
     expect(seen).toHaveLength(1);
     expect(seen[0]?.request).toEqual(approval);
+    expect(seen[0]?.request).not.toBe(approval);
+    expect(Object.isFrozen(seen[0]?.request)).toBe(true);
     expect(seen[0]?.place).toBe(approval.place);
   });
 
@@ -188,5 +191,43 @@ describe('describeRequest is pure', () => {
 
     expect(describeRequest(approval, codecs, methods)).toEqual(describeRequest(approval, codecs, methods));
     expect(approval).toEqual(before);
+  });
+});
+
+describe('describeRequest describes the copy it checked, not the caller\'s object read again', () => {
+  it('a payload that changes after its first read: the handover shown is the one the digest was built over', () => {
+    const request = flipping(withPayload(canonical), 'payload', canonical, OTHER_HANDOVER);
+    const { method, seen } = registered();
+    const description = describeRequest(request, codecRegistry(strictCodec([approval.action])), methodRegistry([[approval.method, method]]));
+
+    expect(description.handover).toEqual({
+      decoded: true,
+      newAuthority: getAddress(pair.newAuthority),
+      removedAuthority: getAddress(pair.removedAuthority ?? ZERO),
+    });
+    expect(description.handover).not.toMatchObject({ newAuthority: getAddress(OTHER_PAIR.newAuthority) });
+    expect((seen[0]?.request as { payload?: Hex } | undefined)?.payload).toBe(canonical.toLowerCase());
+  });
+
+  it('a purpose that turns into cancellation after its first read still describes an approval with its handover and order', () => {
+    const request = flipping(withPayload(canonical), 'purpose', 'approval', 'cancellation');
+    const { method, seen } = registered();
+    const description = describeRequest(request, codecRegistry(strictCodec([approval.action])), methodRegistry([[approval.method, method]]));
+
+    expect(description.purpose).toBe('approval');
+    expect(description.handover).toMatchObject({ decoded: true });
+    expect('order' in description).toBe(true);
+    expect(seen[0]?.typedData.primaryType).toBe('Approval');
+  });
+
+  it('a purpose that turns into approval after its first read still describes a cancellation, never a throw', () => {
+    const request = flipping(withPayload(canonical), 'purpose', 'cancellation', 'approval');
+    const { method, seen } = registered();
+    const description = describeRequest(request, codecRegistry(strictCodec([approval.action])), methodRegistry([[approval.method, method]]));
+
+    expect(description.purpose).toBe('cancellation');
+    expect('handover' in description).toBe(false);
+    expect('order' in description).toBe(false);
+    expect(seen[0]?.typedData.primaryType).toBe('Cancellation');
   });
 });

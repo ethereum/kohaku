@@ -96,26 +96,23 @@ export function cancellationTypedData(members: CancellationMembers, place: numbe
   return { domain, types: copyTypes(FORMATS_CANCELLATION_TYPED_DATA_TYPES), primaryType: FORMATS_CANCELLATION_PRIMARY_TYPE, message };
 }
 
+/** The EIP-712 digest of typed data already built and checked, its place widened to the bigint its `uint256` field hashes. */
+export function typedDataDigest(typedData: ApprovalTypedData | CancellationTypedData): Hex {
+  const { domain, types, primaryType, message } = typedData;
+
+  return hashTypedData({ domain, types, primaryType, message: { ...message, place: BigInt(message.place) } });
+}
+
 /** The EIP-712 digest of the `Approval` message for one place. */
 export function approvalDigest(members: ApprovalMembers, place: number): Hex {
   const { domain, message } = approvalParts(members, place);
 
-  return hashTypedData({
-    domain,
-    types: FORMATS_APPROVAL_TYPED_DATA_TYPES,
-    primaryType: FORMATS_APPROVAL_PRIMARY_TYPE,
-    message: { ...message, place: BigInt(message.place) },
-  });
+  return typedDataDigest({ domain, types: FORMATS_APPROVAL_TYPED_DATA_TYPES, primaryType: FORMATS_APPROVAL_PRIMARY_TYPE, message });
 }
 
 /** The EIP-712 digest of the `Cancellation` message for one place. */
 export function cancellationDigest(members: CancellationMembers, place: number): Hex {
   const { domain, message } = cancellationParts(members, place);
 
-  return hashTypedData({
-    domain,
-    types: FORMATS_CANCELLATION_TYPED_DATA_TYPES,
-    primaryType: FORMATS_CANCELLATION_PRIMARY_TYPE,
-    message: { ...message, place: BigInt(message.place) },
-  });
+  return typedDataDigest({ domain, types: FORMATS_CANCELLATION_TYPED_DATA_TYPES, primaryType: FORMATS_CANCELLATION_PRIMARY_TYPE, message });
 }

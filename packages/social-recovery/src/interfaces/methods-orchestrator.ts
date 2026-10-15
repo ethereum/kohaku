@@ -16,7 +16,7 @@ import type {
 /** The approving and enrolling side's entry; it holds no provider and reads no chain. */
 export interface IMethodsOrchestrator {
   describeRequest(request: ApproverRequest): RequestDescription;
-  /** The local verdict for one place; an answer, never a refusal. */
+  /** The local verdict for the request's own place; throws for a malformed proof, another place or a method no implementation serves. */
   verify(request: ApproverRequest, place: number, proof: Hex): Promise<Verdict>;
   /** Throws when it refuses, before any device is asked. */
   signingInput(request: ApproverRequest, params?: Params): Input;

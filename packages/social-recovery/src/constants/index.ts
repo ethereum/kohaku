@@ -18,3 +18,4 @@ export * from './recovery-client';
 export * from './method-zkpassport';
 export * from './method-passkey';
 export * from './method-passkey-webauthn';
+export * from './methods-orchestrator';

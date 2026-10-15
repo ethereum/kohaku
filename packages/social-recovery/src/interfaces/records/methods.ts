@@ -74,6 +74,9 @@ export type EnrollInput =
 /** What the device or the ceremony produced, the implementation's own shape, or none. */
 export type Material = { readonly [name: string]: unknown } | undefined;
 
+/** The kind every typed reply or enrollment failure carries. */
+export const REPLY_FAILURE_KIND = 'reply-failure';
+
 /** Why a reply could not be produced. */
 export const REPLY_FAILURE_CAUSES = [
   'device-refused',
@@ -87,7 +90,7 @@ export type ReplyFailureCause = (typeof REPLY_FAILURE_CAUSES)[number];
 
 /** A typed failure naming its cause, never a thrown error. */
 export type ReplyFailure = {
-  readonly kind: 'reply-failure';
+  readonly kind: typeof REPLY_FAILURE_KIND;
   readonly cause: ReplyFailureCause;
 };
 

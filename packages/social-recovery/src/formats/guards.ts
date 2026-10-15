@@ -1,5 +1,11 @@
 import { checksumAddress, getAddress } from 'viem';
-import { FORMATS_HEX_ADDRESS_PATTERN, FORMATS_HEX_BYTES32_PATTERN, FORMATS_HEX_BYTES_PATTERN, FORMATS_SAFE_INTEGER_BITS } from '../constants';
+import {
+  FORMATS_HEX_ADDRESS_PATTERN,
+  FORMATS_HEX_BYTES32_PATTERN,
+  FORMATS_HEX_BYTES_PATTERN,
+  FORMATS_MISSING_MESSAGE,
+  FORMATS_SAFE_INTEGER_BITS,
+} from '../constants';
 import { REMOVED_KEY_UNNAMED, type Address, type Hex, type PinnedBlock, type RemovedKey, type RemovedKeyUnnamed } from '../interfaces';
 
 /** Refuses anything but whole bytes as 0x-prefixed hex, since an odd digit count would be padded into other bytes. */
@@ -55,9 +61,24 @@ export function assertBool(value: unknown, name: string): asserts value is boole
   }
 }
 
+/** Whether the value is a non-array object whose members can be read. */
+export const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Refuses anything but an array. */
 export function assertArray(value: unknown, name: string): asserts value is readonly unknown[] {
   if (!Array.isArray(value)) throw new TypeError(`${name} must be an array`);
+}
+
+/** Refuses a non-array and an array with no own value at a position below `length`, its own length by default. */
+export function assertDense(value: unknown, name: string, length?: number): asserts value is readonly unknown[] {
+  assertArray(value, name);
+
+  const end = length ?? value.length;
+
+  for (let index = 0; index < end; index += 1) {
+    if (!Object.hasOwn(value, index)) throw new TypeError(`${name}[${index}] ${FORMATS_MISSING_MESSAGE}`);
+  }
 }
 
 /** Whether the value is a non-negative safe integer, as a block number, log index or count must be. */
@@ -119,7 +140,7 @@ export function normalizeAddresses(values: unknown, name: string): Address[] {
   const normalized: Address[] = [];
 
   for (let index = 0; index < values.length; index += 1) {
-    if (!Object.hasOwn(values, index)) throw new TypeError(`${name}[${index}] is missing`);
+    if (!Object.hasOwn(values, index)) throw new TypeError(`${name}[${index}] ${FORMATS_MISSING_MESSAGE}`);
 
     normalized.push(normalizeAddress(values[index], `${name}[${index}]`));
   }
