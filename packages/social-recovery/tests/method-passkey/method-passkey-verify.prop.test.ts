@@ -8,8 +8,16 @@ import { digestArb, handProof, parameters, PROPERTY_TIMEOUT, scalarArb, yieldToW
 
 const method = passkeyMethod();
 
-/** A member name other than the two the opening fixes. */
-const extraKey = fc.string({ unit: 'grapheme', maxLength: 12 }).filter((name) => !['type', 'challenge', '__proto__'].includes(name));
+/**
+ * A name JavaScript orders before every other member of an object, whatever the insertion order.
+ * An authenticator writes `type` and `challenge` first, so a member placed before them cannot occur in its client data.
+ */
+const isArrayIndex = (name: string): boolean => String(Number(name)) === name && Number.isInteger(Number(name)) && Number(name) >= 0 && Number(name) < 2 ** 32 - 1;
+
+/** A member name other than the two the opening fixes, and not one JavaScript would serialise before them. */
+const extraKey = fc
+  .string({ unit: 'grapheme', maxLength: 12 })
+  .filter((name) => !['type', 'challenge', '__proto__'].includes(name) && !isArrayIndex(name));
 
 const scenario = fc.record({
   scalar: scalarArb,
@@ -42,4 +50,17 @@ describe('method-passkey properties: verify', () => {
     },
     PROPERTY_TIMEOUT,
   );
+
+  it('a validly signed client data whose first member is a number-named one, ahead of type and challenge, is rejected', async () => {
+    const key = keyOfScalar(1n);
+    const relyingPartyId = 'example.com';
+    const digest = new Uint8Array(32);
+    const ctx = ctxFor(configOfKey(key, relyingPartyId), { digest: hexOf(digest) });
+    const text = JSON.stringify({ type: 'webauthn.get', challenge: base64url(digest), ...{ '0': null } });
+    const authData = authenticatorData(relyingPartyId, FLAG_UP | FLAG_UV, 0);
+    const proof: Hex = handProof({ authenticatorData: authData, clientDataJSON: text, signature: signAssertion(key, authData, text) });
+
+    expect(text.startsWith('{"0":null,"type":"webauthn.get"')).toBe(true);
+    expect(await method.verify(ctx, proof)).toBe('rejected');
+  });
 });
