@@ -9,9 +9,11 @@ export { createSagaLogSource, createSagaDataService } from './data/saga-log-sour
 export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
 export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
 export { SecretManager } from './account/keys';
+export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signature-keys';
 
 // Types
 export type { SecretManagerParams, ISecretManager } from './account/keys';
+export type { SignatureSecretManagerParams, EnvelopeSigner, NoteMessage, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
 
 // Configs
