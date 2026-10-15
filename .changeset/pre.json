@@ -40,6 +40,7 @@
     "petite-views-attack",
     "pp-cost-estimation",
     "pp-dev-options",
+    "pp-merkle-tree-cache-perf",
     "pp-paymaster-batch-withdrawals",
     "pp-paymaster-refund-recipient",
     "pp-signature-secret-manager",
