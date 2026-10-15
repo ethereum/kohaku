@@ -1,4 +1,4 @@
-import { raw } from '../raw';
+import { raw, RawProviderOptions } from '../raw';
 import type { EthereumProvider } from '../provider';
 import type { Config, default as Colibri } from '@corpus-core/colibri-stateless';
 import { Provider } from 'ox/Provider';
@@ -25,8 +25,9 @@ async function importColibri(): Promise<ColibriConstructor> {
 /**
   * Passed through to `new Colibri(...)`.
   * See Colibri-Stateless JS/TS docs for supported fields.
+  * `options` configures Kohaku receipt waiting and is not passed to Colibri.
   */
-export const colibri = async (config: ColibriConfig): Promise<EthereumProvider<Colibri>> => {
+export const colibri = async (config: ColibriConfig, options: RawProviderOptions = {}): Promise<EthereumProvider<Colibri>> => {
     const createColibri = await importColibri();
     const client = new createColibri({
         verifyTransactions: config.fallback_provider ? true : false,
@@ -35,7 +36,7 @@ export const colibri = async (config: ColibriConfig): Promise<EthereumProvider<C
     });
 
     return {
-        ...raw(client as unknown as Provider),
+        ...raw(client as unknown as Provider, options),
         _internal: client,
     }
 }
