@@ -42,6 +42,7 @@
     "pp-dev-options",
     "pp-paymaster-batch-withdrawals",
     "pp-paymaster-refund-recipient",
+    "pp-signature-secret-manager",
     "privacy-pools-history",
     "provider-log-index",
     "puny-olives-mate",
