@@ -57,6 +57,13 @@ export interface SecretManagerParams {
   accountIndex?: number;
 }
 
+/**
+ * @deprecated Legacy BIP-32 HD secret derivation. Superseded by
+ * {@link SignatureSecretManager} (signature-derived secrets), which is the default
+ * `secretManager` for {@link PrivacyPoolsV1Protocol}. Kept for reference and for
+ * callers that explicitly inject it; not wired by default. The two schemes derive
+ * disjoint notes, so switching between them after deposits exist is not supported.
+ */
 export function SecretManager({
   host: { keystore },
   accountIndex = 0

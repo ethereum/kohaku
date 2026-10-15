@@ -7,7 +7,8 @@ import {
   Host,
 } from "@kohaku-eth/plugins";
 
-import { ISecretManager, SecretManager } from "../account/keys";
+import { ISecretManager } from "../account/keys";
+import { SignatureSecretManager } from "../account/signature-keys";
 import { PrivacyPoolsPaymasterConfigs } from "../config.js";
 import { IPFSAspService } from "../data/ipfsAsp.service.js";
 import { DataService } from "../data/data.service";
@@ -97,7 +98,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     {
       accountIndex = 0,
       initialState,
-      secretManager = SecretManager,
+      secretManager = SignatureSecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       entrypoint,
       relayersList = {},
