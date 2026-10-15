@@ -53,6 +53,10 @@ export default defineConfig({
           text: 'Proof of Innocence',
           link: '/privacy-pools/ppoi',
           disabled: true,
+        },
+        {
+          text: 'Deployments',
+          link: '/privacy-pools/deployments',
         }
       ]
     },

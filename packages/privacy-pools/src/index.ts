@@ -17,4 +17,4 @@ export type { SignatureSecretManagerParams, EnvelopeSigner, NoteMessage, NoteEnv
 export type { Commitment, Nullifier } from './account/types';
 
 // Configs
-export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';
+export { PrivacyPoolsV1_0xBow, PrivacyPoolsV1_Zipcoin, E_ADDRESS } from './config.js';

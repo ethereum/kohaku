@@ -1,0 +1,42 @@
+# Deployments
+
+The plugin is not tied to one operator. A Privacy Pools v1 deployment is an Entrypoint (which registers one pool per asset), an
+association-set provider (ASP) that approves deposits and publishes the approved tree, and one or more relayers that submit
+withdrawals and front the gas. `createPPv1Plugin` takes exactly those three things, so pointing a wallet at another deployment is
+configuration.
+
+## 0xbow (mainnet, Sepolia)
+
+The reference deployment: ETH, USDC, USDT and DAI pools. Constants in `PrivacyPoolsV1_0xBow`; ASP trees on IPFS, relayer at
+`https://relayer.privacypools.com` (see https://privacypools.com).
+
+## zipcoin (mainnet)
+
+A single-asset deployment for `$ZC` (`0x4E67DB19044549fF420860834c91b45BaD298722`) run by [zipcoin](https://www.zipcoin.cash), on the
+same circuits and mainnet verifiers as 0xbow's pools. Constants in `PrivacyPoolsV1_Zipcoin`.
+
+| | |
+|---|---|
+| Entrypoint | `0x7a8dA01d241C3cFcF7803cdb007ECE5663749193`, deployed at block 26070387 |
+| ASP | approve-after-delay (minutes) with a public blocklist; unapproved deposits can always ragequit. Each `updateRoot` carries the real IPFS CID of the tree, served at `https://www.zipcoin.cash/ipfs/<cid>` and, 0xbow-style, at `GET https://www.zipcoin.cash/asp/1/public/mt-leaves` (`X-Pool-Scope`) |
+| Relayer | `https://www.zipcoin.cash/relayer`: `GET /details`, `POST /quote` (signed fee commitment), `POST /request`. Base fee 1%, higher for small notes so the fee covers gas, capped by the pool's `maxRelayFeeBPS` |
+
+```ts
+import { createPPv1Plugin, PrivacyPoolsV1_Zipcoin } from "@kohaku-eth/privacy-pools";
+
+const zc = PrivacyPoolsV1_Zipcoin[1];
+const plugin = createPPv1Plugin(host, {
+  accountIndex: 0,
+  entrypoint: { address: BigInt(zc.entrypoint.entrypointAddress), deploymentBlock: zc.entrypoint.deploymentBlock },
+  broadcasterUrl: { zipcoin: zc.relayerUrl },
+  ipfsUrl: zc.ipfsUrl,
+});
+```
+
+The maintained preset lives in [`@zipcoin/kohaku`](https://www.npmjs.com/package/@zipcoin/kohaku) (`createZipcoinPlugin(host)`).
+
+## Adding a deployment
+
+A deployment is listed here when its Entrypoint is the audited Privacy Pools v1 contract (or a verifiable fork), its ASP publishes
+trees by IPFS CID in `updateRoot`, its relayer implements the relayer API above, and its vetting policy is written down. Open a PR
+with the constants and a row in this page.
