@@ -44,7 +44,6 @@ async function refusalUnder(account: string): Promise<{ thrown: unknown; provide
       account as `0x${string}`,
       ACTION,
       CONFIGURATION,
-      'kit',
       made.manager,
       made.action,
       made.events,
@@ -104,7 +103,6 @@ describe('SetupClient construction', () => {
           ACCOUNT,
           '0x1234',
           CONFIGURATION,
-          'kit',
           made.manager,
           made.action,
           made.events,
@@ -121,7 +119,7 @@ describe('SetupClient construction', () => {
 
     expect(
       () =>
-        new construct(made.provider, DESCRIPTOR, ACCOUNT, ACTION, CONFIGURATION, 'kit', made.manager, made.action, made.events, defaultRegistry()),
+        new construct(made.provider, DESCRIPTOR, ACCOUNT, ACTION, CONFIGURATION, made.manager, made.action, made.events, defaultRegistry()),
     ).toThrow(TypeError);
   });
 
@@ -136,7 +134,6 @@ describe('SetupClient construction', () => {
           ACCOUNT,
           ACTION,
           CONFIGURATION,
-          'kit',
           made.manager,
           made.action,
           made.events,

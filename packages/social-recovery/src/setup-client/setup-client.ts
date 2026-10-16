@@ -22,7 +22,6 @@ import type {
 } from '../interfaces';
 import type { MethodRegistry } from '../types/event-manager';
 import type { SetupClientParts, SetupClientRecoveryAction } from '../types/setup-client';
-import type { DescriptorOrigin } from '../types/validation';
 import { assertPreparesServed, checkedParts } from './check';
 import { prepareClear } from './clear';
 import { prepareCommit } from './commit';
@@ -43,14 +42,16 @@ export class SetupClient implements ISetupClient {
   private readonly parts: SetupClientParts;
   private readonly versionEscaped: boolean;
 
-  /** Throws a `TypeError` or `RangeError` on a malformed input, or where the codec does not serve the action. */
+  /**
+   * Throws a `TypeError` or `RangeError` on a malformed input, or where the codec does not serve the action.
+   * The descriptor's origin is `descriptorOriginOf(descriptor)`: `kit` only for a chain's shipped descriptor.
+   */
   constructor(
     provider: IProvider,
     descriptor: DeploymentDescriptor,
     account: Address,
     action: Address,
     configuration: ClientConfiguration,
-    descriptorOrigin: DescriptorOrigin,
     policyManager: IPolicyManagerInteractor,
     recoveryAction: SetupClientRecoveryAction,
     events: IEventManager,
@@ -66,7 +67,6 @@ export class SetupClient implements ISetupClient {
       account,
       action,
       configuration,
-      descriptorOrigin,
       policyManager,
       recoveryAction,
       events,

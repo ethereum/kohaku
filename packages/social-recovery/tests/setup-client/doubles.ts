@@ -13,7 +13,6 @@ import {
   type BlockTag,
   type ClientConfiguration,
   type DeploymentDescriptor,
-  type DescriptorOrigin,
   type FilterSpec,
   type Hex,
   type IActionCodec,
@@ -592,7 +591,6 @@ export const codecFor = (action: Address): IActionCodec => ({
 export type BuildOptions = {
   readonly world?: Partial<World>;
   readonly configuration?: Partial<ClientConfiguration>;
-  readonly descriptorOrigin?: DescriptorOrigin;
   readonly methods?: MethodRegistry;
   readonly escaped?: boolean;
   readonly account?: Address;
@@ -614,7 +612,6 @@ export function build(options: BuildOptions = {}): Doubles & { readonly client: 
           options.account ?? ACCOUNT,
           action,
           configuration,
-          options.descriptorOrigin ?? 'kit',
           made.manager,
           made.action,
           made.events,
@@ -627,7 +624,6 @@ export function build(options: BuildOptions = {}): Doubles & { readonly client: 
           options.account ?? ACCOUNT,
           action,
           configuration,
-          options.descriptorOrigin ?? 'kit',
           made.manager,
           made.action,
           made.events,

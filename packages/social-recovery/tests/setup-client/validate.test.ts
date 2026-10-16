@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BUILDER_SEPOLIA_DESCRIPTOR,
+  SetupClient,
   validateSetup,
   type ActionInfo,
   type Address,
@@ -17,10 +19,13 @@ import {
   BAD_DRAFT,
   build,
   CONFIGURATION,
+  codecFor,
   committed,
   cleared,
   defaultRegistry,
+  defaultWorld,
   DESCRIPTOR,
+  doubles,
   DRAFT,
   HEADER,
   members,
@@ -52,7 +57,7 @@ function expectedContext(
   return {
     account: ACCOUNT,
     descriptor: DESCRIPTOR,
-    descriptorOrigin: 'kit',
+    descriptorOrigin: 'integrator',
     configuration: CONFIGURATION,
     block: HEADER,
     methods: distinct.map((module) => ({ module, ...MODULE_ANSWERS, implemented: registry.has(module) })),
@@ -191,11 +196,32 @@ describe('validateSetup', () => {
     expect('tier' in (standing[0] ?? {})).toBe(false);
   });
 
-  it('passes the descriptor origin it was built with', async () => {
-    const result = await build({ descriptorOrigin: 'integrator', action: OTHER_ACTION }).client.validateSetup(DRAFT);
+  it('passes the integrator origin derived from a descriptor of its own', async () => {
+    const result = await build({ action: OTHER_ACTION }).client.validateSetup(DRAFT);
 
     expect(result.warnings.find((warning) => warning.code === 'action.unaudited')?.values).toMatchObject({
       descriptorOrigin: 'integrator',
+    });
+  });
+
+  it('passes the kit origin derived from the shipped default descriptor', async () => {
+    const made = doubles(defaultWorld());
+    const client = new SetupClient(
+      made.provider,
+      BUILDER_SEPOLIA_DESCRIPTOR,
+      ACCOUNT,
+      OTHER_ACTION,
+      CONFIGURATION,
+      made.manager,
+      made.action,
+      made.events,
+      defaultRegistry(),
+      codecFor(OTHER_ACTION),
+    );
+    const result = await client.validateSetup(DRAFT);
+
+    expect(result.warnings.find((warning) => warning.code === 'action.unaudited')?.values).toMatchObject({
+      descriptorOrigin: 'kit',
     });
   });
 

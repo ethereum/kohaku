@@ -24,3 +24,16 @@ export type { RemovedKeyInputs } from './removed-key';
 export type { SetupClientRecoveryAction } from './setup-client';
 export type * from './method-zkpassport';
 export type { PasskeyConfig, PasskeyProof } from './method-passkey';
+export type {
+  ActionCodecOptions,
+  BuilderEscapedCheck,
+  EventManagerOptions,
+  ManagerReading,
+  RecoveryActionContext,
+  RecoveryActionFactory,
+  RecoveryActionPart,
+  SocialRecoveryApproverInputs,
+  SocialRecoveryHolderInputs,
+  SocialRecoveryInputs,
+  SocialRecoveryKit,
+} from './builder';

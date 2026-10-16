@@ -174,7 +174,6 @@ describe('inputs that slip past a naive setup client', () => {
       ACCOUNT,
       ACTION,
       CONFIGURATION,
-      'kit',
       made.manager,
       made.action,
       made.events,

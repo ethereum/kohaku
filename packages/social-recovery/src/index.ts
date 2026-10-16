@@ -18,3 +18,4 @@ export * from './setup-client';
 export * from './recovery-client';
 export * from './method-passkey';
 export * from './methods-orchestrator';
+export * from './builder';

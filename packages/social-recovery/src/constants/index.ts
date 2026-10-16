@@ -19,3 +19,5 @@ export * from './method-zkpassport';
 export * from './method-passkey';
 export * from './method-passkey-webauthn';
 export * from './methods-orchestrator';
+export * from './builder';
+export * from './builder-messages';

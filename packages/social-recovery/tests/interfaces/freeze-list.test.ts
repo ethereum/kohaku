@@ -45,6 +45,7 @@ const SHIPPED_IMPLEMENTATIONS = [
   'ZkPassportMethod',
   'AnonAadhaarMethod',
   'RecoveryKitBuilder',
+  'SocialRecoveryBuilder',
 ];
 
 const sorted = (names: readonly string[]): string[] => [...names].sort();

@@ -52,7 +52,6 @@ function construct(overrides: {
       ACCOUNT,
       ACTION,
       (overrides.configuration ?? CONFIGURATION) as ClientConfiguration,
-      'kit',
       made.manager,
       made.action,
       made.events,

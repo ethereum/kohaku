@@ -5,6 +5,7 @@ import {
   SETUP_CLIENT_PASSWORD_UNUSED_MESSAGE,
   SETUP_CLIENT_VERSION_ESCAPED_MESSAGE,
 } from '../constants';
+import { checkedDescriptorOrigin } from '../builder/origin';
 import { KitRefusalError } from '../client-core';
 import { assertPassword } from '../encryption/cipher';
 import { serializedConfigurationSize } from '../encryption/serialize';
@@ -25,17 +26,15 @@ function assertServes(codec: IActionCodec, action: Address): void {
 }
 
 /**
- * The client's inputs with the account, the action and the records' addresses checksummed, refusing a malformed part or
- * record, and a codec that does not serve the action.
+ * The client's inputs with the account, the action and the records' addresses checksummed and the descriptor's origin derived,
+ * refusing a malformed part or record, and a codec that does not serve the action.
  */
-export function checkedParts(parts: SetupClientParts): SetupClientParts {
-  const { provider, descriptor, configuration, descriptorOrigin, policyManager, recoveryAction, events, methods, codec } = parts;
+export function checkedParts(parts: Omit<SetupClientParts, 'descriptorOrigin'>): SetupClientParts {
+  const { provider, descriptor, configuration, policyManager, recoveryAction, events, methods, codec } = parts;
 
   assertDependency(provider, ['block', 'call', 'code', 'transaction'], 'provider');
 
   const checkedRecords = { descriptor: checkedDescriptor(descriptor, 'descriptor'), configuration: checkedConfiguration(configuration, 'configuration') };
-
-  if (descriptorOrigin !== 'kit' && descriptorOrigin !== 'integrator') throw new TypeError('descriptorOrigin must be kit or integrator');
 
   assertDependency(policyManager, ['prepareCommitSetup', 'prepareClearSetup', 'stateOf', 'moduleInfo', 'paused', 'trustedParties'], 'policyManager');
   assertDependency(
@@ -53,7 +52,7 @@ export function checkedParts(parts: SetupClientParts): SetupClientParts {
 
   assertServes(codec, action);
 
-  return { ...parts, ...checkedRecords, account, action };
+  return { ...parts, ...checkedRecords, descriptorOrigin: checkedDescriptorOrigin(checkedRecords.descriptor), account, action };
 }
 
 /** Refuses options that are not an object, whose `simulate` is present and not a boolean, or whose `from` is present and not an address. */
