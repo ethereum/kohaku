@@ -112,11 +112,11 @@ export interface SignatureSecretSource {
   deriveSignatureEphemeralSigner: (params: SignatureDeriveParams) => Promise<`0x${string}`>;
 }
 
-export function SignatureSecretManager({
+export async function SignatureSecretManager({
   host,
   accountIndex = 0,
   signer,
-}: SignatureSecretManagerParams): SignatureSecretSource {
+}: SignatureSecretManagerParams): Promise<SignatureSecretSource> {
   const envelopeSigner = signer ?? new KeystoreEnvelopeSigner(host.keystore, accountIndex);
   const sigCache = new Map<number, Promise<Hex>>();
 

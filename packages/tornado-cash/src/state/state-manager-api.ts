@@ -35,7 +35,7 @@ export interface WorkerInitOptions {
 async function defaultSecretManager(keystore: Keystore, accountIndex: number): Promise<ISecretManager> {
   const params = { host: { keystore }, accountIndex };
   const legacy = await SecretManager(params);
-  const signature = SignatureSecretManager(params);
+  const signature = await SignatureSecretManager(params);
 
   return { ...legacy, ...signature };
 }

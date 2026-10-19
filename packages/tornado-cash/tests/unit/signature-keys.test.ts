@@ -35,7 +35,7 @@ describe('SignatureSecretManager', () => {
   // Pedersen. If concatenation order, endianness, trunc width, salt, domain, or
   // path changes, previously derived notes become unrecoverable.
   it('matches the known-answer vector for the test mnemonic (account 0)', async () => {
-    const m = makeManager();
+    const m = await makeManager();
     const base = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
 
     expect(await m.getSignatureSecrets(base)).toEqual({
@@ -65,7 +65,8 @@ describe('SignatureSecretManager', () => {
   });
 
   it('derives a secret whose preimage bytes are 31 bytes and differ by tag', async () => {
-    const s = await makeManager().getSignatureSecrets({ poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 });
+    const m = await makeManager();
+    const s = await m.getSignatureSecrets({ poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 });
 
     expect(s.nullifier).toBeGreaterThan(0n);
     expect(s.salt).toBeGreaterThan(0n);
@@ -77,14 +78,16 @@ describe('SignatureSecretManager', () => {
 
   it('is deterministic for the same (chainId, pool, nonce)', async () => {
     const params = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 2 };
-    const a = await makeManager().getSignatureSecrets(params);
-    const b = await makeManager().getSignatureSecrets(params);
+    const first = await makeManager();
+    const second = await makeManager();
+    const a = await first.getSignatureSecrets(params);
+    const b = await second.getSignatureSecrets(params);
 
     expect(b).toEqual(a);
   });
 
   it('yields distinct notes per nonce, chain, and pool', async () => {
-    const m = makeManager();
+    const m = await makeManager();
     const base = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
 
     const original = await m.getSignatureSecrets(base);
@@ -104,8 +107,10 @@ describe('SignatureSecretManager', () => {
       signEnvelope: async (envelope) => highS(await inner.signEnvelope(envelope)),
     };
     const params = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 4 };
-    const low = await SignatureSecretManager({ host, accountIndex: 0 }).getSignatureSecrets(params);
-    const high = await SignatureSecretManager({ host, accountIndex: 0, signer: highSigner }).getSignatureSecrets(params);
+    const lowManager = await SignatureSecretManager({ host, accountIndex: 0 });
+    const highManager = await SignatureSecretManager({ host, accountIndex: 0, signer: highSigner });
+    const low = await lowManager.getSignatureSecrets(params);
+    const high = await highManager.getSignatureSecrets(params);
 
     expect(high).toEqual(low);
   });
@@ -121,7 +126,7 @@ describe('SignatureSecretManager', () => {
         return inner.signEnvelope(envelope);
       },
     };
-    const m = SignatureSecretManager({ host, accountIndex: 0, signer: counting });
+    const m = await SignatureSecretManager({ host, accountIndex: 0, signer: counting });
     const params = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 7 };
 
     await m.getSignatureSecrets(params);
@@ -146,7 +151,7 @@ describe('SignatureSecretManager', () => {
         return `0x${'11'.repeat(64)}1b` as Hex;
       },
     };
-    const m = SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: flaky });
+    const m = await SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: flaky });
     const params = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
 
     await expect(m.getSignatureSecrets(params)).rejects.toThrow('signer rejected');
@@ -156,7 +161,7 @@ describe('SignatureSecretManager', () => {
 
   describe('deriveSignatureEphemeralSigner', () => {
     it('derives a valid, deterministic secp256k1 key disjoint per pool and nonce', async () => {
-      const m = makeManager();
+      const m = await makeManager();
       const base = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
 
       const key = await m.deriveSignatureEphemeralSigner(base);
