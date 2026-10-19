@@ -5,7 +5,7 @@ import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { RootState } from '../store';
-import { derivedUserSecretsSelector, instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
+import { instanceRegistryInfoSelector, poolsSelector, signatureUserSecretsSelector } from '../selectors/slices.selectors';
 import { IPool } from '../../data/interfaces/events.interface';
 
 export enum DepositStrategy {
@@ -76,7 +76,14 @@ export const getDepositPayloadThunk = createAsyncThunk<
     const state = getState();
     const pools = poolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
-    const userSecrets = derivedUserSecretsSelector(state);
+    const signatureSecrets = signatureUserSecretsSelector(state);
+    let nonce = 0;
+
+    for (const records of signatureSecrets.values()) {
+      for (const record of records) {
+        if (record.nonce >= nonce) nonce = record.nonce + 1;
+      }
+    }
 
     // Pick the pool with the lowest denomination for the requested asset
     const poolsCandidates = Array.from(pools.values())
@@ -86,15 +93,20 @@ export const getDepositPayloadThunk = createAsyncThunk<
 
     const poolsToDepositInto = calculatePoolsDeposits(poolsCandidates, amount, strategy);
     
-    const depositInfo = await Promise.all(poolsToDepositInto.map(async (pool) => {
-      const startIndex = userSecrets.get(pool.address)?.length ?? 0;
-      const count = pool.depositsCount;
+    const nonceAssignments = poolsToDepositInto.map((pool) => {
+      const startNonce = nonce;
 
+      nonce += pool.depositsCount;
+
+      return { pool, startNonce };
+    });
+
+    const depositInfo = await Promise.all(nonceAssignments.map(async ({ pool, startNonce }) => {
       const secrets = await Promise.all(
-        Array.from({ length: count }, (_, i) =>
-          secretManager.getDepositSecrets({
+        Array.from({ length: pool.depositsCount }, (_, i) =>
+          secretManager.getSignatureSecrets({
             chainId,
-            depositIndex: startIndex + i,
+            nonce: startNonce + i,
             poolAddress: pool.address,
           }),
         ),

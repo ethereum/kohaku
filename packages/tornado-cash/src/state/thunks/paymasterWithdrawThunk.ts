@@ -174,16 +174,31 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     );
   };
 
-  const ephemeralSigner = async (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> =>
-    privateKeyToAccount(
-      deposit.kind === 'legacy'
-        ? await secretManager.deriveLegacyEphemeralSigner({ nullifier: deposit.nullifier })
-        : await secretManager.deriveEphemeralSigner({
-            depositIndex: deposit.depositIndex,
-            chainId: bigintChainId,
-            poolAddress: deposit.pool,
-          })
+  const ephemeralSigner = async (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> => {
+    if (deposit.kind === 'legacy') {
+      return privateKeyToAccount(
+        await secretManager.deriveLegacyEphemeralSigner({ nullifier: deposit.nullifier }),
+      );
+    }
+
+    if (deposit.kind === 'signature') {
+      return privateKeyToAccount(
+        await secretManager.deriveSignatureEphemeralSigner({
+          nonce: deposit.nonce,
+          chainId: bigintChainId,
+          poolAddress: deposit.pool,
+        }),
+      );
+    }
+
+    return privateKeyToAccount(
+      await secretManager.deriveEphemeralSigner({
+        depositIndex: deposit.depositIndex,
+        chainId: bigintChainId,
+        poolAddress: deposit.pool,
+      }),
     );
+  };
 
   // The shared delegator that owns the consolidated userOp. All withdrawals land
   // in this EOA and are then spent by the execution phase (tailCalls or the

@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Address, Commitment, Nullifier, NullifierHash } from '../../interfaces/types.interface';
+import { SignatureUserSecretRecord } from './signatureSecretsSlice';
 import { Serializable } from '../interfaces/utils.interface';
 import { deserialize, serialize } from '../utils/serialize.utils';
 
@@ -20,7 +21,8 @@ export type LegacyUserSecretRecord = Omit<UserSecretRecord, 'depositIndex'>
 
 export type UserSecretEntry =
   | ({ kind: 'derived' } & UserSecretRecord)
-  | ({ kind: 'legacy' } & LegacyUserSecretRecord);
+  | ({ kind: 'legacy' } & LegacyUserSecretRecord)
+  | ({ kind: 'signature' } & SignatureUserSecretRecord);
 
 export interface UserSecretsState {
   byPool: [Address, UserSecretRecord[]][];

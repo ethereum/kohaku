@@ -33,27 +33,34 @@ const HUNDRED_ETH = `0x${parseEther('100').toString(16)}`;
 function createRandomSecretManager(): { manager: ISecretManager; secrets: Secret[] } {
   const secrets: Secret[] = [];
 
+  const randomSecret = (): Secret => {
+    const nullifierBytes = randomBytes(31);
+    const nullifier = bytesToNumberLE(nullifierBytes) as Nullifier;
+    const salt = bytesToNumberLE(randomBytes(31));
+    const preimage = new Uint8Array(62);
+
+    preimage.set(nullifierBytes, 0);
+    preimage.set(numberToBytesLE(salt, 31), 31);
+
+    return {
+      nullifier,
+      salt,
+      commitment: pedersenHash(preimage) as Commitment,
+      nullifierHash: pedersenHash(nullifierBytes) as NullifierHash,
+    };
+  };
+
   const manager: ISecretManager = {
-    getDepositSecrets: async () => {
-      const nullifierBytes = randomBytes(31);
-      const nullifier = bytesToNumberLE(nullifierBytes) as Nullifier;
-      const salt = bytesToNumberLE(randomBytes(31));
-      const preimage = new Uint8Array(62);
-
-      preimage.set(nullifierBytes, 0);
-      preimage.set(numberToBytesLE(salt, 31), 31);
-
-      const secret: Secret = {
-        nullifier,
-        salt,
-        commitment: pedersenHash(preimage) as Commitment,
-        nullifierHash: pedersenHash(nullifierBytes) as NullifierHash,
-      };
+    getSignatureSecrets: async () => {
+      const secret = randomSecret();
 
       secrets.push(secret);
 
       return secret;
     },
+    // HD discovery probes once per pool and stops; those values are not deposits.
+    getLegacyDepositSecrets: async () => randomSecret(),
+    deriveSignatureEphemeralSigner: () => { throw new Error('not exercised in this test'); },
     deriveEphemeralSigner: () => { throw new Error('not exercised in this test'); },
     deriveDelegatorSigner: () => { throw new Error('not exercised in this test'); },
     deriveLegacyEphemeralSigner: () => { throw new Error('not exercised in this test'); },
@@ -146,8 +153,8 @@ describe('TornadoCash Import Legacy Note E2E', () => {
     await pool.mine(1);
 
     // Every sync() (including the internal one prepareShield() triggers)
-    // also runs discoverUserEventsThunk, which probes getDepositSecrets once
-    // per pool looking for a match against already-synced deposits — those
+    // also runs discoverUserEventsThunk, which probes getSignatureSecrets
+    // across the gap limit and getLegacyDepositSecrets once per pool. Those
     // calls return random secrets that match nothing and are harmlessly
     // discarded. The two actual deposits' secrets are always generated last
     // (in order), by getDepositPayloadThunk, after any such discovery noise.

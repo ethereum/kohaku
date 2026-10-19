@@ -118,7 +118,10 @@ export type TCNote = Pick<
 > & {
   /** Fixed pool denomination for this note. */
   amount: bigint;
+  /** HD deposit index, or -1 for imported and signature-derived notes. */
   depositIndex: number;
+  /** Global signature-scheme nonce. Present only for signature-derived notes. */
+  nonce?: number;
 };
 
 export type StoreKey = `${string}-${string}`;

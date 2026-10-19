@@ -16,6 +16,7 @@ import {
 import { createSelector } from "@reduxjs/toolkit";
 import { ProtocolConfigState } from "../slices/protocolConfigSlice";
 import { IRelayerInfo } from "../slices/relayersSlice";
+import { SignatureUserSecretRecord } from "../slices/signatureSecretsSlice";
 import { LegacyUserSecretRecord, UserSecretEntry, UserSecretRecord } from "../slices/userSecretsSlice";
 
 export const depositsSelector = createSelector(
@@ -80,30 +81,39 @@ export const legacyUserSecretsSelector = selectEntityMap(
   deserialize as () => [Address, LegacyUserSecretRecord[]]
 );
 
+export const signatureUserSecretsSelector = selectEntityMap(
+  (s) => s.signatureSecrets.byPool,
+  deserialize as () => [Address, SignatureUserSecretRecord[]]
+);
+
 /**
- * Merges derived (HD-keystore) and legacy (imported note) secrets into a
- * single per-pool map, tagging each record with its `kind` so consumers can
- * branch (e.g. paymaster ephemeral signer derivation). Discovery
- * (`discoverUserEventsThunk`) intentionally reads `derivedUserSecretsSelector`
- * directly instead of this merged view — it relies on array length to resume
- * sequential HD derivation, an invariant legacy imports must not disturb.
- * Merges imported secrets first so they are spent first if any exists.
+ * Merges HD, signature, and imported secrets into a single per-pool map,
+ * tagging each record with its `kind` so consumers can branch (e.g. paymaster
+ * ephemeral signer derivation). Discovery reads the HD and signature slices
+ * directly: HD resume uses array length, and signature nonces are global.
+ * Imported secrets are merged first so they are spent first if any exist.
  */
 export const userSecretsSelector = createSelector(
-  [derivedUserSecretsSelector, legacyUserSecretsSelector],
-  (derived, legacy): Map<Address, UserSecretEntry[]> => {
+  [derivedUserSecretsSelector, legacyUserSecretsSelector, signatureUserSecretsSelector],
+  (derived, legacy, signature): Map<Address, UserSecretEntry[]> => {
     const result = new Map<Address, UserSecretEntry[]>();
 
-    for (const [poolAddress, records] of legacy) {
+    const append = <T extends UserSecretEntry>(poolAddress: Address, records: T[]) => {
       const existing = result.get(poolAddress) ?? [];
 
-      result.set(poolAddress, [...existing, ...records.map((record) => ({ kind: 'legacy' as const, ...record }))]);
+      result.set(poolAddress, [...existing, ...records]);
+    };
+
+    for (const [poolAddress, records] of legacy) {
+      append(poolAddress, records.map((record) => ({ kind: 'legacy' as const, ...record })));
     }
 
     for (const [poolAddress, records] of derived) {
-      const existing = result.get(poolAddress) ?? [];
+      append(poolAddress, records.map((record) => ({ kind: 'derived' as const, ...record })));
+    }
 
-      result.set(poolAddress, [...existing, ...records.map((record) => ({ kind: 'derived' as const, ...record }))]);
+    for (const [poolAddress, records] of signature) {
+      append(poolAddress, records.map((record) => ({ kind: 'signature' as const, ...record })));
     }
 
     return result;

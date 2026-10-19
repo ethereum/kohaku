@@ -75,13 +75,13 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { userSecrets, legacySecrets, ...publicState } = store.getState();
+    const { userSecrets, legacySecrets, signatureSecrets, ...publicState } = store.getState();
 
     return publicState;
   },
   getPrivateState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { userSecrets, ...publicState } = store.getState();
+    const { userSecrets, signatureSecrets, ...publicState } = store.getState();
 
     return publicState;
   }
