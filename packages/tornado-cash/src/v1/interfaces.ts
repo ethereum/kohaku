@@ -18,7 +18,7 @@ export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResp
 interface TCBaseCredential {
     accountIndex: number;
 }
-export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential, Pick<TCProtocolParams, 'initialState' | 'minExternalSyncBlocksAmount'> {
+export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCredential, Pick<TCProtocolParams, 'initialState' | 'minExternalSyncBlocksAmount' | 'ignoreExtendedEthPools'> {
     secretManagerFactory?: TCProtocolParams['secretManagerFactory'];
     protocolConfig: TCProtocolConfig;
     relayerConfig?: IRelayerFeeConfig;

@@ -1,4 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
+import { extendedEthPoolSet } from '../../config';
 import { IPool } from '../../data/interfaces/events.interface';
 import { registerPools } from '../slices/poolsSlice';
 import { RootState } from '../store';
@@ -18,16 +19,34 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     syncService,
   }, { dispatch, getState }) => {
     const state = getState();
-    const { chainId, instanceRegistry: { address: instanceRegistryAddress } } = instanceRegistryInfoSelector(state);
+    const {
+      chainId,
+      ignoreExtendedEthPools,
+      instanceRegistry: { address: instanceRegistryAddress },
+    } = instanceRegistryInfoSelector(state);
     const existingPools = poolsSelector(state);
 
-    const poolsAddressses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
-    const unsyncedPools = poolsAddressses.filter((address) => !existingPools.has(address));
+    const registryAddresses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
+    const registrySet = new Set(registryAddresses);
+    const extendedPools = extendedEthPoolSet(chainId);
+    const poolAddresses = new Set(
+      ignoreExtendedEthPools
+        ? registryAddresses.filter((address) => !extendedPools.has(address))
+        : registryAddresses,
+    );
+
+    if (!ignoreExtendedEthPools) {
+      for (const address of extendedPools) poolAddresses.add(address);
+    }
+
+    const unsyncedPools = [...poolAddresses].filter((address) => !existingPools.has(address));
 
     const unsyncedPoolsData = await Promise.allSettled(
       unsyncedPools.map(async (poolAddress) => {
         const [config, registeredBlock] = await Promise.all([
-          dataService.getPoolConfig(instanceRegistryAddress, poolAddress),
+          registrySet.has(poolAddress)
+            ? dataService.getPoolConfig(instanceRegistryAddress, poolAddress)
+            : dataService.getUnregisteredNativeEthPoolConfig(poolAddress),
           syncService.getPoolDeploymentBlock({ chainId, address: poolAddress }),
         ]);
 

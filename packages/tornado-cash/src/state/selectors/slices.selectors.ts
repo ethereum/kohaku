@@ -1,3 +1,4 @@
+import { extendedEthPoolSet } from "../../config";
 import { selectEntityMap } from "../utils/selectors.utils";
 import { deserialize } from "../utils/serialize.utils";
 import { RootState } from "../store";
@@ -45,6 +46,22 @@ export const instanceRegistryInfoSelector = createSelector(
 export const poolsSelector = selectEntityMap(
   (s) => s.pools.poolsTuples,
   deserialize as () => [Address, IPool],
+);
+
+/**
+ * Pools used for deposits, withdrawals, balances, notes, and event sync.
+ * Extended ETH pools stay in {@link poolsSelector} so a later opt-in can resume
+ * from each pool's saved cursor, but they are hidden while ignored.
+ */
+export const activePoolsSelector = createSelector(
+  [poolsSelector, instanceRegistryInfoSelector],
+  (pools, { chainId, ignoreExtendedEthPools }) => {
+    if (!ignoreExtendedEthPools) return pools;
+
+    const extendedPools = extendedEthPoolSet(chainId);
+
+    return new Map([...pools].filter(([address]) => !extendedPools.has(address)));
+  },
 );
 
 export const withdrawalsSelector = selectEntityMap(

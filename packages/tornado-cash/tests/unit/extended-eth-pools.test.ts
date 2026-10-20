@@ -1,0 +1,277 @@
+import { unwrapResult } from '@reduxjs/toolkit';
+import { describe, expect, it, vi } from 'vitest';
+
+import { ISecretManager, Secret } from '../../src/account/keys';
+import { ExtendedEthPools } from '../../src/config';
+import { IDataService, IPoolConfig } from '../../src/data/interfaces/data.service.interface';
+import { ISyncService } from '../../src/data/interfaces/sync.service.interface';
+import { IPool } from '../../src/data/interfaces/events.interface';
+import { Address, Commitment, Nullifier, NullifierHash } from '../../src/interfaces/types.interface';
+import { addressToHex } from '../../src/utils';
+import { poolsSelector } from '../../src/state/selectors/slices.selectors';
+import { setProtocolConfig } from '../../src/state/slices/protocolConfigSlice';
+import { ProtocolConfigState } from '../../src/state/slices/protocolConfigSlice';
+import { registerPools } from '../../src/state/slices/poolsSlice';
+import { setLastSyncedBlock } from '../../src/state/slices/syncSlice';
+import { storeFactory } from '../../src/state/store';
+import { DepositStrategy, getDepositPayloadThunk } from '../../src/state/thunks/getDepositPayloadThunk';
+import { syncEventsThunk } from '../../src/state/thunks/syncEventsThunk';
+import { syncPoolsThunk } from '../../src/state/thunks/syncPoolsThunk';
+
+const CLASSIC = 100n as Address;
+const EXTENDED = ExtendedEthPools[1][0] as Address;
+const EXTENDED_003 = ExtendedEthPools[1][1] as Address;
+const ETH = 10n ** 18n;
+
+function protocolConfig(ignoreExtendedEthPools = false): ProtocolConfigState {
+  return {
+    chainId: 1n,
+    ensSubdomainKey: 'eth',
+    instanceRegistry: { address: 1n, deploymentBlock: 0n },
+    relayerRegistry: { address: 2n, deploymentBlock: 0n },
+    aggregator: { address: 3n },
+    ignoreExtendedEthPools,
+  };
+}
+
+function storeWith(ignoreExtendedEthPools = false) {
+  return storeFactory({
+    protocolConfig: protocolConfig(ignoreExtendedEthPools),
+    logLevel: 'off',
+  });
+}
+
+function pool(address: Address, denomination: bigint, registeredBlock = 0n, lastSyncedBlock?: bigint): IPool {
+  return {
+    address,
+    asset: 0n,
+    isERC20: false,
+    protocolFeePercentage: 0,
+    denomination,
+    registeredBlock,
+    state: 1,
+    rootHistorySize: 100,
+    ...(lastSyncedBlock === undefined ? {} : { lastSyncedBlock }),
+  };
+}
+
+function registryConfig(address: Address, denomination: bigint): IPoolConfig {
+  return {
+    poolAddress: address,
+    isERC20: false,
+    token: 0n,
+    state: 1,
+    protocolFeePercentage: 33,
+    denomination,
+    rootHistorySize: 30,
+  };
+}
+
+function secretManager(): ISecretManager {
+  const asSecret = (commitment: bigint): Secret => ({
+    nullifier: 1n as Nullifier,
+    salt: 2n,
+    commitment: commitment as Commitment,
+    nullifierHash: 3n as NullifierHash,
+  });
+
+  return {
+    getSignatureSecrets: async ({ nonce, poolAddress }) => asSecret(BigInt(nonce) + poolAddress),
+    getLegacyDepositSecrets: async () => asSecret(1n),
+    deriveSignatureEphemeralSigner: async () => `0x${'11'.repeat(32)}`,
+    deriveEphemeralSigner: async () => `0x${'22'.repeat(32)}`,
+    deriveDelegatorSigner: async () => `0x${'33'.repeat(32)}`,
+    deriveLegacyEphemeralSigner: async () => `0x${'44'.repeat(32)}`,
+  };
+}
+
+describe('syncPoolsThunk extended ETH pools', () => {
+  it('registers an extended pool missing from the registry as native ETH', async () => {
+    const store = storeWith();
+    const dataService = {
+      getAllPoolsAddresses: vi.fn().mockResolvedValue([CLASSIC]),
+      getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
+      getUnregisteredNativeEthPoolConfig: vi.fn(async (address: Address) => ({
+        ...registryConfig(address, ETH / 100n),
+        protocolFeePercentage: 0,
+        rootHistorySize: 100,
+      })),
+    };
+    const syncService = {
+      getPoolDeploymentBlock: vi.fn().mockImplementation(async ({ address }: { address: Address }) => (
+        address === EXTENDED ? 40n : 10n
+      )),
+    };
+
+    unwrapResult(await store.dispatch(syncPoolsThunk({
+      dataService: dataService as unknown as IDataService,
+      syncService: syncService as unknown as ISyncService,
+    })));
+
+    expect(dataService.getPoolConfig).toHaveBeenCalledTimes(1);
+    expect(dataService.getPoolConfig).toHaveBeenCalledWith(1n, CLASSIC);
+    expect(dataService.getUnregisteredNativeEthPoolConfig).toHaveBeenCalledTimes(ExtendedEthPools[1].length);
+    expect(dataService.getUnregisteredNativeEthPoolConfig).toHaveBeenCalledWith(EXTENDED);
+
+    const pools = poolsSelector(store.getState());
+    const extended = pools.get(EXTENDED);
+
+    expect(extended).toMatchObject({
+      asset: 0n,
+      isERC20: false,
+      denomination: ETH / 100n,
+      protocolFeePercentage: 0,
+      state: 1,
+      registeredBlock: 40n,
+      rootHistorySize: 100,
+    });
+  });
+
+  it('uses the registry record when the extended pool is already listed', async () => {
+    const store = storeWith();
+    const dataService = {
+      getAllPoolsAddresses: vi.fn().mockResolvedValue([EXTENDED]),
+      getPoolConfig: vi.fn().mockResolvedValue(registryConfig(EXTENDED, ETH / 100n)),
+      getUnregisteredNativeEthPoolConfig: vi.fn(async (address: Address) => ({
+        ...registryConfig(address, ETH / 100n),
+        protocolFeePercentage: 0,
+      })),
+    };
+    const syncService = {
+      getPoolDeploymentBlock: vi.fn().mockResolvedValue(7n),
+    };
+
+    unwrapResult(await store.dispatch(syncPoolsThunk({
+      dataService: dataService as unknown as IDataService,
+      syncService: syncService as unknown as ISyncService,
+    })));
+
+    expect(dataService.getPoolConfig).toHaveBeenCalledTimes(1);
+    expect(dataService.getPoolConfig).toHaveBeenCalledWith(1n, EXTENDED);
+    expect(dataService.getUnregisteredNativeEthPoolConfig).not.toHaveBeenCalledWith(EXTENDED);
+    expect(dataService.getUnregisteredNativeEthPoolConfig).toHaveBeenCalledTimes(ExtendedEthPools[1].length - 1);
+    expect(poolsSelector(store.getState()).get(EXTENDED)?.protocolFeePercentage).toBe(33);
+  });
+
+  it('does not register extended pools when they are ignored', async () => {
+    const store = storeWith(true);
+    const dataService = {
+      getAllPoolsAddresses: vi.fn().mockResolvedValue([CLASSIC, EXTENDED]),
+      getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
+      getUnregisteredNativeEthPoolConfig: vi.fn(),
+    };
+    const syncService = {
+      getPoolDeploymentBlock: vi.fn().mockResolvedValue(10n),
+    };
+
+    unwrapResult(await store.dispatch(syncPoolsThunk({
+      dataService: dataService as unknown as IDataService,
+      syncService: syncService as unknown as ISyncService,
+    })));
+
+    expect(dataService.getPoolConfig).toHaveBeenCalledTimes(1);
+    expect(dataService.getPoolConfig).toHaveBeenCalledWith(1n, CLASSIC);
+    expect(dataService.getUnregisteredNativeEthPoolConfig).not.toHaveBeenCalled();
+    expect(syncService.getPoolDeploymentBlock).toHaveBeenCalledTimes(1);
+    expect(poolsSelector(store.getState()).has(EXTENDED)).toBe(false);
+    expect(poolsSelector(store.getState()).has(CLASSIC)).toBe(true);
+  });
+});
+
+describe('syncEventsThunk extended ETH pool cursors', () => {
+  function eventsService() {
+    const calls: { address: Address; fromBlock: bigint }[] = [];
+    const syncService = {
+      getPoolEvents: vi.fn(async ({ address, fromBlock }: { address: Address; fromBlock: bigint }) => {
+        calls.push({ address, fromBlock });
+
+        return { Deposited: [], Withdrawn: [], toBlock: fromBlock };
+      }),
+    };
+
+    return { calls, syncService: syncService as unknown as ISyncService };
+  }
+
+  it('syncs a pool with no cursor from its registered block, not the global cursor', async () => {
+    const store = storeWith();
+
+    store.dispatch(setLastSyncedBlock(9_000n));
+    store.dispatch(registerPools([
+      pool(CLASSIC, ETH, 10n),
+      pool(EXTENDED, ETH / 100n, 50n),
+    ]));
+
+    const { calls, syncService } = eventsService();
+
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService })));
+
+    expect(calls).toEqual([
+      { address: CLASSIC, fromBlock: 10n },
+      { address: EXTENDED, fromBlock: 50n },
+    ]);
+  });
+
+  it('freezes an ignored pool cursor and resumes from it when extended pools are enabled again', async () => {
+    const store = storeWith();
+
+    store.dispatch(setLastSyncedBlock(5_000n));
+    store.dispatch(registerPools([
+      pool(CLASSIC, ETH, 10n, 200n),
+      pool(EXTENDED, ETH / 100n, 50n, 80n),
+    ]));
+    store.dispatch(setProtocolConfig(protocolConfig(true)));
+
+    const ignored = eventsService();
+
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: ignored.syncService })));
+
+    expect(ignored.calls).toEqual([{ address: CLASSIC, fromBlock: 200n }]);
+    expect(poolsSelector(store.getState()).get(EXTENDED)?.lastSyncedBlock).toBe(80n);
+
+    store.dispatch(setProtocolConfig(protocolConfig(false)));
+
+    const resumed = eventsService();
+
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: resumed.syncService })));
+
+    expect(resumed.calls).toEqual([
+      { address: CLASSIC, fromBlock: 200n },
+      { address: EXTENDED, fromBlock: 80n },
+    ]);
+  });
+});
+
+describe('deposit denomination packing', () => {
+  const classicPointOne = 101n as Address;
+
+  async function deposit(amount: bigint, strategy: DepositStrategy, ignoreExtendedEthPools = false) {
+    const store = storeWith(ignoreExtendedEthPools);
+
+    store.dispatch(registerPools([
+      pool(classicPointOne, ETH / 10n),
+      pool(EXTENDED, ETH / 100n),
+      pool(EXTENDED_003, (ETH / 100n) * 3n),
+    ]));
+
+    return unwrapResult(await store.dispatch(getDepositPayloadThunk({
+      secretManager: secretManager(),
+      asset: 0n,
+      amount,
+      strategy,
+    })));
+  }
+
+  it('packs 0.13 ETH as 0.1 plus 0.03 with MinFee', async () => {
+    const txs = await deposit((ETH / 100n) * 13n, DepositStrategy.MinFee);
+    const values = txs.map((tx) => tx.value).sort((a, b) => (a < b ? -1 : 1));
+
+    expect(values).toEqual([(ETH / 100n) * 3n, ETH / 10n]);
+  });
+
+  it('keeps MaxAnonimitySet on the 0.1 ETH pool when 0.01 is available', async () => {
+    const txs = await deposit(ETH / 5n, DepositStrategy.MaxAnonimitySet);
+
+    expect(txs).toHaveLength(2);
+    expect(txs.every((tx) => tx.value === ETH / 10n && tx.to === addressToHex(classicPointOne))).toBe(true);
+  });
+});
