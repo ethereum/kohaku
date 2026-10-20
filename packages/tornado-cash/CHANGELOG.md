@@ -1,3 +1,9 @@
+## 0.1.0-alpha.27
+
+### Patch Changes
+
+- bf65511: fix: bind chainId in sig domain
+
 ## 0.1.0-alpha.26
 
 ### Minor Changes
