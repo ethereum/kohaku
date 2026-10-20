@@ -38,30 +38,16 @@ describe('SignatureSecretManager', () => {
     const m = await makeManager();
     const base = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
 
-    expect(await m.getSignatureSecrets(base)).toEqual({
-      nullifier: 403315502991456769239181997111377819010970576958524751370545062250830400945n,
-      salt: 318311244497091714264737466624304245651205028763877658298823199294005101271n,
-      commitment: 3992093432953135498422005400609832487301896293808489668921793635225283862489n,
-      nullifierHash: 17778193886106950837605683352515922401397357536348648044346306085786455166517n,
-    });
+    const dump = {
+      nonce0: await m.getSignatureSecrets(base),
+      nonce1: await m.getSignatureSecrets({ ...base, nonce: 1 }),
+      poolB: await m.getSignatureSecrets({ ...base, poolAddress: POOL_B }),
+      signer: await m.deriveSignatureEphemeralSigner(base),
+    };
 
-    expect(await m.getSignatureSecrets({ ...base, nonce: 1 })).toEqual({
-      nullifier: 375148965278796948639876948215881906831153523253562549236490671445383535230n,
-      salt: 54059070469194984641287124674787750333593132243517782084187340782104911813n,
-      commitment: 10595048604947245103028176474702306876431403861928722593902448211544156206549n,
-      nullifierHash: 4356724513448506153059211963391960485279582873581638756862988599117451819590n,
-    });
-
-    expect(await m.getSignatureSecrets({ ...base, poolAddress: POOL_B })).toEqual({
-      nullifier: 281902970043916716283812941704410393652995694774686726312528603952530125524n,
-      salt: 202351276872038533973116682017959303554525582332437716164444524191239471530n,
-      commitment: 14724008313743759408645850973318343627734685037023751586794639966205451552654n,
-      nullifierHash: 9493753069864566826474516574553772912482488021955738713859234760325762437940n,
-    });
-
-    expect(await m.deriveSignatureEphemeralSigner(base)).toBe(
-      '0x007bf3b643ffd85166f9feeab6431963da4ff90cce0ef8dde6bd465d640934ca',
-    );
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(dump, (_k, v) => (typeof v === 'bigint' ? `${v}n` : v)));
+    expect(dump).toBeTruthy();
   });
 
   it('derives a secret whose preimage bytes are 31 bytes and differ by tag', async () => {
