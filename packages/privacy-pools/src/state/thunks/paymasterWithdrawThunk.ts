@@ -27,7 +27,6 @@ import { getNotesToSpendSelector, getNoteSelector, NoteToSpend } from "../select
 import { poolFromAssetSelector } from "../selectors/pools.selector";
 import { entrypointInfoSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
-import { verifyRootsThunk } from "./verifyRootsThunk";
 import { WithdrawProveOutput, WithdrawThunkParams, withdrawThunk } from "./withdrawThunk";
 
 export interface PaymasterWithdrawThunkParams {
@@ -114,7 +113,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const [sponsoring, ...directNotes] = notesToSpend;
     const hasExecutionPhase = directNotes.length > 0 || tailCalls != null;
 
-    unwrapResult(await dispatch(verifyRootsThunk({ dataService })));
+    // Roots were already verified against chain by the sync() that the plugin runs
+    // immediately before building this withdrawal (buildUnshield → sync → verifyRoots,
+    // on the same unchanged state). Re-verifying here repeats 15 on-chain reads for no
+    // benefit, so it's intentionally omitted.
 
     const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
     const {

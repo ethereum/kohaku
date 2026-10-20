@@ -1,5 +1,38 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.26
+
+### Patch Changes
+
+- 4faf96e: Speed up `prepareUnshield` (paymaster flow) on an already-synced state by removing redundant Merkle and sync work:
+
+  - Cache each pool's state tree and the ASP tree in-process and derive roots and inclusion proofs from the cached tree — building it once, then extending it incrementally with `LeanIMT.insert` — instead of rebuilding the whole tree (O(n) poseidon hashes) on every root check and every per-note proof. Nothing is added to Redux or the persisted snapshot; the cache is keyed per pool / per entrypoint with a leaf-count + last-leaf guard, and `verifyRootsThunk` still checks every derived root against chain.
+  - Drop the redundant on-chain root re-verification in the paymaster withdrawal: the `sync()` the plugin runs immediately beforehand already verified the same, unchanged state against chain.
+  - Run `verifyRootsThunk`'s on-chain root reads (ASP latest root + each pool's state root) concurrently instead of one at a time.
+  - Skip no-op `registerPoolLeaves` dispatches for pools with no new leaves, avoiding a re-serialization of the entire cross-pool leaf structure per pool on every sync.
+
+  No persisted-state or public-API changes. Measured on a mainnet fork (real bundler + prover): 3-note batch `prepareUnshield` ~45s → ~12s, 1-note ~19s → ~5s, with the remainder dominated by zk proving.
+
+## 0.1.0-alpha.25
+
+### Minor Changes
+
+- 39cda9a: Add a signature-derived secret manager and make it the default. Note secrets are now derived from one deterministic EIP-712 signature per note instead of per-note BIP-32 HD keys: the signature's canonical `(r, s)` (big-endian, low-s normalized, recovery id `v` dropped) is hashed with per-role tags into the nullifier and salt, so derivation is identical across any compliant signer — software or hardware (Ledger-style `v‖r‖s`, viem `r‖s‖v`, and ERC-2098 compact signatures all converge). The signing identity is the shared account key at `m/28784'/1'/account'`.
+
+  `SignatureSecretManager` is now the default `secretManager` for `PrivacyPoolsV1Protocol`; the legacy BIP-32 HD `SecretManager` is marked `@deprecated` but kept for explicit injection. Signers plug in at a narrow `EnvelopeSigner` seam (`signEnvelope`) so they can never diverge the typed-data standard.
+
+  BREAKING: the two schemes derive disjoint notes, so the default change is a breaking derivation change — deposits created under the old default will not be rediscovered. Acceptable as the package is unreleased (alpha) with no real users; callers needing the old behavior can inject `SecretManager` explicitly.
+
+## 0.0.2-alpha.24
+
+### Patch Changes
+
+- 2b67d9a: Add `history()` returning the account's deposits, withdrawals and ragequits, newest first. Transaction hashes, log indexes and timestamps are fetched on demand for the user's own events and cached in state.
+- 2b67d9a: `TxLog` now carries an optional `logIndex`, filled in by the ethers, viem and raw adapters (and so helios and colibri) and by the privacy-pools saga log source. Synced privacy-pools events store their real log index.
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+  - @kohaku-eth/plugins@0.0.1-alpha.17
+
 ## 0.0.2-alpha.23
 
 ### Patch Changes

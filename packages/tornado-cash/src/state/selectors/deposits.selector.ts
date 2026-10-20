@@ -22,7 +22,11 @@ export const myDepositsSelector = createSelector(
         const deposit = poolDeposits.get(commitment);
 
         if (deposit) {
-          result.set(commitment, { ...deposit, index: r.kind === 'derived' ? r.depositIndex : -1 });
+          result.set(commitment, {
+            ...deposit,
+            index: r.kind === 'derived' ? r.depositIndex : -1,
+            ...(r.kind === 'signature' ? { nonce: r.nonce } : {}),
+          });
         }
       }
     }

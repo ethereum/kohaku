@@ -6,30 +6,36 @@ import { encodeAbiParameters, keccak256, numberToHex } from "viem";
 const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 
-export function computeMerkleTreeRoot(leaves: bigint[]) {
-  const tree = new LeanIMT<bigint>((a, b) => poseidon([a, b]));
+export const merkleHash = (a: bigint, b: bigint): bigint => poseidon([a, b]);
+
+/**
+ * Builds a Lean Incremental Merkle tree from the full set of leaves. This is the
+ * O(n)-poseidon-hash operation; callers that reuse a tree should cache it and
+ * extend it with `tree.insert` rather than rebuilding here.
+ */
+export function buildMerkleTree(leaves: bigint[]): LeanIMT<bigint> {
+  const tree = new LeanIMT<bigint>(merkleHash);
 
   tree.insertMany(leaves);
 
-  return tree.root
+  return tree;
+}
+
+export function computeMerkleTreeRoot(leaves: bigint[]) {
+  return buildMerkleTree(leaves).root;
 }
 
 /**
- * Generates a Merkle inclusion proof for a given leaf in a set of leaves.
+ * Extracts a Merkle inclusion proof for `leaf` from an already-built tree,
+ * padding the siblings to the fixed depth of 32 the circuit expects. This is the
+ * cheap part (indexOf + path walk); no hashing of the full tree happens here.
  *
- * @param {bigint[]} leaves - Array of leaves for the Lean Incremental Merkle tree.
- * @param {bigint} leaf - The specific leaf to generate the inclusion proof for.
- * @returns {LeanIMTMerkleProof<bigint>} A lean incremental Merkle tree inclusion proof.
- * @throws {Error} If the leaf is not found in the leaves array.
+ * @throws {Error} If the leaf is not found in the tree.
  */
-export function generateMerkleProof(
-  leaves: bigint[],
+export function proofFromTree(
+  tree: LeanIMT<bigint>,
   leaf: bigint,
 ): LeanIMTMerkleProof<bigint> {
-  const tree = new LeanIMT<bigint>((a, b) => poseidon([a, b]));
-
-  tree.insertMany(leaves);
-
   const leafIndex = tree.indexOf(leaf);
 
   // if leaf does not exist in tree, throw error
@@ -49,6 +55,17 @@ export function generateMerkleProof(
   }
 
   return proof;
+}
+
+/**
+ * Generates a Merkle inclusion proof for a given leaf by building the tree from
+ * scratch. Prefer {@link proofFromTree} against a cached tree in hot paths.
+ */
+export function generateMerkleProof(
+  leaves: bigint[],
+  leaf: bigint,
+): LeanIMTMerkleProof<bigint> {
+  return proofFromTree(buildMerkleTree(leaves), leaf);
 }
 
 export function calculateContext(withdrawal: WithdrawalPayload, scope: bigint): string {

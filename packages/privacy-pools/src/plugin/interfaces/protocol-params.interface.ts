@@ -7,7 +7,7 @@ import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { IAspService } from "../../data/asp.interface.js";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
-import { Address } from "../../interfaces/types.interface";
+import { Address, Label } from "../../interfaces/types.interface";
 import { DelegationConfig } from "../../interfaces/user-ops.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
@@ -288,6 +288,38 @@ export type INote = Pick<IDepositWithBalance,
   withdraw: number;
 };
 
+export interface IGetHistoryParams extends IBaseOperationParams {
+  assets?: Address[];
+}
+
+/**
+ * One of the user's deposits, withdrawals or ragequits.
+ * `value` is always the amount moved by the event: the amount credited to the
+ * pool for deposits (after the vetting fee), the withdrawn amount for
+ * withdrawals and the ragequitted amount for ragequits.
+ */
+export type PPv1HistoryEvent = {
+  transactionHash: bigint;
+  blockNumber: bigint;
+  logIndex: number;
+  timestamp: bigint;
+  poolAddress: Address;
+  assetAddress: Address;
+  value: bigint;
+} & (
+  | {
+      type: 'deposit';
+      depositor: Address;
+      label: Label;
+      aspStatus: 'pending' | 'approved';
+    }
+  | { type: 'withdrawal' }
+  | {
+      type: 'ragequit';
+      ragequitter: Address;
+    }
+);
+
 export type StateWithdrawalPayload = {
   withdrawalInfo: {
     context: bigint;
@@ -378,4 +410,10 @@ export interface IStateManager {
    * @param assets - Optional filter by specific assets
    */
   getNotes: (params: IGetNotesParams) => Promise<INote[]>;
+  /**
+   * Gets the account's deposits, withdrawals and ragequits, newest first.
+   * Fetches and caches transaction hashes and timestamps for events missing them.
+   * @param assets - Optional filter by specific assets
+   */
+  getHistory: (params: IGetHistoryParams) => Promise<PPv1HistoryEvent[]>;
 }

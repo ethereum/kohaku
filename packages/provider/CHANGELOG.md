@@ -1,5 +1,11 @@
 # @kohaku-eth/provider
 
+## 0.1.0-alpha.12
+
+### Patch Changes
+
+- 2b67d9a: `TxLog` now carries an optional `logIndex`, filled in by the ethers, viem and raw adapters (and so helios and colibri) and by the privacy-pools saga log source. Synced privacy-pools events store their real log index.
+
 ## 0.1.0-alpha.11
 
 ### Minor Changes

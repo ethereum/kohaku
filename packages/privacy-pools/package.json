@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/privacy-pools",
-  "version": "0.0.2-alpha.23",
+  "version": "0.1.0-alpha.26",
   "description": "Privacy Pools Shielded Pool Kohaku Plugin",
   "type": "module",
   "private": false,

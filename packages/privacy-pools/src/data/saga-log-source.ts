@@ -50,6 +50,7 @@ const toTxLog = (ev: CanonicalEvent): TxLog => ({
   data: ev.data,
   topics: ev.topics,
   blockNumber: BigInt(ev.blockNumber),
+  logIndex: Number(ev.logIndex),
 });
 
 // The leaf commitment inserted by an event, or null if it inserts none (ragequit).
