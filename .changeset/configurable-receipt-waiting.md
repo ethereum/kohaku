@@ -1,5 +1,5 @@
 ---
-"@kohaku-eth/provider": minor
+"@kohaku-eth/provider": patch
 ---
 
 Add configurable receipt polling to raw, Helios and Colibri providers and use
