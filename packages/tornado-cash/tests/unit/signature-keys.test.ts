@@ -38,16 +38,30 @@ describe('SignatureSecretManager', () => {
     const m = await makeManager();
     const base = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
 
-    const dump = {
-      nonce0: await m.getSignatureSecrets(base),
-      nonce1: await m.getSignatureSecrets({ ...base, nonce: 1 }),
-      poolB: await m.getSignatureSecrets({ ...base, poolAddress: POOL_B }),
-      signer: await m.deriveSignatureEphemeralSigner(base),
-    };
+    expect(await m.getSignatureSecrets(base)).toEqual({
+      nullifier: 243513652196482846569988620296567283902742833671828066165397219369791471057n,
+      salt: 1336957608560964470621852318124568339837727722332831502695858458458655549n,
+      commitment: 2823263685620274027570960193065946957882097171967499957808881382039617643700n,
+      nullifierHash: 19917761833196434300511869454597063921257095245957264498776051915008357275953n,
+    });
 
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(dump, (_k, v) => (typeof v === 'bigint' ? `${v}n` : v)));
-    expect(dump).toBeTruthy();
+    expect(await m.getSignatureSecrets({ ...base, nonce: 1 })).toEqual({
+      nullifier: 162886617080568309245962302058236097370488246196908149070244508045259312778n,
+      salt: 209555516252826120708038518638495278437019669987067466081615307507207732239n,
+      commitment: 21061937764946867162840854980272347148952721356809482716875892489037275278600n,
+      nullifierHash: 15907636629277902969929887774997297215198208035601585310305376454958485199042n,
+    });
+
+    expect(await m.getSignatureSecrets({ ...base, poolAddress: POOL_B })).toEqual({
+      nullifier: 150288618169297839527412924448000210829273772971988504445422790495112495801n,
+      salt: 332155856415238958203020165857800368974936220470970390986859858550210467581n,
+      commitment: 18567063957076074374328680459421178467128835671363284722018279100134808923755n,
+      nullifierHash: 13515560523494822932799544975836549098583699568020346555934837480835015907281n,
+    });
+
+    expect(await m.deriveSignatureEphemeralSigner(base)).toBe(
+      '0x00ee59f8f96abd0e16a944a2c595134a8469416ae5fd13c0b15a556b4dd4e6e5',
+    );
   });
 
   it('derives a secret whose preimage bytes are 31 bytes and differ by tag', async () => {
