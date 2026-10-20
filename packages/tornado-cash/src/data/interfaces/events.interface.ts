@@ -18,11 +18,14 @@ export interface IDepositEvent extends IPoolEvent {
 
 export interface IIndexedDepositEvent extends IDepositEvent {
   index: number;
+  /** Signature-scheme nonce. Set only for signature-derived notes. */
+  nonce?: number;
 }
 
 export type IIndexedDepositWithSecrets = IIndexedDepositEvent & Secret & (
   | { kind: 'derived'; depositIndex: number }
   | { kind: 'legacy' }
+  | { kind: 'signature'; nonce: number }
 );
 
 export interface IDepositWithAsset extends IIndexedDepositEvent {

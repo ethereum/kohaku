@@ -38,8 +38,15 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
   depositIndex: number;
 };
 
-export interface ISecretManager {
-  getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
+/** Global nonce plus the pool mixed in after the signature. */
+export type SignatureDeriveParams = BaseDeriveSecretParams & {
+  nonce: number;
+};
+
+/** BIP-32 HD derivation. Still scanned so notes created before signature
+ * secrets remain spendable. New deposits use {@link SignatureDeriveParams}. */
+export interface LegacySecretManager {
+  getLegacyDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
   deriveEphemeralSigner: (params: DeriveDepositSecretParams) => Promise<`0x${string}`>;
   /**
    * Derives a delegator key from a classical wallet BIP-32 `path`, WITHOUT the
@@ -54,6 +61,11 @@ export interface ISecretManager {
    * the note's own nullifier instead of a BIP-32 derivation.
    */
   deriveLegacyEphemeralSigner: (params: { nullifier: Nullifier }) => Promise<`0x${string}`>;
+}
+
+export interface ISecretManager extends LegacySecretManager {
+  getSignatureSecrets: (params: SignatureDeriveParams) => Promise<Secret>;
+  deriveSignatureEphemeralSigner: (params: SignatureDeriveParams) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -96,10 +108,15 @@ function coalesceSecret({ secret, chainId, poolAddress }: CoalesceSecretParams):
   );
 }
 
+/**
+ * @deprecated Legacy BIP-32 HD secret derivation. New deposits use
+ * {@link SignatureSecretManager}. Kept so notes created under this scheme are
+ * still discovered; the protocol default composes both.
+ */
 export async function SecretManager({
   host: { keystore },
   accountIndex = 0
-}: SecretManagerParams): Promise<ISecretManager> {
+}: SecretManagerParams): Promise<LegacySecretManager> {
   const deriveSecrets = async ({ chainId, poolAddress, depositIndex }: DeriveSecretsParams): Promise<Secret> => {
     // Promise.resolve handles both sync Hex (real keystore) and Promise<Hex> (Comlink proxy)
     const saltSecretRaw = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "salt", depositIndex })));
@@ -146,7 +163,7 @@ export async function SecretManager({
   };
 
   return {
-    getDepositSecrets: (params) => deriveSecrets(params),
+    getLegacyDepositSecrets: (params) => deriveSecrets(params),
     deriveEphemeralSigner,
     deriveDelegatorSigner,
     deriveLegacyEphemeralSigner,

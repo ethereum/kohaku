@@ -18,6 +18,7 @@ export const allNotesSelector = createSelector(
       timestamp: deposit.timestamp,
       leafIndex: deposit.leafIndex,
       depositIndex: deposit.index,
+      ...(deposit.nonce !== undefined ? { nonce: deposit.nonce } : {}),
       pool: deposit.pool,
     })),
 );
