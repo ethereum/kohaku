@@ -14,13 +14,19 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
 /**
  * How the ephemeral sender for a paymaster withdrawal is produced.
  *
- * - `deterministic` (default): recoverable — keyed by the withdrawn note's
- *   deposit index via the SecretManager, so a stuck sender can be swept.
+ * - `deterministic` (default): recoverable. Without `path`, an ephemeral sender
+ *   keyed by the withdrawn note (deposit/withdraw index) via the SecretManager —
+ *   recoverable by re-derivation, but not a wallet-visible address. With `path`,
+ *   a classical BIP-32 wallet-path key derived WITHOUT the privacy transform, so
+ *   it resolves to a recoverable, wallet-native address a stuck sender can be
+ *   swept from with standard tooling.
  * - `random`: a throwaway, unrecoverable EOA. Safe here because in the
  *   single-note flow the funds go straight to the recipient during paymaster
  *   validation and never sit in the sender.
  */
-export type DelegationConfig = { mode: "deterministic" } | { mode: "random" };
+export type DelegationConfig =
+  | { mode: "deterministic"; path?: string }
+  | { mode: "random" };
 
 export interface SerializedAuth {
   address: `0x${string}`;

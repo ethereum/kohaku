@@ -3,6 +3,7 @@ import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 import { Wallet } from 'ethers';
 import { createPublicClient, decodeFunctionData, encodeFunctionData, erc20Abi, http, parseEther, parseUnits, type Hex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { E_ADDRESS, PrivacyPoolsPaymasterConfigs } from '../../../src/config';
@@ -42,6 +43,16 @@ const FINAL_RECIPIENT = '0xfe0fe0fe0fe0fe0fe0fe0fe0fe0fe0fe0fe0fe01';
 const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 const TAIL_RECIPIENT_A = '0xaa00aa00aa00aa00aa00aa00aa00aa00aa00aa01';
 const TAIL_RECIPIENT_B = '0xbb00bb00bb00bb00bb00bb00bb00bb00bb00bb02';
+
+// A classical wallet BIP-32 path. A high, unused index so the derived delegator
+// address starts fresh (nonce 0, empty) — it must sign a new EIP-7702 authorization.
+const WALLET_PATH = "m/44'/60'/0'/0/50";
+
+// USDT — a third, distinct asset so this test's deterministic deposit note never
+// collides with the native-ETH (test 1) or USDC (test 2) notes, which would
+// otherwise re-derive the same already-spent note from the shared baseline state.
+const USDT = '0xdac17f958d2ee523a2206206994597c13d831ec7';
+const USDT_BALANCE_SLOT = 2;
 
 describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundler, real prover)', () => {
   let anvil: AnvilInstance;
@@ -278,6 +289,109 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
     expect(a1 - a0).toBeGreaterThan(TRANSFER_A);
     expect(a1 - a0).toBeLessThan(WITHDRAW_AMOUNT);
     expect(b1 - b0).toBe(TRANSFER_B);
+    expect(approvedAfter).toBe(approvedBefore - WITHDRAW_AMOUNT);
+  });
+
+  it('[paymaster] derives the batch delegator from an integrator-supplied wallet path', { timeout: 300_000 }, async () => {
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+    const provider = await pool.getProvider();
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+    const rpc = createPublicClient({ transport: http(pool.rpcUrl) });
+    const usdtAsset = ERC20Asset(USDT);
+
+    const paymasterConfig: IChainsPaymastersConfig = {
+      1: { ...PrivacyPoolsPaymasterConfigs[1]!, bundlerUrl: bundlerRpcUrl },
+    };
+
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: () => Prover(),
+      aspServiceFactory: () => mockAspService,
+      relayersList: {},
+      paymasterConfig,
+    });
+
+    const broadcaster = new PrivacyPoolsBroadcaster({ host, broadcasterUrl: { default: 'http://unused' } });
+
+    const DEPOSIT_AMOUNT = parseUnits('300', 6); // USDT, 6 decimals
+    const WITHDRAW_AMOUNT = parseUnits('200', 6);
+    const FORWARD_AMOUNT = parseUnits('50', 6); // safely below WITHDRAW_AMOUNT - fee
+
+    const usdtBalance = (address: string) =>
+      rpc.readContract({ address: USDT, abi: erc20Abi, functionName: 'balanceOf', args: [address as `0x${string}`] });
+
+    // 1. Fund + approve + deposit USDT.
+    await fundAccountWithERC20(pool.rpcUrl, USDT, alice.address, DEPOSIT_AMOUNT, USDT_BALANCE_SLOT);
+    expect((await approveERC20(alice, USDT, addressToHex(ENTRYPOINT_ADDRESS), DEPOSIT_AMOUNT))?.status).toBe(1);
+
+    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
+
+    expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
+    await pool.mine(1);
+
+    // 2. Approve the note via the mock ASP.
+    const [note] = await protocol.notes([usdtAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(
+      pool.rpcUrl,
+      '0x' + ENTRYPOINT_ADDRESS.toString(16),
+      '0x' + BigInt(postman).toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID },
+    );
+
+    const approvedBefore = unwrapBalance(await protocol.balance([usdtAsset]), usdtAsset).approved?.amount ?? 0n;
+
+    expect(approvedBefore).toBeGreaterThanOrEqual(WITHDRAW_AMOUNT);
+
+    // The delegator the integrator's wallet path must resolve to: the raw keystore
+    // key (no privacy transform), so it's recoverable by the user's own wallet.
+    const expectedDelegator = privateKeyToAccount(await host.keystore.deriveAt(WALLET_PATH)).address;
+
+    // The paymaster flow signs the 7702 authorization with nonce 0, modeling a
+    // fresh, dedicated delegator path. On a mainnet fork this derived address can
+    // carry real history, so align the fork account to that precondition.
+    await provider.send('anvil_setNonce', [expectedDelegator, '0x0']);
+
+    // 3. A tail-call withdrawal whose batch delegator is pinned to a classical
+    //    wallet path via `delegation`. The adapter pays the sender; the tail call
+    //    forwards part of it to a fresh recipient as an ERC20 transfer.
+    const op = await protocol.prepareUnshield(
+      { asset: usdtAsset, amount: WITHDRAW_AMOUNT },
+      FINAL_RECIPIENT as AccountId,
+      {
+        mode: 'paymaster',
+        delegation: { mode: 'deterministic', path: WALLET_PATH },
+        tailCalls: async () => [{
+          to: USDT,
+          value: 0n,
+          data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [FINAL_RECIPIENT, FORWARD_AMOUNT] }),
+        }],
+      },
+    );
+
+    if (op.mode !== 'paymaster') throw new Error('expected paymaster operation');
+
+    // The userOp sender IS the wallet-path delegator — the `path` threaded all the
+    // way from the integrator option down to `deriveDelegatorSigner`.
+    expect(op.withdrawal.userOperation.sender.toLowerCase()).toBe(expectedDelegator.toLowerCase());
+
+    const recipientBefore = await usdtBalance(FINAL_RECIPIENT);
+
+    // 4. Broadcast + mine — the wallet-path delegator signs the 7702 auth + userOp.
+    await broadcaster.broadcast(op);
+    await pool.mine(1);
+
+    // 5. The withdrawal landed at the recipient and the note was spent — the
+    //    wallet-path delegator held the funds transiently and forwarded them.
+    const recipientAfter = await usdtBalance(FINAL_RECIPIENT);
+    const approvedAfter = unwrapBalance(await protocol.balance([usdtAsset]), usdtAsset).approved?.amount ?? 0n;
+
+    expect(recipientAfter - recipientBefore).toBeGreaterThan(FORWARD_AMOUNT);
+    expect(recipientAfter - recipientBefore).toBeLessThan(WITHDRAW_AMOUNT);
     expect(approvedAfter).toBe(approvedBefore - WITHDRAW_AMOUNT);
   });
 });

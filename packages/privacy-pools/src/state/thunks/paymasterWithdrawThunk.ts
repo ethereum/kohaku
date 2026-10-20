@@ -29,6 +29,16 @@ import { entrypointInfoSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
 import { WithdrawProveOutput, WithdrawThunkParams, withdrawThunk } from "./withdrawThunk";
 
+// A BIP-32 path: `m` followed by one or more `/index` segments, each optionally
+// hardened with a trailing apostrophe (e.g. m/44'/60'/0'/0/0).
+const BIP32_PATH = /^m(\/\d+'?)+$/;
+
+function assertValidDelegatorPath(path: string): void {
+  if (!BIP32_PATH.test(path)) {
+    throw new Error(`Invalid delegation path "${path}": expected a BIP-32 path like m/44'/60'/0'/0/0`);
+  }
+}
+
 export interface PaymasterWithdrawThunkParams {
   getNextNote: WithdrawThunkParams["getNextNote"];
   proverFactory: () => ReturnType<typeof Prover>;
@@ -309,6 +319,12 @@ async function resolveSigner({
 }): Promise<DelegatorAccount> {
   if (delegation?.mode === "random") {
     return privateKeyToAccount(generatePrivateKey());
+  }
+
+  if (delegation?.mode === "deterministic" && delegation.path) {
+    assertValidDelegatorPath(delegation.path);
+
+    return privateKeyToAccount(await secretManager.deriveDelegatorSigner({ path: delegation.path }));
   }
 
   return privateKeyToAccount(
