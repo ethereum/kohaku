@@ -1,5 +1,5 @@
 import { Keystore } from '@kohaku-eth/plugins';
-import { bytesToHex, bytesToNumberLE, numberToBytesLE } from '@noble/curves/utils.js';
+import { bytesToHex, bytesToNumberLE } from '@noble/curves/utils.js';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   concat,
@@ -19,20 +19,20 @@ import { pedersenHash } from '../utils/proof.util';
 import { Secret, SecretManagerParams, SignatureDeriveParams } from './keys';
 
 /** Signature-derived secrets for Tornado Cash. One deterministic EIP-712
- * signature per nonce (the domain does not bind a pool); each pool is mixed
- * in afterwards:
+ * signature per (nonce, chain). The domain binds the chain and not a pool;
+ * each pool is mixed in afterwards:
  *
- *   σ         = sign(TornadoCashNote(nonce))
- *   rs        = r(32) ‖ lowS(s)(32)   // big-endian, low-s, v dropped
- *   nullifier = trunc31(keccak256("nullifier" ‖ chainId_le ‖ pool ‖ rs))
- *   secret    = trunc31(keccak256("secret"    ‖ chainId_le ‖ pool ‖ rs))
+ *   σ         = sign(TornadoCashNote(nonce))  // domain.chainId = chain
+ *   rs        = r(32) ‖ lowS(s)(32)           // big-endian, low-s, v dropped
+ *   nullifier = trunc31(keccak256("nullifier" ‖ pool ‖ rs))
+ *   secret    = trunc31(keccak256("secret"    ‖ pool ‖ rs))
  *
  * `rs` follows the Privacy Pools canonical-(r, s) layout so software and
  * hardware signers agree. The 31-byte digests are the Pedersen preimage
  * bytes (little-endian bigint in {@link Secret}).
  */
 
-/** keccak256("tornado"), matching kohaku-rs `DOMAIN.salt`. */
+/** keccak256("tornado"), matching kohaku-rs `DOMAIN_SALT`. */
 export const TORNADO_DOMAIN_SALT = keccak256(stringToBytes('tornado'));
 
 const SIGNATURE_SCHEME_PATH = "m/29795'/1'";
@@ -61,11 +61,10 @@ function canonicalRS(sig: Hex): Uint8Array {
   return concat([toBytes(r, { size: 32 }), toBytes(sLow, { size: 32 })]);
 }
 
-/** First 31 bytes of `keccak256(tag ‖ chainId_le_u64 ‖ pool_be_20 ‖ rs)`. */
-function trunc31(tag: string, chainId: bigint, poolAddress: bigint, sig: Hex): Uint8Array {
+/** First 31 bytes of `keccak256(tag ‖ pool_be_20 ‖ rs)`. Chain id is in the domain. */
+function trunc31(tag: string, poolAddress: bigint, sig: Hex): Uint8Array {
   const digest = keccak256(concat([
     stringToBytes(tag),
-    numberToBytesLE(chainId, 8),
     toBytes(poolAddress, { size: 20 }),
     canonicalRS(sig),
   ]));
@@ -77,11 +76,12 @@ export interface EnvelopeSigner {
   signEnvelope(envelope: NoteEnvelope): Promise<Hex>;
 }
 
-function buildNoteEnvelope(nonce: number): NoteEnvelope {
+function buildNoteEnvelope(nonce: number, chainId: bigint): NoteEnvelope {
   return {
     domain: {
       name: 'TornadoCash Keychain',
       version: '1',
+      chainId,
       salt: TORNADO_DOMAIN_SALT,
     },
     types: NOTE_TYPES,
@@ -118,27 +118,28 @@ export async function SignatureSecretManager({
   signer,
 }: SignatureSecretManagerParams): Promise<SignatureSecretSource> {
   const envelopeSigner = signer ?? new KeystoreEnvelopeSigner(host.keystore, accountIndex);
-  const sigCache = new Map<number, Promise<Hex>>();
+  const sigCache = new Map<string, Promise<Hex>>();
 
-  const signNonce = (nonce: number): Promise<Hex> => {
-    const hit = sigCache.get(nonce);
+  const signNonce = (nonce: number, chainId: bigint): Promise<Hex> => {
+    const key = `${chainId}:${nonce}`;
+    const hit = sigCache.get(key);
 
     if (hit) return hit;
 
-    const pending = envelopeSigner.signEnvelope(buildNoteEnvelope(nonce)).catch((err) => {
-      sigCache.delete(nonce);
+    const pending = envelopeSigner.signEnvelope(buildNoteEnvelope(nonce, chainId)).catch((err) => {
+      sigCache.delete(key);
       throw err;
     });
 
-    sigCache.set(nonce, pending);
+    sigCache.set(key, pending);
 
     return pending;
   };
 
   const getSignatureSecrets = async ({ nonce, chainId, poolAddress }: SignatureDeriveParams): Promise<Secret> => {
-    const sig = await signNonce(nonce);
-    const nullifierBytes = trunc31('nullifier', chainId, poolAddress, sig);
-    const secretBytes = trunc31('secret', chainId, poolAddress, sig);
+    const sig = await signNonce(nonce, chainId);
+    const nullifierBytes = trunc31('nullifier', poolAddress, sig);
+    const secretBytes = trunc31('secret', poolAddress, sig);
     const preimage = new Uint8Array(62);
 
     preimage.set(nullifierBytes, 0);
@@ -153,8 +154,8 @@ export async function SignatureSecretManager({
   };
 
   const deriveSignatureEphemeralSigner = async ({ nonce, chainId, poolAddress }: SignatureDeriveParams) => {
-    const sig = await signNonce(nonce);
-    const key = trunc31('signer', chainId, poolAddress, sig);
+    const sig = await signNonce(nonce, chainId);
+    const key = trunc31('signer', poolAddress, sig);
 
     return `0x00${bytesToHex(key)}` as `0x${string}`;
   };

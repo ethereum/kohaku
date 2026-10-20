@@ -115,7 +115,7 @@ describe('SignatureSecretManager', () => {
     expect(high).toEqual(low);
   });
 
-  it('caches the signature per nonce across pools and ephemeral-signer calls', async () => {
+  it('caches the signature per chain and nonce across pools and ephemeral-signer calls', async () => {
     const host = createMockHost();
     const inner = new KeystoreEnvelopeSigner(host.keystore, 0);
     let calls = 0;
@@ -135,9 +135,13 @@ describe('SignatureSecretManager', () => {
 
     expect(calls).toBe(1);
 
-    await m.getSignatureSecrets({ ...params, nonce: 8 });
+    await m.getSignatureSecrets({ ...params, chainId: CHAIN_ID + 1n });
 
     expect(calls).toBe(2);
+
+    await m.getSignatureSecrets({ ...params, nonce: 8 });
+
+    expect(calls).toBe(3);
   });
 
   it('does not cache a failed signature (stays retryable)', async () => {
