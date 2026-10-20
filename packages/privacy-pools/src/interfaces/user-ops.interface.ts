@@ -79,6 +79,13 @@ export interface BuildSignedUserOpParams {
   /** EntryPoint nonce for this sender. Defaults to 0 (fresh single-use EOA). */
   nonce?: bigint;
   /**
+   * EOA transaction-count nonce the EIP-7702 authorization binds to. Defaults to
+   * `nonce` (0 for a fresh single-use sender). A reused wallet-path delegator has
+   * a nonzero transaction count, so the authorization must bind to its real nonce
+   * or the bundler rejects it — this is distinct from the EntryPoint `nonce` above.
+   */
+  authorizationNonce?: bigint;
+  /**
    * Optional execution-phase calls run by the Simple7702 sender after the
    * withdrawal (which pays the sender during validation). Empty → callData `0x`;
    * one call → `execute`; many → `executeBatch`.

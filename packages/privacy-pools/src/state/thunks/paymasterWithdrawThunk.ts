@@ -142,6 +142,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       withdrawIndex: sponsoring!.note.withdraw,
     });
 
+    // A wallet-path delegator can be a reused EOA with a nonzero transaction
+    // count, which the 7702 authorization must bind to. Ephemeral/random senders
+    // are fresh single-use EOAs (nonce 0), so we skip the RPC and let the auth
+    // default to 0 — keeping that hot path RPC-free.
+    const authorizationNonce =
+      delegation?.mode === "deterministic" && delegation.path
+        ? BigInt(await dataService.getTransactionCount(signer.address))
+        : undefined;
+
     const payoutRecipient = hasExecutionPhase ? signer.address : addressToHex(recipient);
 
     // Where the paymaster sends the gas-overcharge refund in postOp: the caller-supplied
@@ -249,6 +258,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         maxFeePerGas,
         maxPriorityFeePerGas,
         nonce: 0n,
+        authorizationNonce,
         tailCalls: hasExecutionPhase ? executionCalls(fee) : undefined,
       });
 

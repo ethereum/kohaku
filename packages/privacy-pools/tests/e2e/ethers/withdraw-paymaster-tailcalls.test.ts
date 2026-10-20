@@ -294,7 +294,6 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
 
   it('[paymaster] derives the batch delegator from an integrator-supplied wallet path', { timeout: 300_000 }, async () => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
-    const provider = await pool.getProvider();
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
     const rpc = createPublicClient({ transport: http(pool.rpcUrl) });
     const usdtAsset = ERC20Asset(USDT);
@@ -349,12 +348,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
 
     // The delegator the integrator's wallet path must resolve to: the raw keystore
     // key (no privacy transform), so it's recoverable by the user's own wallet.
+    // On a mainnet fork this derived address carries a real, nonzero transaction
+    // count — the flow fetches it on the fly and binds the 7702 auth to it.
     const expectedDelegator = privateKeyToAccount(await host.keystore.deriveAt(WALLET_PATH)).address;
-
-    // The paymaster flow signs the 7702 authorization with nonce 0, modeling a
-    // fresh, dedicated delegator path. On a mainnet fork this derived address can
-    // carry real history, so align the fork account to that precondition.
-    await provider.send('anvil_setNonce', [expectedDelegator, '0x0']);
 
     // 3. A tail-call withdrawal whose batch delegator is pinned to a classical
     //    wallet path via `delegation`. The adapter pays the sender; the tail call
