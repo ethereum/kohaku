@@ -82,12 +82,12 @@ export const withdrawThunk = createAsyncThunk<
       stateIndex: BigInt(stateMerkleProof.index),
       stateRoot: stateMerkleProof.root,
       stateSiblings: stateMerkleProof.siblings,
-      stateTreeDepth: 2n,
+      stateTreeDepth: 32n,
 
       ASPIndex: BigInt(aspMerkleProof.index),
       ASPRoot: aspMerkleProof.root,
       ASPSiblings: aspMerkleProof.siblings,
-      ASPTreeDepth: 2n,
+      ASPTreeDepth: 32n,
     });
   },
 );
