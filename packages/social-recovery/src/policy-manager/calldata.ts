@@ -51,9 +51,19 @@ export function commitSetupData(action: Address, setupCommitment: Hex, nonce: bi
   });
 }
 
-/** `clearSetup(action)` or `cancelByOwner(action)` calldata. */
-export const ownerCallData = (functionName: 'clearSetup' | 'cancelByOwner', action: Address): Hex =>
-  encodeFunctionData({ abi: POLICY_MANAGER_WRITES_ABI, functionName, args: [action] });
+/** `clearSetup(action, nonce)` calldata. */
+export function clearSetupData(action: Address, nonce: bigint): Hex {
+  assertUintBigint(nonce, FORMATS_SETUP_NONCE_BITS, 'nonce');
+
+  return encodeFunctionData({ abi: POLICY_MANAGER_WRITES_ABI, functionName: 'clearSetup', args: [action, nonce] });
+}
+
+/** `cancelByOwner(action, attemptId)` calldata. */
+export function cancelByOwnerData(action: Address, attemptId: bigint): Hex {
+  assertUintBigint(attemptId, FORMATS_ATTEMPT_ID_BITS, 'attemptId');
+
+  return encodeFunctionData({ abi: POLICY_MANAGER_WRITES_ABI, functionName: 'cancelByOwner', args: [action, attemptId] });
+}
 
 /** `cancelByVeto(account, action, attemptId, method)` calldata. */
 export function cancelByVetoData(account: Address, action: Address, attemptId: bigint, method: unknown): Hex {

@@ -6,11 +6,19 @@ import { describe, expect, it } from 'vitest';
 
 const VECTORS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'vectors');
 const PROVENANCE_PATH = join(VECTORS_DIR, 'PROVENANCE.md');
-/** The commit of defi-wonderland/mast-social-recovery-2 the vectors are byte-for-byte copies from. */
-const SOURCE_COMMIT = '2a12948d47881f43bbe32f3c4b3b82dbdc89efdd';
 const EXPECTED_FILE_COUNT = 22;
 
+type Source = { readonly repository: string; readonly commit: string; readonly count: number };
+
+/** The two sources the copies come from, each with the commit copied and how many files it supplied. */
+const SOURCES: readonly Source[] = [
+  { repository: 'defi-wonderland/mast-social-recovery-2', commit: '2a12948d47881f43bbe32f3c4b3b82dbdc89efdd', count: 13 },
+  { repository: 'defi-wonderland/social-recovery-contracts', commit: '0b7073a486943e7104de8a884d47f4fd65d5a6c5', count: 9 },
+];
+
 type ListedFile = { readonly name: string; readonly sha256: string };
+
+type Block = { readonly text: string; readonly files: readonly ListedFile[] };
 
 const ROW = /^\|\s*`([^`]+\.json)`\s*\|\s*`([0-9a-f]{64})`\s*\|\s*$/;
 
@@ -30,19 +38,44 @@ const parseTable = (markdown: string): ListedFile[] => {
   return rows;
 };
 
+/** The `## Source` sections of the provenance file, in their order, each with its own table. */
+const parseBlocks = (markdown: string): Block[] =>
+  markdown
+    .split(/^## /m)
+    .slice(1)
+    .filter((section) => section.startsWith('Source'))
+    .map((text) => ({ text, files: parseTable(text) }));
+
 const sha256Of = (path: string): string =>
   createHash('sha256').update(readFileSync(path)).digest('hex');
 
 const provenance = readFileSync(PROVENANCE_PATH, 'utf8');
-const listed = parseTable(provenance);
+const blocks = parseBlocks(provenance);
+const listed = blocks.flatMap((block) => block.files);
 
 describe('blessed vector copies (PROVENANCE.md)', () => {
-  it('names the source repository and commit', () => {
-    expect(provenance).toContain('defi-wonderland/mast-social-recovery-2');
-    expect(provenance).toContain(SOURCE_COMMIT);
+  it('holds one source block per source, in order, and no table row outside them', () => {
+    expect(blocks).toHaveLength(SOURCES.length);
+    expect(parseTable(provenance)).toEqual(listed);
   });
 
-  it('lists every copied file exactly once', () => {
+  it.each(SOURCES.map((source, index) => [source.repository, source, index] as const))(
+    'the %s block names its repository and commit and lists its files',
+    (_repository, source, index) => {
+      const block = blocks[index];
+
+      expect(block?.text).toContain(`Source repository: \`${source.repository}\``);
+      expect(block?.text).toContain(`Source commit: \`${source.commit}\``);
+      expect(block?.files).toHaveLength(source.count);
+    },
+  );
+
+  it('names each source commit in its own block only', () => {
+    expect(blocks[0]?.text).not.toContain(SOURCES[1]?.commit);
+    expect(blocks[1]?.text).not.toContain(SOURCES[0]?.commit);
+  });
+
+  it('lists every copied file exactly once across both blocks', () => {
     // Guard against a vacuous pass from an empty or mis-parsed table.
     expect(listed).toHaveLength(EXPECTED_FILE_COUNT);
     expect(new Set(listed.map((row) => row.name)).size).toBe(listed.length);

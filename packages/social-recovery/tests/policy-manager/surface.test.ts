@@ -74,8 +74,8 @@ describe('what the part reads, over every member', () => {
       [() => part.trustedParties(METHOD), 1],
       [() => part.moduleInfo(METHOD), 3],
       [() => part.prepareCommitSetup(ACTION, `0x${'11'.repeat(32)}`, 1n, '0x', '0x'), 0],
-      [() => part.prepareClearSetup(ACTION), 0],
-      [() => part.prepareCancelByOwner(ACTION), 0],
+      [() => part.prepareClearSetup(ACTION, 1n), 0],
+      [() => part.prepareCancelByOwner(ACTION, 1n), 0],
       [() => part.prepareCancelByVeto(ACCOUNT, ACTION, 1n, METHOD), 0],
     ];
 

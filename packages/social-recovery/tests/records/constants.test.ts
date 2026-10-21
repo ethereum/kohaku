@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BODY_ENCODER_KEY, DIGEST_VERSION, POLICY_METHOD_VERIFY_ABI, VERDICT_MAGIC_VALUE } from '../../src/index';
 import { keccak256Text, selectorOf } from '../helpers/keccak';
+import { readVector } from '../kat/read-vector';
 import { loadRecords, type RecordContext } from '../helpers/records';
 
 const CONSTANTS = ['DIGEST_VERSION', 'BODY_ENCODER_KEY', 'POLICY_METHOD_VERIFY_ABI', 'VERDICT_MAGIC_VALUE'] as const;
@@ -86,6 +87,17 @@ describe('POLICY_METHOD_VERIFY_ABI', () => {
 
     expect(signature).toBe(VERIFY_SIGNATURE);
     expect(VERDICT_MAGIC_VALUE.slice(0, 10).toLowerCase()).toBe(selectorOf(signature));
+  });
+});
+
+describe('the copied method-verdict vector', () => {
+  it('row magic names the verify signature, and its selector and word are VERDICT_MAGIC_VALUE', () => {
+    const row = readVector('method-verdict.json').vectors.find((candidate) => candidate['id'] === 'magic');
+    const expected = row?.expected as { readonly selector: string; readonly abiWord: string } | undefined;
+
+    expect(row?.input['signature']).toBe(VERIFY_SIGNATURE);
+    expect(expected?.selector).toBe(selectorOf(VERIFY_SIGNATURE));
+    expect(expected?.abiWord.toLowerCase()).toBe(VERDICT_MAGIC_VALUE.toLowerCase());
   });
 });
 

@@ -40,24 +40,26 @@ function requireCanonical(bytes: Hex, encoded: Hex, name: string): void {
 }
 
 export function encodeConfig(fields: Fields): Hex {
-  const [nullifierField, seedField] = METHOD_AADHAAR_CONFIG_FIELDS;
+  const [nullifierField, seedField, windowField] = METHOD_AADHAAR_CONFIG_FIELDS;
 
   requireOnly(fields, METHOD_AADHAAR_CONFIG_FIELDS, METHOD_AADHAAR_CONFIG_NAME);
 
   const nullifier = requireWord(fields[nullifierField], nullifierField);
   const nullifierSeed = requireWord(fields[seedField], seedField);
+  const freshnessWindow = requireWord(fields[windowField], windowField);
 
-  return encodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, [nullifier, nullifierSeed]);
+  return encodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, [nullifier, nullifierSeed, freshnessWindow]);
 }
 
 export function decodeConfig(config: Hex): AadhaarConfig {
   requireBytes(config, METHOD_AADHAAR_CONFIG_BYTES, METHOD_AADHAAR_CONFIG_NAME);
 
-  const [nullifier, nullifierSeed] = decodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, config);
+  const [nullifier, nullifierSeed, freshnessWindow] = decodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, config);
+  const encoded = encodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, [nullifier, nullifierSeed, freshnessWindow]);
 
-  requireCanonical(config, encodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, [nullifier, nullifierSeed]), METHOD_AADHAAR_CONFIG_NAME);
+  requireCanonical(config, encoded, METHOD_AADHAAR_CONFIG_NAME);
 
-  return { nullifier, nullifierSeed };
+  return { nullifier, nullifierSeed, freshnessWindow };
 }
 
 export function encodeProof(fields: Fields): Hex {

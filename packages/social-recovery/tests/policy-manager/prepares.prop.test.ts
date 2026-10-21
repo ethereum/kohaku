@@ -10,8 +10,8 @@ import { runAsync } from './runs';
 /** The manager's four plain writes, parsed by viem from hand-written declarations. */
 const WRITES_ABI = parseAbi([
   'function commitSetup(address action, bytes32 setupCommitment, uint64 nonce, bytes publicMetadata, bytes privateMetadata)',
-  'function clearSetup(address action)',
-  'function cancelByOwner(address action)',
+  'function clearSetup(address action, uint64 nonce)',
+  'function cancelByOwner(address action, uint64 attemptId)',
   'function cancelByVeto(address account, address action, uint64 attemptId, address method)',
 ]);
 
@@ -54,15 +54,16 @@ describe('each prepare decodes back to its arguments', () => {
     );
   }, TIMEOUT);
 
-  it('prepareClearSetup and prepareCancelByOwner round-trip the bound action', async () => {
+  it('prepareClearSetup and prepareCancelByOwner round-trip the bound action and every in-width second word', async () => {
     await runAsync(
-      fc.asyncProperty(spelled, fc.constantFrom('prepareClearSetup', 'prepareCancelByOwner'), async (action, member) => {
-        const call = await partFor(new ProviderDouble(), MANAGER, action.spelling)[member](action.spelling);
+      fc.asyncProperty(spelled, fc.constantFrom('prepareClearSetup', 'prepareCancelByOwner'), uint(64), async (action, member, second) => {
+        const call = await partFor(new ProviderDouble(), MANAGER, action.spelling)[member](action.spelling, second);
 
         expect(decoded(call.data)).toEqual({
           functionName: member === 'prepareClearSetup' ? 'clearSetup' : 'cancelByOwner',
-          args: [getAddress(action.raw)],
+          args: [getAddress(action.raw), second],
         });
+        expect(call.sender).toBe('account');
       }),
     );
   }, TIMEOUT);
@@ -74,6 +75,8 @@ describe('each prepare decodes back to its arguments', () => {
 
         await expect(part.prepareCommitSetup(MANAGER, `0x${'11'.repeat(32)}`, wide, '0x', '0x')).rejects.toThrow();
         await expect(part.prepareCancelByVeto(MANAGER, MANAGER, wide, MANAGER)).rejects.toThrow();
+        await expect(part.prepareClearSetup(MANAGER, wide)).rejects.toThrow(RangeError);
+        await expect(part.prepareCancelByOwner(MANAGER, wide)).rejects.toThrow(RangeError);
       }),
     );
   }, TIMEOUT);

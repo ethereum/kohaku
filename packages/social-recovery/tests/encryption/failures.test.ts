@@ -203,11 +203,11 @@ describe('a plaintext beyond the padding is refused', () => {
     expect(error.plaintextSize).toBe(BACKUP_PADDING_SIZE + 3);
   });
 
-  it('refuses eight credentials at the blessed zkPassport width', async () => {
-    const credentials = Array.from({ length: 8 }, () => ({ method: METHOD_ZKPASSPORT, config: ZKPASSPORT_CONFIG_BLESSED }));
+  it('refuses nine credentials at the blessed zkPassport width', async () => {
+    const credentials = Array.from({ length: 9 }, () => ({ method: METHOD_ZKPASSPORT, config: ZKPASSPORT_CONFIG_BLESSED }));
     const error = await refused({ clauses: [{ threshold: 1, credentials }], wait: 60, ignoresPause: false });
 
-    expect(error.plaintextSize).toBe(9 + 3 + 8 * (20 + 2 + 288 + 1));
+    expect(error.plaintextSize).toBe(9 + 3 + 9 * (20 + 2 + 256 + 1));
   });
 
 });

@@ -70,6 +70,7 @@ export type KitNotification =
       readonly action: Address;
       readonly attemptId: bigint;
       readonly canceller: Address;
+      /** The contracts name this field `stoppedMethod`. */
       readonly vetoingMethod: Address;
       /** Derived rather than decoded. */
       readonly cancelledBy: CancelledBy;

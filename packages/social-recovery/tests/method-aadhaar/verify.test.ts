@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Hex } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import type { ProofWords, Signals } from './fixtures';
-import { configBytes, ctxFor, nine, proofBytes, proofRow, signalsFor, stackDouble } from './fixtures';
+import { configBytes, configRow, ctxFor, MIN_FRESHNESS_WINDOW, nine, proofBytes, proofRow, signalsFor, stackDouble } from './fixtures';
 
 const DIGEST: Hex = `0x${'ab'.repeat(32)}`;
 const NULLIFIER = 1234n;
@@ -55,6 +55,44 @@ describe('bindings refused without any stack call', () => {
   });
 });
 
+describe('the static checks the method makes without a clock', () => {
+  it.each([
+    ['ageAbove18', { ageAbove18: 1n }],
+    ['gender', { gender: 77n }],
+    ['pincode', { pincode: 110_001n }],
+    ['state', { state: 1n }],
+  ])('a proof disclosing %s is rejected without any stack call', async (_field, overrides) => {
+    const double = stackDouble({ verify: true });
+
+    expect(await anonAadhaarMethod({ stack: double.stack }).verify(CTX, proofWith(overrides))).toBe('rejected');
+    expect(double.total()).toBe(0);
+  });
+
+  it.each([0n, 1n, MIN_FRESHNESS_WINDOW - 1n])('a config whose window is %s seconds, under one hour, is rejected without any stack call', async (window) => {
+    const double = stackDouble({ verify: true });
+    const ctx = ctxFor(configBytes(NULLIFIER, SEED, window), DIGEST);
+
+    expect(await anonAadhaarMethod({ stack: double.stack }).verify(ctx, proofWith())).toBe('rejected');
+    expect(double.total()).toBe(0);
+  });
+
+  it.each([MIN_FRESHNESS_WINDOW, 4_500n, (1n << 256n) - 1n])('a config whose window is %s seconds is judged by the stack', async (window) => {
+    const double = stackDouble({ verify: true });
+    const ctx = ctxFor(configBytes(NULLIFIER, SEED, window), DIGEST);
+
+    expect(await anonAadhaarMethod({ stack: double.stack }).verify(ctx, proofWith())).toBe('satisfied');
+    expect(double.verifyCalls).toHaveLength(1);
+  });
+
+  it('the two-word config of the earlier layout is rejected without any stack call', async () => {
+    const double = stackDouble({ verify: true });
+    const twoWords = configBytes(NULLIFIER, SEED).slice(0, 2 + 2 * 64) as Hex;
+
+    expect(await anonAadhaarMethod({ stack: double.stack }).verify(ctxFor(twoWords, DIGEST), proofWith())).toBe('rejected');
+    expect(double.total()).toBe(0);
+  });
+});
+
 describe('a consistent proof', () => {
   it('with no stack is not-judged', async () => {
     expect(await anonAadhaarMethod().verify(CTX, proofWith())).toBe('not-judged');
@@ -98,10 +136,19 @@ describe('a consistent proof', () => {
 });
 
 describe('the blessed proof row', () => {
-  it('binds under its own config and digest: not-judged with no stack, rejected under another seed', async () => {
-    const bound = ctxFor(configBytes(22n, 77n), proofRow.input.digest);
+  it('binds under the blessed config and its digest: not-judged with no stack, satisfied by a stack answering true', async () => {
+    const bound = ctxFor(configRow.expected.encoded, proofRow.input.digest);
+    const double = stackDouble({ verify: true });
 
     expect(await anonAadhaarMethod().verify(bound, proofRow.expected.encoded)).toBe('not-judged');
-    expect(await anonAadhaarMethod().verify(ctxFor(configBytes(22n, 78n), proofRow.input.digest), proofRow.expected.encoded)).toBe('rejected');
+    expect(await anonAadhaarMethod({ stack: double.stack }).verify(bound, proofRow.expected.encoded)).toBe('satisfied');
+    expect(double.verifyCalls).toHaveLength(1);
+  });
+
+  it('is rejected under another seed and under a window below one hour', async () => {
+    const digest = proofRow.input.digest;
+
+    expect(await anonAadhaarMethod().verify(ctxFor(configBytes(22n, 78n, 4_500n), digest), proofRow.expected.encoded)).toBe('rejected');
+    expect(await anonAadhaarMethod().verify(ctxFor(configBytes(22n, 77n, 3_599n), digest), proofRow.expected.encoded)).toBe('rejected');
   });
 });

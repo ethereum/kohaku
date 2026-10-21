@@ -42,6 +42,7 @@ export interface IRecoveryClient {
   prepareStartAttempt(request: AttemptRequest, now: Moment, options?: PrepareOptions): Promise<PreparedCall>;
   /** Throws when it refuses. */
   prepareCancelByProofs(request: CancelRequest, now: Moment, options?: PrepareOptions): Promise<PreparedCall>;
+  /** Throws when it refuses. */
   prepareCancelByOwner(): Promise<PreparedCall>;
   /** Throws when it refuses. */
   prepareCancelByVeto(method: Address, options?: PrepareOptions): Promise<PreparedCall>;

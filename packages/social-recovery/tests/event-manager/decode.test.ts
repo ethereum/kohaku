@@ -303,6 +303,21 @@ describe('decodeLog: an owned log whose bytes do not fit the layout (throws)', (
     expect(() => reader.decodeLog(indexed)).toThrow();
   });
 
+  it('an AdminRenounced whose previous admin sits in the data rather than its topic throws', () => {
+    const unindexed = rawLog(METHOD_AADHAAR, [TOPIC0.AdminRenounced], `0x${'00'.repeat(12)}${STRANGER.slice(2)}` as Hex);
+
+    expect(() => reader.decodeLog(unindexed)).toThrow();
+  });
+
+  it('an AdminRenounced with the previous admin as its one indexed topic decodes', () => {
+    const indexed = rawLog(METHOD_AADHAAR, [TOPIC0.AdminRenounced, `0x${'00'.repeat(12)}${STRANGER.slice(2).toLowerCase()}` as Hex], '0x');
+
+    const notification = reader.decodeLog(indexed);
+
+    expect(notification?.kind).toBe('method-admin-renounced');
+    expect(lower(notification) as Record<string, unknown>).toMatchObject({ method: METHOD_AADHAAR.toLowerCase(), previous: STRANGER.toLowerCase() });
+  });
+
   it("the account's LogPrivilegeChanged with its value in a topic throws", () => {
     const moved = rawLog(ACCOUNT, [TOPIC0.LogPrivilegeChanged, `0x${'00'.repeat(32)}`, H32('7f')], '0x');
 

@@ -214,16 +214,21 @@ export class RecoveryClient implements IRecoveryClient {
   }
 
   /**
-   * The manager's `cancelByOwner(action)` at one pinned block, sent by the account and simulated from it unless the
-   * configuration says otherwise; it reads no state, so a missing attempt shows in the simulation.
+   * The manager's `cancelByOwner(action, attemptId)` over the waiting attempt's id read at one pinned block, sent by the
+   * account and simulated from it unless the configuration says otherwise. Throws a `KitRefusalError` while no attempt is
+   * waiting.
    */
   async prepareCancelByOwner(): Promise<PreparedCall> {
     const { parts } = this;
 
     assertPreparesServed(this.versionEscaped);
 
-    const { block } = await pinBlockHeader(parts.provider, parts.configuration.blockTags.read);
-    const call = await parts.policyManager.prepareCancelByOwner(parts.action, block);
+    const reading = await readState(parts);
+    const { attempt } = reading.state;
+
+    assertAttemptWaiting(reading.state, parts);
+
+    const call = await parts.policyManager.prepareCancelByOwner(parts.action, attempt.attemptId, reading.pinned.block);
 
     return await simulatePrepared(parts.provider, call, parts.account, parts.configuration);
   }

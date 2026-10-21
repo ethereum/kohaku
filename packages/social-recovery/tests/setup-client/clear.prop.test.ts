@@ -10,7 +10,7 @@ const commitmentArbitrary: fc.Arbitrary<Hex> = fc.oneof(
 
 describe('prepareClearSetup properties', () => {
   it(
-    'takes its shape from whether a setup stands and whether the account authorizes, and from nothing else',
+    'takes its shape from whether a setup stands and whether the account authorizes, and clears under the stored nonce',
     async () => {
       await fc.assert(
         fc.asyncProperty(
@@ -27,10 +27,10 @@ describe('prepareClearSetup properties', () => {
             if (stands && authorized) {
               expect(prepared.kind).toBe('batch');
               expect((prepared as PreparedBatch).atomic).toBe(true);
-              expect((prepared as PreparedBatch).calls.map((call) => call.data).sort()).toEqual([clearSetupData(ACTION), DISARMING_DATA].sort());
+              expect((prepared as PreparedBatch).calls.map((call) => call.data).sort()).toEqual([clearSetupData(ACTION, nonce), DISARMING_DATA].sort());
             } else {
               expect(prepared.kind).toBe('call');
-              expect((prepared as PreparedCall).data).toBe(stands ? clearSetupData(ACTION) : DISARMING_DATA);
+              expect((prepared as PreparedCall).data).toBe(stands ? clearSetupData(ACTION, nonce) : DISARMING_DATA);
             }
           },
         ),

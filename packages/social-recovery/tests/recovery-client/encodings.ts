@@ -69,7 +69,16 @@ export const PIN_WRITES_ABI = [
     ],
     outputs: [],
   },
-  { type: 'function', name: 'cancelByOwner', stateMutability: 'nonpayable', inputs: [{ name: '_action', type: 'address' }], outputs: [] },
+  {
+    type: 'function',
+    name: 'cancelByOwner',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_action', type: 'address' },
+      { name: '_attemptId', type: 'uint64' },
+    ],
+    outputs: [],
+  },
   {
     type: 'function',
     name: 'cancelByVeto',
@@ -135,8 +144,9 @@ export const startAttemptData = (request: AttemptRequest): Hex =>
 export const cancelByProofsData = (request: CancelRequest): Hex =>
   encodeFunctionData({ abi: PIN_WRITES_ABI, functionName: 'cancelByProofs', args: [{ ...request, proofs: placesOf(request.proofs) }] });
 
-/** `cancelByOwner(action)` calldata. */
-export const cancelByOwnerData = (action: Address): Hex => encodeFunctionData({ abi: PIN_WRITES_ABI, functionName: 'cancelByOwner', args: [action] });
+/** `cancelByOwner(action, attemptId)` calldata. */
+export const cancelByOwnerData = (action: Address, attemptId: bigint): Hex =>
+  encodeFunctionData({ abi: PIN_WRITES_ABI, functionName: 'cancelByOwner', args: [action, attemptId] });
 
 /** `cancelByVeto(account, action, attemptId, method)` calldata. */
 export const cancelByVetoData = (account: Address, action: Address, attemptId: bigint, method: Address): Hex =>

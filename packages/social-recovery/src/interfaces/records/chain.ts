@@ -78,5 +78,5 @@ export type RawTransaction = {
   readonly blockHash: Hex;
 };
 
-/** The moment a judgment compares against, in seconds; the SDK reads no wall clock. */
+/** The moment a judgment compares against, in seconds, supplied by the caller; the one wall-clock read is the Aadhaar reply's freshness check. */
 export type Moment = number;

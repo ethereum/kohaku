@@ -50,7 +50,7 @@ describe(`${CONFIG_FILE} (blessed copy)`, () => {
 describe(`${PROOF_FILE} (blessed copy)`, () => {
   const rows = proofFile.vectors;
 
-  it('holds the six rows the file names', () => {
+  it('holds the eight rows the file names', () => {
     expect(rows.map((row) => row['id'])).toEqual([
       'valid-extra-client-field',
       'missing-user-verification',
@@ -58,6 +58,8 @@ describe(`${PROOF_FILE} (blessed copy)`, () => {
       'wrong-challenge',
       'wrong-client-data-type',
       'wrong-relying-party-hash',
+      'missing-challenge-closing-quote',
+      'invalid-signature',
     ]);
   });
 

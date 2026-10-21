@@ -116,24 +116,26 @@ describe('the config rows of the contracts pin\'s layout, replayed through the c
     expect(() => codec.decodeConfig(dirty)).toThrow();
   });
 
-  it('refuses every row of the blessed five-field copy, which the pin no longer decodes', () => {
-    expect(blessedConfigFile.format).toBe('method-zkpassport-config-v1');
-
-    for (const [, row] of rows(blessedConfigFile)) {
-      const bytes = asHex(member(row, 'expected', 'encoded'));
-
-      expect(isArgumentError(thrown(() => codec.decodeConfig(bytes)))).toBe(true);
-    }
+  it('the blessed copy is the pin\'s four-field layout, and its row "normal" is the tester row "normal" byte for byte', () => {
+    expect(blessedConfigFile.format).toBe('method-zkpassport-config-v2');
+    expect(blessedConfigFile.derivation).toBe(configFile.derivation);
+    expect(rows(blessedConfigFile).find(([name]) => name === 'normal')?.[1]).toEqual(rows(configFile).find(([name]) => name === 'normal')?.[1]);
+    expect(member(rows(blessedConfigFile).find(([name]) => name === 'normal')?.[1], 'input', 'scope')).toBe('social-recovery');
   });
 
-  it('encodeConfig refuses the blessed copy\'s five-field input (a version member) with a TypeError', () => {
-    for (const [, row] of rows(blessedConfigFile)) {
-      const input = row['input'];
-      const fields: Fields = {
-        ...configFields(input),
-        version: asHex(member(input, 'version')),
-      };
+  it.each(rows(blessedConfigFile))('blessed config row %s: encodes, decodes and re-encodes byte for byte', (_name, row) => {
+    const fields = configFields(row['input']);
+    const expected = asHex(member(row, 'expected', 'encoded'));
 
+    expect(codec.encodeConfig(fields)).toBe(expected);
+    expect(codec.encodeConfig(codec.decodeConfig(expected))).toBe(expected);
+  });
+
+  it('encodeConfig refuses the blessed row\'s input with the earlier layout\'s version member, with a TypeError', () => {
+    for (const [, row] of rows(blessedConfigFile)) {
+      const fields: Fields = { ...configFields(row['input']), version: word(0x14) };
+
+      expect(isArgumentError(thrown(() => codec.encodeConfig(fields)))).toBe(true);
       expect(() => codec.encodeConfig(fields)).toThrow(TypeError);
     }
   });

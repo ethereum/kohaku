@@ -31,6 +31,180 @@
       "expected": {
         "digest": "0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac040c339"
       }
+    },
+    {
+      "id": "place-two",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "payload": "0xabcdef",
+          "order": {
+            "token": "0x4444444444444444444444444444444444444444",
+            "amount": "1234567890123456789",
+            "payee": "0x5555555555555555555555555555555555555555"
+          },
+          "validUntil": "1800000000",
+          "place": "2"
+        }
+      },
+      "expected": {
+        "digest": "0x5d81a52c03670af4e0952ffb89eea88143bf857aef53e38653f38ca70cf8f641"
+      }
+    },
+    {
+      "id": "place-max",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "payload": "0xabcdef",
+          "order": {
+            "token": "0x4444444444444444444444444444444444444444",
+            "amount": "1234567890123456789",
+            "payee": "0x5555555555555555555555555555555555555555"
+          },
+          "validUntil": "1800000000",
+          "place": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        }
+      },
+      "expected": {
+        "digest": "0x9f5d3ad7d4255b94bfe75793697b62138172b6ee0239e43259fe79a8e2d59f7d"
+      }
+    },
+    {
+      "id": "empty-payload-and-body",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          "payload": "0x",
+          "order": {
+            "token": "0x4444444444444444444444444444444444444444",
+            "amount": "1234567890123456789",
+            "payee": "0x5555555555555555555555555555555555555555"
+          },
+          "validUntil": "1800000000",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0xb1f6128a1f492865328ce292ce372b71db03ef852d49ed8f7858a84f6953d72a"
+      }
+    },
+    {
+      "id": "width-maxima",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0xffffffffffffffffffffffffffffffffffffffff",
+          "action": "0xffffffffffffffffffffffffffffffffffffffff",
+          "attemptId": "18446744073709551615",
+          "setupNonce": "18446744073709551615",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "payload": "0xabcdef",
+          "order": {
+            "token": "0xffffffffffffffffffffffffffffffffffffffff",
+            "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+            "payee": "0xffffffffffffffffffffffffffffffffffffffff"
+          },
+          "validUntil": "281474976710655",
+          "place": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        }
+      },
+      "expected": {
+        "digest": "0x2e2c286084acefd7a623d637e9e8fd658e4e51ee4602fa16d17c471dace3b848"
+      }
+    },
+    {
+      "id": "zero-order-open",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "payload": "0xabcdef",
+          "order": {
+            "token": "0x0000000000000000000000000000000000000000",
+            "amount": "0",
+            "payee": "0x0000000000000000000000000000000000000000"
+          },
+          "validUntil": "1800000000",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0x8ecdfc2d0e144a301bfaa27f547cb1ecd74f8335ca87d723ac9cb23b7567a3ae"
+      }
+    },
+    {
+      "id": "sepolia-chain",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 11155111,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "payload": "0xabcdef",
+          "order": {
+            "token": "0x4444444444444444444444444444444444444444",
+            "amount": "1234567890123456789",
+            "payee": "0x5555555555555555555555555555555555555555"
+          },
+          "validUntil": "1800000000",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0x28b2e6dcd38d5da68b1b2f9e50061e2b0964004a41a3a5a06ece60e1a92dd745"
+      }
     }
   ]
 }

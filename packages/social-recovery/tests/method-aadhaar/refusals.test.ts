@@ -4,8 +4,10 @@ import type { Hex, Material } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import {
   CERTIFICATE,
+  clockForFile,
   configBytes,
   ctxFor,
+  FRESH_NOW,
   isFailure,
   pcdOf,
   QR_DATA,
@@ -19,6 +21,8 @@ const DIGEST: Hex = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac
 const PARAMS = { nullifierSeed: 77n, issuerCertificate: CERTIFICATE };
 const CONFIG = configBytes(22n, 77n);
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+clockForFile(FRESH_NOW);
 
 /** The error `run` throws, or `undefined` when it returns. */
 function thrown(run: () => unknown): unknown {

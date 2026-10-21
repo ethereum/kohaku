@@ -6,7 +6,9 @@ import {
   METHOD_AADHAAR_DEVICE_BINDING,
   METHOD_AADHAAR_DEVICE_FACTS,
   METHOD_AADHAAR_ENROLL_KIND,
+  METHOD_AADHAAR_FRESHNESS_WINDOW,
   METHOD_AADHAAR_MATERIAL_REJECTED,
+  METHOD_AADHAAR_MIN_FRESHNESS_WINDOW,
   METHOD_AADHAAR_REQUEST_UNSUPPORTED,
   METHOD_AADHAAR_SEED_MISMATCH_MESSAGE,
   METHOD_AADHAAR_SEED_PARAM,
@@ -37,7 +39,7 @@ import { argsOptions, readInput, readMaterial, readParams } from './inputs';
 import { abortFailure, isFailure, packProof, runProver, untilSettled } from './prover';
 import { isDigest, signalFromDigest, signalHashFromDigest } from './signal';
 import { coreStack } from './stack';
-import { bindsTo, judge } from './verdict';
+import { bindsTo, isFresh, judge, nowInSeconds } from './verdict';
 import { inputAt } from './words';
 
 export class AnonAadhaarMethod implements IRecoveryMethod {
@@ -62,7 +64,7 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
     return { kind: METHOD_AADHAAR_ENROLL_KIND, nullifierSeed, certificateFile, fieldsToRevealArray: [] };
   }
 
-  /** Proves once, under the stack's default signal, and returns the nullifier with its seed as the config. */
+  /** Proves once, under the stack's default signal, and returns the nullifier, its seed and the fixed window as the config. */
   async configFrom(input: EnrollInput, material: Material): Promise<Hex | EnrollFailure> {
     const params = input?.kind === METHOD_AADHAAR_ENROLL_KIND ? readInput(input) : undefined;
     const supplied = readMaterial(material);
@@ -79,7 +81,7 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
 
     if (nullifier === undefined || !seedKept) return METHOD_AADHAAR_MATERIAL_REJECTED;
 
-    return encodeConfig({ nullifier, nullifierSeed: params.nullifierSeed });
+    return encodeConfig({ nullifier, nullifierSeed: params.nullifierSeed, freshnessWindow: METHOD_AADHAAR_FRESHNESS_WINDOW });
   }
 
   /** The proving arguments with the digest as the signal; a `TypeError` or `RangeError` for malformed params or a seed the config does not hold. */
@@ -101,8 +103,10 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
   }
 
   /**
-   * Proves over the digest and returns the proof unless its bindings fail or the
-   * local verdict rejects it. An abort at any point, verification included, is `device-refused`.
+   * Proves over the digest and returns the proof unless its bindings fail, the QR is older than the config's window
+   * by the system clock, or the local verdict rejects it. A config window under the minimum is `request-unsupported`
+   * before proving. The chain accepts the proof until one window after the QR's signing time, whatever the request's
+   * validity, so the holder's simulation refuses one that aged. An abort at any point, verification included, is `device-refused`.
    */
   async replyFrom(ctx: Ctx, input: Input, material: Material): Promise<Hex | ReplyFailure> {
     const params = readInput(input);
@@ -122,6 +126,8 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
       return METHOD_AADHAAR_REQUEST_UNSUPPORTED;
     }
 
+    if (config.freshnessWindow < METHOD_AADHAAR_MIN_FRESHNESS_WINDOW) return METHOD_AADHAAR_REQUEST_UNSUPPORTED;
+
     if (!isDigest(ctx.digest)) return METHOD_AADHAAR_REQUEST_UNSUPPORTED;
 
     if (config.nullifierSeed !== params.nullifierSeed) return METHOD_AADHAAR_MATERIAL_REJECTED;
@@ -134,6 +140,8 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
     const packed = packProof(pcd);
 
     if (packed === undefined || !bindsTo(packed, config, ctx.digest)) return METHOD_AADHAAR_MATERIAL_REJECTED;
+
+    if (!isFresh(packed, config, nowInSeconds())) return METHOD_AADHAAR_MATERIAL_REJECTED;
 
     const proof = encodeProof(packed);
 

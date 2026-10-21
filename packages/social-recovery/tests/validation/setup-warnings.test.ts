@@ -167,14 +167,13 @@ describe('validateSetup warnings', () => {
     ]);
   });
 
-  it('raises action.fit-unchecked when the action says no and no implementation is named, and not on a yes', () => {
+  it('raises no warning on a no from the action with no implementation named: the no is the error action.unsupported', () => {
     const context = { ...SETUP_CONTEXT, action: { ...SETUP_CONTEXT.action, supportsAccount: false } };
+    const result = validateSetup(DRAFT, context);
 
-    expect(validateSetup(DRAFT, context)).toEqual({
-      errors: [],
-      warnings: [{ code: 'action.fit-unchecked', subject: 'action', values: { action: ACTION, account: ACCOUNT, supportsAccount: false } }],
-    });
-    expect(codes()).not.toContain('action.fit-unchecked');
+    expect(result.warnings).toEqual([]);
+    expect(result.errors.map((finding) => finding.code)).toEqual(['action.unsupported']);
+    expect(result.errors[0]?.values).toMatchObject({ action: ACTION, account: ACCOUNT, supportsAccount: false });
   });
 
   it('raises manager.already-armed for another action whose last setup event is a commit', () => {

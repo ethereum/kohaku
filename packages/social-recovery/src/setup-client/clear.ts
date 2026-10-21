@@ -18,9 +18,9 @@ export async function prepareClear(parts: SetupClientParts, options: PrepareOpti
   if (!setupStands(state)) {
     prepared = await parts.recoveryAction.disarmingCall(block);
   } else if (!authorized) {
-    prepared = await parts.policyManager.prepareClearSetup(parts.action, block);
+    prepared = await parts.policyManager.prepareClearSetup(parts.action, state.setupNonce, block);
   } else {
-    const clear = await parts.policyManager.prepareClearSetup(parts.action, block);
+    const clear = await parts.policyManager.prepareClearSetup(parts.action, state.setupNonce, block);
     const disarming = await parts.recoveryAction.disarmingCall(block);
 
     prepared = { kind: 'batch', calls: [clear, disarming], atomic: true, block };

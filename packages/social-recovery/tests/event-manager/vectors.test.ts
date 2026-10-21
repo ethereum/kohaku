@@ -46,14 +46,19 @@ const typed = (key: string, value: unknown): unknown => {
   return value;
 };
 
+/** The contracts name `AttemptCancelled`'s method `stoppedMethod`; the SDK keeps `vetoingMethod`, same position and type. */
+const SDK_NAME: Readonly<Record<string, string>> = { stoppedMethod: 'vetoingMethod' };
+
 const typedInput = (input: Readonly<Record<string, unknown>>): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(input).map(([key, value]) => [key, typed(key, value)]));
+  Object.fromEntries(Object.entries(input).map(([key, value]) => [SDK_NAME[key] ?? key, typed(key, value)]));
 
 /** The notification's fields a row's input names, the method rows' `account` being the notification's `by`. */
 const fieldsOf = (notification: KitNotification, input: Readonly<Record<string, unknown>>): Record<string, unknown> => {
   const values = notification as unknown as Record<string, unknown>;
 
-  return Object.fromEntries(Object.keys(input).map((key) => [key, key === 'account' && 'by' in values ? values['by'] : values[key]]));
+  return Object.fromEntries(
+    Object.keys(input).map((key) => SDK_NAME[key] ?? key).map((key) => [key, key === 'account' && 'by' in values ? values['by'] : values[key]]),
+  );
 };
 
 const replay = (

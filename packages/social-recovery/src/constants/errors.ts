@@ -8,6 +8,7 @@ const error = (name: string, ...inputs: readonly AbiParameter[]): AbiErrorItem =
 export const ERRORS_MANAGER_ABI: ErrorAbi = [
   error('PolicyManager_InvalidCommitment', input('supplied', 'bytes32')),
   error('PolicyManager_WrongSetupNonce', input('supplied', 'uint64'), input('expected', 'uint64')),
+  error('PolicyManager_ActionDoesNotServeAccount', input('account', 'address'), input('action', 'address')),
   error('PolicyManager_PlaceOutOfRange', input('place', 'uint256'), input('count', 'uint256')),
   error('PolicyManager_NoSetup', input('account', 'address'), input('action', 'address')),
   error('PolicyManager_NoActiveAttempt', input('account', 'address'), input('action', 'address')),
@@ -42,6 +43,7 @@ export const ERRORS_ACTION_ABI: ErrorAbi = [
     input('consumableAfter', 'uint48'),
     input('committedPayloadHash', 'bytes32'),
   ),
+  error('RecoveryAction_AccountNotServed', input('account', 'address')),
 ];
 
 /** The account's own errors; empty until the account revision the action serves is pinned. */

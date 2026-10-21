@@ -56,7 +56,7 @@ describe('a passed block replaces the block read', () => {
   it('accepts the block number 0 and the largest safe integer', async () => {
     for (const number of [0, Number.MAX_SAFE_INTEGER]) {
       const provider = answeringAll();
-      const call = await partFor(provider).prepareClearSetup(ACTION, { number, hash: PINNED.hash });
+      const call = await partFor(provider).prepareClearSetup(ACTION, 1n, { number, hash: PINNED.hash });
 
       expect(call.block).toEqual({ number, hash: PINNED.hash });
       await partFor(provider).name({ number, hash: PINNED.hash });
@@ -132,7 +132,7 @@ describe('a malformed header from the provider', () => {
     ['a negative number', { number: -1, timestamp: 1, hash: PINNED.hash }, RangeError, /^block header\.number /],
     ['null', null, TypeError, /^block header must be an object/],
   ] as const)('makes a manager read and a prepare throw on %s, named as the block header', async (_case, header, kind, message) => {
-    for (const run of [(part: ReturnType<typeof partFor>) => part.name(), (part: ReturnType<typeof partFor>) => part.prepareClearSetup(ACTION)]) {
+    for (const run of [(part: ReturnType<typeof partFor>) => part.name(), (part: ReturnType<typeof partFor>) => part.prepareClearSetup(ACTION, 1n)]) {
       const provider = badHeader(header);
       const outcome = await run(partFor(provider)).then(() => undefined, (thrown: unknown) => thrown);
 
@@ -159,7 +159,7 @@ describe('one passed block pins a composite of part calls', () => {
     await part.paused(METHOD, PASSED);
     await part.moduleInfo(METHOD, PASSED);
 
-    const call = await part.prepareCancelByOwner(ACTION, PASSED);
+    const call = await part.prepareCancelByOwner(ACTION, 1n, PASSED);
 
     expect(provider.blockTags).toEqual([]);
     expect(provider.calls).toHaveLength(5);

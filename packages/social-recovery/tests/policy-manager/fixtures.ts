@@ -70,8 +70,8 @@ const PROOF_PLACE = '(uint256,address,bytes,bytes32,bytes)';
 /** The manager's signatures, written by hand from its Solidity interface. */
 export const SIGNATURES = {
   commitSetup: 'commitSetup(address,bytes32,uint64,bytes,bytes)',
-  clearSetup: 'clearSetup(address)',
-  cancelByOwner: 'cancelByOwner(address)',
+  clearSetup: 'clearSetup(address,uint64)',
+  cancelByOwner: 'cancelByOwner(address,uint64)',
   cancelByVeto: 'cancelByVeto(address,address,uint64,address)',
   startAttempt: `startAttempt((address,address,uint64,uint64,bytes,bytes,(address,uint256,address),uint48,${PROOF_PLACE}[]))`,
   cancelByProofs: `cancelByProofs((address,address,uint64,uint64,bytes,uint48,${PROOF_PLACE}[]))`,

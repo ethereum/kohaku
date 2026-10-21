@@ -79,15 +79,28 @@ describe('the account-sent prepares encode the manager\'s own configuration func
   });
 
   it.each([
-    ['prepareClearSetup', 'clearSetup', '0xc9834976'],
-    ['prepareCancelByOwner', 'cancelByOwner', '0xbe5c3936'],
-  ] as const)('%s encodes %s(address) sent by the account', async (member, signature, selector) => {
+    ['prepareClearSetup', 'clearSetup', '0x002a237c'],
+    ['prepareCancelByOwner', 'cancelByOwner', '0x2970c92b'],
+  ] as const)('%s encodes %s(address,uint64) sent by the account, the second word encoded', async (member, signature, selector) => {
     const provider = new ProviderDouble();
-    const call = await partFor(provider)[member](ACTION);
+    const call = await partFor(provider)[member](ACTION, 7n);
 
     expect(sel(signature)).toBe(selector);
-    expectManagerCall(call, callData(SIGNATURES[signature], [{ type: 'address' }], [ACTION]), 'account');
+    expect(call.data.slice(0, 10)).toBe(selector);
+    expect(call.data.slice(-64)).toBe(7n.toString(16).padStart(64, '0'));
+    expectManagerCall(call, callData(SIGNATURES[signature], [{ type: 'address' }, { type: 'uint64' }], [ACTION, 7n]), 'account');
     expectOneBlockNoCall(provider);
+  });
+
+  it.each([
+    ['prepareClearSetup', 'clearSetup'],
+    ['prepareCancelByOwner', 'cancelByOwner'],
+  ] as const)('%s encodes the second word at both ends of uint64', async (member, signature) => {
+    for (const value of [0n, (1n << 64n) - 1n]) {
+      const call = await partFor(new ProviderDouble())[member](ACTION, value);
+
+      expect(call.data).toBe(callData(SIGNATURES[signature], [{ type: 'address' }, { type: 'uint64' }], [ACTION, value]));
+    }
   });
 });
 
@@ -133,8 +146,8 @@ describe('the pinned block of a prepare', () => {
   it('is the block the configured read tag resolved to, read once per prepare', async () => {
     const provider = new ProviderDouble();
     const part = partFor(provider, ACCOUNT, ACTION, { read: 'finalized', watch: 'latest' });
-    const first = await part.prepareClearSetup(ACTION);
-    const second = await part.prepareCancelByOwner(ACTION);
+    const first = await part.prepareClearSetup(ACTION, 1n);
+    const second = await part.prepareCancelByOwner(ACTION, 2n);
 
     expect(provider.blockTags).toEqual(['finalized', 'finalized']);
     expect(first.block).toEqual({ number: FIRST_BLOCK, hash: headerAt(FIRST_BLOCK).hash });
@@ -151,7 +164,7 @@ describe('the pinned block of a prepare', () => {
       return { number: 5, timestamp: 9, hash: upperHash };
     };
 
-    const call = await partFor(provider).prepareClearSetup(ACTION);
+    const call = await partFor(provider).prepareClearSetup(ACTION, 1n);
 
     expect(call.block).toEqual({ number: 5, hash: upperHash.toLowerCase() });
   });

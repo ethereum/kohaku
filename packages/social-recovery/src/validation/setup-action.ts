@@ -1,9 +1,9 @@
 import { assertArray, assertBool, assertObject, normalizeAddress } from '../formats/guards';
-import type { Address, KitNotification } from '../interfaces';
+import type { Address, FindingValues, KitNotification } from '../interfaces';
 import type { Findings, SetupEvent, SetupValidationContext } from '../types/validation';
 import { addError, addWarning, normalizeAddresses } from './common';
 
-/** The action's fit and audit findings: `action.unsupported`, `action.fit-unchecked` and `action.unaudited`. */
+/** The action's fit and audit findings: `action.unsupported` and `action.unaudited`. */
 export function actionFindings(context: SetupValidationContext, findings: Findings): void {
   assertObject(context.action, 'context.action');
   assertObject(context.action.actionInfo, 'context.action.actionInfo');
@@ -14,23 +14,14 @@ export function actionFindings(context: SetupValidationContext, findings: Findin
   const { actionInfo, supportsAccount } = context.action;
   const { accountImplementation } = context.configuration;
 
-  if (!supportsAccount && accountImplementation !== undefined) {
-    const named = normalizeAddress(accountImplementation, 'context.configuration.accountImplementation');
+  if (!supportsAccount) {
+    const named: FindingValues =
+      accountImplementation === undefined
+        ? {}
+        : { accountImplementation: normalizeAddress(accountImplementation, 'context.configuration.accountImplementation') };
     const served = normalizeAddress(context.descriptor.servedImplementation, 'context.descriptor.servedImplementation');
 
-    if (named !== served) {
-      addError(findings, 'action.unsupported', 'action', {
-        action,
-        account,
-        supportsAccount,
-        accountImplementation: named,
-        servedImplementation: served,
-      });
-    }
-  }
-
-  if (!supportsAccount && accountImplementation === undefined) {
-    addWarning(findings, 'action.fit-unchecked', 'action', { action, account, supportsAccount });
+    addError(findings, 'action.unsupported', 'action', { action, account, supportsAccount, ...named, servedImplementation: served });
   }
 
   const auditedActions = normalizeAddresses(context.descriptor.auditedActions, 'context.descriptor.auditedActions');

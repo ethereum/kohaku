@@ -1,4 +1,5 @@
 import { encodeAbiParameters, keccak256 } from 'viem';
+import { afterEach, beforeEach, vi, type MockInstance } from 'vitest';
 import type { Address, Ctx, Hex } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import { readVector } from '../kat/read-vector';
@@ -12,7 +13,7 @@ type Pcd = Awaited<ReturnType<Stack['prove']>>;
 type Progress = Parameters<Stack['prove']>[1];
 
 export type ConfigRow = {
-  readonly input: { readonly nullifier: string; readonly nullifierSeed: string };
+  readonly input: { readonly nullifier: string; readonly nullifierSeed: string; readonly freshnessWindow: string };
   readonly expected: { readonly encoded: Hex };
 };
 
@@ -75,11 +76,41 @@ export const PROOF_ABI = [
 export const CONFIG_ABI = [
   { name: 'nullifier', type: 'uint256' },
   { name: 'nullifierSeed', type: 'uint256' },
+  { name: 'freshnessWindow', type: 'uint256' },
 ] as const;
 
-/** `abi.encode(nullifier, nullifierSeed)`, written with viem directly. */
-export const configBytes = (nullifier: bigint, nullifierSeed: bigint): Hex =>
-  encodeAbiParameters(CONFIG_ABI, [nullifier, nullifierSeed]);
+/** The window `configFrom` is expected to write: 24 hours, in seconds. */
+export const FRESHNESS_WINDOW = 86_400n;
+
+/** The contract's shortest accepted window: one hour, in seconds. */
+export const MIN_FRESHNESS_WINDOW = 3_600n;
+
+/** `abi.encode(nullifier, nullifierSeed, freshnessWindow)`, written with viem directly. */
+export const configBytes = (nullifier: bigint, nullifierSeed: bigint, freshnessWindow: bigint = FRESHNESS_WINDOW): Hex =>
+  encodeAbiParameters(CONFIG_ABI, [nullifier, nullifierSeed, freshnessWindow]);
+
+/** The QR signing time the synthetic signals and the proof vector carry, in seconds. */
+export const SIGNED_AT = 1_700_000_000n;
+
+/** A clock ten minutes after `SIGNED_AT`, inside any window the contract accepts. */
+export const FRESH_NOW = SIGNED_AT + 600n;
+
+/** Stubs `Date.now` at `seconds` past the epoch plus `extraMs` milliseconds, now, and returns the spy. */
+export const clockAt = (seconds: bigint, extraMs = 0): MockInstance<() => number> =>
+  vi.spyOn(Date, 'now').mockReturnValue(Number(seconds) * 1000 + extraMs);
+
+/** Stubs `Date.now` at `seconds` for every test of the calling file, so a QR's age never depends on the real clock. */
+export function clockForFile(seconds: bigint): void {
+  let clock: MockInstance<() => number> | undefined;
+
+  beforeEach(() => {
+    clock = vi.spyOn(Date, 'now').mockReturnValue(Number(seconds) * 1000);
+  });
+
+  afterEach(() => {
+    clock?.mockRestore();
+  });
+}
 
 /** `uint256(keccak256(32 digest bytes)) >> 3`, the signal hash the verifier checks. */
 export const expectedSignalHash = (digest: Hex): bigint => BigInt(keccak256(digest)) >> 3n;
@@ -111,7 +142,7 @@ export function signalsFor(nullifier: bigint, nullifierSeed: bigint, digest: Hex
   return {
     pubkeyHash: 99n,
     nullifier,
-    timestamp: 1_700_000_000n,
+    timestamp: SIGNED_AT,
     ageAbove18: 0n,
     gender: 0n,
     pincode: 0n,

@@ -94,6 +94,8 @@ export type AadhaarPublicInput = (typeof METHOD_AADHAAR_PUBLIC_INPUTS)[number];
 export type AadhaarConfig = {
   readonly nullifier: bigint;
   readonly nullifierSeed: bigint;
+  /** The greatest age, in seconds, of a QR an approval accepts. */
+  readonly freshnessWindow: bigint;
 };
 
 /** One Groth16 coordinate pair. */

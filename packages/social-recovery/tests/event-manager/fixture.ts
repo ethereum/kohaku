@@ -32,7 +32,7 @@ export const DERIVED_ABI = parseAbi([
   'event Paused(address account)',
   'event Unpaused(address account)',
   'event TrustedKeysUpdated(bytes32[] previous, bytes32[] current)',
-  'event AdminRenounced(address previous)',
+  'event AdminRenounced(address indexed previous)',
   'event AdminTransferOffered(address indexed current, address indexed pending)',
   'event AdminTransferred(address indexed previous, address indexed current)',
   'event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner)',

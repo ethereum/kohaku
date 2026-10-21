@@ -28,7 +28,7 @@ const SPONSOR = getAddress(`0x${'5b'.repeat(20)}`);
 const waiting = () => world({ state: stateFor(undefined, attemptIn('Waiting', 11n)) });
 
 describe('prepareCancelByOwner', () => {
-  it('prepares cancelByOwner(action) on the manager, sent by the account, value zero, at the pinned block', async () => {
+  it('prepares cancelByOwner(action, the waiting attempt id) on the manager, sent by the account, value zero, at the pinned block', async () => {
     const built = rig(waiting());
     const prepared = await built.client.prepareCancelByOwner();
 
@@ -36,24 +36,46 @@ describe('prepareCancelByOwner', () => {
     expect(prepared.target.toLowerCase()).toBe(MANAGER.toLowerCase());
     expect(prepared.sender).toBe('account');
     expect(prepared.value).toBe(0n);
-    expect(prepared.data.toLowerCase()).toBe(cancelByOwnerData(ACTION).toLowerCase());
+    expect(prepared.data.toLowerCase()).toBe(cancelByOwnerData(ACTION, 11n).toLowerCase());
     expect(prepared.block).toEqual(pinnedOf(HEADER));
     expect(prepared.describes).toBeUndefined();
   });
 
-  it('pins one block, reads no state and passes the block to the part', async () => {
+  it('reads the state once at the pinned block, as the veto does, and passes the attempt id and the block to the part', async () => {
     const built = rig(waiting());
 
     await built.client.prepareCancelByOwner();
 
-    expect(membersOf(built.seen)).toEqual(['provider.block', 'manager.prepareCancelByOwner']);
-    expect(lastArg(callsTo(built.seen, 'manager', 'prepareCancelByOwner')[0]!)).toEqual(pinnedOf(HEADER));
+    expect(membersOf(built.seen)).toEqual(['provider.block', 'manager.stateOf', 'manager.prepareCancelByOwner']);
+    expect(lastArg(callsTo(built.seen, 'manager', 'stateOf')[0]!)).toEqual(pinnedOf(HEADER));
+
+    const [part] = callsTo(built.seen, 'manager', 'prepareCancelByOwner');
+
+    expect(part?.args.slice(1)).toEqual([11n, pinnedOf(HEADER)]);
+    expect(String(part?.args[0]).toLowerCase()).toBe(ACTION.toLowerCase());
   });
 
-  it('never refuses where no attempt waits', async () => {
-    const built = rig(world({ state: stateFor(undefined, attemptIn('None', 0n)) }));
+  it.each(['None', 'Cancelled', 'Consumed'] as const)(
+    'refuses with request.no-active-attempt where the attempt is %s, before any simulation, preparing nothing',
+    async (state) => {
+      const built = rig(world({ state: stateFor(undefined, attemptIn(state, 7n)) }), { ...CLIENT_CONFIGURATION, simulate: true });
+      const thrown = await rejectionOf(built.client.prepareCancelByOwner());
 
-    await expect(built.client.prepareCancelByOwner()).resolves.toBeDefined();
+      expect(thrown).toBeInstanceOf(KitRefusalError);
+      expect(errorCodes(thrown)).toEqual(['request.no-active-attempt']);
+      expect(Object.hasOwn(thrown as object, 'cause')).toBe(false);
+      expect(callsTo(built.seen, 'manager', 'prepareCancelByOwner')).toEqual([]);
+      expect(callsTo(built.seen, 'provider', 'call')).toEqual([]);
+    },
+  );
+
+  it('refuses where no attempt waits exactly as the veto does', async () => {
+    const byAccount = await rejectionOf(rig(world({ state: stateFor(undefined, attemptIn('None', 0n)) })).client.prepareCancelByOwner());
+    const byVeto = await rejectionOf(rig(world({ state: stateFor(undefined, attemptIn('None', 0n)) })).client.prepareCancelByVeto(METHOD_PASSKEY));
+
+    expect(byAccount).toBeInstanceOf(KitRefusalError);
+    expect((byAccount as Error).message).toBe((byVeto as Error).message);
+    expect(errorCodes(byAccount)).toEqual(errorCodes(byVeto));
   });
 
   it('simulates from the account under a simulating configuration', async () => {
@@ -68,8 +90,8 @@ describe('prepareCancelByOwner', () => {
     expect(call?.args[3]).toBe(HEADER.number);
   });
 
-  it('returns NoActiveAttempt-style reverts as a typed failure from the account', async () => {
-    const built = rig(world(), { ...CLIENT_CONFIGURATION, simulate: true }, { call: async () => Promise.reject({ data: '0x12345678' }) });
+  it('returns a revert of the simulation as a typed failure from the account', async () => {
+    const built = rig(waiting(), { ...CLIENT_CONFIGURATION, simulate: true }, { call: async () => Promise.reject({ data: '0x12345678' }) });
     const prepared = await built.client.prepareCancelByOwner();
 
     expect(prepared.simulation?.success).toBe(false);
@@ -82,6 +104,13 @@ describe('prepareCancelByOwner', () => {
 
     expect('simulation' in prepared).toBe(false);
     expect(callsTo(built.seen, 'provider', 'call')).toEqual([]);
+  });
+
+  it('rejects with a failing state read itself', async () => {
+    const built = rig(world({ failures: new Map([['manager.stateOf', INJECTED]]) }));
+
+    await expect(built.client.prepareCancelByOwner()).rejects.toBe(INJECTED);
+    expect(callsTo(built.seen, 'manager', 'prepareCancelByOwner')).toEqual([]);
   });
 });
 

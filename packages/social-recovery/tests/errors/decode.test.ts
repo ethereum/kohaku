@@ -22,9 +22,9 @@ describe('decodeRevert names every declared error with its arguments', () => {
     expect(result).toEqual({ known: true, source: entry.source, name: entry.name, selector: entry.selector, args });
   });
 
-  it('attributes the twenty-one manager rows to the manager and the five action rows to the action', () => {
-    expect(MANAGER_ROWS).toHaveLength(21);
-    expect(ACTION_ROWS).toHaveLength(5);
+  it('attributes the twenty-two manager rows to the manager and the six action rows to the action', () => {
+    expect(MANAGER_ROWS).toHaveLength(22);
+    expect(ACTION_ROWS).toHaveLength(6);
 
     for (const entry of KIT_ROWS) {
       const result = decodeRevert(revertData(entry, samplesFor(entry, 3)));
@@ -110,6 +110,41 @@ describe('decodeRevert names each error under the prefix its contract declares',
       selector,
       args: { authority },
     });
+  });
+
+  it('decodes PolicyManager_ActionDoesNotServeAccount under 0xa1844eb2 from two address words, as the manager', () => {
+    const account: Hex = '0x52908400098527886e0f7030069857d2e4169ee7';
+    const action: Hex = '0x8617e340b3d01fa5f11f306f4090fd50e238070d';
+    const data: Hex = `0xa1844eb2${'00'.repeat(12)}${account.slice(2)}${'00'.repeat(12)}${action.slice(2)}`;
+
+    expect(decodeRevert(data)).toEqual({
+      known: true,
+      source: 'manager',
+      name: 'PolicyManager_ActionDoesNotServeAccount',
+      selector: '0xa1844eb2',
+      args: { account: '0x52908400098527886E0F7030069857D2E4169EE7', action: '0x8617E340B3D01FA5F11F306F4090FD50E238070D' },
+    });
+  });
+
+  it('decodes RecoveryAction_AccountNotServed under 0x3f6b40e3 from one address word, as the action', () => {
+    const account: Hex = '0x52908400098527886e0f7030069857d2e4169ee7';
+
+    expect(decodeRevert(`0x3f6b40e3${'00'.repeat(12)}${account.slice(2)}`)).toEqual({
+      known: true,
+      source: 'action',
+      name: 'RecoveryAction_AccountNotServed',
+      selector: '0x3f6b40e3',
+      args: { account: '0x52908400098527886E0F7030069857D2E4169EE7' },
+    });
+  });
+
+  it.each([
+    ['PolicyManager_ActionDoesNotServeAccount', 'a word short', `0xa1844eb2${'00'.repeat(12)}${'11'.repeat(20)}`],
+    ['PolicyManager_ActionDoesNotServeAccount', 'a dirty address word', `0xa1844eb2${'ff'.repeat(12)}${'11'.repeat(20)}${'00'.repeat(12)}${'22'.repeat(20)}`],
+    ['RecoveryAction_AccountNotServed', 'no word', '0x3f6b40e3'],
+    ['RecoveryAction_AccountNotServed', 'a dirty address word', `0x3f6b40e301${'00'.repeat(11)}${'11'.repeat(20)}`],
+  ] as const)('leaves %s with %s unknown, its selector kept', (_name, _case, data) => {
+    expect(decodeRevert(data as Hex)).toMatchObject({ known: false, selector: data.slice(0, 10) });
   });
 
   it('no longer names the retired ReservedAuthority(address) selector', () => {

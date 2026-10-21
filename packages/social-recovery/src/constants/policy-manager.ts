@@ -20,8 +20,26 @@ export const POLICY_MANAGER_WRITES_ABI = [
     ],
     outputs: [],
   },
-  { type: 'function', name: 'clearSetup', stateMutability: 'nonpayable', inputs: [{ name: 'action', type: 'address' }], outputs: [] },
-  { type: 'function', name: 'cancelByOwner', stateMutability: 'nonpayable', inputs: [{ name: 'action', type: 'address' }], outputs: [] },
+  {
+    type: 'function',
+    name: 'clearSetup',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'action', type: 'address' },
+      { name: 'nonce', type: 'uint64' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'cancelByOwner',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'action', type: 'address' },
+      { name: 'attemptId', type: 'uint64' },
+    ],
+    outputs: [],
+  },
   {
     type: 'function',
     name: 'cancelByVeto',

@@ -44,7 +44,7 @@ const addressArb: fc.Arbitrary<Hex> = fc.oneof(anyCaseHex(20), bytesHex(20).map(
 /** The shipped config widths and arbitrary ones, the empty config included. */
 const configArb = fc.oneof(
   ...[20, 32, 64, 96].map((size) => anyCaseHex(size)),
-  bytesHex(288),
+  bytesHex(256),
   bytesHex(0, 128),
 );
 

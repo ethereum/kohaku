@@ -1,16 +1,17 @@
 {
-  "format": "method-aadhaar-config-v1",
+  "format": "method-aadhaar-config-v2",
   "source": "design/onchain/contracts.md",
-  "derivation": "abi.encode(uint256 nullifier, uint256 nullifierSeed)",
+  "derivation": "abi.encode(uint256 nullifier, uint256 nullifierSeed, uint256 freshnessWindow)",
   "vectors": [
     {
       "id": "normal",
       "input": {
         "nullifier": "22",
-        "nullifierSeed": "77"
+        "nullifierSeed": "77",
+        "freshnessWindow": "4500"
       },
       "expected": {
-        "encoded": "0x0000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000004d"
+        "encoded": "0x0000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000004d0000000000000000000000000000000000000000000000000000000000001194"
       }
     }
   ]

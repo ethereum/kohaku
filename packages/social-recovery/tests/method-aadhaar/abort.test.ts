@@ -3,7 +3,7 @@ import type { Hex, Material } from '../../src/interfaces';
 import { REPLY_FAILURE_CAUSES } from '../../src/index';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import type { Stack, StackDouble } from './fixtures';
-import { CERTIFICATE, configBytes, ctxFor, isFailure, pcdOf, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
+import { CERTIFICATE, clockForFile, configBytes, ctxFor, FRESH_NOW, isFailure, pcdOf, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
 
 /** The proof vector's digest. */
 const DIGEST: Hex = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac040c339';
@@ -13,6 +13,8 @@ const boundPcd = pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST));
 const ctx = ctxFor(CONFIG, DIGEST);
 const BOUND_MS = 200;
 const TIMED_OUT: unique symbol = Symbol('timed out');
+
+clockForFile(FRESH_NOW);
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -25,6 +25,121 @@
       "expected": {
         "digest": "0x45da43ac350a49f946b432051597379c9c780adb797231750744a4bcc6df4f87"
       }
+    },
+    {
+      "id": "place-two",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "validUntil": "1800000000",
+          "place": "2"
+        }
+      },
+      "expected": {
+        "digest": "0xe1172aa5a7a81ef1372bc40eb254cd62792411bd3b921cfff340625c49e51dc3"
+      }
+    },
+    {
+      "id": "place-max",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "validUntil": "1800000000",
+          "place": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        }
+      },
+      "expected": {
+        "digest": "0xf2ef6670976d580e70142db67c8c270b91deb3d1e35890f19a578b16f1e0dc46"
+      }
+    },
+    {
+      "id": "empty-body",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+          "validUntil": "1800000000",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0x42da77b8f1efbd5a51285d6e7cbef615fc9ce6a06413179c9d61f3fed1d39247"
+      }
+    },
+    {
+      "id": "width-maxima",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0xffffffffffffffffffffffffffffffffffffffff",
+          "action": "0xffffffffffffffffffffffffffffffffffffffff",
+          "attemptId": "18446744073709551615",
+          "setupNonce": "18446744073709551615",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "validUntil": "281474976710655",
+          "place": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+        }
+      },
+      "expected": {
+        "digest": "0xafbd39e92fc14855ba7baac22400df5e7a67e3ad1a8c4b14486a6ca39f6db4d5"
+      }
+    },
+    {
+      "id": "sepolia-chain",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 11155111,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0x6b359609fb43fd6343d702b855975035a90d454cb081cb662938e219a51a1160",
+          "validUntil": "1800000000",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0x40e3273ed51fd63d4de60aae3b175c057838455642d9ddce6b406c11bdc056ff"
+      }
     }
   ]
 }

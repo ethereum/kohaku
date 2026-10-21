@@ -23,6 +23,7 @@ const UINT64_MAX = (1n << 64n) - 1n;
 const COMMITMENT: Hex = `0x${'3b'.repeat(32)}`;
 const COMMIT_PARAMS = [{ type: 'address' }, { type: 'bytes32' }, { type: 'uint64' }, { type: 'bytes' }, { type: 'bytes' }] as const;
 const VETO_PARAMS = [{ type: 'address' }, { type: 'address' }, { type: 'uint64' }, { type: 'address' }] as const;
+const OWNER_PARAMS = [{ type: 'address' }, { type: 'uint64' }] as const;
 const VECTOR_ACCOUNT: Address = '0x1111111111111111111111111111111111111111';
 const VECTOR_ACTION: Address = '0x2222222222222222222222222222222222222222';
 
@@ -51,12 +52,47 @@ describe('the uint64 widths of the nonce and the attempt id', () => {
 
     expect(call.data).toBe(callData(SIGNATURES.cancelByVeto, VETO_PARAMS, [ACCOUNT, ACTION, UINT64_MAX, METHOD]));
   });
+
+  const accountCalls = [
+    ['prepareClearSetup', 'the nonce', (part: ReturnType<typeof partFor>, value: unknown) => part.prepareClearSetup(ACTION, value as bigint)],
+    ['prepareCancelByOwner', 'the attempt id', (part: ReturnType<typeof partFor>, value: unknown) => part.prepareCancelByOwner(ACTION, value as bigint)],
+  ] as const;
+
+  it.each(accountCalls.flatMap(([member, what, prepare]) => [UINT64_MAX + 1n, -1n, 1n << 128n].map((value) => [member, what, value, prepare] as const)))(
+    '%s refuses %s %s with a RangeError before any block read',
+    async (_member, _what, value, prepare) => {
+      const provider = fresh();
+
+      await expect(prepare(partFor(provider), value)).rejects.toThrow(RangeError);
+      expect(provider.blockTags).toEqual([]);
+      expect(provider.calls).toEqual([]);
+    },
+  );
+
+  it.each(accountCalls.flatMap(([member, what, prepare]) => [7, '7', undefined, null].map((value) => [member, what, String(value), value, prepare] as const)))(
+    '%s refuses %s given as %s with a TypeError before any block read',
+    async (_member, _what, _label, value, prepare) => {
+      const provider = fresh();
+
+      await expect(prepare(partFor(provider), value)).rejects.toThrow(TypeError);
+      expect(provider.blockTags).toEqual([]);
+      expect(provider.calls).toEqual([]);
+    },
+  );
+
+  it.each(accountCalls)('%s accepts %s at 0 and at 2^64 - 1', async (member, _what, prepare) => {
+    const signature = member === 'prepareClearSetup' ? SIGNATURES.clearSetup : SIGNATURES.cancelByOwner;
+
+    for (const value of [0n, UINT64_MAX]) {
+      expect((await prepare(partFor(fresh()), value)).data).toBe(callData(signature, OWNER_PARAMS, [ACTION, value]));
+    }
+  });
 });
 
 describe('the address rule on every address argument', () => {
   it('refuses a mixed-case action whose checksum is wrong', async () => {
-    await expect(partFor(fresh()).prepareClearSetup(ACTION_BAD_CHECKSUM)).rejects.toThrow();
-    await expect(partFor(fresh()).prepareCancelByOwner(ACTION_BAD_CHECKSUM)).rejects.toThrow();
+    await expect(partFor(fresh()).prepareClearSetup(ACTION_BAD_CHECKSUM, 1n)).rejects.toThrow();
+    await expect(partFor(fresh()).prepareCancelByOwner(ACTION_BAD_CHECKSUM, 1n)).rejects.toThrow();
   });
 
   it('refuses a mixed-case method whose checksum is wrong on the veto', async () => {
@@ -70,7 +106,8 @@ describe('the address rule on every address argument', () => {
     const expected = callData(SIGNATURES.cancelByVeto, VETO_PARAMS, [ACCOUNT, ACTION, 3n, METHOD]);
 
     expect((await partFor(fresh()).prepareCancelByVeto(spell(ACCOUNT), spell(ACTION), 3n, spell(METHOD))).data).toBe(expected);
-    expect((await partFor(fresh()).prepareClearSetup(spell(ACTION))).data).toBe(callData(SIGNATURES.clearSetup, [{ type: 'address' }], [ACTION]));
+    expect((await partFor(fresh()).prepareClearSetup(spell(ACTION), 3n)).data).toBe(callData(SIGNATURES.clearSetup, OWNER_PARAMS, [ACTION, 3n]));
+    expect((await partFor(fresh()).prepareCancelByOwner(spell(ACTION), 3n)).data).toBe(callData(SIGNATURES.cancelByOwner, OWNER_PARAMS, [ACTION, 3n]));
   });
 
   it('accepts the bound pair given to the constructor in any accepted spelling', async () => {
@@ -108,8 +145,8 @@ describe('the hex arguments of commitSetup', () => {
 describe('the bound account and action', () => {
   it.each([
     ['prepareCommitSetup', (part: ReturnType<typeof partFor>) => part.prepareCommitSetup(OTHER, COMMITMENT, 1n, '0x', '0x')],
-    ['prepareClearSetup', (part: ReturnType<typeof partFor>) => part.prepareClearSetup(OTHER)],
-    ['prepareCancelByOwner', (part: ReturnType<typeof partFor>) => part.prepareCancelByOwner(OTHER)],
+    ['prepareClearSetup', (part: ReturnType<typeof partFor>) => part.prepareClearSetup(OTHER, 1n)],
+    ['prepareCancelByOwner', (part: ReturnType<typeof partFor>) => part.prepareCancelByOwner(OTHER, 1n)],
     ['prepareCancelByVeto', (part: ReturnType<typeof partFor>) => part.prepareCancelByVeto(ACCOUNT, OTHER, 1n, METHOD)],
   ] as const)('%s throws a TypeError naming the action when it is not the bound one', async (_member, prepare) => {
     const provider = fresh();

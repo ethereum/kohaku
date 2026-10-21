@@ -232,7 +232,7 @@ describe('the password is its UTF-8 bytes, not normalized', () => {
 
 describe('the padding arithmetic from the widths', () => {
   const SCHEME_CONFIG_WIDTHS = { wallet: 32, passkey: 96, zkPassport: 32, aadhaar: 32 } as const;
-  const BLESSED_CONFIG_WIDTHS = { wallet: 32, passkey: 96, zkPassport: 288, aadhaar: 64 } as const;
+  const BLESSED_CONFIG_WIDTHS = { wallet: 32, passkey: 96, zkPassport: 256, aadhaar: 96 } as const;
   const widest = (widths: Record<string, number>): number => Math.max(...Object.values(widths));
 
   // The serialization's widths restated here rather than imported from src.
@@ -291,7 +291,7 @@ describe('the padding arithmetic from the widths', () => {
     expect(BACKUP_TAG_SIZE).toBe(16);
   });
 
-  it('records that 16 salted passkeys fit, and only 7 fit at the blessed zkPassport width', () => {
+  it('records that 16 salted passkeys fit, and only 7 salted or 8 unsalted fit at the blessed zkPassport width', () => {
     const inOneClause = passkeyRule(16, true);
     const inSixteenClauses = passkeyClausesRule(16);
     const perSaltedWidest = sum(credentialWidths(96));
@@ -304,19 +304,19 @@ describe('the padding arithmetic from the widths', () => {
     expect(Math.floor((BACKUP_PADDING_SIZE - sum(HEADER) - sum(CLAUSE_HEADER)) / perSaltedWidest)).toBe(16);
     expect(Math.floor((BACKUP_PADDING_SIZE - sum(HEADER)) / clauseOfOne(96))).toBe(16);
 
-    // the blessed zkPassport config is 288 bytes
+    // the blessed zkPassport config is 256 bytes
     const zkPassport = widest(BLESSED_CONFIG_WIDTHS);
     const fitSalted = Math.floor((BACKUP_PADDING_SIZE - sum(HEADER) - sum(CLAUSE_HEADER)) / sum(credentialWidths(zkPassport)));
     const fitSaltedWorstFraming = Math.floor((BACKUP_PADDING_SIZE - sum(HEADER)) / clauseOfOne(zkPassport));
     const fitUnsalted = Math.floor((BACKUP_PADDING_SIZE - sum(HEADER) - sum(CLAUSE_HEADER)) / (20 + 2 + zkPassport + 1));
 
-    expect(zkPassport).toBe(288);
-    expect(sum(credentialWidths(zkPassport))).toBe(343);
-    expect([fitSalted, fitSaltedWorstFraming, fitUnsalted]).toEqual([7, 7, 7]);
-    expect(sum(HEADER) + sum(CLAUSE_HEADER) + 7 * 311).toBe(2189);
-    expect(sum(HEADER) + sum(CLAUSE_HEADER) + 8 * 311).toBeGreaterThan(BACKUP_PADDING_SIZE);
-    expect(sum(HEADER) + 16 * clauseOfOne(zkPassport)).toBe(5545);
-    expect(16 * (zkPassport + 32 + 20)).toBe(5440);
+    expect(zkPassport).toBe(256);
+    expect(sum(credentialWidths(zkPassport))).toBe(311);
+    expect([fitSalted, fitSaltedWorstFraming, fitUnsalted]).toEqual([7, 7, 8]);
+    expect(sum(HEADER) + sum(CLAUSE_HEADER) + 8 * 279).toBe(2244);
+    expect(sum(HEADER) + sum(CLAUSE_HEADER) + 9 * 279).toBeGreaterThan(BACKUP_PADDING_SIZE);
+    expect(sum(HEADER) + 16 * clauseOfOne(zkPassport)).toBe(5033);
+    expect(16 * (zkPassport + 32 + 20)).toBe(4928);
     // config and salt alone, without the method address or framing
     expect(16 * (96 + 32)).toBe(2048);
   });

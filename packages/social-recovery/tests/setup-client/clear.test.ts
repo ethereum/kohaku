@@ -22,7 +22,7 @@ describe('prepareClearSetup: three shapes from hasSetup and isAuthorized', () =>
     expect(prepared.kind).toBe('batch');
     expect(prepared.atomic).toBe(true);
     expect(prepared.block).toEqual(PIN);
-    expect(prepared.calls.map((call) => call.data).sort()).toEqual([clearSetupData(ACTION), DISARMING_DATA].sort());
+    expect(prepared.calls.map((call) => call.data).sort()).toEqual([clearSetupData(ACTION, 3n), DISARMING_DATA].sort());
 
     for (const call of prepared.calls) {
       expect(call.block).toEqual(PIN);
@@ -38,7 +38,7 @@ describe('prepareClearSetup: three shapes from hasSetup and isAuthorized', () =>
     const prepared = (await client.prepareClearSetup()) as PreparedCall;
 
     expect(prepared.kind).toBe('call');
-    expect(prepared.data).toBe(clearSetupData(ACTION));
+    expect(prepared.data).toBe(clearSetupData(ACTION, 3n));
     expect(decodeFunctionData({ abi: POLICY_MANAGER_WRITES_ABI, data: prepared.data }).functionName).toBe('clearSetup');
     expect(prepared.block).toEqual(PIN);
     expect(members(seen)).not.toContain('action.disarmingCall');
@@ -61,7 +61,7 @@ describe('prepareClearSetup: three shapes from hasSetup and isAuthorized', () =>
     const { client } = build({ world: { state: standingState(COMMITTED, 0n, 0), authorized: false } });
     const prepared = (await client.prepareClearSetup()) as PreparedCall;
 
-    expect(prepared.data).toBe(clearSetupData(ACTION));
+    expect(prepared.data).toBe(clearSetupData(ACTION, 0n));
   });
 
   it('reads no setup over a zero commitment after a clear bumped the nonce', async () => {
@@ -90,8 +90,20 @@ describe('prepareClearSetup: three shapes from hasSetup and isAuthorized', () =>
     });
     const prepared = (await client.prepareClearSetup()) as PreparedCall;
 
-    expect(prepared.data).toBe(clearSetupData(ACTION));
+    expect(prepared.data).toBe(clearSetupData(ACTION, 3n));
     expect(members(seen)).not.toContain('action.isAuthorized');
+  });
+
+  it.each([true, false])('names the stored setup nonce the state read answers (authorized %s): clearSetup(action, 7)', async (authorized) => {
+    const { client, seen } = build({ world: { state: standingState(COMMITTED, 7n, 900), authorized } });
+    const prepared = await client.prepareClearSetup();
+    const calls = prepared.kind === 'batch' ? prepared.calls : [prepared];
+    const clear = calls.find((call) => call.data.slice(0, 10) === clearSetupData(ACTION, 0n).slice(0, 10));
+
+    expect(clear?.data).toBe(clearSetupData(ACTION, 7n));
+    expect(decodeFunctionData({ abi: POLICY_MANAGER_WRITES_ABI, data: clear?.data ?? '0x' }).args).toEqual([ACTION, 7n]);
+    expect(seen.parts.filter((call) => call.member === 'prepareClearSetup').map((call) => call.args)).toEqual([[ACTION, 7n, PIN]]);
+    expect(members(seen).indexOf('manager.stateOf')).toBeLessThan(members(seen).indexOf('manager.prepareClearSetup'));
   });
 
   it('throws while the version escape is set', async () => {

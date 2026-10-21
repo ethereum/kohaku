@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256 } from 'viem';
+import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseAbi } from 'viem';
 import {
   POLICY_MANAGER_WRITES_ABI,
   RECOVERY_ACTION_SET_ADDR_PRIVILEGE_ABI,
@@ -278,9 +278,12 @@ export const commitSetupData = (action: Address, commitment: Hex, nonce: bigint,
     args: [action, commitment, nonce, publicMetadata, privateMetadata],
   });
 
-/** `clearSetup` calldata. */
-export const clearSetupData = (action: Address): Hex =>
-  encodeFunctionData({ abi: POLICY_MANAGER_WRITES_ABI, functionName: 'clearSetup', args: [action] });
+/** The manager's `clearSetup`, declared by hand from the pinned contract. */
+const CLEAR_SETUP_ABI = parseAbi(['function clearSetup(address action, uint64 nonce)']);
+
+/** `clearSetup(action, nonce)` calldata. */
+export const clearSetupData = (action: Address, nonce: bigint): Hex =>
+  encodeFunctionData({ abi: CLEAR_SETUP_ABI, functionName: 'clearSetup', args: [action, nonce] });
 
 /** The account's `setAddrPrivilege(slot, priv)` calldata. */
 export const privilegeData = (priv: Hex): Hex =>
@@ -481,10 +484,10 @@ export function doubles(world: World): Doubles {
 
       return accountCall(MANAGER, commitSetupData(action, setupCommitment, nonce, publicMetadata, privateMetadata), block);
     },
-    async prepareClearSetup(action, block) {
-      note('manager', 'prepareClearSetup', [action, block]);
+    async prepareClearSetup(action, nonce, block) {
+      note('manager', 'prepareClearSetup', [action, nonce, block]);
 
-      return accountCall(MANAGER, clearSetupData(action), block);
+      return accountCall(MANAGER, clearSetupData(action, nonce), block);
     },
     prepareCancelByOwner: unexpected('prepareCancelByOwner'),
     prepareStartAttempt: unexpected('prepareStartAttempt'),

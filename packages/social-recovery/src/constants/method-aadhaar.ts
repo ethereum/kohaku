@@ -7,13 +7,20 @@ export const METHOD_AADHAAR_VECTOR_FILES = Object.freeze(['method-aadhaar-config
 export const METHOD_AADHAAR_CONFIG_ABI = [
   { name: 'nullifier', type: 'uint256' },
   { name: 'nullifierSeed', type: 'uint256' },
+  { name: 'freshnessWindow', type: 'uint256' },
 ] as const;
 
 /** The config's field names, in the layout's order. */
-export const METHOD_AADHAAR_CONFIG_FIELDS = Object.freeze(['nullifier', 'nullifierSeed'] as const);
+export const METHOD_AADHAAR_CONFIG_FIELDS = Object.freeze(['nullifier', 'nullifierSeed', 'freshnessWindow'] as const);
 
 /** The config's exact length in bytes. */
-export const METHOD_AADHAAR_CONFIG_BYTES = 64;
+export const METHOD_AADHAAR_CONFIG_BYTES = 96;
+
+/** The freshness window `configFrom` writes into every config: 24 hours, in seconds. */
+export const METHOD_AADHAAR_FRESHNESS_WINDOW = 86400n;
+
+/** The shortest freshness window, in seconds, a config may carry; a shorter one is judged `rejected`. */
+export const METHOD_AADHAAR_MIN_FRESHNESS_WINDOW = 3600n;
 
 /** The proof's ABI layout, the Groth16 verifier's `verifyProof` arguments. */
 export const METHOD_AADHAAR_PROOF_ABI = [
@@ -50,6 +57,12 @@ export const METHOD_AADHAAR_PUBLIC_INPUTS = Object.freeze([
 
 /** The number of public inputs. */
 export const METHOD_AADHAAR_PUBLIC_INPUT_COUNT = METHOD_AADHAAR_PUBLIC_INPUTS.length;
+
+/** The public inputs that disclose a field of the card; a proof the method accepts carries zero in each. */
+export const METHOD_AADHAAR_DISCLOSURE_INPUTS = Object.freeze(['ageAbove18', 'gender', 'pincode', 'state'] as const);
+
+/** The milliseconds in one second, the system clock's unit. */
+export const METHOD_AADHAAR_MILLISECONDS_PER_SECOND = 1000;
 
 /** The width in bits of every config and proof word. */
 export const METHOD_AADHAAR_WORD_BITS = 256;

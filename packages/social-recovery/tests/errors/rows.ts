@@ -16,10 +16,11 @@ const row = (name: string, selector: Hex, source: KitErrorSource, inputs: readon
   inputs: inputs.map(([argument, type]) => ({ name: argument, type })),
 });
 
-/** The manager's twenty-one errors, in their declaration order. */
+/** The manager's twenty-two errors, in their declaration order. */
 export const MANAGER_ROWS: readonly ErrorRow[] = [
   row('PolicyManager_InvalidCommitment', '0x755fed9c', 'manager', [['supplied', 'bytes32']]),
   row('PolicyManager_WrongSetupNonce', '0x9609057d', 'manager', [['supplied', 'uint64'], ['expected', 'uint64']]),
+  row('PolicyManager_ActionDoesNotServeAccount', '0xa1844eb2', 'manager', [['account', 'address'], ['action', 'address']]),
   row('PolicyManager_PlaceOutOfRange', '0x26013c4a', 'manager', [['place', 'uint256'], ['count', 'uint256']]),
   row('PolicyManager_NoSetup', '0x912e69d3', 'manager', [['account', 'address'], ['action', 'address']]),
   row('PolicyManager_NoActiveAttempt', '0x4c3e406c', 'manager', [['account', 'address'], ['action', 'address']]),
@@ -45,7 +46,7 @@ export const MANAGER_ROWS: readonly ErrorRow[] = [
   row('PolicyManager_WrongPayload', '0x567247d3', 'manager', [['supplied', 'bytes32'], ['committed', 'bytes32']]),
 ];
 
-/** The action contract's five errors; the attempt state travels as the enum's `uint8`. */
+/** The action contract's six errors; the attempt state travels as the enum's `uint8`. */
 export const ACTION_ROWS: readonly ErrorRow[] = [
   row('RecoveryAction_BatchNotApproved', '0x239f9939', 'action', [['callIndex', 'uint256']]),
   row('RecoveryAction_MalformedHandover', '0x35c2a352', 'action', [['payload', 'bytes']]),
@@ -57,6 +58,7 @@ export const ACTION_ROWS: readonly ErrorRow[] = [
     ['consumableAfter', 'uint48'],
     ['committedPayloadHash', 'bytes32'],
   ]),
+  row('RecoveryAction_AccountNotServed', '0x3f6b40e3', 'action', [['account', 'address']]),
 ];
 
 /** Finds a row by its declared name, failing the test when the fixture lacks it. */
@@ -71,7 +73,7 @@ export function rowNamed(name: string): ErrorRow {
 /** One argument as the encoder takes it. */
 export type ArgumentValue = bigint | string;
 
-/** The kit's twenty-six declared errors. */
+/** The kit's twenty-eight declared errors. */
 export const KIT_ROWS: readonly ErrorRow[] = [...MANAGER_ROWS, ...ACTION_ROWS];
 
 /** The language pair's selectors, well known outside the kit. */

@@ -29,22 +29,23 @@ const proofArb: fc.Arbitrary<ProofWords> = fc.record({
 const spelled = (bytes: Hex, upper: boolean): Hex => (upper ? `0x${bytes.slice(2).toUpperCase()}` : bytes);
 
 describe('method-aadhaar codec properties', () => {
-  it('config: any two words encode to abi.encode(nullifier, seed), decode back and re-encode to the same bytes', () => {
+  it('config: any three words encode to abi.encode(nullifier, seed, window), decode back and re-encode to the same bytes', () => {
     fc.assert(
-      fc.property(wordArb, wordArb, (nullifier, nullifierSeed) => {
-        const encoded = codec.encodeConfig({ nullifier, nullifierSeed });
+      fc.property(wordArb, wordArb, wordArb, (nullifier, nullifierSeed, freshnessWindow) => {
+        const encoded = codec.encodeConfig({ nullifier, nullifierSeed, freshnessWindow });
 
-        expect(encoded).toBe(configBytes(nullifier, nullifierSeed));
-        expect(codec.decodeConfig(encoded)).toEqual({ nullifier, nullifierSeed });
+        expect(encoded).toBe(configBytes(nullifier, nullifierSeed, freshnessWindow));
+        expect((encoded.length - 2) / 2).toBe(96);
+        expect(codec.decodeConfig(encoded)).toEqual({ nullifier, nullifierSeed, freshnessWindow });
         expect(codec.encodeConfig(codec.decodeConfig(encoded))).toBe(encoded);
       }),
       { numRuns: NUM_RUNS, ...SEED },
     );
   });
 
-  it('config: any 64 bytes, in either hex case, decode and re-encode to the same bytes lower-cased', () => {
+  it('config: any 96 bytes, in either hex case, decode and re-encode to the same bytes lower-cased', () => {
     fc.assert(
-      fc.property(fc.uint8Array({ minLength: 64, maxLength: 64 }), fc.boolean(), (raw, upper) => {
+      fc.property(fc.uint8Array({ minLength: 96, maxLength: 96 }), fc.boolean(), (raw, upper) => {
         const bytes = bytesToHex(raw);
 
         expect(codec.encodeConfig(codec.decodeConfig(spelled(bytes, upper)))).toBe(bytes);
@@ -87,7 +88,7 @@ describe('method-aadhaar codec properties', () => {
       fc.property(fc.integer({ min: 0, max: 600 }), (length) => {
         const bytes = bytesToHex(new Uint8Array(length));
 
-        if (length !== 64) expect(() => codec.decodeConfig(bytes)).toThrow();
+        if (length !== 96) expect(() => codec.decodeConfig(bytes)).toThrow();
 
         if (length !== 544) expect(() => codec.decodeProof(bytes)).toThrow();
       }),

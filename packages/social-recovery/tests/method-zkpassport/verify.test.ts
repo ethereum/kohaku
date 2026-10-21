@@ -89,11 +89,13 @@ describe('verify over the pin\'s config row and the blessed proof row', () => {
     expect(double.calls).toEqual([]);
   });
 
-  it('the blessed five-field config row is rejected: the pin no longer decodes it', async () => {
-    const config = asHex(member(blessedConfigFile.vectors[0], 'expected', 'encoded'));
+  it('the blessed config row and the blessed proof row agree on the identifier, so the answer is not judged', async () => {
+    const double = stackDouble();
+    const config = asHex(member(blessedConfigFile.vectors.find((row) => row['id'] === 'normal'), 'expected', 'encoded'));
     const proof = asHex(member(proofFile.vectors[0], 'expected', 'encoded'));
     const digest = asHex(member(proofFile.vectors[0], 'input', 'digest'));
 
-    await expect(zkPassportMethod(stackDouble().stack).verify(makeCtx(config, digest), proof)).resolves.toBe('rejected');
+    await expect(zkPassportMethod(double.stack).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
+    expect(double.calls).toEqual([]);
   });
 });

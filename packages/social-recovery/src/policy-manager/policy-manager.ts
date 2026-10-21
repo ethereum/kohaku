@@ -32,7 +32,7 @@ import {
   type ReadResult,
   type Sender,
 } from '../interfaces';
-import { assertBoundRequest, boundAddress, cancelByVetoData, commitSetupData, hashApprovalData, hashCancelData, ownerCallData } from './calldata';
+import { assertBoundRequest, boundAddress, cancelByOwnerData, cancelByVetoData, clearSetupData, commitSetupData, hashApprovalData, hashCancelData } from './calldata';
 import { decodeReturn, readCall, resolveBlock } from './chain';
 import { readModuleInfo, readPaused, readTrustedParties } from './module-reads';
 import { actionStateFrom, domainFrom } from './records';
@@ -84,12 +84,16 @@ export class PolicyManager implements IPolicyManagerInteractor, IMethodModuleRea
     return this.prepared(commitSetupData(bound, setupCommitment, nonce, publicMetadata, privateMetadata), 'account', block);
   }
 
-  async prepareClearSetup(action: Address, block?: PinnedBlock): Promise<PreparedCall> {
-    return this.prepared(ownerCallData('clearSetup', boundAddress(action, this.action, 'action', 'action')), 'account', block);
+  async prepareClearSetup(action: Address, nonce: bigint, block?: PinnedBlock): Promise<PreparedCall> {
+    const bound = boundAddress(action, this.action, 'action', 'action');
+
+    return this.prepared(clearSetupData(bound, nonce), 'account', block);
   }
 
-  async prepareCancelByOwner(action: Address, block?: PinnedBlock): Promise<PreparedCall> {
-    return this.prepared(ownerCallData('cancelByOwner', boundAddress(action, this.action, 'action', 'action')), 'account', block);
+  async prepareCancelByOwner(action: Address, attemptId: bigint, block?: PinnedBlock): Promise<PreparedCall> {
+    const bound = boundAddress(action, this.action, 'action', 'action');
+
+    return this.prepared(cancelByOwnerData(bound, attemptId), 'account', block);
   }
 
   async prepareStartAttempt(request: AttemptRequest, block?: PinnedBlock): Promise<PreparedCall> {
@@ -104,13 +108,7 @@ export class PolicyManager implements IPolicyManagerInteractor, IMethodModuleRea
     return this.prepared(encodeCancelRequest(request), 'anyone', block);
   }
 
-  async prepareCancelByVeto(
-    account: Address,
-    action: Address,
-    attemptId: bigint,
-    method: Address,
-    block?: PinnedBlock,
-  ): Promise<PreparedCall> {
+  async prepareCancelByVeto(account: Address, action: Address, attemptId: bigint, method: Address, block?: PinnedBlock): Promise<PreparedCall> {
     const boundAccount = boundAddress(account, this.account, 'account', 'account');
     const boundAction = boundAddress(action, this.action, 'action', 'action');
 

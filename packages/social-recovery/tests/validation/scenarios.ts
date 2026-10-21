@@ -82,7 +82,7 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
         paused: { answered: true, value: true },
       })],
     }],
-    ['an unaudited, unchecked action and another armed action', DRAFT, {
+    ['an unaudited, unsupported action and another armed action', DRAFT, {
       ...SETUP_CONTEXT,
       descriptor: { ...SETUP_CONTEXT.descriptor, auditedActions: [] },
       action: { ...SETUP_CONTEXT.action, supportsAccount: false },

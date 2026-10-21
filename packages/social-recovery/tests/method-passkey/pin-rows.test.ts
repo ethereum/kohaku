@@ -1,17 +1,16 @@
 import { createPublicKey, verify as nodeVerify } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { passkeyMethod } from '../../src';
 import type { Hex } from '../../src/interfaces';
 import { readVector } from '../kat/read-vector';
 import { chainAcceptsClientData } from './chain-model';
-import { base64url, bytesOf, CONFIG_FILE, type ConfigVectorFile, ctxFor, derOf, hexOf, type ProofVectorFile, sha256, word } from './fixtures';
+import { base64url, bytesOf, CONFIG_FILE, type ConfigVectorFile, ctxFor, derOf, hexOf, PROOF_FILE, type ProofVectorFile, sha256, word } from './fixtures';
+
+const PIN_ROWS = ['missing-challenge-closing-quote', 'invalid-signature'] as const;
 
 const method = passkeyMethod();
-const pinned = JSON.parse(readFileSync(new URL('fixtures/pin-proof-rows.json', import.meta.url), 'utf8')) as ProofVectorFile & {
-  readonly blessed: boolean;
-  readonly source: string;
-};
+const copied = (readVector(PROOF_FILE) as unknown as ProofVectorFile).vectors;
+const pinned = { vectors: copied.filter((row) => (PIN_ROWS as readonly unknown[]).includes(row['id'])) };
 const configRow = (readVector(CONFIG_FILE) as unknown as ConfigVectorFile).vectors[0];
 const config = (configRow?.expected.encoded ?? '0x') as Hex;
 
@@ -29,20 +28,18 @@ const signatureHolds = (row: ProofVectorFile['vectors'][number]): boolean =>
     derOf(BigInt(row.input.r), BigInt(row.input.s)),
   );
 
-/** The pinned row with this id; throws where the fixture lacks it, so no assertion passes vacuously. */
+/** The copied row with this id; throws where the copy lacks it, so no assertion passes vacuously. */
 const rowNamed = (name: string): ProofVectorFile['vectors'][number] => {
   const row = pinned.vectors.find((candidate) => candidate['id'] === name);
 
-  if (row === undefined) throw new Error(`no pinned row ${name}`);
+  if (row === undefined) throw new Error(`no copied row ${name}`);
 
   return row;
 };
 
-describe('the two proof rows of the contracts pin the blessed copy lacks (unblessed fixture)', () => {
-  it('is marked unblessed, names its source and holds exactly the two rows', () => {
-    expect(pinned.blessed).toBe(false);
-    expect(pinned.source).toContain('9c8778b');
-    expect(pinned.vectors.map((row) => row['id'])).toEqual(['missing-challenge-closing-quote', 'invalid-signature']);
+describe('the two proof rows the contracts pin added to the copied vector', () => {
+  it('the copy holds both rows', () => {
+    expect(pinned.vectors.map((row) => row['id'])).toEqual([...PIN_ROWS]);
   });
 
   for (const row of pinned.vectors) {

@@ -51,7 +51,12 @@ const EXPECTED_VERDICTS: Record<string, 'satisfied' | 'rejected'> = {
   'wrong-challenge': 'rejected',
   'wrong-client-data-type': 'rejected',
   'wrong-relying-party-hash': 'rejected',
+  'missing-challenge-closing-quote': 'rejected',
+  'invalid-signature': 'rejected',
 };
+
+/** The rows whose refusal is the signature's own, so their raw signature does not verify. */
+const SIGNATURE_REFUSED: ReadonlySet<string> = new Set(['invalid-signature']);
 
 describe('the blessed proof rows', () => {
   const configRow = configFile.vectors[0];
@@ -64,12 +69,13 @@ describe('the blessed proof rows', () => {
 
   for (const row of rows) {
     const verdict = row.expected.verification ? 'satisfied' : 'rejected';
+    const signatureHolds = !SIGNATURE_REFUSED.has(row['id']);
 
     it(`${row['id']}: the file names ${verdict}`, () => {
       expect(verdict).toBe(EXPECTED_VERDICTS[row['id']]);
     });
 
-    it(`${row['id']}: the raw P-256 signature verifies under the config row's key, so the verdict is the named check's`, () => {
+    it(`${row['id']}: the raw P-256 signature ${signatureHolds ? 'verifies' : 'fails'} under the config row's key, so the verdict is the named check's`, () => {
       const publicKey = createPublicKey({
         key: {
           kty: 'EC',
@@ -82,7 +88,7 @@ describe('the blessed proof rows', () => {
       const message = concat(bytesOf(row.input.authenticatorData), sha256(row.input.clientDataJSON));
       const signature = derOf(BigInt(row.input.r), BigInt(row.input.s));
 
-      expect(nodeVerify('sha256', message, publicKey, signature)).toBe(true);
+      expect(nodeVerify('sha256', message, publicKey, signature)).toBe(signatureHolds);
     });
 
     it(`${row['id']}: verify answers ${verdict}`, async () => {

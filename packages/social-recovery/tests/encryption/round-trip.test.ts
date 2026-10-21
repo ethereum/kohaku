@@ -50,9 +50,9 @@ const METHOD_RULES: ReadonlyArray<readonly [string, Configuration]> = [
   ['wallet, config as one word (method-ecdsa-config)', oneCredentialRule(credential(METHOD_WALLET, WALLET_CONFIG_WORD))],
   ['passkey, three words, 96 bytes', oneCredentialRule(credential(METHOD_PASSKEY, PASSKEY_CONFIG))],
   ['zkPassport, one identity commitment word', oneCredentialRule(credential(METHOD_ZKPASSPORT, ZKPASSPORT_CONFIG_WORD))],
-  ['zkPassport, the blessed 288-byte config', oneCredentialRule(credential(METHOD_ZKPASSPORT, ZKPASSPORT_CONFIG_BLESSED))],
+  ['zkPassport, the blessed 256-byte config', oneCredentialRule(credential(METHOD_ZKPASSPORT, ZKPASSPORT_CONFIG_BLESSED))],
   ['Aadhaar, one identity commitment word', oneCredentialRule(credential(METHOD_AADHAAR, AADHAAR_CONFIG_WORD))],
-  ['Aadhaar, the blessed 64-byte config', oneCredentialRule(credential(METHOD_AADHAAR, AADHAAR_CONFIG_BLESSED))],
+  ['Aadhaar, the blessed 96-byte config', oneCredentialRule(credential(METHOD_AADHAAR, AADHAAR_CONFIG_BLESSED))],
 ];
 
 describe.concurrent('a rule of every shipped method round-trips', () => {

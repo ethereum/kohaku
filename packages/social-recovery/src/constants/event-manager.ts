@@ -82,7 +82,7 @@ export const METHOD_EVENTS_ABI = [
       { name: 'current', type: 'bytes32[]', indexed: false },
     ],
   },
-  { type: 'event', name: 'AdminRenounced', inputs: [address('previous', false)] },
+  { type: 'event', name: 'AdminRenounced', inputs: [address('previous', true)] },
   { type: 'event', name: 'AdminTransferOffered', inputs: [address('current', true), address('pending', true)] },
   { type: 'event', name: 'AdminTransferred', inputs: [address('previous', true), address('current', true)] },
   {

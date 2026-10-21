@@ -172,15 +172,33 @@ describe('validateSetup errors', () => {
     });
   });
 
-  it('does not raise action.unsupported for the served implementation or an action that says yes', () => {
-    const served = {
+  it.each([
+    ['no implementation named', undefined],
+    ['the served implementation named', SERVED_IMPLEMENTATION],
+  ] as const)('raises action.unsupported on any no from the action, with %s', (_case, accountImplementation) => {
+    const context = {
       ...SETUP_CONTEXT,
       action: { ...SETUP_CONTEXT.action, supportsAccount: false },
-      configuration: { ...CONFIGURATION, accountImplementation: SERVED_IMPLEMENTATION },
+      configuration: { ...CONFIGURATION, ...(accountImplementation === undefined ? {} : { accountImplementation }) },
     };
-    const yes = { ...SETUP_CONTEXT, configuration: { ...CONFIGURATION, accountImplementation: OTHER_IMPLEMENTATION } };
+    const result = validateSetup(DRAFT, context);
 
-    expect(validateSetup(DRAFT, served)).toEqual({ errors: [], warnings: [] });
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatchObject({
+      code: 'action.unsupported',
+      subject: 'action',
+      values: { action: ACTION, account: ACCOUNT, supportsAccount: false, ...(accountImplementation === undefined ? {} : { accountImplementation }) },
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it.each([
+    ['no implementation named', undefined],
+    ['the served implementation named', SERVED_IMPLEMENTATION],
+    ['another implementation named', OTHER_IMPLEMENTATION],
+  ] as const)('raises no fit finding on a yes from the action, with %s', (_case, accountImplementation) => {
+    const yes = { ...SETUP_CONTEXT, configuration: { ...CONFIGURATION, ...(accountImplementation === undefined ? {} : { accountImplementation }) } };
+
     expect(validateSetup(DRAFT, yes)).toEqual({ errors: [], warnings: [] });
   });
 

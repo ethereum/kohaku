@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { METHOD_AADHAAR_FRESHNESS_WINDOW } from '../../src/constants/method-aadhaar';
 import type { EnrollInput, Hex, Input, Material } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import {
   CERTIFICATE,
+  clockForFile,
   configBytes,
   configRow,
   ctxFor,
+  FRESH_NOW,
+  FRESHNESS_WINDOW,
   isFailure,
   pcdOf,
   proofRow,
@@ -23,6 +27,8 @@ const CONFIG = configBytes(22n, 77n);
 const boundPcd = pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST));
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
+clockForFile(FRESH_NOW);
+
 describe('enrollment', () => {
   it('enrollInput carries the seed and the certificate and no field to reveal, touching no stack', () => {
     const double = stackDouble();
@@ -32,17 +38,29 @@ describe('enrollment', () => {
     expect(Object.values(input)).toContain(CERTIFICATE);
     expect(Object.values(input).some((value) => value === 77n || value === 77)).toBe(true);
     expect(Object.values(input).filter(Array.isArray)).toEqual([[]]);
+    expect((input as { fieldsToRevealArray?: unknown }).fieldsToRevealArray).toEqual([]);
     expect(double.total()).toBe(0);
   });
 
-  it('configFrom writes abi.encode(nullifier, seed) from the prover proof, and the config vector bytes', async () => {
+  it('configFrom writes abi.encode(nullifier, seed, the fixed window) from the prover proof', async () => {
     const double = stackDouble({ pcd: pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST)) });
     const method = anonAadhaarMethod({ stack: double.stack });
     const config = await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA });
 
-    expect(config).toBe(configBytes(22n, 77n));
+    expect(METHOD_AADHAAR_FRESHNESS_WINDOW).toBe(FRESHNESS_WINDOW);
+    expect(config).toBe(configBytes(22n, 77n, 86_400n));
+    expect(method.codec.decodeConfig(config as Hex)).toEqual({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: 86_400n });
+  });
 
-    expect(config).toBe(configRow.expected.encoded);
+  it('configFrom writes the config vector bytes but for the window, which the vector sets to 4500', async () => {
+    const double = stackDouble({ pcd: pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST)) });
+    const method = anonAadhaarMethod({ stack: double.stack });
+    const config = (await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA })) as Hex;
+    const twoWords = 2 + 2 * 64;
+
+    expect(config.slice(0, twoWords)).toBe(configRow.expected.encoded.slice(0, twoWords));
+    expect(BigInt(`0x${configRow.expected.encoded.slice(twoWords)}`)).toBe(4_500n);
+    expect(config).toBe(configBytes(22n, 77n, METHOD_AADHAAR_FRESHNESS_WINDOW));
   });
 
   it('configFrom proves once and hands the prover the QR code, the seed and the certificate, no reveal', async () => {
@@ -107,6 +125,7 @@ describe('signing', () => {
     expect(values).toContain(CERTIFICATE);
     expect(values.some((value) => value === 77n || value === 77)).toBe(true);
     expect(values.filter(Array.isArray)).toEqual([[]]);
+    expect((input as { fieldsToRevealArray?: unknown }).fieldsToRevealArray).toEqual([]);
     expect(values.some((value) => (typeof value === 'string' || typeof value === 'bigint') && safeBig(value) === BigInt(DIGEST))).toBe(true);
     expect(double.total()).toBe(0);
   });

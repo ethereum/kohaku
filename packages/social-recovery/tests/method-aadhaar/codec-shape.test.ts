@@ -6,6 +6,7 @@ import { stackDouble } from './fixtures';
 const { codec } = anonAadhaarMethod({ stack: stackDouble().stack });
 
 const WORD_LIMIT = 1n << 256n;
+const WINDOW = 86_400n;
 
 /** A copy of `values` with the slot at `index` left empty: the same length, one hole. */
 function holed<T>(values: readonly T[], index: number): T[] {
@@ -153,10 +154,12 @@ describe('a proof word of the wrong type is a TypeError', () => {
 
 describe('encodeConfig refusals carry the class of the fault and name the field', () => {
   it.each([
-    ['nullifier = 2^256', { nullifier: WORD_LIMIT, nullifierSeed: 1n }, 'nullifier'],
-    ['nullifier = -1', { nullifier: -1n, nullifierSeed: 1n }, 'nullifier'],
-    ['nullifierSeed = 2^256', { nullifier: 1n, nullifierSeed: WORD_LIMIT }, 'nullifierSeed'],
-    ['nullifierSeed = -1', { nullifier: 1n, nullifierSeed: -1n }, 'nullifierSeed'],
+    ['nullifier = 2^256', { nullifier: WORD_LIMIT, nullifierSeed: 1n, freshnessWindow: WINDOW }, 'nullifier'],
+    ['nullifier = -1', { nullifier: -1n, nullifierSeed: 1n, freshnessWindow: WINDOW }, 'nullifier'],
+    ['nullifierSeed = 2^256', { nullifier: 1n, nullifierSeed: WORD_LIMIT, freshnessWindow: WINDOW }, 'nullifierSeed'],
+    ['nullifierSeed = -1', { nullifier: 1n, nullifierSeed: -1n, freshnessWindow: WINDOW }, 'nullifierSeed'],
+    ['freshnessWindow = 2^256', { nullifier: 1n, nullifierSeed: 1n, freshnessWindow: WORD_LIMIT }, 'freshnessWindow'],
+    ['freshnessWindow = -1', { nullifier: 1n, nullifierSeed: 1n, freshnessWindow: -1n }, 'freshnessWindow'],
   ])('%s is a RangeError', (_label, fields, name) => {
     const error = thrown(() => codec.encodeConfig(fields));
 
@@ -165,11 +168,13 @@ describe('encodeConfig refusals carry the class of the fault and name the field'
   });
 
   it.each([
-    ['a decimal string nullifier', { nullifier: '22', nullifierSeed: 77n }, 'nullifier'],
-    ['a number seed', { nullifier: 22n, nullifierSeed: 77 }, 'nullifierSeed'],
-    ['a missing seed', { nullifier: 22n }, 'nullifierSeed'],
-    ['a missing nullifier', { nullifierSeed: 77n }, 'nullifier'],
-    ['a null nullifier', { nullifier: null, nullifierSeed: 77n }, 'nullifier'],
+    ['a decimal string nullifier', { nullifier: '22', nullifierSeed: 77n, freshnessWindow: WINDOW }, 'nullifier'],
+    ['a number seed', { nullifier: 22n, nullifierSeed: 77, freshnessWindow: WINDOW }, 'nullifierSeed'],
+    ['a missing seed', { nullifier: 22n, freshnessWindow: WINDOW }, 'nullifierSeed'],
+    ['a missing nullifier', { nullifierSeed: 77n, freshnessWindow: WINDOW }, 'nullifier'],
+    ['a null nullifier', { nullifier: null, nullifierSeed: 77n, freshnessWindow: WINDOW }, 'nullifier'],
+    ['a missing window', { nullifier: 22n, nullifierSeed: 77n }, 'freshnessWindow'],
+    ['a decimal string window', { nullifier: 22n, nullifierSeed: 77n, freshnessWindow: '86400' }, 'freshnessWindow'],
   ])('%s is a TypeError naming the field', (_label, fields, name) => {
     const error = thrown(() => codec.encodeConfig(fields as unknown as Fields));
 
@@ -178,32 +183,36 @@ describe('encodeConfig refusals carry the class of the fault and name the field'
   });
 
   it('an extra field is a TypeError naming it', () => {
-    const error = thrown(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, junk: 1n }));
+    const error = thrown(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: WINDOW, junk: 1n }));
 
     expect(error).toBeInstanceOf(TypeError);
     expect((error as Error).message).toContain('junk');
   });
 
   it('two extra fields: the TypeError names the first one written', () => {
-    const error = thrown(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, zeta: 1n, alpha: 2n }));
+    const error = thrown(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: WINDOW, zeta: 1n, alpha: 2n }));
 
     expect(error).toBeInstanceOf(TypeError);
     expect((error as Error).message).toContain('zeta');
   });
 
   it('an extra field set to undefined is still an extra field', () => {
-    expect(thrown(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, junk: undefined } as unknown as Fields))).toBeInstanceOf(TypeError);
+    expect(
+      thrown(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: WINDOW, junk: undefined } as unknown as Fields)),
+    ).toBeInstanceOf(TypeError);
   });
 
-  it('the two named fields alone encode', () => {
-    expect(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n })).not.toThrow();
+  it('the three named fields alone encode', () => {
+    expect(() => codec.encodeConfig({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: WINDOW })).not.toThrow();
   });
 });
 
 describe('no codec refusal is a plain Error', () => {
   it.each([
     ['decodeConfig of 63 bytes', () => codec.decodeConfig(`0x${'00'.repeat(63)}`)],
-    ['decodeConfig of non-hex', () => codec.decodeConfig(`0x${'zz'.repeat(64)}`)],
+    ['decodeConfig of 64 bytes', () => codec.decodeConfig(`0x${'00'.repeat(64)}`)],
+    ['decodeConfig of 95 bytes', () => codec.decodeConfig(`0x${'00'.repeat(95)}`)],
+    ['decodeConfig of non-hex', () => codec.decodeConfig(`0x${'zz'.repeat(96)}`)],
     ['decodeConfig of a number', () => codec.decodeConfig(5 as never)],
     ['decodeProof of 543 bytes', () => codec.decodeProof(`0x${'00'.repeat(543)}`)],
     ['decodeProof of odd digits', () => codec.decodeProof(`0x${'0'.repeat(1087)}`)],

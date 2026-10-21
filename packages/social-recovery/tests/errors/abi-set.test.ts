@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { decodeRevert, ERRORS_ABI, KIT_ERROR_SOURCES, type ErrorAbi, type Hex } from '../../src/index';
+import { decodeRevert, ERRORS_ABI, ERRORS_ABI_BY_SOURCE, KIT_ERROR_SOURCES, type ErrorAbi, type Hex } from '../../src/index';
 import { selectorOf } from '../helpers/keccak';
-import { ERROR_STRING_SELECTOR, KIT_ROWS, PANIC_SELECTOR, revertData, samplesFor, signatureOf } from './rows';
+import { ACTION_ROWS, ERROR_STRING_SELECTOR, KIT_ROWS, MANAGER_ROWS, PANIC_SELECTOR, revertData, samplesFor, signatureOf } from './rows';
 
 const LANGUAGE_PAIR = ['Error(string)', 'Panic(uint256)'];
 
 const exported: ErrorAbi = ERRORS_ABI;
 
 describe('the exported error ABI set', () => {
-  it('declares every one of the twenty-six kit errors with its argument names and types', () => {
+  it('declares every one of the twenty-eight kit errors with its argument names and types', () => {
     for (const entry of KIT_ROWS) {
       const found = exported.filter((item) => item.name === entry.name);
 
@@ -18,7 +18,7 @@ describe('the exported error ABI set', () => {
     }
   });
 
-  it('holds nothing beyond the twenty-six kit errors and the language pair', () => {
+  it('holds nothing beyond the twenty-eight kit errors and the language pair', () => {
     const allowed = new Set([...KIT_ROWS.map(signatureOf), ...LANGUAGE_PAIR]);
 
     expect(exported.map(signatureOf).filter((signature) => !allowed.has(signature))).toEqual([]);
@@ -31,8 +31,13 @@ describe('the exported error ABI set', () => {
     expect(selectorOf('Panic(uint256)')).toBe(PANIC_SELECTOR);
   });
 
-  it('holds exactly twenty-six kit errors and the language pair', () => {
-    expect(exported).toHaveLength(28);
+  it('holds exactly twenty-eight kit errors and the language pair', () => {
+    expect(exported).toHaveLength(30);
+  });
+
+  it('declares the manager\'s errors and the action\'s errors each in its contract\'s declaration order', () => {
+    expect(ERRORS_ABI_BY_SOURCE.manager.map((item) => item.name)).toEqual(MANAGER_ROWS.map((entry) => entry.name));
+    expect(ERRORS_ABI_BY_SOURCE.action.map((item) => item.name)).toEqual(ACTION_ROWS.map((entry) => entry.name));
   });
 
   it('pins PolicyManager_NoSetup(address,address) to 0x912e69d3 by the independent hash', () => {

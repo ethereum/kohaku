@@ -23,7 +23,6 @@ export const SETUP_WARNING_CODES = [
   'method.no-declaration',
   'method.stopped',
   'action.unaudited',
-  'action.fit-unchecked',
   'manager.already-armed',
   'setup.wait-short',
   'setup.wait-zero',
