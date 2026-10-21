@@ -1,0 +1,87 @@
+# Shield and unshield
+
+Tornado Cash holds fixed-denomination notes. The plugin turns an amount into one or more pool deposits, and later spends those notes through a relayer or a paymaster.
+
+This page is the short path. [Configuration](/tornado-cash/configuration) is the constructor. [Deposits and withdrawals](/tornado-cash/options) is strategies, relayer choice, and paymaster calls. [Notes](/tornado-cash/notes) is listing and importing notes.
+
+:::warning
+`@kohaku-eth/tornado-cash` is still undergoing audits.
+:::
+
+## Create the plugin
+
+`TornadoCashConfigs` has mainnet (`1`) and Sepolia (`11155111`): the instance registry, the relayer registry, and the aggregator.
+
+```ts
+import {
+  createTCBroadcaster,
+  createTCPlugin,
+  TornadoCashConfigs,
+} from '@kohaku-eth/tornado-cash'
+import type { Host } from '@kohaku-eth/plugins'
+
+export function createTornado(host: Host) {
+  return createTCPlugin(host, {
+    accountIndex: 0,
+    protocolConfig: TornadoCashConfigs[1],
+  })
+}
+```
+
+The host is the one from [The host](/host). The first call syncs pool events into `host.storage` and loads the proving artifacts. The default loader fetches them from the Tornado circuits published with `tornado-cli`. Cache that download in a wallet. See [configuration](/tornado-cash/configuration).
+
+New deposits use signature secrets at `m/29795'/1'/{accountIndex}'`. Older BIP-32 notes under the same purpose are still scanned, so a wallet that already deposited with the legacy scheme keeps those notes.
+
+## Assets and denominations
+
+ETH is the sentinel `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (`E_ADDRESS`). ERC-20 pools use the token address. The amount has to be an exact combination of live pool sizes for that asset.
+
+Mainnet ETH pools are 0.1, 1, 10, and 100 ETH. Sepolia ETH pools are 0.1 and 1 ETH. Other assets follow the pools registered on that chain. `prepareShield` divides the amount across those pools. A remainder that fills no pool is left out of the transactions, so check the sum of `tx.value` (or the ERC-20 amounts) before the user signs.
+
+```ts
+const ETH = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const
+
+const note = {
+  asset: { __type: 'erc20' as const, contract: ETH },
+  amount: 100_000_000_000_000_000n, // 0.1 ETH, one pool
+}
+```
+
+## Shield
+
+```ts
+const tornado = createTornado(host)
+const { txns } = await tornado.prepareShield(note)
+
+for (const tx of txns) {
+  const hash = await signer.sendTransaction(tx)
+  await provider.waitForTransaction(hash)
+}
+```
+
+`txns` is `{ to, data, value }`, sent by the user's public account. An ETH deposit sets `value` to the denomination. An ERC-20 deposit is an approval and a deposit per note. With no options, the strategy is `DepositStrategy.MinFee`: fewer, larger notes. 1.3 ETH becomes one 1 ETH note and three 0.1 ETH notes.
+
+```ts
+const rows = await tornado.balance()
+```
+
+One row per asset, with the sum of unspent notes. Pass a list of `{ __type: 'erc20', contract }` to filter. An unsupported asset comes back as zero.
+
+## Unshield
+
+```ts
+const recipient = '0x1111111111111111111111111111111111111111' as const
+
+const operation = await tornado.prepareUnshield(note, recipient)
+const receipts = await createTCBroadcaster(host).broadcast(operation)
+```
+
+The default mode is `'relayer'`. One logical unshield can be several withdrawals when the amount spans more than one note. `receipts` is one entry per withdrawal that the relayer accepted. `id` is the relayer job id.
+
+`createTCBroadcaster` reads relayer URLs from the operation, so the host's `network.fetch` has to reach those hosts. Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig`.
+
+The amount follows the same denomination rule as a shield. `prepareUnshield` throws `InsufficientBalanceError` when the unspent notes cannot cover it.
+
+## What the CLI does
+
+[`createProtocolPlugin`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts) builds this plugin with a local artifacts loader and a saga sync source. `prepareProtocolShield` passes `DepositStrategy.MinFee`. `broadcastTornadoPrivateOp` in the same file is the unshield submit. The prompts are [`src/lib/shield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/shield-flow.ts) and [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts).
