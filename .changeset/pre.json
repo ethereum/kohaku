@@ -45,6 +45,7 @@
     "pp-paymaster-batch-withdrawals",
     "pp-paymaster-refund-recipient",
     "pp-signature-secret-manager",
+    "pp-withdraw-tree-depth-32",
     "privacy-pools-history",
     "provider-log-index",
     "puny-olives-mate",
