@@ -107,6 +107,7 @@ export const allNotesSelector = createSelector(
       balance: deposit.balance,
       assetAddress: deposit.assetAddress,
       approved: deposit.approved,
+      depositor: deposit.depositor,
       deposit: deposit.index,
       withdraw: (withdrawalsMap.get(deposit.precommitment) || []).length,
     }));
@@ -189,6 +190,7 @@ export const unapprovedNotesSelector = createSelector(
         balance: deposit.balance,
         assetAddress: deposit.assetAddress,
         approved: deposit.approved,
+        depositor: deposit.depositor,
         deposit: deposit.index,
         withdraw: (withdrawalsMap.get(deposit.precommitment) || []).length,
       }));
