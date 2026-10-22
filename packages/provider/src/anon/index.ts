@@ -2,7 +2,7 @@ import { Provider } from 'ox/Provider';
 import { AnonRpcWorker } from '@anon-rpc/browser-harness';
 import { EthereumProvider } from '..';
 import { raw } from '../raw';
-import { DEFAULT_WAIT_FOR_TRANSACTION, WaitForTransactionOptions, waitForReceipt } from './wait';
+import { DEFAULT_WAIT_FOR_TRANSACTION, WaitForTransactionOptions } from './wait';
 
 export type { WaitForTransactionOptions } from './wait';
 
@@ -73,17 +73,15 @@ export const anon = async (config: AnonConfig): Promise<EthereumProvider<AnonRpc
         },
     };
 
-    const base = raw(client as unknown as Provider);
     const waitOptions: WaitForTransactionOptions = {
         pollIntervalMs: config.waitForTransaction?.pollIntervalMs ?? DEFAULT_WAIT_FOR_TRANSACTION.pollIntervalMs,
         timeoutMs: config.waitForTransaction?.timeoutMs ?? DEFAULT_WAIT_FOR_TRANSACTION.timeoutMs,
     };
+    const base = raw(client as unknown as Provider, { waitForTransaction: waitOptions });
 
     return {
         ...base,
         _internal: worker,
-        waitForTransaction: (txHash: string) =>
-            waitForReceipt(txHash, () => base.getTransactionReceipt(txHash), waitOptions),
     };
 };
 
