@@ -6,7 +6,7 @@ import { RootState } from "../store";
 import { UserSecretEntry } from "../slices/userSecretsSlice";
 import { myDepositsSelector } from "./deposits.selector";
 import {
-  poolsSelector,
+  activePoolsSelector,
   userSecretsSelector,
   withdrawalsSelector,
 } from "./slices.selectors";
@@ -53,7 +53,7 @@ const getUnspentDepositsByPool = createSelector(
   [
     myDepositsSelector,
     withdrawalsSelector,
-    poolsSelector,
+    activePoolsSelector,
     userSecretsSelector,
   ],
   (deposits, withdrawals, pools, userSecrets) => {
@@ -73,7 +73,11 @@ const getUnspentDepositsByPool = createSelector(
       // If the deposit is already withdrawn skip it
       if (withdrawals.get(depositSecrets.nullifierHash)) continue;
       
-      unspentDepositsByPool.get(deposit.pool)!.push({
+      const poolDeposits = unspentDepositsByPool.get(deposit.pool);
+
+      if (!poolDeposits) continue;
+
+      poolDeposits.push({
         ...deposit,
         ...depositSecrets
       });
@@ -90,7 +94,7 @@ const getUnspentDepositsByPool = createSelector(
 export const getWithdrawableDepositsSelector = createSelector(
   [
     getUnspentDepositsByPool,
-    poolsSelector,
+    activePoolsSelector,
     (_state: RootState, assetAddress: Address) => assetAddress,
     (_state: RootState, _assetAddress: Address, amount?: bigint) => amount,
   ],
