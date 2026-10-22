@@ -73,6 +73,11 @@ export interface IPool {
   state: 0 | 1;
   rootHistorySize: number;
   /**
+   * One of the newer ETH denominations (0.01, 0.03, 0.3, 3, 30). Absent on
+   * classic pools and on snapshots saved before the field existed.
+   */
+  extended?: boolean;
+  /**
    * Highest block this pool's events have been synced to. Absent until the first
    * sync; syncing resumes from here (falling back to `registeredBlock`). Tracked
    * per-pool because the external sync provider serves data per pool, each with

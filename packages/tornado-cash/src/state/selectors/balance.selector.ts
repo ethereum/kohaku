@@ -3,7 +3,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { IDepositWithAsset, IDepositWithBalance } from '../../data/interfaces/events.interface';
 import { Address, Commitment } from '../../interfaces/types.interface';
 import { RootState } from '../store';
-import { assetSelector, poolsSelector } from './slices.selectors';
+import { activePoolsSelector, assetSelector } from './slices.selectors';
 import { myDepositsSelector } from './deposits.selector';
 import { myWithdrawalsSelector } from './withdrawals.selector';
 
@@ -20,7 +20,7 @@ export type SpecificAssetBalanceFn<isAsync extends boolean = false> = <
  * Provides a map of every commitment mapped to a deposit+assetAddress
  */
 export const myDepositsWithAssetSelector = createSelector(
-  [myDepositsSelector, poolsSelector],
+  [myDepositsSelector, activePoolsSelector],
   (myDeposits, poolsMap): Map<Commitment, IDepositWithAsset> => {
     const depositsWithAssets = Array.from(myDeposits)
       .map(([commitment, deposit]) => {
@@ -43,7 +43,7 @@ export const myDepositsWithAssetSelector = createSelector(
  * Provides a map of every commitment mapped to deposit+asset+balance, accounting for withdrawals.
  */
 export const myDepositsBalanceSelector = createSelector(
-  [myWithdrawalsSelector, myDepositsWithAssetSelector, poolsSelector],
+  [myWithdrawalsSelector, myDepositsWithAssetSelector, activePoolsSelector],
   (withdrawalsMap, myDeposits, pools): Map<Commitment, IDepositWithBalance> => {
     const depositsByCommitment = Array.from(myDeposits.values())
       .map((deposit): [Commitment, IDepositWithBalance] => {

@@ -4,7 +4,7 @@ import { TxData } from '@kohaku-eth/provider';
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
-import { ProtocolConfigState } from "../../state";
+import type { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover.js";
@@ -69,6 +69,13 @@ export interface TCProtocolParams {
    * chain. Omit to always sync from the chain.
    */
   minExternalSyncBlocksAmount?: number;
+  /**
+   * Opt in to the extended ETH denominations (0.01, 0.03, 0.3, 3, 30).
+   * Omitted or false keeps deposits, withdrawals, balances, and notes on the
+   * classic pools. Pools already saved keep their per-pool sync cursor, so
+   * turning this on later resumes there instead of the global cursor.
+   */
+  useExtendedEthPools?: boolean;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type

@@ -1,4 +1,5 @@
-import { IPaymasterConfig } from "./plugin/interfaces/protocol-params.interface";
+import type { IPaymasterConfig } from "./plugin/interfaces/protocol-params.interface";
+import type { Address } from "./interfaces/types.interface";
 
 // Protocol constants
 export const E_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -87,3 +88,31 @@ export const TornadoCashConfigs = {
     weth: 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14n,
   }
 } as const;
+
+/**
+ * Extra ETH denominations deployed outside the Tornado instance registry.
+ * When a pool later appears in `getAllInstanceAddresses`, sync uses the
+ * registry record instead of these addresses' contract fallback.
+ */
+export const ExtendedEthPools = {
+  1: [
+    0x199112eb461ea7eec1d75b33343542e1d069b41cn, // 0.01 ETH
+    0x398971a7ae0fed4ae435f353ef00d3d4e4c18fd4n, // 0.03 ETH
+    0xf22487b84a618192aa68c0e1da24e9bbd892f774n, // 0.3 ETH
+    0x74185a3f30b873c0ce1f4257298d1cda61be2f9fn, // 3 ETH
+    0xc11197f71c7730c8b5db7c84191e07575f1db896n, // 30 ETH
+  ],
+  11155111: [
+    0x0E999C5285141ccB6dFaE68A0921F37ABd3e6A87n, // 0.01 ETH
+    0x9480Be3964642efcD6CeBdb3570db8dC0f788908n, // 0.03 ETH
+    0x83091415b54d764E215153Ff54B36cCd44122e6en, // 0.3 ETH
+    0x7eE90edc51c3739Af3ee277e09ADE3F3d6bad4AFn, // 3 ETH
+    0x3d1C943dfb2C8d9905B0Da0AFD18615915fF343An, // 30 ETH
+  ],
+} as const satisfies Record<number, readonly bigint[]>;
+
+export const extendedEthPoolSet = (chainId: bigint): Set<Address> => {
+  const pools = ExtendedEthPools[Number(chainId) as keyof typeof ExtendedEthPools] ?? [];
+
+  return new Set(pools.map((address) => address as Address));
+};

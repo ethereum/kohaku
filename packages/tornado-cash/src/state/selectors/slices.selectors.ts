@@ -47,6 +47,21 @@ export const poolsSelector = selectEntityMap(
   deserialize as () => [Address, IPool],
 );
 
+/**
+ * Pools used for deposits, withdrawals, balances, notes, and event sync.
+ * Extended ETH pools stay in {@link poolsSelector} so a later opt-in can resume
+ * from each pool's saved cursor, but they are hidden until
+ * `useExtendedEthPools` is set.
+ */
+export const activePoolsSelector = createSelector(
+  [poolsSelector, instanceRegistryInfoSelector],
+  (pools, { useExtendedEthPools }) => {
+    if (useExtendedEthPools) return pools;
+
+    return new Map([...pools].filter(([, pool]) => !pool.extended));
+  },
+);
+
 export const withdrawalsSelector = selectEntityMap(
   (s) => s.withdrawals.withdrawalsTuples,
   deserialize as () => [NullifierHash, IWithdrawalEvent],

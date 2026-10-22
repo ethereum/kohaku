@@ -10,4 +10,4 @@ export type { SignatureSecretManagerParams, EnvelopeSigner, NoteEnvelope } from 
 export type { Commitment, Nullifier } from './account/types';
 
 // Configs
-export { TornadoCashConfigs, E_ADDRESS, TornadoPaymasterConfigs } from './config.js';
+export { TornadoCashConfigs, E_ADDRESS, TornadoPaymasterConfigs, ExtendedEthPools, extendedEthPoolSet } from './config.js';

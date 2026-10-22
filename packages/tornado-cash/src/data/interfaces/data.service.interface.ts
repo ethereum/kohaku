@@ -91,6 +91,11 @@ export interface IDataService {
   getAllPoolsAddresses(registryAddress: Address): Promise<Address[]>;
   getPoolAsset(poolAddress: Address): Promise<Address>;
   getPoolConfig(registryAddress: Address, poolAddress: Address): Promise<IPoolConfig>;
+  /**
+   * Pool-contract fields for an ETH pool that is not listed in the instance
+   * registry. Registry metadata is filled with native-ETH defaults.
+   */
+  getUnregisteredNativeEthPoolConfig(poolAddress: Address): Promise<IPoolConfig>;
   getChainId(): Promise<ChainId>;
   getGasPrice(): Promise<bigint>;
 

@@ -1,7 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { ISecretManager } from '../../account/keys';
 import { RootState } from '../store';
-import { depositsSelector, derivedUserSecretsSelector, instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
+import { activePoolsSelector, depositsSelector, derivedUserSecretsSelector, instanceRegistryInfoSelector } from '../selectors/slices.selectors';
 import { addSignatureSecret } from '../slices/signatureSecretsSlice';
 import { addUserSecret } from '../slices/userSecretsSlice';
 
@@ -21,7 +21,7 @@ export const discoverUserEventsThunk = createAsyncThunk<
   async ({ secretManager }, { getState, dispatch }) => {
     const state = getState();
     const deposits = depositsSelector(state);
-    const pools = poolsSelector(state);
+    const pools = activePoolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
     const userSecrets = derivedUserSecretsSelector(state);
     const poolAddresses = [...pools.keys()];
