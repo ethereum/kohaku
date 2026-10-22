@@ -176,6 +176,15 @@ export class DataService implements IDataService {
     return BigInt(chainIdHex);
   }
 
+  async getTransactionCount(address: `0x${string}`): Promise<number> {
+    const nonceHex = await this.ethClient.request({
+      method: "eth_getTransactionCount",
+      params: [address, "latest"],
+    }) as string;
+
+    return Number(BigInt(nonceHex));
+  }
+
   async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
     return this.ethClient.makeContractRequest(poolAddress, "pool", "currentRoot");
   }

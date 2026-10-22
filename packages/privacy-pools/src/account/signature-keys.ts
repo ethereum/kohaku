@@ -218,9 +218,19 @@ export function SignatureSecretManager({
     return `0x${key.toString(16).padStart(64, '0')}` as `0x${string}`;
   };
 
+  // A wallet `path` delegator is intentionally outside the signature scheme: it
+  // must be a plain, recoverable wallet key, so it comes straight from the
+  // keystore's HD derivation (no envelope signature, no field transform). The
+  // keystore is always present via `host`, even when a custom `EnvelopeSigner`
+  // is injected for note secrets.
+  const deriveDelegatorSigner = async ({ path }: { path: string }) => {
+    return host.keystore.deriveAt(path) as Promise<`0x${string}`>;
+  };
+
   return {
     getDepositSecrets,
     getSecrets,
     deriveEphemeralSigner,
+    deriveDelegatorSigner,
   };
 }

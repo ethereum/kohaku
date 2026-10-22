@@ -129,6 +129,7 @@ export async function buildSignedUserOp({
   maxFeePerGas,
   maxPriorityFeePerGas,
   nonce = 0n,
+  authorizationNonce,
   tailCalls,
 }: BuildSignedUserOpParams): Promise<SerializedUserOperation> {
   const owner = signer;
@@ -152,12 +153,15 @@ export async function buildSignedUserOp({
     });
   }
 
-  // The EIP-7702 authorization nonce must equal the sender's EOA nonce at bundle
-  // time; a fresh single-use sender has nonce 0.
+  // The EIP-7702 authorization nonce must equal the sender's EOA transaction
+  // count at bundle time. A fresh single-use sender has nonce 0 (and no caller
+  // passes `authorizationNonce`); a reused wallet-path delegator carries a
+  // nonzero count, threaded in explicitly. This is the EOA nonce, distinct from
+  // the EntryPoint `nonce` the userOp carries below.
   const authorization = await owner.signAuthorization({
     address: SIMPLE_7702_IMPLEMENTATION,
     chainId,
-    nonce: Number(nonce),
+    nonce: Number(authorizationNonce ?? nonce),
   });
 
   const userOperation = {
