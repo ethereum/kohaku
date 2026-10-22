@@ -23,20 +23,20 @@ const EXTENDED = ExtendedEthPools[1][0] as Address;
 const EXTENDED_003 = ExtendedEthPools[1][1] as Address;
 const ETH = 10n ** 18n;
 
-function protocolConfig(ignoreExtendedEthPools = false): ProtocolConfigState {
+function protocolConfig(useExtendedEthPools = false): ProtocolConfigState {
   return {
     chainId: 1n,
     ensSubdomainKey: 'eth',
     instanceRegistry: { address: 1n, deploymentBlock: 0n },
     relayerRegistry: { address: 2n, deploymentBlock: 0n },
     aggregator: { address: 3n },
-    ignoreExtendedEthPools,
+    useExtendedEthPools,
   };
 }
 
-function storeWith(ignoreExtendedEthPools = false) {
+function storeWith(useExtendedEthPools = false) {
   return storeFactory({
-    protocolConfig: protocolConfig(ignoreExtendedEthPools),
+    protocolConfig: protocolConfig(useExtendedEthPools),
     logLevel: 'off',
   });
 }
@@ -87,7 +87,7 @@ function secretManager(): ISecretManager {
 
 describe('syncPoolsThunk extended ETH pools', () => {
   it('registers an extended pool missing from the registry as native ETH', async () => {
-    const store = storeWith();
+    const store = storeWith(true);
     const dataService = {
       getAllPoolsAddresses: vi.fn().mockResolvedValue([CLASSIC]),
       getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
@@ -128,7 +128,7 @@ describe('syncPoolsThunk extended ETH pools', () => {
   });
 
   it('uses the registry record when the extended pool is already listed', async () => {
-    const store = storeWith();
+    const store = storeWith(true);
     const dataService = {
       getAllPoolsAddresses: vi.fn().mockResolvedValue([EXTENDED]),
       getPoolConfig: vi.fn().mockResolvedValue(registryConfig(EXTENDED, ETH / 100n)),
@@ -153,8 +153,8 @@ describe('syncPoolsThunk extended ETH pools', () => {
     expect(poolsSelector(store.getState()).get(EXTENDED)?.protocolFeePercentage).toBe(33);
   });
 
-  it('does not register extended pools when they are ignored', async () => {
-    const store = storeWith(true);
+  it('does not register extended pools unless opted in', async () => {
+    const store = storeWith();
     const dataService = {
       getAllPoolsAddresses: vi.fn().mockResolvedValue([CLASSIC, EXTENDED]),
       getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
@@ -193,7 +193,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
   }
 
   it('syncs a pool with no cursor from its registered block, not the global cursor', async () => {
-    const store = storeWith();
+    const store = storeWith(true);
 
     store.dispatch(setLastSyncedBlock(9_000n));
     store.dispatch(registerPools([
@@ -212,14 +212,14 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
   });
 
   it('freezes an ignored pool cursor and resumes from it when extended pools are enabled again', async () => {
-    const store = storeWith();
+    const store = storeWith(true);
 
     store.dispatch(setLastSyncedBlock(5_000n));
     store.dispatch(registerPools([
       pool(CLASSIC, ETH, 10n, 200n),
       pool(EXTENDED, ETH / 100n, 50n, 80n),
     ]));
-    store.dispatch(setProtocolConfig(protocolConfig(true)));
+    store.dispatch(setProtocolConfig(protocolConfig(false)));
 
     const ignored = eventsService();
 
@@ -228,7 +228,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
     expect(ignored.calls).toEqual([{ address: CLASSIC, fromBlock: 200n }]);
     expect(poolsSelector(store.getState()).get(EXTENDED)?.lastSyncedBlock).toBe(80n);
 
-    store.dispatch(setProtocolConfig(protocolConfig(false)));
+    store.dispatch(setProtocolConfig(protocolConfig(true)));
 
     const resumed = eventsService();
 
@@ -244,8 +244,8 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 describe('deposit denomination packing', () => {
   const classicPointOne = 101n as Address;
 
-  async function deposit(amount: bigint, strategy: DepositStrategy, ignoreExtendedEthPools = false) {
-    const store = storeWith(ignoreExtendedEthPools);
+  async function deposit(amount: bigint, strategy: DepositStrategy, useExtendedEthPools = true) {
+    const store = storeWith(useExtendedEthPools);
 
     store.dispatch(registerPools([
       pool(classicPointOne, ETH / 10n),

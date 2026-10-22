@@ -70,12 +70,12 @@ export interface TCProtocolParams {
    */
   minExternalSyncBlocksAmount?: number;
   /**
-   * Skip the extended ETH denominations (0.01, 0.03, 0.3, 3, 30). Deposits,
-   * withdrawals, balances, and notes then use only the classic pools. Pools
-   * already saved keep their per-pool sync cursor so turning this off later
-   * resumes there instead of the global cursor.
+   * Opt in to the extended ETH denominations (0.01, 0.03, 0.3, 3, 30).
+   * Omitted or false keeps deposits, withdrawals, balances, and notes on the
+   * classic pools. Pools already saved keep their per-pool sync cursor, so
+   * turning this on later resumes there instead of the global cursor.
    */
-  ignoreExtendedEthPools?: boolean;
+  useExtendedEthPools?: boolean;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type

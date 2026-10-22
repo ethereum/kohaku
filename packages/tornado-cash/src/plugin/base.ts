@@ -51,7 +51,7 @@ export class TornadoCashProtocol implements TCInstance {
       paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host),
       minExternalSyncBlocksAmount,
-      ignoreExtendedEthPools = false,
+      useExtendedEthPools = false,
       secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
@@ -87,7 +87,7 @@ export class TornadoCashProtocol implements TCInstance {
           resolvedSecretManager ? proxy(resolvedSecretManager) : undefined,
           externalSyncClient ? proxy(externalSyncClient) : undefined,
           {
-            protocolConfig: { ...protocolConfig, ignoreExtendedEthPools },
+            protocolConfig: { ...protocolConfig, useExtendedEthPools },
             accountIndex,
             relayerConfig,
             paymasterConfig,

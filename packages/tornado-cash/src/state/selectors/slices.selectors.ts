@@ -51,12 +51,13 @@ export const poolsSelector = selectEntityMap(
 /**
  * Pools used for deposits, withdrawals, balances, notes, and event sync.
  * Extended ETH pools stay in {@link poolsSelector} so a later opt-in can resume
- * from each pool's saved cursor, but they are hidden while ignored.
+ * from each pool's saved cursor, but they are hidden until
+ * `useExtendedEthPools` is set.
  */
 export const activePoolsSelector = createSelector(
   [poolsSelector, instanceRegistryInfoSelector],
-  (pools, { chainId, ignoreExtendedEthPools }) => {
-    if (!ignoreExtendedEthPools) return pools;
+  (pools, { chainId, useExtendedEthPools }) => {
+    if (useExtendedEthPools) return pools;
 
     const extendedPools = extendedEthPoolSet(chainId);
 

@@ -21,7 +21,7 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     const state = getState();
     const {
       chainId,
-      ignoreExtendedEthPools,
+      useExtendedEthPools,
       instanceRegistry: { address: instanceRegistryAddress },
     } = instanceRegistryInfoSelector(state);
     const existingPools = poolsSelector(state);
@@ -30,12 +30,12 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     const registrySet = new Set(registryAddresses);
     const extendedPools = extendedEthPoolSet(chainId);
     const poolAddresses = new Set(
-      ignoreExtendedEthPools
-        ? registryAddresses.filter((address) => !extendedPools.has(address))
-        : registryAddresses,
+      useExtendedEthPools
+        ? registryAddresses
+        : registryAddresses.filter((address) => !extendedPools.has(address)),
     );
 
-    if (!ignoreExtendedEthPools) {
+    if (useExtendedEthPools) {
       for (const address of extendedPools) poolAddresses.add(address);
     }
 
