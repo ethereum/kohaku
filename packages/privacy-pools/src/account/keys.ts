@@ -50,6 +50,13 @@ export interface ISecretManager {
    * poseidon field element, which is always a valid secp256k1 scalar.
    */
   deriveEphemeralSigner: (params: DeriveWithdrawalSecretsParams) => Promise<`0x${string}`>;
+  /**
+   * Derives a delegator key from a classical wallet BIP-32 `path`, WITHOUT the
+   * privacy transform the note/ephemeral derivations apply, so it resolves to a
+   * recoverable, wallet-native Ethereum address. Used for the paymaster sender
+   * when the integrator supplies a wallet path (see `paymasterWithdrawThunk`).
+   */
+  deriveDelegatorSigner: (params: { path: string }) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -95,10 +102,17 @@ export function SecretManager({
     return `0x${key.toString(16).padStart(64, "0")}` as `0x${string}`;
   };
 
+  // No privacy transform: a classical wallet path yields a real private key whose
+  // address is recoverable by the user's own wallet, so a stuck sender can be swept.
+  const deriveDelegatorSigner = async ({ path }: { path: string }) => {
+    return keystore.deriveAt(path) as Promise<`0x${string}`>;
+  };
+
   return {
     getDepositSecrets,
     getSecrets,
     deriveEphemeralSigner,
+    deriveDelegatorSigner,
   };
 
 }

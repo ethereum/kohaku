@@ -19,6 +19,8 @@ jobs:
           uses: actions/checkout@v4
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
+        - name: Run provider unit tests
+          run: pnpm --filter @kohaku-eth/provider test
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
@@ -74,4 +76,3 @@ jobs:
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
             TC_MAINNET_FORK_BLOCK: ${{ secrets.TC_MAINNET_FORK_BLOCK }}
             TC_SEPOLIA_FORK_BLOCK: ${{ secrets.TC_SEPOLIA_FORK_BLOCK }}
-        

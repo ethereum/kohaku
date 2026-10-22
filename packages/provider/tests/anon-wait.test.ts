@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_WAIT_FOR_TRANSACTION, waitForReceipt } from '../src/anon/wait';
+import { DEFAULT_WAIT_FOR_TRANSACTION } from '../src/anon/wait';
+import { waitForReceipt } from '../src/raw/wait';
 
 const TX = '0xabc';
 
@@ -8,9 +9,9 @@ const flush = async (): Promise<void> => {
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
 };
 
-describe('anon waitForReceipt', () => {
+describe('shared receipt waiting with anon options', () => {
     beforeEach(() => {
-        vi.useFakeTimers();
+        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'performance'] });
     });
 
     afterEach(() => {
@@ -59,22 +60,20 @@ describe('anon waitForReceipt', () => {
         const getReceipt = vi.fn().mockResolvedValue(null);
 
         const done = waitForReceipt(TX, getReceipt, { pollIntervalMs: 1_000, timeoutMs: 5_000 });
-        const rejection = expect(done).rejects.toThrow(`anon-rpc: timed out waiting for transaction ${TX} after 5000ms`);
+        const rejection = expect(done).rejects.toThrow(`Timed out waiting for transaction: ${TX}`);
 
         await vi.advanceTimersByTimeAsync(10_000);
         await rejection;
 
-        // polls at t=0,1,2,3,4,5s; the poll at 5s does not exceed the budget yet, so one more at 6s
-        expect(getReceipt.mock.calls.length).toBeGreaterThanOrEqual(6);
-        expect(getReceipt.mock.calls.length).toBeLessThanOrEqual(7);
+        expect(getReceipt).toHaveBeenCalledTimes(5);
     });
 
     it('counts time spent inside a slow poll against the timeout', async () => {
-        // Each poll takes 3s (Tor-like), interval 1s, budget 5s: poll 1 runs t=0..3, sleep to t=4, poll 2 ends at t=7 > 5, so it throws.
+        // Each poll takes 3s: the second starts at t=4s, and the wait ends at t=5s.
         const getReceipt = vi.fn(() => new Promise<null>((resolve) => setTimeout(() => resolve(null), 3_000)));
 
         const done = waitForReceipt(TX, getReceipt, { pollIntervalMs: 1_000, timeoutMs: 5_000 });
-        const rejection = expect(done).rejects.toThrow(/timed out/);
+        const rejection = expect(done).rejects.toThrow(/Timed out/);
 
         await vi.advanceTimersByTimeAsync(20_000);
         await rejection;

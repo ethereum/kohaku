@@ -29,6 +29,16 @@ import { entrypointInfoSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
 import { WithdrawProveOutput, WithdrawThunkParams, withdrawThunk } from "./withdrawThunk";
 
+// A BIP-32 path: `m` followed by one or more `/index` segments, each optionally
+// hardened with a trailing apostrophe (e.g. m/44'/60'/0'/0/0).
+const BIP32_PATH = /^m(\/\d+'?)+$/;
+
+function assertValidDelegatorPath(path: string): void {
+  if (!BIP32_PATH.test(path)) {
+    throw new Error(`Invalid delegation path "${path}": expected a BIP-32 path like m/44'/60'/0'/0/0`);
+  }
+}
+
 export interface PaymasterWithdrawThunkParams {
   getNextNote: WithdrawThunkParams["getNextNote"];
   proverFactory: () => ReturnType<typeof Prover>;
@@ -131,6 +141,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       depositIndex: sponsoring!.note.deposit,
       withdrawIndex: sponsoring!.note.withdraw,
     });
+
+    // A wallet-path delegator can be a reused EOA with a nonzero transaction
+    // count, which the 7702 authorization must bind to. Ephemeral/random senders
+    // are fresh single-use EOAs (nonce 0), so we skip the RPC and let the auth
+    // default to 0 — keeping that hot path RPC-free.
+    const authorizationNonce =
+      delegation?.mode === "deterministic" && delegation.path
+        ? BigInt(await dataService.getTransactionCount(signer.address))
+        : undefined;
 
     const payoutRecipient = hasExecutionPhase ? signer.address : addressToHex(recipient);
 
@@ -239,6 +258,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         maxFeePerGas,
         maxPriorityFeePerGas,
         nonce: 0n,
+        authorizationNonce,
         tailCalls: hasExecutionPhase ? executionCalls(fee) : undefined,
       });
 
@@ -309,6 +329,12 @@ async function resolveSigner({
 }): Promise<DelegatorAccount> {
   if (delegation?.mode === "random") {
     return privateKeyToAccount(generatePrivateKey());
+  }
+
+  if (delegation?.mode === "deterministic" && delegation.path) {
+    assertValidDelegatorPath(delegation.path);
+
+    return privateKeyToAccount(await secretManager.deriveDelegatorSigner({ path: delegation.path }));
   }
 
   return privateKeyToAccount(
