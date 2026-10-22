@@ -1,5 +1,14 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.28
+
+### Patch Changes
+
+- 02d8e4a: Expose `depositor` on `INote`. The field is picked from the underlying deposit event and populated by the note selectors; it is inherited across withdrawals since a note keeps a single depositor for its lifetime (withdrawals only reduce its balance).
+- Updated dependencies [6e0e549]
+  - @kohaku-eth/provider@0.1.0-alpha.13
+  - @kohaku-eth/plugins@0.0.1-alpha.18
+
 ## 0.1.0-alpha.27
 
 ### Patch Changes
