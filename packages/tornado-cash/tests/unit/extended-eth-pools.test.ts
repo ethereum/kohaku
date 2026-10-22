@@ -41,7 +41,13 @@ function storeWith(useExtendedEthPools = false) {
   });
 }
 
-function pool(address: Address, denomination: bigint, registeredBlock = 0n, lastSyncedBlock?: bigint): IPool {
+function pool(
+  address: Address,
+  denomination: bigint,
+  registeredBlock = 0n,
+  lastSyncedBlock?: bigint,
+  extended = false,
+): IPool {
   return {
     address,
     asset: 0n,
@@ -52,6 +58,7 @@ function pool(address: Address, denomination: bigint, registeredBlock = 0n, last
     state: 1,
     rootHistorySize: 100,
     ...(lastSyncedBlock === undefined ? {} : { lastSyncedBlock }),
+    ...(extended ? { extended } : {}),
   };
 }
 
@@ -124,7 +131,9 @@ describe('syncPoolsThunk extended ETH pools', () => {
       state: 1,
       registeredBlock: 40n,
       rootHistorySize: 100,
+      extended: true,
     });
+    expect(pools.get(CLASSIC)?.extended).toBeUndefined();
   });
 
   it('uses the registry record when the extended pool is already listed', async () => {
@@ -176,6 +185,34 @@ describe('syncPoolsThunk extended ETH pools', () => {
     expect(poolsSelector(store.getState()).has(EXTENDED)).toBe(false);
     expect(poolsSelector(store.getState()).has(CLASSIC)).toBe(true);
   });
+
+  it('stamps extended on a saved pool without refetching it', async () => {
+    const store = storeWith();
+
+    store.dispatch(registerPools([pool(EXTENDED, ETH / 100n, 50n, 80n)]));
+
+    const dataService = {
+      getAllPoolsAddresses: vi.fn().mockResolvedValue([]),
+      getPoolConfig: vi.fn(),
+      getUnregisteredNativeEthPoolConfig: vi.fn(),
+    };
+    const syncService = {
+      getPoolDeploymentBlock: vi.fn(),
+    };
+
+    unwrapResult(await store.dispatch(syncPoolsThunk({
+      dataService: dataService as unknown as IDataService,
+      syncService: syncService as unknown as ISyncService,
+    })));
+
+    const saved = poolsSelector(store.getState()).get(EXTENDED);
+
+    expect(saved?.extended).toBe(true);
+    expect(saved?.lastSyncedBlock).toBe(80n);
+    expect(dataService.getPoolConfig).not.toHaveBeenCalled();
+    expect(dataService.getUnregisteredNativeEthPoolConfig).not.toHaveBeenCalled();
+    expect(syncService.getPoolDeploymentBlock).not.toHaveBeenCalled();
+  });
 });
 
 describe('syncEventsThunk extended ETH pool cursors', () => {
@@ -198,7 +235,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
     store.dispatch(setLastSyncedBlock(9_000n));
     store.dispatch(registerPools([
       pool(CLASSIC, ETH, 10n),
-      pool(EXTENDED, ETH / 100n, 50n),
+      pool(EXTENDED, ETH / 100n, 50n, undefined, true),
     ]));
 
     const { calls, syncService } = eventsService();
@@ -217,7 +254,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
     store.dispatch(setLastSyncedBlock(5_000n));
     store.dispatch(registerPools([
       pool(CLASSIC, ETH, 10n, 200n),
-      pool(EXTENDED, ETH / 100n, 50n, 80n),
+      pool(EXTENDED, ETH / 100n, 50n, 80n, true),
     ]));
     store.dispatch(setProtocolConfig(protocolConfig(false)));
 
@@ -249,8 +286,8 @@ describe('deposit denomination packing', () => {
 
     store.dispatch(registerPools([
       pool(classicPointOne, ETH / 10n),
-      pool(EXTENDED, ETH / 100n),
-      pool(EXTENDED_003, (ETH / 100n) * 3n),
+      pool(EXTENDED, ETH / 100n, 0n, undefined, true),
+      pool(EXTENDED_003, (ETH / 100n) * 3n, 0n, undefined, true),
     ]));
 
     return unwrapResult(await store.dispatch(getDepositPayloadThunk({

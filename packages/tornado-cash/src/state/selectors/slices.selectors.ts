@@ -1,4 +1,3 @@
-import { extendedEthPoolSet } from "../../config";
 import { selectEntityMap } from "../utils/selectors.utils";
 import { deserialize } from "../utils/serialize.utils";
 import { RootState } from "../store";
@@ -56,12 +55,10 @@ export const poolsSelector = selectEntityMap(
  */
 export const activePoolsSelector = createSelector(
   [poolsSelector, instanceRegistryInfoSelector],
-  (pools, { chainId, useExtendedEthPools }) => {
+  (pools, { useExtendedEthPools }) => {
     if (useExtendedEthPools) return pools;
 
-    const extendedPools = extendedEthPoolSet(chainId);
-
-    return new Map([...pools].filter(([address]) => !extendedPools.has(address)));
+    return new Map([...pools].filter(([, pool]) => !pool.extended));
   },
 );
 

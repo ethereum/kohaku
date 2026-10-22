@@ -39,6 +39,14 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       for (const address of extendedPools) poolAddresses.add(address);
     }
 
+    const savedExtendedPools = [...existingPools.values()].filter(
+      (pool) => extendedPools.has(pool.address) && !pool.extended,
+    );
+
+    if (savedExtendedPools.length > 0) {
+      dispatch(registerPools(savedExtendedPools.map((pool) => ({ ...pool, extended: true }))));
+    }
+
     const unsyncedPools = [...poolAddresses].filter((address) => !existingPools.has(address));
 
     const unsyncedPoolsData = await Promise.allSettled(
@@ -83,7 +91,8 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       registeredBlock,
       protocolFeePercentage,
       state,
-      rootHistorySize
+      rootHistorySize,
+      ...(extendedPools.has(poolAddress) ? { extended: true } : {}),
     }))
 
     dispatch(registerPools(pools));

@@ -4,7 +4,6 @@ import { ISecretManager } from '../../account/keys';
 import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield';
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
-import { extendedEthPoolSet } from '../../config';
 import { RootState } from '../store';
 import { activePoolsSelector, instanceRegistryInfoSelector, signatureUserSecretsSelector } from '../selectors/slices.selectors';
 import { IPool } from '../../data/interfaces/events.interface';
@@ -29,7 +28,6 @@ const calculatePoolsDeposits = (
   pools: IPool[],
   value: bigint,
   strategy: DepositStrategy,
-  extendedPools: Set<Address>,
 ): PoolWithDeposits[] => {
   if (!pools.length) {
     throw new Error('No pools to deposit into');
@@ -42,7 +40,7 @@ const calculatePoolsDeposits = (
       // Smallest denomination is only a stand-in for the largest anonymity set
       // among the classic pools. The extended denominations start empty, so
       // they stay out of this strategy.
-      const classicPools = pools.filter((pool) => !extendedPools.has(pool.address));
+      const classicPools = pools.filter((pool) => !pool.extended);
       const candidates = classicPools.length > 0 ? classicPools : pools;
       const lowToHighDenominationPools = [...candidates].sort((a, b) => Number(a.denomination - b.denomination));
       const lowestDenominationPool = lowToHighDenominationPools[0]!;
@@ -102,12 +100,7 @@ export const getDepositPayloadThunk = createAsyncThunk<
     
     if (poolsCandidates.length === 0) throw new Error(`No pools available for asset ${addressToHex(asset)}`);
 
-    const poolsToDepositInto = calculatePoolsDeposits(
-      poolsCandidates,
-      amount,
-      strategy,
-      extendedEthPoolSet(chainId),
-    );
+    const poolsToDepositInto = calculatePoolsDeposits(poolsCandidates, amount, strategy);
     
     const nonceAssignments = poolsToDepositInto.map((pool) => {
       const startNonce = nonce;
