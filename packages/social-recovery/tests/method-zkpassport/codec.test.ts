@@ -22,7 +22,7 @@ const blessedConfigFile = readVector('method-zkpassport-config.json');
 const configFile = readPinConfigRows();
 const proofFile = readVector('method-zkpassport-proof.json');
 
-const { codec } = zkPassportMethod(stackDouble().stack);
+const { codec } = zkPassportMethod({ stack: stackDouble().stack });
 
 const configFields = (input: unknown): Fields => ({
   uniqueIdentifier: asHex(member(input, 'uniqueIdentifier')),

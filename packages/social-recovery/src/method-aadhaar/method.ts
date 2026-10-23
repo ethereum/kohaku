@@ -3,6 +3,7 @@ import {
   METHOD_AADHAAR_ARTIFACT_ORIGIN_MESSAGE,
   METHOD_AADHAAR_ARTIFACT_ORIGINS,
   METHOD_AADHAAR_ARTIFACT_URL_MESSAGE,
+  METHOD_AADHAAR_DEFAULT_TEST_MODE,
   METHOD_AADHAAR_DEVICE_BINDING,
   METHOD_AADHAAR_DEVICE_FACTS,
   METHOD_AADHAAR_ENROLL_KIND,
@@ -47,9 +48,11 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
   readonly deviceBinding: DeviceBinding = METHOD_AADHAAR_DEVICE_BINDING;
   readonly vector: readonly string[] = METHOD_AADHAAR_VECTOR_FILES;
   readonly #stack: AnonAadhaarStack;
+  readonly #testMode: boolean;
 
-  constructor(stack: AnonAadhaarStack) {
+  constructor(stack: AnonAadhaarStack, testMode: boolean) {
     this.#stack = stack;
+    this.#testMode = testMode;
   }
 
   /** The deployed module, or none where the deployment carries the zero address for this method. */
@@ -145,7 +148,7 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
 
     const proof = encodeProof(packed);
 
-    const verdict = await untilSettled(judge(this.#stack, ctx.request.config, ctx.digest, proof), supplied.signal);
+    const verdict = await untilSettled(judge(this.#stack, ctx.request.config, ctx.digest, proof, this.#testMode), supplied.signal);
 
     if (isFailure(verdict)) return verdict;
 
@@ -153,7 +156,7 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
   }
 
   verify(ctx: Ctx, proof: Hex): Promise<Verdict> {
-    return judge(this.#stack, ctx.request.config, ctx.digest, proof);
+    return judge(this.#stack, ctx.request.config, ctx.digest, proof, this.#testMode);
   }
 
   /** A fresh copy of the method's device facts. */
@@ -178,11 +181,13 @@ function readArtifacts(artifacts: AnonAadhaarArtifacts): AnonAadhaarArtifacts {
   return { wasmURL, zkeyURL, vkeyURL, artifactsOrigin };
 }
 
-/** The Aadhaar method, over an injected stack or the installed `@anon-aadhaar/core`; passing both throws. */
+/** The Aadhaar method, over an injected stack or the installed `@anon-aadhaar/core`, either in test mode; passing both stacks throws. */
 export function anonAadhaarMethod(options: AnonAadhaarMethodOptions = {}): IRecoveryMethod {
   if (options.stack !== undefined && options.artifacts !== undefined) {
     throw new TypeError(METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE);
   }
 
-  return new AnonAadhaarMethod(options.stack ?? coreStack(options.artifacts && readArtifacts(options.artifacts)));
+  const stack = options.stack ?? coreStack(options.artifacts && readArtifacts(options.artifacts));
+
+  return new AnonAadhaarMethod(stack, options.testMode ?? METHOD_AADHAAR_DEFAULT_TEST_MODE);
 }

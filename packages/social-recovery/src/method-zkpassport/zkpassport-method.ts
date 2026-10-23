@@ -25,7 +25,7 @@ import type {
   Verdict,
 } from '../interfaces';
 import type { ZkPassportStack } from '../types';
-import { digestText, isNonSalted, scopedNullifier } from './bindings';
+import { acceptedNullifierType, digestText, scopedNullifier } from './bindings';
 import { decodeZkPassportConfig, decodeZkPassportProof, zkPassportCodec } from './codec';
 import { enrolledConfig, packagedProof } from './material';
 import { opener, sessionFromInput, sessionFromParams } from './session';
@@ -40,8 +40,11 @@ export class ZkPassportMethod implements IRecoveryMethod {
 
   readonly #stack: ZkPassportStack;
 
-  constructor(stack: ZkPassportStack) {
+  readonly #devMode: boolean;
+
+  constructor(stack: ZkPassportStack, devMode: boolean) {
     this.#stack = stack;
+    this.#devMode = devMode;
   }
 
   /** The `method-zkpassport` address the descriptor names, or none where the deployment carries the zero address for an absent module. */
@@ -55,16 +58,16 @@ export class ZkPassportMethod implements IRecoveryMethod {
   enrollInput(params: Params): EnrollInput {
     const session = sessionFromParams(params);
 
-    return { kind: 'ceremony', ...session, openRequest: opener(this.#stack, session, undefined) };
+    return { kind: 'ceremony', ...session, openRequest: opener(this.#stack, session, undefined, this.#devMode) };
   }
 
-  /** The config from `material.result`, under the domain and scope the input carries. */
+  /** The config from `material.result` and the proofs in `material.result.proofs` or else `material.proofs`, under the domain and scope the input carries. */
   async configFrom(input: EnrollInput, material: Material): Promise<Hex | EnrollFailure> {
     const session = input.kind === 'ceremony' ? sessionFromInput(input) : undefined;
 
     if (session === undefined) return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
 
-    return enrolledConfig(this.#stack, session, material);
+    return enrolledConfig(this.#stack, session, material, this.#devMode);
   }
 
   /** The signing record for `params`, binding the digest's text as `customData`; `TypeError` on a missing domain or scope or a digest that is not hex, `RangeError` on a digest that is not 32 bytes. */
@@ -72,7 +75,7 @@ export class ZkPassportMethod implements IRecoveryMethod {
     const session = sessionFromParams(params);
     const customData = digestText(ctx.digest);
 
-    return { ...session, customData, openRequest: opener(this.#stack, session, customData) };
+    return { ...session, customData, openRequest: opener(this.#stack, session, customData, this.#devMode) };
   }
 
   /** The proof from `material.proofs`, under the domain and scope the input carries. */
@@ -81,11 +84,11 @@ export class ZkPassportMethod implements IRecoveryMethod {
 
     if (session === undefined) return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
 
-    return packagedProof(this.#stack, session, ctx.request.config, ctx.digest, material);
+    return packagedProof(this.#stack, session, ctx.request.config, ctx.digest, material, this.#devMode);
   }
 
   /**
-   * Rejected on bytes outside the two layouts, a zero identifier, a nullifier type other than the non-salted one, or a scoped nullifier other than the config's.
+   * Rejected on bytes outside the two layouts, a zero identifier, a nullifier type the mode does not accept (the non-salted one, and in dev mode the fake passport's), or a scoped nullifier other than the config's.
    * Otherwise not judged, since only the chain's verifier checks the outer EVM proof and this member never calls it.
    */
   async verify(ctx: Ctx, proof: Hex): Promise<Verdict> {
@@ -99,7 +102,7 @@ export class ZkPassportMethod implements IRecoveryMethod {
       return 'rejected';
     }
 
-    if (unique === 0n || !isNonSalted(inputs) || scopedNullifier(inputs) !== unique) return 'rejected';
+    if (unique === 0n || !acceptedNullifierType(inputs, this.#devMode) || scopedNullifier(inputs) !== unique) return 'rejected';
 
     return 'not-judged';
   }

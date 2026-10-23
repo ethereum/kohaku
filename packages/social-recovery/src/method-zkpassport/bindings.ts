@@ -4,6 +4,7 @@ import {
   METHOD_ZKPASSPORT_BIND_DATA_KEY,
   METHOD_ZKPASSPORT_BIND_EVM_KEY,
   METHOD_ZKPASSPORT_CUSTOM_DATA_KEY,
+  METHOD_ZKPASSPORT_DEV_MODE_NULLIFIER_TYPES,
   METHOD_ZKPASSPORT_DIGEST_HEX_MESSAGE,
   METHOD_ZKPASSPORT_DIGEST_WIDTH_MESSAGE,
   METHOD_ZKPASSPORT_MIN_PUBLIC_INPUTS,
@@ -81,9 +82,14 @@ const trailing = (publicInputs: readonly string[], fromEnd: number): bigint | un
 export const scopedNullifier = (publicInputs: readonly string[]): bigint | undefined =>
   trailing(publicInputs, METHOD_ZKPASSPORT_SCOPED_NULLIFIER_FROM_END);
 
-/** Whether the outer proof's nullifier type is the non-salted one; a dev-mode mock type is not. */
-export const isNonSalted = (publicInputs: readonly string[]): boolean =>
-  trailing(publicInputs, METHOD_ZKPASSPORT_NULLIFIER_TYPE_FROM_END) === METHOD_ZKPASSPORT_NON_SALTED_NULLIFIER;
+/** Whether the outer proof's nullifier type is the non-salted one, or in dev mode also the fake passport's; a missing type never is. */
+export const acceptedNullifierType = (publicInputs: readonly string[], devMode: boolean): boolean => {
+  const type = trailing(publicInputs, METHOD_ZKPASSPORT_NULLIFIER_TYPE_FROM_END);
+
+  if (type === undefined) return false;
+
+  return devMode ? METHOD_ZKPASSPORT_DEV_MODE_NULLIFIER_TYPES.includes(type) : type === METHOD_ZKPASSPORT_NON_SALTED_NULLIFIER;
+};
 
 /** A unique identifier as the config's `bytes32` word, lower-case. */
 export const identifierWord = (identifier: bigint): Hex =>

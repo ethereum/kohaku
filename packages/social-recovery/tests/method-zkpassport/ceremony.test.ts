@@ -64,7 +64,7 @@ const verifierCalls = (calls: readonly StackCall[]) => calls.filter((call) => ca
 describe('enrollment: enrollInput(params) and configFrom(input, { result })', () => {
   it('enrollInput acts on nothing: the stack is not reached until the page opens the request', () => {
     const double = stackDouble();
-    const input = zkPassportMethod(double.stack).enrollInput(PARAMS);
+    const input = zkPassportMethod({ stack: double.stack }).enrollInput(PARAMS);
 
     expect(input.kind).toBe('ceremony');
     expect(input['domain']).toBe(PARAMS.domain);
@@ -75,7 +75,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
 
   it('opening the request constructs the stack for the domain and requests under the scope, compressed-evm, dev mode off', async () => {
     const double = stackDouble();
-    const request = await open(zkPassportMethod(double.stack).enrollInput(PARAMS));
+    const request = await open(zkPassportMethod({ stack: double.stack }).enrollInput(PARAMS));
 
     expect(double.calls[0]).toEqual({ kind: 'construct', domain: PARAMS.domain });
     expect(double.calls[1]).toEqual({ kind: 'request', domain: PARAMS.domain, args: REQUEST_ARGS });
@@ -85,9 +85,9 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
     expect(String(request.url)).toContain(encodeURIComponent(PARAMS.scope));
   });
 
-  it('the opened request is the double\'s result: the url and the six callbacks of the stack request', async () => {
+  it('the opened request is the double\'s result: the url and every callback of the stack request', async () => {
     const double = stackDouble();
-    const request = await open(zkPassportMethod(double.stack).enrollInput(PARAMS));
+    const request = await open(zkPassportMethod({ stack: double.stack }).enrollInput(PARAMS));
 
     for (const name of CALLBACK_NAMES) expect(typeof request[name]).toBe('function');
 
@@ -97,7 +97,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
 
   it('configFrom writes the identity commitment as the config, under the input\'s domain and scope', async () => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const input = method.enrollInput(PARAMS);
     const config = await method.configFrom(input, enrollMaterial());
 
@@ -109,7 +109,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
   });
 
   it('configFrom writes no version: the stack\'s version word appears nowhere in the config', async () => {
-    const method = zkPassportMethod(stackDouble().stack);
+    const method = zkPassportMethod({ stack: stackDouble().stack });
     const config = await method.configFrom(method.enrollInput(PARAMS), enrollMaterial());
 
     expect(String(config)).not.toContain(DEFAULT_OUTER.version.slice(2, 18));
@@ -117,12 +117,12 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
   });
 
   it('enrollInput carries no version', () => {
-    expect(Object.keys(zkPassportMethod(stackDouble().stack).enrollInput(PARAMS))).not.toContain('version');
+    expect(Object.keys(zkPassportMethod({ stack: stackDouble().stack }).enrollInput(PARAMS))).not.toContain('version');
   });
 
   it('configFrom hands the outer_evm proof to getSolidityVerifierParameters with the domain and scope off the input, dev mode off', async () => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const material = enrollMaterial();
     const outer = (member(material, 'result', 'proofs') as unknown[])[1];
 
@@ -136,7 +136,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
 
   it('configFrom reads the domain and the scope off the input rather than taking them again', async () => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const input: EnrollInput = { ...method.enrollInput(PARAMS), domain: 'other.example', scope: 'other-scope' };
     const config = await method.configFrom(input, enrollMaterial());
 
@@ -145,7 +145,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
   });
 
   it('a different scope derives a different config for the same result', async () => {
-    const method = zkPassportMethod(stackDouble().stack);
+    const method = zkPassportMethod({ stack: stackDouble().stack });
     const a = await method.configFrom(method.enrollInput(PARAMS), enrollMaterial());
     const b = await method.configFrom(method.enrollInput({ ...PARAMS, scope: 'another' }), enrollMaterial());
 
@@ -171,14 +171,14 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
     ['public inputs with a hole', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: sparse(6, { 0: word(1), 2: word(2), 3: word(0), 4: word(IDENTIFIER), 5: word(3) }) }],
     ['a 31-byte public input', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: [`0x${'11'.repeat(31)}`, ...outerInputs(IDENTIFIER)] }],
   ])('configFrom answers the typed EnrollFailure for %s, never a throw', async (_why, material, outer) => {
-    const method = zkPassportMethod(stackDouble(outer === undefined ? {} : { outer }).stack);
+    const method = zkPassportMethod({ stack: stackDouble(outer === undefined ? {} : { outer }).stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), material)).resolves.toEqual(rejected);
   });
 
   it('configFrom answers EnrollFailure when the stack reports dev mode in the service config', async () => {
     const double = stackDouble({ serviceConfig: (args) => ({ validityPeriodInSeconds: 1, domain: args.domain, scope: args.scope, devMode: true }) });
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial())).resolves.toEqual(rejected);
   });
@@ -189,19 +189,19 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
     ['fractional', 1.5],
   ])('configFrom answers EnrollFailure, never a throw, when the stack reports a validity %s', async (_why, validity) => {
     const double = stackDouble({ serviceConfig: (args) => ({ validityPeriodInSeconds: validity, domain: args.domain, scope: args.scope, devMode: false }) });
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial())).resolves.toEqual(rejected);
   });
 
   it('configFrom answers EnrollFailure when the stack refuses the proof', async () => {
-    const method = zkPassportMethod(stackDouble({ verifierThrows: true }).stack);
+    const method = zkPassportMethod({ stack: stackDouble({ verifierThrows: true }).stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial())).resolves.toEqual(rejected);
   });
 
   it('configFrom answers a typed failure, device-unavailable, when the stack cannot load', async () => {
-    const method = zkPassportMethod(stackDouble({ constructThrows: true }).stack);
+    const method = zkPassportMethod({ stack: stackDouble({ constructThrows: true }).stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial())).resolves.toEqual({
       kind: 'reply-failure',
@@ -217,7 +217,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
   ])('configFrom answers EnrollFailure for %s, and asks the stack nothing', async (_why, input) => {
     const double = stackDouble();
 
-    await expect(zkPassportMethod(double.stack).configFrom(input, enrollMaterial())).resolves.toEqual(rejected);
+    await expect(zkPassportMethod({ stack: double.stack }).configFrom(input, enrollMaterial())).resolves.toEqual(rejected);
     expect(double.calls).toEqual([]);
   });
 
@@ -231,21 +231,21 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
     ['a logo that is not text', { ...PARAMS, logo: {} }],
     ['a purpose that is not text', { ...PARAMS, purpose: 3n }],
   ])('enrollInput refuses %s with a TypeError', (_why, params) => {
-    expect(() => zkPassportMethod(stackDouble().stack).enrollInput(params as never)).toThrow(TypeError);
+    expect(() => zkPassportMethod({ stack: stackDouble().stack }).enrollInput(params as never)).toThrow(TypeError);
   });
 
   it.each([
     ['an empty scope', { domain: PARAMS.domain, scope: '' }],
     ['an empty domain', { domain: '', scope: PARAMS.scope }],
   ])('enrollInput refuses %s with a TypeError or a RangeError, never a plain Error', (_why, params) => {
-    expect(isArgumentError(thrown(() => zkPassportMethod(stackDouble().stack).enrollInput(params as never)))).toBe(true);
+    expect(isArgumentError(thrown(() => zkPassportMethod({ stack: stackDouble().stack }).enrollInput(params as never)))).toBe(true);
   });
 });
 
 describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs })', () => {
   it('signingInput acts on nothing; opening binds the digest under the params\' domain and scope', async () => {
     const double = stackDouble();
-    const input = zkPassportMethod(double.stack).signingInput(makeCtx(CONFIG), PARAMS);
+    const input = zkPassportMethod({ stack: double.stack }).signingInput(makeCtx(CONFIG), PARAMS);
 
     expect(double.calls).toEqual([]);
 
@@ -268,7 +268,7 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
   ])('signingInput refuses %s with a TypeError, and asks the stack nothing', (_why, params) => {
     const double = stackDouble();
 
-    expect(() => zkPassportMethod(double.stack).signingInput(makeCtx(CONFIG), params as never)).toThrow(TypeError);
+    expect(() => zkPassportMethod({ stack: double.stack }).signingInput(makeCtx(CONFIG), params as never)).toThrow(TypeError);
     expect(double.calls).toEqual([]);
   });
 
@@ -277,9 +277,9 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
     const b = stackDouble();
     const c = stackDouble();
 
-    await open(zkPassportMethod(a.stack).signingInput(makeCtx(CONFIG), PARAMS));
-    await open(zkPassportMethod(b.stack).signingInput(makeCtx(CONFIG), { ...PARAMS, scope: 'another-scope' }));
-    await open(zkPassportMethod(c.stack).signingInput(makeCtx(CONFIG), { ...PARAMS, domain: 'another.example' }));
+    await open(zkPassportMethod({ stack: a.stack }).signingInput(makeCtx(CONFIG), PARAMS));
+    await open(zkPassportMethod({ stack: b.stack }).signingInput(makeCtx(CONFIG), { ...PARAMS, scope: 'another-scope' }));
+    await open(zkPassportMethod({ stack: c.stack }).signingInput(makeCtx(CONFIG), { ...PARAMS, domain: 'another.example' }));
 
     expect(a.calls[1]).toMatchObject({ args: { scope: PARAMS.scope } });
     expect(b.calls[1]).toMatchObject({ args: { scope: 'another-scope' } });
@@ -290,14 +290,14 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
   it('the name, logo and purpose reach the request as given, and nothing else rides along', async () => {
     const double = stackDouble();
 
-    await open(zkPassportMethod(double.stack).signingInput(makeCtx(CONFIG), { ...PARAMS, unknownParam: 'x' }));
+    await open(zkPassportMethod({ stack: double.stack }).signingInput(makeCtx(CONFIG), { ...PARAMS, unknownParam: 'x' }));
 
     expect((double.calls[1] as { args: unknown }).args).toEqual(REQUEST_ARGS);
   });
 
   it('replyFrom packages the verifier parameters of the outer_evm proof as the proof layout', async () => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const ctx = makeCtx(CONFIG);
     const proof = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), replyMaterial());
 
@@ -310,7 +310,7 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
 
   it('replyFrom reads the domain and the scope off the input', async () => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const ctx = makeCtx(CONFIG);
     const input: Input = { ...method.signingInput(ctx, PARAMS), domain: 'other.example', scope: 'other-scope' };
 
@@ -331,7 +331,7 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
     ['public inputs with a hole', replyMaterial(), { ...DEFAULT_OUTER, publicInputs: sparse(6, { 0: word(1), 2: word(2), 3: word(0), 4: word(IDENTIFIER), 5: word(3) }) }],
     ['a public input that is not a word', replyMaterial(), { ...DEFAULT_OUTER, publicInputs: ['0x01', ...outerInputs(IDENTIFIER)] }],
   ])('replyFrom answers the typed ReplyFailure for %s, never a throw', async (_why, material, outer) => {
-    const method = zkPassportMethod(stackDouble(outer === undefined ? {} : { outer }).stack);
+    const method = zkPassportMethod({ stack: stackDouble(outer === undefined ? {} : { outer }).stack });
     const ctx = makeCtx(CONFIG);
 
     await expect(method.replyFrom(ctx, method.signingInput(ctx, PARAMS), material)).resolves.toEqual(rejected);
@@ -339,8 +339,8 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
 
   it('replyFrom answers ReplyFailure where the stack refuses the proof, and device-unavailable where it cannot load', async () => {
     const ctx = makeCtx(CONFIG);
-    const refusing = zkPassportMethod(stackDouble({ verifierThrows: true }).stack);
-    const absent = zkPassportMethod(stackDouble({ constructThrows: true }).stack);
+    const refusing = zkPassportMethod({ stack: stackDouble({ verifierThrows: true }).stack });
+    const absent = zkPassportMethod({ stack: stackDouble({ constructThrows: true }).stack });
 
     await expect(refusing.replyFrom(ctx, refusing.signingInput(ctx, PARAMS), replyMaterial())).resolves.toEqual(rejected);
     await expect(absent.replyFrom(ctx, absent.signingInput(ctx, PARAMS), replyMaterial())).resolves.toEqual({
@@ -355,7 +355,7 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
     ['a config that is not the layout', { domain: PARAMS.domain, scope: PARAMS.scope }, word(IDENTIFIER)],
     ['an empty config', { domain: PARAMS.domain, scope: PARAMS.scope }, '0x'],
   ])('replyFrom answers ReplyFailure for %s, never a throw', async (_why, input, config) => {
-    const method = zkPassportMethod(stackDouble().stack);
+    const method = zkPassportMethod({ stack: stackDouble().stack });
 
     await expect(method.replyFrom(makeCtx(config), input, replyMaterial())).resolves.toEqual(rejected);
   });
@@ -376,7 +376,7 @@ const holedLists: readonly (readonly [string, (outer: { readonly [member: string
 describe('the proof lists are walked whole: a hole is refused before the stack is asked', () => {
   it.each(holedLists)('configFrom answers material-rejected for %s, and the stack is not called', async (_why, list) => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial({ proofs: list(ENROLL_OUTER) }))).resolves.toEqual(rejected);
     expect(double.calls).toEqual([]);
@@ -384,7 +384,7 @@ describe('the proof lists are walked whole: a hole is refused before the stack i
 
   it.each(holedLists)('replyFrom answers material-rejected for %s, and the stack is not called', async (_why, list) => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const ctx = makeCtx(CONFIG);
 
     await expect(method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { proofs: list(REPLY_OUTER) })).resolves.toEqual(rejected);
@@ -392,7 +392,7 @@ describe('the proof lists are walked whole: a hole is refused before the stack i
   });
 
   it('a dense list with an unrelated proof on either side of the outer proof still enrolls and replies', async () => {
-    const method = zkPassportMethod(stackDouble().stack);
+    const method = zkPassportMethod({ stack: stackDouble().stack });
     const ctx = makeCtx(CONFIG);
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial({ proofs: [OTHER, ENROLL_OUTER, OTHER] }))).resolves.toBe(CONFIG);
@@ -403,7 +403,7 @@ describe('the proof lists are walked whole: a hole is refused before the stack i
 
   it('a list with an explicit undefined entry is refused the same way', async () => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
 
     await expect(method.configFrom(method.enrollInput(PARAMS), enrollMaterial({ proofs: [ENROLL_OUTER, undefined] }))).resolves.toEqual(rejected);
     expect(double.calls).toEqual([]);
@@ -429,7 +429,7 @@ describe('the ceremony reproduces the pin\'s config row and the blessed proof ro
   const params = () => ({ ...PARAMS, domain: asText(member(configRow, 'input', 'domain')), scope: asText(member(configRow, 'input', 'scope')) });
 
   it('configFrom writes the config row byte for byte when the stack answers the row\'s values', async () => {
-    const method = zkPassportMethod(stackDouble({ outer: rowOuter() }).stack);
+    const method = zkPassportMethod({ stack: stackDouble({ outer: rowOuter() }).stack });
     const identifier = BigInt(asHex(member(configRow, 'input', 'uniqueIdentifier'))).toString(10);
 
     await expect(method.configFrom(method.enrollInput(params()), enrollMaterial({ uniqueIdentifier: identifier }))).resolves.toBe(
@@ -438,7 +438,7 @@ describe('the ceremony reproduces the pin\'s config row and the blessed proof ro
   });
 
   it('replyFrom writes the proof row byte for byte for the row\'s digest', async () => {
-    const method = zkPassportMethod(stackDouble({ outer: rowOuter() }).stack);
+    const method = zkPassportMethod({ stack: stackDouble({ outer: rowOuter() }).stack });
     const digest = asHex(member(proofRow, 'input', 'digest'));
     const ctx = makeCtx(asHex(member(configRow, 'expected', 'encoded')), digest);
     const required = asText(member(proofRow, 'expected', 'requiredCustomData'));

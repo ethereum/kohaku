@@ -1,12 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as folder from '../../src/method-zkpassport';
 import * as recoveryMethods from '../../src/recovery-methods';
 import { zkPassportMethod } from '../../src/method-zkpassport';
 import { getAddress } from 'viem';
 import * as constants from '../../src/constants';
+import * as core from '../../src';
+import type { ZkPassportMethodOptions, ZkPassportStack } from '../../src';
 import { FORMATS_ZERO_ADDRESS } from '../../src/constants';
 import { DEVICE_KINDS } from '../../src/interfaces';
 import { createSourceProgram, PACKAGE_ROOT, requireSourceFile, resolveExports, SRC_ROOT } from '../helpers/source';
@@ -39,7 +41,7 @@ function membersOf(value: object): string[] {
 const CTX = makeCtx(encodeConfig(word(7), PARAMS.domain, PARAMS.scope, 1n));
 
 describe('the ten members', () => {
-  const method = zkPassportMethod(stackDouble().stack);
+  const method = zkPassportMethod({ stack: stackDouble().stack });
 
   it('carries exactly the ten members of IRecoveryMethod and nothing else', () => {
     expect(membersOf(method)).toEqual(TEN);
@@ -81,7 +83,7 @@ describe('the ten members', () => {
 
   it('describe states the device kind, an external proving app, and that the phone shows the name, logo and purpose', () => {
     const double = stackDouble();
-    const facts = zkPassportMethod(double.stack).describe(CTX);
+    const facts = zkPassportMethod({ stack: double.stack }).describe(CTX);
 
     expect(facts.kind).toBe('external-proving-app');
     expect(facts.kind).toBe(constants.METHOD_ZKPASSPORT_DEVICE_KIND);
@@ -132,8 +134,8 @@ describe('the method\'s constants', () => {
   });
 
   it('the failures configFrom and replyFrom answer are those frozen records', async () => {
-    const method = zkPassportMethod(stackDouble().stack);
-    const absent = zkPassportMethod(stackDouble({ constructThrows: true }).stack);
+    const method = zkPassportMethod({ stack: stackDouble().stack });
+    const absent = zkPassportMethod({ stack: stackDouble({ constructThrows: true }).stack });
     const refused = await method.configFrom(method.enrollInput(PARAMS), undefined);
     const unavailable = await absent.replyFrom(CTX, absent.signingInput(CTX, PARAMS), { proofs: [stackProof('outer_evm_count_5', DIGEST)] });
 
@@ -158,16 +160,26 @@ describe('the method\'s constants', () => {
   });
 });
 
-describe('the changeset', () => {
+describe('the changesets', () => {
   const changesets = join(PACKAGE_ROOT, '..', '..', '.changeset');
-  const texts = readdirSync(changesets)
+  const named = readdirSync(changesets)
     .filter((name) => name.endsWith('.md'))
-    .map((name) => readFileSync(join(changesets, name), 'utf8'))
-    .filter((text) => text.includes('zkPassportMethod'));
+    .map((name) => ({ name, text: readFileSync(join(changesets, name), 'utf8') }))
+    .filter(({ text }) => text.includes('zkPassportMethod'));
+  const texts = [named.map(({ text }) => text).join('\n')];
 
-  it('one changeset names the method, as a patch of the package', () => {
-    expect(texts).toHaveLength(1);
-    expect(texts[0]).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+  it('the method\'s own changeset and the dev-mode one name the method, each as a patch of the package', () => {
+    expect(named.map(({ name }) => name).sort()).toEqual(['identity-test-modes.md', 'social-recovery-method-zkpassport.md']);
+
+    for (const { text } of named) expect(text).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+  });
+
+  it('the dev-mode changeset states the factory\'s break and names the option', () => {
+    const text = named.find(({ name }) => name === 'identity-test-modes.md')?.text ?? '';
+
+    expect(text).toMatch(/Breaking/);
+    expect(text).toContain('zkPassportMethod({ stack })');
+    expect(text).toContain('devMode');
   });
 
   it('names the METHOD_ZKPASSPORT_ constants, by prefix or one by one', () => {
@@ -195,12 +207,45 @@ describe('exports', () => {
     expect(typeof folder.zkPassportMethod).toBe('function');
   });
 
-  it('the folder\'s index exports the factory alone, types included', () => {
+  it('the folder\'s index exports the factory and, as a type, its options', () => {
     const program = sourceProgram();
     const exported = resolveExports(program.getTypeChecker(), requireSourceFile(program, join(SRC_ROOT, 'method-zkpassport', 'index.ts')));
 
-    expect([...exported.keys()]).toEqual(['zkPassportMethod']);
+    expect([...exported.keys()].sort()).toEqual(['ZkPassportMethodOptions', 'zkPassportMethod']);
   }, 120_000);
+
+  it('the ./recovery-methods entry exports the factory and its options type; the core entry the options type and the dev-mode constants', () => {
+    const program = sourceProgram();
+    const checker = program.getTypeChecker();
+    const second = [...resolveExports(checker, requireSourceFile(program, join(SRC_ROOT, 'recovery-methods', 'index.ts'))).keys()];
+    const first = [...resolveExports(checker, requireSourceFile(program, join(SRC_ROOT, 'index.ts'))).keys()];
+
+    expect(second).toEqual(expect.arrayContaining(['zkPassportMethod', 'ZkPassportMethodOptions']));
+    expect(first).toEqual(
+      expect.arrayContaining([
+        'ZkPassportMethodOptions',
+        'METHOD_ZKPASSPORT_DEFAULT_DEV_MODE',
+        'METHOD_ZKPASSPORT_MOCK_NON_SALTED_NULLIFIER',
+        'METHOD_ZKPASSPORT_DEV_MODE_NULLIFIER_TYPES',
+      ]),
+    );
+    expect(first).not.toContain('METHOD_ZKPASSPORT_DEV_MODE');
+    expect(first).not.toContain('zkPassportMethod');
+  }, 120_000);
+
+  it('the options record takes an optional stack and an optional boolean devMode, and the factory takes the record', () => {
+    expectTypeOf<ZkPassportMethodOptions['stack']>().toEqualTypeOf<ZkPassportStack | undefined>();
+    expectTypeOf<ZkPassportMethodOptions['devMode']>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<Parameters<typeof zkPassportMethod>>().toEqualTypeOf<[options?: ZkPassportMethodOptions]>();
+  });
+
+  it('the dev-mode constants hold their values at runtime on the core entry, and the old name is gone', () => {
+    expect(core.METHOD_ZKPASSPORT_DEFAULT_DEV_MODE).toBe(false);
+    expect(core.METHOD_ZKPASSPORT_MOCK_NON_SALTED_NULLIFIER).toBe(2n);
+    expect([...core.METHOD_ZKPASSPORT_DEV_MODE_NULLIFIER_TYPES]).toEqual([0n, 2n]);
+    expect(core.METHOD_ZKPASSPORT_NON_SALTED_NULLIFIER).toBe(0n);
+    expect(Object.keys(core)).not.toContain('METHOD_ZKPASSPORT_DEV_MODE');
+  });
 
   it('the ./recovery-methods entry exports the same factory', () => {
     expect(recoveryMethods.zkPassportMethod).toBe(zkPassportMethod);

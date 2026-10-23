@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import * as core from '../../src';
 import * as constants from '../../src/constants/method-aadhaar';
-import { anonAadhaarMethod } from '../../src/method-aadhaar';
+import { anonAadhaarMethod, type AnonAadhaarMethodOptions, type AnonAadhaarStack } from '../../src/method-aadhaar';
 import { REPO_ROOT, SRC_ROOT, createSourceProgram, requireSourceFile, resolveExports, toPackagePath } from '../helpers/source';
 import { stackDouble } from './fixtures';
 
@@ -55,11 +56,30 @@ describe('the frozen values', () => {
   });
 });
 
-describe('the changeset', () => {
-  const changeset = readFileSync(join(REPO_ROOT, '.changeset', 'social-recovery-method-aadhaar.md'), 'utf8');
+describe('the test mode surface', () => {
+  it('the default test mode is off and is exported from the core entry', () => {
+    expect(constants.METHOD_AADHAAR_DEFAULT_TEST_MODE).toBe(false);
+    expect((core as { readonly [name: string]: unknown })['METHOD_AADHAAR_DEFAULT_TEST_MODE']).toBe(false);
+  });
 
-  it('is one patch for the package', () => {
-    expect(changeset).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  it('the options carry an optional boolean testMode, and the stack\'s verify takes it second', () => {
+    expectTypeOf<AnonAadhaarMethodOptions['testMode']>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<Parameters<AnonAadhaarStack['verify']>>().toEqualTypeOf<[pcd: Parameters<AnonAadhaarStack['verify']>[0], testMode?: boolean]>();
+  });
+});
+
+describe('the changesets', () => {
+  const own = readFileSync(join(REPO_ROOT, '.changeset', 'social-recovery-method-aadhaar.md'), 'utf8');
+  const modes = readFileSync(join(REPO_ROOT, '.changeset', 'identity-test-modes.md'), 'utf8');
+  const changeset = `${own}\n${modes}`;
+
+  it('the method\'s own and the test-mode one are each a patch for the package', () => {
+    expect(own).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+    expect(modes).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  });
+
+  it('the test-mode changeset names the option', () => {
+    expect(modes).toContain('testMode');
   });
 
   it('names every public export this method adds to either entry', () => {

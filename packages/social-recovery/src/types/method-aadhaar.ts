@@ -48,7 +48,7 @@ export type AadhaarPcd = { readonly proof: AadhaarStackProof; readonly [member: 
 export type AnonAadhaarStack = {
   readonly generateArgs: (options: AadhaarArgsOptions) => Promise<AadhaarProverArgs>;
   readonly prove: (args: AadhaarProverArgs, onProgress?: AadhaarProgress, signal?: AbortSignal) => Promise<AadhaarPcd>;
-  readonly verify: (pcd: AadhaarPcd) => Promise<boolean>;
+  readonly verify: (pcd: AadhaarPcd, testMode?: boolean) => Promise<boolean>;
 };
 
 /** Where the circuit's artifacts are, the arguments of the stack's `init`. */
@@ -64,14 +64,22 @@ export type AadhaarCoreSurface = {
   readonly init: (args: unknown) => Promise<void>;
   readonly generateArgs: (options: unknown) => Promise<AadhaarProverArgs>;
   readonly prove: (args: unknown, onProgress?: AadhaarProgress) => Promise<AadhaarPcd>;
-  readonly verify: (pcd: unknown) => Promise<boolean>;
+  readonly verify: (pcd: unknown, testMode?: boolean) => Promise<boolean>;
   readonly ArtifactsOrigin: { readonly [name: string]: unknown };
+  /** The decimal hash of the key `verify` checks outside test mode (UIDAI's) and in it (the stack's test key). */
+  readonly productionPublicKeyHash: string;
+  readonly testPublicKeyHash: string;
 };
 
 /** An injected stack or the installed stack's artifacts, not both; with neither the stack is unavailable. */
 export type AnonAadhaarMethodOptions = {
   readonly stack?: AnonAadhaarStack;
   readonly artifacts?: AnonAadhaarArtifacts;
+  /**
+   * Makes the local verdict check the proof against anon-aadhaar's test key, so a test QR verifies; off by default.
+   * The deployed module checks its own trusted key, so a test proof satisfies only a module whose trusted key is the test key's hash.
+   */
+  readonly testMode?: boolean;
 };
 
 /** The seed and the certificate the integrator supplies at enrollment and at every approval. */

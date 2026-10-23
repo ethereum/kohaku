@@ -61,6 +61,9 @@ export const METHOD_AADHAAR_PUBLIC_INPUT_COUNT = METHOD_AADHAAR_PUBLIC_INPUTS.le
 /** The public inputs that disclose a field of the card; a proof the method accepts carries zero in each. */
 export const METHOD_AADHAAR_DISCLOSURE_INPUTS = Object.freeze(['ageAbove18', 'gender', 'pincode', 'state'] as const);
 
+/** Test mode where the factory's options leave it unset: off. */
+export const METHOD_AADHAAR_DEFAULT_TEST_MODE = false;
+
 /** The milliseconds in one second, the system clock's unit. */
 export const METHOD_AADHAAR_MILLISECONDS_PER_SECOND = 1000;
 
@@ -100,6 +103,9 @@ export const METHOD_AADHAAR_STACK_VERSION = '2.4.3';
 
 /** The calls the loaded stack must expose as functions. */
 export const METHOD_AADHAAR_STACK_CALLS = Object.freeze(['init', 'generateArgs', 'prove', 'verify'] as const);
+
+/** The stack's members naming the two signing keys it verifies against: UIDAI's outside test mode, its own test key in it. */
+export const METHOD_AADHAAR_STACK_KEY_MEMBERS = Object.freeze(['productionPublicKeyHash', 'testPublicKeyHash'] as const);
 
 /** The stack's member naming its artifact origins, and the member a CommonJS package's exports may arrive under. */
 export const METHOD_AADHAAR_STACK_ORIGINS_MEMBER = 'ArtifactsOrigin';

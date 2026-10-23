@@ -52,8 +52,17 @@ export const METHOD_ZKPASSPORT_PROOFS_NAME = 'proofs';
 /** The custom field the digest's text is bound to. */
 export const METHOD_ZKPASSPORT_CUSTOM_DATA_KEY = 'custom_data';
 
-/** The non-salted nullifier type, the only one `verify` accepts; a dev-mode mock carries another. */
+/** The non-salted nullifier type, the one a real document's proof carries and the only one the chain accepts. */
 export const METHOD_ZKPASSPORT_NON_SALTED_NULLIFIER = 0n;
+
+/** The nullifier type of the fake passport the zkPassport app proves in dev mode. */
+export const METHOD_ZKPASSPORT_MOCK_NON_SALTED_NULLIFIER = 2n;
+
+/** The nullifier types the method accepts locally in dev mode. */
+export const METHOD_ZKPASSPORT_DEV_MODE_NULLIFIER_TYPES: readonly bigint[] = Object.freeze([
+  METHOD_ZKPASSPORT_NON_SALTED_NULLIFIER,
+  METHOD_ZKPASSPORT_MOCK_NON_SALTED_NULLIFIER,
+]);
 
 /** The nullifier type's position in the outer proof's public inputs, counted from the end as `@zkpassport/utils` 0.38.0 lays them out. */
 export const METHOD_ZKPASSPORT_NULLIFIER_TYPE_FROM_END = 3;
@@ -67,8 +76,8 @@ export const METHOD_ZKPASSPORT_MIN_PUBLIC_INPUTS = 3;
 /** The proof mode every request asks for. */
 export const METHOD_ZKPASSPORT_REQUEST_MODE = 'compressed-evm';
 
-/** Dev mode, off on every request and every verifier-parameter call. */
-export const METHOD_ZKPASSPORT_DEV_MODE = false;
+/** Dev mode where the factory's options leave it unset: off. */
+export const METHOD_ZKPASSPORT_DEFAULT_DEV_MODE = false;
 
 /** The texts the phone shows, passed to the request only where given. */
 export const METHOD_ZKPASSPORT_DISPLAY_FIELDS = Object.freeze(['name', 'logo', 'purpose'] as const);

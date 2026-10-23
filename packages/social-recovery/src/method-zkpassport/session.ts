@@ -1,6 +1,5 @@
 import {
   METHOD_ZKPASSPORT_CUSTOM_DATA_KEY,
-  METHOD_ZKPASSPORT_DEV_MODE,
   METHOD_ZKPASSPORT_DISPLAY_MESSAGE,
   METHOD_ZKPASSPORT_DISPLAY_FIELDS,
   METHOD_ZKPASSPORT_REQUEST_MODE,
@@ -51,20 +50,31 @@ export const sessionFromInput = (input: Input): ZkPassportSession | undefined =>
   return { domain, scope, ...display(input) };
 };
 
-/** The session's request arguments, in `compressed-evm` mode with dev mode off. */
-export const requestArgs = (session: ZkPassportSession): ZkPassportRequestArgs => ({
+/** The session's request arguments, in `compressed-evm` mode under the method's dev mode. */
+export const requestArgs = (session: ZkPassportSession, devMode: boolean): ZkPassportRequestArgs => ({
   ...display(session),
   scope: session.scope,
   mode: METHOD_ZKPASSPORT_REQUEST_MODE,
-  devMode: METHOD_ZKPASSPORT_DEV_MODE,
+  devMode,
 });
 
-/** A thunk that opens the session's request on the stack, binding the custom field where a text is given. */
+/** A thunk that opens the session's request on the stack, binding the custom field where a text is given; the record's `cancel()` closes it on the client. */
 export const opener =
-  (stack: ZkPassportStack, session: ZkPassportSession, customData: string | undefined): (() => Promise<ZkPassportRequest>) =>
+  (
+    stack: ZkPassportStack,
+    session: ZkPassportSession,
+    customData: string | undefined,
+    devMode: boolean,
+  ): (() => Promise<ZkPassportRequest>) =>
   async () => {
     const client = await stack(session.domain);
-    const builder = await client.request(requestArgs(session));
+    const builder = await client.request(requestArgs(session, devMode));
+    const request = (customData === undefined ? builder : builder.bind(METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, customData)).done();
 
-    return (customData === undefined ? builder : builder.bind(METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, customData)).done();
+    return {
+      ...request,
+      cancel: () => {
+        client.cancelRequest(request.requestId);
+      },
+    };
   };

@@ -50,19 +50,19 @@ describe('verify answers from local facts alone and never asks the stack', () =>
   it.each(cases)('%s → %s', async (_why, config, proof, verdict) => {
     const double = stackDouble();
 
-    await expect(zkPassportMethod(double.stack).verify(makeCtx(config), proof)).resolves.toBe(verdict);
+    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config), proof)).resolves.toBe(verdict);
     expect(double.calls).toEqual([]);
   });
 
   it('never answers satisfied, even for a proof that passes every local check', async () => {
-    const verdicts = await Promise.all(cases.map(([, config, proof]) => zkPassportMethod(stackDouble().stack).verify(makeCtx(config), proof)));
+    const verdicts = await Promise.all(cases.map(([, config, proof]) => zkPassportMethod({ stack: stackDouble().stack }).verify(makeCtx(config), proof)));
 
     expect(verdicts).not.toContain('satisfied');
   });
 
   it('answers without a stack that would throw on any use', async () => {
     const double = stackDouble({ constructThrows: true, verifierThrows: true });
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
 
     await expect(method.verify(makeCtx(CONFIG), proofWith(outerInputs(IDENT)))).resolves.toBe('not-judged');
     await expect(method.verify(makeCtx(CONFIG), '0x')).resolves.toBe('rejected');
@@ -85,7 +85,7 @@ describe('verify over the pin\'s config row and the blessed proof row', () => {
     const proof = asHex(member(proofFile.vectors[0], 'expected', 'encoded'));
     const digest = asHex(member(proofFile.vectors[0], 'input', 'digest'));
 
-    await expect(zkPassportMethod(double.stack).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
+    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
     expect(double.calls).toEqual([]);
   });
 
@@ -95,7 +95,7 @@ describe('verify over the pin\'s config row and the blessed proof row', () => {
     const proof = asHex(member(proofFile.vectors[0], 'expected', 'encoded'));
     const digest = asHex(member(proofFile.vectors[0], 'input', 'digest'));
 
-    await expect(zkPassportMethod(double.stack).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
+    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
     expect(double.calls).toEqual([]);
   });
 });

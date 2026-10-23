@@ -1,4 +1,4 @@
-import type { METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, METHOD_ZKPASSPORT_DEV_MODE, METHOD_ZKPASSPORT_REQUEST_MODE } from '../constants';
+import type { METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, METHOD_ZKPASSPORT_REQUEST_MODE } from '../constants';
 import type { Hex } from '../interfaces';
 
 /** The config record: the committed identifier and the service its proofs are scoped to. */
@@ -45,7 +45,7 @@ export type ZkPassportRequestArgs = {
   readonly purpose?: string;
   readonly scope: string;
   readonly mode: typeof METHOD_ZKPASSPORT_REQUEST_MODE;
-  readonly devMode: typeof METHOD_ZKPASSPORT_DEV_MODE;
+  readonly devMode: boolean;
 };
 
 /** The request result the page renders and listens on. */
@@ -58,12 +58,20 @@ export type ZkPassportRequest = {
   onSuccess(callback: (response: { proofs: ZkPassportStackProof[]; result: unknown }) => unknown): void;
   onReject(callback: () => void): void;
   onError(callback: (error: string) => void): void;
+  /** @deprecated The verified flag can be tampered with in the browser; verify the proofs with `verify()` instead. */
+  onResult(
+    callback: (response: { verified: boolean; uniqueIdentifier: string | undefined; proofs: ZkPassportStackProof[]; [member: string]: unknown }) => unknown,
+  ): void;
+  onBridgeConnect(callback: () => void): void;
+  onBridgeConnectionLost(callback: () => void): void;
+  /** Closes this request through the client's `cancelRequest(requestId)`. */
+  cancel(): void;
 };
 
 /** The part of the stack's query builder this method calls. */
 export type ZkPassportQueryBuilder = {
   bind(key: typeof METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, value: string): ZkPassportQueryBuilder;
-  done(): ZkPassportRequest;
+  done(): Omit<ZkPassportRequest, 'cancel'>;
 };
 
 /** The verifier parameters as the stack returns them (its `SolidityVerifierParameters`). */
@@ -90,9 +98,21 @@ export type ZkPassportClient = {
     proof: ZkPassportStackProof;
     scope: string;
     domain: string;
-    devMode: typeof METHOD_ZKPASSPORT_DEV_MODE;
+    devMode: boolean;
   }): ZkPassportVerifierParameters;
+  cancelRequest(requestId: string): void;
 };
 
 /** The stack's constructor, `new ZKPassport(domain)`, as an injectable function. */
 export type ZkPassportStack = (domain: string) => ZkPassportClient | Promise<ZkPassportClient>;
+
+/** The zkPassport method's options. */
+export type ZkPassportMethodOptions = {
+  /** Replaces `new ZKPassport(domain)`; by default the installed `@zkpassport/sdk` is imported on first use. */
+  readonly stack?: ZkPassportStack;
+  /**
+   * Opens dev-mode requests and accepts the app's fake-passport proofs locally; off by default.
+   * The deployed module verifies with dev mode off and refuses any nullifier type but zero, so such a reply is rejected on chain.
+   */
+  readonly devMode?: boolean;
+};

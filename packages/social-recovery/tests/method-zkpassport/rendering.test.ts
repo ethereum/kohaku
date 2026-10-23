@@ -23,7 +23,7 @@ const binds = (calls: readonly StackCall[]) => calls.filter((call) => call.kind 
 describe('the digest text bound as the custom field', () => {
   it.each(DIGESTS)('%s renders as 0x and 64 lowercase hex, and reaches bind("custom_data", ...) byte-identical', async (_name, digest) => {
     const double = stackDouble();
-    const method = zkPassportMethod(double.stack);
+    const method = zkPassportMethod({ stack: double.stack });
     const input = method.signingInput(makeCtx(CONFIG, digest), PARAMS);
     const expected = rendering(digest);
 
@@ -48,7 +48,7 @@ describe('the digest text bound as the custom field', () => {
     const double = stackDouble();
     const digest: Hex = `0x${'00'.repeat(31)}01`;
 
-    await (zkPassportMethod(double.stack).signingInput(makeCtx(CONFIG, digest), PARAMS)['openRequest'] as () => Promise<unknown>)();
+    await (zkPassportMethod({ stack: double.stack }).signingInput(makeCtx(CONFIG, digest), PARAMS)['openRequest'] as () => Promise<unknown>)();
 
     expect(binds(double.calls)[0]).toMatchObject({ value: `0x${'0'.repeat(63)}1` });
   });
@@ -59,8 +59,8 @@ describe('the digest text bound as the custom field', () => {
     const a: Hex = `0x${'00'.repeat(31)}02`;
     const b: Hex = `0x${'00'.repeat(31)}03`;
 
-    await (zkPassportMethod(one.stack).signingInput(makeCtx(CONFIG, a), PARAMS)['openRequest'] as () => Promise<unknown>)();
-    await (zkPassportMethod(two.stack).signingInput(makeCtx(CONFIG, b), PARAMS)['openRequest'] as () => Promise<unknown>)();
+    await (zkPassportMethod({ stack: one.stack }).signingInput(makeCtx(CONFIG, a), PARAMS)['openRequest'] as () => Promise<unknown>)();
+    await (zkPassportMethod({ stack: two.stack }).signingInput(makeCtx(CONFIG, b), PARAMS)['openRequest'] as () => Promise<unknown>)();
 
     expect(binds(one.calls)[0]).not.toEqual(binds(two.calls)[0]);
   });
@@ -74,7 +74,7 @@ describe('the digest text bound as the custom field', () => {
   ])('signingInput refuses a digest of %s with the argument error class, rather than binding another rendering', (_why, digest, errorClass) => {
     const double = stackDouble();
 
-    expect(() => zkPassportMethod(double.stack).signingInput(makeCtx(CONFIG, digest as Hex), PARAMS)).toThrow(errorClass);
+    expect(() => zkPassportMethod({ stack: double.stack }).signingInput(makeCtx(CONFIG, digest as Hex), PARAMS)).toThrow(errorClass);
     expect(double.calls).toEqual([]);
   });
 });

@@ -221,6 +221,10 @@ export type StackDouble = {
   readonly generateArgsCalls: GenerateArgsOptions[];
   readonly proveCalls: ProveCall[];
   readonly verifyCalls: Pcd[];
+  /** The second argument of each `verify` call, the test-mode flag, `undefined` where the call carried none. */
+  readonly verifyFlags: (boolean | undefined)[];
+  /** How many arguments each `verify` call carried. */
+  readonly verifyArities: number[];
   readonly order: string[];
   /** Resolves once `prove` has been entered. */
   readonly proving: Promise<void>;
@@ -250,6 +254,8 @@ export function stackDouble(options: DoubleOptions = {}): StackDouble {
   const generateArgsCalls: GenerateArgsOptions[] = [];
   const proveCalls: ProveCall[] = [];
   const verifyCalls: Pcd[] = [];
+  const verifyFlags: (boolean | undefined)[] = [];
+  const verifyArities: number[] = [];
   const order: string[] = [];
   const pcd = options.pcd ?? pcdOf(SYNTHETIC_UPSTREAM, signalsFor(1n, 1n, `0x${'00'.repeat(32)}`));
   let entered: () => void = () => undefined;
@@ -278,9 +284,13 @@ export function stackDouble(options: DoubleOptions = {}): StackDouble {
 
       return act(behaviour, pcd, signal, 'prove');
     },
-    verify: (checked) => {
+    verify: (...call: Parameters<Stack['verify']>) => {
+      const [checked, testMode] = call;
+
       order.push('verify');
       verifyCalls.push(checked);
+      verifyFlags.push(testMode);
+      verifyArities.push(call.length);
 
       const answer = options.verify ?? true;
 
@@ -293,6 +303,8 @@ export function stackDouble(options: DoubleOptions = {}): StackDouble {
     generateArgsCalls,
     proveCalls,
     verifyCalls,
+    verifyFlags,
+    verifyArities,
     order,
     proving,
     total: () => order.length,

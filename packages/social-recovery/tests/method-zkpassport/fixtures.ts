@@ -5,8 +5,8 @@ import type { zkPassportMethod } from '../../src/method-zkpassport';
 import type { Address, Ctx, DeploymentDescriptor, Fields, Hex } from '../../src/interfaces';
 import type { VectorFile } from '../kat/read-vector';
 
-/** The stack the factory takes, named from the factory's own signature rather than a deep import. */
-export type Stack = NonNullable<Parameters<typeof zkPassportMethod>[0]>;
+/** The stack the factory's options take, named from the factory's own signature rather than a deep import. */
+export type Stack = NonNullable<NonNullable<Parameters<typeof zkPassportMethod>[0]>['stack']>;
 
 type Client = Awaited<ReturnType<Stack>>;
 
@@ -21,7 +21,8 @@ export type StackCall =
   | { readonly kind: 'bind'; readonly domain: string; readonly key: string; readonly value: string }
   | { readonly kind: 'done'; readonly domain: string }
   | { readonly kind: 'callback'; readonly domain: string; readonly name: string }
-  | { readonly kind: 'verifier-parameters'; readonly domain: string; readonly args: VerifierArgs };
+  | { readonly kind: 'verifier-parameters'; readonly domain: string; readonly args: VerifierArgs }
+  | { readonly kind: 'cancel'; readonly domain: string; readonly requestId: string };
 
 /** What the verifier-parameter call answers, before the double echoes the service config. */
 export type OuterMaterial = {
@@ -53,6 +54,9 @@ const CALLBACKS = [
   'onSuccess',
   'onReject',
   'onError',
+  'onResult',
+  'onBridgeConnect',
+  'onBridgeConnectionLost',
 ] as const;
 
 /** A 32-byte word from a number, `0x` and 64 lowercase hex characters. */
@@ -122,6 +126,9 @@ export function stackDouble(options: StackDoubleOptions = {}): StackDouble {
               onSuccess: register('onSuccess'),
               onReject: register('onReject'),
               onError: register('onError'),
+              onResult: register('onResult'),
+              onBridgeConnect: register('onBridgeConnect'),
+              onBridgeConnectionLost: register('onBridgeConnectionLost'),
             };
           },
         };
@@ -148,6 +155,9 @@ export function stackDouble(options: StackDoubleOptions = {}): StackDouble {
             devMode: args.devMode,
           },
         };
+      },
+      cancelRequest: (requestId) => {
+        calls.push({ kind: 'cancel', domain, requestId });
       },
     };
   };

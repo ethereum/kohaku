@@ -3,6 +3,7 @@ import {
   METHOD_AADHAAR_STACK_CALLS,
   METHOD_AADHAAR_STACK_DEFAULT_MEMBER,
   METHOD_AADHAAR_STACK_INIT_MESSAGE,
+  METHOD_AADHAAR_STACK_KEY_MEMBERS,
   METHOD_AADHAAR_STACK_MISSING_MESSAGE,
   METHOD_AADHAAR_STACK_ORIGIN_MESSAGE,
   METHOD_AADHAAR_STACK_ORIGINS_MEMBER,
@@ -10,7 +11,7 @@ import {
   METHOD_AADHAAR_STACK_SURFACE_MESSAGE,
 } from '../constants/method-aadhaar';
 import { assertDependency } from '../formats/guards';
-import type { AadhaarCoreSurface, AnonAadhaarArtifacts, AnonAadhaarStack } from '../types/method-aadhaar';
+import type { AadhaarCoreSurface, AadhaarPcd, AnonAadhaarArtifacts, AnonAadhaarStack } from '../types/method-aadhaar';
 import { isRecord } from './inputs';
 
 /** Thrown when the default stack cannot be loaded or initialised. */
@@ -23,7 +24,11 @@ function isLoaded(value: unknown): value is AadhaarCoreSurface {
     return false;
   }
 
-  return isRecord(value) && isRecord(value[METHOD_AADHAAR_STACK_ORIGINS_MEMBER]);
+  return (
+    isRecord(value) &&
+    isRecord(value[METHOD_AADHAAR_STACK_ORIGINS_MEMBER]) &&
+    METHOD_AADHAAR_STACK_KEY_MEMBERS.every((member) => typeof value[member] === 'string')
+  );
 }
 
 /** The package root, whose CommonJS exports arrive as named members or under `default`. */
@@ -62,7 +67,24 @@ async function initialise(artifacts: AnonAadhaarArtifacts): Promise<AadhaarCoreS
   return core;
 }
 
-/** The default stack, loaded on first use; without artifacts every call rejects with `AadhaarStackUnavailable`. */
+/**
+ * Whether the proof names the key the mode verifies against: the peer's test key in test mode, else UIDAI's.
+ * The peer throws on any other key, which would read as a stack failure; a proof from the other mode's QR is a wrong proof.
+ */
+function signedByModeKey(core: AadhaarCoreSurface, pcd: AadhaarPcd, testMode: boolean): boolean {
+  const expected = testMode ? core.testPublicKeyHash : core.productionPublicKeyHash;
+
+  try {
+    return BigInt(pcd.proof.pubkeyHash) === BigInt(expected);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The default stack, loaded on first use; without artifacts every call rejects with `AadhaarStackUnavailable`.
+ * Once loaded, `verify` answers false without calling the peer for a proof signed by a key other than the mode's.
+ */
 export function coreStack(artifacts: AnonAadhaarArtifacts | undefined): AnonAadhaarStack {
   let loading: Promise<AadhaarCoreSurface> | undefined;
 
@@ -82,6 +104,10 @@ export function coreStack(artifacts: AnonAadhaarArtifacts | undefined): AnonAadh
     generateArgs: async (options) =>
       (await load()).generateArgs({ ...options, fieldsToRevealArray: [...options.fieldsToRevealArray] }),
     prove: async (args, onProgress) => (await load()).prove(args, onProgress),
-    verify: async (pcd) => (await load()).verify(pcd),
+    verify: async (pcd, testMode) => {
+      const core = await load();
+
+      return signedByModeKey(core, pcd, testMode === true) && core.verify(pcd, testMode);
+    },
   };
 }

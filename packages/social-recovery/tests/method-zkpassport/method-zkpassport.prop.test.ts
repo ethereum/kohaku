@@ -13,6 +13,7 @@ import {
   encodeProof,
   IDENTIFIER,
   makeCtx,
+  outerInputs,
   PARAMS,
   stackDouble,
   stackProof,
@@ -23,7 +24,7 @@ const NUM_RUNS = Number(process.env['FC_NUM_RUNS'] ?? 256);
 
 const SEED = process.env['FC_SEED'] === undefined ? {} : { seed: Number(process.env['FC_SEED']) };
 
-const { codec } = zkPassportMethod(stackDouble().stack);
+const { codec } = zkPassportMethod({ stack: stackDouble().stack });
 
 const bytesArb = (minLength: number, maxLength: number) => fc.uint8Array({ minLength, maxLength }).map((bytes) => bytesToHex(bytes));
 
@@ -135,7 +136,7 @@ describe('method-zkpassport proof-list properties', () => {
     await fc.assert(
       fc.asyncProperty(holedArb, async ([length, outerAt, holeAt]) => {
         const double = stackDouble();
-        const method = zkPassportMethod(double.stack);
+        const method = zkPassportMethod({ stack: double.stack });
         const ctx = makeCtx(config);
         const material = { result: { verified: true, uniqueIdentifier: IDENTIFIER.toString(10), proofs: holed(length, outerAt, holeAt, enrollOuter) } };
 
@@ -144,6 +145,31 @@ describe('method-zkpassport proof-list properties', () => {
           constants.METHOD_ZKPASSPORT_MATERIAL_REJECTED,
         );
         expect(double.calls).toEqual([]);
+      }),
+      { numRuns: NUM_RUNS, ...SEED },
+    );
+  }, 600_000);
+});
+
+describe('method-zkpassport nullifier-type properties', () => {
+  const config = encodeConfig(word(IDENTIFIER), PARAMS.domain, PARAMS.scope, BigInt(DEFAULT_OUTER.validityPeriodInSeconds));
+  const rejected = constants.METHOD_ZKPASSPORT_MATERIAL_REJECTED;
+
+  it('over nullifier types 0 to 4 and both modes, enrollment, reply and verify accept exactly type 0, and type 2 in dev mode', async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.integer({ min: 0, max: 4 }), fc.boolean(), async (type, devMode) => {
+        const outer = { ...DEFAULT_OUTER, publicInputs: outerInputs(IDENTIFIER, BigInt(type)) };
+        const double = stackDouble({ outer });
+        const method = zkPassportMethod({ stack: double.stack, devMode });
+        const ctx = makeCtx(config);
+        const proof = encodeProof(outer.vkeyHash as Hex, outer.proof as Hex, outer.publicInputs as Hex[], outer.committedInputs as Hex);
+        const accepted = type === 0 || (type === 2 && devMode);
+        const enrollment = { result: { verified: true, uniqueIdentifier: IDENTIFIER.toString(10), proofs: [stackProof('outer_evm_count_4')] } };
+        const reply = { proofs: [stackProof('outer_evm_count_5', DIGEST)] };
+
+        expect(await method.configFrom(method.enrollInput(PARAMS), enrollment)).toEqual(accepted ? config : rejected);
+        expect(await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), reply)).toEqual(accepted ? proof : rejected);
+        expect(await method.verify(ctx, proof)).toBe(accepted ? 'not-judged' : 'rejected');
       }),
       { numRuns: NUM_RUNS, ...SEED },
     );

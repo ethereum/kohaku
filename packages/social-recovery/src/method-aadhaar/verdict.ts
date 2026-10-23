@@ -67,9 +67,9 @@ export function toPcd(proof: AadhaarProof): AadhaarPcd {
 
 /**
  * The local verdict, read off no chain and no clock: `rejected` for bytes that do not decode or
- * a proof `bindsTo` refuses, else the stack's answer, or `not-judged` when the stack throws.
+ * a proof `bindsTo` refuses, else the stack's answer under `testMode`, or `not-judged` when the stack throws.
  */
-export async function judge(stack: AnonAadhaarStack, config: Hex, digest: Hex, proof: Hex): Promise<Verdict> {
+export async function judge(stack: AnonAadhaarStack, config: Hex, digest: Hex, proof: Hex, testMode: boolean): Promise<Verdict> {
   assertBytes32(digest, METHOD_AADHAAR_DIGEST_NAME);
 
   let decoded: AadhaarProof;
@@ -83,7 +83,9 @@ export async function judge(stack: AnonAadhaarStack, config: Hex, digest: Hex, p
   }
 
   try {
-    return (await stack.verify(toPcd(decoded))) === true ? 'satisfied' : 'rejected';
+    const pcd = toPcd(decoded);
+
+    return (await stack.verify(pcd, testMode)) === true ? 'satisfied' : 'rejected';
   } catch {
     return 'not-judged';
   }
