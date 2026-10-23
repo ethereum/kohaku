@@ -1,0 +1,50 @@
+{
+  "name": "@kohaku-eth/poseidon",
+  "version": "0.0.0",
+  "license": "MIT",
+  "author": "",
+  "description": "Poseidon hash implementation",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/poseidon"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./t3": {
+      "types": "./dist/t3/t3.d.ts",
+      "import": "./dist/t3/t3.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "benchmark": "npm run build && node benchmark/hash.js"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "maci-crypto": "2.5.0",
+    "typescript": "^6.0.3",
+    "vitest": "^3.0.0"
+  }
+}
