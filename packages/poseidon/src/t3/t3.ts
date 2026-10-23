@@ -5,9 +5,9 @@ const N_ROUNDS_PARTIAL = 57;
 const N_ROUNDS_FULL_POST = 4;
 
 
-// This functino asumes that the resulting r is overflows p once at max.
-// For this to be true x must be lest that p R ~ 5.28 p^2. This margin allow us
-// to not reduce everythin everiwhere if we are going to reduce in the next operation
+// This function assumes that the resulting r overflows p at most once.
+// For this to be true x must be less than p R ~ 5.28 p^2. This margin allows us
+// to not reduce everything everywhere if we are going to reduce in the next operation
 function redc(x: bigint): bigint {
   const q = ((x & MASK) * NINV) & MASK;
   const r = (x + q * p) >> 256n;
@@ -38,7 +38,7 @@ class State {
     }
 
     ARC(c: bigint[]): void {
-        // We can avoid % p here and asume that after ARC
+        // We can avoid % p here and assume that after ARC
         // s is bounded by 2p
         this.s[0] = this.s[0] + c[0]
         this.s[1] = this.s[1] + c[1]
@@ -54,7 +54,7 @@ class State {
     mixRow(w: bigint[]): bigint {
         // After ARC s < 2p so the dot product is bounded by 
         // (w[0] + w[1] + w[2]) 2p for our matrix M and P this is about
-        // 2.65 p^2 < pR ~ 5.29 p^2. We can safelly reduce the three podructs at once.
+        // 2.65 p^2 < pR ~ 5.29 p^2. We can safely reduce the three products at once.
         // This resulted in a speed up of 25%
         return redc(this.s[0] * w[0] + this.s[1] * w[1] + this.s[2] * w[2]);
     }
