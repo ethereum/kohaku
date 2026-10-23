@@ -41,3 +41,4 @@ nix develop --extra-experimental-features "nix-command flakes" --command $SHELL
 ```
 
 fill your `.env` file in the root dir manually (with the vars in `.env.sample`) OR get a maintainer to register a sops key for you, so you can decrypt env secrets directly.
+

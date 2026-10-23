@@ -40,6 +40,8 @@
     "test:sync:mainnet": ". ./.env.e2e.tests && vitest run --project=sync-mainnet",
     "test:sync:debugger": ". ./.env.e2e.tests && vitest --inspect-brk --no-file-parallelism run --project=sync-sepolia",
     "test:watch": "vitest",
+    "test:unit:v2": "vitest run --project=unit-v2",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -62,6 +64,7 @@
     }
   },
   "dependencies": {
+    "@0xbow/privacy-pools-v2-sdk": "^1.0.2",
     "@fatsolutions/privacy-pools-core-circuits": "1.0.5",
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",

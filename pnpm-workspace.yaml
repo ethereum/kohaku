@@ -17,4 +17,5 @@ packages:
   - "packages/mimc-tree"
   - "packages/railgun"
   - "examples/pq-account"
+  - "examples/ppv2-sample-app"
   - "docs"
