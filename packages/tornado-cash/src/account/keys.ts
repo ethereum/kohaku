@@ -1,5 +1,5 @@
 import { Host } from '@kohaku-eth/plugins';
-import { bytesToNumberLE, concatBytes as concat, numberToBytesLE } from "@noble/curves/utils.js";
+import { asciiToBytes, bytesToHex, bytesToNumberLE, concatBytes as concat, numberToBytesLE } from "@noble/curves/utils.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 
 import { Commitment, Nullifier, NullifierHash } from '../interfaces/types.interface';
@@ -38,9 +38,34 @@ type DeriveSecretsParams = BaseDeriveSecretParams & {
   depositIndex: number;
 };
 
-export interface ISecretManager {
-  getDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
+/** Global nonce plus the pool mixed in after the signature. */
+export type SignatureDeriveParams = BaseDeriveSecretParams & {
+  nonce: number;
+};
+
+/** BIP-32 HD derivation. Still scanned so notes created before signature
+ * secrets remain spendable. New deposits use {@link SignatureDeriveParams}. */
+export interface LegacySecretManager {
+  getLegacyDepositSecrets: (params: DeriveDepositSecretParams) => Promise<Secret>;
   deriveEphemeralSigner: (params: DeriveDepositSecretParams) => Promise<`0x${string}`>;
+  /**
+   * Derives a delegator key from a classical wallet BIP-32 `path`, WITHOUT the
+   * `coalesceSecret` privacy transform, so it resolves to a recoverable,
+   * classical Ethereum address. Used for the tail-call batch delegator when the
+   * integrator supplies a wallet path (see `paymasterWithdrawThunk`).
+   */
+  deriveDelegatorSigner: (params: { path: string }) => Promise<`0x${string}`>;
+  /**
+   * Derives the ephemeral signer for an imported legacy note. Legacy secrets
+   * have no keystore-derived `depositIndex`, so this is a pure function of
+   * the note's own nullifier instead of a BIP-32 derivation.
+   */
+  deriveLegacyEphemeralSigner: (params: { nullifier: Nullifier }) => Promise<`0x${string}`>;
+}
+
+export interface ISecretManager extends LegacySecretManager {
+  getSignatureSecrets: (params: SignatureDeriveParams) => Promise<Secret>;
+  deriveSignatureEphemeralSigner: (params: SignatureDeriveParams) => Promise<`0x${string}`>;
 }
 
 export interface SecretManagerParams {
@@ -83,10 +108,15 @@ function coalesceSecret({ secret, chainId, poolAddress }: CoalesceSecretParams):
   );
 }
 
+/**
+ * @deprecated Legacy BIP-32 HD secret derivation. New deposits use
+ * {@link SignatureSecretManager}. Kept so notes created under this scheme are
+ * still discovered; the protocol default composes both.
+ */
 export async function SecretManager({
   host: { keystore },
   accountIndex = 0
-}: SecretManagerParams): Promise<ISecretManager> {
+}: SecretManagerParams): Promise<LegacySecretManager> {
   const deriveSecrets = async ({ chainId, poolAddress, depositIndex }: DeriveSecretsParams): Promise<Secret> => {
     // Promise.resolve handles both sync Hex (real keystore) and Promise<Hex> (Comlink proxy)
     const saltSecretRaw = await Promise.resolve(keystore.deriveAt(tcPath({ accountIndex, secretType: "salt", depositIndex })));
@@ -112,12 +142,31 @@ export async function SecretManager({
     const path = tcPath({ accountIndex, secretType: "signer", depositIndex });
     const raw = await Promise.resolve(keystore.deriveAt(path));
     const coalesced = coalesceSecret({ secret: raw, chainId, poolAddress });
+
     return `0x${coalesced.toString(16).padStart(64, '0')}` as `0x${string}`;
   };
 
+  // No coalesce: a classical wallet path yields a real private key whose address
+  // is recoverable by the user's wallet, so a stuck delegator can be swept.
+  const deriveDelegatorSigner = async ({ path }: { path: string }) => {
+    return Promise.resolve(keystore.deriveAt(path)) as Promise<`0x${string}`>;
+  };
+
+  const LEGACY_EPHEMERAL_SALT = asciiToBytes('KOHAKU7702');
+
+  // Pure function of the note's own nullifier — no keystore path exists for
+  // an imported legacy note, so there is nothing to derive it from.
+  const deriveLegacyEphemeralSigner = async ({ nullifier }: { nullifier: Nullifier }) => {
+    const hash = keccak_256(concat(numberToBytesLE(nullifier, 31), LEGACY_EPHEMERAL_SALT));
+
+    return `0x${bytesToHex(hash)}` as `0x${string}`;
+  };
+
   return {
-    getDepositSecrets: (params) => deriveSecrets(params),
+    getLegacyDepositSecrets: (params) => deriveSecrets(params),
     deriveEphemeralSigner,
+    deriveDelegatorSigner,
+    deriveLegacyEphemeralSigner,
   };
 }
 
@@ -133,5 +182,6 @@ function tcPath({ accountIndex, secretType, depositIndex }: TorandoCashDerivatio
     "salt": 1,
     "signer": 2,
   }[secretType];
+
   return `${TORNADO_CASH_PATH}/${accountIndex}'/${_secretType}'/${depositIndex}'`;
 }

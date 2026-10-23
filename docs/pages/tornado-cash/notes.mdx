@@ -1,0 +1,63 @@
+# Notes
+
+Tornado balances are a pile of fixed-size notes. `balance` sums them. `notes` lists them. `importNotes` registers a legacy note string that already exists on chain.
+
+```ts
+await tornado.sync()
+
+const open = await tornado.notes()
+const ethNotes = await tornado.notes(
+  [{ __type: 'erc20', contract: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' }],
+)
+const includingSpent = await tornado.notes([], true)
+```
+
+`sync` runs automatically at the start of `notes`, `balance`, `prepareShield`, and `prepareUnshield`. Call it yourself when a screen wants fresh data before the user picks an amount.
+
+The asset filter uses the same ERC-20 id as shield, including the ETH sentinel. An empty list returns every asset. `includeSpent` defaults to `false`, which hides notes whose `balance` is zero.
+
+## Fields
+
+| Field | Meaning |
+| --- | --- |
+| `amount` | The pool denomination, in base units. This is the size of the note, not a partial balance. |
+| `balance` | What is left. Equal to `amount` until the note is spent. |
+| `assetAddress` | Pool asset, as a bigint. ETH is `0`. |
+| `pool` | Pool contract, as a bigint. |
+| `commitment` | The note commitment. |
+| `leafIndex` | Index of the commitment in the pool tree. |
+| `timestamp` | Deposit time, when the sync recorded one. |
+| `depositIndex` | HD deposit index. `-1` for imported notes and for signature-derived notes. |
+| `nonce` | Present on signature-derived notes. The global counter mixed into that signature. |
+
+`assetAddress` for ETH is `0` in this list, while shield and unshield take the `0xeeee…` sentinel. Convert when you join the two.
+
+A wallet that offers "withdraw 0.3 ETH" should select a set of `amount`s that sum to 0.3 ETH. `prepareUnshield` does that selection itself when you pass the total. Use `notes` to explain the fee and the number of proofs, which grows with the number of notes.
+
+## Import a legacy note
+
+Notes created outside this SDK are a string the Tornado tools exported. `importNotes` parses each string, checks it against deposits synced on the current chain, and stores the secret so `balance` can see it.
+
+A legacy note looks like `tornado-eth-0.1-1-0x` plus 124 hex characters (62 bytes: 31 of nullifier, 31 of salt).
+
+```ts
+const results = await tornado.importNotes([legacyNote])
+
+for (const result of results) {
+  if (result.status === 'imported') {
+    // result.poolAddress is the pool the note matched
+  }
+}
+```
+
+| `status` | Meaning |
+| --- | --- |
+| `'imported'` | The commitment is in a synced pool on this chain. `poolAddress` is that pool. |
+| `'wrong-chain'` | The note's chain id is not the provider's chain. |
+| `'not-found'` | The chain id matches, and no synced deposit has that commitment. Sync further, or the note was never deposited. |
+
+Pass one string or an array. The call syncs first. Imported notes show up with `depositIndex: -1`. Spending them uses the nullifier inside the note string, so the host keystore is not required for that secret. The paymaster sender for an imported note is derived from the nullifier as well.
+
+After a successful import, `balance` and `prepareUnshield` treat the note like any other unspent note.
+
+The CLI command that calls this is [`src/commands/import-tornado-note.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/commands/import-tornado-note.ts), via `plugin.importNotes` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).

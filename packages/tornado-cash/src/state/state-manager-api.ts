@@ -1,6 +1,7 @@
 import { EthereumProvider, TxData } from '@kohaku-eth/provider';
 import type { Storage, Keystore } from '@kohaku-eth/plugins';
-import { SecretManager } from '../account/keys';
+import { ISecretManager, SecretManager } from '../account/keys';
+import { SignatureSecretManager } from '../account/signature-keys';
 import { DataService } from '../data/data.service';
 import { SyncService } from '../data/sync.service';
 import { ExternalSyncClient } from '../data/interfaces/sync.service.interface';
@@ -19,7 +20,7 @@ import {
   IChainsPaymastersConfig,
   ITornadoArtifacts,
 } from '../plugin/interfaces/protocol-params.interface';
-import { PublicRootState, RootState } from './store';
+import { PublicRootState } from './store';
 import { Address } from '../interfaces/types.interface';
 import { IRelayerFeeConfig } from './slices/relayersSlice';
 
@@ -29,6 +30,14 @@ export interface WorkerInitOptions {
   accountIndex: number,
   paymasterConfig: IChainsPaymastersConfig,
   minExternalSyncBlocksAmount?: number,
+}
+
+async function defaultSecretManager(keystore: Keystore, accountIndex: number): Promise<ISecretManager> {
+  const params = { host: { keystore }, accountIndex };
+  const legacy = await SecretManager(params);
+  const signature = await SignatureSecretManager(params);
+
+  return { ...legacy, ...signature };
 }
 
 let _stateManager: IStateManager | null = null;
@@ -50,6 +59,7 @@ export const workerApi = {
     rawStorage: Omit<Storage, '_brand'>,
     initialState: () => Promise<Record<string, PublicRootState>>,
     artifactsLoader: () => Promise<ITornadoArtifacts>,
+    secretManager: ISecretManager | undefined,
     externalSyncProvider: ExternalSyncClient | undefined,
     { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount }: WorkerInitOptions,
   ): Promise<void> {
@@ -58,7 +68,9 @@ export const workerApi = {
 
     _stateManager = await storeStateManager({
       paymasterConfig,
-      secretManagerFactory: () => SecretManager({ host: { keystore }, accountIndex }),
+      secretManagerFactory: () => secretManager
+        ? Promise.resolve(secretManager)
+        : defaultSecretManager(keystore, accountIndex),
       dataService,
       syncService: new SyncService({ dataService, externalSyncProvider, minExternalSyncBlocksAmount }),
       relayerClient,
@@ -86,6 +98,10 @@ export const workerApi = {
     return getStateManager().getDepositPayload(params);
   },
 
+  importNotes(params: { notes: string[] }) {
+    return getStateManager().importNotes(params);
+  },
+
   getWithdrawalPayloads(params: IWithdrawapOperationParams, tailCalls?: IPaymasterWithdrawParams['tailCalls']): Promise<IWithdrawalPayload[]> {
     const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster' && tailCalls
       ? { ...params, tailCalls }
@@ -94,7 +110,7 @@ export const workerApi = {
     return getStateManager().getWithdrawalPayloads(fullParams);
   },
 
-  dumpState(): Record<StoreStorageKey, Omit<RootState, 'userSecrets'>> {
+  dumpState(): Record<StoreStorageKey, PublicRootState> {
     return getStateManager().dumpState();
   },
 };

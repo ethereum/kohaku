@@ -7,7 +7,7 @@ import { addressToHex } from "../src/utils";
 import { generateMerkleProof } from "../src/utils/proof.util";
 import { getChainConfigSetup } from "./constants";
 import { AnvilPool, defineAnvil, type AnvilInstance } from './utils/anvil';
-import { loadInitialState } from './utils/common';
+import { loadInitialState, TEST_STORE_DEV_OPTIONS } from './utils/common';
 import { createMockAspService } from './utils/mock-asp-service';
 import { createMockHost } from './utils/mock-host';
 import { mockProverFactory } from './utils/mock-prover';
@@ -95,6 +95,7 @@ describe("Creates the dump state payload", () => {
       entrypoint,
       ...params,
       aspServiceFactory: () => mockAspService,
+      devOptions: TEST_STORE_DEV_OPTIONS,
     });
 
     await protocol.sync();
@@ -113,8 +114,9 @@ describe("Creates the dump state payload", () => {
 
     const protocol = new PrivacyPoolsV1Protocol(host, {
       entrypoint,
-      initialState: await loadInitialState(chainId),
-      ...params
+      initialState: () => loadInitialState(chainId),
+      ...params,
+      devOptions: TEST_STORE_DEV_OPTIONS,
     });
 
     await protocol.sync();

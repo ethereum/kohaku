@@ -18,9 +18,15 @@ export interface IDepositEvent extends IPoolEvent {
 
 export interface IIndexedDepositEvent extends IDepositEvent {
   index: number;
+  /** Signature-scheme nonce. Set only for signature-derived notes. */
+  nonce?: number;
 }
 
-export type IIndexedDepositWithSecrets = IIndexedDepositEvent & Secret;
+export type IIndexedDepositWithSecrets = IIndexedDepositEvent & Secret & (
+  | { kind: 'derived'; depositIndex: number }
+  | { kind: 'legacy' }
+  | { kind: 'signature'; nonce: number }
+);
 
 export interface IDepositWithAsset extends IIndexedDepositEvent {
   assetAddress: Address;
@@ -66,6 +72,11 @@ export interface IPool {
   registeredBlock: bigint;
   state: 0 | 1;
   rootHistorySize: number;
+  /**
+   * One of the newer ETH denominations (0.01, 0.03, 0.3, 3, 30). Absent on
+   * classic pools and on snapshots saved before the field existed.
+   */
+  extended?: boolean;
   /**
    * Highest block this pool's events have been synced to. Absent until the first
    * sync; syncing resumes from here (falling back to `registeredBlock`). Tracked

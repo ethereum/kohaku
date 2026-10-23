@@ -1,0 +1,40 @@
+/*
+ * Quiet inline code, a comfortable reading measure, and a bit more air
+ * around callouts. Steps keep Vocs' own counter styling.
+ */
+:root {
+  --vocs-lineHeight_paragraph: 1.7 !important;
+  --vocs-content_width: calc(72ch + (var(--vocs-content_horizontalPadding) * 2)) !important;
+  --vocs-color_codeInlineText: var(--vocs-color_text2) !important;
+  --vocs-color_codeInlineBorder: transparent !important;
+}
+
+article {
+  text-wrap: pretty;
+}
+
+article :where(h1, h2, h3) {
+  letter-spacing: -0.02em;
+}
+
+article :where(h1) {
+  margin-bottom: 0.85rem;
+}
+
+article aside {
+  margin-block: 1.35rem;
+}
+
+article :where(p, li, td) :where(code) {
+  font-size: 0.84em;
+  font-weight: 450;
+  padding: 0.12em 0.38em;
+}
+
+article :where(th, td) {
+  vertical-align: top;
+}
+
+article :where(pre) {
+  margin-block: 1.15rem;
+}

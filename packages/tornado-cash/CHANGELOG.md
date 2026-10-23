@@ -1,3 +1,97 @@
+## 0.1.0-alpha.28
+
+### Patch Changes
+
+- Updated dependencies [6e0e549]
+  - @kohaku-eth/provider@0.1.0-alpha.13
+  - @kohaku-eth/plugins@0.0.1-alpha.18
+
+## 0.1.0-alpha.27
+
+### Patch Changes
+
+- bf65511: fix: bind chainId in sig domain
+
+## 0.1.0-alpha.26
+
+### Minor Changes
+
+- a05e246: tornado signature based derivation
+- a05e246: Add a signature-derived secret manager and use it for new deposits. Each note comes from one deterministic EIP-712 signature over a global nonce (`TornadoCashNote`), with the pool mixed in afterwards: the signature's canonical `(r, s)` (big-endian, low-s, recovery id `v` dropped) is hashed with the chain id and pool address into the nullifier and secret. The signing key is `m/29795'/1'/account'`.
+
+  The legacy BIP-32 `SecretManager` stays in the default scan, so notes created under that scheme are still discovered. Imported note strings are unchanged.
+
+## 0.0.2-alpha.25
+
+### Patch Changes
+
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+  - @kohaku-eth/plugins@0.0.1-alpha.17
+
+## 0.0.2-alpha.24
+
+### Patch Changes
+
+- Updated dependencies [4c5e47b]
+  - @kohaku-eth/provider@0.1.0-alpha.11
+  - @kohaku-eth/plugins@0.0.1-alpha.16
+
+## 0.0.2-alpha.23
+
+### Patch Changes
+
+- Updated dependencies [8676bb8]
+  - @kohaku-eth/plugins@0.0.1-alpha.15
+
+## 0.0.2-alpha.22
+
+### Patch Changes
+
+- Updated dependencies [e3735d4]
+  - @kohaku-eth/provider@0.1.0-alpha.10
+  - @kohaku-eth/plugins@0.0.1-alpha.14
+
+## 0.0.2-alpha.21
+
+### Patch Changes
+
+- Updated dependencies [8d5a29e]
+  - @kohaku-eth/provider@0.1.0-alpha.9
+  - @kohaku-eth/plugins@0.0.1-alpha.13
+
+## 0.0.2-alpha.20
+
+### Patch Changes
+
+- 66c603f: bump versions to latest
+- Updated dependencies [66c603f]
+  - @kohaku-eth/plugins@0.0.1-alpha.12
+
+## 0.0.2-alpha.19
+
+### Patch Changes
+
+- 0d64c07: chore: preverification gas bump
+
+## 0.0.2-alpha.18
+
+### Patch Changes
+
+- dfa61fe: feat: bump tornado base gas estimates
+
+## 0.0.2-alpha.17
+
+### Patch Changes
+
+- 3ca504d: feat: multi-withdrawal on TC in one UserOp
+
+## 0.0.2-alpha.16
+
+### Patch Changes
+
+- d86e4a1: feat: arbitrary delegator paths
+
 ## 0.0.2-alpha.15
 
 ### Patch Changes

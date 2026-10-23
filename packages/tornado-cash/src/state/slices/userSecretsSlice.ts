@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Address, Commitment, Nullifier, NullifierHash } from '../../interfaces/types.interface';
+import { SignatureUserSecretRecord } from './signatureSecretsSlice';
 import { Serializable } from '../interfaces/utils.interface';
 import { deserialize, serialize } from '../utils/serialize.utils';
 
@@ -10,6 +11,18 @@ export interface UserSecretRecord {
   salt: bigint;
   depositIndex: number;
 }
+
+/**
+ * A secret imported from a legacy (pre-SDK) Tornado Cash note. There is no
+ * keystore-derived `depositIndex` for these — they were never derived from
+ * our BIP32 path.
+ */
+export type LegacyUserSecretRecord = Omit<UserSecretRecord, 'depositIndex'>
+
+export type UserSecretEntry =
+  | ({ kind: 'derived' } & UserSecretRecord)
+  | ({ kind: 'legacy' } & LegacyUserSecretRecord)
+  | ({ kind: 'signature' } & SignatureUserSecretRecord);
 
 export interface UserSecretsState {
   byPool: [Address, UserSecretRecord[]][];

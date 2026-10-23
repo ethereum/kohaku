@@ -175,6 +175,11 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
       { mode: 'paymaster' },
     );
 
+    // The 2-note batch is consolidated into a single userOp (one EIP-7702
+    // authorization); the second note is withdrawn as a direct pool.withdraw in
+    // callData and the accumulated balance is forwarded to alice.
+    expect(unshieldOp.withdrawals.length).toBe(1);
+
     const preWithdrawalBalance = await getERC20Balance(pool.rpcUrl, erc20Address, alice.address);
 
     // 4. Broadcast — TornadoCashBroadcaster routes paymaster withdrawals to PaymasterBroadcaster
@@ -272,6 +277,11 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
         ],
       },
     );
+
+    // The 2-note batch is consolidated into a single userOp carrying one
+    // EIP-7702 authorization, with the tailCalls appended after the direct
+    // withdraw of the second note.
+    expect(unshieldOp.withdrawals.length).toBe(1);
 
     // Broadcast — the userOp executes both tailCalls atomically; Bob receives tokens
     const preBobBalance = await getERC20Balance(pool.rpcUrl, erc20Address, bob);

@@ -74,6 +74,44 @@ export type ExternalSyncProvider = {
 };
 
 /**
+ * Worker/WASM-facing view of an {@link ExternalSyncProvider}. Async iterators
+ * cannot cross a worker or WASM boundary, so consumers that live on the other
+ * side of one adapt the streaming provider into this materialized-array shape
+ * first (see {@link toExternalSyncClient}).
+ */
+export type ExternalSyncClient = {
+    getEvents(
+        params: ExternalSyncPoolId & { fromBlock: Hex; toBlock: Hex },
+    ): Promise<ExternalRawEvent[]>;
+
+    /** @throws if the provider has no data for the pool. */
+    firstCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
+
+    /** @throws if the provider has no data for the pool. */
+    lastCoveredBlock(params: ExternalSyncPoolId): Promise<Hex>;
+};
+
+/**
+ * Drains an {@link ExternalSyncProvider}'s `streamEvents` into the
+ * materialized-array shape of {@link ExternalSyncClient}.
+ */
+export function toExternalSyncClient(provider: ExternalSyncProvider): ExternalSyncClient {
+    return {
+        getEvents: async (params) => {
+            const events: ExternalRawEvent[] = [];
+
+            for await (const event of provider.streamEvents(params)) {
+                events.push(event);
+            }
+
+            return events;
+        },
+        firstCoveredBlock: (params) => provider.firstCoveredBlock(params),
+        lastCoveredBlock: (params) => provider.lastCoveredBlock(params),
+    };
+}
+
+/**
  * Provides network access to plugins.
  */
 export type Network = {

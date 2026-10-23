@@ -1,0 +1,29 @@
+{
+  "name": "@kohaku-eth/railgun",
+  "version": "0.0.1-alpha.31",
+  "description": "Placeholder for the Railgun package (to be reintroduced)",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/railgun"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "mkdir -p dist && printf 'export {};\\n' > dist/index.js && printf 'export {};\\n' > dist/index.d.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}

@@ -202,8 +202,7 @@ export class DataService implements IDataService {
       // `instances` also returns uniswapPoolSwappingFee at index 3 (unused — the
       // paymaster owns fee pricing); elided to keep protocolFeePercentage aligned.
       [isERC20, token, state, , protocolFeePercentage],
-      denomination,
-      rootHistorySize
+      { denomination, rootHistorySize },
     ] =
     await Promise.all([
       this.ethClient.makeContractRequest(
@@ -212,8 +211,7 @@ export class DataService implements IDataService {
         'instances',
         toHex(poolAddress, { size: 20 })
       ),
-      this.ethClient.makeContractRequest(poolAddress, 'pool', 'denomination'),
-      this.ethClient.makeContractRequest(poolAddress, 'pool', 'ROOT_HISTORY_SIZE'),
+      this.getPoolContractParams(poolAddress),
     ]);
 
     return {
@@ -225,6 +223,27 @@ export class DataService implements IDataService {
       denomination,
       rootHistorySize
     };
+  }
+
+  async getUnregisteredNativeEthPoolConfig(poolAddress: Address): Promise<IPoolConfig> {
+    const { denomination, rootHistorySize } = await this.getPoolContractParams(poolAddress);
+
+    return {
+      poolAddress,
+      isERC20: false,
+      token: 0n,
+      state: 1,
+      protocolFeePercentage: 0,
+      denomination,
+      rootHistorySize,
+    };
+  }
+
+  private getPoolContractParams(poolAddress: Address): Promise<{ denomination: bigint; rootHistorySize: number }> {
+    return Promise.all([
+      this.ethClient.makeContractRequest(poolAddress, 'pool', 'denomination'),
+      this.ethClient.makeContractRequest(poolAddress, 'pool', 'ROOT_HISTORY_SIZE'),
+    ]).then(([denomination, rootHistorySize]) => ({ denomination, rootHistorySize }));
   }
 
   async getChainId() {

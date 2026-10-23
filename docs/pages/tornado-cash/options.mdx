@@ -1,0 +1,93 @@
+# Deposits and withdrawals
+
+`prepareShield` chooses pools. `prepareUnshield` chooses how the notes get spent. The amount on both calls is in the asset's base units and has to match live denominations. See [shield and unshield](/tornado-cash) for the short path.
+
+## Deposit strategy
+
+The second argument of `prepareShield` is a strategy, or omitted.
+
+```ts
+import { DepositStrategy } from '@kohaku-eth/tornado-cash'
+
+await tornado.prepareShield(asset, { strategy: DepositStrategy.MinFee })
+await tornado.prepareShield(asset, { strategy: DepositStrategy.MaxAnonimitySet })
+```
+
+| Strategy | How the amount is split |
+| --- | --- |
+| `MinFee` | Largest denominations first. 1.3 ETH on mainnet is one 1 ETH note and three 0.1 ETH notes. This is the default. |
+| `MaxAnonimitySet` | The whole amount goes into the smallest pool for that asset. 1.3 ETH is thirteen 0.1 ETH notes. |
+
+The enum name is `MaxAnonimitySet`. More notes means more deposit transactions, more proofs on the way out, and a larger set of people who used that denomination.
+
+A remainder that does not fill a pool is not deposited. 0.15 ETH with a 0.1 ETH minimum becomes a single 0.1 ETH note under `MaxAnonimitySet`, and the same under `MinFee` when 0.1 is the only pool that fits. Sum the transaction values and show that sum in the confirmation.
+
+ERC-20 shields emit an approval and a deposit for each note. The user's public account needs the token and enough ETH for gas.
+
+The CLI always passes `MinFee`, in `prepareProtocolShield` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).
+
+## Relayer withdrawal
+
+```ts
+const operation = await tornado.prepareUnshield(asset, recipient, {
+  mode: 'relayer',
+  preferredRelayersEns: ['relay.example.eth'],
+})
+
+const receipts = await createTCBroadcaster(host).broadcast(operation)
+```
+
+`mode: 'relayer'` is the default, so the options object is optional. `preferredRelayersEns` keeps only those ENS names from the registry. Names that are not registered, or that fall outside [`relayerConfig`](/tornado-cash/configuration), produce no quote. With an empty preferred list the plugin uses every relayer inside the fee window.
+
+Each withdrawal in `operation.withdrawals` has `mode: 'relayer'`, a `relayerUrl`, the pool, and the proof. The broadcaster POSTs them with `host.network.fetch`. A failure on one withdrawal is collected. The returned array contains the ones that succeeded, each as `{ id }` where `id` is the relayer job id. If you need all-or-nothing, check `receipts.length` against `operation.withdrawals.length` before you tell the user the funds have moved.
+
+`tailCalls` on a relayer unshield throws. Follow-up calls belong on the paymaster path.
+
+## Paymaster withdrawal
+
+```ts
+const operation = await tornado.prepareUnshield(asset, recipient, {
+  mode: 'paymaster',
+  delegation: { mode: 'deterministic' },
+  tailCalls: async (sender) => [
+    {
+      to: token,
+      data: encodeTransfer(sender, recipient, dust),
+      value: 0n,
+    },
+  ],
+  tailCallsGasEstimate: 80_000n,
+})
+
+const receipts = await createTCBroadcaster(host, {
+  paymasterConfig: TornadoPaymasterConfigs,
+}).broadcast(operation)
+```
+
+The paymaster sponsors gas. The user's public account does not pay the withdrawal. `receipts[n].id` is the user operation hash.
+
+`tailCalls` runs in the same user operation, after the notes are spent. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
+
+### Delegation
+
+`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
+
+| Value | Delegator |
+| --- | --- |
+| omitted, or `{ mode: 'deterministic' }` | An ephemeral address derived from the batch's first deposit. Recoverable from the seed. |
+| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. |
+| `{ mode: 'random' }` | A throwaway key. The funds sitting on it during the call are unrecoverable if the user operation stalls. |
+
+```ts
+await tornado.prepareUnshield(asset, recipient, {
+  mode: 'paymaster',
+  delegation: { mode: 'deterministic', path: "m/44'/60'/0'/0/3" },
+  tailCalls: async () => extraCalls,
+})
+```
+
+The CLI builds this delegation in [`src/utils/tornado-unshield-delegation.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/tornado-unshield-delegation.ts) and submits through a Tor-aware paymaster client from `broadcastTornadoPrivateOp`.
+
+## Picking a path
+
+Use `MinFee` and a relayer when you want the fewest notes and a simple withdrawal. Use `MaxAnonimitySet` when the product wants every note in the smallest denomination. Use the paymaster when the recipient should receive funds without the user holding ETH for gas, or when the withdrawal should continue into `tailCalls`.

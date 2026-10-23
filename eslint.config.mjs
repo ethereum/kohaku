@@ -58,8 +58,6 @@ export default [
   },
   {
     ignores: [
-      '**/railgun/lib/**',
-      '**/railgun/logic/**',
       '**/demo/**',
       '**/tests/**',
       '**/docs/**',

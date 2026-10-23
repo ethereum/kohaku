@@ -1,25 +1,219 @@
 # Get started
 
-Kohaku is a collection of privacy-first tooling for the Ethereum ecosystem.
+`@kohaku-eth/privacy-pools` and `@kohaku-eth/tornado-cash` are wallet plugins. Both speak the same interface from `@kohaku-eth/plugins`, and both read the chain through `@kohaku-eth/provider`.
 
-:::info
-TODO: Write intro
+You build a [`Host`](/host), create a plugin, and call two methods:
+
+- `prepareShield` returns public transactions. Your wallet signs and broadcasts them.
+- `prepareUnshield` returns a private operation. A broadcaster from the same package submits it to a relayer or a paymaster.
+
+ETH is the ERC-20 id `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee`. Both packages export it as `E_ADDRESS`.
+
+:::warning
+`@kohaku-eth/privacy-pools` and `@kohaku-eth/tornado-cash` are still undergoing audits.
 :::
 
-## Packages
+## Install
 
-Kohaku has a few packages that are worth checking out.
+The protocol packages depend on `@kohaku-eth/plugins` and `@kohaku-eth/provider`. Install `viem` yourself if you build the host with the viem adapter. Node.js 22 or newer matches the provider package.
 
-- [@kohaku-eth/railgun](./railgun/intro.mdx) - A privacy preserving pool protocol that allows users to shield and unshield their ERC20 tokens.
-- [@kohaku-eth/privacy-pools](./privacy-pools/intro.mdx) (**WIP**) - A privacy preserving pool protocol that allows users to shield and unshield their ERC20 tokens.
-- [@kohaku-eth/tornado](./tornado/intro.mdx) (**WIP**) - A privacy preserving pool protocol that allows users to shield and unshield their ERC20 tokens.
+:::code-group
 
-Other noteworthy packages to checkout include:
+```bash [pnpm]
+pnpm add @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash viem
+```
 
-- [@a16z/helios](https://github.com/a16z/helios) - A lightclient developed by [a16z](https://a16z.com/).
+```bash [npm]
+npm install @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash viem
+```
 
-## Wallet Implementation
+```bash [yarn]
+yarn add @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash viem
+```
 
-Although the kohaku packages are wallet-agnostic by default, we have a wallet implementation that you can use to try it for yourself.
+:::
 
-[@ethereum/kohaku-extension](https://github.com/ethereum/kohaku-extension) - A wallet implementation for the kohaku packages. Forked from [@ambiretech/extension](https://github.com/ambiretech/extension) & [@ambiretech/ambire-common](https://github.com/ambiretech/ambire-common).
+## A host
+
+Every plugin takes the same host: chain access, HTTP, storage, and a keystore. This toy keeps state in memory. A wallet persists it. The [host page](/host) is the contract. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/makeHost.ts) is a full implementation.
+
+```ts
+import { MemoryStorage, MnemonicKeystore, type Host } from '@kohaku-eth/plugins'
+import { viem } from '@kohaku-eth/provider/viem'
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const rpcUrl = process.env.RPC_URL!
+
+export const host: Host = {
+  network: { fetch: globalThis.fetch.bind(globalThis) },
+  storage: new MemoryStorage(),
+  keystore: new MnemonicKeystore(process.env.MNEMONIC!),
+  provider: viem(createPublicClient({ chain: mainnet, transport: http(rpcUrl) })),
+}
+```
+
+`MemoryStorage` forgets everything when the process exits, so the next launch syncs from scratch. Swap it for encrypted storage before you keep real notes.
+
+## Privacy Pools
+
+`createPPv1Plugin` needs the 0xbow entrypoint for the chain and a relayer URL. `PrivacyPoolsV1_0xBow` has mainnet (`1`) and Sepolia (`11155111`).
+
+:::steps
+
+### Create the plugin
+
+```ts
+import {
+  createPPv1Broadcaster,
+  createPPv1Plugin,
+  PrivacyPoolsV1_0xBow,
+} from '@kohaku-eth/privacy-pools'
+
+const deployment = PrivacyPoolsV1_0xBow[1]
+const broadcasterUrl = 'https://fastrelay.xyz/relayer'
+
+const pools = createPPv1Plugin(host, {
+  accountIndex: 0,
+  broadcasterUrl,
+  entrypoint: {
+    address: BigInt(deployment.entrypoint.entrypointAddress),
+    deploymentBlock: deployment.entrypoint.deploymentBlock,
+  },
+})
+```
+
+`accountIndex` picks which keystore account owns the notes. `0` is the first one.
+
+### Shield
+
+```ts
+const eth = {
+  asset: {
+    __type: 'erc20' as const,
+    contract: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const,
+  },
+  amount: 50_000_000_000_000_000n, // 0.05 ETH
+}
+
+const shield = await pools.prepareShield(eth)
+
+for (const tx of shield.txns) {
+  const hash = await wallet.sendTransaction({
+    to: tx.to as `0x${string}`,
+    data: tx.data as `0x${string}`,
+    value: tx.value,
+  })
+  await publicClient.waitForTransactionReceipt({ hash })
+}
+```
+
+`wallet` is your user's account. Sign and send every transaction in `txns`, then wait for each receipt. The plugin asks the host keystore for note secrets. It leaves public transactions to you.
+
+### Read the balance
+
+```ts
+const balances = await pools.balance()
+```
+
+Each asset comes back twice: the spendable amount, and a second row tagged `'pending'` for deposits the association set has not approved yet. The first call syncs, and it can take a while. Later calls resume from storage.
+
+### Unshield
+
+A deposit is `'pending'` until the association set approves it. `prepareUnshield` spends the approved row. Pending value exits through [ragequit](/privacy-pools/state).
+
+```ts
+const recipient = '0x1111111111111111111111111111111111111111'
+
+const operation = await pools.prepareUnshield(eth, recipient)
+
+const broadcaster = createPPv1Broadcaster(host, { broadcasterUrl })
+const receipt = await broadcaster.broadcast(operation)
+```
+
+Pass the same `broadcasterUrl` you gave the plugin. A string is stored under the relayer id `default`. The receipt has `txHash` when the relayer accepts the proof.
+
+:::
+
+Deposits under the entrypoint minimum revert. [Withdrawals](/privacy-pools/withdrawals) covers fees, paymaster mode, and exact output. [Configuration](/privacy-pools/configuration) covers the association set, saga sync, and secret managers.
+
+## Tornado Cash
+
+Tornado deposits land in fixed-size pools. On mainnet the ETH pools are 0.1, 1, 10, and 100 ETH. On Sepolia they are 0.1 and 1 ETH. Pass an amount that those pools can fill exactly.
+
+:::steps
+
+### Create the plugin
+
+```ts
+import {
+  createTCBroadcaster,
+  createTCPlugin,
+  TornadoCashConfigs,
+} from '@kohaku-eth/tornado-cash'
+
+const tornado = createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[1],
+})
+```
+
+The default artifacts loader downloads the circuit and proving key on first use. A wallet caches them. See [configuration](/tornado-cash/configuration).
+
+### Shield 0.1 ETH
+
+```ts
+const note = {
+  asset: {
+    __type: 'erc20' as const,
+    contract: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const,
+  },
+  amount: 100_000_000_000_000_000n, // 0.1 ETH
+}
+
+const shield = await tornado.prepareShield(note)
+
+for (const tx of shield.txns) {
+  const hash = await wallet.sendTransaction({
+    to: tx.to as `0x${string}`,
+    data: tx.data as `0x${string}`,
+    value: tx.value,
+  })
+  await publicClient.waitForTransactionReceipt({ hash })
+}
+```
+
+With no second argument the deposit uses `DepositStrategy.MinFee`: the largest denominations that fit. 0.1 ETH is one note. 1.3 ETH is a 1 ETH note plus three 0.1 ETH notes.
+
+### Unshield
+
+```ts
+const recipient = '0x1111111111111111111111111111111111111111'
+
+const operation = await tornado.prepareUnshield(note, recipient)
+const receipts = await createTCBroadcaster(host).broadcast(operation)
+```
+
+The default mode is `'relayer'`. Each receipt's `id` is the relayer job id. [Deposits and withdrawals](/tornado-cash/options) covers the paymaster path and the other deposit strategy.
+
+:::
+
+## When a call throws
+
+Plugins throw `PluginError` from `@kohaku-eth/plugins`. Catch the subclass when you want a specific message in the wallet UI.
+
+| Error | When |
+| --- | --- |
+| `InsufficientBalanceError` | The private balance cannot cover the unshield. `required` and `available` are on the error. |
+| `UnsupportedAssetError` | The asset id is not one this plugin spends. |
+| `UnsupportedChainError` | The host provider is on a chain the plugin has no deployment for. |
+| `UnsupportedAccountError` | The account id is outside what the plugin derives. |
+| `InvalidAddressError` | A recipient or contract address failed validation. |
+| `MultiAssetsNotSupportedError` | A multi-asset call was made. These two plugins spend one asset per call. |
+| `TransferNotSupportedError` | An internal transfer was requested. Shield and unshield are the supported directions. |
+
+Anything else is a normal `Error`: a relayer outage, a pool with no denomination for that amount, a quote that expired. Show `error.message` and let the user retry. `prepareUnshield` quotes again on the next call.
+
+## A working wallet
+
+The snippets above are the whole API surface you need to move funds. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli) wires the same calls into prompts, encrypted storage, and Tor. The [examples page](/examples) maps each file to the step it implements.

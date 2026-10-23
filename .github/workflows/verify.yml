@@ -19,11 +19,11 @@ jobs:
           uses: actions/checkout@v4
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
+        - name: Run provider unit tests
+          run: pnpm --filter @kohaku-eth/provider test
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
-        - run: cargo test
-        - run: cargo check --target wasm32-unknown-unknown 
 
     build:
         name: Build
@@ -76,13 +76,3 @@ jobs:
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
             TC_MAINNET_FORK_BLOCK: ${{ secrets.TC_MAINNET_FORK_BLOCK }}
             TC_SEPOLIA_FORK_BLOCK: ${{ secrets.TC_SEPOLIA_FORK_BLOCK }}
-        
-        - name: Run Railgun tests
-          run: cd crates/railgun-ts && pnpm test:e2e
-          env:
-            RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
-            RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
-            DEV_KEY: ${{ secrets.DEV_KEY }}
-            DEV_ADDRESS: ${{ secrets.DEV_ADDRESS }}
-            DEV_VIEWING_KEY: ${{ secrets.DEV_VIEWING_KEY }}
-            DEV_SPENDING_KEY: ${{ secrets.DEV_SPENDING_KEY }}

@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@kohaku-eth/privacy-pools": "workspace:*",
-    "@kohaku-eth/railgun": "workspace:*",
     "react": "latest",
     "react-dom": "latest",
     "vocs": "1.4.1"
@@ -20,7 +19,7 @@
   "devDependencies": {
     "@types/react": "latest",
     "ethers": "^6",
-    "typescript": "latest",
+    "typescript": "6.0.3",
     "viem": "^2.51.3"
   }
 }

@@ -13,14 +13,24 @@ import {
 export interface MockRelayerOptions {
   feeBPS?: string;
   baseFeeBPS?: string;
+  /**
+   * Fixed relayer gas cost, in the pool asset's base units. When set, the quoted
+   * rate becomes amount-dependent (`baseFeeBPS + gasFee/amount`, rounded up to whole
+   * bps), modelling a real gas-adjusted relayer whose gas cost is constant across
+   * withdrawal sizes. When omitted, the flat `feeBPS` is used.
+   */
+  gasFee?: string;
   gasPrice?: string;
   shouldFail?: boolean;
 }
+
+const ceilDiv = (a: bigint, b: bigint): bigint => (a + b - 1n) / b;
 
 export const createMockRelayerClient = (options: MockRelayerOptions = {}): IRelayerClient => {
   const {
     feeBPS = '100',        // 1%
     baseFeeBPS = '50',     // 0.5%
+    gasFee,
     gasPrice = '1000000000', // 1 gwei
     shouldFail = false,
   } = options;
@@ -45,16 +55,22 @@ export const createMockRelayerClient = (options: MockRelayerOptions = {}): IRela
         throw new Error('Mock relayer failed');
       }
 
+      // A gas-adjusted relayer folds a fixed gas cost into the rate, so the quoted bps
+      // depends on the withdrawal amount. Without `gasFee`, fall back to a flat rate.
+      const effectiveFeeBPS = gasFee !== undefined && body.amount > 0n
+        ? String(BigInt(baseFeeBPS) + ceilDiv(BigInt(gasFee) * 10000n, body.amount))
+        : feeBPS;
+
       const RelayData = {
         recipient: getAddress("0x" + BigInt(body.recipient).toString(16)),
         feeRecipient,
-        relayFeeBPS: BigInt(feeBPS)
+        relayFeeBPS: BigInt(effectiveFeeBPS)
       };
       const withdrawalData = encodeAbiParameters(RelayDataAbi, [RelayData]);
 
       return {
         baseFeeBPS,
-        feeBPS,
+        feeBPS: effectiveFeeBPS,
         gasPrice,
         feeCommitment: {
           expiration: Date.now() + 3600000, // 1 hour from now
@@ -63,7 +79,7 @@ export const createMockRelayerClient = (options: MockRelayerOptions = {}): IRela
           extraGas: body.extraGas,
         },
         detail: {
-          relayTxCost: { gas: '100000', eth: '100000000000000' },
+          relayTxCost: { gas: '100000', eth: gasFee ?? '100000000000000' },
         },
       };
     },

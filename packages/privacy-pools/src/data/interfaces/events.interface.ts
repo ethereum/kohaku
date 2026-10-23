@@ -3,6 +3,8 @@ import { Address, Commitment, Label, Nullifier, Precommitment } from "../../inte
 interface IBaseEvent {
   blockNumber: bigint;
   transactionHash: bigint;
+  /** Absent when the log source doesn't provide it. */
+  logIndex?: number;
 }
 
 interface IPoolEvent extends IBaseEvent {

@@ -14,6 +14,11 @@ export interface ProtocolConfigState {
   instanceRegistry: InstanceRegistryConfig;
   relayerRegistry: IScrapeableContract;
   aggregator: IContract;
+  /**
+   * When true, extended ETH pools are synced and used for deposits, withdrawals,
+   * balances, and notes. Omitted means they are not used.
+   */
+  useExtendedEthPools?: boolean;
 }
 
 type ActualProtocolConfigState = Serializable<ProtocolConfigState>;

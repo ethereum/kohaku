@@ -12,7 +12,7 @@
 <img src="https://img.shields.io/badge/Packages-2-blue" align="center" />
 </p>
 
-Privacy-first tooling for the Ethereum ecosystem
+Privacy-first js tooling for the Ethereum ecosystem. For rust crates see [sister rust repo](https://github.com/ethereum/kohaku-rs)
 
 > [!IMPORTANT]
 > Some parts of this project are work in progress and NOT READY FOR PRODUCTION USE. Packages contain UNAUDITED CODE. Consult underlying package READMEs for more detailed information.
@@ -21,7 +21,7 @@ Privacy-first tooling for the Ethereum ecosystem
 
 | Package                                             | Status | Description                                  |
 | ----------------------------------------------------| ------ | -------------------------------------------- |
-| [@kohaku-eth/railgun](crates/railgun-ts)             | ✅     | railgun shielded pool protocol lib                 |
+| [@kohaku-eth/railgun](packages/railgun)             | 🚧     | railgun shielded pool protocol lib (currently under mainenance) |
 | [@kohaku-eth/tornado-cash](packages/tornado-cash) | ✅     | tornado cash shielded pool protocol lib           |
 | [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools shielded pool protocol lib           |
 | [@kohaku-eth/plugins](packages/plugins) | ✅     | shielded pool protocols standardized plugin interface          |

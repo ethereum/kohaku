@@ -22,8 +22,12 @@ export const serialize = <const T>(data: T): Serializable<T> => {
         return serializedObject;
       }, {} as Serializable<T>);
     }
-    case "bigint":
-      return ("0x" + data.toString(16)) as Serializable<T>;
+    case "bigint": {
+      // Pad to even length: unpadded hex (e.g. an address or root with a leading
+      // zero digit) is invalid hex for downstream consumers.
+      const hex = data.toString(16);
+      return ("0x" + (hex.length % 2 ? "0" + hex : hex)) as Serializable<T>;
+    }
     default:
       return data as Serializable<T>;
   }

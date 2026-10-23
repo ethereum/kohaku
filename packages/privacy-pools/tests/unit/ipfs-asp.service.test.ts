@@ -44,7 +44,7 @@ describe('IPFSAspService', () => {
       await service.getAspTreeIPFS({ ipfsCID: TEST_IPFS_CID });
 
       expect(trackedFetch.calls).toHaveLength(1);
-      expect(trackedFetch.calls[0].url).toBe(`https://ipfs.io/ipfs/${TEST_IPFS_CID}`);
+      expect(trackedFetch.calls[0].url).toBe(`https://ipfs.filebase.io/ipfs/${TEST_IPFS_CID}`);
     });
 
     it('uses custom ipfsUrl when provided', async () => {

@@ -3,10 +3,10 @@ import { IIndexedDepositWithSecrets, IIndexedWithdrawalEvent } from "../../data/
 import { Address, Commitment, NullifierHash } from "../../interfaces/types.interface";
 import { addressToHex } from "../../utils";
 import { RootState } from "../store";
-import { UserSecretRecord } from "../slices/userSecretsSlice";
+import { UserSecretEntry } from "../slices/userSecretsSlice";
 import { myDepositsSelector } from "./deposits.selector";
 import {
-  poolsSelector,
+  activePoolsSelector,
   userSecretsSelector,
   withdrawalsSelector,
 } from "./slices.selectors";
@@ -53,13 +53,13 @@ const getUnspentDepositsByPool = createSelector(
   [
     myDepositsSelector,
     withdrawalsSelector,
-    poolsSelector,
+    activePoolsSelector,
     userSecretsSelector,
   ],
   (deposits, withdrawals, pools, userSecrets) => {
     // Build a fast lookup: commitmentHex → full secret record
     const unspentDepositsByPool = new Map<Address, IIndexedDepositWithSecrets[]>([...pools.keys()].map((address) => [address, []]));
-    const secretByCommitment = new Map<Commitment, UserSecretRecord>();
+    const secretByCommitment = new Map<Commitment, UserSecretEntry>();
 
     for (const records of userSecrets.values()) {
       for (const r of records) {
@@ -73,7 +73,11 @@ const getUnspentDepositsByPool = createSelector(
       // If the deposit is already withdrawn skip it
       if (withdrawals.get(depositSecrets.nullifierHash)) continue;
       
-      unspentDepositsByPool.get(deposit.pool)!.push({
+      const poolDeposits = unspentDepositsByPool.get(deposit.pool);
+
+      if (!poolDeposits) continue;
+
+      poolDeposits.push({
         ...deposit,
         ...depositSecrets
       });
@@ -90,7 +94,7 @@ const getUnspentDepositsByPool = createSelector(
 export const getWithdrawableDepositsSelector = createSelector(
   [
     getUnspentDepositsByPool,
-    poolsSelector,
+    activePoolsSelector,
     (_state: RootState, assetAddress: Address) => assetAddress,
     (_state: RootState, _assetAddress: Address, amount?: bigint) => amount,
   ],

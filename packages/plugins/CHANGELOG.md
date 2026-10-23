@@ -1,5 +1,52 @@
 # @kohaku-eth/plugins
 
+## 0.0.1-alpha.18
+
+### Patch Changes
+
+- Updated dependencies [6e0e549]
+  - @kohaku-eth/provider@0.1.0-alpha.13
+
+## 0.0.1-alpha.17
+
+### Patch Changes
+
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+
+## 0.0.1-alpha.16
+
+### Patch Changes
+
+- Updated dependencies [4c5e47b]
+  - @kohaku-eth/provider@0.1.0-alpha.11
+
+## 0.0.1-alpha.15
+
+### Patch Changes
+
+- 8676bb8: fix: `MnemonicKeystore` derives RAILGUN paths (coin type `1984'`) with the engine "babyjubjub seed" HMAC-SHA512 tree instead of BIP-32 secp256k1, so spending and viewing keys (and the 0zk address) match `@railgun-community/engine` wallets. Non-RAILGUN paths are unchanged.
+
+## 0.0.1-alpha.14
+
+### Patch Changes
+
+- Updated dependencies [e3735d4]
+  - @kohaku-eth/provider@0.1.0-alpha.10
+
+## 0.0.1-alpha.13
+
+### Patch Changes
+
+- Updated dependencies [8d5a29e]
+  - @kohaku-eth/provider@0.1.0-alpha.9
+
+## 0.0.1-alpha.12
+
+### Patch Changes
+
+- 66c603f: bump versions to latest
+
 ## 0.0.1-alpha.11
 
 ### Patch Changes

@@ -1,0 +1,194 @@
+# Configuration
+
+`createPPv1Plugin` is the short constructor. It accepts the fields a wallet always sets. `PrivacyPoolsV1Protocol` is the same plugin as a class, and it is where you pass a secret manager or a saga-backed data service.
+
+```ts
+import {
+  createPPv1Plugin,
+  PrivacyPoolsV1Protocol,
+  PrivacyPoolsV1_0xBow,
+} from '@kohaku-eth/privacy-pools'
+```
+
+Both return an object with `prepareShield`, `prepareUnshield`, `balance`, `notes`, `history`, `ragequit`, `estimateShield`, `estimateUnshield`, and `sync`.
+
+## Factory options
+
+| Field | Required | Role |
+| --- | --- | --- |
+| `accountIndex` | yes | Keystore account. `0` is the first. Notes from a different index stay invisible. |
+| `broadcasterUrl` | yes | Relayer URL, or a record of relayer id to URL. A string becomes `{ default: url }`. |
+| `entrypoint` | yes | `{ address: bigint, deploymentBlock: bigint }`. Sync starts at `deploymentBlock`. |
+| `aspServiceFactory` | no | Builds the association-set client. The default reads the set from IPFS. |
+| `ipfsUrl` | no | Gateway used by the default IPFS client. Defaults to `https://ipfs.filebase.io/ipfs/`. |
+| `paymasterConfig` | no | Per-chain ERC-4337 paymaster. Omit it to use the bundled mainnet and Sepolia map. |
+| `initialState` | no | `() => Promise<Record<string, PublicRootState>>`. Seeds storage on an empty wallet. |
+| `devOptions` | no | Redux safety checks. Both are off, because they are slow on a full pool state. |
+
+`PrivacyPoolsV1_0xBow` is the entrypoint table:
+
+| Chain id | Network |
+| --- | --- |
+| `1` | Ethereum mainnet |
+| `11155111` | Sepolia |
+
+```ts
+const deployment = PrivacyPoolsV1_0xBow[1]
+
+createPPv1Plugin(host, {
+  accountIndex: 0,
+  broadcasterUrl: {
+    fast: 'https://fastrelay.xyz/relayer',
+    backup: 'https://relays.example/privacy-pools',
+  },
+  entrypoint: {
+    address: BigInt(deployment.entrypoint.entrypointAddress),
+    deploymentBlock: deployment.entrypoint.deploymentBlock,
+  },
+})
+```
+
+The ids in that record (`fast`, `backup`) are the ids the quote will carry. `createPPv1Broadcaster` needs the same record, or it throws `Specified relayer not found` at broadcast time.
+
+## Secret managers
+
+The class defaults to `SignatureSecretManager`. It asks the host keystore for `m/28784'/1'/{accountIndex}'`, signs an EIP-712 `PrivacyPoolNote`, and hashes the signature into the nullifier and salt. The same key on a software signer and on a device that returns canonical `r` and low-`s` produces the same note.
+
+```ts
+import {
+  PrivacyPoolsV1Protocol,
+  SecretManager,
+  SignatureSecretManager,
+} from '@kohaku-eth/privacy-pools'
+
+new PrivacyPoolsV1Protocol(host, {
+  accountIndex: 0,
+  entrypoint,
+  relayersList: { default: 'https://fastrelay.xyz/relayer' },
+  secretManager: (params) => SignatureSecretManager({
+    ...params,
+    signer: myEnvelopeSigner, // optional; default signs with the keystore
+  }),
+})
+```
+
+`myEnvelopeSigner` implements `signEnvelope(envelope) => hex signature`. The domain and types are built by the SDK, so the device only signs that payload.
+
+`SecretManager` is the older BIP-32 scheme: child keys under `m/28784'/1'/{account}'/{secretType}'/{deposit}'/{secret}'`. It is a different note set. Passing it replaces the signature manager. Do that only for a wallet whose deposits were created with it.
+
+[kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts) passes `secretManager: SecretManager` inside `createProtocolPlugin` because that wallet's existing deposits use the BIP-32 scheme. A new wallet can keep the default.
+
+`relayersList` on the class is the same map the factory builds from `broadcasterUrl`.
+
+## Association set
+
+The association set decides which deposits are approved. Until a deposit is in the set, its balance is `'pending'` and the relayer withdrawal path will not spend it.
+
+The default client is `IPFSAspService`, which `fetch`es the tree from IPFS through `host.network`. Set `ipfsUrl` to point it at another gateway.
+
+0xbow publishes the set over HTTP. Pass `OxBowAspService`:
+
+```ts
+import { OxBowAspService, createPPv1Plugin, PrivacyPoolsV1_0xBow } from '@kohaku-eth/privacy-pools'
+
+const deployment = PrivacyPoolsV1_0xBow[1]
+
+createPPv1Plugin(host, {
+  accountIndex: 0,
+  broadcasterUrl: 'https://fastrelay.xyz/relayer',
+  entrypoint: {
+    address: BigInt(deployment.entrypoint.entrypointAddress),
+    deploymentBlock: deployment.entrypoint.deploymentBlock,
+  },
+  aspServiceFactory: () => new OxBowAspService({
+    network: host.network,
+    aspUrl: 'https://api.0xbow.io', // Sepolia: https://dw.0xbow.io
+  }),
+})
+```
+
+The CLI uses this client. Sepolia's URL is `https://dw.0xbow.io`.
+
+A custom association set implements `getAspTree(state): Promise<bigint[][]>`.
+
+## Paymaster
+
+Omit `paymasterConfig` and the plugin uses its bundled map: bundler URL, entrypoint, paymaster, and a pool-to-adapter table for mainnet and Sepolia. Override a chain when you run your own bundler.
+
+```ts
+createPPv1Plugin(host, {
+  accountIndex: 0,
+  broadcasterUrl: 'https://fastrelay.xyz/relayer',
+  entrypoint,
+  paymasterConfig: {
+    1: {
+      bundlerUrl: 'https://bundler.example/rpc',
+      entryPointAddress: '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108',
+      paymasterAddress: '0xPaymaster',
+      poolsAccountsMap: {
+        // pool address, lowercase -> adapter address
+        '0xf241d57c6debae225c0f2e6ea1529373c9a9c9fb': '0xAdapter',
+      },
+    },
+  },
+})
+```
+
+`poolsAccountsMap` keys are lowercase pool addresses. A pool missing from the map cannot be withdrawn in paymaster mode. Relayer withdrawals ignore this table. The withdrawal options are on the [withdrawals page](/privacy-pools/withdrawals).
+
+## Sync from saga
+
+A cold `eth_getLogs` scan of mainnet is slow. `createSagaDataService` reads history from a saga CDN and asks the provider only for the blocks past the CDN's head.
+
+```ts
+import {
+  createSagaDataService,
+  PrivacyPoolsV1Protocol,
+} from '@kohaku-eth/privacy-pools'
+
+const dataService = await createSagaDataService({
+  provider: host.provider,
+  chainId: 1,
+  sourceUrl: 'https://saga-pp-state.global.ssl.fastly.net',
+})
+
+const pools = new PrivacyPoolsV1Protocol(host, {
+  accountIndex: 0,
+  entrypoint,
+  relayersList: { default: broadcasterUrl },
+  dataService,
+})
+```
+
+Pool leaves are checked against the on-chain root, so a bad leaf stream fails the sync. Entrypoint events from the CDN have no such root. The RPC tail after the CDN's head still comes from `host.provider`.
+
+Sepolia is not in that mainnet index. Leave `dataService` unset there and let the plugin scan with `eth_getLogs`. `initialState` can still drop a snapshot into storage so the first scan starts near the tip:
+
+```ts
+createPPv1Plugin(host, {
+  accountIndex: 0,
+  broadcasterUrl,
+  entrypoint,
+  initialState: async () => savedSnapshot,
+})
+```
+
+The CLI seeds a bundled Sepolia snapshot and, on mainnet, builds its own saga `DataService` in [`src/utils/privacy-pools-saga.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/privacy-pools-saga.ts).
+
+`headBlock` on `createSagaDataService` clamps the CDN to a pinned chain, which is what you want against a fork. Omit it on a live network.
+
+## Development checks
+
+```ts
+createPPv1Plugin(host, {
+  accountIndex: 0,
+  broadcasterUrl,
+  entrypoint,
+  devOptions: {
+    enableImmutableCheck: true,
+    enableSerializableCheck: true,
+  },
+})
+```
+
+Turn these on while you are debugging state. Leave them off in a wallet. They walk the whole pool on every update.

@@ -18,7 +18,7 @@ export const getChainConfigSetup = (chainId: 1 | 11155111) => {
 
   return {
     rpcUrl: getEnv('RPC_URL_SEPOLIA'),
-    forkBlockNumber: getEnv('PPV1_SEPOLIA_FORK_BLOCK', '8742157'),
+    forkBlockNumber: getEnv('PPV1_SEPOLIA_FORK_BLOCK', '11627888'),
     erc20Address: '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0',  // USDT
     erc20WhaleAddress: '0xc94b1BEe63A3e101FE5F71C80F912b4F4b055925',
     entrypoint: {

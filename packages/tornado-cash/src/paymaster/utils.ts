@@ -15,7 +15,7 @@ import {
   type BundlerClient,
 } from 'viem/account-abstraction';
 import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
-import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation } from '../interfaces/user-ops.interface';
+import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
 
 /**
  * EntryPoint v0.8 canonical Simple7702Account implementation. The ephemeral
@@ -92,6 +92,36 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
 }
 
 /**
+ * Bundler gas estimation (`eth_estimateUserOperationGas`) for an already-built,
+ * serialized userOp. Used to size a consolidated batch userOp — whose execution
+ * phase runs N-1 extra `pool.withdraw` calls — tightly instead of guessing. The
+ * op must carry a valid `paymasterData`/`eip7702Auth` so the bundler can
+ * simulate the paymaster's validation and the delegated execution.
+ *
+ * Not on viem's bundler action surface for our serialized shape, so we issue the
+ * raw request and parse the returned limits ourselves. Callers should treat this
+ * as best-effort and fall back to static limits on failure.
+ */
+export async function estimateUserOperationGas(
+  client: BundlerClient,
+  op: SerializedUserOperation,
+  entryPoint: Address,
+): Promise<UserOpGasLimits> {
+  const result = (await client.request({
+    method: 'eth_estimateUserOperationGas',
+    params: [op, entryPoint],
+  } as any)) as any;
+
+  return {
+    callGasLimit: BigInt(result.callGasLimit),
+    verificationGasLimit: BigInt(result.verificationGasLimit),
+    preVerificationGas: BigInt(result.preVerificationGas),
+    paymasterVerificationGasLimit: BigInt(result.paymasterVerificationGasLimit ?? 0),
+    paymasterPostOpGasLimit: BigInt(result.paymasterPostOpGasLimit ?? 0),
+  };
+}
+
+/**
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
  * 7702 sender, returning it serialized for the broadcast phase.
  *
@@ -100,7 +130,7 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
  * required — gas limits and fees are supplied by the caller.
  */
 export async function buildSignedTornadoUserOp({
-  privateKey,
+  signer,
   chainId,
   paymasterAddress,
   paymasterData,
@@ -111,7 +141,7 @@ export async function buildSignedTornadoUserOp({
   nonce = 0n,
 }: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
-  const owner = privateKeyToAccount(privateKey);
+  const owner = signer;
 
   const calls = await tailCalls(owner.address);
   let callData: Hex = '0x';

@@ -4,19 +4,19 @@ import { TxData } from '@kohaku-eth/provider';
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
-import { ProtocolConfigState } from "../../state";
+import type { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover.js";
 import { DepositStrategy } from '../../state/thunks/getDepositPayloadThunk';
+import { ImportNoteResult } from '../../state/thunks/importLegacyNotesThunk';
 import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
+import type { DelegationConfig } from '../../account/delegation.interface';
 
-export type DelegationConfig =
-  | { mode: 'deterministic'; path?: string }
-  | { mode: 'random' };
+export type { DelegationConfig, ImportNoteResult };
 
 type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
@@ -69,6 +69,13 @@ export interface TCProtocolParams {
    * chain. Omit to always sync from the chain.
    */
   minExternalSyncBlocksAmount?: number;
+  /**
+   * Opt in to the extended ETH denominations (0.01, 0.03, 0.3, 3, 30).
+   * Omitted or false keeps deposits, withdrawals, balances, and notes on the
+   * classic pools. Pools already saved keep their per-pool sync cursor, so
+   * turning this on later resumes there instead of the global cursor.
+   */
+  useExtendedEthPools?: boolean;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -93,6 +100,12 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
   mode: 'paymaster';
   delegation?: DelegationConfig;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
+  /**
+   * Optional baseline for the execution-phase gas of user `tailCalls` (not
+   * including per-note direct withdraws). Used when bundler estimation fails;
+   * when estimation succeeds the bundler estimate still wins.
+   */
+  tailCallsGasEstimate?: bigint;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
@@ -112,7 +125,10 @@ export type TCNote = Pick<
 > & {
   /** Fixed pool denomination for this note. */
   amount: bigint;
+  /** HD deposit index, or -1 for imported and signature-derived notes. */
   depositIndex: number;
+  /** Global signature-scheme nonce. Present only for signature-derived notes. */
+  nonce?: number;
 };
 
 export type StoreKey = `${string}-${string}`;
@@ -142,5 +158,11 @@ export interface IStateManager {
    * @param assets - Optional filter by specific assets
    */
   getNotes: (params: IGetNotesParams) => Promise<TCNote[]>;
+  /**
+   * Parses legacy (pre-SDK) Tornado Cash note strings and, for any that match
+   * a synced on-chain deposit on the current chain, registers them as
+   * importable user secrets.
+   */
+  importNotes: (params: { notes: string[] }) => Promise<ImportNoteResult[]>;
   dumpState: () => Record<StoreStorageKey, PublicRootState>;
 }

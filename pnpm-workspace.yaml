@@ -7,13 +7,15 @@ allowBuilds:
   protobufjs: true
 autoInstallPeers: false
 blockExoticSubdeps: false
+minimumReleaseAgeExclude:
+  - '@privacy-paymasters/sdk@0.0.5'
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
   - "packages/plugins"
   - "packages/tornado-cash"
   - "packages/mimc-tree"
+  - "packages/railgun"
   - "examples/pq-account"
   - "examples/ppv2-sample-app"
-  - "crates/railgun-ts"
   - "docs"

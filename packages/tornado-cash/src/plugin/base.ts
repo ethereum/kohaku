@@ -3,11 +3,10 @@ import {
   AccountId,
   AssetAmount,
   ERC20AssetId,
-  ExternalRawEvent,
   Host,
+  toExternalSyncClient,
 } from "@kohaku-eth/plugins";
 import { proxy } from 'comlink';
-import { ExternalSyncClient } from "../data/interfaces/sync.service.interface";
 import { loadStateManagerWorker } from '#worker-loader';
 import { RelayerClient } from '../relayer/relayer-client';
 
@@ -30,6 +29,7 @@ import {
   TCPublicOperation,
   TCProtocolParams,
   TCNote,
+  ImportNoteResult,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
 import { defaultArtifactsLoader } from "../utils/default-artifacts-loader";
@@ -51,6 +51,8 @@ export class TornadoCashProtocol implements TCInstance {
       paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host),
       minExternalSyncBlocksAmount,
+      useExtendedEthPools = false,
+      secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
     this.stateManager = (async () => {
@@ -66,20 +68,13 @@ export class TornadoCashProtocol implements TCInstance {
       // Adapt the host's streaming provider to a materialized-array client on the
       // main thread: async iterators can't cross the Comlink worker boundary, so
       // we drain the stream here before proxying the result into the worker.
-      const { externalSyncProvider } = host;
-      const externalSyncClient: ExternalSyncClient | undefined = externalSyncProvider && {
-        getEvents: async (params) => {
-          const events: ExternalRawEvent[] = [];
+      const externalSyncClient = host.externalSyncProvider
+        ? toExternalSyncClient(host.externalSyncProvider)
+        : undefined;
 
-          for await (const event of externalSyncProvider.streamEvents(params)) {
-            events.push(event);
-          }
-
-          return events;
-        },
-        firstCoveredBlock: (params) => externalSyncProvider.firstCoveredBlock(params),
-        lastCoveredBlock: (params) => externalSyncProvider.lastCoveredBlock(params),
-      };
+      const resolvedSecretManager = secretManagerFactory
+        ? await secretManagerFactory({ host: { keystore: host.keystore }, accountIndex })
+        : undefined;
 
       await Promise.race([
         remote.init(
@@ -89,8 +84,15 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(host.storage),
           proxy(initialState),
           proxy(artifactsLoader),
+          resolvedSecretManager ? proxy(resolvedSecretManager) : undefined,
           externalSyncClient ? proxy(externalSyncClient) : undefined,
-          { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount },
+          {
+            protocolConfig: { ...protocolConfig, useExtendedEthPools },
+            accountIndex,
+            relayerConfig,
+            paymasterConfig,
+            minExternalSyncBlocksAmount,
+          },
         ),
         workerReady,
       ]);
@@ -100,6 +102,7 @@ export class TornadoCashProtocol implements TCInstance {
         getBalances: ((assets: bigint[] | undefined) => remote.getBalances(assets)) as unknown as IStateManager['getBalances'],
         getNotes: (params) => remote.getNotes(params),
         getDepositPayload: (params) => remote.getDepositPayload(params),
+        importNotes: (params) => remote.importNotes(params),
         getWithdrawalPayloads: (params) => {
           if (params.mode === 'paymaster') {
             const { tailCalls, ...rest } = params as IPaymasterWithdrawParams;
@@ -184,6 +187,18 @@ export class TornadoCashProtocol implements TCInstance {
     });
   }
 
+  /**
+   * Parses legacy (pre-SDK) Tornado Cash note strings and registers any that
+   * match a synced on-chain deposit on the current chain as user secrets.
+   */
+  async importNotes(notes: string | string[]): Promise<ImportNoteResult[]> {
+    const stateManager = await this.stateManager;
+
+    await stateManager.sync();
+
+    return stateManager.importNotes({ notes: Array.isArray(notes) ? notes : [notes] });
+  }
+
   async prepareShield(
     assets: TCAssetAmount,
     options?: TCPrepareShieldOptions | `0x${string}`
@@ -248,6 +263,7 @@ export class TornadoCashProtocol implements TCInstance {
         mode: 'paymaster',
         delegation: options.delegation,
         tailCalls: options.tailCalls,
+        tailCallsGasEstimate: options.tailCallsGasEstimate,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

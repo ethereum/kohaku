@@ -18,6 +18,8 @@ import { relayersReducer } from "./slices/relayersSlice";
 import { syncReducer } from "./slices/syncSlice";
 import { withdrawalsReducer } from "./slices/withdrawalsSlice";
 import { userSecretsReducer } from "./slices/userSecretsSlice";
+import { legacySecretsReducer } from "./slices/legacySecretsSlice";
+import { signatureSecretsReducer } from "./slices/signatureSecretsSlice";
 
 const reducers = {
   deposits: depositsReducer,
@@ -28,10 +30,13 @@ const reducers = {
   instanceRegistryInfo: protocolConfigReducer,
   sync: syncReducer,
   userSecrets: userSecretsReducer,
+  legacySecrets: legacySecretsReducer,
+  signatureSecrets: signatureSecretsReducer,
 } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
-export type PublicRootState = Omit<RootState, 'userSecrets'>;
+/** HD and signature secrets are re-derived on sync, so they stay out of snapshots. */
+export type PublicRootState = Omit<RootState, 'userSecrets' | 'signatureSecrets'>;
 
 type LogLevel = 'error' | 'verbose' | 'off';
 
@@ -72,7 +77,7 @@ type StoreShape = typeof reducers extends ReducersMapObject<infer StateType> ? S
 
 interface StoreFactoryParams {
   protocolConfig: ProtocolConfigState;
-  initialState?: Omit<StoreShape, 'userSecrets'>;
+  initialState?: Omit<StoreShape, 'userSecrets' | 'signatureSecrets'>;
   logLevel?: 'verbose' | 'error' | 'off';
 }
 

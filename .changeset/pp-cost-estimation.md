@@ -1,0 +1,5 @@
+---
+"@kohaku-eth/privacy-pools": patch
+---
+
+Add cost estimation and exact-output unshields. New `estimateShield` and `estimateUnshield` methods return the fees and net amounts for a shield/withdrawal without building a proof. `prepareUnshield` gains an `exact` option: when set, `amount` is read as the amount the recipient must receive (net). For relayer withdrawals the recipient receives that amount exactly. The quote is decomposed into its fixed base rate and its (size-independent) gas cost; the gross is sized from that and a fee is embedded in self-built relay data. Only the gas component is bumped by `exact.gasBumpBPS` (default 15%) to keep the payload acceptable if gas rises before submission — the relayer's base margin is not inflated. The required fee is bounded by the asset's on-chain `maxRelayFeeBPS`; the withdrawal is rejected if it would exceed the cap. Exact-output relayer payloads are broadcast without a `feeCommitment`, since the embedded fee is not one the relayer signed.

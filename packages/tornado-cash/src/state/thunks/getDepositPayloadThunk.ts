@@ -5,7 +5,7 @@ import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { RootState } from '../store';
-import { instanceRegistryInfoSelector, poolsSelector, userSecretsSelector } from '../selectors/slices.selectors';
+import { activePoolsSelector, instanceRegistryInfoSelector, signatureUserSecretsSelector } from '../selectors/slices.selectors';
 import { IPool } from '../../data/interfaces/events.interface';
 
 export enum DepositStrategy {
@@ -24,7 +24,11 @@ interface PoolWithDeposits extends IPool {
   depositsCount: number;
 }
 
-const calculatePoolsDeposits = (pools: IPool[], value: bigint, strategy: DepositStrategy): PoolWithDeposits[] => {
+const calculatePoolsDeposits = (
+  pools: IPool[],
+  value: bigint,
+  strategy: DepositStrategy,
+): PoolWithDeposits[] => {
   if (!pools.length) {
     throw new Error('No pools to deposit into');
   }
@@ -33,7 +37,12 @@ const calculatePoolsDeposits = (pools: IPool[], value: bigint, strategy: Deposit
 
   switch (strategy) {
     case DepositStrategy.MaxAnonimitySet: {
-      const lowToHighDenominationPools = pools.sort((a, b) => Number(a.denomination - b.denomination));
+      // Smallest denomination is only a stand-in for the largest anonymity set
+      // among the classic pools. The extended denominations start empty, so
+      // they stay out of this strategy.
+      const classicPools = pools.filter((pool) => !pool.extended);
+      const candidates = classicPools.length > 0 ? classicPools : pools;
+      const lowToHighDenominationPools = [...candidates].sort((a, b) => Number(a.denomination - b.denomination));
       const lowestDenominationPool = lowToHighDenominationPools[0]!;
       
       const depositsCount = Number(value / lowestDenominationPool.denomination);
@@ -74,9 +83,16 @@ export const getDepositPayloadThunk = createAsyncThunk<
   'deposits/getPayload',
   async ({ secretManager, asset, amount, strategy }, { getState }) => {
     const state = getState();
-    const pools = poolsSelector(state);
+    const pools = activePoolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
-    const userSecrets = userSecretsSelector(state);
+    const signatureSecrets = signatureUserSecretsSelector(state);
+    let nonce = 0;
+
+    for (const records of signatureSecrets.values()) {
+      for (const record of records) {
+        if (record.nonce >= nonce) nonce = record.nonce + 1;
+      }
+    }
 
     // Pick the pool with the lowest denomination for the requested asset
     const poolsCandidates = Array.from(pools.values())
@@ -86,15 +102,20 @@ export const getDepositPayloadThunk = createAsyncThunk<
 
     const poolsToDepositInto = calculatePoolsDeposits(poolsCandidates, amount, strategy);
     
-    const depositInfo = await Promise.all(poolsToDepositInto.map(async (pool) => {
-      const startIndex = userSecrets.get(pool.address)?.length ?? 0;
-      const count = pool.depositsCount;
+    const nonceAssignments = poolsToDepositInto.map((pool) => {
+      const startNonce = nonce;
 
+      nonce += pool.depositsCount;
+
+      return { pool, startNonce };
+    });
+
+    const depositInfo = await Promise.all(nonceAssignments.map(async ({ pool, startNonce }) => {
       const secrets = await Promise.all(
-        Array.from({ length: count }, (_, i) =>
-          secretManager.getDepositSecrets({
+        Array.from({ length: pool.depositsCount }, (_, i) =>
+          secretManager.getSignatureSecrets({
             chainId,
-            depositIndex: startIndex + i,
+            nonce: startNonce + i,
             poolAddress: pool.address,
           }),
         ),
