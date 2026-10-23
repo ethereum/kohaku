@@ -1,5 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { extendedEthPoolSet } from '../../config';
+import { canonicalEthPoolSet, extendedEthPoolSet } from '../../config';
 import { IPool } from '../../data/interfaces/events.interface';
 import { registerPools } from '../slices/poolsSlice';
 import { RootState } from '../store';
@@ -34,6 +34,8 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
         ? registryAddresses
         : registryAddresses.filter((address) => !extendedPools.has(address)),
     );
+
+    for (const address of canonicalEthPoolSet(chainId)) poolAddresses.add(address);
 
     if (useExtendedEthPools) {
       for (const address of extendedPools) poolAddresses.add(address);

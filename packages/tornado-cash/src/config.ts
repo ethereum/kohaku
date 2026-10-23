@@ -89,6 +89,19 @@ export const TornadoCashConfigs = {
   }
 } as const;
 
+/** Canonical ETH pools to discover even when absent from the instance registry. */
+export const CanonicalEthPools = {
+  11155111: [
+    0x8d10d506d29fc62abb8a290b99f66db27fc43585n, // 10 ETH
+  ],
+} as const satisfies Record<number, readonly bigint[]>;
+
+export const canonicalEthPoolSet = (chainId: bigint): Set<Address> => {
+  const pools = CanonicalEthPools[Number(chainId) as keyof typeof CanonicalEthPools] ?? [];
+
+  return new Set(pools.map((address) => address as Address));
+};
+
 /**
  * Extra ETH denominations deployed outside the Tornado instance registry.
  * When a pool later appears in `getAllInstanceAddresses`, sync uses the
