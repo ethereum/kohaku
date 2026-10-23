@@ -1,22 +1,8 @@
 import { UnsupportedAssetError } from "@kohaku-eth/plugins";
 import type { AssetId, ERC20AssetId, NativeAssetId } from "@kohaku-eth/plugins";
-import type { Address as SdkAddress, Hex } from "@0xbow-io/privacy-pools-v2-sdk";
+import { NATIVE_ASSET_ADDRESS, bigintToHex } from "@0xbow/privacy-pools-v2-sdk";
+import type { Address as SdkAddress, Hex } from "@0xbow/privacy-pools-v2-sdk";
 import type { Address } from "ox/Address";
-
-/**
- * The SDK's native-asset sentinel token id and its bigint→hex convention are
- * defined locally rather than imported: the unpublished `@0xbow-io/privacy-pools-v2-sdk`
- * 0.0.0 build declares `NATIVE_ASSET_ADDRESS` / `bigintToHex` in its `.d.ts` but
- * does not re-export them from its runtime JS bundle. Values mirror the SDK source
- * exactly (`constant/PoolSession.ts`, `bigintToHex` = 32-byte left-padded hex).
- * (Flag for DEP-1.)
- */
-const NATIVE_ASSET_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as SdkAddress;
-
-/** 32-byte left-padded 0x-hex, mirroring the SDK's `bigintToHex` exactly. */
-function bigintToHex(value: bigint): Hex {
-    return `0x${value.toString(16).padStart(64, "0")}` as Hex;
-}
 
 /**
  * The subset of Kohaku asset ids Privacy Pools v2 supports: native ETH and

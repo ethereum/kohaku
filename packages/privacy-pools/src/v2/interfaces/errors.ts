@@ -1,5 +1,5 @@
 import { PluginError } from "@kohaku-eth/plugins";
-import type { Hex } from "@0xbow-io/privacy-pools-v2-sdk";
+import type { Hex } from "@0xbow/privacy-pools-v2-sdk";
 
 // NOTE: SDK error classes are matched by their `.name` string, not `instanceof`:
 // the SDK declares them in its `.d.ts` but does not re-export them from its

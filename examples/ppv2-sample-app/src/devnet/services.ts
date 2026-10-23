@@ -26,7 +26,7 @@ import type {
     RelayerInfo,
     TransferRelayerQuote,
     WithdrawalRelayerQuote,
-} from "@0xbow-io/privacy-pools-v2-sdk";
+} from "@0xbow/privacy-pools-v2-sdk";
 import { encodeAbiParameters, pad } from "viem";
 import type { DevnetChain } from "./chain";
 
@@ -142,7 +142,7 @@ export function createDevnetRelayer(
         feeCommitment: {
             data: "0x" as Hex,
             asset,
-            expiration: Math.floor(Date.now() / 1000) + 3600,
+            expiration: Date.now() + 3600_000, // unix ms, as the SDK compares it
             feeAmount,
             signedRelayerCommitment: "0x" as Hex,
         },
@@ -155,10 +155,16 @@ export function createDevnetRelayer(
         async getRelayerFees() {
             return { baseFee: "0x0", provider: undefined } as never;
         },
-        async getTransferQuote(_relayer, params) {
+        async getTransferQuote(
+            _relayer: RelayerInfo,
+            params: Parameters<IRelayerInteractor["getTransferQuote"]>[1],
+        ) {
             return transferQuote(params.asset);
         },
-        async getWithdrawalQuote(_relayer, params): Promise<WithdrawalRelayerQuote> {
+        async getWithdrawalQuote(
+            _relayer: RelayerInfo,
+            params: Parameters<IRelayerInteractor["getWithdrawalQuote"]>[1],
+        ): Promise<WithdrawalRelayerQuote> {
             const base = transferQuote(params.asset as Hex);
             // Payout routing rides inside the fee commitment: `relayWithdraw`
             // decodes it and cross-checks recipient/fee against its own params.
@@ -210,7 +216,7 @@ export function createDevnetRelayer(
         async waitForRelayedTx(txHash: Hex) {
             return { txHash, status: "confirmed" } as never;
         },
-    } as IRelayerInteractor;
+    } as unknown as IRelayerInteractor;
 }
 
 /** Instant dummy Groth16 shapes — no artifact downloads, no proving time. */
@@ -251,7 +257,7 @@ export function createDevnetProofService(): IProofService {
         async loadCircuit() {
             /* nothing to load */
         },
-        formatForEVM(): EVMProof {
+        formatForChain(): EVMProof {
             return {
                 pA: [1n, 1n],
                 pB: [
@@ -293,15 +299,15 @@ export function createDevnetEntrypoint(): IEntrypointInteractor {
         async getAllowance(): Promise<Hash> {
             return "0x0" as Hash;
         },
-        encodeDeposit(
+        async encodeDeposit(
             _proof: EVMProof,
             _noteData: NoteData,
             _aspCiphertext: Hex,
             msgValue: Hex,
-        ): PreparedTransaction {
+        ): Promise<PreparedTransaction> {
             return { to: DEVNET_ENTRYPOINT, data: "0xde9051", value: msgValue };
         },
-        encodeApprove(token: `0x${string}`, amount: Hex): PreparedTransaction {
+        async encodeApprove(token: `0x${string}`, amount: Hex): Promise<PreparedTransaction> {
             return { to: token, data: `0x095ea7b3${amount.slice(2)}` as Hex, value: "0x0" };
         },
         async submitTransaction(): Promise<Hex> {

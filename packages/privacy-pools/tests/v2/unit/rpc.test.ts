@@ -82,6 +82,47 @@ describe("KohakuRpcInteractor", () => {
         expect(await rpc.getBlockNumber()).toBe(numberToHex(123n));
     });
 
+    it("getFinalizedBlockNumber reports the finalized tag as hex", async () => {
+        const rpc = new KohakuRpcInteractor(
+            mockProvider((method, params) => {
+                expect(method).toBe("eth_getBlockByNumber");
+                expect(params).toEqual(["finalized", false]);
+
+                return { number: numberToHex(120n) };
+            }),
+        );
+
+        expect(await rpc.getFinalizedBlockNumber()).toEqual({
+            status: "finalized",
+            blockNumber: numberToHex(120n),
+        });
+    });
+
+    it("getFinalizedBlockNumber: no such tag is unsupported, a failing read is unavailable", async () => {
+        const noTag = new KohakuRpcInteractor(mockProvider(() => null));
+
+        expect(await noTag.getFinalizedBlockNumber()).toEqual({ status: "unsupported" });
+
+        const rejected = new KohakuRpcInteractor(
+            mockProvider(() => {
+                throw new Error("Unknown block");
+            }),
+        );
+
+        expect(await rejected.getFinalizedBlockNumber()).toEqual({ status: "unsupported" });
+
+        const flaky = new KohakuRpcInteractor(
+            mockProvider(() => {
+                throw new Error("socket hang up");
+            }),
+        );
+
+        expect(await flaky.getFinalizedBlockNumber()).toEqual({
+            status: "unavailable",
+            reason: "socket hang up",
+        });
+    });
+
     it("getLogs filters by event selector and decodes args", async () => {
         const rawLog = {
             address: ADDR,

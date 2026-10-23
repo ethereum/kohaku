@@ -27,9 +27,7 @@ const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const CHAIN_ID = 11155111n;
 
 /** Offline plugin params wired to fresh mock ASP/relayer/proof/entrypoint seams. */
-function params(): PPv2PluginParameters {
-    const asp = createMockAsp();
-
+function params(asp: ReturnType<typeof createMockAsp>): PPv2PluginParameters {
     return {
         chainId: CHAIN_ID,
         ownerAddress: OWNER,
@@ -84,7 +82,8 @@ describe("reorg recovery (T063/F3, FR-034)", () => {
             "0x0",
         );
 
-        const plugin = await createPPv2Plugin(rig.host, params());
+        const asp = createMockAsp();
+        const plugin = await createPPv2Plugin(rig.host, params(asp));
 
         // Discovered and spendable on the pre-reorg chain.
         const before = await plugin.balance(undefined);
@@ -99,8 +98,10 @@ describe("reorg recovery (T063/F3, FR-034)", () => {
             (await plugin.balance(undefined)).find((b) => b.tag === "spendable")?.amount,
         ).toBe(1000n);
 
-        // Reorg: the note's block drops out of canonical history.
+        // Reorg: the note's block drops out of canonical history — and out of
+        // the ASP's index, which follows the canonical chain.
         reorged = true;
+        asp.orphanedCommitments.add(minted.commitment);
         rig.setBlockNumber(101n);
 
         // Plain reads re-scan but never destroy state — the cached note still

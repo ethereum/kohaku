@@ -14,7 +14,8 @@ import {
     type Hex,
     NoteComputationService,
     PoseidonHashService,
-} from "@0xbow-io/privacy-pools-v2-sdk";
+    type SnapshotDeposit,
+} from "@0xbow/privacy-pools-v2-sdk";
 import { encodeAbiParameters, numberToHex, pad, toEventSelector } from "viem";
 import { deriveKeystoreManager } from "../../../src/v2/account/derivation";
 
@@ -25,6 +26,44 @@ const SEPOLIA = DEPLOYMENTS[11155111]!;
 
 /** Local copy of the PoolVault Note event (the SDK's constant is not runtime-exported). */
 const NOTE_EVENT = "event Note(bytes32 indexed hint, bytes data)";
+
+/** Local copy of the PoolVault Deposited event (the SDK's constant is not runtime-exported). */
+const DEPOSITED_EVENT =
+    "event Deposited(uint256 outputCommitment, address indexed asset, uint256 depositedValue, address indexed caller)";
+
+/**
+ * The `Deposited` companion of every `Note` log minted by {@link mintOwnedNoteLog},
+ * keyed by the Note log. A real deposit emits both in one transaction, and the SDK
+ * (1.0) promotes a vetted note PENDING → ACTIVE only with such on-chain evidence
+ * for its commitment (a `Deposited`/`Transacted` output). {@link chainWithLogs}
+ * serves the companion automatically whenever the Note log is on the chain, so
+ * fixtures keep listing just the Note log.
+ */
+const DEPOSIT_COMPANIONS = new Map<RawLog, RawLog>();
+
+/**
+ * The ASP-snapshot row of every deposit minted by {@link mintOwnedNoteLog}. A
+ * real ASP indexes every deposit; the SDK's promotion evidence for a note
+ * approved AFTER its discovery comes from these rows (the chain tail it rescans
+ * starts past the sync cursor). The mock ASP serves them from here.
+ */
+export const MINTED_DEPOSITS: SnapshotDeposit[] = [];
+
+/** Local copy of the PoolVault Transacted event (the SDK's constant is not runtime-exported). */
+const TRANSACTED_EVENT =
+    "event Transacted(uint256[] outputCommitments, uint256[] nullifierHashes, address indexed asset, uint256 withdrawnValue, address indexed caller)";
+
+/** Local copy of the PoolVault Ragequit event (the SDK's constant is not runtime-exported). */
+const RAGEQUIT_EVENT =
+    "event Ragequit(address indexed ragequitter, address indexed asset, uint256 value, uint256 commitment, uint256 nullifierHash, uint256 label)";
+
+/**
+ * Every label hash minted by {@link mintOwnedNoteLog} in this test process
+ * (lowercased). The mock ASP serves these as its association set, so a minted
+ * note is approved by default — the SDK decides label approval by set
+ * membership, not per-label status. Tests withhold one via `setLabelStatus`.
+ */
+export const MINTED_LABEL_HASHES = new Set<Hash>();
 
 /** A raw eth_getLogs entry, as the mock provider serves it. */
 export type RawLog = {
@@ -101,11 +140,37 @@ export async function mintOwnedNoteLog(params: {
         logIndex: "0x0",
     };
 
+    const labelHash = noteComputation.computeLabelHash(label);
+
+    MINTED_LABEL_HASHES.add(labelHash.toLowerCase() as Hash);
+    DEPOSIT_COMPANIONS.set(log, {
+        address: SEPOLIA.poolAddress as Hex,
+        topics: [toEventSelector(DEPOSITED_EVENT), pad(params.tokenId), pad(params.ownerAddress)],
+        data: encodeAbiParameters(
+            [{ type: "uint256" }, { type: "uint256" }],
+            [BigInt(commitment), params.value],
+        ),
+        blockNumber: log.blockNumber,
+        transactionHash: log.transactionHash,
+        logIndex: "0x1",
+    });
+    MINTED_DEPOSITS.push({
+        txHash: log.transactionHash,
+        logIndex: 1,
+        depositAddress: params.ownerAddress,
+        outputCommitment: commitment,
+        depositedValue: value,
+        fee: "0x0",
+        blockNumber: log.blockNumber,
+        blockTimestamp: null,
+        asset: params.tokenId,
+    });
+
     return {
         log,
         commitment,
         label,
-        labelHash: noteComputation.computeLabelHash(label),
+        labelHash,
         value,
     };
 }
@@ -160,10 +225,119 @@ function matchesFilter(log: RawLog, filter: LogFilter): boolean {
  * timestamp.
  */
 export function chainWithLogs(logs: RawLog[]): Record<string, (params: unknown[]) => unknown> {
+    // Resolved per call: tests mutate `logs` after the handlers are built.
+    const served = () =>
+        logs.flatMap((log) => {
+            const companion = DEPOSIT_COMPANIONS.get(log);
+
+            return companion ? [log, companion] : [log];
+        });
+
     return {
         eth_getLogs: (params: unknown[]) =>
-            logs.filter((log) => matchesFilter(log, (params[0] ?? {}) as LogFilter)),
+            served().filter((log) => matchesFilter(log, (params[0] ?? {}) as LogFilter)),
         eth_call: () => pad("0x01"),
+    };
+}
+
+/**
+ * Mint the PoolVault `Ragequit` log for a minted note: the on-chain record the
+ * SDK (1.0) requires before it flips a note to EXITED — an ASP snapshot row alone
+ * is only a claim, corroborated against this event at its block, bound through
+ * the note's real nullifier (`Poseidon`-derived from the account's nullifying key).
+ */
+export async function mintRagequitLog(params: {
+    host: Host;
+    ownerAddress: Address;
+    note: MintedNote;
+    tokenId: Address;
+    blockNumber: bigint;
+}): Promise<{ log: RawLog; nullifierHash: Hash }> {
+    const { keystoreManager } = await deriveKeystoreManager({ keystore: params.host.keystore });
+    const hashService = await PoseidonHashService.create();
+    const noteComputation = new NoteComputationService({
+        hashService,
+        cryptoService: new CryptoService(),
+    });
+    const nullifierHash = noteComputation.computeNullifier(
+        keystoreManager.getPrivateNullifyingKey(),
+        params.note.commitment,
+    ) as Hash;
+
+    const log: RawLog = {
+        address: SEPOLIA.poolAddress as Hex,
+        topics: [toEventSelector(RAGEQUIT_EVENT), pad(params.ownerAddress), pad(params.tokenId)],
+        data: encodeAbiParameters(
+            [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+            [
+                BigInt(params.note.value),
+                BigInt(params.note.commitment),
+                BigInt(nullifierHash),
+                BigInt(params.note.label),
+            ],
+        ),
+        blockNumber: numberToHex(params.blockNumber),
+        transactionHash: pad("0x7a9e") as Hex,
+        logIndex: "0x0",
+    };
+
+    return { log, nullifierHash };
+}
+
+/**
+ * Mint the PoolVault `Transacted` log a relayed transfer/withdrawal leaves in its
+ * receipt, consuming the given notes' nullifiers. The SDK (1.0) marks inputs SPENT
+ * only once the confirmed receipt's `Transacted` logs are seen to consume exactly
+ * the nullifiers it proved — a receipt without them is treated as an unrelated tx.
+ * Output commitments are not known before proving and are not needed for that
+ * check, so they are left empty unless given.
+ *
+ * The nullifiers default to the notes' REAL ones. The SDK, however, takes the
+ * nullifiers it expects from the proof's first `nInputs` public signals, so a
+ * fixture driven by a dummy prover must pass the signals that prover publishes
+ * (`nullifierHashes`) — `createMockProofService` publishes `0x1` for every one.
+ */
+export async function mintTransactedLog(params: {
+    host: Host;
+    spentNotes: MintedNote[];
+    tokenId: Address;
+    caller: Address;
+    blockNumber: bigint;
+    withdrawnValue?: bigint;
+    outputCommitments?: Hash[];
+    nullifierHashes?: bigint[];
+}): Promise<RawLog> {
+    const { keystoreManager } = await deriveKeystoreManager({ keystore: params.host.keystore });
+    const hashService = await PoseidonHashService.create();
+    const noteComputation = new NoteComputationService({
+        hashService,
+        cryptoService: new CryptoService(),
+    });
+    const nullifiers =
+        params.nullifierHashes ??
+        params.spentNotes.map((note) =>
+            BigInt(
+                noteComputation.computeNullifier(
+                    keystoreManager.getPrivateNullifyingKey(),
+                    note.commitment,
+                ),
+            ),
+        );
+
+    return {
+        address: SEPOLIA.poolAddress as Hex,
+        topics: [toEventSelector(TRANSACTED_EVENT), pad(params.tokenId), pad(params.caller)],
+        data: encodeAbiParameters(
+            [{ type: "uint256[]" }, { type: "uint256[]" }, { type: "uint256" }],
+            [
+                (params.outputCommitments ?? []).map((c) => BigInt(c)),
+                nullifiers,
+                params.withdrawnValue ?? 0n,
+            ],
+        ),
+        blockNumber: numberToHex(params.blockNumber),
+        transactionHash: pad("0xbeef") as Hex,
+        logIndex: "0x0",
     };
 }
 
@@ -173,13 +347,15 @@ const AUTH_POLICY_SET_EVENT =
 
 /**
  * Mint the on-chain registration of the account behind `host.keystore`: an
- * `AuthPolicySet` log carrying the REAL index-0 auth digest for the derivation
- * signer address. With this log on the mock chain (plus `chainWithLogs`'s
- * nonzero `eth_call` for `isKeystoreRegistered`), the fresh-device gap scan
- * legitimately resolves rotation index 0.
+ * `AuthPolicySet` log for `account` (the plugin's `ownerAddress` — registration
+ * is `msg.sender`-bound, and the SDK's gap scan reads the digest for the owner)
+ * carrying the REAL index-0 auth digest. With this log on the mock chain (plus
+ * `chainWithLogs`'s nonzero `eth_call` for `isKeystoreRegistered`), the
+ * fresh-device gap scan legitimately resolves rotation index 0.
  */
 export async function mintRegistrationLog(
     host: Host,
+    account: Address,
     blockNumber = 1n,
 ): Promise<{ log: RawLog; signerAddress: Address }> {
     const { keystoreManager, signerAddress } = await deriveKeystoreManager({
@@ -194,7 +370,7 @@ export async function mintRegistrationLog(
 
     const log: RawLog = {
         address: SEPOLIA.keystoreAddress as Hex,
-        topics: [toEventSelector(AUTH_POLICY_SET_EVENT), pad(signerAddress)],
+        topics: [toEventSelector(AUTH_POLICY_SET_EVENT), pad(account)],
         data: encodeAbiParameters(
             [{ type: "uint256" }, { type: "uint256" }],
             [1n, BigInt(authDigest)],

@@ -1,4 +1,4 @@
-import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
+import { NoteStatus } from "@0xbow/privacy-pools-v2-sdk";
 
 /** How a note's value is reported to the wallet. */
 export type SpendTag = "spendable" | "unspendable";
@@ -9,7 +9,9 @@ export type NoteReport = SpendTag | "excluded";
 /**
  * Map an SDK note status to its balance treatment (data-model §"Status → balance
  * tag"): `ACTIVE` is spendable; `INACTIVE`/`PENDING`/`REJECTED` are unspendable;
- * `SPENT`/`EXITED` are excluded. Exhaustive over {@link NoteStatus}.
+ * `SPENT`/`EXIT_PENDING`/`EXITED` are excluded (an exit-pending note's ragequit has
+ * already mined — its value left the pool, only finality is outstanding).
+ * Exhaustive over {@link NoteStatus}.
  */
 export function statusToReport(status: NoteStatus): NoteReport {
     switch (status) {
@@ -20,6 +22,7 @@ export function statusToReport(status: NoteStatus): NoteReport {
         case NoteStatus.REJECTED:
             return "unspendable";
         case NoteStatus.SPENT:
+        case NoteStatus.EXIT_PENDING:
         case NoteStatus.EXITED:
             return "excluded";
     }
@@ -43,7 +46,7 @@ export function statusLabel(status: NoteStatus): Lowercase<keyof typeof NoteStat
 /**
  * The note's association-set label state derived from its status: a `REJECTED`
  * note's label was revoked; `INACTIVE`/`PENDING` are awaiting approval; everything
- * else (`ACTIVE`/`SPENT`/`EXITED`) had an approved label.
+ * else (`ACTIVE`/`SPENT`/`EXIT_PENDING`/`EXITED`) had an approved label.
  */
 export function labelStateFor(status: NoteStatus): "pending" | "approved" | "revoked" {
     switch (status) {
@@ -54,6 +57,7 @@ export function labelStateFor(status: NoteStatus): "pending" | "approved" | "rev
             return "pending";
         case NoteStatus.ACTIVE:
         case NoteStatus.SPENT:
+        case NoteStatus.EXIT_PENDING:
         case NoteStatus.EXITED:
             return "approved";
     }

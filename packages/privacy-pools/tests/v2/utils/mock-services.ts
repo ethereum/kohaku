@@ -1,8 +1,8 @@
 /**
  * T027 fixtures: controllable in-memory implementations of the SDK seams the
  * plugin injects via `PPv2Factories` — ASP client, relayer interactor, proof
- * service, and entrypoint interactor. All imports are type-only (the unpublished
- * SDK build's runtime exports are unreliable — see CORRECTIONS C8).
+ * service, and entrypoint interactor. All SDK imports are type-only: the mocks
+ * stand in for SDK infrastructure and must not depend on its runtime.
  */
 import type {
     AssetConfig,
@@ -23,8 +23,9 @@ import type {
     RelayerInfo,
     TransferRelayerQuote,
     WithdrawalRelayerQuote,
-} from "@0xbow-io/privacy-pools-v2-sdk";
+} from "@0xbow/privacy-pools-v2-sdk";
 import { encodeAbiParameters, pad } from "viem";
+import { MINTED_DEPOSITS, MINTED_LABEL_HASHES } from "./mock-chain";
 
 /**
  * The X25519 base point (u = 9) as the mock ASP public key — a valid, non-low-order
@@ -34,20 +35,30 @@ const MOCK_ASP_PUBKEY = `0x09${"00".repeat(31)}` as Hex;
 
 /**
  * Mock ASP implementing BOTH seams over one shared label map: `IASPClient`
- * (deposit-side: pubkey, merkle proofs) and `IASPDataProvider` (discovery-side:
- * per-label statuses, event snapshot). `getNoteEvents` throws so discovery falls
+ * (deposit-side: pubkey, merkle proofs, association set) and `IASPDataProvider`
+ * (discovery-side: event snapshot). `getNoteEvents` throws so discovery falls
  * back to chain logs (`eth_getLogs`) — the mock chain is the event source. The
  * exposed `snapshot` is mutable so tests can inject transact/ragequit events
  * (the real `syncNotesStatus` path consumes it verbatim).
+ *
+ * Label approval is MEMBERSHIP: the SDK (1.0) flips a note PENDING → ACTIVE when
+ * `computeLabelHash(note.label)` is in `getAssociationSetLeaves()`, and demotes an
+ * ACTIVE note whose label left the set; it never asks per-label status. The set
+ * served here is every minted label (see `mintOwnedNoteLog`) whose status is
+ * `approved` (the default), plus whatever a test pushes onto `associationLeaves`.
+ * `setLabelStatus(labelHash, "pending" | "rejected")` withholds the label.
  */
 export function createMockAsp(): IASPClient &
     IASPDataProvider & {
         setLabelStatus: (label: Hash, status: LabelStatus["status"]) => void;
         snapshot: EventSnapshot;
         associationLeaves: Hash[];
+        /** Commitments the ASP no longer indexes (their block was reorged away). */
+        orphanedCommitments: Set<Hex>;
     } {
     const statuses = new Map<Hash, LabelStatus["status"]>();
     const associationLeaves: Hash[] = [];
+    const orphanedCommitments = new Set<Hex>();
     const snapshot: EventSnapshot = {
         chainId: "0xaa36a7" as Hex,
         snapshotBlockNumber: "0x0" as Hex,
@@ -64,6 +75,7 @@ export function createMockAsp(): IASPClient &
         // Mutable association set: tests push approved labelHashes so the SDK's
         // locally-built ASP merkle proofs resolve during transact/withdraw witnesses.
         associationLeaves,
+        orphanedCommitments,
         setLabelStatus(label: Hash, status: LabelStatus["status"]) {
             statuses.set(label.toLowerCase() as Hash, status);
         },
@@ -72,7 +84,11 @@ export function createMockAsp(): IASPClient &
             return pad("0x01");
         },
         async getAssociationSetLeaves(): Promise<Hash[]> {
-            return associationLeaves;
+            const approved = [...MINTED_LABEL_HASHES].filter(
+                (labelHash) => (statuses.get(labelHash) ?? "approved") === "approved",
+            );
+
+            return [...new Set([...approved, ...associationLeaves])];
         },
         async getMerkleProof(labelHash: Hash): Promise<MerkleProof> {
             return {
@@ -93,10 +109,16 @@ export function createMockAsp(): IASPClient &
             return pad("0x01");
         },
         async getLeaves(): Promise<Hash[]> {
-            return [];
+            return provider.getAssociationSetLeaves();
         },
-        async getEventSnapshot() {
-            return snapshot;
+        async getEventSnapshot(): Promise<EventSnapshot> {
+            // Every minted deposit the ASP still indexes, plus whatever the test
+            // put on the snapshot itself (transacts/ragequits are test-injected).
+            const indexed = MINTED_DEPOSITS.filter(
+                (d) => !orphanedCommitments.has(d.outputCommitment),
+            );
+
+            return { ...snapshot, deposits: [...snapshot.deposits, ...indexed] };
         },
         async getNoteEvents(): Promise<never> {
             // Swallowed by discovery → falls back to chain eth_getLogs.
@@ -136,7 +158,9 @@ export function createMockRelayer(
     options: { feeAmount?: bigint; expiresInSeconds?: number; relayError?: string } = {},
 ): IRelayerInteractor & { relayedTxHash: Hex } {
     const feeAmount = (options.feeAmount ?? 5n).toString();
-    const expiration = Math.floor(Date.now() / 1000) + (options.expiresInSeconds ?? 3600);
+    // Unix MILLISECONDS: the SDK (1.0) compares the fee commitment's `expiration`
+    // against `Date.now()`; a seconds value would read as expired in 1970.
+    const expiration = Date.now() + (options.expiresInSeconds ?? 3600) * 1000;
     const relayedTxHash = pad("0xbeef") as Hex;
 
     const transferQuote = (asset: Hex): TransferRelayerQuote => ({
@@ -263,7 +287,7 @@ export function createMockProofService(): IProofService {
         async loadCircuit() {
             /* no artifacts to load */
         },
-        formatForEVM(): EVMProof {
+        formatForChain(): EVMProof {
             return {
                 pA: [1n, 1n],
                 pB: [
@@ -306,15 +330,15 @@ export function createMockEntrypoint(
         async getAllowance(): Promise<Hash> {
             return `0x${(options.allowance ?? 0n).toString(16)}` as Hash;
         },
-        encodeDeposit(
+        async encodeDeposit(
             _proof: EVMProof,
             _noteData: NoteData,
             _aspCiphertext: Hex,
             msgValue: Hex,
-        ): PreparedTransaction {
+        ): Promise<PreparedTransaction> {
             return { to: ENTRYPOINT_ADDRESS, data: "0xde9051", value: msgValue };
         },
-        encodeApprove(token: `0x${string}`, amount: Hex): PreparedTransaction {
+        async encodeApprove(token: `0x${string}`, amount: Hex): Promise<PreparedTransaction> {
             return { to: token, data: `0x095ea7b3${amount.slice(2)}` as Hex, value: "0x0" };
         },
         async submitTransaction(): Promise<Hex> {

@@ -16,14 +16,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@0xbow/privacy-pools-v2-sdk": "^1.0.2",
     "dotenv": "^17.2.1",
     "@kohaku-eth/plugins": "workspace:*",
     "@kohaku-eth/privacy-pools": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
     "viem": "^2.51.3"
-  },
-  "optionalDependencies": {
-    "@0xbow-io/privacy-pools-v2-sdk": "0.2.0-beta.0"
   },
   "devDependencies": {
     "tsx": "^4.17.0",

@@ -16,6 +16,7 @@ import {
     chainWithLogs,
     mintKeystoreLeafLog,
     mintOwnedNoteLog,
+    mintTransactedLog,
     mintStateLeavesLog,
 } from "../utils/mock-chain";
 import { createMockHost } from "../utils/mock-host";
@@ -24,6 +25,7 @@ import {
     createMockEntrypoint,
     createMockProofService,
     createMockRelayer,
+    MOCK_RELAYER_INFO,
 } from "../utils/mock-services";
 
 const OWNER = "0x00000000000000000000000000000000000000aa" as Address;
@@ -43,15 +45,26 @@ describe("unshield end-to-end (T041/US3 AC-1/2)", () => {
         });
         const stateLeaves = await mintStateLeavesLog([minted.commitment], { blockNumber: 1n });
         const keystoreLeaf = await mintKeystoreLeafLog(bare.host, OWNER, 2n);
+        const transacted = await mintTransactedLog({
+            host: bare.host,
+            spentNotes: [minted],
+            tokenId: NATIVE,
+            caller: MOCK_RELAYER_INFO.address,
+            blockNumber: 101n,
+            // The mock prover publishes 0x1 for every public signal, so that is the
+            // nullifier the SDK expects the receipt to consume.
+            nullifierHashes: [1n],
+        });
 
         const rig = createMockHost({
             rpc: {
                 ...chainWithLogs([minted.log, stateLeaves.log, keystoreLeaf.log]),
+                // The relayed tx mines and its receipt consumes the input note's nullifier.
                 eth_getTransactionReceipt: () => ({
                     transactionHash: pad("0xbeef"),
                     status: "0x1",
                     blockNumber: "0x65",
-                    logs: [],
+                    logs: [transacted],
                 }),
             },
             blockNumber: 100n,

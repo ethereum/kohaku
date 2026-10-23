@@ -1,9 +1,10 @@
 /**
- * T056 (US6 AC-2): once a ragequit mines, the ASP event snapshot carries the
- * Ragequit event; the next sync flips the note ACTIVE → EXITED through the SDK's
- * real `processRagequitEvents` reconciliation, and the note drops out of the
- * spendable balance and the default note list (mine-then-status model, C12 —
- * nothing was marked at prepare/broadcast time).
+ * T056 (US6 AC-2): once a ragequit mines, the chain carries the Ragequit event
+ * and the ASP event snapshot claims it; the next sync flips the note ACTIVE →
+ * EXITED through the SDK's real reconciliation (the snapshot claim corroborated
+ * against the chain event at that block, bound by the note's nullifier), and the
+ * note drops out of the spendable balance and the default note list
+ * (mine-then-status model, C12 — nothing was marked at prepare/broadcast time).
  */
 import type { Address } from "viem";
 import { numberToHex, pad } from "viem";
@@ -12,7 +13,7 @@ import { persistRevocableKeyIndex } from "../../../src/v2/account/keystore-recor
 import { KohakuStorageService } from "../../../src/v2/adapters/storage.adapter";
 import type { PPv2PluginParameters } from "../../../src/v2/interfaces/plugin.interface";
 import { createPPv2Plugin } from "../../../src/v2/plugin";
-import { chainWithLogs, mintOwnedNoteLog } from "../utils/mock-chain";
+import { chainWithLogs, mintOwnedNoteLog, mintRagequitLog } from "../utils/mock-chain";
 import { createMockHost } from "../utils/mock-host";
 import {
     createMockAsp,
@@ -64,8 +65,9 @@ describe("ragequit exit reconciliation (T056/US6 AC-2)", () => {
             blockNumber: 1n,
         });
 
+        const logs = [minted.log];
         const rig = createMockHost({
-            rpc: chainWithLogs([minted.log]),
+            rpc: chainWithLogs(logs),
             blockNumber: 100n,
         });
 
@@ -83,15 +85,24 @@ describe("ragequit exit reconciliation (T056/US6 AC-2)", () => {
 
         expect(before.find((b) => b.tag === "spendable")?.amount).toBe(1000n);
 
-        // The ragequit tx mines at block 101: the ASP snapshot now carries the
-        // Ragequit event for this commitment.
+        // The ragequit tx mines at block 101: the chain emits the Ragequit event
+        // and the ASP snapshot now carries the matching row for this commitment.
+        const ragequit = await mintRagequitLog({
+            host: bare.host,
+            ownerAddress: OWNER,
+            note: minted,
+            tokenId: NATIVE,
+            blockNumber: 101n,
+        });
+
+        logs.push(ragequit.log);
         asp.snapshot.ragequits.push({
             txHash: pad("0x7a9e"),
             logIndex: 0,
             ragequitter: OWNER,
             withdrawnValue: minted.value,
             commitment: minted.commitment,
-            nullifierHash: pad("0x0"),
+            nullifierHash: ragequit.nullifierHash,
             label: minted.label,
             blockNumber: numberToHex(101n),
             blockTimestamp: "1970-01-01T00:00:01Z",

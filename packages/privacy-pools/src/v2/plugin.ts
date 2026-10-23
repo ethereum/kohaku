@@ -6,7 +6,7 @@ import type { CreatePluginFn, Host, UnshieldOptions } from "@kohaku-eth/plugins"
 import { isAddress } from "viem";
 import type { TxData } from "@kohaku-eth/provider";
 import type { Address as OxAddress } from "ox/Address";
-import { type Address, type Hex, type INoteManager, type PoolSession } from "@0xbow-io/privacy-pools-v2-sdk";
+import { type Address, type Hex, type INoteManager, type PoolSession } from "@0xbow/privacy-pools-v2-sdk";
 import { deriveKeystoreManager } from "./account/derivation";
 import { persistRevocableKeyIndex, readRevocableKeyIndex } from "./account/keystore-record";
 import { KohakuStorageService } from "./adapters/storage.adapter";
@@ -206,15 +206,21 @@ export class PPv2Plugin implements PPv2Instance {
 
             const txs: TxData[] = [];
 
-            if (result.approvalTx) {
+            // Every ERC-20 approval first, in the SDK's order (a zero-reset approval
+            // precedes the real one on tokens that require it); none for native ETH.
+            for (const approval of result.approvalTxs) {
                 txs.push({
-                    to: result.approvalTx.to,
-                    data: result.approvalTx.data,
-                    value: BigInt(result.approvalTx.value),
+                    to: approval.to,
+                    data: approval.data,
+                    value: BigInt(approval.value),
                 });
             }
 
-            txs.push({ to: result.to, data: result.callData, value: BigInt(result.msgValue) });
+            txs.push({
+                to: result.depositTx.to,
+                data: result.depositTx.data,
+                value: BigInt(result.depositTx.value),
+            });
 
             // Nothing is persisted at prepare time (C16): the note becomes visible
             // through sync discovery once the deposit mines (INV-2 — storage is a
@@ -463,7 +469,13 @@ export class PPv2Plugin implements PPv2Instance {
 
             return {
                 __type: "publicOperation",
-                txs: [{ to: result.to, data: result.callData, value: 0n }],
+                txs: [
+                    {
+                        to: result.ragequitTx.to,
+                        data: result.ragequitTx.data,
+                        value: BigInt(result.ragequitTx.value),
+                    },
+                ],
             };
         } catch (err) {
             throw mapSdkError(err);

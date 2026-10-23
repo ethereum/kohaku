@@ -5,7 +5,7 @@
  * the same events on its chain that the real Sepolia contracts would emit, or
  * the plugin's sync would discover nothing. Producing those events requires
  * protocol internals (Poseidon commitments, AEAD note payloads, auth digests),
- * so THIS file imports `@0xbow-io/privacy-pools-v2-sdk` directly — it stands in for the
+ * so THIS file imports `@0xbow/privacy-pools-v2-sdk` directly — it stands in for the
  * deployed contracts, not for wallet code. The wallet side never does this.
  *
  * Adapted from the plugin's integration fixtures
@@ -21,7 +21,7 @@ import {
     KeystoreManager,
     NoteComputationService,
     PoseidonHashService,
-} from "@0xbow-io/privacy-pools-v2-sdk";
+} from "@0xbow/privacy-pools-v2-sdk";
 import { encodeAbiParameters, keccak256, numberToHex, pad, toBytes, toEventSelector, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { DevnetChain } from "./chain";

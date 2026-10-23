@@ -1,4 +1,4 @@
-import { NoteStatus } from "@0xbow-io/privacy-pools-v2-sdk";
+import { NoteStatus } from "@0xbow/privacy-pools-v2-sdk";
 import { describe, expect, it } from "vitest";
 import {
     isExcluded,
@@ -21,8 +21,8 @@ describe("status mapping", () => {
         }
     });
 
-    it("excludes SPENT / EXITED", () => {
-        for (const s of [NoteStatus.SPENT, NoteStatus.EXITED]) {
+    it("excludes SPENT / EXIT_PENDING / EXITED", () => {
+        for (const s of [NoteStatus.SPENT, NoteStatus.EXIT_PENDING, NoteStatus.EXITED]) {
             expect(statusToReport(s)).toBe("excluded");
             expect(isExcluded(s)).toBe(true);
             expect(isSpendable(s)).toBe(false);

@@ -37,6 +37,8 @@ export const DEPLOYMENT = {
     entrypointAddress: "0xEB3e3961008952348445513e418ad6F43C23ca9a",
     keystoreAddress: "0x6d264aCb9C3A7A3105c29470AfE2F5F1EC203C73",
     aspRegistryAddress: "0x35D29EFDCf067599ab4A53cf40229477f0b1cA9c",
+    // No RelaySwaps on Sepolia yet (the SDK's map carries the same zero address).
+    relaySwapsAddress: "0x0000000000000000000000000000000000000000",
 } as const;
 
 /**

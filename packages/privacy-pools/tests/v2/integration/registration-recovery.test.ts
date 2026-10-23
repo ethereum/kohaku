@@ -57,7 +57,7 @@ describe("registration recovery on a new device (T052/US5 AC-3)", () => {
     it("recognizes the on-chain registration, resolves the key index, and refuses to re-register", async () => {
         // "New device": empty storage, same mnemonic; the chain holds the
         // account's AuthPolicySet registration event (real index-0 auth digest).
-        const registration = await mintRegistrationLog(createMockHost().host);
+        const registration = await mintRegistrationLog(createMockHost().host, OWNER);
         const rig = createMockHost({
             rpc: chainWithLogs([registration.log]),
             blockNumber: 100n,

@@ -41,7 +41,7 @@ The demo drives the full lifecycle through the public plugin surface only:
 
 - **`src/wallet/`** — the integration a wallet would actually ship. Imports
   only `@kohaku-eth/plugins`, `@kohaku-eth/privacy-pools`, and
-  `@kohaku-eth/provider` — never `@0xbow-io/privacy-pools-v2-sdk` (SC-001). Host
+  `@kohaku-eth/provider` — never `@0xbow/privacy-pools-v2-sdk` (SC-001). Host
   assembly, transacting-account signing, plugin parameters.
 - **`src/devnet/`** — demo plumbing standing in for Sepolia, the ASP, the
   relayer, and the Groth16 prover so the demo runs offline and in
@@ -81,10 +81,12 @@ pnpm check:exportImport               # backup/restore onto a fresh device
   left). Set `CIRCUITS_DIR` to a local v2-monorepo circuits build to skip
   the multi-MB proving-key downloads on every run. Deposits are screened by
   the actual ASP and become spendable once approved.
-- **Known-blocked upstream**: `check:transfer` currently fails at the relayer
-  with `PoolVault_ProofContextMismatch()` — a transfer-payload encoding skew
-  between SDK 0.1.0-beta.0 and the deployed staging stack (withdrawals relay
-  fine, which isolates it). The check documents the expected failure.
+- **Known-blocked upstream** (last observed against the SDK betas, not yet
+  re-verified on `@0xbow/privacy-pools-v2-sdk` 1.0.x): `check:transfer` failed at
+  the relayer with `PoolVault_ProofContextMismatch()` — a transfer-payload
+  encoding skew between the beta SDK and the deployed staging stack
+  (withdrawals relayed fine, which isolates it). The check documents the
+  expected failure.
 
 ## Devnet approximations (things a real chain does differently)
 

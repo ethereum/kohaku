@@ -17,7 +17,7 @@ import type { Keystore } from "@kohaku-eth/plugins";
 import type { PPv2Factories } from "@kohaku-eth/privacy-pools";
 import type { TxData } from "@kohaku-eth/provider";
 import type { EthereumProvider } from "@kohaku-eth/provider";
-import { DEPLOYMENTS } from "@0xbow-io/privacy-pools-v2-sdk";
+import { DEPLOYMENTS } from "@0xbow/privacy-pools-v2-sdk";
 import type { Address, Hex } from "viem";
 import { DevnetChain } from "./chain";
 import { mintDeposit, mintRegistration } from "./minting";

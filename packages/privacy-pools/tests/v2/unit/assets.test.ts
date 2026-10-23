@@ -1,3 +1,4 @@
+import { NATIVE_ASSET_ADDRESS, bigintToHex } from "@0xbow/privacy-pools-v2-sdk";
 import { describe, expect, it } from "vitest";
 import {
     amountToHex,
@@ -7,8 +8,6 @@ import {
     tokenIdToAsset,
 } from "../../../src/v2/mapping/assets";
 
-// SDK native sentinel (mirrored; the SDK 0.0.0 build does not re-export it at runtime).
-const NATIVE_ASSET_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 const ERC20 = "0x1234567890123456789012345678901234567890" as const;
 
 describe("assets mapping", () => {
@@ -48,32 +47,17 @@ describe("assets mapping", () => {
 
 describe("mirrored SDK constants (DEP-1 drift guards)", () => {
     it("pins the native sentinel and the 32-byte hex convention as canonical vectors", () => {
-        // Protocol constants mirrored in src/v2/mapping/assets.ts because the
-        // SDK's runtime bundle doesn't export them (d.ts-only). Any local edit
-        // must fail here loudly.
-        expect(assetToTokenId({ __type: "native" })).toBe(NATIVE_ASSET_ADDRESS);
+        // Protocol constants: the sentinel address and the left-padded 32-byte
+        // hex the SDK encodes amounts in. Any drift must fail here loudly.
+        expect(NATIVE_ASSET_ADDRESS).toBe("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
         expect(amountToHex(0n)).toBe(`0x${"00".repeat(32)}`);
         expect(amountToHex(255n)).toBe(`0x${"00".repeat(31)}ff`);
         expect(amountToHex(2n ** 255n)).toBe(`0x8${"0".repeat(63)}`);
     });
 
-    it("tripwire: compares against the SDK the moment it runtime-exports the originals", async () => {
-        const sdk: Record<string, unknown> = await import("@0xbow-io/privacy-pools-v2-sdk");
-
-        // The published beta runtime-exports neither symbol, so both branches
-        // are skipped today. When a future SDK version starts exporting them,
-        // these assertions go live: a failure means the mirrors in
-        // src/v2/mapping/assets.ts diverged — delete them and import for real.
-        if (sdk["NATIVE_ASSET_ADDRESS"] !== undefined) {
-            expect(sdk["NATIVE_ASSET_ADDRESS"]).toBe(NATIVE_ASSET_ADDRESS);
-        }
-
-        if (typeof sdk["bigintToHex"] === "function") {
-            const bigintToHex = sdk["bigintToHex"] as (v: bigint) => string;
-
-            for (const v of [0n, 1n, 255n, 2n ** 200n]) {
-                expect(amountToHex(v)).toBe(bigintToHex(v));
-            }
+    it("amount encoding is the SDK's own bigintToHex", () => {
+        for (const v of [0n, 1n, 255n, 2n ** 200n]) {
+            expect(amountToHex(v)).toBe(bigintToHex(v));
         }
     });
 });

@@ -1,4 +1,4 @@
-import type { INoteManager, PoolSession, PrepareDepositResult } from "@0xbow-io/privacy-pools-v2-sdk";
+import type { INoteManager, PoolSession, PrepareDepositResult } from "@0xbow/privacy-pools-v2-sdk";
 import { numberToHex, pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { NotImplementedError } from "../../../src/v2/interfaces/errors";
@@ -30,9 +30,8 @@ describe("PPv2Plugin.prepareShield", () => {
     it("native deposit: single tx with msgValue, no approve (US1 AC1)", async () => {
         const { plugin } = pluginWithDeposit({
             pendingNote: {} as PrepareDepositResult["pendingNote"],
-            callData: "0xdeadbeef",
-            to: ENTRYPOINT,
-            msgValue: numberToHex(1000n),
+            depositTx: { to: ENTRYPOINT, data: "0xdeadbeef", value: numberToHex(1000n) },
+            approvalTxs: [],
             approvalTx: null,
         });
 
@@ -46,9 +45,8 @@ describe("PPv2Plugin.prepareShield", () => {
     it("ERC20 deposit: approve is prepended before deposit (US1 AC2)", async () => {
         const { plugin } = pluginWithDeposit({
             pendingNote: {} as PrepareDepositResult["pendingNote"],
-            callData: "0xdep0517",
-            to: ENTRYPOINT,
-            msgValue: "0x0",
+            depositTx: { to: ENTRYPOINT, data: "0xdep0517", value: "0x0" },
+            approvalTxs: [{ to: ERC20, data: "0x095ea7b3", value: "0x0" }],
             approvalTx: { to: ERC20, data: "0x095ea7b3", value: "0x0" },
         });
 
@@ -62,9 +60,8 @@ describe("PPv2Plugin.prepareShield", () => {
     it("ERC20 with sufficient allowance: no approve tx (US1 AC2)", async () => {
         const { plugin } = pluginWithDeposit({
             pendingNote: {} as PrepareDepositResult["pendingNote"],
-            callData: "0xdep",
-            to: ENTRYPOINT,
-            msgValue: "0x0",
+            depositTx: { to: ENTRYPOINT, data: "0xdep", value: "0x0" },
+            approvalTxs: [],
             approvalTx: null,
         });
 
@@ -76,9 +73,8 @@ describe("PPv2Plugin.prepareShield", () => {
     it("passes the mapped tokenId and hex value to the SDK", async () => {
         const { plugin, prepareDeposit } = pluginWithDeposit({
             pendingNote: {} as PrepareDepositResult["pendingNote"],
-            callData: "0x",
-            to: ENTRYPOINT,
-            msgValue: numberToHex(1000n),
+            depositTx: { to: ENTRYPOINT, data: "0x", value: numberToHex(1000n) },
+            approvalTxs: [],
             approvalTx: null,
         });
 
@@ -92,9 +88,8 @@ describe("PPv2Plugin.prepareShield", () => {
     it("deposit-for (to provided) is a deferred follow-up", async () => {
         const { plugin } = pluginWithDeposit({
             pendingNote: {} as PrepareDepositResult["pendingNote"],
-            callData: "0x",
-            to: ENTRYPOINT,
-            msgValue: "0x0",
+            depositTx: { to: ENTRYPOINT, data: "0x", value: "0x0" },
+            approvalTxs: [],
             approvalTx: null,
         });
 

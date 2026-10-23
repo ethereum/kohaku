@@ -1,7 +1,7 @@
 /**
  * WALLET SIDE — this is the code a Kohaku-based wallet (e.g. the extension)
  * would actually write. It imports only `@kohaku-eth/*` packages; the
- * `@0xbow-io/privacy-pools-v2-sdk` never appears on this side (SC-001).
+ * `@0xbow/privacy-pools-v2-sdk` never appears on this side (SC-001).
  *
  * A `Host` is the capability bundle the wallet hands to every plugin:
  * key derivation, persistent storage, chain access, and outbound HTTP.

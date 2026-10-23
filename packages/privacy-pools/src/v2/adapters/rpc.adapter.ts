@@ -1,12 +1,13 @@
 import type { EthereumProvider } from "@kohaku-eth/provider";
 import type {
     DecodedEventLog,
+    FinalizedBlockResult,
     GetLogsParams,
     Hex,
     IRPCInteractor,
     ReadContractParams,
     TxReceipt,
-} from "@0xbow-io/privacy-pools-v2-sdk";
+} from "@0xbow/privacy-pools-v2-sdk";
 import {
     type Abi,
     type AbiEvent,
@@ -68,6 +69,31 @@ export class KohakuRpcInteractor implements IRPCInteractor {
     /** Latest block number, 0x-hex per the SDK convention. */
     async getBlockNumber(): Promise<Hex> {
         return numberToHex(await this.provider.getBlockNumber());
+    }
+
+    /**
+     * The latest `finalized` block, below which the SDK persists terminal note statuses.
+     * A provider without the tag is `unsupported`; any other failure `unavailable`.
+     */
+    async getFinalizedBlockNumber(): Promise<FinalizedBlockResult> {
+        try {
+            const block = (await this.provider.request({
+                method: "eth_getBlockByNumber",
+                params: ["finalized", false],
+            })) as { number?: Hex | null } | null;
+
+            if (!block || block.number === null || block.number === undefined) {
+                return { status: "unsupported" };
+            }
+
+            return { status: "finalized", blockNumber: block.number };
+        } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err);
+
+            return /unknown block|unsupported|invalid block tag|not supported/i.test(reason)
+                ? { status: "unsupported" }
+                : { status: "unavailable", reason };
+        }
     }
 
     /** Wait until the transaction mines, then return the SDK-shaped receipt with full logs. */

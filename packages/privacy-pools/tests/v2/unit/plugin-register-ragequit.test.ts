@@ -3,7 +3,7 @@ import type {
     PoolSession,
     PrepareRageQuitResult,
     RegisterKeystoreResult,
-} from "@0xbow-io/privacy-pools-v2-sdk";
+} from "@0xbow/privacy-pools-v2-sdk";
 import { pad } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { AlreadyRegisteredError } from "../../../src/v2/interfaces/errors";
@@ -76,8 +76,7 @@ describe("PPv2Plugin.prepareRageQuit", () => {
             tokenId: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
             nullifierHash: pad("0x03"),
             recipientAddress: OWNER,
-            callData: "0xdeadbeef",
-            to: POOL_VAULT,
+            ragequitTx: { to: POOL_VAULT, data: "0xdeadbeef", value: "0x0" },
         } as unknown as PrepareRageQuitResult;
         const prepareRageQuit = vi.fn(async () => result);
         const plugin = makePlugin({ prepareRageQuit } as unknown as Partial<PoolSession>);
@@ -99,8 +98,7 @@ describe("PPv2Plugin.prepareRageQuit", () => {
                 tokenId: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
                 nullifierHash: pad("0x03"),
                 recipientAddress: OWNER,
-                callData: "0x",
-                to: POOL_VAULT,
+                ragequitTx: { to: POOL_VAULT, data: "0x", value: "0x0" },
             })),
         } as unknown as Partial<PoolSession>);
 

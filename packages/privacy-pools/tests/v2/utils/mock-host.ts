@@ -52,6 +52,10 @@ export function createMockProvider(
                 // Track setBlockNumber() so JSON-RPC and getBlockNumber() agree
                 // on the chain head regardless of which API the adapter uses.
                 return `0x${currentBlock.toString(16)}`;
+            case "eth_getBlockByNumber":
+                // The mock chain is instantly final: `finalized` is the head. The
+                // SDK only writes terminal note statuses at or below this block.
+                return { number: `0x${currentBlock.toString(16)}` };
             default:
                 return ZERO32;
         }
