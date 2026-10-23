@@ -1,0 +1,44 @@
+# A real integration
+
+The snippets in this guide are the API. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli) is a wallet that calls it: encrypted storage, a viem provider with chunked logs, Tor on `host.network.fetch`, and shield / unshield commands for both protocols.
+
+The CLI also constructs a Railgun plugin in the same files. These pages cover Privacy Pools and Tornado Cash.
+
+## Host
+
+| File | What it shows |
+| --- | --- |
+| [`src/host/makeHost.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/makeHost.ts) | Assembles `Host`: viem provider, keystore, encrypted storage, `fetch`, and the Tornado external sync source. |
+| [`src/host/keystore.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/keystore.ts) | `deriveAt` from the wallet mnemonic, plus stealth-account paths. |
+| [`src/host/storage.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/storage.ts) | One encrypted JSON file per plugin (`ppv1-storage.json`, `tc-storage.json`). |
+| [`src/host/chunked-get-logs.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/chunked-get-logs.ts) | Splits `eth_getLogs` when the RPC rejects a wide range. |
+
+## Plugins
+
+[`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts) is the integration in one module.
+
+- `createProtocolPlugin` calls `createTCPlugin` and `createPPv1Plugin` with the deployment config, paymaster map, artifacts loader, and saga data source for the chain.
+- `prepareProtocolShield` calls `prepareShield`. Tornado passes `DepositStrategy.MinFee`.
+- `broadcastTornadoPrivateOp` calls `createTCBroadcaster` and `broadcast`.
+
+Supporting pieces:
+
+| File | What it shows |
+| --- | --- |
+| [`src/utils/proving-artifacts.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/proving-artifacts.ts) | Tornado `artifactsLoader` that caches the circuit and proving key on disk. |
+| [`src/utils/saga-external-sync.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/saga-external-sync.ts) | `ExternalSyncProvider` for Tornado cold sync. |
+| [`src/utils/privacy-pools-saga.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/privacy-pools-saga.ts) | Mainnet Privacy Pools history from the saga CDN, with an RPC tail. |
+| [`src/utils/privacy-pools-paymaster.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/privacy-pools-paymaster.ts) | Paymaster fee quote and note selection for a Privacy Pools unshield. |
+| [`src/utils/tornado-unshield-delegation.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/tornado-unshield-delegation.ts) | The `delegation` object for a Tornado paymaster unshield. |
+
+## End to end
+
+| File | What it shows |
+| --- | --- |
+| [`src/lib/shield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/shield-flow.ts) | Picks a public account, calls `prepareShield`, signs `txns`, and waits. |
+| [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts) | Quotes the fee, calls `prepareUnshield`, and broadcasts. |
+| [`src/commands/shield.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/commands/shield.ts) | The `kohaku shield` command in front of the shield flow. |
+| [`src/commands/unshield.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/commands/unshield.ts) | The `kohaku unshield` command in front of the unshield flow. |
+| [`src/commands/import-tornado-note.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/commands/import-tornado-note.ts) | `importNotes` for a legacy Tornado note string. |
+
+Read `makeHost` and `createProtocolPlugin` first. They are the two functions the rest of the CLI calls.

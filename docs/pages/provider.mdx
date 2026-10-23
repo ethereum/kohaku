@@ -1,0 +1,142 @@
+# Provider
+
+`@kohaku-eth/provider` is the chain interface on [`Host`](/host). Privacy Pools and Tornado Cash call it to sync pools, read balances, and estimate gas. Your wallet still signs shield transactions with its own account.
+
+```ts
+import type { EthereumProvider } from '@kohaku-eth/provider'
+```
+
+The adapters live on subpath exports, so a browser build can omit the ones it does not use.
+
+## What the plugins call
+
+| Method | Used for |
+| --- | --- |
+| `getChainId()` | Picking the deployment, paymaster, and storage key. |
+| `getBlockNumber()` | Deciding how far a sync has to catch up. |
+| `getLogs(filter)` | Pool events. This is the expensive call on a cold start. |
+| `call(call)` | Contract reads: asset config, roots, allowances. |
+| `getBalance(address)` / `getCode(address)` | Native balance and whether an address is a contract. |
+| `estimateGas(call)` / `getGasPrice()` | Fee previews around a shield or a paymaster user operation. |
+| `getTransactionCount(address, block?)` | Nonces for accounts the plugin derives. |
+| `getTransactionReceipt(hash)` / `waitForTransaction(hash)` | Confirming a transaction the plugin already knows about. |
+| `request({ method, params })` | Anything the typed methods do not cover. |
+
+`getLogs` receives an `ox` `Filter`: `address`, `fromBlock`, `toBlock`, and optional `topics`. Block numbers are bigints. A provider that rejects wide ranges will fail the first sync. Split the range and concatenate the logs. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/chunked-get-logs.ts) does that around the viem adapter, and also fills in `getTransactionCount` for clients that omit it.
+
+## Shield transactions
+
+`prepareShield` returns `txns`. Each item is a `TxData`:
+
+```ts
+type TxData = {
+  to: string
+  data: string
+  value: bigint
+}
+```
+
+Send them in order, from the user's public account, and wait for each receipt before you tell the user the shield is done. The plugin learns about the deposit on the next `sync`, which `balance` and `prepareUnshield` already call.
+
+`ViemSignerAdapter` and `EthersSignerAdapter` implement `TxSigner.sendTransaction` for that shape. They are optional. A wallet that already has a signer can map the three fields itself, as the [getting started](/getting-started) example does.
+
+```ts
+import { ViemSignerAdapter } from '@kohaku-eth/provider/viem'
+
+const signer = new ViemSignerAdapter(walletClient)
+
+for (const tx of shield.txns) {
+  const hash = await signer.sendTransaction(tx)
+  await provider.waitForTransaction(hash)
+}
+```
+
+## Viem
+
+```ts
+import { viem } from '@kohaku-eth/provider/viem'
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+export const provider = viem(
+  createPublicClient({
+    chain: mainnet,
+    transport: http(process.env.RPC_URL!),
+  }),
+)
+```
+
+This is the adapter the package tests use, and the one kohaku-cli starts from before it adds chunked logs. `provider._internal` is the viem `PublicClient` if you need a method the interface does not wrap.
+
+## Ethers
+
+```ts
+import { ethers } from '@kohaku-eth/provider/ethers'
+import { JsonRpcProvider } from 'ethers'
+
+export const provider = ethers(new JsonRpcProvider(process.env.RPC_URL))
+```
+
+`ethers` is an optional peer dependency of the provider package. Install `ethers` v6 in the wallet if you take this path. The signer adapter is `EthersSignerAdapter` from the same export.
+
+## Any JSON-RPC provider
+
+`raw` wraps an EIP-1193 client: an object with `request({ method, params })`. Helios and Colibri are built on it.
+
+```ts
+import { raw } from '@kohaku-eth/provider/raw'
+
+export const provider = raw(window.ethereum)
+```
+
+## Light clients
+
+A light client belongs on `host.provider` the same way an RPC does. The plugins only see `EthereumProvider`.
+
+### Helios
+
+```ts
+import { helios } from '@kohaku-eth/provider/helios'
+
+const provider = await helios(
+  { executionRpc: process.env.RPC_URL! },
+  'mainnet',
+  true, // proxy eth_getLogs to the execution RPC
+)
+```
+
+`@a16z/helios` is an optional peer. `executionRpc` is required. The third argument, `bypassLogs`, sends `eth_getLogs` straight to that RPC. Leave it `false` and Helios serves logs only for the latest 8,191 blocks, which is shorter than a pool's history. A cold sync of Privacy Pools or Tornado needs the full range, so a Helios host that is syncing these plugins sets `bypassLogs` or serves historical logs another way.
+
+`helios` waits until the light client reports synced before it returns.
+
+### Colibri
+
+```ts
+import { colibri } from '@kohaku-eth/provider/colibri'
+
+const provider = await colibri({
+  /* Colibri-Stateless config */
+})
+```
+
+`@corpus-core/colibri-stateless` is an optional peer. The object you pass is forwarded to `new Colibri(...)`. When `fallback_provider` is set, transaction verification is turned on. `zk_proof` defaults to `true`.
+
+## Anonymous RPC in the browser
+
+```ts
+import { anon } from '@kohaku-eth/provider/anon'
+
+const provider = await anon({
+  specifier: '0xWorkerSpecifier',
+  rpcUrl: process.env.RPC_URL!,
+  bootstrap, // a normal provider, used for two setup reads
+})
+```
+
+`anon` runs an [anon-rpc](https://github.com/privacy-ethereum/anon-rpc) worker inside a null-origin iframe, so it is browser-only. After boot, `getLogs` and the other methods go through that worker to `rpcUrl`. `bootstrap` is used for the specifier reads and is not anonymized.
+
+Boot has no timeout inside the harness. The adapter defaults to 120 seconds (`bootTimeoutMs`). Receipt polling also defaults wider than a direct RPC, because each poll is a round trip through the anonymizing network. Override `waitForTransaction` on the config if you need different intervals.
+
+## Picking one
+
+Use `viem` or `ethers` against the RPC the user configured. Reach for `helios` or `colibri` when the wallet verifies that RPC. Reach for `anon` when the browser should hide the wallet's IP from the endpoint. In every case the plugin code stays the same: it calls `host.provider`.
