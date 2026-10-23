@@ -1,5 +1,5 @@
 import { LeanIMT } from "@zk-kit/lean-imt";
-import { poseidon } from 'maci-crypto/build/ts/hashing';
+import { poseidonT3 } from '@kohaku-eth/poseidon';
 import { IAspService } from "../../src/data/asp.interface";
 import { lastUpdateRootEventSelector } from "../../src/state/selectors/slices.selectors";
 
@@ -69,7 +69,7 @@ export function createMockAspService(): IMockAspService {
       }
 
       // Otherwise, build tree from current leaves
-      const tree = new LeanIMT<bigint>((a: bigint, b: bigint) => poseidon([a, b]));
+      const tree = new LeanIMT<bigint>(poseidonT3);
 
       tree.insertMany(leaves);
 
@@ -93,7 +93,7 @@ export function createMockAspService(): IMockAspService {
     },
 
     getRoot(): bigint {
-      const tree = new LeanIMT<bigint>((a: bigint, b: bigint) => poseidon([a, b]));
+      const tree = new LeanIMT<bigint>(poseidonT3);
 
       tree.insertMany(leaves);
 

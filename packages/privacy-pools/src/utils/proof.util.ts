@@ -1,12 +1,12 @@
 import { LeanIMT, LeanIMTMerkleProof } from "@zk-kit/lean-imt";
-import { poseidon } from "maci-crypto/build/ts/hashing";
+import { poseidonT3 } from "@kohaku-eth/poseidon";
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { encodeAbiParameters, keccak256, numberToHex } from "viem";
 
 const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 
-export const merkleHash = (a: bigint, b: bigint): bigint => poseidon([a, b]);
+export const merkleHash = (a: bigint, b: bigint): bigint => poseidonT3(a, b);
 
 /**
  * Builds a Lean Incremental Merkle tree from the full set of leaves. This is the
