@@ -93,7 +93,7 @@ describe('verifyRootsThunk', () => {
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
       poolAddress,
-      computeMerkleTreeRoot([10n, 20n, 30n]),
+      9127177310664919889930445995208889905849450633936323651964704217531239861271n, //computeMerkleTreeRoot([10n, 20n, 30n]))
     );
   });
 
