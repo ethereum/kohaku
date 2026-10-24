@@ -36,7 +36,7 @@ import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
-import { decodeRelayData, encodeRelayData } from "../utils/encoding.utils";
+import { encodeRelayData } from "../utils/encoding.utils";
 import { deductFeeBPS, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
@@ -296,9 +296,11 @@ export const storeStateManager = (
       }
 
       const store = await getChainStore(chainInfo);
+      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
       const {
         quote: { feeCommitment },
         relayerId,
+        relayData: { relayFeeBps },
       } = unwrapResult(
         await store.dispatch(
           quoteThunk({
@@ -307,11 +309,11 @@ export const storeStateManager = (
             asset,
             amount,
             recipient,
+            maxRelayFeeBPS,
           }),
         ),
       );
       // The fee actually charged on-chain is the one in the signed withdrawal data.
-      const { relayFeeBps } = decodeRelayData(feeCommitment.withdrawalData as `0x${string}`);
       const { fee, net } = deductFeeBPS(amount, relayFeeBps);
 
       return {
@@ -330,6 +332,7 @@ export const storeStateManager = (
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
+      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
 
       const quoteResultAction = await store.dispatch(
         quoteThunk({
@@ -338,6 +341,7 @@ export const storeStateManager = (
           asset,
           amount: amount ?? 0n,
           recipient,
+          maxRelayFeeBPS,
         }),
       );
 
@@ -345,7 +349,8 @@ export const storeStateManager = (
         throw new Error("Failed to get quote from relayers");
       }
 
-      const { quote, relayerId } = unwrapResult(quoteResultAction);
+      // quoteThunk has checked that the relay data pays `recipient` within the quoted fee.
+      const { quote, relayerId, relayData } = unwrapResult(quoteResultAction);
       const poolInfo = store.selectors.poolFromAssetSelector(asset);
 
       if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
@@ -374,7 +379,7 @@ export const storeStateManager = (
           context,
           scope: poolInfo.scope,
           relayDataAbi: JSON.stringify(relayDataAbi),
-          relayDataObject: decodeRelayData(withdrawal.data),
+          relayDataObject: relayData,
           withdrawalObject: withdrawal,
         },
         proofResult: withdrawProofResult,
@@ -405,24 +410,25 @@ export const storeStateManager = (
         throw new Error("Failed to get quote from relayers");
       }
 
-      const { quote, relayerId } = unwrapResult(quoteResultAction);
+      const { quote, relayerId, relayData: quoted } = unwrapResult(quoteResultAction);
       const poolInfo = store.selectors.poolFromAssetSelector(asset);
 
       if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
 
-      // Reuse the relayer's recipient/feeRecipient, but decompose its quoted fee into
-      // the fixed base rate and the (size-independent) gas cost, then size the gross so
-      // the on-chain deduction leaves exactly `requestedNet`. Because we choose both the
-      // gross and the embedded fee, the recipient's net is fixed here; the relayer can
-      // only accept or reject (it accepts any embedded fee at or above its live rate).
+      // Pay the caller's recipient and reuse the relayer's feeRecipient, but decompose its
+      // quoted fee into the fixed base rate and the (size-independent) gas cost, then size
+      // the gross so the on-chain deduction leaves exactly `requestedNet`. Because we choose
+      // both the gross and the embedded fee, the recipient's net is fixed here; the relayer
+      // can only accept or reject (it accepts any embedded fee at or above its live rate).
       //
       // Only the gas term is volatile between quote and submission, so `gasBumpBPS` adds
       // headroom to it alone — not the relayer's margin. sizeExactRelayerWithdrawal keeps
       // the embedded fee at or below the on-chain maxRelayFeeBPS (the Entrypoint reverts
       // above it).
       const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
-      const quoted = decodeRelayData(quote.feeCommitment.withdrawalData as `0x${string}`);
-      const baseFeeBPS = BigInt(quote.baseFeeBPS);
+      const quotedBaseFeeBPS = BigInt(quote.baseFeeBPS);
+      // The base rate is self-reported; it cannot exceed the fee the relayer embedded.
+      const baseFeeBPS = quotedBaseFeeBPS < quoted.relayFeeBps ? quotedBaseFeeBPS : quoted.relayFeeBps;
       const gasQuoteBPS = quoted.relayFeeBps > baseFeeBPS ? quoted.relayFeeBps - baseFeeBPS : 0n;
       const gasMoney = deductFeeBPS(requestedNet, gasQuoteBPS).fee;
       const { grossAmount, feeBPS: relayFeeBps } = sizeExactRelayerWithdrawal({
@@ -434,7 +440,7 @@ export const storeStateManager = (
       });
 
       const relayData = {
-        recipient: quoted.recipient,
+        recipient: addressToHex(recipient),
         feeRecipient: quoted.feeRecipient,
         relayFeeBps,
       };
