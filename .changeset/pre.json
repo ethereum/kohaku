@@ -9,7 +9,8 @@
     "@kohaku-eth/example-pq-account": "0.0.1-alpha.1",
     "@kohaku-eth/plugins": "0.0.1-alpha.1",
     "@kohaku-eth/tornado-cash": "0.0.2-alpha.8",
-    "@kohaku-eth/mimc-tree": "0.0.1"
+    "@kohaku-eth/mimc-tree": "0.0.1",
+    "@kohaku-eth/poseidon": "0.0.0"
   },
   "changesets": [
     "add-privacy-pools-demo",
@@ -48,6 +49,7 @@
     "pp-paymaster-refund-recipient",
     "pp-signature-secret-manager",
     "pp-withdraw-tree-depth-32",
+    "pretty-signs-speak",
     "privacy-pools-history",
     "provider-log-index",
     "puny-olives-mate",
@@ -62,6 +64,7 @@
     "smart-hands-lay",
     "spotty-deserts-happen",
     "strong-clowns-worry",
+    "swift-buckets-learn",
     "tender-crabs-kiss",
     "tired-candies-cross",
     "tornado-cash-correctness",

@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.29
+
+### Patch Changes
+
+- 1ae32b7: feat: optimized poseidon
+
 ## 0.1.0-alpha.28
 
 ### Patch Changes
