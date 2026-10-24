@@ -93,3 +93,24 @@ export const secretManagerPolicy = (delegationPaths: ReadonlySet<string>): Metho
 // `tailCalls(delegatorAddress)`
 export const tailCallsCheck: ArgsCheck = (args) =>
   check(args.length === 1 && typeof args[0] === 'string' && /^0x[0-9a-fA-F]{40}$/.test(args[0]), 'tailCalls takes one address');
+
+const normalizeUrl = (url: string): string | undefined => {
+  try {
+    return new URL(url).href;
+  } catch {
+    return undefined;
+  }
+};
+
+// `bundlerPost(url, body)`: only to a bundler named in the paymaster config.
+// Compared as parsed URLs: viem's transport adds a trailing slash to a bare origin.
+export const bundlerPostCheck = (bundlerUrls: Iterable<string>): ArgsCheck => {
+  const allowed = new Set([...bundlerUrls].map(normalizeUrl));
+
+  return (args) =>
+    check(
+      args.length === 2 && typeof args[0] === 'string' && typeof args[1] === 'string' &&
+        normalizeUrl(args[0]) !== undefined && allowed.has(normalizeUrl(args[0])),
+      'bundler requests may only go to a configured bundler',
+    );
+};

@@ -5,6 +5,7 @@ import { expose, proxy, releaseProxy, transferHandlers, wrap, type Remote } from
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { anyArgs, exposeCall, exposeOnly, registerHostBridge } from '../../src/plugin/host-bridge';
 import {
+  bundlerPostCheck,
   keystorePolicy,
   providerPolicy,
   secretManagerPolicy,
@@ -251,5 +252,15 @@ describe('worker host policy', () => {
   it('calls tailCalls with an address only', () => {
     expect(() => tailCallsCheck(['0x00000000000000000000000000000000000000aa'])).not.toThrow();
     expect(() => tailCallsCheck([{ to: '0x' }])).toThrow('tailCalls takes one address');
+  });
+
+  it('posts bundler JSON-RPC only to a configured bundler', () => {
+    const allowed = bundlerPostCheck(['http://127.0.0.1:3001', 'https://public.pimlico.io/v2/1/rpc']);
+
+    expect(() => allowed(['http://127.0.0.1:3001/', '{}'])).not.toThrow();
+    expect(() => allowed(['https://public.pimlico.io/v2/1/rpc', '{}'])).not.toThrow();
+    expect(() => allowed(['https://example.test/rpc', '{}'])).toThrow('configured bundler');
+    expect(() => allowed(['not a url', '{}'])).toThrow('configured bundler');
+    expect(() => allowed(['http://127.0.0.1:3001/', { body: '{}' }])).toThrow('configured bundler');
   });
 });
