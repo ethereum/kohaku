@@ -1,3 +1,9 @@
+## 0.1.0-alpha.29
+
+### Patch Changes
+
+- a684e89: chore: add sep 10 eth pools
+
 ## 0.1.0-alpha.28
 
 ### Patch Changes
