@@ -1,0 +1,91 @@
+# Configuration
+
+`createTacitPlugin(host, params)` is the constructor. Every field is optional.
+
+```ts
+import { createTacitPlugin, TacitConfigs } from '@kohaku-eth/tacit'
+
+const tacit = await createTacitPlugin(host, {
+  accountIndex: 0,
+  config: TacitConfigs[1],
+})
+```
+
+## Options
+
+| Field | Role |
+| --- | --- |
+| `accountIndex` | Keystore account. `0` is the first. The identity key is `m/29793'/1'/{accountIndex}'`. |
+| `identityKey` | A 32-byte Tacit identity key to use instead of one derived from the keystore. See [Opening a balance from another app](#opening-a-balance-from-another-app). |
+| `config` | The chain's deployment. Defaults to the entry of `TacitConfigs` for the provider's chain. |
+| `mode` | `'relayer'` (the default when the chain has a relayer) or `'self'`. See [Relayers and fees](/tacit/operations). |
+| `proverFactory` | Returns an object with `prove(input)`. Replaces the snarkjs prover. |
+| `singleThread` | Runs snarkjs without worker threads. Slower, and nothing is left running afterwards. |
+
+## Chains
+
+`TacitConfigs` is keyed by chain id.
+
+| Chain | Id | Pool first block |
+| --- | --- | --- |
+| Ethereum | `1` | 26,069,245 |
+| Base | `8453` | 51,864,014 |
+| Robinhood Chain | `4663` | 73,991,661 |
+| MegaETH | `4326` | 28,397,750 |
+
+The pool is at `0x000000c2A20657CE25f2Ba99737933D031AFBEE9` on all four. Each entry also names the chain's relayer (`relayerUrl`), the address the relayer must quote from (`relayerAddress`), and the most a relayed spend may pay it (`maxRelayFee`). Spread an entry to change a field, or leave out `relayerUrl` and `relayerAddress` to run without one:
+
+```ts
+createTacitPlugin(host, { config: { ...TacitConfigs[1], relayerUrl: undefined, relayerAddress: undefined } })
+```
+
+`confirmations` is how deep a block must be before its events are kept in storage. The few newest blocks are read again on every call. `logChunk` is the block range of one `eth_getLogs`; the plugin narrows it on its own when a node refuses a range.
+
+## Proving artifacts
+
+A proof is Groth16 over one fixed circuit, from a public trusted-setup ceremony. The first proof downloads three files, about 33 MB:
+
+- `transact.wasm`, the witness program,
+- `transact_final.zkey`, the proving key, and
+- `transact_vk.json`, the verification key.
+
+Each file is checked against a pin before it is used: SHA-256 for the first two, and a hash of the key's content for the third. The default sources are `tacit.finance/evm-pool/` and an IPFS gateway, and any mirror works because nothing is used until its hash matches. `TacitArtifacts` holds the pins and the URLs.
+
+A wallet caches the files and supplies them:
+
+```ts
+import { createSnarkjsProver, loadArtifacts } from '@kohaku-eth/tacit'
+
+createTacitPlugin(host, {
+  proverFactory: () =>
+    createSnarkjsProver({
+      artifacts: async () => ({ wasm, zkey, vk }), // already checked, or run through `loadArtifacts`
+    }),
+})
+```
+
+Every fresh proof is verified against the verification key before it is returned. A native prover can replace snarkjs through `proverFactory`; it receives the circuit input and returns `{ proof, publicSignals }` in snarkjs's format.
+
+## State and sync
+
+The plugin writes its synced state under one key in `host.storage`: the tree's right edge, the paths of this wallet's unspent notes, and each note's position, value, and shared secret. Spend keys are derived when needed and never stored. The state is not sensitive in the way a seed is, but it shows which notes are yours, so keep it in encrypted storage.
+
+Every batch of history is checked against the pool (`rootSize`) before it is kept, whether it came from a node's logs or from the relayer's history feed, so neither can add a leaf the pool never held. Each read also ends by comparing the wallet's tree with the pool's `head()`. A history that falls short of it, because a node or the feed left events out, is read again, then rebuilt from the chain's logs alone, and otherwise reported as an error that says to call `rescan()`. A node or feed can leave events out, but it cannot make the wallet see a note that is not there.
+
+`rescan()` rebuilds the state from the chain's logs alone, without the feed:
+
+```ts
+await tacit.rescan()
+```
+
+The check covers leaves, not spends: a spend that a node or the feed left out of the history is not looked for again, so the note stays in the balance until `rescan()`. A spend refused because its funds are already spent is the sign. Call `rescan()` and prepare it again.
+
+Losing the store loses nothing. The next call reads the history again from the key and the chain.
+
+## Opening a balance from another app
+
+Tacit's apps ([anon.wei.limo](https://anon.wei.limo/) and [tacit.finance](https://tacit.finance/pay/eth/)) derive one identity key from a signature, and every address and balance follows from it. Pass that key as `identityKey` to open the same balance here. It is not derived from the host's seed, so the host has to back it up.
+
+The plugin finds notes by their memos. Payments made to a deposit address (the pool's receive boxes, which the apps also offer) arrive without one and are not read, so a balance opened this way can show less here than in the apps. The funds are still there, and the apps show them.
+
+The pool's contracts, proof format, and the memo encoding are described in the [pool guide](https://github.com/src-company/tacit/blob/main/docs/EVM-POOL.md).
