@@ -59,13 +59,13 @@ import {
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
 import { getNoteSelector } from "./selectors/notes.selector";
-import { myHistoryEventsWithoutMetadataSelector, myHistorySelector } from "./selectors/history.selector";
+import { myHistorySelector } from "./selectors/history.selector";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
-import { syncHistoryMetadataThunk } from "./thunks/syncHistoryMetadataThunk";
+import { syncHistoryTimestampsThunk } from "./thunks/syncHistoryTimestampsThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 
@@ -98,7 +98,6 @@ const initializeSelectors = <const T extends Store>({
       getNextNote,
       getAllNotes: () => allNotesSelector(store.getState()),
       getHistory: () => myHistorySelector(store.getState()),
-      getHistoryEventsWithoutMetadata: () => myHistoryEventsWithoutMetadataSelector(store.getState()),
       myPoolsSelector: () => myPoolsSelector(store.getState()),
       poolFromAssetSelector: (assetAddress: Address) => poolFromAssetSelector(store.getState(), assetAddress),
       getUnapprovedNotes: () => unapprovedNotesSelector(store.getState()),
@@ -599,15 +598,15 @@ export const storeStateManager = (
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
 
-      if (store.selectors.getHistoryEventsWithoutMetadata().length > 0) {
-        unwrapResult(
-          await store.dispatch(syncHistoryMetadataThunk({ dataService: params.dataService })),
-        );
-        await storageToSyncTo?.set(
-          getHistoryStorageKey(chainInfo),
-          JSON.stringify(store.getState().historyMetadata),
-        );
-      }
+      // Always refreshed, whether or not the account has events: the RPC must not
+      // be able to tell from history() calls who has activity, or where.
+      unwrapResult(
+        await store.dispatch(syncHistoryTimestampsThunk({ dataService: params.dataService })),
+      );
+      await storageToSyncTo?.set(
+        getHistoryStorageKey(chainInfo),
+        JSON.stringify(store.getState().historyMetadata),
+      );
 
       const history = store.selectors.getHistory();
 
