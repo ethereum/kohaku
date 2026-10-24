@@ -70,7 +70,7 @@ export interface TCProtocolParams {
    */
   minExternalSyncBlocksAmount?: number;
   /**
-   * Opt in to the extended ETH denominations (0.01, 0.03, 0.3, 3, 30).
+   * Opt in to extended ETH pools (0.01, 0.03, 0.3, 3, 30, plus Sepolia 10 ETH).
    * Omitted or false keeps deposits, withdrawals, balances, and notes on the
    * classic pools. Pools already saved keep their per-pool sync cursor, so
    * turning this on later resumes there instead of the global cursor.
