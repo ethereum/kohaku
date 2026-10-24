@@ -24,6 +24,10 @@ export interface IGenericPaymasterWithdrawalPayload {
   paymasterAddress: `0x${string}`;
   entryPointAddress: `0x${string}`;
   bundlerUrl: string;
+  /** Total value of the deposits spent, before the sponsored gas fee. */
+  withdrawnValue: bigint;
+  /** Sponsored gas fee bound in the sponsoring proof, in the pool asset's base units. */
+  fee: bigint;
   // The fully built and signed userOp, produced in the prepare phase. The
   // broadcaster only relays it to the bundler.
   userOperation: SerializedUserOperation;

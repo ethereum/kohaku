@@ -78,7 +78,7 @@ const receipts = await createTCBroadcaster(host).broadcast(operation)
 
 The default mode is `'relayer'`. One logical unshield can be several withdrawals when the amount spans more than one note. `receipts` is one entry per withdrawal that the relayer accepted. `id` is the relayer job id.
 
-`createTCBroadcaster` reads relayer URLs from the operation, so the host's `network.fetch` has to reach those hosts. Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig`.
+`createTCBroadcaster` reads relayer URLs from the operation, so the host's `network.fetch` has to reach those hosts. Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig`, and reach the bundler through the same `network.fetch`.
 
 The amount follows the same denomination rule as a shield. `prepareUnshield` throws `InsufficientBalanceError` when the unspent notes cannot cover it.
 

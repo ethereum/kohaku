@@ -102,9 +102,13 @@ export const workerApi = {
     return getStateManager().importNotes(params);
   },
 
-  getWithdrawalPayloads(params: IWithdrawapOperationParams, tailCalls?: IPaymasterWithdrawParams['tailCalls']): Promise<IWithdrawalPayload[]> {
-    const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster' && tailCalls
-      ? { ...params, tailCalls }
+  getWithdrawalPayloads(
+    params: IWithdrawapOperationParams,
+    tailCalls?: IPaymasterWithdrawParams['tailCalls'],
+    bundlerPost?: IPaymasterWithdrawParams['bundlerPost'],
+  ): Promise<IWithdrawalPayload[]> {
+    const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster'
+      ? { ...params, tailCalls, bundlerPost }
       : params;
 
     return getStateManager().getWithdrawalPayloads(fullParams);

@@ -46,6 +46,13 @@ export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
      * bundler estimate still wins. Defaults to the SDK's static callGasLimit.
      */
     tailCallsGasEstimate?: bigint;
+    /**
+     * Cap on the sponsored gas fee as a share of the withdrawn amount, in basis
+     * points (`10000` = 100%). The withdrawal is rejected before anything is
+     * proved or sent to the bundler if the fee is higher. Defaults to
+     * `DEFAULT_PAYMASTER_MAX_FEE_BPS` (10%).
+     */
+    maxFeeBPS?: bigint;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;

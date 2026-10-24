@@ -11,7 +11,15 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
-import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
+import { assertFeeWithinCap, assertGasLimitsWithinCaps, assertGasPriceWithinCaps } from "../../paymaster/fee-caps";
+import {
+  BundlerPost,
+  buildSignedTornadoUserOp,
+  createPaymasterBundlerClient,
+  estimateUserOperationGas,
+  getUserOperationGasPrice,
+  networkFromBundlerPost,
+} from "../../paymaster/utils";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
 import { UserOpGasLimits } from "../../interfaces/user-ops.interface";
@@ -45,6 +53,10 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   secretManager: ISecretManager;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
+  /** Cap on the sponsored fee as a share of the withdrawn amount (bps). Defaults to `DEFAULT_PAYMASTER_MAX_FEE_BPS`. */
+  maxFeeBPS?: bigint;
+  /** Carries the bundler JSON-RPC over the host's `network.fetch` (the worker has no host). */
+  bundlerPost?: BundlerPost;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -62,6 +74,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   secretManager,
   tailCalls,
   tailCallsGasEstimate,
+  maxFeeBPS,
+  bundlerPost,
   ...rest
 }, { getState, dispatch }) => {
   const state = getState();
@@ -97,9 +111,19 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     }))
   );
 
-  const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
+  const bundlerClient = createPaymasterBundlerClient(bundlerUrl, bundlerPost && networkFromBundlerPost(bundlerPost));
 
-  const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
+  // The bundler's gas price is only accepted within caps derived from the chain's own
+  // fee market: the baseline userOp below is signed, proved, and sent to the bundler
+  // for estimation before the user confirms, so the bundler could land it as-is.
+  const [{ standard: gasPrice }, feeReference] = await Promise.all([
+    getUserOperationGasPrice(bundlerClient),
+    dataService.getGasFeeReference(),
+  ]);
+
+  assertGasPriceWithinCaps(gasPrice, feeReference);
+
+  const { maxFeePerGas, maxPriorityFeePerGas } = gasPrice;
 
   // The static baselines in `reasonableGasUnits`/`reasonableGasUnitsForBatch` are
   // ceilings for a "typical" case, not a guarantee — a real groth16 verify +
@@ -108,29 +132,40 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // forwarding rule on the try/catch external call can then push the actual need
   // just over it, causing a silent (empty-reason) out-of-gas revert. The bundler's
   // own simulation knows the real cost, so refine against it whenever possible —
-  // callers still get the baseline if the bundler can't be reached.
+  // callers still get the baseline if the bundler can't be reached. An estimate
+  // above the caps throws instead.
   const refineGasWithBundler = async (
     baselineGas: UserOpGasLimits,
     provisionalUserOperation: Awaited<ReturnType<typeof buildSignedTornadoUserOp>>,
   ): Promise<UserOpGasLimits> => {
-    try {
-      const estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOperation, entryPointAddress);
-      // The bundler's estimate is authoritative; apply a 20% buffer and fall back
-      // to the baseline only for any field it leaves at 0.
-      const buffer = (x: bigint) => (x * 12n) / 10n;
-      const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+    let estimated: UserOpGasLimits;
 
-      return {
-        callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
-        verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
-        preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
-        paymasterVerificationGasLimit: orBaseline(estimated.paymasterVerificationGasLimit, baselineGas.paymasterVerificationGasLimit),
-        paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
-      };
+    try {
+      estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOperation, entryPointAddress);
     } catch {
       // Bundler estimation unavailable/failed — keep the safe baseline.
       return baselineGas;
     }
+
+    // Apply a 20% buffer and fall back to the baseline only for any field the
+    // bundler leaves at 0.
+    const buffer = (x: bigint) => (x * 12n) / 10n;
+    const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+    const refined: UserOpGasLimits = {
+      // No execution phase keeps callGasLimit at 0 regardless of the estimate (a
+      // nonzero value would trip TornadoFeeAdapter's `recipient != sender` check).
+      callGasLimit: baselineGas.callGasLimit === 0n ? 0n : orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
+      verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
+      preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
+      paymasterVerificationGasLimit: orBaseline(estimated.paymasterVerificationGasLimit, baselineGas.paymasterVerificationGasLimit),
+      paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
+    };
+
+    // preVerificationGas is charged in full and every limit raises the fee, so the
+    // bundler's numbers are only accepted within a bounded margin over our baseline.
+    assertGasLimitsWithinCaps(refined, baselineGas);
+
+    return refined;
   };
 
   // The relayer address in the sponsoring proof is the paymaster — it receives
@@ -139,13 +174,29 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const bigintChainId = await dataService.getChainId();
   const { recipient: originalRecipient, ...restWithoutRecipient } = rest;
 
+  // Total asset released across the withdrawal; deposits[0] pays the fee.
+  const totalWithdrawn = deposits.reduce(
+    (sum, d) => sum + pools.get(d.pool)!.denomination, 0n,
+  );
+
   // Price an ETH-denominated fee in the pool asset via the paymaster's own
   // oracle (same pool/TWAP it enforces in validation), so feePaid >= required
   // holds by construction. Native pools pay the fee directly in ETH.
-  const quoteFee = async (ethFee: bigint): Promise<bigint> =>
-    poolInfo.isERC20
-      ? dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee)
+  const quoteFee = async (ethFee: bigint): Promise<bigint> => {
+    const fee = poolInfo.isERC20
+      ? await dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee)
       : ethFee;
+
+    // The pool reverts on fee > denomination; fail before proving instead.
+    if (fee > poolInfo.denomination) {
+      throw new Error('Withdrawal amount too small to cover the sponsored gas fee');
+    }
+
+    // The fee committed in the proof bounds what a bundler can take from it.
+    assertFeeWithinCap(fee, totalWithdrawn, maxFeeBPS);
+
+    return fee;
+  };
 
   const prove = async (
     deposit: (typeof deposits)[number],
@@ -255,8 +306,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const estimatedGas = await refineGasWithBundler(baselineGas, userOperation);
 
     if (estimatedGas !== baselineGas) {
-      // callGasLimit stays forced to 0 even after refinement — see note above.
-      gas = { ...estimatedGas, callGasLimit: 0n };
+      // callGasLimit stays 0 after refinement — see note above.
+      gas = estimatedGas;
       fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
       proof = await prove(deposit, originalRecipient, relayerAddress, fee);
       userOperation = await buildSignedTornadoUserOp({
@@ -279,6 +330,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       paymasterAddress,
       entryPointAddress,
       bundlerUrl,
+      withdrawnValue: totalWithdrawn,
+      fee,
       userOperation,
     }] satisfies IGenericPaymasterWithdrawalPayload[];
   }
@@ -294,6 +347,21 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   const sponsoringDeposit = deposits[0]!;
   const directDeposits = deposits.slice(1);
+
+  // Baseline (generous) gas + fee, sized by deposit count, checked against the caps
+  // before anything is proved or signed. Deposit[0] is proved at this fee and a
+  // provisional op assembled; the bundler then refines the limits. We re-prove
+  // deposit[0] once at the estimate-derived fee so the sponsoring proof matches the
+  // tight limits (the baseline fee is a generous ceiling, so it always clears the
+  // paymaster's fee check during estimation). Estimation is best-effort — on any
+  // failure we keep the safe baseline.
+  const baselineGas = reasonableGasUnitsForBatch(
+    poolInfo.isERC20,
+    directDeposits.length,
+    tailCalls != null,
+    tailCallsGasEstimate,
+  );
+  let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
 
   // deposits[1..]: proved with recipient = shared sender, relayer = 0, fee = 0
   // (gas is already sponsored via deposit[0]'s fee). Encode each as a direct
@@ -314,14 +382,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     directWithdrawCalls.push(createTx(addressToHex(deposit.pool), data, 0n));
   }
 
-  // Total asset released across the batch, used to forward the accumulated
-  // balance (minus deposit[0]'s fee) when the caller supplied no tailCalls.
-  const totalDenomination = deposits.reduce(
-    (sum, d) => sum + pools.get(d.pool)!.denomination, 0n,
-  );
-
+  // Forward the accumulated balance (minus deposit[0]'s fee) when the caller
+  // supplied no tailCalls.
   const forwardCalls = (fee: bigint): TxData[] => {
-    const amount = totalDenomination - fee;
+    const amount = totalWithdrawn - fee;
   
     if (poolInfo.isERC20) {
       const data = encodeFunctionData({
@@ -356,19 +420,6 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       nonce: 0n,
     });
 
-  // Baseline (generous) gas + fee, sized by deposit count. Deposit[0] is proved
-  // at this fee and a provisional op assembled; the bundler then refines the
-  // limits. We re-prove deposit[0] once at the estimate-derived fee so the
-  // sponsoring proof matches the tight limits (the baseline fee is a generous
-  // ceiling, so it always clears the paymaster's fee check during estimation).
-  // Estimation is best-effort — on any failure we keep the safe baseline.
-  const baselineGas = reasonableGasUnitsForBatch(
-    poolInfo.isERC20,
-    directDeposits.length,
-    tailCalls != null,
-    tailCallsGasEstimate,
-  );
-  let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
   let gas: UserOpGasLimits = baselineGas;
   let sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
   let userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
@@ -390,6 +441,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     paymasterAddress,
     entryPointAddress,
     bundlerUrl,
+    withdrawnValue: totalWithdrawn,
+    fee,
     userOperation,
   }] satisfies IGenericPaymasterWithdrawalPayload[];
 });

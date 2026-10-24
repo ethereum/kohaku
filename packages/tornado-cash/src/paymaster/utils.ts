@@ -1,3 +1,4 @@
+import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   encodeFunctionData,
@@ -38,11 +39,42 @@ export type UserOperationGasPrice = {
 /**
  * viem bundler client for the paymaster flow. We rely on viem's native
  * `waitForUserOperationReceipt` action directly; the two helpers below cover
- * the only methods viem doesn't expose natively.
+ * the only methods viem doesn't expose natively. Pass the host's `network` so
+ * the bundler JSON-RPC goes through `network.fetch` (e.g. Tor) instead of
+ * global fetch.
  */
-export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
-  return createBundlerClient({ transport: http(bundlerUrl) });
+export function createPaymasterBundlerClient(bundlerUrl: string, network?: Network): BundlerClient {
+  const fetchFn = network ? (input: RequestInfo | URL, init?: RequestInit) => network.fetch(input, init) : undefined;
+
+  return createBundlerClient({ transport: http(bundlerUrl, { fetchFn }) });
 }
+
+/**
+ * A bundler JSON-RPC POST with a structured-cloneable result. The prepare phase
+ * runs in the state-manager worker, which has no `host.network`; a `Response`
+ * cannot cross the worker boundary, so the main thread passes this instead.
+ */
+export type BundlerPost = (url: string, body: string) => Promise<{ status: number; body: string }>;
+
+/** Main thread: a {@link BundlerPost} over the host's `network.fetch`. */
+export const bundlerPostVia = (network: Network): BundlerPost => async (url, body) => {
+  const response = await network.fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+
+  return { status: response.status, body: await response.text() };
+};
+
+/** Worker side: a `Network` that sends bundler requests through a {@link BundlerPost}. */
+export const networkFromBundlerPost = (post: BundlerPost): Network => ({
+  fetch: async (input, init) => {
+    const { status, body } = await post(String(input), String(init?.body ?? ''));
+
+    return new Response(body, { status, headers: { 'Content-Type': 'application/json' } });
+  },
+});
 
 /**
  * Pimlico gas-price oracle (`pimlico_getUserOperationGasPrice`). Not a standard

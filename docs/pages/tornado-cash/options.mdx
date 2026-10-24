@@ -66,6 +66,27 @@ const receipts = await createTCBroadcaster(host, {
 
 The paymaster sponsors gas. The user's public account does not pay the withdrawal. `receipts[n].id` is the user operation hash.
 
+Each paymaster withdrawal carries `fee`, the sponsored gas fee bound in the proof (in the pool asset), and `withdrawnValue`, the notes it spends. Show `fee` before you broadcast.
+
+### Fee caps
+
+The bundler quotes the gas price and refines the gas limits. The fee committed in the proof covers the worst case, and the paymaster refunds the fee minus the gas it was charged. The bundler sets the gas price and `preVerificationGas`, and both are charged in full. So the plugin bounds what the bundler can set:
+
+- `maxPriorityFeePerGas` is at most the larger of 2 gwei and 3x the node's `eth_maxPriorityFeePerGas`. `maxFeePerGas` is at most 3x the latest base fee plus that tip cap. Both references come from the host provider, not the bundler.
+- Each gas limit from the bundler's estimate, after the plugin's 20% buffer, is at most 2x the plugin's baseline.
+- The fee is at most `maxFeeBPS` of the withdrawn amount. `10000` is 100%. The default is `DEFAULT_PAYMASTER_MAX_FEE_BPS`, `1000` (10%), the same default as Privacy Pools.
+
+A withdrawal over a cap throws. `prepareUnshield` sends a signed user operation with a valid proof to the bundler to estimate gas, before the user confirms, and a bundler could submit it. The checks therefore run before anything is proved or signed.
+
+```ts
+await tornado.prepareUnshield(asset, recipient, {
+  mode: 'paymaster',
+  maxFeeBPS: 2_000n, // accept up to 20% on a 0.1 ETH note
+})
+```
+
+Raise `maxFeeBPS` only when the user accepts that share of the withdrawal. Bundler requests go through `host.network.fetch`. The state worker sends them through the main thread for that.
+
 `tailCalls` runs in the same user operation, after the notes are spent. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
 
 ### Delegation

@@ -32,6 +32,7 @@ import {
   ImportNoteResult,
 } from "./interfaces/protocol-params.interface";
 import { E_ADDRESS_BIGINT, TornadoPaymasterConfigs } from "../config";
+import { bundlerPostVia } from "../paymaster/utils";
 import { defaultArtifactsLoader } from "../utils/default-artifacts-loader";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
@@ -108,11 +109,13 @@ export class TornadoCashProtocol implements TCInstance {
             const { tailCalls, ...rest } = params as IPaymasterWithdrawParams;
             // tailCalls must be a top-level comlink arg (not nested in an object) so
             // comlink's proxy transfer handler can wrap it in a MessagePort instead of
-            // trying to structuredClone the function.
+            // trying to structuredClone the function. Same for the bundler transport,
+            // which sends the worker's bundler JSON-RPC through host.network.
           
             return (remote.getWithdrawalPayloads)(
               rest as IWithdrawapOperationParams,
               tailCalls ? proxy(tailCalls) : undefined,
+              proxy(bundlerPostVia(host.network)),
             );
           }
 
@@ -264,6 +267,7 @@ export class TornadoCashProtocol implements TCInstance {
         delegation: options.delegation,
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
+        maxFeeBPS: options.maxFeeBPS,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

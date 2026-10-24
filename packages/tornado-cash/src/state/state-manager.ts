@@ -277,6 +277,8 @@ export const storeStateManager = async ({
               secretManager,
               tailCalls: params.tailCalls,
               tailCallsGasEstimate: params.tailCallsGasEstimate,
+              maxFeeBPS: params.maxFeeBPS,
+              bundlerPost: params.bundlerPost,
             }),
           ),
         );

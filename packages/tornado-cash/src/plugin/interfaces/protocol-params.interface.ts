@@ -15,6 +15,7 @@ import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import type { DelegationConfig } from '../../account/delegation.interface';
+import type { BundlerPost } from '../../paymaster/utils';
 
 export type { DelegationConfig, ImportNoteResult };
 
@@ -106,6 +107,10 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
    * when estimation succeeds the bundler estimate still wins.
    */
   tailCallsGasEstimate?: bigint;
+  /** Fee cap in bps of the withdrawn amount. See {@link TCPaymasterUnshieldOptions.maxFeeBPS}. */
+  maxFeeBPS?: bigint;
+  /** Carries the bundler JSON-RPC over the host's `network.fetch` from the main thread. */
+  bundlerPost?: BundlerPost;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;

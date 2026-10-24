@@ -4,6 +4,7 @@ import { ExternalRawEvent } from "@kohaku-eth/plugins";
 import {
   GetEventsFn,
   IDataService,
+  IGasFeeReference,
   IRelayerAggregatorData,
   IRelayerRegistryEvents,
   IPoolConfig,
@@ -348,6 +349,25 @@ export class DataService implements IDataService {
       toHex(feeToken, { size: 20 }),
       weiAmount,
     );
+  }
+
+  async getGasFeeReference(): Promise<IGasFeeReference> {
+    const block = await this.ethClient.request({
+      method: "eth_getBlockByNumber",
+      params: ["latest", false],
+    }) as { baseFeePerGas?: string } | null;
+
+    if (!block?.baseFeePerGas) {
+      throw new Error("Failed to fetch the latest block's base fee");
+    }
+
+    // Not every provider serves a tip suggestion; the caps then use their floor.
+    const maxPriorityFeePerGas = await this.ethClient
+      .request({ method: "eth_maxPriorityFeePerGas", params: [] })
+      .then((tip) => BigInt(tip as string))
+      .catch(() => 0n);
+
+    return { baseFeePerGas: BigInt(block.baseFeePerGas), maxPriorityFeePerGas };
   }
 
 }

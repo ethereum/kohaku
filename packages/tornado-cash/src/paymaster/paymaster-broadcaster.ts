@@ -1,5 +1,6 @@
 import { type Hash } from 'viem';
 
+import type { Network } from '@kohaku-eth/plugins';
 import { EthereumProvider } from '@kohaku-eth/provider';
 import { createPaymasterBundlerClient, sendSerializedUserOperation } from './utils';
 import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient } from '../relayer/interfaces/paymaster-client.interface';
@@ -15,6 +16,8 @@ export interface PaymasterBroadcastResult {
  * this client only forwards them and awaits their receipts.
  */
 export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
+  /** `network` carries the bundler JSON-RPC (defaults to global fetch). */
+  constructor(private readonly params: { network?: Network } = {}) {}
 
   async broadcast(
     withdrawals: IGenericPaymasterWithdrawalPayload[],
@@ -37,7 +40,7 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
         const out: PaymasterBroadcastResult[] = [];
 
         for (const w of group) {
-          out.push(await PaymasterBroadcaster.broadcastOne(w));
+          out.push(await PaymasterBroadcaster.broadcastOne(w, this.params.network));
         }
 
         return out;
@@ -60,10 +63,11 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
 
   static async broadcastOne(
     withdrawal: IGenericPaymasterWithdrawalPayload,
+    network?: Network,
   ): Promise<PaymasterBroadcastResult> {
     const { bundlerUrl, entryPointAddress, userOperation } = withdrawal;
 
-    const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
+    const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
     const userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress);
 
     await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
