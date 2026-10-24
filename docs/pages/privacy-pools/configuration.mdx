@@ -74,6 +74,8 @@ new PrivacyPoolsV1Protocol(host, {
 
 `myEnvelopeSigner` implements `signEnvelope(envelope) => hex signature`. The domain and types are built by the SDK, so the device only signs that payload.
 
+Note secrets are never stored. After a restart they are signed again, so the signer must return the same signature for the same envelope (RFC 6979). The first time a session needs a secret, the manager signs one envelope twice and throws `Note signer is not deterministic` if the two differ, before any deposit or change note uses it. That costs one extra signature per session, which is one extra prompt on a hardware wallet. Pass `verifyDeterminism: false` to `SignatureSecretManager` only for a signer you know is deterministic. With viem, leave `setSignEntropy` off.
+
 `SecretManager` is the older BIP-32 scheme: child keys under `m/28784'/1'/{account}'/{secretType}'/{deposit}'/{secret}'`. It is a different note set. Passing it replaces the signature manager. Do that only for a wallet whose deposits were created with it.
 
 [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts) passes `secretManager: SecretManager` inside `createProtocolPlugin` because that wallet's existing deposits use the BIP-32 scheme. A new wallet can keep the default.

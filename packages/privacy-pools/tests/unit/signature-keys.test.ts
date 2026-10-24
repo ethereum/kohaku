@@ -104,15 +104,15 @@ describe('SignatureSecretManager', () => {
     const m = SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: counting });
     const params = { entrypointAddress: ENTRYPOINT, chainId: CHAIN_ID, depositIndex: 7 };
 
-    await m.getDepositSecrets(params);
+    await m.getDepositSecrets(params); // signed twice: the session's determinism check
     await m.getSecrets({ ...params, withdrawIndex: 0 }); // same message as deposit (secretIndex 0)
     await m.deriveEphemeralSigner({ ...params, withdrawIndex: 0 }); // same message again
 
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
 
     await m.getSecrets({ ...params, withdrawIndex: 1 }); // distinct message -> one more sign
 
-    expect(calls).toBe(2);
+    expect(calls).toBe(3);
   });
 
   it('does not cache a failed signature (stays retryable)', async () => {
@@ -132,7 +132,48 @@ describe('SignatureSecretManager', () => {
 
     await expect(m.getDepositSecrets(params)).rejects.toThrow('signer rejected');
     await expect(m.getDepositSecrets(params)).resolves.toBeDefined();
-    expect(attempt).toBe(2);
+    expect(attempt).toBe(3); // the retry is signed twice by the determinism check
+  });
+
+  describe('determinism check', () => {
+    const params = { entrypointAddress: ENTRYPOINT, chainId: CHAIN_ID, depositIndex: 0 };
+    const randomSigner: EnvelopeSigner = {
+      signEnvelope: async () => privateKeyToAccount(`0x${'42'.repeat(32)}`).sign({ hash: keccak256(stringToHex(`${Math.random()}`)) }),
+    };
+
+    it('refuses every derivation of the session, not just the first', async () => {
+      const m = SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: randomSigner });
+
+      await expect(m.getDepositSecrets(params)).rejects.toThrow('Note signer is not deterministic');
+      await expect(m.getSecrets({ ...params, withdrawIndex: 1 })).rejects.toThrow('Note signer is not deterministic');
+      await expect(m.deriveEphemeralSigner({ ...params, withdrawIndex: 2 })).rejects.toThrow('Note signer is not deterministic');
+    });
+
+    it('checks once per session, also under concurrent derivations', async () => {
+      const inner = new KeystoreEnvelopeSigner(createMockHost().keystore, 0);
+      const signed: bigint[] = [];
+      const counting: EnvelopeSigner = {
+        signEnvelope: (envelope) => {
+          signed.push(envelope.message.depositIndex);
+
+          return inner.signEnvelope(envelope);
+        },
+      };
+      const m = SignatureSecretManager({ host: createMockHost(), accountIndex: 0, signer: counting });
+
+      await Promise.all([0, 1, 2].map((depositIndex) => m.getDepositSecrets({ ...params, depositIndex })));
+      await m.getDepositSecrets({ ...params, depositIndex: 3 });
+
+      expect(signed).toHaveLength(5); // four notes plus one repeat
+    });
+
+    it('can be turned off', async () => {
+      const m = SignatureSecretManager({
+        host: createMockHost(), accountIndex: 0, signer: randomSigner, verifyDeterminism: false,
+      });
+
+      await expect(m.getDepositSecrets(params)).resolves.toBeDefined();
+    });
   });
 
   describe('deriveEphemeralSigner', () => {

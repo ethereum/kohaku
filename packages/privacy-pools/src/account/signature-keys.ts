@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { Keystore } from '@kohaku-eth/plugins';
 import { poseidon } from 'maci-crypto/build/ts/hashing.js';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -40,7 +41,8 @@ import {
  *
  * The truncated 31-byte values (< BN254 field) become the field elements
  * directly, then feed the usual poseidon commitment pipeline. Determinism needs
- * an RFC-6979 signer (ECDSA); `KeystoreEnvelopeSigner` satisfies this via viem/@noble.
+ * an RFC-6979 signer (ECDSA); `KeystoreEnvelopeSigner` satisfies this via viem/@noble
+ * unless viem's `setSignEntropy` is on. The manager checks it once per session.
  * Selected by injecting `SignatureSecretManager` at the `secretManager` slot. The
  * signing key is the shared account identity (`m/28784'/1'/account'`), but note
  * secrets come from the signature rather than HD children, so they never collide
@@ -162,14 +164,50 @@ export class KeystoreEnvelopeSigner implements EnvelopeSigner {
 
 export interface SignatureSecretManagerParams extends SecretManagerParams {
   signer?: EnvelopeSigner;
+  /**
+   * Sign the session's first note envelope twice and refuse to derive secrets
+   * unless both signatures match (default `true`). Costs one extra signature,
+   * one extra prompt on a hardware signer, per session. Turn it off only for a
+   * signer known to be RFC 6979-deterministic.
+   */
+  verifyDeterminism?: boolean;
 }
 
 export function SignatureSecretManager({
   host,
   accountIndex = 0,
   signer,
+  verifyDeterminism = true,
 }: SignatureSecretManagerParams): ISecretManager {
   const envelopeSigner = signer ?? new KeystoreEnvelopeSigner(host.keystore, accountIndex);
+  const sign = (msg: NoteMessage) => envelopeSigner.signEnvelope(buildNoteEnvelope(msg));
+
+  // Note secrets are never stored: every restart re-derives them from these
+  // signatures. A signer that mixes in entropy (viem's setSignEntropy(true), some
+  // custom signers) would hand out deposit and change notes it can never sign
+  // again, so nothing is derived until one envelope has signed the same twice.
+  // A failed check is forgotten so it runs again next time.
+  let determinismCheck: Promise<void> | undefined;
+
+  const checkDeterminism = (msg: NoteMessage, sig: Hex): Promise<void> => {
+    determinismCheck ??= sign(msg)
+      .then((again) => {
+        if (toHex(canonicalRS(again)) !== toHex(canonicalRS(sig))) {
+          throw new Error(
+            'Note signer is not deterministic: the same note envelope signed twice gave different ' +
+            'signatures. Note secrets are re-derived from these signatures, so a deposit made now ' +
+            'could not be withdrawn or ragequit after a restart. Use an RFC 6979 signer (with viem, ' +
+            'leave setSignEntropy off).',
+          );
+        }
+      })
+      .catch((err) => {
+        determinismCheck = undefined;
+        throw err;
+      });
+
+    return determinismCheck;
+  };
 
   // Memoize the signature per message — signing re-derives the HD key + runs
   // ECDSA, and discovery probes the same keys repeatedly (the keccak/poseidon
@@ -183,10 +221,16 @@ export function SignatureSecretManager({
 
     if (hit) return hit;
 
-    const pending = envelopeSigner.signEnvelope(buildNoteEnvelope(msg)).catch((err) => {
-      sigCache.delete(key);
-      throw err;
-    });
+    const pending = sign(msg)
+      .then(async (sig) => {
+        if (verifyDeterminism) await checkDeterminism(msg, sig);
+
+        return sig;
+      })
+      .catch((err) => {
+        sigCache.delete(key);
+        throw err;
+      });
 
     sigCache.set(key, pending);
 
