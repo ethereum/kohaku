@@ -1,6 +1,6 @@
 # The host
 
-A plugin never opens a socket, reads a file, or holds a seed. It asks the host. You implement `Host` from `@kohaku-eth/plugins` once, and both Privacy Pools and Tornado Cash use it.
+A plugin never opens a socket, reads a file, or holds a seed. It asks the host. You implement `Host` from `@kohaku-eth/plugins` once, and Privacy Pools, Tornado Cash and Tacit all use it.
 
 ```ts
 import type { Host } from '@kohaku-eth/plugins'
@@ -71,12 +71,13 @@ const key = await keystore.deriveAt("m/28784'/1'/0'")
 
 `deriveAt` takes a BIP-32 path and returns a 32-byte hex private key. The same path must return the same key for the life of the wallet. An unstable keystore spends notes into a set the wallet can no longer find.
 
-You may reject paths. Once you have accepted a path, keep accepting it. These plugins derive under two purpose values:
+You may reject paths. Once you have accepted a path, keep accepting it. These plugins derive under these purpose values:
 
 | Plugin | Purpose | What lives there |
 | --- | --- | --- |
 | Privacy Pools | `m/28784'/1'/…` | Signature identity at `m/28784'/1'/{account}'`. Legacy note secrets add `/{secretType}'/{deposit}'/{secret}'`. |
 | Tornado Cash | `m/29795'/1'/…` | Signature identity at `m/29795'/1'/{account}'`. Legacy note secrets add `/{secretType}'/{deposit}'`. |
+| Tacit | `m/29793'/1'/…` | Identity key at `m/29793'/1'/{account}'`. Every other key derives from it. |
 
 `account` is the `accountIndex` you pass when creating the plugin. `secretType` is `0` (nullifier), `1` (salt), or `2` (paymaster signer).
 
