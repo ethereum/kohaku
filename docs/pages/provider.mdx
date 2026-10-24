@@ -22,7 +22,7 @@ The adapters live on subpath exports, so a browser build can omit the ones it do
 | `getTransactionReceipt(hash)` / `waitForTransaction(hash)` | Confirming a transaction the plugin already knows about. |
 | `request({ method, params })` | Anything the typed methods do not cover. |
 
-`getLogs` receives an `ox` `Filter`: `address`, `fromBlock`, `toBlock`, and optional `topics`. Block numbers are bigints. A provider that rejects wide ranges will fail the first sync. Split the range and concatenate the logs. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/chunked-get-logs.ts) does that around the viem adapter, and also fills in `getTransactionCount` for clients that omit it.
+`getLogs` receives an `ox` `Filter`: `address`, `fromBlock`, `toBlock`, and optional `topics`. Block numbers are bigints. Return each log's `logIndex` and `transactionHash` when you have them; Privacy Pools history reads them from the sync instead of asking the RPC about the user's blocks. A provider that rejects wide ranges will fail the first sync. Split the range and concatenate the logs. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/chunked-get-logs.ts) does that around the viem adapter, and also fills in `getTransactionCount` for clients that omit it.
 
 ## Shield transactions
 
