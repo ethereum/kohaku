@@ -4,10 +4,21 @@ import {
   AssetAmount,
   ERC20AssetId,
   Host,
+  scopeKeystore,
   toExternalSyncClient,
 } from "@kohaku-eth/plugins";
-import { proxy } from 'comlink';
 import { loadStateManagerWorker } from '#worker-loader';
+import { exposeCall, exposeOnly } from './host-bridge';
+import {
+  externalSyncPolicy,
+  keystorePolicy,
+  providerPolicy,
+  relayerClientPolicy,
+  secretManagerPolicy,
+  storagePolicy,
+  tailCallsCheck,
+} from './worker-host-policy';
+import { TORNADO_KEYSTORE_PREFIX } from '../account/keys';
 import { RelayerClient } from '../relayer/relayer-client';
 
 import { addressToHex, } from "../utils.js";
@@ -55,6 +66,8 @@ export class TornadoCashProtocol implements TCInstance {
       secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
+    const delegationPaths = new Set<string>();
+
     this.stateManager = (async () => {
       const { remote, onError } = loadStateManagerWorker(stateManagerWorkerUrl);
 
@@ -67,25 +80,30 @@ export class TornadoCashProtocol implements TCInstance {
 
       // Adapt the host's streaming provider to a materialized-array client on the
       // main thread: async iterators can't cross the Comlink worker boundary, so
-      // we drain the stream here before proxying the result into the worker.
+      // we drain the stream here before exposing the result to the worker.
       const externalSyncClient = host.externalSyncProvider
         ? toExternalSyncClient(host.externalSyncProvider)
         : undefined;
 
+      // Tornado's subtree, plus wallet paths the integrator names in `delegation.path`.
+      const keystore = scopeKeystore(host.keystore, { prefixes: [TORNADO_KEYSTORE_PREFIX], paths: delegationPaths });
+
       const resolvedSecretManager = secretManagerFactory
-        ? await secretManagerFactory({ host: { keystore: host.keystore }, accountIndex })
+        ? await secretManagerFactory({ host: { keystore }, accountIndex })
         : undefined;
 
+      // Host objects reach the worker through the host bridge: only the listed
+      // methods are callable, never field reads, writes or constructors.
       await Promise.race([
         remote.init(
-          proxy(host.provider),
-          proxy(relayerClientFactory()),
-          proxy(host.keystore),
-          proxy(host.storage),
-          proxy(initialState),
-          proxy(artifactsLoader),
-          resolvedSecretManager ? proxy(resolvedSecretManager) : undefined,
-          externalSyncClient ? proxy(externalSyncClient) : undefined,
+          exposeOnly(host.provider, providerPolicy),
+          exposeOnly(relayerClientFactory(), relayerClientPolicy),
+          exposeOnly(keystore, keystorePolicy),
+          exposeOnly(host.storage, storagePolicy),
+          exposeCall(initialState),
+          exposeCall(artifactsLoader),
+          resolvedSecretManager ? exposeOnly(resolvedSecretManager, secretManagerPolicy(delegationPaths)) : undefined,
+          externalSyncClient ? exposeOnly(externalSyncClient, externalSyncPolicy) : undefined,
           {
             protocolConfig: { ...protocolConfig, useExtendedEthPools },
             accountIndex,
@@ -106,13 +124,18 @@ export class TornadoCashProtocol implements TCInstance {
         getWithdrawalPayloads: (params) => {
           if (params.mode === 'paymaster') {
             const { tailCalls, ...rest } = params as IPaymasterWithdrawParams;
+
+            // The integrator named this wallet key, so the worker may derive exactly it.
+            if (rest.delegation?.mode === 'deterministic' && rest.delegation.path) {
+              delegationPaths.add(rest.delegation.path);
+            }
+
             // tailCalls must be a top-level comlink arg (not nested in an object) so
-            // comlink's proxy transfer handler can wrap it in a MessagePort instead of
+            // the host-bridge transfer handler can wrap it in a MessagePort instead of
             // trying to structuredClone the function.
-          
             return (remote.getWithdrawalPayloads)(
               rest as IWithdrawapOperationParams,
-              tailCalls ? proxy(tailCalls) : undefined,
+              tailCalls ? exposeCall(tailCalls, tailCallsCheck) : undefined,
             );
           }
 

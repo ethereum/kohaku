@@ -1,7 +1,7 @@
 export * from './v1';
 // Main factory
 export { TornadoCashProtocol } from './plugin/base';
-export { SecretManager } from './account/keys';
+export { SecretManager, TORNADO_KEYSTORE_PREFIX } from './account/keys';
 export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signature-keys';
 
 // Types

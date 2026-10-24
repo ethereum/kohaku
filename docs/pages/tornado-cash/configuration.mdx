@@ -99,7 +99,7 @@ createTCPlugin(host, {
 })
 ```
 
-`params.host` here is `{ keystore }`. `deriveAt` still has to answer the paths on the [host page](/host).
+`params.host` here is `{ keystore }`, scoped to `m/29795'/1'/…` plus any `delegation.path` you pass to an unshield. Other paths throw `KeystorePathNotAllowedError`. Your host keystore still has to answer the paths on the [host page](/host).
 
 ## Fast cold sync
 
@@ -129,6 +129,8 @@ createTCPlugin(host, {
   ).href,
 })
 ```
+
+The worker never holds your host objects. It gets a bridge to each one that allows only the calls it makes, listed on [the host page](/host#what-plugin-code-can-reach). If you wrap the worker yourself, keep that boundary.
 
 `initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use it to ship a checkpoint so the first open does not start at the registry's deployment block. The snapshot is a cache. The keystore still decides which notes belong to the user.
 
