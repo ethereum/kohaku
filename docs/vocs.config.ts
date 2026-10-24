@@ -5,7 +5,7 @@ import { defineConfig } from 'vocs'
 export default defineConfig({
   title: 'Kohaku',
   titleTemplate: '%s · Kohaku',
-  description: 'Wallet developer guide for the Privacy Pools and Tornado Cash plugins',
+  description: 'Wallet developer guide for the Privacy Pools, Tornado Cash and Tacit plugins',
   rootDir: '.',
   editLink: {
     pattern: 'https://github.com/ethereum/kohaku/edit/master/docs/pages/:path',
@@ -41,6 +41,14 @@ export default defineConfig({
         { text: 'Configuration', link: '/tornado-cash/configuration' },
         { text: 'Deposits and withdrawals', link: '/tornado-cash/options' },
         { text: 'Notes', link: '/tornado-cash/notes' },
+      ],
+    },
+    {
+      text: 'Tacit',
+      items: [
+        { text: 'Shield, transfer and unshield', link: '/tacit' },
+        { text: 'Configuration', link: '/tacit/configuration' },
+        { text: 'Relayers and fees', link: '/tacit/operations' },
       ],
     },
     {

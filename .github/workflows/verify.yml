@@ -23,6 +23,8 @@ jobs:
           run: pnpm --filter @kohaku-eth/provider test
         - name: Run social recovery unit tests
           run: pnpm --filter @kohaku-eth/social-recovery test
+        - name: Run Tacit unit tests
+          run: pnpm --filter @kohaku-eth/tacit test
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
