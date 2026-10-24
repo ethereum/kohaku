@@ -4,47 +4,50 @@ on:
   push:
     branches: ["master"]
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
+  # Installs and builds without Pages or OIDC permissions.
   build:
+    name: Build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup PNPM
-        uses: pnpm/action-setup@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          version: 10
-      - name: Setup Node
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          node-version: 24
-          cache: 'pnpm'
-      - name: Install
-        run: |
-          pnpm config set auto-install-peers false
-          pnpm install --frozen-lockfile=false
+          build-packages: 'false'
       # - name: Lint
         # run: pnpm lint
       - name: Build Docs
         run: pnpm --filter docs build
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: 'docs/dist'
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

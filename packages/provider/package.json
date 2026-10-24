@@ -64,7 +64,8 @@
     "dev": "tsup --config tsup.config.ts --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run"
   },
   "files": [
     "dist"

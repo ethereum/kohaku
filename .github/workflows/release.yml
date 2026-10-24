@@ -6,9 +6,12 @@ on:
       - master
   workflow_dispatch:
 
+permissions: {}
+
+# Never cancel a release mid-publish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
@@ -17,48 +20,77 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
+
   changesets:
     name: Changesets
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
+      pending: ${{ steps.npm.outputs.pending }}
     steps:
+      # Keeps credentials: this job pushes the version branch.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-      - name: Create release PR or publish
-        uses: changesets/action@v1
+        with:
+          build-packages: 'false'
+      # If this fails, `pending` is empty and the release job still runs.
+      - name: Check for unpublished versions
+        id: npm
+        continue-on-error: true
+        run: node .github/scripts/npm-publish-status.mjs
+      - name: Create release PR
+        id: changesets
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           commit: 'chore: version package'
           title: 'chore: version package'
           version: pnpm changeset:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publishes with npm trusted publishing. Runs on master only, once the version
+  # PR is merged and something is not on npm yet, in the npm-release environment
+  # that the npm trusted publisher config is bound to.
   release:
     name: Release
-    needs: verify
+    needs: [verify, changesets]
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      needs.changesets.outputs.hasChangesets == 'false' &&
+      needs.changesets.outputs.pending != 'false'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    environment: npm-release
     permissions:
-      contents: write
-      id-token: write
-      pull-requests: write
+      contents: write # tags and GitHub releases
+      id-token: write # npm trusted publishing and provenance
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
-          build-packages: true
+          build-packages: 'true'
+          pnpm-cache: 'false'
+      - name: Check that every package exists on npm
+        run: node .github/scripts/npm-publish-status.mjs --require-existing
 
       - name: Publish to NPM
-        uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
-          createGithubReleases: ${{ github.ref == 'refs/heads/master' }}
+          createGithubReleases: true
+          # Tags and releases go through the API, so the checkout needs no git credentials.
+          commitMode: github-api
           publish: pnpm changeset:publish
-          version: pnpm changeset:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

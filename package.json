@@ -8,6 +8,7 @@
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "test": "pnpm -r test",
+    "test:unit": "pnpm -r --no-bail --workspace-concurrency=1 --if-present run test:unit",
     "dev:docs": "pnpm --filter docs dev",
     "changeset": "changeset",
     "changeset:publish": "changeset publish",

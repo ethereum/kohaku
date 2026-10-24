@@ -3,11 +3,14 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
     check-secrets:
         uses: ./.github/workflows/check-secrets.yml
         secrets: inherit
 
+    # Runs on every PR, forks included: needs no secrets.
     check:
         name: Check
         runs-on: ubuntu-latest
@@ -16,13 +19,21 @@ jobs:
             contents: read
         steps:
         - name: Checkout
-          uses: actions/checkout@v4
+          uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+          with:
+            persist-credentials: false
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
-        - name: Run provider unit tests
-          run: pnpm --filter @kohaku-eth/provider test
+        - name: Run unit tests
+          run: pnpm test:unit
         - name: Audit dependencies
           run: pnpm audit
+          continue-on-error: true
+        # Non-blocking while criticals remain on the production path: tornado-cash's
+        # runtime dep @privacy-paymasters/sdk pulls @pimlico/alto and prool (tar,
+        # proxy-addr), and the docs site pulls vocs. Make it blocking once clean.
+        - name: Audit production dependencies
+          run: pnpm audit --prod --audit-level critical
           continue-on-error: true
 
     build:
@@ -33,11 +44,15 @@ jobs:
             contents: read
         steps:
         - name: Checkout
-          uses: actions/checkout@v4
+          uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+          with:
+            persist-credentials: false
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
-            build-packages: true
+            build-packages: 'true'
+
+    # Sepolia fork e2e: needs RPC secrets, so it is skipped on fork PRs.
     tests:
         name: Tests
         needs: check-secrets
@@ -48,13 +63,16 @@ jobs:
             contents: read
         steps:
         - name: Checkout
-          uses: actions/checkout@v4
+          uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+          with:
+            persist-credentials: false
         - name: Setup workspace
           uses: ./.github/actions/setup-workspace
           with:
-            build-packages: true
+            build-packages: 'true'
+            foundry: 'true'
         - name: Run Privacy Pools tests
-          uses: nick-fields/retry@v3
+          uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
           with:
             timeout_minutes: 20
             max_attempts: 3
@@ -66,7 +84,7 @@ jobs:
             PPV1_SEPOLIA_FORK_BLOCK: ${{ secrets.PPV1_SEPOLIA_FORK_BLOCK }}
 
         - name: Run Tornado Cash tests
-          uses: nick-fields/retry@v3
+          uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
           with:
             timeout_minutes: 20
             max_attempts: 3
