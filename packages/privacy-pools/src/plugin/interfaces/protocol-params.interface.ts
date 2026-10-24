@@ -98,6 +98,12 @@ export interface PPv1PaymasterUnshieldOptions extends PPv1CommonUnshieldOptions 
   refundRecipient?: AccountId;
   /** Consolidate multiple approved notes to reach the amount in one sponsored userOp. */
   batch?: boolean;
+  /**
+   * Cap on the sponsored gas fee as a share of the withdrawn amount, in basis points
+   * (`10000` = 100%). The withdrawal is rejected before anything is proved or sent to
+   * the bundler if the fee is higher. Defaults to {@link DEFAULT_PAYMASTER_MAX_FEE_BPS} (10%).
+   */
+  maxFeeBPS?: bigint;
 }
 
 /**
@@ -135,6 +141,7 @@ export interface PPv1RelayerUnshieldEstimate {
 /**
  * Paymaster withdrawal cost at baseline gas limits and the bundler's current gas
  * price. `prepareUnshield` refines gas against the bundler, so the final fee may differ slightly.
+ * Throws, like `prepareUnshield`, when the bundler's gas price or the fee is above the caps.
  */
 export interface PPv1PaymasterUnshieldEstimate {
   mode: 'paymaster';
@@ -153,6 +160,8 @@ export interface PPv1EstimateUnshieldOptions {
   mode?: 'relayer' | 'paymaster';
   tailCalls?: UnshieldOptions['tailCalls'];
   tailCallsGasEstimate?: bigint;
+  /** Paymaster mode: fee cap in bps of `amount`; the estimate throws above it. See {@link PPv1PaymasterUnshieldOptions.maxFeeBPS}. */
+  maxFeeBPS?: bigint;
 }
 
 /** Exact-output settings, passed as `prepareUnshield`'s `options.exact`. Its presence enables exact-output mode. */
@@ -249,6 +258,8 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   batch?: boolean;
   /** Gas-overcharge refund target (postOp). Defaults to `recipient`. */
   refundRecipient?: Address;
+  /** Fee cap in bps of the withdrawn amount. See {@link PPv1PaymasterUnshieldOptions.maxFeeBPS}. */
+  maxFeeBPS?: bigint;
 }
 
 export interface IExactWithdrawalOperationParams extends Omit<IWithdrawapOperationParams, 'amount'> {
@@ -264,6 +275,8 @@ export interface IEstimateUnshieldOperationParams extends IDepositOperationParam
   /** Whether the withdrawal carries tail calls (they add an execution phase to the paymaster userOp). */
   hasTailCalls?: boolean;
   tailCallsGasEstimate?: bigint;
+  /** Paymaster fee cap in bps of `amount`. */
+  maxFeeBPS?: bigint;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {

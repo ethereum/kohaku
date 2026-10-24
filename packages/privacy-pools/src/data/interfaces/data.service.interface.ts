@@ -72,6 +72,14 @@ export interface IPoolConfig {
   maxRelayFeeBPS: bigint;
 }
 
+/** The chain's own fee market, read from the host provider to bound bundler gas prices. */
+export interface IGasFeeReference {
+  /** Latest block's base fee. */
+  baseFeePerGas: bigint;
+  /** The node's suggested tip (`eth_maxPriorityFeePerGas`), or 0 when unsupported. */
+  maxPriorityFeePerGas: bigint;
+}
+
 export interface IDataService {
   getPoolEvents: GetEventsFn<typeof POOL_EVENTS_SIGNATURES, IPoolEvents>;
   getEntrypointEvents: GetEventsFn<
@@ -112,4 +120,6 @@ export interface IDataService {
     feeToken: Address,
     weiAmount: bigint,
   ): Promise<bigint>;
+  /** Fee reference used to cap the bundler's gas price for paymaster withdrawals. */
+  getGasFeeReference(): Promise<IGasFeeReference>;
 }

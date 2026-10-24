@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
+import type { Network } from "@kohaku-eth/plugins";
 import { TxData } from "@kohaku-eth/provider";
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { encodeFunctionData, erc20Abi } from "viem";
@@ -12,6 +13,7 @@ import { Address } from "../../interfaces/types.interface";
 import { DelegationConfig, DelegatorAccount, UserOpGasLimits } from "../../interfaces/user-ops.interface";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
+import { assertFeeWithinCap, assertGasLimitsWithinCaps, assertGasPriceWithinCaps } from "../../paymaster/fee-caps";
 import {
   buildSignedUserOp,
   createPaymasterBundlerClient,
@@ -70,6 +72,10 @@ export interface PaymasterWithdrawThunkParams {
    * the recipient nets exactly its payout).
    */
   refundRecipient?: Address;
+  /** Cap on the sponsored fee as a share of the withdrawn amount (bps). Defaults to `DEFAULT_PAYMASTER_MAX_FEE_BPS`. */
+  maxFeeBPS?: bigint;
+  /** Host network; bundler JSON-RPC goes through its `fetch`. */
+  network?: Network;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -93,6 +99,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       tailCallsGasEstimate,
       batch,
       refundRecipient: refundRecipientOverride,
+      maxFeeBPS,
+      network,
     },
     { getState, dispatch },
   ) => {
@@ -128,10 +136,18 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // on the same unchanged state). Re-verifying here repeats 15 on-chain reads for no
     // benefit, so it's intentionally omitted.
 
-    const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
-    const {
-      standard: { maxFeePerGas, maxPriorityFeePerGas },
-    } = await getUserOperationGasPrice(bundlerClient);
+    // The bundler's gas price is only accepted within caps derived from the chain's own
+    // fee market: the baseline userOp below is signed, proved, and sent to the bundler
+    // for estimation before the user confirms, so the bundler could land it as-is.
+    const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
+    const [{ standard: gasPrice }, feeReference] = await Promise.all([
+      getUserOperationGasPrice(bundlerClient),
+      dataService.getGasFeeReference(),
+    ]);
+
+    assertGasPriceWithinCaps(gasPrice, feeReference);
+
+    const { maxFeePerGas, maxPriorityFeePerGas } = gasPrice;
 
     const signer = await resolveSigner({
       delegation,
@@ -173,8 +189,17 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         throw new Error("Withdrawal amount too small to cover the sponsored gas fee");
       }
 
+      // The fee committed in the proof bounds what a bundler can take from it.
+      assertFeeWithinCap(fee, totalWithdrawn, maxFeeBPS);
+
       return fee;
     };
+
+    const baselineGas = hasExecutionPhase
+      ? reasonableGasUnitsForBatch(isERC20, directNotes.length, tailCalls != null, tailCallsGasEstimate)
+      : { ...reasonableGasUnits(isERC20), callGasLimit: 0n };
+    // Checked before anything is proved or signed.
+    const baselineFee = await feeFor(computeMinimumViableFee(baselineGas, maxFeePerGas));
 
     // Prove one note against the current root, bound to `withdrawal` via its context.
     const proveNote = (toSpend: NoteToSpend, withdrawal: WithdrawalPayload): Promise<WithdrawProveOutput> =>
@@ -225,16 +250,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       ...(tailCalls ? await tailCalls(signer.address) : [forwardCall(fee)]),
     ];
 
-    const baselineGas = hasExecutionPhase
-      ? reasonableGasUnitsForBatch(isERC20, directNotes.length, tailCalls != null, tailCallsGasEstimate)
-      : { ...reasonableGasUnits(isERC20), callGasLimit: 0n };
-
-    // Keep our computed callGasLimit after bundler refinement (0 without an execution
-    // phase — a nonzero value would trip the adapter's `recipient != sender` check).
-    const withGas = (base: UserOpGasLimits): UserOpGasLimits => ({ ...base, callGasLimit: baselineGas.callGasLimit });
-
-    const buildUserOp = async (gas: UserOpGasLimits) => {
-      const fee = await feeFor(computeMinimumViableFee(gas, maxFeePerGas));
+    const buildUserOp = async (gas: UserOpGasLimits, fee: bigint) => {
       const withdrawal: WithdrawalPayload = {
         processooor: adapterAddress,
         // `recipient` is the validation-phase payout target (the sender when an
@@ -262,17 +278,19 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         tailCalls: hasExecutionPhase ? executionCalls(fee) : undefined,
       });
 
-      return { proof, userOperation, fee };
+      return { proof, userOperation };
     };
 
-    let { proof, userOperation, fee } = await buildUserOp(baselineGas);
+    let fee = baselineFee;
+    let { proof, userOperation } = await buildUserOp(baselineGas, fee);
 
-    // Refine gas against the bundler; re-prove once at the refined fee. Best-effort —
-    // on failure the safe baseline is kept.
+    // Refine gas against the bundler; re-prove once at the refined fee. If estimation
+    // fails the baseline is kept; an estimate above the caps throws.
     const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas);
 
     if (refinedGas !== baselineGas) {
-      ({ proof, userOperation, fee } = await buildUserOp(withGas(refinedGas)));
+      fee = await feeFor(computeMinimumViableFee(refinedGas, maxFeePerGas));
+      ({ proof, userOperation } = await buildUserOp(refinedGas, fee));
     }
 
     return [
@@ -348,22 +366,32 @@ async function refineGasWithBundler(
   entryPointAddress: `0x${string}`,
   baselineGas: UserOpGasLimits,
 ): Promise<UserOpGasLimits> {
-  try {
-    const estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
-    const buffer = (x: bigint) => (x * 12n) / 10n;
-    const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+  let estimated: UserOpGasLimits;
 
-    return {
-      callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
-      verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
-      preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
-      paymasterVerificationGasLimit: orBaseline(
-        estimated.paymasterVerificationGasLimit,
-        baselineGas.paymasterVerificationGasLimit,
-      ),
-      paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
-    };
+  try {
+    estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
   } catch {
     return baselineGas;
   }
+
+  const buffer = (x: bigint) => (x * 12n) / 10n;
+  const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+  const refined: UserOpGasLimits = {
+    // Keep our computed callGasLimit (0 without an execution phase — a nonzero value
+    // would trip the adapter's `recipient != sender` check).
+    callGasLimit: baselineGas.callGasLimit,
+    verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
+    preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
+    paymasterVerificationGasLimit: orBaseline(
+      estimated.paymasterVerificationGasLimit,
+      baselineGas.paymasterVerificationGasLimit,
+    ),
+    paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
+  };
+
+  // preVerificationGas is charged in full and every limit raises the fee, so the
+  // bundler's numbers are only accepted within a bounded margin over our baseline.
+  assertGasLimitsWithinCaps(refined, baselineGas);
+
+  return refined;
 }

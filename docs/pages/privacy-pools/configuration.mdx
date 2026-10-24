@@ -136,6 +136,8 @@ createPPv1Plugin(host, {
 
 `poolsAccountsMap` keys are lowercase pool addresses. A pool missing from the map cannot be withdrawn in paymaster mode. Relayer withdrawals ignore this table. The withdrawal options are on the [withdrawals page](/privacy-pools/withdrawals).
 
+The plugin and the broadcaster reach the bundler through `host.network.fetch`. The gas price the bundler quotes is checked against the host provider's latest block. See [fee caps](/privacy-pools/withdrawals#fee-caps).
+
 ## Sync from saga
 
 A cold `eth_getLogs` scan of mainnet is slow. `createSagaDataService` reads history from a saga CDN and asks the provider only for the blocks past the CDN's head.

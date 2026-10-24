@@ -133,6 +133,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       entrypoint,
       paymasterConfig,
       devOptions,
+      network: host.network,
     });
   }
 
@@ -223,6 +224,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       mode: options?.mode,
       hasTailCalls: !!options?.tailCalls,
       tailCallsGasEstimate: options?.tailCallsGasEstimate,
+      maxFeeBPS: options?.maxFeeBPS,
     });
   }
 
@@ -416,6 +418,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         batch: options.batch,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
+        maxFeeBPS: options.maxFeeBPS,
       });
 
       if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");

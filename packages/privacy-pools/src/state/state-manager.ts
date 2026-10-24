@@ -1,6 +1,6 @@
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, Storage } from "@kohaku-eth/plugins";
+import { ChainId, Network, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
 
 import { ISecretManager } from "../account/keys";
@@ -34,6 +34,7 @@ import {
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
+import { assertFeeWithinCap, assertGasPriceWithinCaps } from "../paymaster/fee-caps";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
 import { decodeRelayData, encodeRelayData } from "../utils/encoding.utils";
@@ -80,6 +81,8 @@ export interface StoreFactoryParams extends SyncAspThunkParams {
   initialState?: () => Promise<Record<string, PublicRootState>>;
   paymasterConfig?: IChainsPaymastersConfig;
   devOptions?: PPv1DevOptions;
+  /** Host network; paymaster bundler JSON-RPC goes through its `fetch`. */
+  network?: Network;
 }
 
 const initializeSelectors = <const T extends Store>({
@@ -267,6 +270,7 @@ export const storeStateManager = (
       mode = 'relayer',
       hasTailCalls = false,
       tailCallsGasEstimate,
+      maxFeeBPS,
     }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
       const chainInfo = await getChainInfo();
 
@@ -279,9 +283,16 @@ export const storeStateManager = (
 
         const { bundlerUrl, paymasterAddress } = paymasterConfig;
         const isERC20 = asset !== BigInt(E_ADDRESS);
-        const {
-          standard: { maxFeePerGas },
-        } = await getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl));
+        // Same gas-price and fee caps as prepareUnshield, so a preview never shows a
+        // fee that the withdrawal would then reject.
+        const [{ standard: gasPrice }, feeReference] = await Promise.all([
+          getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
+          params.dataService.getGasFeeReference(),
+        ]);
+
+        assertGasPriceWithinCaps(gasPrice, feeReference);
+
+        const { maxFeePerGas } = gasPrice;
         // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
         const gas = {
           ...reasonableGasUnits(isERC20),
@@ -291,6 +302,8 @@ export const storeStateManager = (
         const fee = isERC20
           ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
           : gasFeeWei;
+
+        assertFeeWithinCap(fee, amount, maxFeeBPS);
 
         return { mode, fee, netAmount: amount - fee, gasFeeWei, maxFeePerGas };
       }
@@ -483,6 +496,7 @@ export const storeStateManager = (
       tailCallsGasEstimate,
       batch,
       refundRecipient,
+      maxFeeBPS,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -508,6 +522,8 @@ export const storeStateManager = (
             tailCallsGasEstimate,
             batch,
             refundRecipient,
+            maxFeeBPS,
+            network: params.network,
           }),
         ),
       );

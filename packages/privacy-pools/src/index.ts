@@ -2,6 +2,7 @@ export * from './v1';
 export * from './v2';
 // Main factory
 export { PrivacyPoolsV1Protocol, PPv1ExactOutputError, DEFAULT_EXACT_GAS_BUMP_BPS } from './plugin/base';
+export { DEFAULT_PAYMASTER_MAX_FEE_BPS } from './paymaster/fee-caps';
 export { IPFSAspService } from './data/ipfsAsp.service.js';
 export { OxBowAspService } from './data/0xbowAsp.service';
 export { DataService } from './data/data.service';

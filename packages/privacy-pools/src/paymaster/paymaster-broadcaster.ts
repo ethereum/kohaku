@@ -1,3 +1,5 @@
+import type { Network } from "@kohaku-eth/plugins";
+
 import { createPaymasterBundlerClient, sendSerializedUserOperation } from "./utils";
 import {
   IGenericPaymasterWithdrawalPayload,
@@ -11,11 +13,14 @@ import {
  * this client only forwards them and awaits their receipts.
  */
 export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
+  /** `network` carries the bundler JSON-RPC (defaults to global fetch). */
+  constructor(private readonly params: { network?: Network } = {}) {}
+
   async broadcast(
     withdrawals: IGenericPaymasterWithdrawalPayload[],
   ): Promise<PaymasterBroadcastResult[]> {
     const results = await Promise.allSettled(
-      withdrawals.map((w) => PaymasterBroadcaster.broadcastOne(w)),
+      withdrawals.map((w) => PaymasterBroadcaster.broadcastOne(w, this.params.network)),
     );
 
     const failed = results.filter((r) => r.status === "rejected");
@@ -34,10 +39,11 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
 
   static async broadcastOne(
     withdrawal: IGenericPaymasterWithdrawalPayload,
+    network?: Network,
   ): Promise<PaymasterBroadcastResult> {
     const { bundlerUrl, entryPointAddress, userOperation } = withdrawal;
 
-    const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
+    const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
     const userOpHash = await sendSerializedUserOperation(
       bundlerClient,
       userOperation,

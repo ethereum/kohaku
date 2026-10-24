@@ -1,4 +1,5 @@
 /* eslint-disable max-lines */
+import type { Network } from "@kohaku-eth/plugins";
 import {
   encodeFunctionData,
   http,
@@ -41,9 +42,14 @@ export type UserOperationGasPrice = {
   fast: GasPrice;
 };
 
-/** viem bundler client for the paymaster flow. */
-export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
-  return createBundlerClient({ transport: http(bundlerUrl) });
+/**
+ * viem bundler client for the paymaster flow. Pass the host's `network` so the
+ * bundler JSON-RPC goes through `network.fetch` (e.g. Tor) instead of global fetch.
+ */
+export function createPaymasterBundlerClient(bundlerUrl: string, network?: Network): BundlerClient {
+  const fetchFn = network ? (input: RequestInfo | URL, init?: RequestInit) => network.fetch(input, init) : undefined;
+
+  return createBundlerClient({ transport: http(bundlerUrl, { fetchFn }) });
 }
 
 /**
