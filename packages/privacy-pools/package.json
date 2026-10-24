@@ -64,6 +64,7 @@
   "dependencies": {
     "@fatsolutions/privacy-pools-core-circuits": "1.0.5",
     "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/poseidon": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
     "@reduxjs/toolkit": "^2.11.2",
     "@saga-sync/client": "^0.1.4",
