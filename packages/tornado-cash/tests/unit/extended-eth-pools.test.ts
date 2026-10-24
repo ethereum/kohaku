@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ISecretManager, Secret } from '../../src/account/keys';
 import { ExtendedEthPools } from '../../src/config';
+import { TornadoInstances } from '../../src/instances';
 import { IDataService, IPoolConfig } from '../../src/data/interfaces/data.service.interface';
 import { ISyncService } from '../../src/data/interfaces/sync.service.interface';
 import { IPool } from '../../src/data/interfaces/events.interface';
@@ -18,10 +19,14 @@ import { DepositStrategy, getDepositPayloadThunk } from '../../src/state/thunks/
 import { syncEventsThunk } from '../../src/state/thunks/syncEventsThunk';
 import { syncPoolsThunk } from '../../src/state/thunks/syncPoolsThunk';
 
-const CLASSIC = 100n as Address;
+// Deposits and synced pools are restricted to the instance catalog, so these are real mainnet instances.
+const CLASSIC = 0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936n as Address; // 1 ETH
 const EXTENDED = ExtendedEthPools[1][0] as Address;
 const EXTENDED_003 = ExtendedEthPools[1][1] as Address;
 const ETH = 10n ** 18n;
+
+const catalogDenomination = (address: Address) =>
+  TornadoInstances[1].find((instance) => instance.address === address)!.denomination;
 
 function protocolConfig(useExtendedEthPools = false): ProtocolConfigState {
   return {
@@ -99,7 +104,7 @@ describe('syncPoolsThunk extended ETH pools', () => {
       getAllPoolsAddresses: vi.fn().mockResolvedValue([CLASSIC]),
       getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
       getUnregisteredNativeEthPoolConfig: vi.fn(async (address: Address) => ({
-        ...registryConfig(address, ETH / 100n),
+        ...registryConfig(address, catalogDenomination(address)),
         protocolFeePercentage: 0,
         rootHistorySize: 100,
       })),
@@ -142,7 +147,7 @@ describe('syncPoolsThunk extended ETH pools', () => {
       getAllPoolsAddresses: vi.fn().mockResolvedValue([EXTENDED]),
       getPoolConfig: vi.fn().mockResolvedValue(registryConfig(EXTENDED, ETH / 100n)),
       getUnregisteredNativeEthPoolConfig: vi.fn(async (address: Address) => ({
-        ...registryConfig(address, ETH / 100n),
+        ...registryConfig(address, catalogDenomination(address)),
         protocolFeePercentage: 0,
       })),
     };
@@ -279,7 +284,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 });
 
 describe('deposit denomination packing', () => {
-  const classicPointOne = 101n as Address;
+  const classicPointOne = 0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fcn as Address; // 0.1 ETH
 
   async function deposit(amount: bigint, strategy: DepositStrategy, useExtendedEthPools = true) {
     const store = storeWith(useExtendedEthPools);

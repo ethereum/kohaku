@@ -11,3 +11,5 @@ export type { Commitment, Nullifier } from './account/types';
 
 // Configs
 export { TornadoCashConfigs, E_ADDRESS, TornadoPaymasterConfigs, ExtendedEthPools, extendedEthPoolSet } from './config.js';
+export { TornadoInstances } from './instances';
+export type { ITornadoInstance } from './instances';
