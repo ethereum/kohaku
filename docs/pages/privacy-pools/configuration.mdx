@@ -86,6 +86,8 @@ The association set decides which deposits are approved. Until a deposit is in t
 
 The default client is `IPFSAspService`, which `fetch`es the tree from IPFS through `host.network`. Set `ipfsUrl` to point it at another gateway.
 
+The client is not trusted. The plugin keeps only the leaves it returns, rebuilds the root from them, and rejects the set if that root is not the one in the Entrypoint's `RootUpdated` event. Each sync checks the rebuilt root against the Entrypoint's `latestRoot()`, and a withdrawal is only proved against a root checked that way in the same session. A root does not commit to the number of leaves, so a dishonest gateway can still make approved deposits look pending. Confirm a pending status with a second source, such as `OxBowAspService`, before you offer ragequit.
+
 0xbow publishes the set over HTTP. Pass `OxBowAspService`:
 
 ```ts
@@ -109,7 +111,7 @@ createPPv1Plugin(host, {
 
 The CLI uses this client. Sepolia's URL is `https://dw.0xbow.io`.
 
-A custom association set implements `getAspTree(state): Promise<bigint[][]>`.
+A custom association set implements `getAspTree(state): Promise<bigint[][]>`. Only the first array, the leaves, is used.
 
 ## Paymaster
 

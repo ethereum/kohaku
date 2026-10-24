@@ -60,6 +60,7 @@ import {
 } from "./selectors/balance.selector";
 import { getNoteSelector } from "./selectors/notes.selector";
 import { myHistoryEventsWithoutMetadataSelector, myHistorySelector } from "./selectors/history.selector";
+import { setVerifiedAspRoot } from "./slices/aspVerificationSlice";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
@@ -107,7 +108,7 @@ const initializeSelectors = <const T extends Store>({
     },
     getPublicState: (): PublicRootState => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { userSecrets, historyMetadata, ...publicState } = store.getState() as RootState;
+      const { userSecrets, historyMetadata, aspVerification, ...publicState } = store.getState() as RootState;
 
       return publicState;
     },
@@ -182,6 +183,9 @@ const storeByChainAndEntrypoint = ({
             : initialState) as RootState | undefined,
           devOptions,
         });
+
+        // On-chain verification is per session: never take it from storage or a snapshot.
+        store.dispatch(setVerifiedAspRoot(0n));
 
         storeWithSelectors = initializeSelectors({ store, secretManager });
         chainStoreMap.set(computedChainKey, storeWithSelectors);
