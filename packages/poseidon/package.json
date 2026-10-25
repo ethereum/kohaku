@@ -5,7 +5,7 @@
   "author": "",
   "description": "Poseidon hash implementation",
   "type": "module",
-  "private": false,
+  "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "repository": {
