@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.30
+
+### Patch Changes
+
+- Pin the Poseidon workspace dependency to `0.0.1`, the published release containing its compiled runtime and type declarations.
+
 ## 0.1.0-alpha.29
 
 ### Patch Changes

@@ -241,7 +241,7 @@ importers:
         specifier: workspace:*
         version: link:../plugins
       '@kohaku-eth/poseidon':
-        specifier: workspace:*
+        specifier: workspace:0.0.1
         version: link:../poseidon
       '@kohaku-eth/provider':
         specifier: workspace:*
