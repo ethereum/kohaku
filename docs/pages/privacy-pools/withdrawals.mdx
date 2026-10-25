@@ -1,30 +1,16 @@
 # Withdrawals
 
-`prepareUnshield(asset, recipient, options)` builds a private operation. `createPPv1Broadcaster` submits it. The shape of `options` picks the path.
+`prepareUnshield(asset, recipient, options)` builds a private operation. `createPPv1Broadcaster` submits it. Use the ERC-4337 paymaster relay/broadcast path as the default integration path. Pass `mode: 'paymaster'` explicitly on both preparation and fee previews; omitting it selects the SDK's regular relayer mode.
 
-Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof. `prepareUnshield` takes a new quote when you are ready to submit, so a preview can go slightly stale. Quote expiry on the relayer estimate is `expiration`, in milliseconds.
+Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof. `prepareUnshield` estimates again when you are ready to submit, so a preview can go slightly stale.
 
 ```ts
 const preview = await pools.estimateUnshield(asset, recipient, {
-  mode: 'relayer',
+  mode: 'paymaster',
 })
 ```
 
 `asset.amount` is the gross withdrawn from the pool, unless you set `exact`. The recipient receives `preview.netAmount`.
-
-## Relayer
-
-This is the default. Omit `options`, or pass `{ mode: 'relayer' }`.
-
-```ts
-const operation = await pools.prepareUnshield(asset, recipient)
-
-await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
-```
-
-The relayer pays gas and takes `fee` from the withdrawn amount. `operation.quoteData` carries the quote and the relayer id. `operation.txData` is the entrypoint call the relayer will send. You broadcast with the broadcaster. You do not put `txData` through the user's public account.
-
-A relayer-mode operation can include `tailCalls` on the type, for a later release. This version does not execute them. Use paymaster mode when the withdrawal must run further calls.
 
 ## Paymaster
 
@@ -37,6 +23,8 @@ const operation = await pools.prepareUnshield(asset, recipient, {
 
 const receipt = await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
 ```
+
+`broadcasterUrl` is a required constructor field, but paymaster broadcasting uses the bundler URL carried by the prepared operation.
 
 `receipt.requestId` is the user operation hash. `receipt.txHash` is the transaction that included it.
 
@@ -109,7 +97,11 @@ Set `options.exact` when `asset.amount` is the amount the recipient must receive
 const operation = await pools.prepareUnshield(
   { asset, amount: 1_000_000n }, // recipient gets 1 USDC (6 decimals)
   recipient,
-  { exact: { gasBumpBPS: 1_500n } },
+  {
+    mode: 'paymaster',
+    refundRecipient: payer,
+    exact: { gasBumpBPS: 1_500n },
+  },
 )
 
 operation.exact
@@ -117,10 +109,6 @@ operation.exact
 ```
 
 `gasBumpBPS` adds headroom to the quote's gas component. `10000` is 100%, so `1500` is 15%. That is the default, exported as `DEFAULT_EXACT_GAS_BUMP_BPS`. The bump applies to the gas term, and the fee still has to fit the asset's on-chain max relay fee. If it does not, the call throws.
-
-On the relayer path `expectedNet` equals `requestedNet`. The embedded fee is tipped so a small gas move between quote and submission still clears the relayer.
-
-### Exact output with a paymaster
 
 `refundRecipient` is required. The gross is sized from the worst-case gas fee, and the overcharge comes back in `postOp`. The call throws if you omit the refund address.
 
@@ -136,6 +124,6 @@ Send the refund to `payer` and the recipient nets `requestedNet`. Send the refun
 
 If the built operation would deliver less than `requestedNet`, `prepareUnshield` throws `PPv1ExactOutputError`. `requestedNet` and `expectedNet` are on the error. Raise the balance, lower the amount, or widen the fee headroom and try again.
 
-## Which mode to offer
+## Integration default
 
-Offer the relayer when the user has no need for follow-up calls and is happy to pay a quoted fee. Offer the paymaster when the wallet should sponsor gas, batch notes, or append `tailCalls`. Show `estimateUnshield` before either confirmation. Broadcast with `createPPv1Broadcaster` and the same relayer map the plugin used.
+Use `mode: 'paymaster'` for withdrawals, including those without batching or follow-up calls. Show `estimateUnshield` with the same mode before confirmation, then broadcast the prepared operation with `createPPv1Broadcaster`.

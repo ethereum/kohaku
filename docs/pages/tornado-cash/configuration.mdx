@@ -74,7 +74,7 @@ createTCPlugin(host, {
 
 The numbers are in the same unit as the relayer status field. The defaults accept fees from `0.01` up to, and not including, `0.30`.
 
-`preferredRelayersEns` on an individual unshield narrows this list further. See [deposits and withdrawals](/tornado-cash/options).
+`preferredRelayersEns` on a regular relayer unshield narrows this list further. The recommended [ERC-4337 paymaster path](/tornado-cash/options) does not use this registry filter.
 
 ## Secret manager
 
@@ -136,4 +136,4 @@ createTCPlugin(host, {
 
 `TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer.
 
-`createTCBroadcaster(host, { paymasterConfig })` should see the same map you gave the plugin, so the user operation it broadcasts matches the one `prepareUnshield` built.
+Use `mode: 'paymaster'` explicitly when preparing a withdrawal. The prepared operation carries the bundler URL and EntryPoint from the plugin's paymaster map; `createTCBroadcaster` uses those fields to submit it. See [deposits and withdrawals](/tornado-cash/options).

@@ -5,7 +5,9 @@
 You build a [`Host`](/host), create a plugin, and call two methods:
 
 - `prepareShield` returns public transactions. Your wallet signs and broadcasts them.
-- `prepareUnshield` returns a private operation. A broadcaster from the same package submits it to a relayer or a paymaster.
+- `prepareUnshield` returns a private operation. A broadcaster from the same package relays a paymaster-sponsored ERC-4337 user operation to a bundler.
+
+Use the ERC-4337 paymaster path as the default integration path. Always pass `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
 
 ETH is the ERC-20 id `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee`. Both packages export it as `E_ADDRESS`.
 
@@ -125,17 +127,19 @@ A deposit is `'pending'` until the association set approves it. `prepareUnshield
 ```ts
 const recipient = '0x1111111111111111111111111111111111111111'
 
-const operation = await pools.prepareUnshield(eth, recipient)
+const operation = await pools.prepareUnshield(eth, recipient, {
+  mode: 'paymaster',
+})
 
 const broadcaster = createPPv1Broadcaster(host, { broadcasterUrl })
 const receipt = await broadcaster.broadcast(operation)
 ```
 
-Pass the same `broadcasterUrl` you gave the plugin. A string is stored under the relayer id `default`. The receipt has `txHash` when the relayer accepts the proof.
+`broadcasterUrl` is a required constructor field, but paymaster mode submits to the bundler configured by the plugin’s paymaster map. `receipt.requestId` is the user operation hash, and `receipt.txHash` is the transaction that included it.
 
 :::
 
-Deposits under the entrypoint minimum revert. [Withdrawals](/privacy-pools/withdrawals) covers fees, paymaster mode, and exact output. [Configuration](/privacy-pools/configuration) covers the association set, saga sync, and secret managers.
+Deposits under the entrypoint minimum revert. [Withdrawals](/privacy-pools/withdrawals) covers paymaster fees, batching, and exact output. [Configuration](/privacy-pools/configuration) covers the association set, saga sync, and secret managers.
 
 ## Tornado Cash
 
@@ -190,11 +194,13 @@ With no second argument the deposit uses `DepositStrategy.MinFee`: the largest d
 ```ts
 const recipient = '0x1111111111111111111111111111111111111111'
 
-const operation = await tornado.prepareUnshield(note, recipient)
+const operation = await tornado.prepareUnshield(note, recipient, {
+  mode: 'paymaster',
+})
 const receipts = await createTCBroadcaster(host).broadcast(operation)
 ```
 
-The default mode is `'relayer'`. Each receipt's `id` is the relayer job id. [Deposits and withdrawals](/tornado-cash/options) covers the paymaster path and the other deposit strategy.
+The broadcaster submits the paymaster-sponsored ERC-4337 user operations to the bundler and waits for their receipts. Each receipt's `id` is a user operation hash. [Deposits and withdrawals](/tornado-cash/options) covers follow-up calls and the other deposit strategy.
 
 :::
 

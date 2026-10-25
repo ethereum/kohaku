@@ -1,8 +1,8 @@
 # Shield and unshield
 
-Tornado Cash holds fixed-denomination notes. The plugin turns an amount into one or more pool deposits, and later spends those notes through a relayer or a paymaster.
+Tornado Cash holds fixed-denomination notes. The plugin turns an amount into one or more pool deposits, and later spends those notes through the ERC-4337 paymaster path.
 
-This page is the short path. [Configuration](/tornado-cash/configuration) is the constructor. [Deposits and withdrawals](/tornado-cash/options) is strategies, relayer choice, and paymaster calls. [Notes](/tornado-cash/notes) is listing and importing notes.
+This page is the short path. [Configuration](/tornado-cash/configuration) is the constructor. [Deposits and withdrawals](/tornado-cash/options) is deposit strategies and paymaster calls. [Notes](/tornado-cash/notes) is listing and importing notes.
 
 :::warning
 `@kohaku-eth/tornado-cash` is still undergoing audits.
@@ -69,16 +69,20 @@ One row per asset, with the sum of unspent notes. Pass a list of `{ __type: 'erc
 
 ## Unshield
 
+Use the ERC-4337 paymaster path as the default integration path and pass `mode: 'paymaster'` explicitly. Omitting it selects the SDK's regular relayer mode.
+
 ```ts
 const recipient = '0x1111111111111111111111111111111111111111' as const
 
-const operation = await tornado.prepareUnshield(note, recipient)
+const operation = await tornado.prepareUnshield(note, recipient, {
+  mode: 'paymaster',
+})
 const receipts = await createTCBroadcaster(host).broadcast(operation)
 ```
 
-The default mode is `'relayer'`. One logical unshield can be several withdrawals when the amount spans more than one note. `receipts` is one entry per withdrawal that the relayer accepted. `id` is the relayer job id.
+One logical unshield can be several user operations when the amount spans more than one note. The broadcaster submits them to the bundler and waits for their receipts. Each returned `id` is a user operation hash. Check `receipts.length` against `operation.withdrawals.length` before reporting that every withdrawal completed.
 
-`createTCBroadcaster` reads relayer URLs from the operation, so the host's `network.fetch` has to reach those hosts. Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig`.
+Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig` to the plugin. The prepared operation carries the bundler URL used by the broadcaster.
 
 The amount follows the same denomination rule as a shield. `prepareUnshield` throws `InsufficientBalanceError` when the unspent notes cannot cover it.
 
