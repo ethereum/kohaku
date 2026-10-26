@@ -155,7 +155,7 @@ import {
 const dataService = await createSagaDataService({
   provider: host.provider,
   chainId: 1,
-  sourceUrl: 'https://saga-pp-state.global.ssl.fastly.net',
+  sourceUrl: 'https://saga-pp-state.global.ssl.fastly.net/v2',
 })
 
 const pools = new PrivacyPoolsV1Protocol(host, {
@@ -165,6 +165,8 @@ const pools = new PrivacyPoolsV1Protocol(host, {
   dataService,
 })
 ```
+
+The `/v2` index also carries each event's transaction hash, so synced events have their real `transactionHash`. The root index omits it and those events get `0n`.
 
 Pool leaves are checked against the on-chain root, so a bad leaf stream fails the sync. Entrypoint events from the CDN have no such root. The RPC tail after the CDN's head still comes from `host.provider`.
 

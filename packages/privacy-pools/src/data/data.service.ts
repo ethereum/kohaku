@@ -26,11 +26,12 @@ const txLogToRpcLog = ({
   topics,
   blockNumber,
   logIndex,
+  transactionHash,
 }: TxLog): RpcLog => ({
   address: address as Hex,
   data: data as Hex,
   topics: topics as [Hex, ...Hex[]],
-  transactionHash: '0x0',
+  transactionHash: (transactionHash ?? '0x0') as Hex,
   transactionIndex: '0x0',
   blockHash: '0x0',
   blockNumber: toHex(blockNumber),

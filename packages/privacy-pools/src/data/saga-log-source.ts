@@ -1,4 +1,4 @@
-import { Client, HttpStore, type CanonicalEvent } from "@saga-sync/client";
+import { Client, HttpStore, isEntityRecord, type CanonicalEvent } from "@saga-sync/client";
 import type { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { decodeEventLog, encodeAbiParameters, parseAbi, toEventSelector, toHex } from "viem";
 
@@ -8,7 +8,10 @@ import { EthClient, type GetLogsParams } from "./eth-client";
 type LogsFn = (params: GetLogsParams) => Promise<TxLog[]>;
 
 export interface SagaLogSourceParams {
-  /** Base URL of the saga-sync manifest/CDN (HttpStore source). */
+  /**
+   * Base URL of the saga-sync manifest/CDN (HttpStore source). Use the `/v2`
+   * publication to get each log's `transactionHash`; the root one omits it.
+   */
   sourceUrl: string;
   chainId: number;
   /**
@@ -51,6 +54,8 @@ const toTxLog = (ev: CanonicalEvent): TxLog => ({
   topics: ev.topics,
   blockNumber: BigInt(ev.blockNumber),
   logIndex: Number(ev.logIndex),
+  // Only present on streams that publish it (the `/v2` publication).
+  ...(ev.transactionHash ? { transactionHash: ev.transactionHash } : {}),
 });
 
 // The leaf commitment inserted by an event, or null if it inserts none (ragequit).
@@ -68,7 +73,13 @@ function insertedLeaf(ev: CanonicalEvent): bigint | null {
   return null;
 }
 
-function synthLeafInsertedLog(pool: string, index: bigint, leaf: bigint, blockNumber: bigint): TxLog {
+// Takes the block and tx hash of the Deposited/Withdrawn log that inserted the leaf.
+function synthLeafInsertedLog(
+  pool: string,
+  index: bigint,
+  leaf: bigint,
+  { blockNumber, transactionHash }: TxLog,
+): TxLog {
   return {
     address: pool,
     topics: [LEAF_INSERTED_TOPIC],
@@ -78,6 +89,7 @@ function synthLeafInsertedLog(pool: string, index: bigint, leaf: bigint, blockNu
       [index, leaf, 0n],
     ),
     blockNumber,
+    ...(transactionHash ? { transactionHash } : {}),
   };
 }
 
@@ -139,12 +151,17 @@ export async function createSagaLogSource({
     let leafIndex = 1n; // on-chain LeafInserted is 1-based.
 
     for await (const ev of client.streamEvents(protocolId, { fromBlock: 0n, toBlock: sagaTo + 1n })) {
-      logs.push(toTxLog(ev));
+      // Privacy-pools streams only publish logs; skip any indexer-derived entity.
+      if (isEntityRecord(ev)) continue;
+
+      const log = toTxLog(ev);
+
+      logs.push(log);
 
       const leaf = insertedLeaf(ev);
 
       if (leaf !== null) {
-        logs.push(synthLeafInsertedLog(address, leafIndex, leaf, BigInt(ev.blockNumber)));
+        logs.push(synthLeafInsertedLog(address, leafIndex, leaf, log));
         leafIndex += 1n;
       }
     }

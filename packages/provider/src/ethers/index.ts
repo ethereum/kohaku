@@ -93,5 +93,6 @@ const convertLog = (log: Log): TxLog => {
     data: log.data,
     address: log.address,
     logIndex: log.index,
+    transactionHash: log.transactionHash,
   };
 };
