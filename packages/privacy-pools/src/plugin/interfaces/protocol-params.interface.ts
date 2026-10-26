@@ -280,7 +280,7 @@ export interface IGetNotesParams extends IBaseOperationParams {
 }
 
 export type INote = Pick<IDepositWithBalance,
-  "label" | "precommitment" | "value" | "balance" | "assetAddress" | "approved" | "depositor"
+  "label" | "precommitment" | "value" | "balance" | "assetAddress" | "approved" | "depositor" | "blockNumber"
 > & {
   // deposit index
   deposit: number;
