@@ -71,7 +71,7 @@ const key = await keystore.deriveAt("m/28784'/1'/0'")
 
 `deriveAt` takes a BIP-32 path and returns a 32-byte hex private key. The same path must return the same key for the life of the wallet. An unstable keystore spends notes into a set the wallet can no longer find.
 
-You may reject paths. Once you have accepted a path, keep accepting it. These plugins derive under two purpose values:
+You may reject paths. Once you have accepted a path, keep accepting it. If you do restrict paths, allow the two prefixes below and any `delegation.path` your wallet passes to an unshield. These plugins derive under two purpose values:
 
 | Plugin | Purpose | What lives there |
 | --- | --- | --- |
@@ -80,9 +80,20 @@ You may reject paths. Once you have accepted a path, keep accepting it. These pl
 
 `account` is the `accountIndex` you pass when creating the plugin. `secretType` is `0` (nullifier), `1` (salt), or `2` (paymaster signer).
 
-Tornado paymaster withdrawals can also call `deriveAt` with a path you supplied in `delegation.path`. Allow that path too. It is a normal wallet key, so a stuck delegator can be swept by the same seed.
+Paymaster withdrawals in both plugins can also call `deriveAt` with a path you supplied in `delegation.path`. It is a normal wallet key, so a stuck delegator can be swept by the same seed.
 
-`MnemonicKeystore` covers BIP-32, plus the Railgun hash chain for coin type `1984`. Privacy Pools and Tornado use the BIP-32 branch. `MnemonicKeystore.random()` generates a 24-word phrase. The CLI's keystore, which also resolves stealth-account paths, is [`src/host/keystore.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/keystore.ts).
+Each plugin wraps your keystore before it reaches the secret manager, custom ones included, and the Tornado worker. Privacy Pools then derives only below `m/28784'/1'`, Tornado only below `m/29795'/1'`. Each also gets the exact `delegation.path` of an unshield you call, not the rest of `m/44'/60'`. Any other path throws `KeystorePathNotAllowedError`. Use `scopeKeystore` the same way for plugin code you did not write:
+
+```ts
+import { scopeKeystore } from '@kohaku-eth/plugins'
+
+const pluginKeystore = scopeKeystore(keystore, {
+  prefixes: ["m/29795'/1'"],
+  paths: ["m/44'/60'/0'/0/3"], // exact paths; a Set you keep can grow later
+})
+```
+
+`MnemonicKeystore` covers BIP-32, plus the Railgun hash chain for coin type `1984`. Privacy Pools and Tornado use the BIP-32 branch. The constructor rejects a phrase whose words or checksum are wrong. `deriveAt` rejects malformed paths (`0abc'`, `1e3'`, leading zeros, indices of 2³¹ or more) and the master key `m`, instead of guessing. `MnemonicKeystore.random()` generates a 24-word phrase. The CLI's keystore, which also resolves stealth-account paths, is [`src/host/keystore.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/keystore.ts).
 
 ### One secret manager owns a note
 
@@ -142,11 +153,34 @@ Privacy Pools uses a different hook for the same idea: a saga-backed `dataServic
 
 The CLI's Tornado source is [`src/utils/saga-external-sync.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/saga-external-sync.ts). It is attached in `makeHost` when the plugin id is Tornado.
 
+## What plugin code can reach
+
+Privacy Pools runs on your thread with your privileges. It is trusted code, like the rest of your bundle. The keystore scope above protects against bugs in it, not against a malicious copy.
+
+Tornado builds its state in a worker. Host objects cross into that worker through a bridge that allows only the calls the worker makes:
+
+| Host object | Calls the worker may make |
+| --- | --- |
+| `provider` | `getChainId`, `getBlockNumber`, `getLogs`, `getCode`, and `request` with read-only `eth_` methods. No signing or sending. |
+| `storage` | `get` and `set` on keys that start with `tornado-cash-` |
+| `keystore` | `deriveAt` on the scoped keystore |
+| `externalSyncProvider` | The three `ExternalSyncClient` reads |
+| relayer client | `getStatus` |
+| custom secret manager | Its six methods. `deriveDelegatorSigner` only for your `delegation.path`. |
+| `initialState`, `artifactsLoader`, `tailCalls` | Calling the function. `tailCalls` gets one address. |
+
+The worker cannot read fields (`keystore.mnemonic`), replace methods, or construct objects on the host side. Arguments must be plain data.
+
+`network.fetch` is not filtered by the SDK. Plugins and the Tornado worker can reach any URL, so put your own allowlist or proxy there if you need one.
+
+Nothing in the SDK loads plugins at runtime. If your wallet loads plugin code it did not bundle, run it in its own worker, iframe, or process. Give it a `scopeKeystore` keystore, its own storage, and a filtered `network`.
+
 ## Checklist
 
 - `fetch` returns real HTTP responses and throws only when there is no response.
 - Storage is async, branded, encrypted, and scoped to one plugin.
-- `deriveAt` is stable, and the purpose prefixes `m/28784'` and `m/29795'` are allowed.
+- `deriveAt` is stable, and the purpose prefixes `m/28784'` and `m/29795'` are allowed, plus any `delegation.path` you use.
+- Plugin code you did not write gets a `scopeKeystore` keystore and runs isolated.
 - The provider's chain id matches the deployment config.
 - The secret manager stays the one that created existing notes.
 - A Tornado CDN, if you have one, is `externalSyncProvider`. RPC remains the tail.

@@ -4,8 +4,10 @@ import {
   verifyAspRootOnChain,
   verifyStateRootOnChain,
 } from '../../verification/root-verification.js';
+import { aspLeavesRootSelector } from '../selectors/merkle.selector.js';
 import { poolMerkleTreeRootSelector } from '../selectors/pools.selector.js';
-import { aspSelector, entrypointInfoSelector, poolsLeavesSelector, poolsSelector } from '../selectors/slices.selectors.js';
+import { entrypointInfoSelector, poolsLeavesSelector, poolsSelector } from '../selectors/slices.selectors.js';
+import { setVerifiedAspRoot } from '../slices/aspVerificationSlice.js';
 import { RootState } from '../store.js';
 import { Address } from '../../interfaces/types.interface.js';
 
@@ -15,10 +17,11 @@ export interface VerifyRootsThunkParams {
 
 export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, { state: RootState }>(
   'sync/verifyRoots',
-  async ({ dataService }, { getState }) => {
+  async ({ dataService }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
-    const asp = aspSelector(state);
+    // Rebuilt from the synced leaves: the stored root is only what the service claimed.
+    const aspRoot = aspLeavesRootSelector(state);
     const pools = poolsSelector(state);
     const poolsLeaves = poolsLeavesSelector(state);
 
@@ -38,11 +41,16 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
     }
 
 
+    // Proofs may only use an ASP root this session matched to the chain, so the
+    // previous one is dropped until the check below passes again.
+    dispatch(setVerifiedAspRoot(0n));
+
     // The Entrypoint ASP check and every pool state-root check are independent
     // reads — run them concurrently instead of awaiting one at a time.
     await Promise.all([
-      ...(asp.aspTreeRoot && asp.aspTreeRoot !== 0n
-        ? [verifyAspRootOnChain(dataService, entrypointAddress, asp.aspTreeRoot)]
+      ...(aspRoot !== 0n
+        ? [verifyAspRootOnChain(dataService, entrypointAddress, aspRoot)
+          .then(() => { dispatch(setVerifiedAspRoot(aspRoot)); })]
         : []),
       ...stateRootChecks.map(({ poolAddress, localRoot }) =>
         verifyStateRootOnChain(dataService, poolAddress, localRoot)),

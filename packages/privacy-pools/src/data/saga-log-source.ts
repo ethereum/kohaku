@@ -149,10 +149,13 @@ export async function createSagaLogSource({
       }
     }
 
-    // saga's head is behind the request/chain — sync the (sagaLast, …] tail over
-    // RPC, which carries the real (correctly-indexed) LeafInserted events.
-    if (reqTo === undefined || reqTo > sagaLast) {
-      logs.push(...(await fallback({ ...params, fromBlock: sagaLast + 1n })));
+    // saga stopped short of the request (its own lag, or the `headBlock` clamp) —
+    // sync the (sagaTo, reqTo] tail over RPC, which carries the real
+    // (correctly-indexed) LeafInserted events.
+    if (reqTo === undefined || reqTo > sagaTo) {
+      const tailFrom = params.fromBlock > sagaTo ? params.fromBlock : sagaTo + 1n;
+
+      logs.push(...(await fallback({ ...params, fromBlock: tailFrom })));
     }
 
     return logs;

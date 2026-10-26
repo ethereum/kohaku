@@ -5,9 +5,10 @@ import {
   AssetAmount,
   ERC20AssetId,
   Host,
+  scopeKeystore,
 } from "@kohaku-eth/plugins";
 
-import { ISecretManager } from "../account/keys";
+import { ISecretManager, PRIVACY_POOLS_KEYSTORE_PREFIX } from "../account/keys";
 import { SignatureSecretManager } from "../account/signature-keys";
 import { PrivacyPoolsPaymasterConfigs } from "../config.js";
 import { IPFSAspService } from "../data/ipfsAsp.service.js";
@@ -94,6 +95,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   private entrypoint: IEntrypoint;
   private relayersList: Map<string, string>;
   private relayerClient: IRelayerClient;
+  // Wallet paths the integrator named in `delegation.path`.
+  private readonly delegationPaths = new Set<string>();
 
   constructor(
     readonly host: Host,
@@ -117,8 +120,12 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     this.entrypoint = entrypoint;
     this.relayersList = new Map(Object.entries(relayersList));
     this.relayerClient = relayerClientFactory();
+    // The secret manager only sees the Privacy Pools subtree, plus delegation paths.
     this.secretManager = secretManager({
-      host,
+      host: {
+        ...host,
+        keystore: scopeKeystore(host.keystore, { prefixes: [PRIVACY_POOLS_KEYSTORE_PREFIX], paths: this.delegationPaths }),
+      },
       accountIndex: this.accountIndex,
     });
     this.stateManager = stateManagerFactory({
@@ -407,6 +414,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     await this.stateManager.sync();
 
     if (options?.mode === 'paymaster') {
+      // The integrator named this wallet key, so the secret manager may derive exactly it.
+      if (options.delegation?.mode === 'deterministic' && options.delegation.path) {
+        this.delegationPaths.add(options.delegation.path);
+      }
+
       const [withdrawal] = await this.stateManager.getPaymasterWithdrawalPayloads({
         asset: assetAddress,
         amount,

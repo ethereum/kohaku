@@ -45,8 +45,18 @@ function namespace(ns: string): Map<string, CachedTree> {
  * Returns the Merkle tree for `leaves`, reusing a cached instance when `leaves`
  * is an append-only extension of what was last seen for `key`. Otherwise builds
  * a fresh tree (first access, or a divergent/shrunken leaf set).
+ *
+ * The append check only compares the count and the last leaf, so a set that
+ * changed in the middle (an ASP revocation) can pass it. When the caller knows
+ * the root the leaves should build, an extended tree with another root is
+ * rebuilt from scratch.
  */
-export function getIncrementalTree(ns: string, key: string, leaves: bigint[]): LeanIMT<bigint> {
+export function getIncrementalTree(
+  ns: string,
+  key: string,
+  leaves: bigint[],
+  expectedRoot?: bigint,
+): LeanIMT<bigint> {
   const cache = namespace(ns);
   const cached = cache.get(key);
 
@@ -64,7 +74,9 @@ export function getIncrementalTree(ns: string, key: string, leaves: bigint[]): L
     cached.count = leaves.length;
     cached.last = leaves[leaves.length - 1]!;
 
-    return cached.tree;
+    if (expectedRoot === undefined || cached.tree.root === expectedRoot) {
+      return cached.tree;
+    }
   }
 
   const tree = buildMerkleTree(leaves);
