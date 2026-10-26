@@ -72,6 +72,8 @@ new PrivacyPoolsV1Protocol(host, {
 })
 ```
 
+The `host` a secret manager receives has a scoped keystore: it derives below `m/28784'/1'` and the exact `delegation.path` of a paymaster unshield, and throws `KeystorePathNotAllowedError` for anything else.
+
 `myEnvelopeSigner` implements `signEnvelope(envelope) => hex signature`. The domain and types are built by the SDK, so the device only signs that payload.
 
 `SecretManager` is the older BIP-32 scheme: child keys under `m/28784'/1'/{account}'/{secretType}'/{deposit}'/{secret}'`. It is a different note set. Passing it replaces the signature manager. Do that only for a wallet whose deposits were created with it.
