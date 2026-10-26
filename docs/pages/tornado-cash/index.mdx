@@ -36,7 +36,7 @@ New deposits use signature secrets at `m/29795'/1'/{accountIndex}'`. Older BIP-3
 
 ETH is the sentinel `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (`E_ADDRESS`). ERC-20 pools use the token address. The amount has to be an exact combination of live pool sizes for that asset.
 
-Mainnet ETH pools are 0.1, 1, 10, and 100 ETH. Sepolia ETH pools are 0.1 and 1 ETH. Other assets follow the pools registered on that chain. `prepareShield` divides the amount across those pools. A remainder that fills no pool is left out of the transactions, so check the sum of `tx.value` (or the ERC-20 amounts) before the user signs.
+Mainnet ETH pools are 0.1, 1, 10, and 100 ETH. Sepolia ETH pools are 0.1 and 1 ETH. Other assets follow the pools registered on that chain, limited to the plugin's [pool catalog](/tornado-cash/configuration#pool-catalog). `prepareShield` divides the amount across those pools. A remainder that fills no pool is left out of the transactions, so check the sum of `tx.value` (or the ERC-20 amounts) before the user signs.
 
 ```ts
 const ETH = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const
@@ -76,7 +76,7 @@ const operation = await tornado.prepareUnshield(note, recipient)
 const receipts = await createTCBroadcaster(host).broadcast(operation)
 ```
 
-The default mode is `'relayer'`. One logical unshield can be several withdrawals when the amount spans more than one note. `receipts` is one entry per withdrawal that the relayer accepted. `id` is the relayer job id.
+The default mode is `'relayer'`. One logical unshield can be several withdrawals when the amount spans more than one note. Each carries the relayer `fee` taken from the note. `receipts` is one entry per withdrawal that the relayer accepted. `id` is the relayer job id.
 
 `createTCBroadcaster` reads relayer URLs from the operation, so the host's `network.fetch` has to reach those hosts. Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig`.
 

@@ -15,6 +15,7 @@ import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import type { DelegationConfig } from '../../account/delegation.interface';
+import type { ITornadoInstance } from '../../instances';
 
 export type { DelegationConfig, ImportNoteResult };
 
@@ -33,6 +34,10 @@ export interface IRelayerWithdrawalPayload {
   proof: TornadoProveOutput;
   poolAddress: Address;
   relayerUrl: string;
+  /** Relayer fee bound into the proof, in the pool asset's base units. */
+  fee: bigint;
+  /** Note denomination. The recipient receives `denomination - fee`. */
+  denomination: bigint;
 }
 
 export type IWithdrawalPayload = IRelayerWithdrawalPayload | IGenericPaymasterWithdrawalPayload;
@@ -50,7 +55,13 @@ export interface ITornadoArtifacts {
   provingKey: ArrayBuffer;
 }
 
-export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
+export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'> & {
+  /**
+   * Instances deposits may target on this chain. Replaces the built-in
+   * `TornadoInstances` list; without either, deposits are refused.
+   */
+  instances?: readonly ITornadoInstance[];
+};
 
 export interface TCProtocolParams {
   accountIndex?: number;

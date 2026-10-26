@@ -25,11 +25,12 @@ export interface SyncThunkParams extends
 
 export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
-  async ({ dataService, syncService, secretManager, verify = false, ...params }, { dispatch }) => {
+  async ({ dataService, syncService, secretManager, instances, verify = false, ...params }, { dispatch }) => {
 
     unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
       syncService,
+      instances,
     })));
 
     unwrapResult(await dispatch(syncRelayersThunk({ dataService, syncService })));
