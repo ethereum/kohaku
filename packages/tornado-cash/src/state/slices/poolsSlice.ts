@@ -30,6 +30,11 @@ export const poolsSlice = createSlice({
 
       return { poolsTuples: Array.from(newPools) };
     },
+    removePools: ({ poolsTuples }, { payload: addresses }: PayloadAction<Address[]>) => {
+      const removed = new Set<bigint>(addresses);
+
+      return { poolsTuples: poolsTuples.filter(([key]) => !removed.has(BigInt(key))) };
+    },
     setPoolSyncedBlock: (
       { poolsTuples },
       { payload: { pool, block } }: PayloadAction<{ pool: Address; block: bigint }>,
@@ -47,5 +52,5 @@ export const poolsSlice = createSlice({
   },
 });
 
-export const { registerPools, setPoolSyncedBlock } = poolsSlice.actions;
+export const { registerPools, removePools, setPoolSyncedBlock } = poolsSlice.actions;
 export const poolsReducer = poolsSlice.reducer;

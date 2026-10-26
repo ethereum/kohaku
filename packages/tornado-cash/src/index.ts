@@ -9,5 +9,10 @@ export type { SecretManagerParams, ISecretManager, LegacySecretManager } from '.
 export type { SignatureSecretManagerParams, EnvelopeSigner, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
 
+// Proving artifacts
+export { TORNADO_CIRCUIT_SHA256, TORNADO_PROVING_KEY_SHA256, TornadoArtifactsIntegrityError } from './utils/artifacts-integrity';
+
 // Configs
 export { TornadoCashConfigs, E_ADDRESS, TornadoPaymasterConfigs, ExtendedEthPools, extendedEthPoolSet } from './config.js';
+export { TornadoInstances } from './instances';
+export type { ITornadoInstance } from './instances';
