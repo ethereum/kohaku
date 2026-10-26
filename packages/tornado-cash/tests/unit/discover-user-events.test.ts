@@ -170,6 +170,8 @@ describe('getDepositPayloadThunk nonce allocation', () => {
       asset: 0n,
       amount: denomination * 2n,
       strategy: DepositStrategy.MaxAnonimitySet,
+      // POOL_A and POOL_B are not mainnet instances, so allow them explicitly.
+      instances: [POOL_A, POOL_B].map((address) => ({ address, asset: 0n, symbol: 'ETH', decimals: 18, denomination })),
     })));
 
     expect(nonces).toEqual([5, 6]);

@@ -16,11 +16,11 @@ import {
 
 | Field | Required | Role |
 | --- | --- | --- |
-| `protocolConfig` | yes | Deployment for this chain. Use `TornadoCashConfigs`. |
+| `protocolConfig` | yes | Deployment for this chain. Use `TornadoCashConfigs`. An `instances` list replaces the built-in [pool catalog](#pool-catalog). |
 | `accountIndex` | yes | Keystore account. `0` is the first. |
 | `paymasterConfig` | no | Per-chain ERC-4337 paymaster. Defaults to `TornadoPaymasterConfigs`. |
-| `artifactsLoader` | no | Returns `{ circuitText, provingKey }`. The default downloads both. |
-| `relayerConfig` | no | Fee window for relayer selection. Defaults to `{ minFee: 0.01, maxFee: 0.30 }`. |
+| `artifactsLoader` | no | Returns `{ circuitText, provingKey }`. The default downloads both from a pinned commit. Both are checked against SHA-256 pins. |
+| `relayerConfig` | no | Fee window and fee caps for relayer withdrawals. Defaults to `{ minFee: 0.01, maxFee: 0.30 }`, a 20% total fee cap, and a 20% price tolerance. |
 | `secretManagerFactory` | no | Replaces the built-in pair of signature secrets and legacy BIP-32 secrets. |
 | `minExternalSyncBlocksAmount` | no | How far behind a pool must be before `host.externalSyncProvider` is used. |
 | `stateManagerWorkerUrl` | no | URL of the state worker, when the bundler cannot find the default one. |
@@ -37,6 +37,26 @@ const tornado = createTCPlugin(host, {
 ```
 
 The chain id comes from `host.provider`, not from `protocolConfig`. Point the provider at the same network as the config.
+
+## Pool catalog
+
+Pool addresses and denominations are read from the instance registry through the RPC, so the plugin checks them against a static catalog, `TornadoInstances`, for mainnet and Sepolia. It lists every classic and extended ETH pool and the DAI, cDAI, USDC, USDT and WBTC pools on mainnet, and DAI 100 on Sepolia. A pool the RPC reports that is not in the catalog, or whose token or denomination differs, is ignored. Pools saved in `host.storage` or in `initialState` that are not catalog instances are dropped when the state loads. Deposits, including the ERC-20 approval, only ever target catalog instances.
+
+On another chain, or to change the list, pass `protocolConfig.instances`. It replaces the built-in list for that chain. Without either, sync and withdrawals still work but `prepareShield` throws.
+
+```ts
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: {
+    ...myDeployment,
+    instances: [
+      { address: 0x1111111111111111111111111111111111111111n, asset: 0n, symbol: 'ETH', decimals: 18, denomination: 10n ** 17n },
+    ],
+  },
+})
+```
+
+`asset` is `0n` for the native coin.
 
 ## Proving artifacts
 
@@ -58,21 +78,30 @@ createTCPlugin(host, {
 })
 ```
 
-`provingKey` is an `ArrayBuffer`. The CLI downloads once into the wallet's data directory and reads from disk after that, in [`src/utils/proving-artifacts.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/proving-artifacts.ts).
+`provingKey` is an `ArrayBuffer`. Whatever the loader returns is checked against SHA-256 pins (`TORNADO_CIRCUIT_SHA256`, `TORNADO_PROVING_KEY_SHA256`) before it is parsed, and a mismatch throws `TornadoArtifactsIntegrityError`. A loader can change where the files come from, but not what they contain.
 
-## Relayer fee window
+The CLI downloads once into the wallet's data directory and reads from disk after that, in [`src/utils/proving-artifacts.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/proving-artifacts.ts).
+
+## Relayer fees
 
 `relayerConfig` filters the on-chain relayer registry. A relayer is skipped when its `tornadoServiceFee` is below `minFee` or greater than or equal to `maxFee`, when its queue is longer than five, or when its `netId` disagrees with the provider's chain. ERC-20 withdrawals also skip relayers that do not publish ETH prices.
+
+The fee in the proof is the network fee (provider gas price × 550,000 gas, converted with the relayer's token price for ERC-20 pools) plus the service fee. Before proving, each surviving relayer's fee is checked:
+
+- ERC-20 pools: the relayer's token price may not put the network fee more than `maxPriceDeviationBps` (default `2_000`, 20%) above the paymaster's on-chain TWAP quote (`quoteWeiInToken`). When the paymaster cannot quote the token, only the cap below applies.
+- Every pool: the fee for each note may not exceed `maxTotalFeeBps` (default `2_000`, 20%) of its denomination. With ETH at $2,300, that allows a 100 DAI, USDC or USDT note up to about 15 gwei and a 0.1 ETH note up to about 36 gwei. The contract itself only requires fee ≤ denomination.
+
+The cheapest relayer by total fee is used. When none pass, `prepareUnshield` throws with each relayer's reason.
 
 ```ts
 createTCPlugin(host, {
   accountIndex: 0,
   protocolConfig: TornadoCashConfigs[11155111],
-  relayerConfig: { minFee: 0.01, maxFee: 0.1 },
+  relayerConfig: { minFee: 0.01, maxFee: 0.1, maxTotalFeeBps: 1_000 },
 })
 ```
 
-The numbers are in the same unit as the relayer status field. The defaults accept fees from `0.01` up to, and not including, `0.30`.
+`minFee` and `maxFee` are in the same unit as the relayer status field (percent). The defaults accept service fees from `0.01` up to, and not including, `0.30`.
 
 `preferredRelayersEns` on an individual unshield narrows this list further. See [deposits and withdrawals](/tornado-cash/options).
 
