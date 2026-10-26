@@ -28,7 +28,7 @@ The CLI always passes `MinFee`, in `prepareProtocolShield` in [`src/utils/plugin
 
 ## ERC-4337 paymaster withdrawal
 
-Use the paymaster relay/broadcast path as the default integration path, including withdrawals without follow-up calls. Pass `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
+Use the paymaster relay/broadcast path by passing `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
 
 ```ts
 import { createTCBroadcaster, TornadoPaymasterConfigs } from '@kohaku-eth/tornado-cash'
@@ -62,7 +62,7 @@ The paymaster sponsors gas. The user's public account does not pay the withdrawa
 | Value | Delegator |
 | --- | --- |
 | omitted, or `{ mode: 'deterministic' }` | An ephemeral address derived from the batch's first deposit. Recoverable from the seed. |
-| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. |
+| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. The plugin lets the worker derive exactly this path, nothing else outside `m/29795'/1'`. |
 | `{ mode: 'random' }` | A throwaway key. The funds sitting on it during the call are unrecoverable if the user operation stalls. |
 
 ```ts

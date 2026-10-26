@@ -67,6 +67,9 @@ export const lastUpdateRootEventSelector = createSelector(
   },
 );
 
+export const verifiedAspRootSelector = (state: RootState): bigint =>
+  BigInt(state.aspVerification.verifiedRoot);
+
 export const entrypointInfoSelector = createSelector(
   [(state: RootState) => state.entrypointInfo],
   (poolInfo) => deserialize(poolInfo) as EntrypointInfoState,

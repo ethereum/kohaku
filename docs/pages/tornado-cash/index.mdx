@@ -36,7 +36,7 @@ New deposits use signature secrets at `m/29795'/1'/{accountIndex}'`. Older BIP-3
 
 ETH is the sentinel `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (`E_ADDRESS`). ERC-20 pools use the token address. The amount has to be an exact combination of live pool sizes for that asset.
 
-Mainnet ETH pools are 0.1, 1, 10, and 100 ETH. Sepolia ETH pools are 0.1 and 1 ETH. Other assets follow the pools registered on that chain. `prepareShield` divides the amount across those pools. A remainder that fills no pool is left out of the transactions, so check the sum of `tx.value` (or the ERC-20 amounts) before the user signs.
+Mainnet ETH pools are 0.1, 1, 10, and 100 ETH. Sepolia ETH pools are 0.1 and 1 ETH. Other assets follow the pools registered on that chain, limited to the plugin's [pool catalog](/tornado-cash/configuration#pool-catalog). `prepareShield` divides the amount across those pools. A remainder that fills no pool is left out of the transactions, so check the sum of `tx.value` (or the ERC-20 amounts) before the user signs.
 
 ```ts
 const ETH = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const
@@ -69,7 +69,7 @@ One row per asset, with the sum of unspent notes. Pass a list of `{ __type: 'erc
 
 ## Unshield
 
-Use the ERC-4337 paymaster path as the default integration path and pass `mode: 'paymaster'` explicitly. Omitting it selects the SDK's regular relayer mode.
+Use the ERC-4337 paymaster path by passing `mode: 'paymaster'` explicitly. Omitting it selects the SDK's regular relayer mode.
 
 ```ts
 const recipient = '0x1111111111111111111111111111111111111111' as const
@@ -79,8 +79,6 @@ const operation = await tornado.prepareUnshield(note, recipient, {
 })
 const receipts = await createTCBroadcaster(host).broadcast(operation)
 ```
-
-One logical unshield can be several user operations when the amount spans more than one note. The broadcaster submits them to the bundler and waits for their receipts. Each returned `id` is a user operation hash. Check `receipts.length` against `operation.withdrawals.length` before reporting that every withdrawal completed.
 
 Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig` to the plugin. The prepared operation carries the bundler URL used by the broadcaster.
 

@@ -127,6 +127,8 @@ The broadcaster submits the paymaster-sponsored user operation to the bundler co
 
 The recipient receives `amount` minus the sponsored gas fee, plus any gas refund sent to them. Call `estimateUnshield` with the same mode while the user is still editing the form. It estimates fees without building a proof. `prepareUnshield` estimates again when you submit.
 
+The proof commits to the relayer's withdrawal data, so the plugin decodes it before proving. A quote is dropped if its data pays anyone other than the recipient, embeds a fee above the quoted `feeBPS` or the pool's on-chain `maxRelayFeeBPS`, or is not the canonical encoding. Quotes are ranked by the fee embedded in the data, not the advertised one.
+
 ```ts
 const preview = await pools.estimateUnshield(deposit, recipient, {
   mode: 'paymaster',

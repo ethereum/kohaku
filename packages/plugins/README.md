@@ -1,6 +1,6 @@
 # Plugins
 
-Kohaku SDK provides a set of private transaction protocol plugins out-of-the-box. These plugins are used to interface with various private transaction protocols in a standard way. Plugins can either be bundled with the SDK, or loaded dynamically at runtime by wallets.
+Kohaku SDK provides a set of private transaction protocol plugins out-of-the-box. These plugins are used to interface with various private transaction protocols in a standard way. Plugins are bundled with the SDK; nothing in it loads plugin code at runtime. A plugin runs with the privileges of the code that loads it, so a wallet that loads third-party plugin code must isolate it (worker, iframe or process) and hand it a scoped keystore (`scopeKeystore`), its own storage and a filtered network. See [The host](../../docs/pages/host.mdx) for the boundary the bundled plugins keep.
 
 ## Interface Outline
 
@@ -118,8 +118,8 @@ export class MultiAssetsNotSupportedError extends PluginError {
 
 ### Key Material
 
-Plugins will derive all new key material from the `Keystore` interface and therefore the host's mnemonic. This makes all such material portable. For example:
+Plugins will derive all new key material from the `Keystore` interface and therefore the host's mnemonic. This makes all such material portable. Each plugin only gets its own subtree, through `scopeKeystore`:
 
-- The TC Classic plugin might claim all keys in the `m/44'/tc'/0/0/x` path until it reaches its gap limit.
+- Tornado Cash derives below `m/29795'/1'` and Privacy Pools below `m/28784'/1'`, plus the exact wallet path passed as `delegation.path` to a paymaster unshield.
 
 Plugins can also import key material through their `options` . This imported material is not derived from `Keystore.deriveAt` and, therefore, it is not portable. When a wallet is backed up or transferred it will either need to copy the plugin's state (IE for cross-device syncs) or backup the key material from the plugin's exposed `options` (IE for manual end-user backups).

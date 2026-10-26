@@ -72,7 +72,11 @@ new PrivacyPoolsV1Protocol(host, {
 })
 ```
 
+The `host` a secret manager receives has a scoped keystore: it derives below `m/28784'/1'` and the exact `delegation.path` of a paymaster unshield, and throws `KeystorePathNotAllowedError` for anything else.
+
 `myEnvelopeSigner` implements `signEnvelope(envelope) => hex signature`. The domain and types are built by the SDK, so the device only signs that payload.
+
+Note secrets are never stored. After a restart they are signed again, so the signer must return the same signature for the same envelope (RFC 6979). The first time a session needs a secret, the manager signs one envelope twice and throws `Note signer is not deterministic` if the two differ, before any deposit or change note uses it. That costs one extra signature per session, which is one extra prompt on a hardware wallet. Pass `verifyDeterminism: false` to `SignatureSecretManager` only for a signer you know is deterministic. With viem, leave `setSignEntropy` off.
 
 `SecretManager` is the older BIP-32 scheme: child keys under `m/28784'/1'/{account}'/{secretType}'/{deposit}'/{secret}'`. It is a different note set. Passing it replaces the signature manager. Do that only for a wallet whose deposits were created with it.
 
@@ -85,6 +89,8 @@ new PrivacyPoolsV1Protocol(host, {
 The association set decides which deposits are approved. Until a deposit is in the set, its balance is `'pending'` and the relayer withdrawal path will not spend it.
 
 The default client is `IPFSAspService`, which `fetch`es the tree from IPFS through `host.network`. Set `ipfsUrl` to point it at another gateway.
+
+The client is not trusted. The plugin keeps only the leaves it returns, rebuilds the root from them, and rejects the set if that root is not the one in the Entrypoint's `RootUpdated` event. Each sync checks the rebuilt root against the Entrypoint's `latestRoot()`, and a withdrawal is only proved against a root checked that way in the same session. A root does not commit to the number of leaves, so a dishonest gateway can still make approved deposits look pending. Confirm a pending status with a second source, such as `OxBowAspService`, before you offer ragequit.
 
 0xbow publishes the set over HTTP. Pass `OxBowAspService`:
 
@@ -109,7 +115,7 @@ createPPv1Plugin(host, {
 
 The CLI uses this client. Sepolia's URL is `https://dw.0xbow.io`.
 
-A custom association set implements `getAspTree(state): Promise<bigint[][]>`.
+A custom association set implements `getAspTree(state): Promise<bigint[][]>`. Only the first array, the leaves, is used.
 
 ## Paymaster
 
