@@ -1,0 +1,84 @@
+# Shield, transfer and unshield
+
+The Tacit pool holds ETH as notes of any amount. Proofs are made on the user's device, and one transaction can deposit, pay someone privately with change, or withdraw. The contracts are immutable (no owner, no pause, no upgrade) and sit at the same addresses on Ethereum, Base, Robinhood Chain, and MegaETH. The pool needs no other chain.
+
+Unlike the other plugins, this one also supports `prepareTransfer`: a private payment from one pool address to another.
+
+:::warning
+`@kohaku-eth/tacit` has not been audited.
+:::
+
+This page is the short path. [Configuration](/tacit/configuration) is the constructor, the chains, and the proving files. [Relayers and fees](/tacit/operations) covers who submits a spend, what it costs, and what to do when the pool moves first.
+
+## Create the plugin
+
+```ts
+import { createTacitBroadcaster, createTacitPlugin } from '@kohaku-eth/tacit'
+import type { Host } from '@kohaku-eth/plugins'
+
+export async function createTacit(host: Host) {
+  return createTacitPlugin(host, { accountIndex: 0 })
+}
+```
+
+The host is the one from [The host](/host). The chain comes from `host.provider`, and the plugin refuses a chain the pool is not on. The identity key is derived from the keystore at `m/29793'/1'/{accountIndex}'`, and every other key derives from it, so the keystore's seed is the only thing to back up.
+
+`instanceId()` is the wallet's pool address, `bp1…`. Share it to receive private payments.
+
+```ts
+const tacit = await createTacit(host)
+const address = await tacit.instanceId()
+```
+
+## Assets and amounts
+
+The pool holds ETH. ETH is the sentinel `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (`E_ADDRESS`), as in the other plugins; `{ __type: 'native' }` is accepted too. An amount is any whole number of wei above zero and below 2^120. There are no fixed denominations.
+
+```ts
+import { E_ADDRESS } from '@kohaku-eth/tacit'
+
+const eth = { __type: 'erc20' as const, contract: E_ADDRESS }
+const amount = { asset: eth, amount: 20_000_000_000_000_000n } // 0.02 ETH
+```
+
+## Shield
+
+```ts
+const { txns } = await tacit.prepareShield(amount)
+
+for (const tx of txns) {
+  const hash = await signer.sendTransaction(tx)
+  await host.provider.waitForTransaction(hash)
+}
+```
+
+`txns` is one `{ to, data, value }` for the user's public account to send. The proof is made inside `prepareShield`, which takes a few seconds, and it is good while the pool's head stays where it was. Send it soon after. If another deposit lands first, the transaction reverts with `StaleRoot`: call `prepareShield` again.
+
+A second argument pays another pool address instead of this wallet: `prepareShield(amount, address)`.
+
+## Transfer
+
+```ts
+const operation = await tacit.prepareTransfer(amount, recipientAddress)
+const { txHash } = await createTacitBroadcaster(host).broadcast(operation)
+```
+
+The recipient receives all of `amount`. A relayer's fee comes out of the sender's notes on top of it. Neither the recipient nor the amount appears on chain. With `mode: 'self'`, `operation.txns` is sent by the user's own account instead: see [Relayers and fees](/tacit/operations).
+
+## Unshield
+
+```ts
+const operation = await tacit.prepareUnshield(amount, '0x1111111111111111111111111111111111111111')
+const { txHash } = await createTacitBroadcaster(host).broadcast(operation)
+```
+
+The recipient gets exactly `amount`, and needs no gas. The address, the amount, and the relayer's fee are public. Which deposit paid is not.
+
+## Balance and notes
+
+```ts
+const [{ amount: balance }] = await tacit.balance()
+const notes = await tacit.notes()
+```
+
+`balance` is the sum of unspent notes. The first call reads the pool's history into `host.storage`, and later calls read only what is new. One spend uses at most two notes. A balance held in more notes than that is merged with `prepareConsolidate()`; see [Relayers and fees](/tacit/operations#consolidate).

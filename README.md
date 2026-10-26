@@ -24,6 +24,7 @@ Privacy-first js tooling for the Ethereum ecosystem. For rust crates see [sister
 | [@kohaku-eth/railgun](packages/railgun)             | 🚧     | railgun shielded pool protocol lib (currently under mainenance) |
 | [@kohaku-eth/tornado-cash](packages/tornado-cash) | ✅     | tornado cash shielded pool protocol lib           |
 | [@kohaku-eth/privacy-pools](packages/privacy-pools) | ✅     | privacy pools shielded pool protocol lib           |
+| [@kohaku-eth/tacit](packages/tacit) | 🚧     | tacit shielded pool protocol lib           |
 | [@kohaku-eth/plugins](packages/plugins) | ✅     | shielded pool protocols standardized plugin interface          |
 | [@kohaku-eth/provider](packages/provider)           | ✅     | provider abstraction (ethers, viem, helios, colibri) |
 | [@kohaku-eth/pq-account](packages/pq-account)       | ✅     | post-quantum 4337 account implementation     |
