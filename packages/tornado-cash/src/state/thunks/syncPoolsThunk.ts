@@ -1,5 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { extendedEthPoolSet } from '../../config';
+import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from '../../instances';
+import { addressToHex } from '../../utils';
 import { IPool } from '../../data/interfaces/events.interface';
 import { registerPools } from '../slices/poolsSlice';
 import { RootState } from '../store';
@@ -10,6 +12,8 @@ import { instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices
 export interface SyncPoolsThunkParams {
   dataService: IDataService;
   syncService: ISyncService;
+  /** Overrides the built-in instance catalog for this chain. */
+  instances?: readonly ITornadoInstance[];
 }
 
 export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { state: RootState }>(
@@ -17,6 +21,7 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
   async ({
     dataService,
     syncService,
+    instances,
   }, { dispatch, getState }) => {
     const state = getState();
     const {
@@ -25,6 +30,9 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       instanceRegistry: { address: instanceRegistryAddress },
     } = instanceRegistryInfoSelector(state);
     const existingPools = poolsSelector(state);
+    // The registry and pool contracts are read through the RPC, so on chains
+    // with a catalog only its instances are fetched, and only if they match it.
+    const catalog = instanceCatalog(chainId, instances);
 
     const registryAddresses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
     const registrySet = new Set(registryAddresses);
@@ -45,6 +53,13 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
 
     if (savedExtendedPools.length > 0) {
       dispatch(registerPools(savedExtendedPools.map((pool) => ({ ...pool, extended: true }))));
+    }
+
+    const uncataloguedPools = catalog ? [...poolAddresses].filter((address) => !catalog.has(address)) : [];
+
+    if (uncataloguedPools.length > 0) {
+      console.warn('Ignoring pools missing from the instance catalog', uncataloguedPools.map((address) => addressToHex(address)));
+      uncataloguedPools.forEach((address) => poolAddresses.delete(address));
     }
 
     const unsyncedPools = [...poolAddresses].filter((address) => !existingPools.has(address));
@@ -94,6 +109,13 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       rootHistorySize,
       ...(extendedPools.has(poolAddress) ? { extended: true } : {}),
     }))
+    .filter((pool) => {
+      if (!catalog || catalogInstanceFor(catalog, pool)) return true;
+
+      console.warn(`Ignoring pool ${addressToHex(pool.address)}: asset or denomination differs from the instance catalog`);
+
+      return false;
+    });
 
     dispatch(registerPools(pools));
   }

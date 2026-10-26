@@ -1,4 +1,5 @@
 import { ITornadoArtifacts } from '../plugin/interfaces/protocol-params.interface';
+import { assertTornadoArtifacts } from './artifacts-integrity';
 import { ITornadoProver } from './tornado-prover';
 
 export function makeLazyProverFactory(
@@ -8,8 +9,12 @@ export function makeLazyProverFactory(
 
   return async () => {
     if (!prover) {
-      const { circuitText, provingKey } = await artifactsLoader();
+      const artifacts = await artifactsLoader();
 
+      // Must run before JSON.parse: proving evaluates the circuit's template code.
+      assertTornadoArtifacts(artifacts);
+
+      const { circuitText, provingKey } = artifacts;
       const actualProverFactory = await import('./tornado-prover').then((m) => m.createTornadoProver);
 
       prover = await actualProverFactory(JSON.parse(circuitText), provingKey);
