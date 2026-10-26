@@ -14,13 +14,19 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
 /**
  * How the ephemeral sender for a paymaster withdrawal is produced.
  *
- * - `deterministic` (default): recoverable — keyed by the withdrawn note's
- *   deposit index via the SecretManager, so a stuck sender can be swept.
+ * - `deterministic` (default): recoverable. Without `path`, an ephemeral sender
+ *   keyed by the withdrawn note (deposit/withdraw index) via the SecretManager —
+ *   recoverable by re-derivation, but not a wallet-visible address. With `path`,
+ *   a classical BIP-32 wallet-path key derived WITHOUT the privacy transform, so
+ *   it resolves to a recoverable, wallet-native address a stuck sender can be
+ *   swept from with standard tooling.
  * - `random`: a throwaway, unrecoverable EOA. Safe here because in the
  *   single-note flow the funds go straight to the recipient during paymaster
  *   validation and never sit in the sender.
  */
-export type DelegationConfig = { mode: "deterministic" } | { mode: "random" };
+export type DelegationConfig =
+  | { mode: "deterministic"; path?: string }
+  | { mode: "random" };
 
 export interface SerializedAuth {
   address: `0x${string}`;
@@ -72,6 +78,13 @@ export interface BuildSignedUserOpParams {
   maxPriorityFeePerGas: bigint;
   /** EntryPoint nonce for this sender. Defaults to 0 (fresh single-use EOA). */
   nonce?: bigint;
+  /**
+   * EOA transaction-count nonce the EIP-7702 authorization binds to. Defaults to
+   * `nonce` (0 for a fresh single-use sender). A reused wallet-path delegator has
+   * a nonzero transaction count, so the authorization must bind to its real nonce
+   * or the bundler rejects it — this is distinct from the EntryPoint `nonce` above.
+   */
+  authorizationNonce?: bigint;
   /**
    * Optional execution-phase calls run by the Simple7702 sender after the
    * withdrawal (which pays the sender during validation). Empty → callData `0x`;

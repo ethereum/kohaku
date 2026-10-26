@@ -1,0 +1,83 @@
+# Notes and history
+
+`balance` is the summary. `notes`, `history`, and `ragequit` are how a wallet shows the positions behind it and lets the user exit a deposit the association set has not approved.
+
+All three call `sync` first. `sync()` on its own is there when you want to warm the cache without reading.
+
+```ts
+await pools.sync()
+```
+
+## Notes
+
+```ts
+const open = await pools.notes()
+const usdc = await pools.notes(
+  [{ __type: 'erc20', contract: USDC }],
+  false,
+)
+const withSpent = await pools.notes([], true)
+```
+
+The first argument filters by asset. An empty list means every asset. The second includes notes whose balance is already zero. It defaults to `false`.
+
+Each note has:
+
+| Field | Meaning |
+| --- | --- |
+| `label` | Id you pass to `ragequit`. |
+| `value` | Original deposit value. |
+| `balance` | What is left. |
+| `assetAddress` | Pool asset, as a bigint. `E_ADDRESS` is ETH. |
+| `approved` | `true` once the association set has accepted the deposit. |
+| `precommitment` | The note's precommitment. |
+| `deposit` | Deposit index in this account's sequence. |
+| `withdraw` | How many withdrawals have already spent this note. |
+
+Approved balance is what `prepareUnshield` can spend. Unapproved balance is the `'pending'` row from `balance`. Sum `balance` yourself if you render a custom total. `balance()` already splits the two.
+
+## History
+
+```ts
+const events = await pools.history()
+const usdcEvents = await pools.history([
+  { __type: 'erc20', contract: USDC },
+])
+```
+
+Events come back newest first. Each one is a deposit, a withdrawal, or a ragequit.
+
+| Common fields | |
+| --- | --- |
+| `type` | `'deposit'`, `'withdrawal'`, or `'ragequit'` |
+| `value` | Amount the event moved. For a deposit this is the amount credited after the vetting fee. |
+| `assetAddress`, `poolAddress` | Bigints. |
+| `transactionHash`, `blockNumber`, `logIndex`, `timestamp` | Where it happened. The first history call fills in hashes and timestamps that were missing from the sync. |
+
+Deposits also carry `depositor`, `label`, and `aspStatus` (`'pending'` or `'approved'`). Ragequits carry `ragequitter`. Withdrawals carry the shared fields only.
+
+`transactionHash` on the event is a bigint. Format it to hex when you link to a block explorer.
+
+## Ragequit
+
+Ragequit pulls the unapproved value of specific notes back out, as public transactions the user signs. It is the exit when a deposit should not wait for the association set, or should not enter it.
+
+```ts
+const pending = (await pools.notes()).filter((note) => !note.approved)
+const { txns } = await pools.ragequit(pending.map((note) => note.label))
+
+for (const tx of txns) {
+  const hash = await signer.sendTransaction(tx)
+  await provider.waitForTransaction(hash)
+}
+```
+
+`ragequit` takes labels, not asset addresses. One label is one note. The returned `txns` are `{ to, data, value }` calls to the pool, sent by the user's public account, the same way a shield is sent. An empty label list builds no transactions.
+
+Approved value stays in the pool. Withdraw that with [prepareUnshield](/privacy-pools/withdrawals).
+
+After the ragequit transactions confirm, `notes` and `balance` drop the unapproved amount on the next sync.
+
+## Showing it in a wallet
+
+A practical screen is three numbers from `balance` (approved, pending, and their sum), a list from `notes` for the asset the user picked, and `history` for the activity row. Offer ragequit on pending notes, and unshield on approved ones. The CLI reads notes while it computes a max unshield amount in [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts).

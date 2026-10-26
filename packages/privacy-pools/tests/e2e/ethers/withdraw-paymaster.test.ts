@@ -55,7 +55,7 @@ const SAGA_SYNC_URL = process['env']['SAGA_SYNC_URL'] ?? 'https://saga.fatsoluti
 const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
 const USDT_BALANCE_SLOT = 2;
 const USDT_POOL = 0xe859c0bd25f260baee534fb52e307d3b64d24572n;
-const USDT_ADAPTER = '0xFcA5515D05f372Db8E03Bcc6b1a96BF4aC006f33';
+const USDT_ADAPTER = '0x3B33c5cb645690E6b7Df599F58CADA8fA189C36F';
 const SIMPLE_7702_IMPL = '0xe6Cae83BdE06E4c305530e199D7217f42808555B';
 
 const chainId = inject('chainId');
@@ -78,9 +78,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster unshield — real orac
     const pool = anvil.pool(1);
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
 
-    // Optionally hydrate the heavy pool-event history from saga-sync; the
-    // entrypoint (not a saga stream) and any blocks past saga's coverage still
-    // come from the fork over RPC — result-identical, just far fewer round trips.
+    // Optionally hydrate the heavy pool + entrypoint event history from
+    // saga-sync; any blocks past saga's coverage still come from the fork over
+    // RPC — result-identical, just far fewer round trips.
     let dataService: DataService | undefined;
 
     if (SAGA_SYNC_URL) {

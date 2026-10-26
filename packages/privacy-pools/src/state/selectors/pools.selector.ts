@@ -2,7 +2,7 @@ import { createSelector } from "@reduxjs/toolkit";
 
 import { IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
-import { computeMerkleTreeRoot } from "../../utils/proof.util";
+import { getIncrementalTree } from "./merkle-tree.cache";
 import { RootState } from "../store";
 import { myEntrypointDepositsSelector } from "./deposits.selector";
 import {
@@ -99,15 +99,17 @@ export const poolCommitmentsSelector = createSelector(
 );
 
 export const poolMerkleTreeRootSelector = createSelector(
-  [poolCommitmentsSelector],
-  (commitments): bigint => {
+  [poolCommitmentsSelector, (_state: RootState, poolAddress: Address) => poolAddress],
+  (commitments, poolAddress): bigint => {
     const leaves = Array.from(commitments);
 
     if (leaves.length === 0) {
       return 0n;
     }
 
-    return computeMerkleTreeRoot(leaves);
+    // Shares the per-pool cached tree with stateMerkleProofSelector, so verifying
+    // the root and generating proofs build the tree at most once.
+    return getIncrementalTree('state', String(poolAddress), leaves).root;
   },
 );
 

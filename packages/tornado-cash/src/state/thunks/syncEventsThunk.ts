@@ -9,8 +9,8 @@ import { registerWithdrawals } from "../slices/withdrawalsSlice";
 import { setPoolSyncedBlock } from "../slices/poolsSlice";
 import { RootState } from "../store";
 import {
+  activePoolsSelector,
   instanceRegistryInfoSelector,
-  poolsSelector,
 } from "../selectors/slices.selectors";
 import { selectLastSyncedBlock } from "../selectors/last-synced-block.selector";
 
@@ -24,7 +24,7 @@ export const syncEventsThunk = createAsyncThunk<
   { state: RootState; }
 >("sync/events", async ({ syncService }, { getState, dispatch }) => {
   const state = getState();
-  const myPools = poolsSelector(state);
+  const myPools = activePoolsSelector(state);
   const { chainId } = instanceRegistryInfoSelector(state);
 
   // Fetch each pool's events from its own last-synced block (falling back to the

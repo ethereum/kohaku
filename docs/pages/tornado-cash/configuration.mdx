@@ -1,0 +1,168 @@
+# Configuration
+
+`createTCPlugin(host, params)` is the constructor. `protocolConfig` is the only field without a default.
+
+```ts
+import {
+  createTCPlugin,
+  TornadoCashConfigs,
+  TornadoPaymasterConfigs,
+} from '@kohaku-eth/tornado-cash'
+```
+
+`TornadoCashConfigs[1]` is mainnet. `TornadoCashConfigs[11155111]` is Sepolia. The object carries the instance registry (and the block it was deployed in), the relayer registry, the aggregator, the WETH address, and the ENS subdomain key the relayer list is read from.
+
+## Options
+
+| Field | Required | Role |
+| --- | --- | --- |
+| `protocolConfig` | yes | Deployment for this chain. Use `TornadoCashConfigs`. An `instances` list replaces the built-in [pool catalog](#pool-catalog). |
+| `accountIndex` | yes | Keystore account. `0` is the first. |
+| `paymasterConfig` | no | Per-chain ERC-4337 paymaster. Defaults to `TornadoPaymasterConfigs`. |
+| `artifactsLoader` | no | Returns `{ circuitText, provingKey }`. The default downloads both from a pinned commit. Both are checked against SHA-256 pins. |
+| `relayerConfig` | no | Fee window and fee caps for relayer withdrawals. Defaults to `{ minFee: 0.01, maxFee: 0.30 }`, a 20% total fee cap, and a 20% price tolerance. |
+| `secretManagerFactory` | no | Replaces the built-in pair of signature secrets and legacy BIP-32 secrets. |
+| `minExternalSyncBlocksAmount` | no | How far behind a pool must be before `host.externalSyncProvider` is used. |
+| `stateManagerWorkerUrl` | no | URL of the state worker, when the bundler cannot find the default one. |
+| `initialState` | no | `() => Promise<Record<string, PublicRootState>>`. Seeds an empty store. |
+| `relayerClientFactory` | no | Replaces the HTTP relayer client. It receives `host` indirectly through the factory you close over. |
+
+```ts
+const tornado = createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[1],
+  paymasterConfig: TornadoPaymasterConfigs,
+  minExternalSyncBlocksAmount: 1_000,
+})
+```
+
+The chain id comes from `host.provider`, not from `protocolConfig`. Point the provider at the same network as the config.
+
+## Pool catalog
+
+Pool addresses and denominations are read from the instance registry through the RPC, so the plugin checks them against a static catalog, `TornadoInstances`, for mainnet and Sepolia. It lists every classic and extended ETH pool and the DAI, cDAI, USDC, USDT and WBTC pools on mainnet, and DAI 100 on Sepolia. A pool the RPC reports that is not in the catalog, or whose token or denomination differs, is ignored. Pools saved in `host.storage` or in `initialState` that are not catalog instances are dropped when the state loads. Deposits, including the ERC-20 approval, only ever target catalog instances.
+
+On another chain, or to change the list, pass `protocolConfig.instances`. It replaces the built-in list for that chain. Without either, sync and withdrawals still work but `prepareShield` throws.
+
+```ts
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: {
+    ...myDeployment,
+    instances: [
+      { address: 0x1111111111111111111111111111111111111111n, asset: 0n, symbol: 'ETH', decimals: 18, denomination: 10n ** 17n },
+    ],
+  },
+})
+```
+
+`asset` is `0n` for the native coin.
+
+## Proving artifacts
+
+The first unshield proves in-process. The default loader fetches:
+
+- the circuit JSON, and
+- the proving key binary
+
+from the `tornado-cli` build published on GitHub. That is fine for a demo. A wallet ships or caches the files and returns them from `artifactsLoader`:
+
+```ts
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[1],
+  artifactsLoader: async () => ({
+    circuitText: await readFile(circuitPath, 'utf8'),
+    provingKey: await readFile(provingKeyPath),
+  }),
+})
+```
+
+`provingKey` is an `ArrayBuffer`. Whatever the loader returns is checked against SHA-256 pins (`TORNADO_CIRCUIT_SHA256`, `TORNADO_PROVING_KEY_SHA256`) before it is parsed, and a mismatch throws `TornadoArtifactsIntegrityError`. A loader can change where the files come from, but not what they contain.
+
+The CLI downloads once into the wallet's data directory and reads from disk after that, in [`src/utils/proving-artifacts.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/proving-artifacts.ts).
+
+## Relayer fees
+
+`relayerConfig` filters the on-chain relayer registry. A relayer is skipped when its `tornadoServiceFee` is below `minFee` or greater than or equal to `maxFee`, when its queue is longer than five, or when its `netId` disagrees with the provider's chain. ERC-20 withdrawals also skip relayers that do not publish ETH prices.
+
+The fee in the proof is the network fee (provider gas price × 550,000 gas, converted with the relayer's token price for ERC-20 pools) plus the service fee. Before proving, each surviving relayer's fee is checked:
+
+- ERC-20 pools: the relayer's token price may not put the network fee more than `maxPriceDeviationBps` (default `2_000`, 20%) above the paymaster's on-chain TWAP quote (`quoteWeiInToken`). When the paymaster cannot quote the token, only the cap below applies.
+- Every pool: the fee for each note may not exceed `maxTotalFeeBps` (default `2_000`, 20%) of its denomination. With ETH at $2,300, that allows a 100 DAI, USDC or USDT note up to about 15 gwei and a 0.1 ETH note up to about 36 gwei. The contract itself only requires fee ≤ denomination.
+
+The cheapest relayer by total fee is used. When none pass, `prepareUnshield` throws with each relayer's reason.
+
+```ts
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[11155111],
+  relayerConfig: { minFee: 0.01, maxFee: 0.1, maxTotalFeeBps: 1_000 },
+})
+```
+
+`minFee` and `maxFee` are in the same unit as the relayer status field (percent). The defaults accept service fees from `0.01` up to, and not including, `0.30`.
+
+`preferredRelayersEns` on an individual unshield narrows this list further. See [deposits and withdrawals](/tornado-cash/options).
+
+## Secret manager
+
+Leave `secretManagerFactory` unset. The worker then uses both managers:
+
+- `SignatureSecretManager` for new deposits, at `m/29795'/1'/{accountIndex}'`.
+- `SecretManager` so notes created with the older child-key scheme are still found.
+
+A factory you pass replaces that pair. Return both if the wallet has historical notes, or only the scheme you intend to support on a fresh account.
+
+```ts
+import { SecretManager, SignatureSecretManager } from '@kohaku-eth/tornado-cash'
+
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[1],
+  secretManagerFactory: async (params) => {
+    const legacy = await SecretManager(params)
+    const signature = await SignatureSecretManager(params)
+    return { ...legacy, ...signature }
+  },
+})
+```
+
+`params.host` here is `{ keystore }`. `deriveAt` still has to answer the paths on the [host page](/host).
+
+## Fast cold sync
+
+`minExternalSyncBlocksAmount` does nothing until the host sets `externalSyncProvider`. When a pool is at least that many blocks behind the chain head, the plugin streams events from the external source and finishes the tail with `host.provider`.
+
+```ts
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[1],
+  minExternalSyncBlocksAmount: 1_000,
+})
+```
+
+Omit the field to always scan with `eth_getLogs`. The CLI sets `1000` and attaches a saga-backed provider in [`src/utils/saga-external-sync.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/saga-external-sync.ts). The host contract for that provider is on [The host](/host).
+
+## Worker and initial state
+
+State is built inside a worker so proving and tree updates stay off the UI thread. The package ships the worker script. Set `stateManagerWorkerUrl` when your bundler needs an explicit URL:
+
+```ts
+createTCPlugin(host, {
+  accountIndex: 0,
+  protocolConfig: TornadoCashConfigs[1],
+  stateManagerWorkerUrl: new URL(
+    '@kohaku-eth/tornado-cash/state-manager.worker.js',
+    import.meta.url,
+  ).href,
+})
+```
+
+`initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use it to ship a checkpoint so the first open does not start at the registry's deployment block. The snapshot is a cache. The keystore still decides which notes belong to the user.
+
+## Paymaster map
+
+`TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer.
+
+`createTCBroadcaster(host, { paymasterConfig })` should see the same map you gave the plugin, so the user operation it broadcasts matches the one `prepareUnshield` built.

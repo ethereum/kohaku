@@ -1,0 +1,139 @@
+# Shield and unshield
+
+Privacy Pools moves ERC-20 value into a pool and back out. The wallet creates one plugin per user account, asks it for transactions, and signs the public ones.
+
+This page is the short path. [Configuration](/privacy-pools/configuration) is every option. [Withdrawals](/privacy-pools/withdrawals) is fees, paymasters, and exact amounts. [Notes and history](/privacy-pools/state) is how you list what the user holds.
+
+:::warning
+`@kohaku-eth/privacy-pools` is still undergoing audits.
+:::
+
+## Create the plugin
+
+`PrivacyPoolsV1_0xBow` lists the 0xbow entrypoint on mainnet and Sepolia. `broadcasterUrl` is the relayer that will later submit withdrawals. A string is registered as the relayer id `default`.
+
+```ts
+import {
+  createPPv1Broadcaster,
+  createPPv1Plugin,
+  PrivacyPoolsV1_0xBow,
+} from '@kohaku-eth/privacy-pools'
+import type { Host } from '@kohaku-eth/plugins'
+
+const chainId = 1 as const
+const deployment = PrivacyPoolsV1_0xBow[chainId]
+const broadcasterUrl = 'https://fastrelay.xyz/relayer'
+
+export function createPools(host: Host) {
+  return createPPv1Plugin(host, {
+    accountIndex: 0,
+    broadcasterUrl,
+    entrypoint: {
+      address: BigInt(deployment.entrypoint.entrypointAddress),
+      deploymentBlock: deployment.entrypoint.deploymentBlock,
+    },
+  })
+}
+```
+
+The host is the one from [The host](/host). `accountIndex` selects the keystore account. The default secret manager is `SignatureSecretManager`, which signs note envelopes with `m/28784'/1'/{accountIndex}'`.
+
+The first `balance`, `prepareShield`, or `prepareUnshield` syncs pool state into `host.storage`. Persist that storage.
+
+## Assets
+
+Every amount uses the plugin asset shape. ETH uses the sentinel address, exported as `E_ADDRESS`.
+
+```ts
+const ETH = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const
+
+function erc20(contract: `0x${string}`, amount: bigint) {
+  return {
+    asset: { __type: 'erc20' as const, contract },
+    amount,
+  }
+}
+
+const deposit = erc20(ETH, 50_000_000_000_000_000n) // 0.05 ETH
+```
+
+`prepareUnshield` rejects an asset whose `__type` is `'native'`. Pass ETH as this ERC-20 id on both shield and unshield.
+
+## Shield
+
+```ts
+const pools = createPools(host)
+const { txns } = await pools.prepareShield(deposit)
+
+for (const tx of txns) {
+  const hash = await signer.sendTransaction(tx)
+  await provider.waitForTransaction(hash)
+}
+```
+
+`txns` is a list of `{ to, data, value }`. Send them from the user's public account, in order. The value on an ETH deposit is the amount. An ERC-20 deposit is an approval plus the pool call, so there can be more than one transaction. Wait for the receipts, then call `balance` again.
+
+`estimateShield` quotes the vetting fee before you build the transactions. It reads the entrypoint's current asset config and skips the proof.
+
+```ts
+const quote = await pools.estimateShield(deposit)
+// quote.fee          vetting fee, in token base units
+// quote.netAmount    amount credited to the note
+// quote.minimumDeposit
+// quote.vettingFeeBPS
+```
+
+Network gas is on top of `quote.fee`. Show both in the confirmation.
+
+A deposit below `minimumDeposit` reverts on chain. Surface that before you ask for a signature.
+
+## Balance
+
+```ts
+const rows = await pools.balance([
+  { __type: 'erc20', contract: ETH },
+])
+```
+
+Omit the argument, or pass `[]`, to read every asset the account has touched. Rows keep the order you asked for. An asset the pool does not support comes back as zero.
+
+Each asset is two rows:
+
+| Row | Meaning |
+| --- | --- |
+| `tag` omitted | Approved. This amount can be withdrawn. |
+| `tag: 'pending'` | Deposited, still waiting on the association set. |
+
+Pending value can be ragequit. It cannot be withdrawn through the relayer. See [Notes and history](/privacy-pools/state).
+
+## Unshield
+
+`prepareUnshield` spends approved balance. A deposit stays in the `'pending'` row until the association set accepts it. Exit pending value with [ragequit](/privacy-pools/state).
+
+```ts
+const recipient = '0x1111111111111111111111111111111111111111' as const
+
+const operation = await pools.prepareUnshield(deposit, recipient)
+
+const broadcaster = createPPv1Broadcaster(host, { broadcasterUrl })
+const receipt = await broadcaster.broadcast(operation)
+```
+
+Use the same `broadcasterUrl` on the plugin and the broadcaster. The quote names a relayer id, and the broadcaster looks that id up in its map. With a string URL the id is `default`.
+
+`receipt.success` is `true`, `receipt.txHash` is the withdrawal transaction, and `receipt.requestId` is the relayer's id for the request.
+
+The default mode is the relayer. The recipient receives `amount` minus the relayer fee. Call `estimateUnshield` while the user is still editing the form. It asks for a quote and does not build a proof. `prepareUnshield` requests a fresh quote when you submit.
+
+```ts
+const preview = await pools.estimateUnshield(deposit, recipient)
+// preview.mode === 'relayer'
+// preview.fee, preview.netAmount, preview.feeBPS, preview.relayerId
+// preview.expiration is a timestamp in milliseconds
+```
+
+The [withdrawals page](/privacy-pools/withdrawals) covers paymaster mode, exact output, batching several notes, and calls that run after the withdrawal.
+
+## What the CLI does
+
+[kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts) creates this plugin inside `createProtocolPlugin`, then `prepareProtocolShield` calls `prepareShield`. The send loop and the prompts live in [`src/lib/shield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/shield-flow.ts) and [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts).

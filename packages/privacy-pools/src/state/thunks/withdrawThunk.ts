@@ -22,6 +22,8 @@ export interface WithdrawThunkParams {
   amount: bigint;
   recipient: Address;
   context: bigint;
+  /** Prove this specific note instead of auto-selecting the smallest sufficient one (batch withdrawals). */
+  note?: INote;
 }
 
 export const withdrawThunk = createAsyncThunk<
@@ -35,8 +37,8 @@ export const withdrawThunk = createAsyncThunk<
 
     const { chainId, entrypointAddress } = entrypointInfoSelector(state);
 
-    // 1. Get existing note (smallest sufficient)
-    const existingNote = getNoteSelector(state, params.asset, params.amount);
+    // 1. Get existing note (a specific one for batch, else the smallest sufficient)
+    const existingNote = params.note ?? getNoteSelector(state, params.asset, params.amount);
 
     if (!existingNote) {
       throw new Error("No note with sufficient balance for withdrawal");
@@ -80,12 +82,12 @@ export const withdrawThunk = createAsyncThunk<
       stateIndex: BigInt(stateMerkleProof.index),
       stateRoot: stateMerkleProof.root,
       stateSiblings: stateMerkleProof.siblings,
-      stateTreeDepth: 2n,
+      stateTreeDepth: 32n,
 
       ASPIndex: BigInt(aspMerkleProof.index),
       ASPRoot: aspMerkleProof.root,
       ASPSiblings: aspMerkleProof.siblings,
-      ASPTreeDepth: 2n,
+      ASPTreeDepth: 32n,
     });
   },
 );

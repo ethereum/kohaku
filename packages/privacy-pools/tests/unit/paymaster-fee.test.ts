@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeMinimumViableFee, reasonableGasUnits } from '../../src/paymaster/fee';
+import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch, TAIL_CALLS_DEFAULT_GAS } from '../../src/paymaster/fee';
 
 describe('paymaster fee math', () => {
   describe('reasonableGasUnits', () => {
@@ -41,6 +41,29 @@ describe('paymaster fee math', () => {
       const gas = reasonableGasUnits(true);
 
       expect(computeMinimumViableFee(gas, 2n)).toBe(computeMinimumViableFee(gas, 1n) * 2n);
+    });
+  });
+
+  describe('reasonableGasUnitsForBatch', () => {
+    it('budgets callGasLimit for the extra direct withdraws + a forward', () => {
+      const gas = reasonableGasUnitsForBatch(false, 2, false);
+
+      // 2 extra native withdraws (500k each) + forward (80k).
+      expect(gas.callGasLimit).toBe(2n * 500_000n + 80_000n);
+      // Sponsoring note's cost is unchanged (paymaster validation).
+      expect(gas.paymasterVerificationGasLimit).toBe(reasonableGasUnits(false).paymasterVerificationGasLimit);
+    });
+
+    it('uses the larger ERC20 per-withdraw budget', () => {
+      const eth = reasonableGasUnitsForBatch(false, 3, false);
+      const erc20 = reasonableGasUnitsForBatch(true, 3, false);
+
+      expect(erc20.callGasLimit - eth.callGasLimit).toBe(3n * (600_000n - 500_000n));
+    });
+
+    it('uses the tail-call estimate (or default) for the execution tail when tail calls are present', () => {
+      expect(reasonableGasUnitsForBatch(false, 1, true).callGasLimit).toBe(500_000n + TAIL_CALLS_DEFAULT_GAS);
+      expect(reasonableGasUnitsForBatch(false, 1, true, 123_456n).callGasLimit).toBe(500_000n + 123_456n);
     });
   });
 });

@@ -3,6 +3,8 @@ export interface TxLog {
     topics: string[];
     data: string;
     address: string;
+    /** Position of the log in its block, when the source provides it. */
+    logIndex?: number;
 }
 
 export interface TransactionReceipt {

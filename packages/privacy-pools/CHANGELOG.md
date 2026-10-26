@@ -1,5 +1,112 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.31
+
+### Patch Changes
+
+- d57bc20: fix: poseidon lib
+
+## 0.1.0-alpha.30
+
+### Patch Changes
+
+- Use Poseidon `0.0.1`, the published release containing its compiled runtime and type declarations, while retaining the `workspace:*` dependency convention.
+
+## 0.1.0-alpha.29
+
+### Patch Changes
+
+- 1ae32b7: feat: optimized poseidon
+
+## 0.1.0-alpha.28
+
+### Patch Changes
+
+- 02d8e4a: Expose `depositor` on `INote`. The field is picked from the underlying deposit event and populated by the note selectors; it is inherited across withdrawals since a note keeps a single depositor for its lifetime (withdrawals only reduce its balance).
+- Updated dependencies [6e0e549]
+  - @kohaku-eth/provider@0.1.0-alpha.13
+  - @kohaku-eth/plugins@0.0.1-alpha.18
+
+## 0.1.0-alpha.27
+
+### Patch Changes
+
+- 7f07a77: Set the withdraw proof's `stateTreeDepth` and `ASPTreeDepth` public signals to `32` to match the official Privacy Pools implementation.
+
+  The circuit's Merkle siblings are already padded to the fixed depth of 32 (see `proofFromTree`), but the withdraw proof declared a tree depth of `2`. Emitting a tree-depth value that differs from the canonical Privacy Pools deployment makes our withdrawals stand out on-chain and would flag the withdrawing wallets. Using the same `32` value keeps our withdrawals indistinguishable from the rest of the pool's anonymity set.
+
+## 0.1.0-alpha.26
+
+### Patch Changes
+
+- 4faf96e: Speed up `prepareUnshield` (paymaster flow) on an already-synced state by removing redundant Merkle and sync work:
+
+  - Cache each pool's state tree and the ASP tree in-process and derive roots and inclusion proofs from the cached tree — building it once, then extending it incrementally with `LeanIMT.insert` — instead of rebuilding the whole tree (O(n) poseidon hashes) on every root check and every per-note proof. Nothing is added to Redux or the persisted snapshot; the cache is keyed per pool / per entrypoint with a leaf-count + last-leaf guard, and `verifyRootsThunk` still checks every derived root against chain.
+  - Drop the redundant on-chain root re-verification in the paymaster withdrawal: the `sync()` the plugin runs immediately beforehand already verified the same, unchanged state against chain.
+  - Run `verifyRootsThunk`'s on-chain root reads (ASP latest root + each pool's state root) concurrently instead of one at a time.
+  - Skip no-op `registerPoolLeaves` dispatches for pools with no new leaves, avoiding a re-serialization of the entire cross-pool leaf structure per pool on every sync.
+
+  No persisted-state or public-API changes. Measured on a mainnet fork (real bundler + prover): 3-note batch `prepareUnshield` ~45s → ~12s, 1-note ~19s → ~5s, with the remainder dominated by zk proving.
+
+## 0.1.0-alpha.25
+
+### Minor Changes
+
+- 39cda9a: Add a signature-derived secret manager and make it the default. Note secrets are now derived from one deterministic EIP-712 signature per note instead of per-note BIP-32 HD keys: the signature's canonical `(r, s)` (big-endian, low-s normalized, recovery id `v` dropped) is hashed with per-role tags into the nullifier and salt, so derivation is identical across any compliant signer — software or hardware (Ledger-style `v‖r‖s`, viem `r‖s‖v`, and ERC-2098 compact signatures all converge). The signing identity is the shared account key at `m/28784'/1'/account'`.
+
+  `SignatureSecretManager` is now the default `secretManager` for `PrivacyPoolsV1Protocol`; the legacy BIP-32 HD `SecretManager` is marked `@deprecated` but kept for explicit injection. Signers plug in at a narrow `EnvelopeSigner` seam (`signEnvelope`) so they can never diverge the typed-data standard.
+
+  BREAKING: the two schemes derive disjoint notes, so the default change is a breaking derivation change — deposits created under the old default will not be rediscovered. Acceptable as the package is unreleased (alpha) with no real users; callers needing the old behavior can inject `SecretManager` explicitly.
+
+## 0.0.2-alpha.24
+
+### Patch Changes
+
+- 2b67d9a: Add `history()` returning the account's deposits, withdrawals and ragequits, newest first. Transaction hashes, log indexes and timestamps are fetched on demand for the user's own events and cached in state.
+- 2b67d9a: `TxLog` now carries an optional `logIndex`, filled in by the ethers, viem and raw adapters (and so helios and colibri) and by the privacy-pools saga log source. Synced privacy-pools events store their real log index.
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+  - @kohaku-eth/plugins@0.0.1-alpha.17
+
+## 0.0.2-alpha.23
+
+### Patch Changes
+
+- f691f09: Route the paymaster's postOp gas-overcharge refund (`fee - actualGasCost`) to the real recipient and expose it as an option. `PrivacyPoolsFeeAdapter.FeeData` gains a `refundRecipient` field (decoupled from the validation-phase payout `recipient`, which stays the sender in an execution-phase withdrawal), so the refund is no longer stranded on the ephemeral sender in batch/tail-call flows. `prepareUnshield` gains a `refundRecipient` option (paymaster mode only) defaulting to the recipient. `PPv1UnshieldOptions` is now a discriminated union on `mode`, so paymaster-only knobs (`delegation`, `batch`, `refundRecipient`) are a type error in relayer mode. Exact-output withdrawals in paymaster mode now require an explicit `refundRecipient` (the refund otherwise makes the recipient net more than the requested amount), and are documented as such.
+
+## 0.0.2-alpha.22
+
+### Patch Changes
+
+- 92fb3a8: Add batch withdrawals for the paymaster flow. `prepareUnshield` gains a `batch` option (paymaster mode only): when set, multiple approved notes are consolidated to reach the requested amount in a single sponsored userOp. The largest note is sponsored and pays the gas fee; the remaining notes run as direct `pool.withdraw` calls (processor = sender, no fee), with the consolidated balance (minus fee) forwarded to the recipient — or routed through the caller's `tailCalls` when supplied. Gas is sized for the batch (`reasonableGasUnitsForBatch`, accounting for the extra withdraws and any execution phase) and refined against the bundler. Ignored for relayer withdrawals.
+
+## 0.0.2-alpha.21
+
+### Patch Changes
+
+- f829ce1: Add cost estimation and exact-output unshields. New `estimateShield` and `estimateUnshield` methods return the fees and net amounts for a shield/withdrawal without building a proof. `prepareUnshield` gains an `exact` option: when set, `amount` is read as the amount the recipient must receive (net). For relayer withdrawals the recipient receives that amount exactly. The quote is decomposed into its fixed base rate and its (size-independent) gas cost; the gross is sized from that and a fee is embedded in self-built relay data. Only the gas component is bumped by `exact.gasBumpBPS` (default 15%) to keep the payload acceptable if gas rises before submission — the relayer's base margin is not inflated. The required fee is bounded by the asset's on-chain `maxRelayFeeBPS`; the withdrawal is rejected if it would exceed the cap. Exact-output relayer payloads are broadcast without a `feeCommitment`, since the embedded fee is not one the relayer signed.
+
+## 0.0.2-alpha.20
+
+### Patch Changes
+
+- 6929569: Add optional `devOptions` to the plugin constructor to toggle Redux dev-mode checks. The immutable- and serializable-state-invariant middleware is slow on large privacy-pool states, so both checks are now off by default; opt back in per check via `devOptions: { enableImmutableCheck: true, enableSerializableCheck: true }`.
+
+## 0.0.2-alpha.19
+
+### Patch Changes
+
+- Updated dependencies [4c5e47b]
+  - @kohaku-eth/provider@0.1.0-alpha.11
+  - @kohaku-eth/plugins@0.0.1-alpha.16
+
+## 0.0.2-alpha.18
+
+### Patch Changes
+
+- Updated dependencies [8676bb8]
+  - @kohaku-eth/plugins@0.0.1-alpha.15
+
 ## 0.0.2-alpha.17
 
 ### Patch Changes

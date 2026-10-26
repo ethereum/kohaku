@@ -1,5 +1,6 @@
-import { encodeAbiParameters, parseAbiParameters } from "viem";
+import { encodeAbiParameters, encodeFunctionData, parseAbiParameters } from "viem";
 
+import { poolAbi } from "../data/abis/pool.abi";
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { WithdrawProveOutput } from "../state/thunks/withdrawThunk";
 import { toWithdrawProof } from "../utils/encoding.utils";
@@ -22,17 +23,24 @@ export function encodePaymasterData(
 
 /**
  * Encodes the paymaster `withdrawal.data` bytes the PrivacyPoolsFeeAdapter
- * expects: `abi.encode(FeeData{ address recipient; address feeRecipient; uint256 fee })`.
- * `fee` is an absolute amount in the pool asset (not basis points); `feeRecipient`
- * must be the paymaster. Bound into the proof's `context` signal.
+ * expects: `abi.encode(FeeData{ address recipient; address feeRecipient; uint256 fee;
+ * address refundRecipient })`. `fee` is an absolute amount in the pool asset (not
+ * basis points); `feeRecipient` must be the paymaster. `refundRecipient` is where the
+ * paymaster sends the gas-overcharge refund in postOp — routed independently of
+ * `recipient` (which is pinned to the sender in an execution-phase withdrawal);
+ * `address(0)` disables the refund. The whole struct is bound into the proof's
+ * `context` signal.
  */
 export function encodeFeeData(feeData: {
   recipient: `0x${string}`;
   feeRecipient: `0x${string}`;
   fee: bigint;
+  refundRecipient: `0x${string}`;
 }): `0x${string}` {
   return encodeAbiParameters(
-    parseAbiParameters("(address recipient, address feeRecipient, uint256 fee)"),
+    parseAbiParameters(
+      "(address recipient, address feeRecipient, uint256 fee, address refundRecipient)",
+    ),
     [feeData],
   );
 }
@@ -53,4 +61,20 @@ export function encodePrivacyPoolAdapterData(
     ),
     [{ withdrawal, proof: toWithdrawProof(proof) }],
   );
+}
+
+/**
+ * Encodes a direct `pool.withdraw(withdrawal, proof)` call, used for the extra notes
+ * of a batch withdrawal (`processooor = sender`, run in the execution phase). The
+ * pool pushes the withdrawn value to `msg.sender` (the sender).
+ */
+export function encodePoolWithdraw(
+  withdrawal: WithdrawalPayload,
+  proof: WithdrawProveOutput,
+): `0x${string}` {
+  return encodeFunctionData({
+    abi: poolAbi,
+    functionName: "withdraw",
+    args: [withdrawal, toWithdrawProof(proof)],
+  });
 }

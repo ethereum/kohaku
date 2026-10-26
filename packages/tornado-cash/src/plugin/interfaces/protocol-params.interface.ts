@@ -4,7 +4,7 @@ import { TxData } from '@kohaku-eth/provider';
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
-import { ProtocolConfigState } from "../../state";
+import type { ProtocolConfigState } from "../../state";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { TornadoProveOutput } from "../../utils/tornado-prover.js";
@@ -15,6 +15,7 @@ import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import type { DelegationConfig } from '../../account/delegation.interface';
+import type { ITornadoInstance } from '../../instances';
 
 export type { DelegationConfig, ImportNoteResult };
 
@@ -33,6 +34,10 @@ export interface IRelayerWithdrawalPayload {
   proof: TornadoProveOutput;
   poolAddress: Address;
   relayerUrl: string;
+  /** Relayer fee bound into the proof, in the pool asset's base units. */
+  fee: bigint;
+  /** Note denomination. The recipient receives `denomination - fee`. */
+  denomination: bigint;
 }
 
 export type IWithdrawalPayload = IRelayerWithdrawalPayload | IGenericPaymasterWithdrawalPayload;
@@ -50,7 +55,13 @@ export interface ITornadoArtifacts {
   provingKey: ArrayBuffer;
 }
 
-export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
+export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'> & {
+  /**
+   * Instances deposits may target on this chain. Replaces the built-in
+   * `TornadoInstances` list; without either, deposits are refused.
+   */
+  instances?: readonly ITornadoInstance[];
+};
 
 export interface TCProtocolParams {
   accountIndex?: number;
@@ -69,6 +80,13 @@ export interface TCProtocolParams {
    * chain. Omit to always sync from the chain.
    */
   minExternalSyncBlocksAmount?: number;
+  /**
+   * Opt in to extended ETH pools (0.01, 0.03, 0.3, 3, 30, plus Sepolia 10 ETH).
+   * Omitted or false keeps deposits, withdrawals, balances, and notes on the
+   * classic pools. Pools already saved keep their per-pool sync cursor, so
+   * turning this on later resumes there instead of the global cursor.
+   */
+  useExtendedEthPools?: boolean;
 }
 
 interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no-empty-object-type
@@ -118,7 +136,10 @@ export type TCNote = Pick<
 > & {
   /** Fixed pool denomination for this note. */
   amount: bigint;
+  /** HD deposit index, or -1 for imported and signature-derived notes. */
   depositIndex: number;
+  /** Global signature-scheme nonce. Present only for signature-derived notes. */
+  nonce?: number;
 };
 
 export type StoreKey = `${string}-${string}`;

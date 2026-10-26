@@ -51,6 +51,7 @@ export class TornadoCashProtocol implements TCInstance {
       paymasterConfig = TornadoPaymasterConfigs,
       relayerClientFactory = () => new RelayerClient(host),
       minExternalSyncBlocksAmount,
+      useExtendedEthPools = false,
       secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
@@ -85,7 +86,13 @@ export class TornadoCashProtocol implements TCInstance {
           proxy(artifactsLoader),
           resolvedSecretManager ? proxy(resolvedSecretManager) : undefined,
           externalSyncClient ? proxy(externalSyncClient) : undefined,
-          { protocolConfig, accountIndex, relayerConfig, paymasterConfig, minExternalSyncBlocksAmount },
+          {
+            protocolConfig: { ...protocolConfig, useExtendedEthPools },
+            accountIndex,
+            relayerConfig,
+            paymasterConfig,
+            minExternalSyncBlocksAmount,
+          },
         ),
         workerReady,
       ]);
@@ -197,7 +204,7 @@ export class TornadoCashProtocol implements TCInstance {
     options?: TCPrepareShieldOptions | `0x${string}`
   ): Promise<TCPublicOperation> {
     const { asset, amount } = assets;
-    const strategy = typeof options === 'string' ? DepositStrategy.MinFee : options?.strategy || DepositStrategy.MinFee;
+    const strategy = typeof options === 'string' ? DepositStrategy.MinFee : options?.strategy ?? DepositStrategy.MinFee;
     const stateManager = await this.stateManager;
 
     await stateManager.sync();

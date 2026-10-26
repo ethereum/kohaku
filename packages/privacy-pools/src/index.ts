@@ -1,7 +1,7 @@
 export * from './v1';
 export * from './v2';
 // Main factory
-export { PrivacyPoolsV1Protocol } from './plugin/base';
+export { PrivacyPoolsV1Protocol, PPv1ExactOutputError, DEFAULT_EXACT_GAS_BUMP_BPS } from './plugin/base';
 export { IPFSAspService } from './data/ipfsAsp.service.js';
 export { OxBowAspService } from './data/0xbowAsp.service';
 export { DataService } from './data/data.service';
@@ -9,9 +9,11 @@ export { createSagaLogSource, createSagaDataService } from './data/saga-log-sour
 export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
 export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
 export { SecretManager } from './account/keys';
+export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signature-keys';
 
 // Types
 export type { SecretManagerParams, ISecretManager } from './account/keys';
+export type { SignatureSecretManagerParams, EnvelopeSigner, NoteMessage, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
 
 // Configs

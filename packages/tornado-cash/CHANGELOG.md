@@ -1,3 +1,55 @@
+## 0.1.0-alpha.29
+
+### Patch Changes
+
+- a684e89: chore: add sep 10 eth pools
+
+## 0.1.0-alpha.28
+
+### Patch Changes
+
+- Updated dependencies [6e0e549]
+  - @kohaku-eth/provider@0.1.0-alpha.13
+  - @kohaku-eth/plugins@0.0.1-alpha.18
+
+## 0.1.0-alpha.27
+
+### Patch Changes
+
+- bf65511: fix: bind chainId in sig domain
+
+## 0.1.0-alpha.26
+
+### Minor Changes
+
+- a05e246: tornado signature based derivation
+- a05e246: Add a signature-derived secret manager and use it for new deposits. Each note comes from one deterministic EIP-712 signature over a global nonce (`TornadoCashNote`), with the pool mixed in afterwards: the signature's canonical `(r, s)` (big-endian, low-s, recovery id `v` dropped) is hashed with the chain id and pool address into the nullifier and secret. The signing key is `m/29795'/1'/account'`.
+
+  The legacy BIP-32 `SecretManager` stays in the default scan, so notes created under that scheme are still discovered. Imported note strings are unchanged.
+
+## 0.0.2-alpha.25
+
+### Patch Changes
+
+- Updated dependencies [2b67d9a]
+  - @kohaku-eth/provider@0.1.0-alpha.12
+  - @kohaku-eth/plugins@0.0.1-alpha.17
+
+## 0.0.2-alpha.24
+
+### Patch Changes
+
+- Updated dependencies [4c5e47b]
+  - @kohaku-eth/provider@0.1.0-alpha.11
+  - @kohaku-eth/plugins@0.0.1-alpha.16
+
+## 0.0.2-alpha.23
+
+### Patch Changes
+
+- Updated dependencies [8676bb8]
+  - @kohaku-eth/plugins@0.0.1-alpha.15
+
 ## 0.0.2-alpha.22
 
 ### Patch Changes

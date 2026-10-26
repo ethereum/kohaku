@@ -1,0 +1,152 @@
+# The host
+
+A plugin never opens a socket, reads a file, or holds a seed. It asks the host. You implement `Host` from `@kohaku-eth/plugins` once, and both Privacy Pools and Tornado Cash use it.
+
+```ts
+import type { Host } from '@kohaku-eth/plugins'
+
+const host: Host = {
+  network,   // HTTP for relayers, the association set, IPFS, and CDNs
+  storage,   // persisted plugin state
+  keystore,  // BIP-32 private keys for note secrets
+  provider,  // chain reads, via @kohaku-eth/provider
+}
+```
+
+Chain reads go through `provider`. Everything that is not a JSON-RPC call goes through `network.fetch`. That split is how a wallet can put Tor, a proxy, or a custom DNS path on relayer traffic while the RPC stays on a node the user picked.
+
+[kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/makeHost.ts) builds this object for each protocol. The sections below match that file.
+
+## `network`
+
+```ts
+const network = {
+  fetch: globalThis.fetch.bind(globalThis),
+}
+```
+
+`fetch` is the platform `fetch`. Return the `Response`, including 4xx and 5xx. Plugins check `response.ok` and read the body. Throw when the request cannot be sent at all: offline, blocked, or a proxy that failed before a response.
+
+The plugin passes a normal `RequestInfo` and `RequestInit`. Keep the method, headers, and body. Privacy Pools uses this for the relayer, the association-set provider, and IPFS. Tornado uses it for relayers and for the default circuit download.
+
+The CLI wraps `fetch` so an active Tor session is picked up even if the host was created earlier. See `makeNetwork` in [`src/host/makeHost.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/makeHost.ts).
+
+## `storage`
+
+```ts
+import type { Storage } from '@kohaku-eth/plugins'
+
+function memoryStorage(): Storage {
+  const data = new Map<string, string>()
+
+  return {
+    _brand: 'Storage',
+    async get(key) {
+      return data.get(key) ?? null
+    },
+    async set(key, value) {
+      data.set(key, value)
+    },
+  }
+}
+```
+
+`_brand` is the string `'Storage'`. `get` returns `null` when the key is missing, and throws when the store itself fails. `set` throws on failure. Both are async.
+
+Plugins write their sync state here: Merkle trees, scanned blocks, and note indexes. Some of that is sensitive. Encrypt it at rest, and keep the key out of the same file. Give each plugin its own store. The key prefixes differ (`privacy-pool-state-…` and `tornado-cash-state-…`), so a shared map works, but a dedicated store lets you wipe one protocol without touching the other.
+
+`MemoryStorage` from `@kohaku-eth/plugins` is the in-memory version of the snippet above. Use it in tests. The CLI encrypts a JSON file per plugin in [`src/host/storage.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/storage.ts).
+
+Losing the store does not lose the notes. The next `sync` rediscovers them from the chain and the keystore. It does cost a full scan, so keep the store if you can.
+
+## `keystore`
+
+```ts
+import { MnemonicKeystore } from '@kohaku-eth/plugins'
+
+const keystore = new MnemonicKeystore(mnemonic)
+
+const key = await keystore.deriveAt("m/28784'/1'/0'")
+```
+
+`deriveAt` takes a BIP-32 path and returns a 32-byte hex private key. The same path must return the same key for the life of the wallet. An unstable keystore spends notes into a set the wallet can no longer find.
+
+You may reject paths. Once you have accepted a path, keep accepting it. These plugins derive under two purpose values:
+
+| Plugin | Purpose | What lives there |
+| --- | --- | --- |
+| Privacy Pools | `m/28784'/1'/…` | Signature identity at `m/28784'/1'/{account}'`. Legacy note secrets add `/{secretType}'/{deposit}'/{secret}'`. |
+| Tornado Cash | `m/29795'/1'/…` | Signature identity at `m/29795'/1'/{account}'`. Legacy note secrets add `/{secretType}'/{deposit}'`. |
+
+`account` is the `accountIndex` you pass when creating the plugin. `secretType` is `0` (nullifier), `1` (salt), or `2` (paymaster signer).
+
+Tornado paymaster withdrawals can also call `deriveAt` with a path you supplied in `delegation.path`. Allow that path too. It is a normal wallet key, so a stuck delegator can be swept by the same seed.
+
+`MnemonicKeystore` covers BIP-32, plus the Railgun hash chain for coin type `1984`. Privacy Pools and Tornado use the BIP-32 branch. `MnemonicKeystore.random()` generates a 24-word phrase. The CLI's keystore, which also resolves stealth-account paths, is [`src/host/keystore.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/keystore.ts).
+
+### One secret manager owns a note
+
+Privacy Pools installs `SignatureSecretManager` unless you pass another one. That manager signs an EIP-712 note envelope with the account key and hashes the signature into the secret. The legacy `SecretManager` derives the secret from child keys instead. The two schemes produce different notes. After a deposit exists, keep the manager that created it. Switching hides the old notes from `balance` and `notes`.
+
+Tornado's default manager is both. New deposits use signature secrets, and the legacy child keys are still scanned so older notes stay spendable. A custom `secretManagerFactory` replaces that pair. If you provide one, include both schemes when the wallet already has deposits. [Privacy Pools configuration](/privacy-pools/configuration) and [Tornado configuration](/tornado-cash/configuration) show the wiring.
+
+For a hardware signer, Privacy Pools accepts an `EnvelopeSigner` on `SignatureSecretManager`. The default signer still calls `deriveAt` and signs in process. A device signer implements `signEnvelope` and the key stays on the device. The host contract itself is still "return the private key at this path".
+
+## `provider`
+
+`provider` is an `EthereumProvider` from `@kohaku-eth/provider`. Plugins call it for logs, block number, balances, code, gas, and `eth_call`. They do not send transactions through it. Shield transactions come back as `txns` for your signer.
+
+```ts
+import { viem } from '@kohaku-eth/provider/viem'
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const provider = viem(
+  createPublicClient({ chain: mainnet, transport: http(rpcUrl) }),
+)
+```
+
+The chain id of this provider must be the chain you configured the plugin for. A mainnet `TornadoCashConfigs[1]` against a Sepolia RPC throws or scans the wrong contracts. The [provider page](/provider) lists the adapters and the methods.
+
+## `externalSyncProvider`
+
+Optional. When it is set, and a Tornado pool is at least `minExternalSyncBlocksAmount` blocks behind, the plugin streams the bulk of that pool's logs from here and asks `provider` only for the tail.
+
+```ts
+import type { ExternalRawEvent, ExternalSyncProvider } from '@kohaku-eth/plugins'
+
+const externalSyncProvider: ExternalSyncProvider = {
+  async *streamEvents({ chainId, address, fromBlock, toBlock }) {
+    const events = await loadCachedEvents(chainId, address, fromBlock, toBlock)
+
+    for (const event of events) yield event
+  },
+  async firstCoveredBlock(pool) {
+    const block = await lookupFirstBlock(pool)
+    if (block === undefined) throw new Error(`No data for ${pool.address}`)
+    return block
+  },
+  async lastCoveredBlock(pool) {
+    const block = await lookupLastBlock(pool)
+    if (block === undefined) throw new Error(`No data for ${pool.address}`)
+    return block
+  },
+}
+```
+
+Every field on an `ExternalRawEvent` is 0x-prefixed, lowercased hex: `contractAddress`, `eventTopic`, `topics`, `data`, `blockNumber`, `logIndex`. `eventTopic` equals `topics[0]`. Yield events in ascending block order. `firstCoveredBlock` and `lastCoveredBlock` throw when the source has nothing for that pool, so the plugin can fall back to the chain.
+
+The Tornado state worker cannot take an async iterator. The plugin drains your stream with `toExternalSyncClient` before crossing that boundary. You implement `ExternalSyncProvider`. You call `toExternalSyncClient` only if you talk to the worker yourself.
+
+Privacy Pools uses a different hook for the same idea: a saga-backed `dataService` on the protocol constructor. See [configuration](/privacy-pools/configuration).
+
+The CLI's Tornado source is [`src/utils/saga-external-sync.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/saga-external-sync.ts). It is attached in `makeHost` when the plugin id is Tornado.
+
+## Checklist
+
+- `fetch` returns real HTTP responses and throws only when there is no response.
+- Storage is async, branded, encrypted, and scoped to one plugin.
+- `deriveAt` is stable, and the purpose prefixes `m/28784'` and `m/29795'` are allowed.
+- The provider's chain id matches the deployment config.
+- The secret manager stays the one that created existing notes.
+- A Tornado CDN, if you have one, is `externalSyncProvider`. RPC remains the tail.

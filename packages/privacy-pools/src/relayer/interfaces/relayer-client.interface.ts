@@ -101,8 +101,13 @@ export interface IEthRelayRequest {
   scope: string;
   /** Chain ID to process the request on */
   chainId: string;
-  /** The fee commitment obtained from the /quote endpoint */
-  feeCommitment: IQuoteResponse['feeCommitment'];
+  /**
+   * The fee commitment obtained from the /quote endpoint. Omitted for exact-output
+   * withdrawals, whose self-built withdrawal data carries a tipped fee the relayer
+   * never signed — the relayer accepts those on the embedded fee alone, and rejects
+   * a payload whose commitment does not match its own signature.
+   */
+  feeCommitment?: IQuoteResponse['feeCommitment'];
 }
 
 export interface IRelayRequest extends IBaseRelayerRequest {
@@ -116,8 +121,13 @@ export interface IRelayRequest extends IBaseRelayerRequest {
   scope: bigint;
   /** Chain ID to process the request on */
   chainId: bigint;
-  /** The fee commitment obtained from the /quote endpoint */
-  feeCommitment: IQuoteResponse['feeCommitment'];
+  /**
+   * The fee commitment obtained from the /quote endpoint. Omitted for exact-output
+   * withdrawals, whose self-built withdrawal data carries a tipped fee the relayer
+   * never signed — the relayer accepts those on the embedded fee alone, and rejects
+   * a payload whose commitment does not match its own signature.
+   */
+  feeCommitment?: IQuoteResponse['feeCommitment'];
 }
 
 export interface IRelayRequestBody extends Omit<IRelayRequest, 'scope' | 'chainId' | 'relayerUrl'> {

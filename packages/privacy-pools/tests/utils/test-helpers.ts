@@ -5,8 +5,9 @@ import { PrivacyPoolsV1Protocol } from '../../src';
 import { IDataService } from '../../src/data/interfaces/data.service.interface';
 import { IEntrypoint } from '../../src/plugin/interfaces/protocol-params.interface';
 import { type AnvilPool } from './anvil';
-import { InitialState } from './common';
+import { InitialState, TEST_STORE_DEV_OPTIONS } from './common';
 import { createMockAspService, IMockAspService } from './mock-asp-service';
+
 /**
  * Fund an account with ETH using anvil pool's setBalance
  */
@@ -250,6 +251,7 @@ export const getProtocolWithState = async ({
     aspServiceFactory: () => aspService,
     initialState,
     entrypoint,
+    devOptions: TEST_STORE_DEV_OPTIONS,
     ...(dataService ? { dataService } : {}),
   });
 

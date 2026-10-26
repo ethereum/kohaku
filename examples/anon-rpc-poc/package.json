@@ -1,0 +1,18 @@
+{
+  "name": "@kohaku-eth/example-anon-rpc-poc",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Proof-of-concept: Kohaku EthereumProvider backed by an anon-rpc sandboxed worker.",
+  "scripts": {
+    "poc": "node run.mjs"
+  },
+  "dependencies": {
+    "@kohaku-eth/provider": "workspace:*",
+    "viem": "^2.51.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.62.1"
+  }
+}
