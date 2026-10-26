@@ -8,6 +8,8 @@ All three call `sync` first. `sync()` on its own is there when you want to warm 
 await pools.sync()
 ```
 
+A sync reads the chain head once, scans the entrypoint and every pool up to that block, and stores it as the next starting point. If any scan fails, the whole sync fails and the next one retries the same range, so an event is never skipped.
+
 ## Notes
 
 ```ts

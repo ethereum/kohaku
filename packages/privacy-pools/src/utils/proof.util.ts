@@ -3,7 +3,7 @@ import { poseidonT3 } from "@kohaku-eth/poseidon";
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { encodeAbiParameters, keccak256, numberToHex } from "viem";
 
-const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
+export const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 
 export const merkleHash = (a: bigint, b: bigint): bigint => poseidonT3(a, b);

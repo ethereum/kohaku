@@ -12,9 +12,26 @@ export interface IRelayerInfo {
 }
 
 export interface IRelayerFeeConfig {
+  /** Service fee window, in the unit of the relayer's `tornadoServiceFee` (percent). */
   minFee: number;
   maxFee: number;
+  /**
+   * Cap on each note's total relayer fee (network + service), in basis points of
+   * its denomination. Defaults to {@link DEFAULT_MAX_TOTAL_FEE_BPS}.
+   */
+  maxTotalFeeBps?: number;
+  /**
+   * ERC-20 pools: how far, in basis points, a relayer's token price may push the
+   * network fee above the paymaster's on-chain TWAP quote. Defaults to
+   * {@link DEFAULT_MAX_PRICE_DEVIATION_BPS}.
+   */
+  maxPriceDeviationBps?: number;
 }
+
+/** 20%: a 100 DAI/USDC/USDT note at up to ~15 gwei with ETH at $2,300, 0.1 ETH at up to ~36 gwei. */
+export const DEFAULT_MAX_TOTAL_FEE_BPS = 2_000;
+/** 20%: covers TWAP lag behind a relayer's spot price in fast markets. */
+export const DEFAULT_MAX_PRICE_DEVIATION_BPS = 2_000;
 
 export const DEFAULT_MAINNET_FEE_CONFIG: IRelayerFeeConfig = { minFee: 0.01, maxFee: 0.30 };
 export const DEFAULT_OTHER_FEE_CONFIG: IRelayerFeeConfig = { minFee: 0.01, maxFee: 0.30 };

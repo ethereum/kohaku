@@ -37,9 +37,9 @@ const operation = await tornado.prepareUnshield(asset, recipient, {
 const receipts = await createTCBroadcaster(host).broadcast(operation)
 ```
 
-`mode: 'relayer'` is the default, so the options object is optional. `preferredRelayersEns` keeps only those ENS names from the registry. Names that are not registered, or that fall outside [`relayerConfig`](/tornado-cash/configuration), produce no quote. With an empty preferred list the plugin uses every relayer inside the fee window.
+`mode: 'relayer'` is the default, so the options object is optional. `preferredRelayersEns` keeps only those ENS names from the registry. Names that are not registered, or that fall outside [`relayerConfig`](/tornado-cash/configuration#relayer-fees), produce no quote. Among the rest, the plugin picks the relayer with the lowest total fee.
 
-Each withdrawal in `operation.withdrawals` has `mode: 'relayer'`, a `relayerUrl`, the pool, and the proof. The broadcaster POSTs them with `host.network.fetch`. A failure on one withdrawal is collected. The returned array contains the ones that succeeded, each as `{ id }` where `id` is the relayer job id. If you need all-or-nothing, check `receipts.length` against `operation.withdrawals.length` before you tell the user the funds have moved.
+Each withdrawal in `operation.withdrawals` has `mode: 'relayer'`, a `relayerUrl`, the pool, the proof, the `fee` bound into the proof, and the note `denomination`. The recipient receives `denomination - fee`. Show the fee before you broadcast. The broadcaster POSTs them with `host.network.fetch`. A failure on one withdrawal is collected. The returned array contains the ones that succeeded, each as `{ id }` where `id` is the relayer job id. If you need all-or-nothing, check `receipts.length` against `operation.withdrawals.length` before you tell the user the funds have moved.
 
 `tailCalls` on a relayer unshield throws. Follow-up calls belong on the paymaster path.
 
@@ -75,7 +75,7 @@ The paymaster sponsors gas. The user's public account does not pay the withdrawa
 | Value | Delegator |
 | --- | --- |
 | omitted, or `{ mode: 'deterministic' }` | An ephemeral address derived from the batch's first deposit. Recoverable from the seed. |
-| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. |
+| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. The plugin lets the worker derive exactly this path, nothing else outside `m/29795'/1'`. |
 | `{ mode: 'random' }` | A throwaway key. The funds sitting on it during the call are unrecoverable if the user operation stalls. |
 
 ```ts

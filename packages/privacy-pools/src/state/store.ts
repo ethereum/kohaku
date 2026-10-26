@@ -8,6 +8,7 @@ import {
 
 import type { PPv1DevOptions } from "../plugin/interfaces/protocol-params.interface";
 import { aspReducer } from "./slices/aspSlice";
+import { aspVerificationReducer } from "./slices/aspVerificationSlice";
 import { assetsReducer } from "./slices/assetsSlice";
 import { depositsReducer } from "./slices/depositsSlice";
 import { entrypointDepositsReducer } from "./slices/entrypointDepositsSlice";
@@ -35,6 +36,7 @@ const reducers = {
   poolsLeaves: poolsLeavesReducer,
   entrypointInfo: entrypointInfoReducer,
   asp: aspReducer,
+  aspVerification: aspVerificationReducer,
   updateRootEvents: updateRootEventsReducer,
   sync: syncReducer,
   userSecrets: userSecretsReducer,
@@ -42,8 +44,8 @@ const reducers = {
  } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
-// User-specific slices: never part of dumps or shared snapshots.
-export type PublicRootState = Omit<RootState, 'userSecrets' | 'historyMetadata'>;
+// User-specific and session-only slices: never part of dumps or shared snapshots.
+export type PublicRootState = Omit<RootState, 'userSecrets' | 'historyMetadata' | 'aspVerification'>;
 type LogLevel = 'error' | 'verbose' | 'off';
 
 const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (logLevel) => (api) => (next) => (action) => {
