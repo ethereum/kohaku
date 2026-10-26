@@ -204,7 +204,7 @@ export class TornadoCashProtocol implements TCInstance {
     options?: TCPrepareShieldOptions | `0x${string}`
   ): Promise<TCPublicOperation> {
     const { asset, amount } = assets;
-    const strategy = typeof options === 'string' ? DepositStrategy.MinFee : options?.strategy || DepositStrategy.MinFee;
+    const strategy = typeof options === 'string' ? DepositStrategy.MinFee : options?.strategy ?? DepositStrategy.MinFee;
     const stateManager = await this.stateManager;
 
     await stateManager.sync();
