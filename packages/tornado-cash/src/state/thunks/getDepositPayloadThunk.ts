@@ -7,6 +7,7 @@ import { addressToHex } from '../../utils';
 import { RootState } from '../store';
 import { activePoolsSelector, instanceRegistryInfoSelector, signatureUserSecretsSelector } from '../selectors/slices.selectors';
 import { IPool } from '../../data/interfaces/events.interface';
+import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from '../../instances';
 
 export enum DepositStrategy {
   MaxAnonimitySet,
@@ -18,6 +19,8 @@ export interface GetDepositPayloadThunkParams {
   asset: Address;
   amount: bigint;
   strategy: DepositStrategy;
+  /** Overrides the built-in instance catalog for this chain. */
+  instances?: readonly ITornadoInstance[];
 }
 
 interface PoolWithDeposits extends IPool {
@@ -81,10 +84,16 @@ export const getDepositPayloadThunk = createAsyncThunk<
   { state: RootState }
 >(
   'deposits/getPayload',
-  async ({ secretManager, asset, amount, strategy }, { getState }) => {
+  async ({ secretManager, asset, amount, strategy, instances }, { getState }) => {
     const state = getState();
     const pools = activePoolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
+    const catalog = instanceCatalog(chainId, instances);
+
+    if (!catalog) {
+      throw new Error(`No Tornado instance catalog for chain ${chainId}. Pass protocolConfig.instances to allow deposits.`);
+    }
+
     const signatureSecrets = signatureUserSecretsSelector(state);
     let nonce = 0;
 
@@ -94,9 +103,9 @@ export const getDepositPayloadThunk = createAsyncThunk<
       }
     }
 
-    // Pick the pool with the lowest denomination for the requested asset
+    // Synced pools come from the RPC; only catalog instances are deposit targets.
     const poolsCandidates = Array.from(pools.values())
-      .filter((p) => p.asset === asset);
+      .filter((p) => p.asset === asset && catalogInstanceFor(catalog, p));
     
     if (poolsCandidates.length === 0) throw new Error(`No pools available for asset ${addressToHex(asset)}`);
 
