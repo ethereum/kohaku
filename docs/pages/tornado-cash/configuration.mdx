@@ -19,7 +19,7 @@ import {
 | `protocolConfig` | yes | Deployment for this chain. Use `TornadoCashConfigs`. |
 | `accountIndex` | yes | Keystore account. `0` is the first. |
 | `paymasterConfig` | no | Per-chain ERC-4337 paymaster. Defaults to `TornadoPaymasterConfigs`. |
-| `artifactsLoader` | no | Returns `{ circuitText, provingKey }`. The default downloads both. |
+| `artifactsLoader` | no | Returns `{ circuitText, provingKey }`. The default downloads both from a pinned commit. Both are checked against SHA-256 pins. |
 | `relayerConfig` | no | Fee window for relayer selection. Defaults to `{ minFee: 0.01, maxFee: 0.30 }`. |
 | `secretManagerFactory` | no | Replaces the built-in pair of signature secrets and legacy BIP-32 secrets. |
 | `minExternalSyncBlocksAmount` | no | How far behind a pool must be before `host.externalSyncProvider` is used. |
@@ -58,7 +58,9 @@ createTCPlugin(host, {
 })
 ```
 
-`provingKey` is an `ArrayBuffer`. The CLI downloads once into the wallet's data directory and reads from disk after that, in [`src/utils/proving-artifacts.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/proving-artifacts.ts).
+`provingKey` is an `ArrayBuffer`. Whatever the loader returns is checked against SHA-256 pins (`TORNADO_CIRCUIT_SHA256`, `TORNADO_PROVING_KEY_SHA256`) before it is parsed, and a mismatch throws `TornadoArtifactsIntegrityError`. A loader can change where the files come from, but not what they contain.
+
+The CLI downloads once into the wallet's data directory and reads from disk after that, in [`src/utils/proving-artifacts.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/proving-artifacts.ts).
 
 ## Relayer fee window
 
