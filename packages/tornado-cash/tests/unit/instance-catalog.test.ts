@@ -90,7 +90,7 @@ describe('instance catalog', () => {
         expect(catalog.get(address)?.asset).toBe(0n);
       }
 
-      for (const pool of Object.keys(TornadoPaymasterConfigs[chainId].poolsAccountsMap)) {
+      for (const pool of TornadoPaymasterConfigs[chainId].supportedPools) {
         expect(catalog.has(BigInt(pool)), pool).toBe(true);
       }
     }

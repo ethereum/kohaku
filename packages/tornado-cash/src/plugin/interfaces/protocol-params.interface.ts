@@ -23,8 +23,9 @@ type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
   paymasterAddress: StringAddress;
   entryPointAddress: StringAddress;
-  poolsAccountsMap: Record<StringAddress, StringAddress>;
   bundlerUrl: string;
+  /** Pools allowlisted on the TornadoPaymaster at paymasterAddress. */
+  supportedPools: readonly StringAddress[];
 }
 
 export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;

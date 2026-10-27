@@ -6,11 +6,11 @@ import { createTx, TxData } from "@kohaku-eth/provider";
 import { ISecretManager } from "../../account/keys";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
-import { encodePaymasterData, encodeTornadoAdapterData } from "@privacy-paymasters/sdk";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
@@ -78,17 +78,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const {
     bundlerUrl,
     entryPointAddress,
-    paymasterAddress,
-    poolsAccountsMap: rawPoolsAccountsMap,
   } = paymasterConfig[chainId]!;
-
-  const poolAcountsMap = new Map(
-    Object.entries(rawPoolsAccountsMap)
-      .map(([poolAccount, tornadoAccount]) => [
-        BigInt(poolAccount) as Address,
-        tornadoAccount
-      ] as const)
-    )
+  const paymasterAddress = resolvePoolPaymaster(paymasterConfig[chainId]!, deposits[0]!.pool);
 
   unwrapResult(
     await dispatch(verifyRootsThunk({
@@ -104,7 +95,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // The static baselines in `reasonableGasUnits`/`reasonableGasUnitsForBatch` are
   // ceilings for a "typical" case, not a guarantee — a real groth16 verify +
   // merkle proof can land within a few thousand gas of paymasterVerificationGasLimit's
-  // baseline, and the surrounding paymaster/adapter overhead plus EIP-150's 63/64
+  // baseline, and the surrounding paymaster overhead plus EIP-150's 63/64
   // forwarding rule on the try/catch external call can then push the actual need
   // just over it, causing a silent (empty-reason) out-of-gas revert. The bundler's
   // own simulation knows the real cost, so refine against it whenever possible —
@@ -161,18 +152,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       fee: depositFee,
     })));
 
-  // paymasterData wraps deposit[0]'s proof for the on-chain tornado adapter,
-  // which relays it into pool.withdraw during paymaster validation.
-  const buildPaymasterData = (poolAddress: bigint, proof: TornadoProveOutput) => {
-    const [root, nullifierHash, proofRecipient, relayerArg, feeArg, refundArg] = proof.args;
-
-    return encodePaymasterData(
-      poolAcountsMap.get(poolAddress)!,
-      encodeTornadoAdapterData(
-        proof.proof, root, nullifierHash, proofRecipient, relayerArg, BigInt(feeArg), BigInt(refundArg),
-      ),
-    );
-  };
+  // The paymaster decodes the pool and proof itself.
+  const buildPaymasterData = (poolAddress: bigint, proof: TornadoProveOutput) =>
+    encodePoolPaymasterData(poolAddress, proof);
 
   const ephemeralSigner = async (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> => {
     if (deposit.kind === 'legacy') {
@@ -236,7 +218,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // No execution phase in this flow (funds go straight to the recipient
     // during paymaster validation) — callGasLimit must stay 0 regardless of
     // what the bundler estimates for it (a nonzero value here would trip
-    // TornadoFeeAdapter's `recipient != sender` check).
+    // the paymaster's `recipient != sender` check).
     const baselineGas: UserOpGasLimits = { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n };
     let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
     let gas = baselineGas;
