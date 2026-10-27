@@ -94,7 +94,6 @@
     "@kohaku-eth/provider": "workspace:*",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
-    "@privacy-paymasters/sdk": "0.0.5",
     "@reduxjs/toolkit": "^2.11.2",
     "comlink": "^4.4.2",
     "micro-zk-proofs": "0.3.1",
@@ -102,6 +101,7 @@
     "viem": "^2.51.3"
   },
   "devDependencies": {
+    "@privacy-paymasters/sdk": "0.0.5",
     "@types/node": "^24.12.2",
     "dotenv": "^17.2.1",
     "ethers": "^6.16.0",

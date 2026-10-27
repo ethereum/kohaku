@@ -11,7 +11,7 @@ import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { getProtocolWithState, sendMultipleTxsAndWait, setupWallet } from '../../utils/test-helpers';
-import { getChainConfigSetup } from '../../constants';
+import { getPaymasterChainConfigSetup } from '../../constants';
 
 const DEPLOYER_PK = '0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6' as Hex;
 const EXECUTOR_PK = '0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5' as Hex;
@@ -34,7 +34,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (no consolidatio
   let stopBundler: () => Promise<void>;
 
   const chainId = inject('chainId');
-  const { forkBlockNumber, rpcUrl, paymasterConfig } = getChainConfigSetup(chainId);
+  const { forkBlockNumber, rpcUrl, paymasterConfig } = getPaymasterChainConfigSetup(chainId);
   const { entryPointAddress, paymasterAddress } = paymasterConfig;
 
   beforeAll(async () => {

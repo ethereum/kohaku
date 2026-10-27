@@ -32,8 +32,8 @@ const FORWARD_GAS = 60_000n;
 
 // A single pool.withdraw (groth16 verify + merkle path) measured at ~347.5k
 // gas on its own — within a few thousand gas of the previous 350_000n
-// baseline here, leaving no room for the surrounding paymaster/adapter
-// overhead or the try/catch external call's EIP-150 63/64 forwarding, and
+// baseline here, leaving no room for the surrounding paymaster
+// overhead or the external call's EIP-150 63/64 forwarding, and
 // causing a silent (empty-reason) out-of-gas revert in `collectFee`. Bundler
 // estimation (see `refineGasWithBundler` in paymasterWithdrawThunk) doesn't
 // reliably fill in paymaster-specific fields for this custom paymaster, so
@@ -50,8 +50,8 @@ const baseGasUnits: UserOperationGasLimits = {
 export function reasonableGasUnits(isERC20: boolean): UserOperationGasLimits {
   if (!isERC20) return baseGasUnits;
 
-  // The fee-paying unshield (incl. ERC20 transfers) runs inside the adapter's
-  // collectFee during paymaster validation, so the extra ERC20 cost belongs to
+  // The fee-paying unshield (incl. ERC20 transfers) runs during paymaster
+  // validation, so the extra ERC20 cost belongs to
   // paymasterVerificationGasLimit — not callGasLimit (which is 0 in this flow).
   return {
     ...baseGasUnits,
