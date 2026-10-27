@@ -21,7 +21,7 @@ export type HistoryEventWithoutTimestamp = DistributiveOmit<PPv1HistoryEvent, 't
 /**
  * Every deposit, withdrawal and ragequit of the account, in no particular order.
  * The transaction hash and log index come from the bulk sync (0n / 0 when its
- * source did not provide them: saga, or a state synced by an older version).
+ * source did not provide them: the root saga index, or a state synced by an older version).
  */
 export const myHistoryEventsSelector = createSelector(
   [myDepositsSelector, myWithdrawalsSelector, myRagequitsSelector, poolsSelector],

@@ -19,7 +19,7 @@ import type { IAsset } from "./interfaces/events.interface";
 import { Address } from "../interfaces/types.interface";
 import { E_ADDRESS } from "../config";
 
-// Sources that don't carry the transaction hash (saga) leave it 0.
+// Sources that don't carry the transaction hash (the root saga index) leave it 0.
 const txLogToRpcLog = ({
   address,
   data,

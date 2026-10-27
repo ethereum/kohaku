@@ -73,13 +73,8 @@ function insertedLeaf(ev: CanonicalEvent): bigint | null {
   return null;
 }
 
-// Takes the block and tx hash of the Deposited/Withdrawn log that inserted the leaf.
-function synthLeafInsertedLog(
-  pool: string,
-  index: bigint,
-  leaf: bigint,
-  { blockNumber, transactionHash }: TxLog,
-): TxLog {
+// No transactionHash: the LeafInserted parser drops it (history reads the pool events).
+function synthLeafInsertedLog(pool: string, index: bigint, leaf: bigint, blockNumber: bigint): TxLog {
   return {
     address: pool,
     topics: [LEAF_INSERTED_TOPIC],
@@ -89,7 +84,6 @@ function synthLeafInsertedLog(
       [index, leaf, 0n],
     ),
     blockNumber,
-    ...(transactionHash ? { transactionHash } : {}),
   };
 }
 
@@ -154,14 +148,12 @@ export async function createSagaLogSource({
       // Privacy-pools streams only publish logs; skip any indexer-derived entity.
       if (isEntityRecord(ev)) continue;
 
-      const log = toTxLog(ev);
-
-      logs.push(log);
+      logs.push(toTxLog(ev));
 
       const leaf = insertedLeaf(ev);
 
       if (leaf !== null) {
-        logs.push(synthLeafInsertedLog(address, leafIndex, leaf, log));
+        logs.push(synthLeafInsertedLog(address, leafIndex, leaf, BigInt(ev.blockNumber)));
         leafIndex += 1n;
       }
     }
