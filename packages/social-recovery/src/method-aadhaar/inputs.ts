@@ -1,4 +1,7 @@
 import {
+  METHOD_AADHAAR_ARTIFACT_ORIGIN_MESSAGE,
+  METHOD_AADHAAR_ARTIFACT_ORIGINS,
+  METHOD_AADHAAR_ARTIFACT_URL_MESSAGE,
   METHOD_AADHAAR_CERTIFICATE_INPUT,
   METHOD_AADHAAR_CERTIFICATE_MESSAGE,
   METHOD_AADHAAR_CERTIFICATE_PARAM,
@@ -10,7 +13,13 @@ import {
   METHOD_AADHAAR_SNARK_SCALAR_FIELD,
 } from '../constants/method-aadhaar';
 import type { Input, Material, Params } from '../interfaces';
-import type { AadhaarArgsOptions, AadhaarMaterial, AadhaarParams, AadhaarProgress } from '../types/method-aadhaar';
+import type {
+  AadhaarArgsOptions,
+  AadhaarMaterial,
+  AadhaarParams,
+  AadhaarProgress,
+  AnonAadhaarArtifacts,
+} from '../types/method-aadhaar';
 
 /** Whether a value is a non-null object whose members can be read by name. */
 export const isRecord = (value: unknown): value is { readonly [name: string]: unknown } =>
@@ -109,4 +118,20 @@ export function argsOptions(params: AadhaarParams, qrData: string, signal?: stri
   const base = { qrData, certificateFile, nullifierSeed, fieldsToRevealArray: [] };
 
   return signal === undefined ? base : { ...base, signal };
+}
+
+/** The artifacts' four members, copied by name so no other member reaches the stack. */
+export function readArtifacts(artifacts: AnonAadhaarArtifacts): AnonAadhaarArtifacts {
+  const { wasmURL, zkeyURL, vkeyURL, artifactsOrigin } = artifacts;
+  const urls = [wasmURL, zkeyURL, vkeyURL];
+
+  if (!urls.every((url) => typeof url === 'string' && url !== '')) {
+    throw new TypeError(METHOD_AADHAAR_ARTIFACT_URL_MESSAGE);
+  }
+
+  if (!(METHOD_AADHAAR_ARTIFACT_ORIGINS as readonly unknown[]).includes(artifactsOrigin)) {
+    throw new TypeError(`${METHOD_AADHAAR_ARTIFACT_ORIGIN_MESSAGE} ${METHOD_AADHAAR_ARTIFACT_ORIGINS.join(', ')}`);
+  }
+
+  return { wasmURL, zkeyURL, vkeyURL, artifactsOrigin };
 }

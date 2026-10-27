@@ -1,13 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE } from '../../src/constants/method-aadhaar';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
-import { CERTIFICATE, configBytes, ctxFor, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
+import { coreStack } from '../../src/method-aadhaar/stack';
+import { CERTIFICATE, clockAt, configBytes, ctxFor, FRESH_NOW, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
 
 const core = vi.hoisted(() => ({
   init: vi.fn((): Promise<void> => Promise.reject(new Error('fetch failed: https://unreachable.invalid/circuit.wasm'))),
   generateArgs: vi.fn((): Promise<unknown> => Promise.resolve({})),
   prove: vi.fn((): Promise<unknown> => Promise.resolve({})),
   verify: vi.fn<(pcd: unknown, testMode?: boolean) => Promise<boolean>>(() => Promise.resolve(true)),
+  timestampToUTCUnix: vi.fn((): number => 0),
+  decompressByteArray: vi.fn((): Uint8Array => {
+    throw new Error('incorrect header check');
+  }),
+  convertBigIntToByteArray: vi.fn((): Uint8Array => new Uint8Array([1])),
 }));
 
 /** The peer's two key hashes, `productionPublicKeyHash` and `testPublicKeyHash` of `@anon-aadhaar/core` 2.4.3. */
@@ -33,6 +39,10 @@ const ARTIFACTS = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('a stack whose init rejects', () => {
@@ -89,12 +99,59 @@ describe('the default stack passes the test-mode flag to the peer\'s verify', ()
   it.each([
     ['a test-key proof under the default', { artifacts: ARTIFACTS }, test],
     ['a production-key proof under testMode: true', { artifacts: ARTIFACTS, testMode: true }, production],
-    ['a proof under an unknown key, either mode', { artifacts: ARTIFACTS, testMode: false }, proof],
+    ['a proof under an unknown key under testMode: true', { artifacts: ARTIFACTS, testMode: true }, proof],
   ] as const)('%s is rejected once the peer is loaded, without calling its verify', async (_why, options, bytes) => {
     core.init.mockResolvedValueOnce(undefined);
 
     expect(await anonAadhaarMethod(options).verify(ctx, bytes)).toBe('rejected');
     expect(core.init).toHaveBeenCalledTimes(1);
+    expect(core.verify).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['by default', { artifacts: ARTIFACTS }],
+    ['under testMode: false', { artifacts: ARTIFACTS, testMode: false }],
+  ] as const)('a proof under an unknown key %s reaches the peer, whose key-mismatch throw is not-judged', async (_why, options) => {
+    core.init.mockResolvedValueOnce(undefined);
+    core.verify.mockRejectedValueOnce(new Error('VerificationError: public key mismatch.'));
+
+    expect(await anonAadhaarMethod(options).verify(ctx, proof)).toBe('not-judged');
+    expect(core.verify).toHaveBeenCalledTimes(1);
+    expect(core.verify.mock.calls[0]).toEqual([expect.objectContaining({ proof: expect.objectContaining({ pubkeyHash: '99' }) }), false]);
+  });
+
+  it('a production-key proof under the default reaches the peer and its true answer is satisfied', async () => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    expect(await anonAadhaarMethod({ artifacts: ARTIFACTS }).verify(ctx, production)).toBe('satisfied');
+    expect(core.verify).toHaveBeenCalledTimes(1);
+    expect(core.verify.mock.calls[0]).toEqual([expect.objectContaining({ proof: expect.objectContaining({ pubkeyHash: PRODUCTION_KEY }) }), false]);
+  });
+
+  it('an unknown-key proof under the default makes replyFrom hand the proof on, the prover run once', async () => {
+    clockAt(FRESH_NOW);
+    core.init.mockResolvedValueOnce(undefined);
+    core.generateArgs.mockResolvedValueOnce({});
+    core.prove.mockResolvedValueOnce(pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST, { pubkeyHash: 99n })));
+    core.verify.mockRejectedValueOnce(new Error('VerificationError: public key mismatch.'));
+
+    const method = anonAadhaarMethod({ artifacts: ARTIFACTS });
+    const reply = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA });
+
+    expect(typeof reply).toBe('string');
+    expect(((reply as string).length - 2) / 2).toBe(544);
+    expect(core.generateArgs).toHaveBeenCalledTimes(1);
+    expect(core.prove).toHaveBeenCalledTimes(1);
+    expect(core.verify).toHaveBeenCalledTimes(1);
+    expect(core.verify.mock.calls[0]?.[1]).toBe(false);
+  });
+
+  it.each([false, true])('an unparsable pubkeyHash answers false without calling the peer, testMode %s', async (testMode) => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    const pcd = pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST));
+
+    expect(await coreStack(ARTIFACTS).verify({ proof: { ...pcd.proof, pubkeyHash: 'not a number' } }, testMode)).toBe(false);
     expect(core.verify).not.toHaveBeenCalled();
   });
 

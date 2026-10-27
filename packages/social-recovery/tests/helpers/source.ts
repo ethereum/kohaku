@@ -139,3 +139,29 @@ export function shapeOf(checker: ts.TypeChecker, node: ts.InterfaceDeclaration):
     indexSignatures: checker.getIndexInfosOfType(type).length,
   };
 }
+
+const declaredName = (node: ts.Node): string | undefined => {
+  const name = (node as { readonly name?: ts.Node }).name;
+
+  return name !== undefined && ts.isIdentifier(name) ? name.text : undefined;
+};
+
+/** The JSDoc text on every declaration named `name` in the file, below the declaration named `within` where one is given. */
+export function jsDocOf(path: string, name: string, within?: string): string {
+  const texts: string[] = [];
+  const visit = (node: ts.Node, inside: boolean): void => {
+    const here = inside || declaredName(node) === within;
+
+    if (here && declaredName(node) === name) {
+      const docs = ts.getJSDocCommentsAndTags(node);
+
+      texts.push(...docs.map((doc) => doc.getText()));
+    }
+
+    ts.forEachChild(node, (child) => visit(child, here));
+  };
+
+  visit(parseSource(path), within === undefined);
+
+  return texts.join('\n');
+}

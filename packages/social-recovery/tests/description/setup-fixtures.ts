@@ -148,7 +148,7 @@ export const CONTEXT: SetupDescriptionContext = {
   descriptor: DESCRIPTOR,
   configuration: CONFIGURATION,
   methods: METHOD_READS,
-  action: { address: ACTION, actionInfo: { answered: true, value: { name: 'ambire', version: '1', supportsInterface: true } }, supportsAccount: true },
+  action: { address: ACTION, actionInfo: { answered: true, value: { name: 'ambire', version: '1', supportsInterface: true } }, supportsAccount: true, accountHoldsCode: true },
   candidateKeys: [
     { key: CANDIDATE_A, isAuthority: true },
     { key: CANDIDATE_B, isAuthority: false },

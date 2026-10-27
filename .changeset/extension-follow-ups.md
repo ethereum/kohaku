@@ -1,0 +1,19 @@
+---
+"@kohaku-eth/social-recovery": patch
+---
+
+Both entries of the `exports` map, `.` and `./recovery-methods`, carry a `default` condition after `types` and `import`, naming the same ESM file as `import`, so a resolver that matches neither `import` nor `require` (a Jest module mapper among them) finds the entry. The package stays ESM only.
+
+`./recovery-methods` now exports every `METHOD_AADHAAR_*` constant beside the methods, as the core entry already does; the `METHOD_ZKPASSPORT_*` constants stay on the core entry alone.
+
+`validateSetup` and the setup client's `validateSetup` and `describeSetup` read whether the account holds code, with one `eth_getCode` per judgment shared with the candidate keys' reads. A draft over an account with no code gets one error, `account.not-deployed` (subject `account`, values `account`, `servedImplementation` and `accountImplementation` where configured), and no `action.unsupported`, since the action's fit is unjudgeable before deployment; `action.unaudited` is unchanged. Deploy the account first, or in the transaction that carries the commit. New: the error code `account.not-deployed` in `SETUP_ERROR_CODES`, after `action.unsupported`, and the member `ActionReads.accountHoldsCode`.
+
+The Aadhaar `replyFrom` reads the QR's signing time before proving and refuses as `material-rejected`, without calling `generateArgs` or `prove`, a QR signed before now by more than the config's freshness window plus `METHOD_AADHAAR_SIGNED_AT_SLACK` (0 seconds: the read is the circuit's own hour-truncated `timestamp` input, so the pre-prover check refuses exactly what the post-prover check would); a QR within that bound, signed in the future or whose time cannot be read is proved as before, and the post-prover freshness check is unchanged. New: the optional stack member `AnonAadhaarStack.signedAt(qrData)`, which the default stack provides by importing `@anon-aadhaar/core` without `init` and reading the time with its `timestampToUTCUnix`, `decompressByteArray` and `convertBigIntToByteArray`; those three are new optional members of `AadhaarCoreSurface`, listed in the new constant `METHOD_AADHAAR_STACK_TIME_CALLS`; a peer without them still loads, and its `signedAt` answers undefined.
+
+New zkPassport version utilities on the core entry: `zkPassportVersionOf(word)` decodes a trusted-key version word (major, minor and patch as three big-endian `uint16` in its first six bytes, zero after) to `major.minor.patch`, and `zkPassportVersionWord(version)` encodes one, lower-case; both throw a `TypeError` on a malformed word or version. The peer's `getSolidityVerifierParameters(...).version` is that word: compare it by value with `trustedKeys[METHOD_ZKPASSPORT_VERSION_KEY]`. New constants: `METHOD_ZKPASSPORT_VERSION_KEY`, `METHOD_ZKPASSPORT_VERSION_PARTS`, `METHOD_ZKPASSPORT_VERSION_PART_BYTES`.
+
+The zkPassport `openRequest` on the ceremony and the signing input is documented: scanning one request's code twice makes `@obsidion/bridge` refuse the second handshake with no event on the record, and a page ends such a wait with `cancel()`. No code change.
+
+The default Aadhaar stack outside test mode now refuses locally only a proof signed by the peer's test key; every other key reaches the peer's `verify`. A key the peer does not know, which it refuses by throwing, therefore answers `not-judged` instead of `rejected`, and `replyFrom` hands such a proof on instead of returning `material-rejected`, leaving the chain to judge it: `@anon-aadhaar/core` 2.4.3 carries UIDAI's 2021 key, while current QRs carry UIDAI's 2026 key, which the module trusts. Test mode is unchanged: only the test key reaches the peer.
+
+Breaking: `ActionReads` gains the required member `accountHoldsCode`, so a caller of the pure `validateSetup` or `describeSetup` with its own reads must supply it; `describeSetup` does not read it.

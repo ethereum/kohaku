@@ -1,8 +1,5 @@
 import { FORMATS_ZERO_ADDRESS } from '../constants/formats';
 import {
-  METHOD_AADHAAR_ARTIFACT_ORIGIN_MESSAGE,
-  METHOD_AADHAAR_ARTIFACT_ORIGINS,
-  METHOD_AADHAAR_ARTIFACT_URL_MESSAGE,
   METHOD_AADHAAR_DEFAULT_TEST_MODE,
   METHOD_AADHAAR_DEVICE_BINDING,
   METHOD_AADHAAR_DEVICE_FACTS,
@@ -34,13 +31,13 @@ import type {
   ReplyFailure,
   Verdict,
 } from '../interfaces';
-import type { AadhaarConfig, AnonAadhaarArtifacts, AnonAadhaarMethodOptions, AnonAadhaarStack } from '../types/method-aadhaar';
+import type { AadhaarConfig, AnonAadhaarMethodOptions, AnonAadhaarStack } from '../types/method-aadhaar';
 import { aadhaarCodec, decodeConfig, encodeConfig, encodeProof } from './codec';
-import { argsOptions, readInput, readMaterial, readParams } from './inputs';
+import { argsOptions, readArtifacts, readInput, readMaterial, readParams } from './inputs';
 import { abortFailure, isFailure, packProof, runProver, untilSettled } from './prover';
 import { isDigest, signalFromDigest, signalHashFromDigest } from './signal';
 import { coreStack } from './stack';
-import { bindsTo, isFresh, judge, nowInSeconds } from './verdict';
+import { agedBeforeProving, bindsTo, isFresh, judge, nowInSeconds } from './verdict';
 import { inputAt } from './words';
 
 export class AnonAadhaarMethod implements IRecoveryMethod {
@@ -108,8 +105,9 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
   /**
    * Proves over the digest and returns the proof unless its bindings fail, the QR is older than the config's window
    * by the system clock, or the local verdict rejects it. A config window under the minimum is `request-unsupported`
-   * before proving. The chain accepts the proof until one window after the QR's signing time, whatever the request's
-   * validity, so the holder's simulation refuses one that aged. An abort at any point, verification included, is `device-refused`.
+   * before proving, and a QR the stack's `signedAt` reads as older than the window by more than the slack is
+   * `material-rejected` before proving. The chain accepts the proof until one window after the QR's signing time, whatever the request's
+   * validity, so the holder's simulation refuses one that aged. An abort at any point, the time read and verification included, is `device-refused`.
    */
   async replyFrom(ctx: Ctx, input: Input, material: Material): Promise<Hex | ReplyFailure> {
     const params = readInput(input);
@@ -134,6 +132,13 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
     if (!isDigest(ctx.digest)) return METHOD_AADHAAR_REQUEST_UNSUPPORTED;
 
     if (config.nullifierSeed !== params.nullifierSeed) return METHOD_AADHAAR_MATERIAL_REJECTED;
+
+    const aging = agedBeforeProving(this.#stack, supplied.qrData, config, nowInSeconds());
+    const aged = await untilSettled(aging, supplied.signal);
+
+    if (isFailure(aged)) return aged;
+
+    if (aged) return METHOD_AADHAAR_MATERIAL_REJECTED;
 
     const options = argsOptions(params, supplied.qrData, signalFromDigest(ctx.digest));
     const pcd = await runProver(this.#stack, options, supplied);
@@ -163,22 +168,6 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
   describe(): DeviceFacts {
     return { ...METHOD_AADHAAR_DEVICE_FACTS };
   }
-}
-
-/** The artifacts' four members, copied by name so no other member reaches the stack. */
-function readArtifacts(artifacts: AnonAadhaarArtifacts): AnonAadhaarArtifacts {
-  const { wasmURL, zkeyURL, vkeyURL, artifactsOrigin } = artifacts;
-  const urls = [wasmURL, zkeyURL, vkeyURL];
-
-  if (!urls.every((url) => typeof url === 'string' && url !== '')) {
-    throw new TypeError(METHOD_AADHAAR_ARTIFACT_URL_MESSAGE);
-  }
-
-  if (!(METHOD_AADHAAR_ARTIFACT_ORIGINS as readonly unknown[]).includes(artifactsOrigin)) {
-    throw new TypeError(`${METHOD_AADHAAR_ARTIFACT_ORIGIN_MESSAGE} ${METHOD_AADHAAR_ARTIFACT_ORIGINS.join(', ')}`);
-  }
-
-  return { wasmURL, zkeyURL, vkeyURL, artifactsOrigin };
 }
 
 /** The Aadhaar method, over an injected stack or the installed `@anon-aadhaar/core`, either in test mode; passing both stacks throws. */

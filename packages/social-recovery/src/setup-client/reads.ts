@@ -56,21 +56,27 @@ async function actionInfoRead(parts: SetupClientParts, block: PinnedBlock): Prom
   }
 }
 
-/** The action contract's reads at the block. */
-async function actionReads(parts: SetupClientParts, block: PinnedBlock): Promise<ActionReads> {
-  const [actionInfo, supportsAccount] = await Promise.all([
+/** The action contract's reads at the block, beside the account's code read the caller made once. */
+async function actionReads(parts: SetupClientParts, block: PinnedBlock, deployed: Promise<boolean>): Promise<ActionReads> {
+  const [actionInfo, supportsAccount, accountHoldsCode] = await Promise.all([
     actionInfoRead(parts, block),
     parts.recoveryAction.supportsAccount(block),
+    deployed,
   ]);
 
-  return { address: parts.action, actionInfo, supportsAccount };
+  return { address: parts.action, actionInfo, supportsAccount, accountHoldsCode };
 }
 
-/** Each distinct method's reads, once per method, and the action's reads, all at the block. */
-export async function judgmentReads(parts: SetupClientParts, methods: readonly Address[], block: PinnedBlock): Promise<JudgmentReads> {
+/** Each distinct method's reads, once per method, and the action's reads, all at the block; `deployed` is the account's one code read. */
+export async function judgmentReads(
+  parts: SetupClientParts,
+  methods: readonly Address[],
+  block: PinnedBlock,
+  deployed: Promise<boolean>,
+): Promise<JudgmentReads> {
   const [methodEntries, action] = await Promise.all([
     Promise.all(methods.map((module) => methodReads(parts, module, block))),
-    actionReads(parts, block),
+    actionReads(parts, block, deployed),
   ]);
 
   return { methods: methodEntries, action };

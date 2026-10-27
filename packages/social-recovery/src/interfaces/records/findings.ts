@@ -10,6 +10,7 @@ export const SETUP_ERROR_CODES = [
   'wait.field-width',
   'wait.above-maximum',
   'action.unsupported',
+  'account.not-deployed',
   'backup.too-wide',
 ] as const;
 

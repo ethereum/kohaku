@@ -117,6 +117,7 @@ export const SETUP_CONTEXT: SetupValidationContext = {
     address: ACTION,
     actionInfo: { answered: true, value: { name: 'a', version: '1', supportsInterface: true } },
     supportsAccount: true,
+    accountHoldsCode: true,
   },
   managerEvents: [],
   costs: [],

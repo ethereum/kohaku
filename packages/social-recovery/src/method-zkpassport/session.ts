@@ -58,7 +58,11 @@ export const requestArgs = (session: ZkPassportSession, devMode: boolean): ZkPas
   devMode,
 });
 
-/** A thunk that opens the session's request on the stack, binding the custom field where a text is given; the record's `cancel()` closes it on the client. */
+/**
+ * A thunk that opens the session's request on the stack, binding the custom field where a text is given; the record's `cancel()` closes it on the client.
+ * Scanning one request's code twice makes `@obsidion/bridge` refuse the second handshake with no event on the record, since
+ * `@zkpassport/sdk` does not subscribe to the bridge's error; a page ends such a wait with `cancel()`.
+ */
 export const opener =
   (
     stack: ZkPassportStack,

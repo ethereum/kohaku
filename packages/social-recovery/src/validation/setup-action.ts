@@ -3,25 +3,33 @@ import type { Address, FindingValues, KitNotification } from '../interfaces';
 import type { Findings, SetupEvent, SetupValidationContext } from '../types/validation';
 import { addError, addWarning, normalizeAddresses } from './common';
 
-/** The action's fit and audit findings: `action.unsupported` and `action.unaudited`. */
+/**
+ * The account's deployment, the action's fit and audit findings: `account.not-deployed` in place of `action.unsupported`
+ * where the account holds no code, since the fit is then unjudgeable, and `action.unaudited`.
+ */
 export function actionFindings(context: SetupValidationContext, findings: Findings): void {
   assertObject(context.action, 'context.action');
   assertObject(context.action.actionInfo, 'context.action.actionInfo');
   assertBool(context.action.supportsAccount, 'context.action.supportsAccount');
+  assertBool(context.action.accountHoldsCode, 'context.action.accountHoldsCode');
 
   const action = normalizeAddress(context.action.address, 'context.action.address');
   const account = normalizeAddress(context.account, 'context.account');
-  const { actionInfo, supportsAccount } = context.action;
+  const { actionInfo, supportsAccount, accountHoldsCode } = context.action;
   const { accountImplementation } = context.configuration;
 
-  if (!supportsAccount) {
+  if (!accountHoldsCode || !supportsAccount) {
     const named: FindingValues =
       accountImplementation === undefined
         ? {}
         : { accountImplementation: normalizeAddress(accountImplementation, 'context.configuration.accountImplementation') };
     const served = normalizeAddress(context.descriptor.servedImplementation, 'context.descriptor.servedImplementation');
 
-    addError(findings, 'action.unsupported', 'action', { action, account, supportsAccount, ...named, servedImplementation: served });
+    if (accountHoldsCode) {
+      addError(findings, 'action.unsupported', 'action', { action, account, supportsAccount, ...named, servedImplementation: served });
+    } else {
+      addError(findings, 'account.not-deployed', 'account', { account, servedImplementation: served, ...named });
+    }
   }
 
   const auditedActions = normalizeAddresses(context.descriptor.auditedActions, 'context.descriptor.auditedActions');
