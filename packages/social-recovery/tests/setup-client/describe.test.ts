@@ -26,7 +26,7 @@ const expectedContext = (draft: SetupDraft, authority: readonly boolean[], remov
     ...MODULE_ANSWERS,
     implemented: module === METHOD_A || module === METHOD_B,
   })),
-  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true },
+  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true },
   candidateKeys: [KEY_1, KEY_2].map((key, index) => ({ key, isAuthority: authority[index] ?? false })),
   removedKey,
 });

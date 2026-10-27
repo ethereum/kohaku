@@ -55,6 +55,11 @@ export type ActionReads = {
   readonly address: Address;
   readonly actionInfo: ReadResult<ActionInfo>;
   readonly supportsAccount: boolean;
+  /**
+   * Whether the account holds code at the block; without it the draft gets `account.not-deployed` and no fit finding.
+   * Deploy the account first, or in the transaction that carries the commit; the manager's `commitSetup` refuses an account the action does not serve.
+   */
+  readonly accountHoldsCode: boolean;
 };
 
 /** The reads a setup client hands `validateSetup`, all pinned to one block. */

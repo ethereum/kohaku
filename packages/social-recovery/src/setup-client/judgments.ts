@@ -17,8 +17,9 @@ export async function validationAt(
   credentials: readonly PlacedCredential[],
   pinned: PinnedHeader,
 ): Promise<ValidationResult> {
+  const deployed = holdsCode(parts, pinned.block);
   const [reads, managerEvents] = await Promise.all([
-    judgmentReads(parts, distinctMethods(credentials), pinned.block),
+    judgmentReads(parts, distinctMethods(credentials), pinned.block, deployed),
     accountWideEvents(parts, pinned.block),
   ]);
 
@@ -73,11 +74,10 @@ export async function descriptionAt(
   pinned: PinnedHeader,
 ): Promise<SetupDescription> {
   const { block } = pinned;
+  const deployed = holdsCode(parts, block);
   const [reads, [keys, removed]] = await Promise.all([
-    judgmentReads(parts, distinctMethods(credentials), block),
-    holdsCode(parts, block).then((deployed) =>
-      Promise.all([candidateKeys(parts, deployed, block), removedKey(parts, deployed, block)]),
-    ),
+    judgmentReads(parts, distinctMethods(credentials), block, deployed),
+    deployed.then((holds) => Promise.all([candidateKeys(parts, holds, block), removedKey(parts, holds, block)])),
   ]);
 
   return describeDraft(checkedDraftRecord(draft, credentials), {

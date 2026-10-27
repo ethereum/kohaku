@@ -49,6 +49,7 @@ function expectedContext(
     readonly actionInfo?: ReadResult<ActionInfo>;
     readonly managerEvents?: readonly KitNotification[];
     readonly registry?: MethodRegistry;
+    readonly accountHoldsCode?: boolean;
   } = {},
 ): SetupValidationContext {
   const registry = overrides.registry ?? defaultRegistry();
@@ -65,6 +66,7 @@ function expectedContext(
       address: overrides.action ?? ACTION,
       actionInfo: overrides.actionInfo ?? { answered: true, value: ACTION_INFO },
       supportsAccount: true,
+      accountHoldsCode: overrides.accountHoldsCode ?? true,
     },
     managerEvents: overrides.managerEvents ?? [],
     costs: [],

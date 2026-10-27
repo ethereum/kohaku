@@ -76,6 +76,10 @@ export type ZkPassportQueryBuilder = {
 
 /** The verifier parameters as the stack returns them (its `SolidityVerifierParameters`). */
 export type ZkPassportVerifierParameters = {
+  /**
+   * The version word, the encoding `zkPassportVersionWord` returns; compare it with `trustedKeys[METHOD_ZKPASSPORT_VERSION_KEY]`
+   * by value (`BigInt` equality), since the module's `verify` routes every proof by that word.
+   */
   readonly version: string;
   readonly proofVerificationData: {
     readonly vkeyHash: string;

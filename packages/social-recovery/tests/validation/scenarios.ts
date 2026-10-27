@@ -88,6 +88,7 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
       action: { ...SETUP_CONTEXT.action, supportsAccount: false },
       managerEvents: [committed(ACCOUNT, OTHER_ACTION, 10)],
     }],
+    ['an undeployed account', DRAFT, { ...SETUP_CONTEXT, action: { ...SETUP_CONTEXT.action, accountHoldsCode: false } }],
     ['a short wait and a clear backup', { ...DRAFT, wait: 60, privacy: { publicMetadata: '0x', backup: 'clear' } }, SETUP_CONTEXT],
     ['a zero wait, no backup, a repeated person', withClauses(
       [{ threshold: 2, credentials: [credential(ECDSA, 1, { label: 'a' }), credential(PASSKEY, 2), credential(ECDSA, 3, { label: 'a' })] }],

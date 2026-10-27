@@ -54,7 +54,10 @@ export class ZkPassportMethod implements IRecoveryMethod {
     return sameAddress(address, FORMATS_ZERO_ADDRESS) ? [] : [address];
   }
 
-  /** The ceremony record for `params` `{ domain, scope, name?, logo?, purpose? }`, binding no custom field; `TypeError` on a missing domain or scope. */
+  /**
+   * The ceremony record for `params` `{ domain, scope, name?, logo?, purpose? }`, binding no custom field; `TypeError` on a missing domain or scope.
+   * Its `openRequest`: a second scan of one request's code makes the bridge refuse the second handshake with no event on the record; a page ends such a wait with `cancel()`.
+   */
   enrollInput(params: Params): EnrollInput {
     const session = sessionFromParams(params);
 
@@ -70,7 +73,10 @@ export class ZkPassportMethod implements IRecoveryMethod {
     return enrolledConfig(this.#stack, session, material, this.#devMode);
   }
 
-  /** The signing record for `params`, binding the digest's text as `customData`; `TypeError` on a missing domain or scope or a digest that is not hex, `RangeError` on a digest that is not 32 bytes. */
+  /**
+   * The signing record for `params`, binding the digest's text as `customData`; `TypeError` on a missing domain or scope or a digest that is not hex, `RangeError` on a digest that is not 32 bytes.
+   * Its `openRequest`: a second scan of one request's code makes the bridge refuse the second handshake with no event on the record; a page ends such a wait with `cancel()`.
+   */
   signingInput(ctx: Ctx, params?: Params): Input {
     const session = sessionFromParams(params);
     const customData = digestText(ctx.digest);
