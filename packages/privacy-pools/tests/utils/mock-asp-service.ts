@@ -1,5 +1,4 @@
-import { LeanIMT } from "@zk-kit/lean-imt";
-import { poseidonT3 } from '@kohaku-eth/poseidon';
+import { LeanIMT } from "@kohaku-eth/poseidon-lean-imt";
 import { IAspService } from "../../src/data/asp.interface";
 import { lastUpdateRootEventSelector } from "../../src/state/selectors/slices.selectors";
 
@@ -69,7 +68,7 @@ export function createMockAspService(): IMockAspService {
       }
 
       // Otherwise, build tree from current leaves
-      const tree = new LeanIMT<bigint>(poseidonT3);
+      const tree = new LeanIMT();
 
       tree.insertMany(leaves);
 
@@ -93,7 +92,7 @@ export function createMockAspService(): IMockAspService {
     },
 
     getRoot(): bigint {
-      const tree = new LeanIMT<bigint>(poseidonT3);
+      const tree = new LeanIMT();
 
       tree.insertMany(leaves);
 

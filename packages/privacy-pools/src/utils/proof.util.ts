@@ -1,4 +1,4 @@
-import { LeanIMT, LeanIMTMerkleProof } from "@zk-kit/lean-imt";
+import { LeanIMT, LeanIMTMerkleProof } from "@kohaku-eth/poseidon-lean-imt";
 import { poseidonT3 } from "@kohaku-eth/poseidon";
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { encodeAbiParameters, keccak256, numberToHex } from "viem";
@@ -13,8 +13,8 @@ export const merkleHash = (a: bigint, b: bigint): bigint => poseidonT3(a, b);
  * O(n)-poseidon-hash operation; callers that reuse a tree should cache it and
  * extend it with `tree.insert` rather than rebuilding here.
  */
-export function buildMerkleTree(leaves: bigint[]): LeanIMT<bigint> {
-  const tree = new LeanIMT<bigint>(merkleHash);
+export function buildMerkleTree(leaves: bigint[]): LeanIMT {
+  const tree = new LeanIMT();
 
   tree.insertMany(leaves);
 
@@ -33,9 +33,9 @@ export function computeMerkleTreeRoot(leaves: bigint[]) {
  * @throws {Error} If the leaf is not found in the tree.
  */
 export function proofFromTree(
-  tree: LeanIMT<bigint>,
+  tree: LeanIMT,
   leaf: bigint,
-): LeanIMTMerkleProof<bigint> {
+): LeanIMTMerkleProof {
   const leafIndex = tree.indexOf(leaf);
 
   // if leaf does not exist in tree, throw error
@@ -64,7 +64,7 @@ export function proofFromTree(
 export function generateMerkleProof(
   leaves: bigint[],
   leaf: bigint,
-): LeanIMTMerkleProof<bigint> {
+): LeanIMTMerkleProof {
   return proofFromTree(buildMerkleTree(leaves), leaf);
 }
 

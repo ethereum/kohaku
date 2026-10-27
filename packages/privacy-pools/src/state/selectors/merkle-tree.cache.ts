@@ -1,4 +1,4 @@
-import { LeanIMT } from "@zk-kit/lean-imt";
+import { PoseidonT3LeanIMT as LeanIMT } from "@kohaku-eth/poseidon-lean-imt";
 
 import { buildMerkleTree } from "../../utils/proof.util";
 
@@ -25,7 +25,7 @@ import { buildMerkleTree } from "../../utils/proof.util";
 interface CachedTree {
   count: number;
   last: bigint;
-  tree: LeanIMT<bigint>;
+  tree: LeanIMT;
 }
 
 const namespaces = new Map<string, Map<string, CachedTree>>();
@@ -56,7 +56,7 @@ export function getIncrementalTree(
   key: string,
   leaves: bigint[],
   expectedRoot?: bigint,
-): LeanIMT<bigint> {
+): LeanIMT {
   const cache = namespace(ns);
   const cached = cache.get(key);
 

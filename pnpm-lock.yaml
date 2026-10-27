@@ -232,6 +232,22 @@ importers:
         specifier: ^3.0.0
         version: 3.2.6(@types/debug@4.1.13)(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(tsx@4.22.5)(yaml@2.9.0)
 
+  packages/poseidon-lean-imt:
+    dependencies:
+      '@kohaku-eth/poseidon':
+        specifier: workspace:*
+        version: link:../poseidon
+    devDependencies:
+      '@zk-kit/lean-imt':
+        specifier: ^2.2.4
+        version: 2.2.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(tsx@4.22.5)(yaml@2.9.0)
+
   packages/privacy-pools:
     dependencies:
       '@fatsolutions/privacy-pools-core-circuits':
@@ -243,6 +259,9 @@ importers:
       '@kohaku-eth/poseidon':
         specifier: workspace:*
         version: link:../poseidon
+      '@kohaku-eth/poseidon-lean-imt':
+        specifier: workspace:*
+        version: link:../poseidon-lean-imt
       '@kohaku-eth/provider':
         specifier: workspace:*
         version: link:../provider
@@ -252,9 +271,6 @@ importers:
       '@saga-sync/client':
         specifier: ^0.3.0
         version: 0.3.0
-      '@zk-kit/lean-imt':
-        specifier: ^2.2.4
-        version: 2.2.4
       maci-crypto:
         specifier: 2.5.0
         version: 2.5.0
