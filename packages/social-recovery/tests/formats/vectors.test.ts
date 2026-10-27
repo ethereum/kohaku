@@ -70,7 +70,7 @@ const APPROVAL_FIELDS = [
   { name: 'place', type: 'uint256' },
 ] as const;
 
-/** Whether a row's place lies past the safe integers, the domain of the SDK's `place: number`. */
+/** Whether a row's place lies past the safe integers, where only the `bigint` form carries it. */
 const beyondSafe = (place: bigint): boolean => place > BigInt(Number.MAX_SAFE_INTEGER);
 
 /** The row's digest by viem over the hand-written types, the place kept as the uint256 it is. */
@@ -95,7 +95,7 @@ function independentDigest(primaryType: 'Approval' | 'Cancellation', members: Ap
     : hashTypedData({ domain, types: { Cancellation: CANCELLATION_FIELDS }, primaryType, message: common });
 }
 
-function membersOf(input: Record<string, unknown>): { members: ApprovalMembers; place: number; rawPlace: bigint; domain: Domain } {
+function membersOf(input: Record<string, unknown>): { members: ApprovalMembers; rawPlace: bigint; domain: Domain } {
   const domain = input['domain'] as Domain;
   const message = input['message'] as Record<string, unknown>;
   const order = message['order'] as Order | undefined;
@@ -117,7 +117,7 @@ function membersOf(input: Record<string, unknown>): { members: ApprovalMembers; 
       : { token: '0x0000000000000000000000000000000000000000', amount: 0n, payee: '0x0000000000000000000000000000000000000000' },
   };
 
-  return { members, place: Number(str(message['place'])), rawPlace: BigInt(str(message['place'])), domain };
+  return { members, rawPlace: BigInt(str(message['place'])), domain };
 }
 
 type Replayer = (row: Row) => void;
@@ -151,42 +151,38 @@ const REPLAYERS: Record<string, Replayer> = {
     ).toBe(expected['commitment']);
   },
   'approval-digest-v1': ({ input, expected }) => {
-    const { members, place, rawPlace, domain } = membersOf(input);
+    const { members, rawPlace, domain } = membersOf(input);
 
     expect(independentDigest('Approval', members, rawPlace, domain)).toBe(expected['digest']);
 
-    if (beyondSafe(rawPlace)) {
-      expect(() => approvalDigest(members, place)).toThrow(RangeError);
-
-      return;
-    }
-
-    const typed = approvalTypedData(members, place);
+    const typed = approvalTypedData(members, rawPlace);
 
     expect(domain.name).toBe('PolicyManager');
     expect(domain.version).toBe(DIGEST_VERSION);
     expect(typed.domain).toStrictEqual(domain);
     expect(typed.primaryType).toBe('Approval');
-    expect(approvalDigest(members, place)).toBe(expected['digest']);
+    expect(typed.message.place).toBe(rawPlace);
+    expect(hashTypedData(typed)).toBe(expected['digest']);
+    expect(approvalDigest(members, rawPlace)).toBe(expected['digest']);
+
+    if (!beyondSafe(rawPlace)) expect(approvalDigest(members, Number(rawPlace))).toBe(expected['digest']);
   },
   'cancellation-digest-v1': ({ input, expected }) => {
-    const { members, place, rawPlace, domain } = membersOf(input);
+    const { members, rawPlace, domain } = membersOf(input);
 
     expect(independentDigest('Cancellation', members, rawPlace, domain)).toBe(expected['digest']);
 
-    if (beyondSafe(rawPlace)) {
-      expect(() => cancellationDigest(members, place)).toThrow(RangeError);
-
-      return;
-    }
-
-    const typed = cancellationTypedData(members, place);
+    const typed = cancellationTypedData(members, rawPlace);
 
     expect(Object.keys(input['message'] as object)).not.toContain('payload');
     expect(domain.version).toBe(DIGEST_VERSION);
     expect(typed.domain).toStrictEqual(domain);
     expect(typed.primaryType).toBe('Cancellation');
-    expect(cancellationDigest(members, place)).toBe(expected['digest']);
+    expect(typed.message.place).toBe(rawPlace);
+    expect(hashTypedData(typed)).toBe(expected['digest']);
+    expect(cancellationDigest(members, rawPlace)).toBe(expected['digest']);
+
+    if (!beyondSafe(rawPlace)) expect(cancellationDigest(members, Number(rawPlace))).toBe(expected['digest']);
   },
 };
 

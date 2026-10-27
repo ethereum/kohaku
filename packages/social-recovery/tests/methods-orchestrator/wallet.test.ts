@@ -95,7 +95,7 @@ describe('replyFrom with the wallet method builds the reply record from the requ
     const request = requests(walletGathering('approval'))[1]!;
     const input = wallet().signingInput(request);
 
-    expect(input).toMatchObject({ primaryType: 'Approval', message: { place: 1 } });
+    expect(input).toMatchObject({ primaryType: 'Approval', message: { place: 1n } });
   });
 
   it('a wallet that said nothing answers material-rejected, never a thrown error', async () => {

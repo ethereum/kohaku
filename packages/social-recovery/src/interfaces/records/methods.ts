@@ -26,7 +26,7 @@ export type ApprovalMessage = {
   readonly payload: Hex;
   readonly order: PaymentOrder;
   readonly validUntil: number;
-  readonly place: number;
+  readonly place: bigint;
 };
 
 /** The `Cancellation` message. */
@@ -37,7 +37,7 @@ export type CancellationMessage = {
   readonly setupNonce: bigint;
   readonly setupBodyHash: Hex;
   readonly validUntil: number;
-  readonly place: number;
+  readonly place: bigint;
 };
 
 /** The typed data for one place, as a wallet's signing call takes it. */

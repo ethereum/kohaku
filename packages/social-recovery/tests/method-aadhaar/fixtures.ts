@@ -349,7 +349,7 @@ export function ctxFor(config: Hex, digest: Hex): Ctx {
         setupNonce: 0n,
         setupBodyHash: ZERO_HASH,
         validUntil: 1800000000,
-        place: 1,
+        place: 1n,
       },
     },
   };

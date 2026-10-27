@@ -1,4 +1,3 @@
-import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { SetupClient, type ClientConfiguration, type DeploymentDescriptor, type IProvider } from '../../src/index';
 import {
@@ -15,6 +14,7 @@ import {
   KEY_2,
   METHOD_A,
 } from './doubles';
+import { checkedConfiguration } from '../../src/formats/records';
 
 /** A list of two well-formed addresses with a hole between them. */
 const sparse = (first: string, last: string): string[] => {
@@ -25,14 +25,6 @@ const sparse = (first: string, last: string): string[] => {
 
   return list;
 };
-
-/** A well-formed creation record. */
-const CREATION = {
-  factory: getAddress('0x00000000000000000000000000000000000fac01'),
-  bytecode: '0x6080',
-  salt: `0x${'00'.repeat(32)}`,
-  block: 90,
-} as const;
 
 /** Builds a client over fresh doubles with one record replaced, answering what it threw and how many provider reads ran. */
 function construct(overrides: {
@@ -114,11 +106,6 @@ describe('construction-time checks of the consumed fields', () => {
     ['configuration.logChunkSize negative', { ...CONFIGURATION, logChunkSize: -10 }],
     ['configuration.blockTags.watch not a named tag', { ...CONFIGURATION, blockTags: { read: 'latest', watch: 'pending' } }],
     ['configuration.blockTags.read a number', { ...CONFIGURATION, blockTags: { read: 5, watch: 'latest' } }],
-    ['configuration.creation not an object', { ...CONFIGURATION, creation: 'yes' }],
-    ['configuration.creation.factory not an address', { ...CONFIGURATION, creation: { ...CREATION, factory: '0x12' } }],
-    ['configuration.creation.bytecode not hex', { ...CONFIGURATION, creation: { ...CREATION, bytecode: 'code' } }],
-    ['configuration.creation.salt not 32 bytes', { ...CONFIGURATION, creation: { ...CREATION, salt: '0x01' } }],
-    ['configuration.creation.block negative', { ...CONFIGURATION, creation: { ...CREATION, block: -1 } }],
     ['configuration.candidateKeys repeating one key', { ...CONFIGURATION, candidateKeys: [KEY_1, KEY_2, KEY_1] }],
     ['configuration.candidateKeys naming one key in two spellings', { ...CONFIGURATION, candidateKeys: [KEY_1, KEY_1.toLowerCase()] }],
   ])('refuses %s at construction with no provider read', (_name, configuration) => {
@@ -128,11 +115,19 @@ describe('construction-time checks of the consumed fields', () => {
     expect(reads).toBe(0);
   });
 
-  it('accepts a well-formed creation record and a set accountImplementation', () => {
-    expect(construct({ configuration: { ...CONFIGURATION, creation: CREATION, accountImplementation: DESCRIPTOR.servedImplementation } })).toEqual({
+  it('accepts a set accountImplementation', () => {
+    expect(construct({ configuration: { ...CONFIGURATION, accountImplementation: DESCRIPTOR.servedImplementation } })).toEqual({
       thrown: undefined,
       reads: 0,
     });
+  });
+
+  it.each([
+    ['a malformed', 'yes'],
+    ['a once well-formed', { factory: DESCRIPTOR.servedImplementation, bytecode: '0x6080', salt: `0x${'00'.repeat(32)}`, block: 90 }],
+  ])('ignores %s creation key the configuration no longer has', (_name, creation) => {
+    expect(construct({ configuration: { ...CONFIGURATION, creation } })).toEqual({ thrown: undefined, reads: 0 });
+    expect(Object.hasOwn(checkedConfiguration({ ...CONFIGURATION, creation }, 'configuration'), 'creation')).toBe(false);
   });
 
   it('refuses a digestVersion past the safe integers with a RangeError and no provider read', () => {
@@ -192,7 +187,7 @@ describe('construction-time checks of the consumed fields', () => {
 
   it('leaves the caller\'s descriptor and configuration objects unchanged, lower-case spellings included', () => {
     const descriptor = { ...DESCRIPTOR, manager: DESCRIPTOR.manager.toLowerCase(), shippedMethods: DESCRIPTOR.shippedMethods.map((entry) => entry.toLowerCase()) };
-    const configuration = { ...CONFIGURATION, candidateKeys: CONFIGURATION.candidateKeys.map((key) => key.toLowerCase()), creation: CREATION };
+    const configuration = { ...CONFIGURATION, candidateKeys: CONFIGURATION.candidateKeys.map((key) => key.toLowerCase()) };
     const descriptorBefore = JSON.stringify(descriptor);
     const configurationBefore = JSON.stringify(configuration);
 

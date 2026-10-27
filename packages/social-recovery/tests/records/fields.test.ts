@@ -359,7 +359,7 @@ describe('the three gathering records', () => {
             setupNonce: 1n,
             setupBodyHash: request.setupBodyHash,
             validUntil: 1790000000,
-            place: request.place,
+            place: BigInt(request.place),
           },
         },
       };
@@ -533,8 +533,8 @@ describe('the other records with named fields', () => {
   it('the client configuration carries the expected fields', () => {
     const configuration = typeOf('ClientConfiguration');
 
-    expect(fieldsOf(configuration)).toEqual(expect.arrayContaining(['tokens', 'candidateKeys', 'creation', 'blockTags']));
-    expect(fieldsOf(field(configuration, 'creation'))).toEqual(sorted(['factory', 'bytecode', 'salt', 'block']));
+    expect(fieldsOf(configuration)).toEqual(expect.arrayContaining(['tokens', 'candidateKeys', 'blockTags']));
+    expect(fieldsOf(configuration)).not.toContain('creation');
     expect(fieldsOf(field(configuration, 'blockTags'))).toEqual(sorted(['read', 'watch']));
   });
 

@@ -89,7 +89,7 @@ export const typedDataFor = (options: CtxOptions = {}): TypedData => {
     setupNonce: 3n,
     setupBodyHash: SETUP_BODY_HASH,
     validUntil: 1_900_000_000,
-    place,
+    place: BigInt(place),
   };
 
   if (options.purpose === 'cancellation') {
@@ -123,7 +123,7 @@ export const ctxFor = (options: CtxOptions = {}): Ctx => {
     setupNonce: String(message.setupNonce),
     setupBodyHash: message.setupBodyHash,
     validUntil: String(message.validUntil),
-    place: message.place,
+    place: Number(message.place),
     method: METHOD,
     config: options.config ?? addressWord(options.guardian ?? SIGNER_ONE),
     salt: `0x${'5a'.repeat(32)}`,
@@ -134,7 +134,7 @@ export const ctxFor = (options: CtxOptions = {}): Ctx => {
       ? { ...members, purpose: 'approval', payload: typedData.message.payload, order: { token: TOKEN, amount: '5', payee: ACCOUNT } }
       : { ...members, purpose: 'cancellation' };
 
-  return { request, place: message.place, digest: digestOf(typedData), typedData };
+  return { request, place: request.place, digest: digestOf(typedData), typedData };
 };
 
 /** A 65-byte r || s || v signature over a raw hash, v in {27, 28}. */
