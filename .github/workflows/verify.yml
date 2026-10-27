@@ -74,5 +74,3 @@ jobs:
           env:
             RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
             RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
-            TC_MAINNET_FORK_BLOCK: ${{ secrets.TC_MAINNET_FORK_BLOCK }}
-            TC_SEPOLIA_FORK_BLOCK: ${{ secrets.TC_SEPOLIA_FORK_BLOCK }}
