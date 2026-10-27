@@ -51,13 +51,15 @@ const receipts = await createTCBroadcaster(host, {
 }).broadcast(operation)
 ```
 
-The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operations to the bundler and waits for their receipts. `receipts[n].id` is the user operation hash. Check `receipts.length` against `operation.withdrawals.length` before reporting that every withdrawal completed.
+The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler and waits for its receipt. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
 
-`tailCalls` runs in the same user operation, after the notes are spent. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
+When an unshield spends multiple notes, the SDK consolidates them into a single user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
+
+User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
 
 ### Delegation
 
-`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
+`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for multi-note unshields and when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
 
 | Value | Delegator |
 | --- | --- |

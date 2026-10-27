@@ -80,6 +80,8 @@ const operation = await tornado.prepareUnshield(note, recipient, {
 const receipts = await createTCBroadcaster(host).broadcast(operation)
 ```
 
+A multi-note unshield is consolidated into one ERC-4337 user operation. The first note covers paymaster sponsorship for the whole operation; subsequent notes are withdrawn through direct pool calls in its execution phase (tail calls). Additional user-supplied `tailCalls` run after those withdrawals in the same user operation.
+
 Paymaster withdrawals use the bundled paymaster map unless you pass `paymasterConfig` to the plugin. The prepared operation carries the bundler URL used by the broadcaster.
 
 The amount follows the same denomination rule as a shield. `prepareUnshield` throws `InsufficientBalanceError` when the unspent notes cannot cover it.

@@ -45,7 +45,7 @@ Point `refundRecipient` at a payer or change address when the recipient should s
 
 ### Several notes, one user operation
 
-`batch: true` spends enough approved notes to reach `amount` inside one sponsored user operation.
+`batch: true` spends enough approved notes to reach `amount` inside one sponsored ERC-4337 user operation. The first selected note (the largest) covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in its execution phase (tail calls). Any user-supplied `tailCalls` run after those withdrawals in the same user operation; each note does not require its own user operation.
 
 ```ts
 await pools.prepareUnshield(asset, recipient, {
