@@ -1,5 +1,17 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.32
+
+### Patch Changes
+
+- 68085b9: Use only the leaves from the association-set service. Sync rebuilds the ASP root from the leaves and rejects the set unless it matches the `RootUpdated` root (leaves outside the SNARK field are rejected too), and the on-chain check verifies that rebuilt root instead of the one the service reported. Withdrawals now refuse to prove unless the ASP proof's root equals the root matched to the Entrypoint's `latestRoot()` in this session.
+- 3cf4609: The secret manager now gets a keystore scoped to `m/28784'/1'` plus the exact `delegation.path` of a paymaster unshield, instead of the host's whole keystore. A custom `secretManager` that derives other paths gets `KeystorePathNotAllowedError`. `PRIVACY_POOLS_KEYSTORE_PREFIX` is exported.
+- 11ce788: `SignatureSecretManager` now checks that its signer is deterministic before handing out any note secret. Secrets are never stored and are re-derived from the signatures after a restart, so a signer that adds entropy (viem's `setSignEntropy(true)`, some custom signers) created deposits that could later be neither withdrawn nor ragequit. The first note envelope of each session is signed twice and derivation throws if the signatures differ; this costs one extra signature (one extra hardware prompt) per session and can be turned off with `verifyDeterminism: false`.
+- 777a1b6: Sync now reads one chain head, scans the entrypoint and every pool up to it, and saves that head as the next sync point. Before, each scan read its own head and the last pool-event block was saved, so entrypoint deposits that landed between the two heads were skipped forever and the note dropped out of the balance. A failed pool scan now fails the sync instead of being skipped, the saga log source starts its RPC tail right after the block it served (it skipped blocks under a `headBlock` clamp), and custom `IDataService` implementations need a `getBlockNumber()` method.
+- e29a619: Validate relayer withdrawal data before proving. Quotes are now dropped if they pay anyone other than the recipient, embed a fee above the quoted `feeBPS` or the pool's `maxRelayFeeBPS`, or use a non-canonical encoding. The remaining quotes are ranked by the fee in the data. Exact-output withdrawals encode the caller's recipient themselves, and cap the relayer's self-reported base rate at its embedded fee.
+- Updated dependencies [3cf4609]
+  - @kohaku-eth/plugins@0.0.1-alpha.19
+
 ## 0.1.0-alpha.31
 
 ### Patch Changes

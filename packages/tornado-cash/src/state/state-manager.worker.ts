@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import * as Comlink from 'comlink';
 
+import { registerHostBridge } from '../plugin/host-bridge.js';
 import { workerApi } from './state-manager-api.js';
 export type { WorkerApi } from './state-manager-api.js';
 
@@ -11,4 +12,6 @@ self.addEventListener('unhandledrejection', (e) => {
   console.error('[worker] unhandled rejection', e.reason);
 });
 
+// Host objects arrive through the host bridge; it must be registered to receive them.
+registerHostBridge();
 Comlink.expose(workerApi);

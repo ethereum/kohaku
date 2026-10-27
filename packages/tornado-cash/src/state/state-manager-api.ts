@@ -48,9 +48,10 @@ export function getStateManager(): IStateManager {
   return _stateManager;
 }
 
-// Proxied host interfaces are passed as separate top-level arguments so Comlink's
-// transfer handlers process them individually (nested proxy objects inside a plain object
-// bypass the handler and fail structured clone).
+// Host interfaces are passed as separate top-level arguments so Comlink's transfer
+// handlers process them individually (nested objects inside a plain object bypass the
+// handler and fail structured clone). Each one is a host-bridge remote: only the methods
+// allowlisted in plugin/worker-host-policy.ts are callable.
 export const workerApi = {
   async init(
     provider: EthereumProvider,

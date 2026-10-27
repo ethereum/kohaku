@@ -100,13 +100,13 @@ export class DataService implements IDataService {
     const logs = await this.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
-      ...(toBlock ? { toBlock } : {}),
+      ...(toBlock !== undefined ? { toBlock } : {}),
     });
 
     return {
       ...parseLogs(logs.map(txLogToRpcLog), events),
       fromBlock: fromBlock,
-      toBlock: BigInt(logs.at(-1)?.blockNumber || 0n) || fromBlock,
+      toBlock: toBlock ?? (BigInt(logs.at(-1)?.blockNumber || 0n) || fromBlock),
     } as Awaited<ReturnType<GenericGetEvents>>;
   };
 
@@ -164,6 +164,10 @@ export class DataService implements IDataService {
 
   async getPoolScope(poolAddress: Address) {
     return this.ethClient.makeContractRequest(poolAddress, "pool", "SCOPE");
+  }
+
+  async getBlockNumber(): Promise<bigint> {
+    return this.ethClient.getBlockNumber();
   }
 
   async getChainId() {

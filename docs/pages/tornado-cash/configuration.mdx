@@ -103,7 +103,7 @@ createTCPlugin(host, {
 
 `minFee` and `maxFee` are in the same unit as the relayer status field (percent). The defaults accept service fees from `0.01` up to, and not including, `0.30`.
 
-`preferredRelayersEns` on an individual unshield narrows this list further. See [deposits and withdrawals](/tornado-cash/options).
+`preferredRelayersEns` on a regular relayer unshield narrows this list further. The recommended [ERC-4337 paymaster path](/tornado-cash/options) does not use this registry filter.
 
 ## Secret manager
 
@@ -128,7 +128,7 @@ createTCPlugin(host, {
 })
 ```
 
-`params.host` here is `{ keystore }`. `deriveAt` still has to answer the paths on the [host page](/host).
+`params.host` here is `{ keystore }`, scoped to `m/29795'/1'/…` plus any `delegation.path` you pass to an unshield. Other paths throw `KeystorePathNotAllowedError`. Your host keystore still has to answer the paths on the [host page](/host).
 
 ## Fast cold sync
 
@@ -159,10 +159,12 @@ createTCPlugin(host, {
 })
 ```
 
+The worker never holds your host objects. It gets a bridge to each one that allows only the calls it makes, listed on [the host page](/host#what-plugin-code-can-reach). If you wrap the worker yourself, keep that boundary.
+
 `initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use it to ship a checkpoint so the first open does not start at the registry's deployment block. The snapshot is a cache. The keystore still decides which notes belong to the user.
 
 ## Paymaster map
 
 `TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer.
 
-`createTCBroadcaster(host, { paymasterConfig })` should see the same map you gave the plugin, so the user operation it broadcasts matches the one `prepareUnshield` built.
+Use `mode: 'paymaster'` explicitly when preparing a withdrawal. The prepared operation carries the bundler URL and EntryPoint from the plugin's paymaster map; `createTCBroadcaster` uses those fields to submit it. See [deposits and withdrawals](/tornado-cash/options).
