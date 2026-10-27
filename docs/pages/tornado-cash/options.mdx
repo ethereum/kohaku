@@ -26,26 +26,13 @@ ERC-20 shields emit an approval and a deposit for each note. The user's public a
 
 The CLI always passes `MinFee`, in `prepareProtocolShield` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).
 
-## Relayer withdrawal
+## ERC-4337 paymaster withdrawal
+
+Use the paymaster relay/broadcast path by passing `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
 
 ```ts
-const operation = await tornado.prepareUnshield(asset, recipient, {
-  mode: 'relayer',
-  preferredRelayersEns: ['relay.example.eth'],
-})
+import { createTCBroadcaster, TornadoPaymasterConfigs } from '@kohaku-eth/tornado-cash'
 
-const receipts = await createTCBroadcaster(host).broadcast(operation)
-```
-
-`mode: 'relayer'` is the default, so the options object is optional. `preferredRelayersEns` keeps only those ENS names from the registry. Names that are not registered, or that fall outside [`relayerConfig`](/tornado-cash/configuration#relayer-fees), produce no quote. Among the rest, the plugin picks the relayer with the lowest total fee.
-
-Each withdrawal in `operation.withdrawals` has `mode: 'relayer'`, a `relayerUrl`, the pool, the proof, the `fee` bound into the proof, and the note `denomination`. The recipient receives `denomination - fee`. Show the fee before you broadcast. The broadcaster POSTs them with `host.network.fetch`. A failure on one withdrawal is collected. The returned array contains the ones that succeeded, each as `{ id }` where `id` is the relayer job id. If you need all-or-nothing, check `receipts.length` against `operation.withdrawals.length` before you tell the user the funds have moved.
-
-`tailCalls` on a relayer unshield throws. Follow-up calls belong on the paymaster path.
-
-## Paymaster withdrawal
-
-```ts
 const operation = await tornado.prepareUnshield(asset, recipient, {
   mode: 'paymaster',
   delegation: { mode: 'deterministic' },
@@ -64,13 +51,15 @@ const receipts = await createTCBroadcaster(host, {
 }).broadcast(operation)
 ```
 
-The paymaster sponsors gas. The user's public account does not pay the withdrawal. `receipts[n].id` is the user operation hash.
+The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler and waits for its receipt. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
 
-`tailCalls` runs in the same user operation, after the notes are spent. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
+When an unshield spends multiple notes, the SDK consolidates them into a single user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
+
+User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
 
 ### Delegation
 
-`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
+`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for multi-note unshields and when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
 
 | Value | Delegator |
 | --- | --- |
@@ -90,4 +79,4 @@ The CLI builds this delegation in [`src/utils/tornado-unshield-delegation.ts`](h
 
 ## Picking a path
 
-Use `MinFee` and a relayer when you want the fewest notes and a simple withdrawal. Use `MaxAnonimitySet` when the product wants every note in the smallest denomination. Use the paymaster when the recipient should receive funds without the user holding ETH for gas, or when the withdrawal should continue into `tailCalls`.
+Use `MinFee` when you want the fewest deposit notes. Use `MaxAnonimitySet` when the product wants every note in the smallest denomination. For withdrawals, use `mode: 'paymaster'` and broadcast through `createTCBroadcaster`. Add `tailCalls` when the withdrawal should continue into further calls.

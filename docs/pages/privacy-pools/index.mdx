@@ -10,7 +10,7 @@ This page is the short path. [Configuration](/privacy-pools/configuration) is ev
 
 ## Create the plugin
 
-`PrivacyPoolsV1_0xBow` lists the 0xbow entrypoint on mainnet and Sepolia. `broadcasterUrl` is the relayer that will later submit withdrawals. A string is registered as the relayer id `default`.
+`PrivacyPoolsV1_0xBow` lists the 0xbow entrypoint on mainnet and Sepolia. `broadcasterUrl` is a required constructor field for the regular relayer configuration. The ERC-4337 paymaster walkthrough below uses the bundled paymaster map to submit withdrawals through a bundler.
 
 ```ts
 import {
@@ -104,37 +104,40 @@ Each asset is two rows:
 | `tag` omitted | Approved. This amount can be withdrawn. |
 | `tag: 'pending'` | Deposited, still waiting on the association set. |
 
-Pending value can be ragequit. It cannot be withdrawn through the relayer. See [Notes and history](/privacy-pools/state).
+Pending value can be ragequit. It cannot be spent by `prepareUnshield`. See [Notes and history](/privacy-pools/state).
 
 ## Unshield
 
-`prepareUnshield` spends approved balance. A deposit stays in the `'pending'` row until the association set accepts it. Exit pending value with [ragequit](/privacy-pools/state).
+Use the ERC-4337 paymaster path as the default integration path and pass `mode: 'paymaster'` explicitly. Omitting it selects the SDK's regular relayer mode. `prepareUnshield` spends approved balance. A deposit stays in the `'pending'` row until the association set accepts it. Exit pending value with [ragequit](/privacy-pools/state).
 
 ```ts
 const recipient = '0x1111111111111111111111111111111111111111' as const
 
-const operation = await pools.prepareUnshield(deposit, recipient)
+const operation = await pools.prepareUnshield(deposit, recipient, {
+  mode: 'paymaster',
+})
 
 const broadcaster = createPPv1Broadcaster(host, { broadcasterUrl })
 const receipt = await broadcaster.broadcast(operation)
 ```
 
-Use the same `broadcasterUrl` on the plugin and the broadcaster. The quote names a relayer id, and the broadcaster looks that id up in its map. With a string URL the id is `default`.
+The broadcaster submits the paymaster-sponsored user operation to the bundler configured by the plugin’s paymaster map. `broadcasterUrl` is required by the constructor but is not used to relay this operation.
 
-`receipt.success` is `true`, `receipt.txHash` is the withdrawal transaction, and `receipt.requestId` is the relayer's id for the request.
+`receipt.success` is `true`, `receipt.requestId` is the user operation hash, and `receipt.txHash` is the transaction that included it.
 
-The default mode is the relayer. The recipient receives `amount` minus the relayer fee. Call `estimateUnshield` while the user is still editing the form. It asks for a quote and does not build a proof. `prepareUnshield` requests a fresh quote when you submit.
+The recipient receives `amount` minus the sponsored gas fee, plus any gas refund sent to them. Call `estimateUnshield` with the same mode while the user is still editing the form. It estimates fees without building a proof. `prepareUnshield` estimates again when you submit.
 
 The proof commits to the relayer's withdrawal data, so the plugin decodes it before proving. A quote is dropped if its data pays anyone other than the recipient, embeds a fee above the quoted `feeBPS` or the pool's on-chain `maxRelayFeeBPS`, or is not the canonical encoding. Quotes are ranked by the fee embedded in the data, not the advertised one.
 
 ```ts
-const preview = await pools.estimateUnshield(deposit, recipient)
-// preview.mode === 'relayer'
-// preview.fee, preview.netAmount, preview.feeBPS, preview.relayerId
-// preview.expiration is a timestamp in milliseconds
+const preview = await pools.estimateUnshield(deposit, recipient, {
+  mode: 'paymaster',
+})
+// preview.mode === 'paymaster'
+// preview.fee, preview.netAmount, preview.gasFeeWei
 ```
 
-The [withdrawals page](/privacy-pools/withdrawals) covers paymaster mode, exact output, batching several notes, and calls that run after the withdrawal.
+The [withdrawals page](/privacy-pools/withdrawals) covers paymaster fees, exact output, batching several notes, and calls that run after the withdrawal.
 
 ## What the CLI does
 

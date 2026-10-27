@@ -48,7 +48,7 @@ createPPv1Plugin(host, {
 })
 ```
 
-The ids in that record (`fast`, `backup`) are the ids the quote will carry. `createPPv1Broadcaster` needs the same record, or it throws `Specified relayer not found` at broadcast time.
+These ids (`fast`, `backup`) are used only by the regular relayer mode. The recommended ERC-4337 paymaster path uses the bundler URL from `paymasterConfig`; `broadcasterUrl` remains a required constructor field. See [withdrawals](/privacy-pools/withdrawals) for preparation and broadcasting.
 
 ## Secret managers
 
