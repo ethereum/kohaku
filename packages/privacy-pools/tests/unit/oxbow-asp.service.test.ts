@@ -40,7 +40,7 @@ describe('OxBowAspService', () => {
       expect(result[0]).toEqual(MOCK_LEAVES.map(BigInt));
 
       // Verify root is computed correctly
-      const expectedRoot = computeMerkleTreeRoot(MOCK_LEAVES.map(BigInt));
+      const expectedRoot = await computeMerkleTreeRoot(MOCK_LEAVES.map(BigInt));
 
       expect(result[1][0]).toBe(expectedRoot);
     });

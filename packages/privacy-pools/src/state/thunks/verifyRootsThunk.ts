@@ -21,7 +21,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     // Rebuilt from the synced leaves: the stored root is only what the service claimed.
-    const aspRoot = aspLeavesRootSelector(state);
+    const aspRoot = await aspLeavesRootSelector(state);
     const pools = poolsSelector(state);
     const poolsLeaves = poolsLeavesSelector(state);
 
@@ -35,7 +35,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
 
       if (!leavesMap || leavesMap.size === 0) continue;
 
-      const localRoot = poolMerkleTreeRootSelector(state, poolAddress);
+      const localRoot = await poolMerkleTreeRootSelector(state, poolAddress);
 
       stateRootChecks.push({ poolAddress, localRoot });
     }

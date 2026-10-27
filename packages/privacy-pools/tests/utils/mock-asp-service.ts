@@ -1,4 +1,4 @@
-import { LeanIMT } from "@kohaku-eth/poseidon-lean-imt";
+import { PoseidonT3LeanIMT as LeanIMT } from "@kohaku-eth/poseidon-lean-imt";
 import { IAspService } from "../../src/data/asp.interface";
 import { lastUpdateRootEventSelector } from "../../src/state/selectors/slices.selectors";
 
