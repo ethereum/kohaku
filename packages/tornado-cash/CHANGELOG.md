@@ -1,3 +1,15 @@
+## 0.1.0-alpha.30
+
+### Patch Changes
+
+- ad9c520: Pin the Tornado proving artifacts. The prover now checks the circuit JSON and proving key against SHA-256 pins before parsing them, whatever `artifactsLoader` returns, and throws `TornadoArtifactsIntegrityError` on a mismatch. The default loader now fetches from a fixed tornado-cli commit and fails on HTTP errors. The pins are exported as `TORNADO_CIRCUIT_SHA256` and `TORNADO_PROVING_KEY_SHA256`.
+- 3cf4609: Narrow what the state worker can do with host objects. They used to cross as plain comlink `proxy()`s, which answer on any property path. Each host object now gets its own channel that only accepts calls to the methods the worker uses, with plain-data arguments: read-only `provider.request` methods, `tornado-cash-` storage keys, and a keystore scoped to `m/29795'/1'` plus the exact `delegation.path` of an unshield. A custom `secretManagerFactory` receives that scoped keystore too.
+- 70b93ba: Only deposit into known Tornado instances. Pool addresses and denominations read from the RPC are now checked against a static per-chain catalog (`TornadoInstances`, mainnet and Sepolia); pools that are missing from it or disagree with it are ignored on sync and dropped from saved state on load. `protocolConfig.instances` replaces the catalog for a chain, and on a chain with neither `prepareShield` throws.
+- 70b93ba: Bound the relayer fee before proving a relayer withdrawal. For ERC-20 pools the relayer's token price may not put the network fee more than `relayerConfig.maxPriceDeviationBps` (default 20%) above the paymaster's on-chain TWAP quote, and every note's total fee is capped at `relayerConfig.maxTotalFeeBps` (default 20%) of its denomination. The relayer is now chosen by lowest total fee, and each relayer withdrawal exposes the proven `fee` and the note `denomination`.
+- 70b93ba: `prepareShield` now honours `{ strategy: DepositStrategy.MaxAnonimitySet }`. The enum value is `0`, which was replaced by `MinFee` as a falsy value.
+- Updated dependencies [3cf4609]
+  - @kohaku-eth/plugins@0.0.1-alpha.19
+
 ## 0.1.0-alpha.29
 
 ### Patch Changes
