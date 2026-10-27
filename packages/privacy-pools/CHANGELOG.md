@@ -1,5 +1,12 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.33
+
+### Patch Changes
+
+- 799dddf: Add a `blockNumber` field to the `INote` abstraction, matching the block number
+  of the note's deposit event.
+
 ## 0.1.0-alpha.32
 
 ### Patch Changes
