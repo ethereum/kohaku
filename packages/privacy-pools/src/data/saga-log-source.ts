@@ -139,8 +139,9 @@ export async function createSagaLogSource({
     const reqTo = params.toBlock;
     const sagaTo = reqTo !== undefined && reqTo < sagaCap ? reqTo : sagaCap;
 
-    // Reconstruct the full pool history (leaf indices are global, so always
-    // stream from the start — the sync merges by index, so this is idempotent).
+    // Leaf indices are global, so always stream from the start, but only return
+    // the requested [fromBlock, sagaTo] range: events before fromBlock are already
+    // synced, and re-sending them would e.g. roll the last RootUpdated back.
     const logs: TxLog[] = [];
     let leafIndex = 1n; // on-chain LeafInserted is 1-based.
 
@@ -148,12 +149,20 @@ export async function createSagaLogSource({
       // Privacy-pools streams only publish logs; skip any indexer-derived entity.
       if (isEntityRecord(ev)) continue;
 
-      logs.push(toTxLog(ev));
+      const blockNumber = BigInt(ev.blockNumber);
+
+      // @saga-sync/client <=0.3.0 uses the window only to pick chunks, so a chunk
+      // straddling sagaTo still yields its later events (fatlabsxyz/saga-sync).
+      if (blockNumber > sagaTo) continue;
 
       const leaf = insertedLeaf(ev);
+      const requested = blockNumber >= params.fromBlock;
+
+      if (requested) logs.push(toTxLog(ev));
 
       if (leaf !== null) {
-        logs.push(synthLeafInsertedLog(address, leafIndex, leaf, BigInt(ev.blockNumber)));
+        if (requested) logs.push(synthLeafInsertedLog(address, leafIndex, leaf, blockNumber));
+
         leafIndex += 1n;
       }
     }
