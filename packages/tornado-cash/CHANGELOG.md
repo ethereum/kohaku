@@ -1,3 +1,9 @@
+## 0.1.0-alpha.31
+
+### Patch Changes
+
+- 33529e2: feat: new paymaster format
+
 ## 0.1.0-alpha.30
 
 ### Patch Changes
