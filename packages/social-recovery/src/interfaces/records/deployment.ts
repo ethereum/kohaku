@@ -1,4 +1,4 @@
-import type { Address, Hex, NamedBlockTag } from './chain';
+import type { Address, NamedBlockTag } from './chain';
 
 /** The record of one deployment on one chain. */
 export type DeploymentDescriptor = {
@@ -27,14 +27,6 @@ export type RequestWindowBounds = {
   readonly floor: number;
 };
 
-/** How and in which block the account was created. */
-export type CreationRecord = {
-  readonly factory: Address;
-  readonly bytecode: Hex;
-  readonly salt: Hex;
-  readonly block: number;
-};
-
 /** The tag a read pins at and the tag a watch pins at. */
 export type BlockTags = {
   readonly read: NamedBlockTag;
@@ -54,8 +46,6 @@ export type ClientConfiguration = {
   readonly cancelWindow: number;
   /** The rule cost beyond which the SDK refuses, in gas summed over the costliest satisfying set. */
   readonly ruleCostBound: number;
-  /** The account's creation record, where the integrator has one. */
-  readonly creation?: CreationRecord;
   /** The account implementation about to be deployed. */
   readonly accountImplementation?: Address;
   /** The integrator's own list, never the account's signer set. */

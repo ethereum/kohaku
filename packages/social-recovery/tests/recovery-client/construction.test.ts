@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ClientConfiguration, DeploymentDescriptor } from '../../src/index';
 import { CLIENT_CONFIGURATION, CONFIGURATION, DESCRIPTOR, HANDOVER, KEY_NEW, KEY_OLD, METHOD_ECDSA, ORDER, rig, TOKEN, world, type Seen } from './doubles';
+import { checkedConfiguration } from '../../src/formats/records';
 
 const BAD_CHECKSUM = '0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
 
@@ -94,9 +95,6 @@ describe('construction refuses a malformed consumed field with no read', () => {
     ['simulate, a string', { simulate: 'false' }],
     ['blockTags.watch, not a named tag', { blockTags: { read: 'latest', watch: 'pending' } }],
     ['candidateKeys, a bad entry', { candidateKeys: [BAD_CHECKSUM] }],
-    ['creation, a short factory', { creation: { factory: '0x1234', bytecode: '0x6080', salt: `0x${'00'.repeat(32)}`, block: 1 } }],
-    ['creation, a negative block', { creation: { factory: TOKEN, bytecode: '0x6080', salt: `0x${'00'.repeat(32)}`, block: -1 } }],
-    ['creation, a short salt', { creation: { factory: TOKEN, bytecode: '0x6080', salt: '0x00', block: 1 } }],
   ])('configuration %s', (_name, change) => {
     const { thrown, seen } = construct(DESCRIPTOR, { ...CLIENT_CONFIGURATION, ...change } as unknown as ClientConfiguration);
 
@@ -114,17 +112,24 @@ describe('construction refuses a malformed consumed field with no read', () => {
     expect(seen).toEqual([]);
   });
 
-  it('distinct candidate keys and a well-formed creation record construct', () => {
-    const configuration = {
-      ...CLIENT_CONFIGURATION,
-      candidateKeys: [KEY_OLD, KEY_NEW],
-      accountImplementation: TOKEN,
-      creation: { factory: TOKEN, bytecode: '0x6080' as const, salt: `0x${'00'.repeat(32)}` as const, block: 1 },
-    };
+  it('distinct candidate keys and a set accountImplementation construct', () => {
+    const configuration = { ...CLIENT_CONFIGURATION, candidateKeys: [KEY_OLD, KEY_NEW], accountImplementation: TOKEN };
     const { thrown, seen } = construct(DESCRIPTOR, configuration);
 
     expect(thrown).toBeUndefined();
     expect(seen).toEqual([]);
+  });
+
+  it.each([
+    ['a malformed', { factory: '0x1234', bytecode: '0x6080', salt: '0x00', block: -1 }],
+    ['a once well-formed', { factory: TOKEN, bytecode: '0x6080', salt: `0x${'00'.repeat(32)}`, block: 1 }],
+  ])('%s creation key is ignored, as any member the configuration does not name', (_name, creation) => {
+    const configuration = { ...CLIENT_CONFIGURATION, creation } as unknown as ClientConfiguration;
+    const { thrown, seen } = construct(DESCRIPTOR, configuration);
+
+    expect(thrown).toBeUndefined();
+    expect(seen).toEqual([]);
+    expect(Object.hasOwn(checkedConfiguration(configuration, 'configuration'), 'creation')).toBe(false);
   });
 
   it('construction and an init leave the caller descriptor and configuration unchanged', async () => {

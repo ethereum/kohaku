@@ -231,7 +231,7 @@ export function makeCtx(config: Hex, digest: Hex = DIGEST): Ctx {
         setupNonce: 0n,
         setupBodyHash: word(0xbb),
         validUntil: 1900000000,
-        place: 0,
+        place: 0n,
       },
     },
   };
