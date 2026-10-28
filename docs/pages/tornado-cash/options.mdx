@@ -57,6 +57,18 @@ Every paymaster unshield pays the EIP-7702 sender first, including a single note
 
 User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is the initial gas budget for that phase. User tail calls always require successful bundler estimation; a supplied gas estimate alone does not enable fallback. Estimates can increase the conservative gas floors, and the final signed operation is estimated again after fee/proof changes.
 
+### Bundler gas bounds
+
+Bundler gas prices are checked against the host RPC: the tip may not exceed the larger of 2 gwei and three times `eth_maxPriorityFeePerGas`, and the maximum price may not exceed three times the latest base fee plus that tip allowance. Validation gas is bounded at twice the local baseline. The default pre-verification ceiling is twice `(350,000 + 40 × variable payload bytes)`, including calldata and paymaster data, so it grows with large batches instead of imposing a fixed 200,000-gas limit. These are conservative Ethereum allowances; `maxGasLimits` can replace individual gas ceilings for deployments with different requirements.
+
+The host provider must return the latest block's base fee; an unavailable tip RPC uses the 2 gwei allowance. Custom low-level state managers must forward the host provider when using the built-in paymaster thunk. Custom `IDataService` implementations need no new methods.
+
+Execution gas can increase with successful estimation, including for expensive tail calls. `tailCallsGasEstimate` remains an initial estimate, not a ceiling. To set an explicit limit, pass `maxGasLimits: { callGasLimit: 5_000_000n }` alongside your other paymaster options. All ceilings apply after the estimation buffer, and a bounds violation throws rather than entering fallback.
+
+There is no default execution-gas ceiling: without an explicit `callGasLimit` ceiling, the bundler can increase the proof-bound fee through its execution estimate, up to the sponsoring note's affordability limit. Review that fee or set an absolute ceiling when using an untrusted bundler. Deploy matching Tornado main and worker bundles together so the restricted host network bridge is available.
+
+There is no percentage fee cap: a small note may deliberately spend most of its value on sponsorship. The fee must still fit within the sponsoring note. Newly prepared withdrawals expose `fee` and `withdrawnValue`; older stored payloads may omit them. Show the proof-bound fee before submission. Bundler traffic, including estimation and receipt polling, uses `host.network.fetch`; make sure your host proxy or allowlist permits the configured bundler. Preparation sends signed operations for estimation, which a bundler can submit, so it is not a dry run.
+
 ### Gas-estimation availability
 
 `gasEstimationPolicy` defaults to `'best-effort'`. On mainnet and Sepolia, standard withdrawals without user tail calls may use conservative fallback gas when estimation is unavailable. The sender must be recoverable (the default or an explicit deterministic path); random senders require successful estimation. Known validation rejections, invalid responses and non-convergence still fail. Fallback is limited to recognized transport failures or the bundler's opaque `could not parse simulate validation result` internal error, not every JSON-RPC error.

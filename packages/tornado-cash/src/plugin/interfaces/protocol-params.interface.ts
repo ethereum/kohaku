@@ -1,3 +1,5 @@
+import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
+import type { BundlerPost } from '../../paymaster/utils';
 import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
 import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
@@ -121,6 +123,10 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
    * still required and can increase this budget.
    */
   tailCallsGasEstimate?: bigint;
+  /** Optional absolute ceilings, including buffers; not a fee percentage. */
+  maxGasLimits?: PaymasterGasLimits;
+  /** Worker transport supplied by the host. */
+  bundlerPost?: BundlerPost;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;

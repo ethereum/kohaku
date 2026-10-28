@@ -16,7 +16,7 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
     host,
     relayerClientFactory = () => new RelayerClient({ network: host.network }),
     broadcasterUrl,
-    paymasterClientFactory = () => new PaymasterBroadcaster(),
+    paymasterClientFactory = () => new PaymasterBroadcaster({ network: host.network }),
   }: PPv1RelayerConstructorParams) {
     this.relayerClient = relayerClientFactory();
     this.relayersList = this.parseRelayers(broadcasterUrl);

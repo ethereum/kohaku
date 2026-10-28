@@ -3,6 +3,7 @@
 import { MnemonicKeystore, scopeKeystore } from '@kohaku-eth/plugins';
 import { expose, proxy, releaseProxy, transferHandlers, wrap, type Remote } from 'comlink';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { bundlerPostVia, createPaymasterBundlerClient, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from '../../src/paymaster/utils';
 import { anyArgs, exposeCall, exposeOnly, registerHostBridge } from '../../src/plugin/host-bridge';
 import {
   bundlerPostCheck,
@@ -215,6 +216,25 @@ describe('host bridge', () => {
 });
 
 describe('worker host policy', () => {
+  it('round-trips bundler requests through the restricted host network bridge', async () => {
+    const url = 'https://bundler.example.test/rpc';
+    const tier = { maxFeePerGas: '0x2', maxPriorityFeePerGas: '0x1' };
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body));
+
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { slow: tier, standard: tier, fast: tier } }));
+    });
+    const post = wrap<BundlerPost>(bridgePort(exposeCall(bundlerPostVia({ fetch }), bundlerPostCheck([url]))));
+    const client = createPaymasterBundlerClient(url, networkFromBundlerPost(post));
+
+    expect((await getUserOperationGasPrice(client)).standard).toEqual({ maxFeePerGas: 2n, maxPriorityFeePerGas: 1n });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][0]).toBe(url);
+    await expect(post('https://other.example.test/rpc', '{}')).rejects.toThrow('configured bundler');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    post[releaseProxy]();
+  });
+
   it('keeps storage access inside the tornado-cash- namespace', async () => {
     const data = new Map([['privacy-pool-state-1', 'theirs']]);
     const storage = { _brand: 'Storage' as const, get: async (key: string) => data.get(key) ?? null, set: async (key: string, value: string) => void data.set(key, value) };

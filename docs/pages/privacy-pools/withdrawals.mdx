@@ -76,6 +76,18 @@ await pools.prepareUnshield(asset, recipient, {
 
 `estimateUnshield` needs the same `tailCalls` (or at least their presence) and the same gas estimate, or the preview will miss the execution phase.
 
+### Bundler gas bounds
+
+The bundler's gas price is checked against the host provider's latest base fee and tip suggestion: at most three times the base fee plus a tip allowance of `max(2 gwei, 3 × suggested tip)`. Validation limits are bounded at twice the local baseline. Pre-verification gas has a payload-sized ceiling of twice `(350,000 + 40 × calldata/paymaster-data bytes)` rather than a fixed limit. Hosts must support reading the latest block's base fee; a missing tip RPC falls back to the 2 gwei allowance.
+
+Tail-call execution gas uses the buffered bundler estimate instead of being held at the old 300,000-gas default. `tailCallsGasEstimate` is an initial estimate. Optional `maxGasLimits` provides absolute ceilings after buffering, for example `{ callGasLimit: 5_000_000n }`. You can replace individual validation or pre-verification ceilings with the same option. A violation throws instead of silently reverting to baseline gas. Pass the same limits to `estimateUnshield` when setting them for preparation; its preview still uses baseline gas and is not a simulation of the tail calls.
+
+There is no default execution-gas ceiling: without an explicit `callGasLimit` ceiling, the bundler can increase the proof-bound fee through its execution estimate, up to the sponsoring withdrawal's affordability limit. Review that fee or set an absolute ceiling when using an untrusted bundler.
+
+There is no percentage-of-withdrawal fee cap. Spending most of a small sponsoring withdrawal on gas is permitted, provided it covers the fee. Bundler estimation and broadcasting use `host.network.fetch`, including receipt polling, so hosts with URL allowlists must permit their configured bundler. The host provider supplies the fee-market reference independently of any custom data service; custom `IDataService` implementations need no new methods. Custom low-level state managers must forward the provider/network supplied by the plugin when using the built-in paymaster helpers.
+
+Preparation sends a signed operation with a valid proof to the bundler for estimation before broadcasting, so the bundler could submit that provisional operation. Show the proof-bound fee and do not treat preparation as a dry run.
+
 ### Who signs the user operation
 
 `delegation` chooses the ephemeral sender.

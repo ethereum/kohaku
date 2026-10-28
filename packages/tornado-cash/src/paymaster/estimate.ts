@@ -18,12 +18,20 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   baseline: UserOpGasLimits,
   build: (gas: UserOpGasLimits) => Promise<T>,
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
-  options: { allowFallback?: boolean } = {},
+  options: {
+    allowFallback?: boolean;
+    validateGas?: (gas: UserOpGasLimits, operation?: SerializedUserOperation) => void;
+  } = {},
 ): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
   let gas = { ...baseline };
+  let previousOperation: SerializedUserOperation | undefined;
 
   for (let attempt = 0; attempt < MAX_ESTIMATION_ATTEMPTS; attempt++) {
+    options.validateGas?.(gas, previousOperation);
     const prepared = await build(gas);
+
+    options.validateGas?.(gas, prepared.userOperation);
+    previousOperation = prepared.userOperation;
     let estimated: UserOpGasLimits;
 
     try {
@@ -38,7 +46,11 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
         // Rebuild at the fallback fee before returning anything. Never patch
         // gas on the old signed operation or reuse its fee-bearing proof.
         const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation);
+
+        options.validateGas?.(fallbackGas, prepared.userOperation);
         const fallback = await build(fallbackGas);
+
+        options.validateGas?.(fallbackGas, fallback.userOperation);
 
         if (tornadoFallbackGas(fallbackGas, fallback.userOperation).preVerificationGas > fallbackGas.preVerificationGas) {
           throw new Error('Tornado fallback payload size changed during preparation; use required gas estimation.');
@@ -75,6 +87,9 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 
     if (!changed) return { ...prepared, gasEstimation: { status: 'estimated' } };
 
+    // Reject inflated limits outside the availability catch: never downgrade a
+    // bounds violation into fallback or prove/sign an operation at those limits.
+    options.validateGas?.(next, prepared.userOperation);
     gas = next;
   }
 

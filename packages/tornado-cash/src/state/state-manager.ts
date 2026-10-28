@@ -1,3 +1,4 @@
+import type { EthereumProvider } from '@kohaku-eth/provider';
 /* eslint-disable max-lines */
 import { ChainId, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
@@ -39,6 +40,8 @@ import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from "../instan
 const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
 export interface StoreFactoryParams {
+  /** Host RPC for independent fee-market checks; does not extend IDataService. */
+  provider?: EthereumProvider;
   secretManagerFactory: () => Promise<ISecretManager>;
   dataService: IDataService;
   syncService: ISyncService;
@@ -179,6 +182,7 @@ const storeByChainAndEntrypoint = ({
 export const storeStateManager = async ({
   secretManagerFactory,
   dataService,
+  provider,
   syncService,
   relayerClient,
   paymasterConfig,
@@ -296,6 +300,9 @@ export const storeStateManager = async ({
               tailCalls: params.tailCalls,
               tailCallsGasEstimate: params.tailCallsGasEstimate,
               gasEstimationPolicy: params.gasEstimationPolicy,
+              maxGasLimits: params.maxGasLimits,
+              bundlerPost: params.bundlerPost,
+              provider,
             }),
           ),
         );

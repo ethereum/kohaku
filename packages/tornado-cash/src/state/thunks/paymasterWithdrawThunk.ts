@@ -3,6 +3,7 @@ import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 
 import { AccountId } from "@kohaku-eth/plugins";
 import { createTx, TxData } from "@kohaku-eth/provider";
+import type { EthereumProvider } from "@kohaku-eth/provider";
 import { ISecretManager } from "../../account/keys";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
@@ -12,7 +13,8 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
 import { computeMinimumViableFee, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
-import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
 import { GasEstimationPolicy, UserOpGasLimits } from "../../interfaces/user-ops.interface";
@@ -47,6 +49,9 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
   gasEstimationPolicy?: GasEstimationPolicy;
+  maxGasLimits?: PaymasterGasLimits;
+  provider?: EthereumProvider;
+  bundlerPost?: BundlerPost;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -65,6 +70,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   tailCalls,
   tailCallsGasEstimate,
   gasEstimationPolicy = 'best-effort',
+  maxGasLimits,
+  provider,
+  bundlerPost,
   ...rest
 }, { getState, dispatch }) => {
   if (gasEstimationPolicy !== 'required' && gasEstimationPolicy !== 'best-effort') {
@@ -95,9 +103,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     }))
   );
 
-  const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
+  const bundlerClient = createPaymasterBundlerClient(bundlerUrl, bundlerPost && networkFromBundlerPost(bundlerPost));
 
-  const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
+  const [{ standard: price }, reference] = await Promise.all([
+    getUserOperationGasPrice(bundlerClient),
+    readGasFeeReference(provider),
+  ]);
+
+  assertGasPriceWithinBounds(price, reference);
+  const { maxFeePerGas, maxPriorityFeePerGas } = price;
 
   // The relayer address in the sponsoring proof is the paymaster — it receives
   // the fee that reimburses the sponsored gas for the whole userOp.
@@ -253,7 +267,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     tailCalls != null,
     tailCallsGasEstimate,
   );
-  const { sponsoringProof, userOperation, gasEstimation } = await buildEstimatedTornadoUserOp(
+  const { sponsoringProof, userOperation, gasEstimation, fee } = await buildEstimatedTornadoUserOp(
     baselineGas,
     async (gas) => {
       const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
@@ -265,10 +279,11 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       const sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
       const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
-      return { sponsoringProof, userOperation };
+      return { sponsoringProof, userOperation, fee };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
+    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
+      allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
         delegation?.mode !== 'random' && (chainId === 1 || chainId === 11155111) },
   );
 
@@ -282,5 +297,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     bundlerUrl,
     userOperation,
     gasEstimation,
+    fee,
+    withdrawnValue: totalDenomination,
   }] satisfies IGenericPaymasterWithdrawalPayload[];
 });
