@@ -1,5 +1,18 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.34
+
+### Patch Changes
+
+- a98a88f: Check paymaster bundler gas prices against the host RPC fee market, bound validation overhead and payload-sized pre-verification gas, and send bundler requests through the host network. Tail-call execution gas can grow with the bundler estimate; optional `maxGasLimits` sets explicit absolute ceilings. There is no percentage-of-withdrawal fee cap. The sponsoring note must still cover the fee. Tornado prepared paymaster payloads include the proof-bound fee and total withdrawn value, with optional fields for compatibility with older saved operations.
+- d8bf680: `history()` now takes the transaction hash and log index from the bulk sync instead of fetching the logs and header of each event's block (`TxLog` carries an optional `transactionHash`, filled in by the ethers, viem and raw adapters) and interpolates timestamps between headers fetched at a fixed 32768-block grid. Events from the root saga index (the `/v2` index carries hashes) or from a state synced before this change report `transactionHash` `0n`, and timestamps are estimates (on mainnet usually within a minute); exact metadata already cached by the previous version is kept.
+- d8bf680: The saga log source now returns only the requested block range. `@saga-sync/client` up to 0.3.0 uses the stream window only to pick chunks, so a `headBlock` clamp (a fork or a pinned view) still received events after it, whose leaves are not on that chain, and the pool root check failed the sync. It also re-sent every event before `fromBlock` on each sync, so an incremental sync took saga's last `RootUpdated` as the latest, replaced a newer ASP root already synced from the RPC, and failed the ASP root check.
+- d8bf680: `TxLog` now carries an optional `transactionHash`, filled in by the ethers, viem and raw adapters and by the privacy-pools saga log source. The saga source requires `@saga-sync/client@^0.3.0` and the `/v2` publication (`https://saga-pp-state.global.ssl.fastly.net/v2`) to get hashes; synced privacy-pools events then store their real `transactionHash` instead of `0n`.
+- Updated dependencies [d8bf680]
+- Updated dependencies [d8bf680]
+  - @kohaku-eth/provider@0.1.0-alpha.14
+  - @kohaku-eth/plugins@0.0.1-alpha.20
+
 ## 0.1.0-alpha.33
 
 ### Patch Changes
