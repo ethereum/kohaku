@@ -185,6 +185,7 @@ export const METHOD_AADHAAR_STACK_SURFACE_MESSAGE = 'does not expose the expecte
 export const METHOD_AADHAAR_STACK_MISSING_MESSAGE = 'is not installed';
 export const METHOD_AADHAAR_STACK_ORIGIN_MESSAGE = 'the stack names no such artifacts origin';
 export const METHOD_AADHAAR_STACK_INIT_MESSAGE = 'the stack could not initialise with the given artifacts';
+/** Kept for compatibility; no longer raised, since the installed stack defaults to `METHOD_AADHAAR_DEFAULT_ARTIFACTS`. */
 export const METHOD_AADHAAR_NO_ARTIFACTS_MESSAGE = 'no artifacts were given';
 export const METHOD_AADHAAR_SIGNAL_FAULT_MESSAGE =
   'the material signal threw while this module read it or added or removed its abort listener';

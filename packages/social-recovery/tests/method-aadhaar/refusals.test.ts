@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KitRefusalError } from '../../src/client-core';
+import { METHOD_AADHAAR_BUCKET_CHUNKED } from '../../src/constants';
 import type { Hex, Material } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import {
@@ -21,6 +22,28 @@ const DIGEST: Hex = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac
 const PARAMS = { nullifierSeed: 77n, issuerCertificate: CERTIFICATE };
 const CONFIG = configBytes(22n, 77n);
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+const core = vi.hoisted(() => ({
+  init: vi.fn((): Promise<void> => Promise.resolve()),
+  generateArgs: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  prove: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  verify: vi.fn<(pcd: unknown, testMode?: boolean) => Promise<boolean>>(() => Promise.resolve(true)),
+}));
+
+/** The peer, stubbed so the default bucket never reaches the network. */
+vi.mock('@anon-aadhaar/core', () => ({
+  ...core,
+  ArtifactsOrigin: { server: 0, local: 1, chunked: 2 },
+  productionPublicKeyHash: '18063425702624337643644061197836918910810808173893535653269228433734128853484',
+  testPublicKeyHash: '15134874015316324267425466444584014077184337590635665158241104437045239495873',
+}));
+
+/** What the peer's init receives for the default bucket. */
+const CHUNKED_INIT = { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 clockForFile(FRESH_NOW);
 
@@ -160,11 +183,27 @@ describe('every typed failure the method answers is frozen', () => {
     expect(Object.isFrozen(config)).toBe(true);
   });
 
-  it('device-unavailable with no stack is frozen', async () => {
+  it('material-rejected under the default bucket whose storage fails inside the peer\'s prove, after init and generateArgs, is frozen', async () => {
+    core.prove.mockRejectedValueOnce(new Error('No available storage method found.'));
+
+    const method = anonAadhaarMethod();
+    const reply = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA });
+
+    expect(isFailure(reply, 'material-rejected')).toBe(true);
+    expect(Object.isFrozen(reply)).toBe(true);
+    expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+    expect(core.generateArgs).toHaveBeenCalledTimes(1);
+    expect(core.prove).toHaveBeenCalledTimes(1);
+  });
+
+  it('device-unavailable through an injected adapter whose own init rejects is frozen, the prover never called', async () => {
+    core.init.mockRejectedValueOnce(new Error('adapter: init refused'));
+
     const method = anonAadhaarMethod();
     const reply = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA });
 
     expect(isFailure(reply, 'device-unavailable')).toBe(true);
     expect(Object.isFrozen(reply)).toBe(true);
+    expect(core.prove).not.toHaveBeenCalled();
   });
 });

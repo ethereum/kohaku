@@ -80,9 +80,16 @@ export type AadhaarCoreSurface = {
   readonly convertBigIntToByteArray?: (bigInt: bigint) => Uint8Array;
 };
 
-/** An injected stack or the installed stack's artifacts, not both; with neither the stack is unavailable. */
+/** An injected stack or the installed stack's artifacts, not both; with neither the installed stack reads `METHOD_AADHAAR_DEFAULT_ARTIFACTS`. */
 export type AnonAadhaarMethodOptions = {
   readonly stack?: AnonAadhaarStack;
+  /**
+   * Where the installed stack reads the circuit's files: a bucket record, `METHOD_AADHAAR_BUCKET_CHUNKED` (the default) or
+   * `METHOD_AADHAAR_BUCKET_SERVER`, or the integrator's own URLs or paths. The SDK hosts no file and checks only that the URLs are
+   * non-empty strings and the origin is known. `chunked` runs in a browser only, `local` in Node only, where each URL is a file
+   * path; a browser caller holding the files passes `URL.createObjectURL(file)` for each under `server`. The peer's `init` is
+   * page-global: the stack initialises once, on first use, and the last `init` on the page sets the files every stack proves with.
+   */
   readonly artifacts?: AnonAadhaarArtifacts;
   /**
    * Makes the local verdict check the proof against anon-aadhaar's test key, so a test QR verifies; off by default.

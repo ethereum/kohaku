@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUILDER_SEPOLIA_DESCRIPTOR,
+  passkeyMethod,
   SetupClient,
   validateSetup,
+  walletMethod,
+  type Hex,
   type ActionInfo,
   type Address,
   type KitNotification,
   type MethodRegistry,
+  type IRecoveryMethod,
   type ReadResult,
   type SetupDraft,
   type SetupValidationContext,
 } from '../../src/index';
 import {
+  ACCEPT_EVERY_CONFIG,
   ACCOUNT,
   ACTION,
   ACTION_INFO,
@@ -61,7 +66,7 @@ function expectedContext(
     descriptorOrigin: 'integrator',
     configuration: CONFIGURATION,
     block: HEADER,
-    methods: distinct.map((module) => ({ module, ...MODULE_ANSWERS, implemented: registry.has(module) })),
+    methods: distinct.map((module) => ({ module, ...MODULE_ANSWERS, implemented: registry.has(module), ...codecOf(registry, module) })),
     action: {
       address: overrides.action ?? ACTION,
       actionInfo: overrides.actionInfo ?? { answered: true, value: ACTION_INFO },
@@ -72,6 +77,17 @@ function expectedContext(
     costs: [],
   };
 }
+
+/** The reads' codec member for a registered implementation whose codec has a decodeConfig function, as the client should add it. */
+function codecOf(registry: MethodRegistry, module: Address): { readonly codec?: IRecoveryMethod['codec'] } {
+  const codec = registry.get(module)?.codec;
+
+  return typeof codec?.decodeConfig === 'function' ? { codec } : {};
+}
+
+/** A wallet config word and a passkey config of three words, each one its codec decodes. */
+const WALLET_WORD: Hex = `0x${'00'.repeat(12)}${'ab'.repeat(20)}`;
+const PASSKEY_WORDS: Hex = `0x${'00'.repeat(31)}01${'00'.repeat(31)}02${'cd'.repeat(32)}`;
 
 const THREE_METHODS: SetupDraft = {
   ...DRAFT,
@@ -241,5 +257,68 @@ describe('validateSetup', () => {
     const failure = transportFailure();
 
     await expect(build({ world: { allActions: { rejects: failure } } }).client.validateSetup(DRAFT)).rejects.toBe(failure);
+  });
+
+  it('a registry of the shipped methods: a config its method cannot decode is credential.config-malformed', async () => {
+    const registry: MethodRegistry = new Map<Address, IRecoveryMethod>([
+      [METHOD_A, walletMethod()],
+      [METHOD_B, passkeyMethod()],
+    ]);
+    const bare: Hex = `0x${'ab'.repeat(20)}`;
+    const draft: SetupDraft = {
+      ...DRAFT,
+      clauses: [
+        { threshold: 1, credentials: [{ method: METHOD_A, config: WALLET_WORD }, { method: METHOD_B, config: WALLET_WORD }] },
+        { threshold: 1, credentials: [{ method: METHOD_A, config: bare }, { method: METHOD_B, config: PASSKEY_WORDS }] },
+      ],
+    };
+    const result = await build({ methods: registry }).client.validateSetup(draft);
+
+    expect(result.errors.filter((finding) => finding.code === 'credential.config-malformed')).toEqual([
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 1, module: METHOD_B, bytes: 32 } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 2, module: METHOD_A, bytes: 20 } },
+    ]);
+    expect(result).toEqual(validateSetup(draft, expectedContext(draft, { registry })));
+  });
+
+  it('the stub registry, whose codecs accept every config, raises no malformed config and hands its decoder on', async () => {
+    const draft: SetupDraft = {
+      ...DRAFT,
+      clauses: [{ threshold: 1, credentials: [{ method: METHOD_A, config: '0x01' }, { method: METHOD_B, config: `0x${'ab'.repeat(20)}` }] }],
+    };
+    const result = await build().client.validateSetup(draft);
+
+    expect(result.errors.map((finding) => finding.code)).not.toContain('credential.config-malformed');
+    expect(result).toEqual(validateSetup(draft, expectedContext(draft)));
+    expect(expectedContext(draft).methods.map((reads) => reads.codec?.decodeConfig)).toEqual([ACCEPT_EVERY_CONFIG, ACCEPT_EVERY_CONFIG]);
+  });
+
+  describe.each([
+    ['an empty codec', {}],
+    ['a codec whose decodeConfig is a string', { decodeConfig: 'decode' }],
+  ])('a registered implementation with %s', (_why, codec) => {
+    const registry = (): MethodRegistry =>
+      new Map<Address, IRecoveryMethod>([
+        [METHOD_A, { ...methodStub([METHOD_A]), codec: codec as IRecoveryMethod['codec'] }],
+        [METHOD_B, methodStub([METHOD_B])],
+      ]);
+    const draft: SetupDraft = { ...DRAFT, clauses: [{ threshold: 1, credentials: [{ method: METHOD_A, config: WALLET_WORD }] }] };
+
+    it('makes validateSetup reject with a TypeError', async () => {
+      await expect(build({ methods: registry() }).client.validateSetup(draft)).rejects.toThrow(TypeError);
+    });
+
+    it('makes describeSetup reject with a TypeError', async () => {
+      await expect(build({ methods: registry() }).client.describeSetup(draft)).rejects.toThrow(TypeError);
+    });
+  });
+
+  it('a module no implementation is registered for still gets no judgment', async () => {
+    const draft: SetupDraft = { ...DRAFT, clauses: [{ threshold: 1, credentials: [{ method: METHOD_C, config: '0x04' }] }] };
+    const result = await build().client.validateSetup(draft);
+
+    expect(result.errors.map((finding) => finding.code)).not.toContain('credential.config-malformed');
+    expect(expectedContext(draft).methods).toEqual([expect.not.objectContaining({ codec: expect.anything() })]);
+    expect(result).toEqual(validateSetup(draft, expectedContext(draft)));
   });
 });

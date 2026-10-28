@@ -1,7 +1,7 @@
-import { assertArray, assertBool, assertObject, normalizeAddress } from '../formats/guards';
-import type { Address, SetupDraft } from '../interfaces';
+import { assertArray, assertBool, assertDependency, assertObject, byteLength, normalizeAddress } from '../formats/guards';
+import type { Address, Hex, IMethodCodec, SetupDraft } from '../interfaces';
 import type { Findings, MethodReads, PlacedCredential, SetupValidationContext } from '../types/validation';
-import { addWarning, methodTable, normalizeAddresses } from './common';
+import { addError, addWarning, methodTable, normalizeAddresses } from './common';
 
 /** The method reads by checksummed module address, refusing a malformed or repeated entry and a named method left unread. */
 export function readsByMethod(methods: readonly MethodReads[], credentials: readonly PlacedCredential[]): Map<Address, MethodReads> {
@@ -27,7 +27,7 @@ export function readsByMethod(methods: readonly MethodReads[], credentials: read
   return table;
 }
 
-/** Per credential, the adoption, declaration and stop warnings its method's reads reach. */
+/** Per credential, the config its method's codec cannot decode and the adoption, declaration and stop warnings its method's reads reach. */
 export function methodFindings(
   draft: SetupDraft,
   credentials: readonly PlacedCredential[],
@@ -37,8 +37,14 @@ export function methodFindings(
   const table = readsByMethod(context.methods, credentials);
   const shippedMethods = normalizeAddresses(context.descriptor.shippedMethods, 'context.descriptor.shippedMethods');
 
-  for (const { place, method: module } of credentials) {
+  assertCodecs(context.methods);
+
+  for (const { place, method: module, config } of credentials) {
     const reads = table.get(module) as MethodReads;
+
+    if (reads.codec !== undefined && !decodes(reads.codec, config)) {
+      addError(findings, 'credential.config-malformed', 'credential', { place, module, bytes: byteLength(config) });
+    }
 
     if (!shippedMethods.includes(module)) {
       addWarning(findings, 'method.unshipped', 'credential', {
@@ -62,6 +68,24 @@ export function methodFindings(
   }
 
   secondaryFindings(draft, credentials, table, findings);
+}
+
+/** Refuses, on every reads entry, a present codec without a `decodeConfig` function. */
+function assertCodecs(methods: readonly MethodReads[]): void {
+  methods.forEach((reads, index) => {
+    if (reads.codec !== undefined) assertDependency(reads.codec, ['decodeConfig'], `context.methods[${index}].codec`);
+  });
+}
+
+/** Whether the codec decodes the config; any throw is a layout the module would refuse at every proof. */
+function decodes(codec: Pick<IMethodCodec, 'decodeConfig'>, config: Hex): boolean {
+  try {
+    codec.decodeConfig(config);
+  } catch {
+    return false;
+  }
+
+  return true;
 }
 
 /** `clause.secondary-only` where the clause's secondary-tier credentials alone meet its nonzero threshold. */

@@ -90,7 +90,8 @@ describe('the changesets', () => {
   const modes = readFileSync(join(REPO_ROOT, '.changeset', 'identity-test-modes.md'), 'utf8');
   const followUpsPath = join(REPO_ROOT, '.changeset', 'extension-follow-ups.md');
   const followUps = existsSync(followUpsPath) ? readFileSync(followUpsPath, 'utf8') : '';
-  const changeset = `${own}\n${modes}\n${followUps}`;
+  const artifacts = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifacts-config-validation.md'), 'utf8');
+  const changeset = `${own}\n${modes}\n${followUps}\n${artifacts}`;
 
   it('the method\'s own and the test-mode one are each a patch for the package', () => {
     expect(own).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
@@ -107,6 +108,16 @@ describe('the changesets', () => {
       expect(second[name], name).toBe(value);
       expect((core as { readonly [name: string]: unknown })[name], name).toBe(value);
     }
+  });
+
+  it('the artifacts changeset is a patch naming each bucket constant, the setup error and the reads member, with no breaking line', () => {
+    expect(artifacts).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+
+    for (const name of ['METHOD_AADHAAR_BUCKET_URL', 'METHOD_AADHAAR_BUCKET_CHUNKED', 'METHOD_AADHAAR_BUCKET_SERVER', 'METHOD_AADHAAR_DEFAULT_ARTIFACTS', 'credential.config-malformed', 'MethodReads.codec']) {
+      expect(artifacts, name).toContain(name);
+    }
+
+    expect(artifacts).not.toMatch(/^\s*(\*\*)?breaking/im);
   });
 
   it('the test-mode changeset names the option', () => {

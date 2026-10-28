@@ -1,5 +1,4 @@
 import {
-  METHOD_AADHAAR_NO_ARTIFACTS_MESSAGE,
   METHOD_AADHAAR_STACK_CALLS,
   METHOD_AADHAAR_STACK_DEFAULT_MEMBER,
   METHOD_AADHAAR_STACK_INIT_MESSAGE,
@@ -115,18 +114,16 @@ async function signedAtOf(qrData: string): Promise<bigint | undefined> {
 }
 
 /**
- * The default stack, loaded on first use; without artifacts every call but `signedAt` rejects with `AadhaarStackUnavailable`.
+ * The default stack over the artifacts, loaded and initialised once on first use; a failed load rejects with `AadhaarStackUnavailable` and is retried on the next call.
  * Once loaded, `verify` answers false without calling the peer for a test-key proof outside test mode and for any
  * other key in it; outside test mode a key the peer does not know is left to the peer's throw, `not-judged`.
  * `signedAt` imports the peer without `init`, so it downloads no artifact; a peer without the three time calls still loads, and
  * `signedAt` answers undefined.
  */
-export function coreStack(artifacts: AnonAadhaarArtifacts | undefined): AnonAadhaarStack {
+export function coreStack(artifacts: AnonAadhaarArtifacts): AnonAadhaarStack {
   let loading: Promise<AadhaarCoreSurface> | undefined;
 
   const load = (): Promise<AadhaarCoreSurface> => {
-    if (artifacts === undefined) return Promise.reject(new AadhaarStackUnavailable(METHOD_AADHAAR_NO_ARTIFACTS_MESSAGE));
-
     loading ??= initialise(artifacts).catch((error: unknown) => {
       loading = undefined;
 
