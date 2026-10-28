@@ -21,6 +21,8 @@ jobs:
           uses: ./.github/actions/setup-workspace
         - name: Run provider unit tests
           run: pnpm --filter @kohaku-eth/provider test
+        - name: Run social recovery unit tests
+          run: pnpm --filter @kohaku-eth/social-recovery test
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true
