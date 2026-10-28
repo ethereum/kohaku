@@ -53,13 +53,13 @@ const receipts = await createTCBroadcaster(host, {
 
 The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler and waits for its receipt. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
 
-When an unshield spends multiple notes, the SDK consolidates them into a single user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
+Every paymaster unshield pays the EIP-7702 sender first, including a single note; without user tail calls, the execution phase forwards the amount minus the fee to the requested recipient. This avoids the paymaster rejecting the nonzero execution gas limit that bundlers inject during estimation. When an unshield spends multiple notes, the SDK consolidates them into this same user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
 
-User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
+User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. Bundler estimation is required; estimates can increase the conservative gas floors, and the final signed operation is estimated again after fee/proof changes.
 
 ### Delegation
 
-`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for multi-note unshields and when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
+`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for all paymaster unshields, including a single note. The delegator holds the withdrawn funds along the way and may receive unused-gas refunds after forwarding, so use a key the wallet can recover. The default is derived from the first note; `random` explicitly opts out of recovery.
 
 | Value | Delegator |
 | --- | --- |

@@ -41,7 +41,9 @@ export type UserOperationGasPrice = {
  * the only methods viem doesn't expose natively.
  */
 export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
-  return createBundlerClient({ transport: http(bundlerUrl) });
+  return createBundlerClient({
+    transport: http(bundlerUrl, { timeout: 180_000, retryCount: 0 }),
+  });
 }
 
 /**
@@ -99,8 +101,8 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
  * simulate the paymaster's validation and the delegated execution.
  *
  * Not on viem's bundler action surface for our serialized shape, so we issue the
- * raw request and parse the returned limits ourselves. Callers should treat this
- * as best-effort and fall back to static limits on failure.
+ * raw request and parse the returned limits ourselves. Preparation must stop on
+ * failure: static limits may not cover the bundler's pre-verification overhead.
  */
 export async function estimateUserOperationGas(
   client: BundlerClient,

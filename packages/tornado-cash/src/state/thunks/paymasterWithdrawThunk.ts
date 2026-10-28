@@ -9,7 +9,8 @@ import { Address } from "../../interfaces/types.interface";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
-import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
+import { computeMinimumViableFee, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
 import { poolAbi } from "../../data/abis/pool.abi";
@@ -92,38 +93,6 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   const { standard: { maxFeePerGas, maxPriorityFeePerGas } } = await getUserOperationGasPrice(bundlerClient);
 
-  // The static baselines in `reasonableGasUnits`/`reasonableGasUnitsForBatch` are
-  // ceilings for a "typical" case, not a guarantee — a real groth16 verify +
-  // merkle proof can land within a few thousand gas of paymasterVerificationGasLimit's
-  // baseline, and the surrounding paymaster overhead plus EIP-150's 63/64
-  // forwarding rule on the try/catch external call can then push the actual need
-  // just over it, causing a silent (empty-reason) out-of-gas revert. The bundler's
-  // own simulation knows the real cost, so refine against it whenever possible —
-  // callers still get the baseline if the bundler can't be reached.
-  const refineGasWithBundler = async (
-    baselineGas: UserOpGasLimits,
-    provisionalUserOperation: Awaited<ReturnType<typeof buildSignedTornadoUserOp>>,
-  ): Promise<UserOpGasLimits> => {
-    try {
-      const estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOperation, entryPointAddress);
-      // The bundler's estimate is authoritative; apply a 20% buffer and fall back
-      // to the baseline only for any field it leaves at 0.
-      const buffer = (x: bigint) => (x * 12n) / 10n;
-      const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
-
-      return {
-        callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
-        verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
-        preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
-        paymasterVerificationGasLimit: orBaseline(estimated.paymasterVerificationGasLimit, baselineGas.paymasterVerificationGasLimit),
-        paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
-      };
-    } catch {
-      // Bundler estimation unavailable/failed — keep the safe baseline.
-      return baselineGas;
-    }
-  };
-
   // The relayer address in the sponsoring proof is the paymaster — it receives
   // the fee that reimburses the sponsored gas for the whole userOp.
   const relayerAddress = BigInt(paymasterAddress) as Address;
@@ -184,8 +153,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   // The shared delegator that owns the consolidated userOp. All withdrawals land
   // in this EOA and are then spent by the execution phase (tailCalls or the
-  // synthesized forward). It holds funds only transiently within the atomic
-  // userOp, so it is recoverable by default; `random` opts out.
+  // synthesized forward). Any postOp refund can remain on the sender, so it
+  // is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
@@ -198,79 +167,11 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // No tail calls, single deposit: a sender that never holds funds (the
-  // withdrawal goes straight to the user's `recipient`), so a random default is
-  // fine.
-  const resolveIndependentSigner = (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> =>
-    delegation?.mode === 'deterministic'
-      ? ephemeralSigner(deposit)
-      : Promise.resolve(privateKeyToAccount(generatePrivateKey()));
-
-  // A single deposit with no tailCalls needs no consolidation: the paymaster
-  // releases the funds straight to the recipient in one userOp (callData empty,
-  // the withdrawal happens during paymaster validation).
-  const needsConsolidation = deposits.length > 1 || tailCalls != null;
-
-  if (!needsConsolidation) {
-    const deposit = deposits[0]!;
-    const signer = await resolveIndependentSigner(deposit);
-
-    // No execution phase in this flow (funds go straight to the recipient
-    // during paymaster validation) — callGasLimit must stay 0 regardless of
-    // what the bundler estimates for it (a nonzero value here would trip
-    // the paymaster's `recipient != sender` check).
-    const baselineGas: UserOpGasLimits = { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n };
-    let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
-    let gas = baselineGas;
-    let proof = await prove(deposit, originalRecipient, relayerAddress, fee);
-    let userOperation = await buildSignedTornadoUserOp({
-      signer,
-      chainId,
-      paymasterAddress,
-      paymasterData: buildPaymasterData(deposit.pool, proof),
-      gas,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-      nonce: 0n,
-    });
-
-    const estimatedGas = await refineGasWithBundler(baselineGas, userOperation);
-
-    if (estimatedGas !== baselineGas) {
-      // callGasLimit stays forced to 0 even after refinement — see note above.
-      gas = { ...estimatedGas, callGasLimit: 0n };
-      fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
-      proof = await prove(deposit, originalRecipient, relayerAddress, fee);
-      userOperation = await buildSignedTornadoUserOp({
-        signer,
-        chainId,
-        paymasterAddress,
-        paymasterData: buildPaymasterData(deposit.pool, proof),
-        gas,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        nonce: 0n,
-      });
-    }
-
-    return [{
-      mode: 'paymaster' as const,
-      proof,
-      poolAddress: deposit.pool,
-      isERC20: poolInfo.isERC20,
-      paymasterAddress,
-      entryPointAddress,
-      bundlerUrl,
-      userOperation,
-    }] satisfies IGenericPaymasterWithdrawalPayload[];
-  }
-
-  // Consolidated batch: ONE userOp carrying ONE EIP-7702 authorization. This
-  // avoids Pimlico's "AA10 sender already constructed: Sender already has an
-  // inflight EIP-7702 authorization", which fires when several userOps for the
-  // same shared sender each carry their own authorization. All deposits land in
-  // one shared delegator; deposit[0] is sponsored by the paymaster, and the rest
-  // run as direct pool.withdraw calls inside the execution phase (callData).
+  // Always withdraw to the 7702 sender before forwarding or running tail calls,
+  // including for one note. Bundlers replace callGasLimit with a nonzero search
+  // ceiling during estimation (e.g. 10M). A proof bound to a different recipient
+  // would trigger CallGasLimitNonZero even if the requested final limit is zero.
+  // The default sender is note-derived so any postOp refund remains recoverable.
   const signer = await resolveBatchDelegator();
   const senderAddress = BigInt(signer.address) as Address;
 
@@ -338,31 +239,25 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       nonce: 0n,
     });
 
-  // Baseline (generous) gas + fee, sized by deposit count. Deposit[0] is proved
-  // at this fee and a provisional op assembled; the bundler then refines the
-  // limits. We re-prove deposit[0] once at the estimate-derived fee so the
-  // sponsoring proof matches the tight limits (the baseline fee is a generous
-  // ceiling, so it always clears the paymaster's fee check during estimation).
-  // Estimation is best-effort — on any failure we keep the safe baseline.
+  // Every refinement re-quotes the pool asset, re-proves the sponsoring
+  // deposit and rebuilds forwarding calldata/signature before final estimation.
   const baselineGas = reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,
     tailCallsGasEstimate,
   );
-  let fee = await quoteFee(computeMinimumViableFee(baselineGas, maxFeePerGas));
-  let gas: UserOpGasLimits = baselineGas;
-  let sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
-  let userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
+  const { sponsoringProof, userOperation } = await buildEstimatedTornadoUserOp(
+    baselineGas,
+    async (gas) => {
+      const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
+      const sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
+      const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
-  const refinedGas = await refineGasWithBundler(baselineGas, userOperation);
-
-  if (refinedGas !== baselineGas) {
-    gas = refinedGas;
-    fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
-    sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
-    userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
-  }
+      return { sponsoringProof, userOperation };
+    },
+    (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
+  );
 
   return [{
     mode: 'paymaster' as const,
