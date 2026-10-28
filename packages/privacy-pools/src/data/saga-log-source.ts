@@ -1,4 +1,4 @@
-import { Client, HttpStore, type CanonicalEvent } from "@saga-sync/client";
+import { Client, HttpStore, isEntityRecord, type CanonicalEvent } from "@saga-sync/client";
 import type { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { decodeEventLog, encodeAbiParameters, parseAbi, toEventSelector, toHex } from "viem";
 
@@ -8,7 +8,10 @@ import { EthClient, type GetLogsParams } from "./eth-client";
 type LogsFn = (params: GetLogsParams) => Promise<TxLog[]>;
 
 export interface SagaLogSourceParams {
-  /** Base URL of the saga-sync manifest/CDN (HttpStore source). */
+  /**
+   * Base URL of the saga-sync manifest/CDN (HttpStore source). Use the `/v2`
+   * publication to get each log's `transactionHash`; the root one omits it.
+   */
   sourceUrl: string;
   chainId: number;
   /**
@@ -51,6 +54,8 @@ const toTxLog = (ev: CanonicalEvent): TxLog => ({
   topics: ev.topics,
   blockNumber: BigInt(ev.blockNumber),
   logIndex: Number(ev.logIndex),
+  // Only present on streams that publish it (the `/v2` publication).
+  ...(ev.transactionHash ? { transactionHash: ev.transactionHash } : {}),
 });
 
 // The leaf commitment inserted by an event, or null if it inserts none (ragequit).
@@ -68,6 +73,7 @@ function insertedLeaf(ev: CanonicalEvent): bigint | null {
   return null;
 }
 
+// No transactionHash: the LeafInserted parser drops it (history reads the pool events).
 function synthLeafInsertedLog(pool: string, index: bigint, leaf: bigint, blockNumber: bigint): TxLog {
   return {
     address: pool,
@@ -133,18 +139,30 @@ export async function createSagaLogSource({
     const reqTo = params.toBlock;
     const sagaTo = reqTo !== undefined && reqTo < sagaCap ? reqTo : sagaCap;
 
-    // Reconstruct the full pool history (leaf indices are global, so always
-    // stream from the start — the sync merges by index, so this is idempotent).
+    // Leaf indices are global, so always stream from the start, but only return
+    // the requested [fromBlock, sagaTo] range: events before fromBlock are already
+    // synced, and re-sending them would e.g. roll the last RootUpdated back.
     const logs: TxLog[] = [];
     let leafIndex = 1n; // on-chain LeafInserted is 1-based.
 
     for await (const ev of client.streamEvents(protocolId, { fromBlock: 0n, toBlock: sagaTo + 1n })) {
-      logs.push(toTxLog(ev));
+      // Privacy-pools streams only publish logs; skip any indexer-derived entity.
+      if (isEntityRecord(ev)) continue;
+
+      const blockNumber = BigInt(ev.blockNumber);
+
+      // @saga-sync/client <=0.3.0 uses the window only to pick chunks, so a chunk
+      // straddling sagaTo still yields its later events (fatlabsxyz/saga-sync).
+      if (blockNumber > sagaTo) continue;
 
       const leaf = insertedLeaf(ev);
+      const requested = blockNumber >= params.fromBlock;
+
+      if (requested) logs.push(toTxLog(ev));
 
       if (leaf !== null) {
-        logs.push(synthLeafInsertedLog(address, leafIndex, leaf, BigInt(ev.blockNumber)));
+        if (requested) logs.push(synthLeafInsertedLog(address, leafIndex, leaf, blockNumber));
+
         leafIndex += 1n;
       }
     }

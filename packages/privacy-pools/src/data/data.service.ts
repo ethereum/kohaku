@@ -6,7 +6,6 @@ import {
   IEntrypointEvents,
   IPoolConfig,
   IPoolEvents,
-  IPoolEventsWithLogMeta,
 } from "./interfaces/data.service.interface";
 import { parseEventLogs, pad, toHex, type RpcLog, type Hex } from "viem";
 import {
@@ -20,17 +19,19 @@ import type { IAsset } from "./interfaces/events.interface";
 import { Address } from "../interfaces/types.interface";
 import { E_ADDRESS } from "../config";
 
+// Sources that don't carry the transaction hash (the root saga index) leave it 0.
 const txLogToRpcLog = ({
   address,
   data,
   topics,
   blockNumber,
   logIndex,
+  transactionHash,
 }: TxLog): RpcLog => ({
   address: address as Hex,
   data: data as Hex,
   topics: topics as [Hex, ...Hex[]],
-  transactionHash: '0x0',
+  transactionHash: (transactionHash ?? '0x0') as Hex,
   transactionIndex: '0x0',
   blockHash: '0x0',
   blockNumber: toHex(blockNumber),
@@ -240,20 +241,5 @@ export class DataService implements IDataService {
     }
 
     return BigInt(block.timestamp);
-  }
-
-  async getPoolEventsAtBlock(poolAddress: Address, blockNumber: bigint): Promise<IPoolEventsWithLogMeta> {
-    // Always straight from the RPC: unlike `getLogs` (which may be saga-backed),
-    // these logs carry the real transactionHash and logIndex.
-    const logs = await this.ethClient.request({
-      method: "eth_getLogs",
-      params: [{
-        address: pad(toHex(poolAddress), { size: 20 }),
-        fromBlock: toHex(blockNumber),
-        toBlock: toHex(blockNumber),
-      }],
-    }) as RpcLog[];
-
-    return parseLogs(logs, ["PoolDeposited", "Withdrawn", "Ragequit"]) as IPoolEventsWithLogMeta;
   }
 }
