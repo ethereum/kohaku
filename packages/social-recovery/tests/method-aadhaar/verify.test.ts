@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { METHOD_AADHAAR_BUCKET_CHUNKED } from '../../src/constants';
 import type { Hex } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import type { ProofWords, Signals } from './fixtures';
@@ -8,6 +9,28 @@ const DIGEST: Hex = `0x${'ab'.repeat(32)}`;
 const NULLIFIER = 1234n;
 const SEED = 42n;
 const CTX = ctxFor(configBytes(NULLIFIER, SEED), DIGEST);
+
+const core = vi.hoisted(() => ({
+  init: vi.fn((): Promise<void> => Promise.resolve()),
+  generateArgs: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  prove: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  verify: vi.fn<(pcd: unknown, testMode?: boolean) => Promise<boolean>>(() => Promise.resolve(true)),
+}));
+
+/** The peer, stubbed so the default bucket never reaches the network. */
+vi.mock('@anon-aadhaar/core', () => ({
+  ...core,
+  ArtifactsOrigin: { server: 0, local: 1, chunked: 2 },
+  productionPublicKeyHash: '18063425702624337643644061197836918910810808173893535653269228433734128853484',
+  testPublicKeyHash: '15134874015316324267425466444584014077184337590635665158241104437045239495873',
+}));
+
+/** What the peer's init receives for the default bucket. */
+const CHUNKED_INIT = { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const proofWith = (overrides: Partial<Signals> = {}): Hex => {
   const words: ProofWords = {
@@ -94,8 +117,35 @@ describe('the static checks the method makes without a clock', () => {
 });
 
 describe('a consistent proof', () => {
-  it('with no stack is not-judged', async () => {
+  it('under the default bucket reaches the peer, initialised with the chunked bucket, and its true answer is satisfied', async () => {
+    expect(await anonAadhaarMethod().verify(CTX, proofWith())).toBe('satisfied');
+    expect(core.init).toHaveBeenCalledTimes(1);
+    expect(core.init).toHaveBeenCalledWith(CHUNKED_INIT);
+    expect(core.verify).toHaveBeenCalledTimes(1);
+  });
+
+  it('under the default bucket is not-judged when the peer cannot reach its vkey', async () => {
+    core.verify.mockRejectedValueOnce(new Error('vkey.json: fetch failed'));
+
     expect(await anonAadhaarMethod().verify(CTX, proofWith())).toBe('not-judged');
+    expect(core.init).toHaveBeenCalledWith(CHUNKED_INIT);
+  });
+
+  it.each([
+    [true, 'satisfied'],
+    [false, 'rejected'],
+  ] as const)('under the default bucket, where storage fails only inside the peer\'s prove, the peer\'s verify answering %s is %s', async (answer, verdict) => {
+    core.prove.mockImplementation(() => Promise.reject(new Error('No available storage method found.')));
+    core.verify.mockResolvedValueOnce(answer);
+
+    try {
+      expect(await anonAadhaarMethod().verify(CTX, proofWith())).toBe(verdict);
+      expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+      expect(core.verify).toHaveBeenCalledTimes(1);
+      expect(core.prove).not.toHaveBeenCalled();
+    } finally {
+      core.prove.mockImplementation(() => Promise.resolve({}));
+    }
   });
 
   it('with a stack that throws on the issuer key is not-judged', async () => {
@@ -136,11 +186,14 @@ describe('a consistent proof', () => {
 });
 
 describe('the blessed proof row', () => {
-  it('binds under the blessed config and its digest: not-judged with no stack, satisfied by a stack answering true', async () => {
+  it('binds under the blessed config and its digest: not-judged under the default bucket whose peer throws, satisfied by a stack answering true', async () => {
     const bound = ctxFor(configRow.expected.encoded, proofRow.input.digest);
     const double = stackDouble({ verify: true });
 
+    core.verify.mockRejectedValueOnce(new Error('vkey.json: fetch failed'));
+
     expect(await anonAadhaarMethod().verify(bound, proofRow.expected.encoded)).toBe('not-judged');
+    expect(core.init).toHaveBeenCalledWith(CHUNKED_INIT);
     expect(await anonAadhaarMethod({ stack: double.stack }).verify(bound, proofRow.expected.encoded)).toBe('satisfied');
     expect(double.verifyCalls).toHaveLength(1);
   });
@@ -150,5 +203,6 @@ describe('the blessed proof row', () => {
 
     expect(await anonAadhaarMethod().verify(ctxFor(configBytes(22n, 78n, 4_500n), digest), proofRow.expected.encoded)).toBe('rejected');
     expect(await anonAadhaarMethod().verify(ctxFor(configBytes(22n, 77n, 3_599n), digest), proofRow.expected.encoded)).toBe('rejected');
+    expect(core.init).not.toHaveBeenCalled();
   });
 });

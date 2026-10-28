@@ -13,6 +13,7 @@ import {
   METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE,
   METHOD_AADHAAR_VECTOR_FILES,
 } from '../constants/method-aadhaar';
+import { METHOD_AADHAAR_DEFAULT_ARTIFACTS } from '../constants/method-aadhaar-bucket';
 import { sameAddress } from '../formats/guards';
 import type {
   Address,
@@ -170,13 +171,17 @@ export class AnonAadhaarMethod implements IRecoveryMethod {
   }
 }
 
-/** The Aadhaar method, over an injected stack or the installed `@anon-aadhaar/core`, either in test mode; passing both stacks throws. */
+/**
+ * The Aadhaar method, over an injected stack or the installed `@anon-aadhaar/core` with the given artifacts or
+ * `METHOD_AADHAAR_DEFAULT_ARTIFACTS`, either in test mode; passing a stack and artifacts throws a `TypeError`.
+ */
 export function anonAadhaarMethod(options: AnonAadhaarMethodOptions = {}): IRecoveryMethod {
   if (options.stack !== undefined && options.artifacts !== undefined) {
     throw new TypeError(METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE);
   }
 
-  const stack = options.stack ?? coreStack(options.artifacts && readArtifacts(options.artifacts));
+  const artifacts = options.artifacts === undefined ? METHOD_AADHAAR_DEFAULT_ARTIFACTS : readArtifacts(options.artifacts);
+  const stack = options.stack ?? coreStack(artifacts);
 
   return new AnonAadhaarMethod(stack, options.testMode ?? METHOD_AADHAAR_DEFAULT_TEST_MODE);
 }

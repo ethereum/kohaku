@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE } from '../../src/constants/method-aadhaar';
+import {
+  METHOD_AADHAAR_BUCKET_CHUNKED,
+  METHOD_AADHAAR_BUCKET_SERVER,
+  METHOD_AADHAAR_DEFAULT_ARTIFACTS,
+  METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE,
+} from '../../src/constants';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import { coreStack } from '../../src/method-aadhaar/stack';
 import { CERTIFICATE, clockAt, configBytes, ctxFor, FRESH_NOW, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
@@ -189,5 +194,146 @@ describe('the default stack passes the test-mode flag to the peer\'s verify', ()
     expect(core.init).not.toHaveBeenCalled();
     expect(core.verify).not.toHaveBeenCalled();
     expect(() => anonAadhaarMethod({ stack: double.stack, artifacts: ARTIFACTS })).toThrow(new TypeError(METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE));
+  });
+});
+
+describe('the artifacts the peer\'s init receives', () => {
+  const ctx = ctxFor(configBytes(22n, 77n), DIGEST);
+  const production = proofBytes({
+    a: [1n, 2n],
+    b: [
+      [4n, 3n],
+      [6n, 5n],
+    ],
+    c: [7n, 8n],
+    inputs: nine(signalsFor(22n, 77n, DIGEST, { pubkeyHash: BigInt(PRODUCTION_KEY) })),
+  });
+
+  /** Loads the method's stack through one verify and answers the one record the peer's init received. */
+  const initArgsOf = async (method: ReturnType<typeof anonAadhaarMethod>): Promise<unknown> => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    expect(await method.verify(ctx, production)).toBe('satisfied');
+    expect(core.init).toHaveBeenCalledTimes(1);
+
+    return (core.init.mock.calls[0] as unknown[] | undefined)?.[0];
+  };
+
+  it('no option: the chunked bucket\'s three URLs and the chunked origin, nothing else', async () => {
+    expect(await initArgsOf(anonAadhaarMethod())).toStrictEqual({
+      wasmURL: METHOD_AADHAAR_BUCKET_CHUNKED.wasmURL,
+      zkeyURL: METHOD_AADHAAR_BUCKET_CHUNKED.zkeyURL,
+      vkeyURL: METHOD_AADHAAR_BUCKET_CHUNKED.vkeyURL,
+      artifactsOrigin: 2,
+    });
+  });
+
+  it.each([
+    ['an empty options record', {}],
+    ['testMode: false alone', { testMode: false }],
+    ['the default constant passed by name', { artifacts: METHOD_AADHAAR_DEFAULT_ARTIFACTS }],
+    ['the chunked constant passed by name', { artifacts: METHOD_AADHAAR_BUCKET_CHUNKED }],
+  ] as const)('%s: the same chunked bucket', async (_why, options) => {
+    expect(await initArgsOf(anonAadhaarMethod(options))).toStrictEqual({ ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 });
+  });
+
+  it('testMode: true alone still loads the chunked bucket, and the peer\'s verify gets the flag', async () => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    const test = proofBytes({
+      a: [1n, 2n],
+      b: [
+        [4n, 3n],
+        [6n, 5n],
+      ],
+      c: [7n, 8n],
+      inputs: nine(signalsFor(22n, 77n, DIGEST, { pubkeyHash: BigInt(TEST_KEY) })),
+    });
+
+    expect(await anonAadhaarMethod({ testMode: true }).verify(ctx, test)).toBe('satisfied');
+    expect((core.init.mock.calls[0] as unknown[] | undefined)?.[0]).toStrictEqual({ ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 });
+    expect(core.verify.mock.calls[0]?.[1]).toBe(true);
+  });
+
+  it('the server constant: the whole-zkey URL and the server origin', async () => {
+    const args = await initArgsOf(anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER }));
+
+    expect(args).toStrictEqual({
+      wasmURL: METHOD_AADHAAR_BUCKET_SERVER.wasmURL,
+      zkeyURL: METHOD_AADHAAR_BUCKET_SERVER.zkeyURL,
+      vkeyURL: METHOD_AADHAAR_BUCKET_SERVER.vkeyURL,
+      artifactsOrigin: 0,
+    });
+    expect((args as { zkeyURL: string }).zkeyURL).not.toBe(METHOD_AADHAAR_BUCKET_CHUNKED.zkeyURL);
+  });
+
+  it.each([
+    ['server', 0],
+    ['local', 1],
+    ['chunked', 2],
+  ] as const)('the integrator\'s own URLs under %s pass through unchanged, the origin mapped to %s', async (artifactsOrigin, value) => {
+    const own = { ...ARTIFACTS, artifactsOrigin };
+
+    expect(await initArgsOf(anonAadhaarMethod({ artifacts: own }))).toStrictEqual({ ...ARTIFACTS, artifactsOrigin: value });
+  });
+
+  it('Node paths under local pass through as given', async () => {
+    const paths = { wasmURL: '/srv/aadhaar/circuit.wasm', zkeyURL: '/srv/aadhaar/circuit_final.zkey', vkeyURL: '/srv/aadhaar/vkey.json', artifactsOrigin: 'local' } as const;
+
+    expect(await initArgsOf(anonAadhaarMethod({ artifacts: paths }))).toStrictEqual({ ...paths, artifactsOrigin: 1 });
+  });
+
+  it('a member beyond the four never reaches the peer', async () => {
+    const extra = { ...ARTIFACTS, headers: { authorization: 'x' } } as typeof ARTIFACTS;
+
+    expect(await initArgsOf(anonAadhaarMethod({ artifacts: extra }))).toStrictEqual({ ...ARTIFACTS, artifactsOrigin: 0 });
+  });
+
+  it('init runs once per stack: a second call on the same method does not call it again', async () => {
+    core.init.mockResolvedValue(undefined);
+
+    const method = anonAadhaarMethod();
+
+    expect(await method.verify(ctx, production)).toBe('satisfied');
+    expect(await method.verify(ctx, production)).toBe('satisfied');
+    expect(core.init).toHaveBeenCalledTimes(1);
+    expect(core.verify).toHaveBeenCalledTimes(2);
+  });
+
+  it('two methods each initialise the peer with their own artifacts', async () => {
+    core.init.mockResolvedValue(undefined);
+
+    await anonAadhaarMethod().verify(ctx, production);
+    await anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER }).verify(ctx, production);
+
+    expect(core.init.mock.calls.map((call) => (call as unknown[])[0])).toStrictEqual([
+      { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 },
+      { ...METHOD_AADHAAR_BUCKET_SERVER, artifactsOrigin: 0 },
+    ]);
+  });
+
+  it('building the method touches no peer: init waits for the first stack call', () => {
+    anonAadhaarMethod();
+    anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER });
+
+    expect(core.init).not.toHaveBeenCalled();
+  });
+
+  it('the constants are left as they were after a load', async () => {
+    const before = { ...METHOD_AADHAAR_BUCKET_CHUNKED };
+
+    await initArgsOf(anonAadhaarMethod());
+
+    expect(METHOD_AADHAAR_BUCKET_CHUNKED).toStrictEqual(before);
+    expect(Object.isFrozen(METHOD_AADHAAR_BUCKET_CHUNKED)).toBe(true);
+  });
+
+  it.each([
+    ['the server constant', METHOD_AADHAAR_BUCKET_SERVER],
+    ['the chunked constant', METHOD_AADHAAR_BUCKET_CHUNKED],
+    ['the integrator\'s own URLs', ARTIFACTS],
+  ] as const)('a stack with %s is a TypeError, before any import', (_why, artifacts) => {
+    expect(() => anonAadhaarMethod({ stack: stackDouble().stack, artifacts })).toThrow(new TypeError(METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE));
+    expect(core.init).not.toHaveBeenCalled();
   });
 });

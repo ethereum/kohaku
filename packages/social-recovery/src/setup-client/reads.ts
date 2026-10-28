@@ -1,9 +1,10 @@
 import { pinBlockHeader } from '../client-core';
-import { assertBytes, sameAddress } from '../formats/guards';
+import { assertBytes, assertDependency, sameAddress } from '../formats/guards';
 import {
   METHOD_TIERS,
   type ActionInfo,
   type Address,
+  type IMethodCodec,
   type IRecoveryMethod,
   type KitNotification,
   type MethodTier,
@@ -34,7 +35,18 @@ function tierOf(implementation: IRecoveryMethod | undefined): MethodTier | undef
   return tier !== undefined && METHOD_TIERS.includes(tier) ? tier : undefined;
 }
 
-/** One method module's reads at the block, beside whether this build serves it and the tier it states. */
+/** The registered implementation's codec to judge configs with, refusing one without a `decodeConfig` function. */
+function codecOf(implementation: IRecoveryMethod | undefined, module: Address): Pick<IMethodCodec, 'decodeConfig'> | undefined {
+  if (implementation === undefined) return undefined;
+
+  const { codec } = implementation;
+
+  assertDependency(codec, ['decodeConfig'], `methods.get(${module}).codec`);
+
+  return codec;
+}
+
+/** One method module's reads at the block, beside whether this build serves it, the tier it states and its config decoder, refusing a registered codec without one. */
 async function methodReads(parts: SetupClientParts, module: Address, block: PinnedBlock): Promise<MethodReads> {
   const [moduleInfo, trustedParties, paused] = await Promise.all([
     parts.policyManager.moduleInfo(module, block),
@@ -43,8 +55,17 @@ async function methodReads(parts: SetupClientParts, module: Address, block: Pinn
   ]);
   const implementation = implementationOf(parts, module);
   const tier = tierOf(implementation);
+  const codec = codecOf(implementation, module);
 
-  return { module, moduleInfo, trustedParties, paused, implemented: implementation !== undefined, ...(tier === undefined ? {} : { tier }) };
+  return {
+    module,
+    moduleInfo,
+    trustedParties,
+    paused,
+    implemented: implementation !== undefined,
+    ...(tier === undefined ? {} : { tier }),
+    ...(codec === undefined ? {} : { codec }),
+  };
 }
 
 /** The action's identity at the block; any rejection, a revert, an undecodable answer or a failed transport, reads as unanswered. */

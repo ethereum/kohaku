@@ -7,6 +7,7 @@ import type {
   DeploymentDescriptor,
   Hex,
   Handover,
+  IMethodCodec,
   KitNotification,
   MethodTier,
   ModuleInfo,
@@ -42,6 +43,8 @@ export type MethodReads = {
   readonly implemented: boolean;
   /** The tier the serving implementation states, absent where no implementation places it. */
   readonly tier?: MethodTier;
+  /** The serving implementation's config decoder; absent where no registered implementation serves the module or its codec has no `decodeConfig`, and then no config is judged. */
+  readonly codec?: Pick<IMethodCodec, 'decodeConfig'>;
 };
 
 /** One method's verification cost in gas, per place it fills. */

@@ -1,4 +1,4 @@
-import { checksumAddress, getAddress } from 'viem';
+import { checksumAddress, getAddress, size } from 'viem';
 import {
   FORMATS_HEX_ADDRESS_PATTERN,
   FORMATS_HEX_BYTES32_PATTERN,
@@ -108,6 +108,9 @@ export function assertUintBigint(value: unknown, bits: number, name: string): as
 
 /** The same address, compared without regard to case. */
 export const sameAddress = (left: Address, right: Address): boolean => left.toLowerCase() === right.toLowerCase();
+
+/** The byte length of 0x-prefixed hex of whole bytes. */
+export const byteLength = (bytes: Hex): number => size(bytes);
 
 /** The hex string lower-cased, for a value already checked. */
 export const lowerHex = (value: Hex): Hex => value.toLowerCase() as Hex;

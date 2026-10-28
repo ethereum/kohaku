@@ -7,6 +7,7 @@ export const SETUP_ERROR_CODES = [
   'clause.threshold-too-wide',
   'rule.too-wide',
   'credential.duplicate',
+  'credential.config-malformed',
   'wait.field-width',
   'wait.above-maximum',
   'action.unsupported',

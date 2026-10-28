@@ -1,4 +1,5 @@
 import type { AttemptRequest, CancelRequest, Hex, MethodCost, RequestValidationContext, SetupDraft, SetupValidationContext } from '../../src/index';
+import { walletMethod } from '../../src/index';
 import { oracleBody, oracleCommitment } from '../formats/support';
 import {
   AADHAAR,
@@ -89,6 +90,10 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
       managerEvents: [committed(ACCOUNT, OTHER_ACTION, 10)],
     }],
     ['an undeployed account', DRAFT, { ...SETUP_CONTEXT, action: { ...SETUP_CONTEXT.action, accountHoldsCode: false } }],
+    ['a wallet config its codec cannot decode', withClauses([{ threshold: 1, credentials: [{ method: ECDSA, config: `0x${'ab'.repeat(20)}` }, credential(PASSKEY, 2)] }]), {
+      ...SETUP_CONTEXT,
+      methods: SETUP_CONTEXT.methods.map((reads) => (reads.module === ECDSA ? { ...reads, codec: walletMethod().codec } : reads)),
+    }],
     ['a short wait and a clear backup', { ...DRAFT, wait: 60, privacy: { publicMetadata: '0x', backup: 'clear' } }, SETUP_CONTEXT],
     ['a zero wait, no backup, a repeated person', withClauses(
       [{ threshold: 2, credentials: [credential(ECDSA, 1, { label: 'a' }), credential(PASSKEY, 2), credential(ECDSA, 3, { label: 'a' })] }],

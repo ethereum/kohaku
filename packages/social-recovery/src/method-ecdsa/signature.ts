@@ -7,7 +7,6 @@ import {
   numberToHex,
   parseSignature,
   recoverAddress,
-  size,
   slice,
 } from 'viem';
 import {
@@ -20,16 +19,16 @@ import {
   METHOD_ECDSA_SIGNATURE_WORD_SIZE,
   METHOD_ECDSA_ZERO_ADDRESS,
 } from '../constants';
+import { byteLength } from '../formats/guards';
 import type { SignatureParts } from '../types';
+
+export { byteLength };
 
 const WORD = METHOD_ECDSA_SIGNATURE_WORD_SIZE;
 
 /** Whether a value is a string of whole bytes as 0x-prefixed hex, empty allowed. */
 export const isHexBytes = (value: unknown): value is Hex =>
   typeof value === 'string' && METHOD_ECDSA_HEX_BYTES.test(value);
-
-/** The byte length of a value `isHexBytes` accepted. */
-export const byteLength = (bytes: Hex): number => size(bytes);
 
 const split = (signature: Hex): SignatureParts => ({
   r: hexToBigInt(slice(signature, 0, WORD)),
