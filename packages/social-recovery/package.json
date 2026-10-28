@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/social-recovery",
-  "version": "0.0.0",
+  "version": "0.0.1-alpha.0",
   "description": "Social recovery SDK: prepared calls, reads and proof gathering for the recovery kit's contracts.",
   "type": "module",
   "private": false,
