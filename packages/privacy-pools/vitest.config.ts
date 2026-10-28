@@ -13,6 +13,7 @@ const E2E_SUITES = [
   { suiteName: 'withdraw-live',   include: ['tests/e2e/**/withdraw-real-prover.test.ts'], timeout: 600_000 },
   { suiteName: 'withdraw-paymaster', include: ['tests/e2e/**/withdraw-paymaster.test.ts'], timeout: 600_000 },
   { suiteName: 'saga-reconstruction', include: ['tests/e2e/**/saga-reconstruction.test.ts'], timeout: 300_000 },
+  { suiteName: 'saga-history',    include: ['tests/e2e/**/saga-history.test.ts'],         timeout: 600_000 },
   { suiteName: 'withdraw-paymaster-broadcast', include: ['tests/e2e/**/withdraw-paymaster-broadcast.test.ts'], timeout: 600_000 },
   { suiteName: 'withdraw-paymaster-tailcalls', include: ['tests/e2e/**/withdraw-paymaster-tailcalls.test.ts'], timeout: 600_000 },
   { suiteName: 'withdraw-paymaster-batch', include: ['tests/e2e/**/withdraw-paymaster-batch.test.ts'], timeout: 600_000 },

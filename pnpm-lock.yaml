@@ -250,8 +250,8 @@ importers:
         specifier: ^2.11.2
         version: 2.12.0(react@19.3.1)
       '@saga-sync/client':
-        specifier: ^0.1.4
-        version: 0.1.4
+        specifier: ^0.3.0
+        version: 0.3.0
       '@zk-kit/lean-imt':
         specifier: ^2.2.4
         version: 2.2.4
@@ -2906,12 +2906,12 @@ packages:
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
-  '@saga-sync/client@0.1.4':
-    resolution: {integrity: sha512-q/5rxQOGB2ShYNxsQggfd6KGZ4BAF2z4wSUdWmiRjN/8CXStbyVYgjupdCLbZ8jbtOdvKKEu1dhZDO7/o5gCEg==}
+  '@saga-sync/client@0.3.0':
+    resolution: {integrity: sha512-quYuCqcPMnYHB8kWRhcyJnbGnC89gPq8dlFemZX0xsKD/+HHFG+2AGfrwfU/pJgjtMLd4ja2tmhJX4TbyKVv7g==}
     hasBin: true
 
-  '@saga-sync/core@0.1.4':
-    resolution: {integrity: sha512-eGO87WP57D4CulvLUHfrhj0SpQEYC6UX8rBowkai0UG8dz3X/uHfOMu7TVuIvKdvjhWOaKxeYpwecx2G+k1ntA==}
+  '@saga-sync/core@0.3.0':
+    resolution: {integrity: sha512-L5civNMw2uqSPHzcnD+D0ENhlQp/n2OHZO3EEVpp1c6R7WYI/+4Ku4tc1ZkWreL5Sny3fIJU+r/8bJwk1C2eWQ==}
 
   '@scure/base@1.2.6':
     resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
@@ -10570,11 +10570,11 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@saga-sync/client@0.1.4':
+  '@saga-sync/client@0.3.0':
     dependencies:
-      '@saga-sync/core': 0.1.4
+      '@saga-sync/core': 0.3.0
 
-  '@saga-sync/core@0.1.4':
+  '@saga-sync/core@0.3.0':
     dependencies:
       '@noble/curves': 2.2.0
       '@noble/hashes': 2.2.0

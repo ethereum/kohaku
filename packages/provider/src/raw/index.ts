@@ -112,6 +112,7 @@ type RpcLog = {
     data: HexString;
     address: HexString;
     logIndex?: HexString | null;
+    transactionHash?: HexString | null;
 };
 
 type RpcReceipt = {
@@ -127,6 +128,7 @@ const convertLog = (log: RpcLog): TxLog => ({
     data: log.data,
     address: log.address,
     ...(log.logIndex ? { logIndex: Number(hexToBigInt(log.logIndex)) } : {}),
+    ...(log.transactionHash ? { transactionHash: log.transactionHash } : {}),
 });
 
 const convertReceipt = (receipt: RpcReceipt): TransactionReceipt => ({

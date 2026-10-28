@@ -54,11 +54,19 @@ Events come back newest first. Each one is a deposit, a withdrawal, or a ragequi
 | `type` | `'deposit'`, `'withdrawal'`, or `'ragequit'` |
 | `value` | Amount the event moved. For a deposit this is the amount credited after the vetting fee. |
 | `assetAddress`, `poolAddress` | Bigints. |
-| `transactionHash`, `blockNumber`, `logIndex`, `timestamp` | Where it happened. The first history call fills in hashes and timestamps that were missing from the sync. |
+| `transactionHash`, `blockNumber`, `logIndex`, `timestamp` | Where it happened. The timestamp is an estimate, see below. |
 
 Deposits also carry `depositor`, `label`, and `aspStatus` (`'pending'` or `'approved'`). Ragequits carry `ragequitter`. Withdrawals carry the shared fields only.
 
 `transactionHash` on the event is a bigint. Format it to hex when you link to a block explorer.
+
+### What history asks the RPC
+
+`history` never asks the RPC about the account's own blocks or transactions. The transaction hash, log index, and block number come from the sync, which fetches every pool event for everyone. The saga `/v2` index publishes transaction hashes; the root saga index does not, and states synced by older versions did not keep them. Those events have `transactionHash` `0n`, and `logIndex` `0` when it is missing too. Clear the stored state and sync again (over RPC or the `/v2` saga index) if you need them.
+
+Timestamps are interpolated. The plugin fetches the block header at every multiple of 32768 blocks (about 4.5 days) from the entrypoint's deployment to the synced head, plus the head itself, and caches them with the history. Which headers it asks for depends on the chain and the head, never on the account. An event's time is interpolated between the two headers around it, so it is off by the slots missed in between: on mainnet usually under a minute and at most a few minutes, on Sepolia sometimes tens of minutes. The first call fetches about 130 headers on mainnet. Later calls fetch the new grid points and the head.
+
+Exact headers for the account's blocks, even mixed with random decoy blocks, would tell the RPC that the account acted in one of a few blocks. The grid tells it nothing the sync did not.
 
 ## Ragequit
 

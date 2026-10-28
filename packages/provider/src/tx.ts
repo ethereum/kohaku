@@ -5,6 +5,8 @@ export interface TxLog {
     address: string;
     /** Position of the log in its block, when the source provides it. */
     logIndex?: number;
+    /** Hash of the transaction that emitted the log, when the source provides it. */
+    transactionHash?: string;
 }
 
 export interface TransactionReceipt {
