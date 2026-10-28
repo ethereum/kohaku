@@ -1,3 +1,47 @@
+## 0.1.0-alpha.32
+
+### Patch Changes
+
+- a98a88f: Check paymaster bundler gas prices against the host RPC fee market, bound validation overhead and payload-sized pre-verification gas, and send bundler requests through the host network. Tail-call execution gas can grow with the bundler estimate; optional `maxGasLimits` sets explicit absolute ceilings. There is no percentage-of-withdrawal fee cap. The sponsoring note must still cover the fee. Tornado prepared paymaster payloads include the proof-bound fee and total withdrawn value, with optional fields for compatibility with older saved operations.
+- 7a7c9a1: Improve paymaster estimation availability without restoring silent catch-all fallback.
+  Retry recognized temporary transport failures once, using the exact signed payload
+  and honoring short Retry-After headers. Broadcasts are never retried by this logic.
+
+  Add gasEstimationPolicy (default best-effort, with required available for strict
+  callers). On mainnet/Sepolia, standard withdrawals with recoverable senders and no
+  user tail calls may fall back after recognized transport failures or the bundler's
+  opaque simulation-parser internal error. Real validation failures, invalid estimates,
+  random senders, unknown chains and user tail calls never use this fallback.
+
+  Rebuild fallback fees, proofs, forwarding calldata and signatures using 350000 gas
+  of pre-verification overhead plus a variable-payload allowance, preserving higher
+  previous estimates. Reject fees that consume the sponsoring note. Prepared payloads
+  include gasEstimation metadata so consumers can display or reject fallback results.
+  Fallback budgets are conservative heuristics and may still be rejected or execute
+  unsuccessfully; consumers must display the actual committed fee before broadcasting.
+
+- eb83865: Require successful bundler gas estimation when preparing paymaster withdrawals.
+  Previously an estimation failure silently returned static limits, which could
+  produce signed operations rejected for insufficient preVerificationGas.
+
+  Single-note and consolidated withdrawals now rebuild the sponsoring fee, proof,
+  forwarding calldata and signature when gas estimates increase, then estimate the
+  exact rebuilt payload again. Refinement is bounded to three attempts.
+
+  Single-note withdrawals now also pay the recoverable sender and forward to the
+  requested recipient during execution.
+  This avoids `CallGasLimitNonZero` when bundlers inject a nonzero gas-search
+  ceiling during estimation. Explicit delegation settings apply to single notes
+  too; unused-gas refunds can remain on the sender after forwarding.
+
+  Bundler HTTP requests use a 180-second timeout and no transport retries. Preparation now rejects on estimation failure,
+  invalid estimates or non-convergence instead of returning an unchecked fallback.
+
+- Updated dependencies [d8bf680]
+- Updated dependencies [d8bf680]
+  - @kohaku-eth/provider@0.1.0-alpha.14
+  - @kohaku-eth/plugins@0.0.1-alpha.20
+
 ## 0.1.0-alpha.31
 
 ### Patch Changes
