@@ -62,6 +62,7 @@
     "pp-validate-relay-data",
     "pp-withdraw-tree-depth-32",
     "ppv1-note-block-number",
+    "ppv1-view-sync-option",
     "pretty-signs-speak",
     "privacy-pools-history",
     "provider-log-index",
