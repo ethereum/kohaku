@@ -152,50 +152,67 @@ const storeByChainAndEntrypoint = ({
       }
     : undefined;
 
-  const chainStoreMap = new Map<
-    StoreKey,
-    ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>
-  >();
+  type ChainStore = ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>;
+
+  const chainStoreMap = new Map<StoreKey, ChainStore>();
+  // Callers that ask for a store while it is being loaded share it, instead of
+  // each building their own and all but one ending up detached from the map.
+  const chainStoreLoads = new Map<StoreKey, Promise<ChainStore>>();
+
+  const loadChainStore = async (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
+    const {
+      chainId,
+      entrypoint: { address, deploymentBlock },
+    } = getChainStoreParams;
+    const storageKey = getStoreStorageKey(getChainStoreParams);
+    const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : null;
+    const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+    const snapshotInitialState = storedState || !resolveInitialState
+      ? undefined
+      : (await resolveInitialState())[storageKey];
+    const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
+    const rawHistoryMetadata = storageToSyncTo
+      ? await storageToSyncTo.get(getHistoryStorageKey(getChainStoreParams))
+      : null;
+    const historyMetadata: RootState['historyMetadata'] | undefined = rawHistoryMetadata
+      ? JSON.parse(rawHistoryMetadata)
+      : undefined;
+    const store = storeFactory({
+      entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
+      initialState: (historyMetadata
+        ? { ...initialState, historyMetadata }
+        : initialState) as RootState | undefined,
+      devOptions,
+    });
+
+    // On-chain verification is per session: never take it from storage or a snapshot.
+    store.dispatch(setVerifiedAspRoot(0n));
+
+    return initializeSelectors({ store, secretManager });
+  };
 
   return {
-    getChainStore: async (getChainStoreParams: GetChainStoreParams) => {
-      const {
-        chainId,
-        entrypoint: { address, deploymentBlock },
-      } = getChainStoreParams;
+    getChainStore: (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
       const computedChainKey = getStoreKey(getChainStoreParams);
-      let storeWithSelectors = chainStoreMap.get(computedChainKey);
+      let load = chainStoreLoads.get(computedChainKey);
 
-      if (!storeWithSelectors) {
-        const storageKey = getStoreStorageKey(getChainStoreParams);
-        const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : null;
-        const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
-        const snapshotInitialState = storedState || !resolveInitialState
-          ? undefined
-          : (await resolveInitialState())[storageKey];
-        const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
-        const rawHistoryMetadata = storageToSyncTo
-          ? await storageToSyncTo.get(getHistoryStorageKey(getChainStoreParams))
-          : null;
-        const historyMetadata: RootState['historyMetadata'] | undefined = rawHistoryMetadata
-          ? JSON.parse(rawHistoryMetadata)
-          : undefined;
-        const store = storeFactory({
-          entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
-          initialState: (historyMetadata
-            ? { ...initialState, historyMetadata }
-            : initialState) as RootState | undefined,
-          devOptions,
-        });
+      if (!load) {
+        load = loadChainStore(getChainStoreParams).then(
+          (storeWithSelectors) => {
+            chainStoreMap.set(computedChainKey, storeWithSelectors);
 
-        // On-chain verification is per session: never take it from storage or a snapshot.
-        store.dispatch(setVerifiedAspRoot(0n));
-
-        storeWithSelectors = initializeSelectors({ store, secretManager });
-        chainStoreMap.set(computedChainKey, storeWithSelectors);
+            return storeWithSelectors;
+          },
+          (error: unknown) => {
+            // Let the next call retry rather than replay this failure forever.
+            chainStoreLoads.delete(computedChainKey);
+            throw error;
+          },
+        );
+        chainStoreLoads.set(computedChainKey, load);
       }
 
-      return storeWithSelectors;
+      return load;
     },
     getAllStores: (): ReturnType<IStateManager['dumpState']> => {
       return Array.from(chainStoreMap).reduce(
@@ -220,26 +237,45 @@ export const storeStateManager = (
     entrypoint: params.entrypoint,
   });
 
+  const runSync = async (chainInfo: GetChainStoreParams): Promise<void> => {
+    const store = await getChainStore(chainInfo);
+
+    unwrapResult(
+      await store.dispatch(
+        syncThunk({
+          ...params,
+          secretManager,
+        }),
+      ),
+    );
+
+    if (storageToSyncTo) {
+      await storageToSyncTo.set(
+        getStoreStorageKey(chainInfo),
+        JSON.stringify(store.getPublicState()),
+      );
+    }
+  };
+
+  // At most one sync per store at a time: interleaved syncs would derive and
+  // append the same note secrets twice, and one sync's root re-verification
+  // would briefly unset the verified ASP root a withdrawal is checking.
+  const inFlightSyncs = new Map<StoreKey, Promise<void>>();
+
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
+      const storeKey = getStoreKey(chainInfo);
+      const inFlight = inFlightSyncs.get(storeKey);
 
-      unwrapResult(
-        await store.dispatch(
-          syncThunk({
-            ...params,
-            secretManager,
-          }),
-        ),
-      );
+      // Joining callers get the running sync's result, or its error.
+      if (inFlight) return inFlight;
 
-      if (storageToSyncTo) {
-        await storageToSyncTo.set(
-          getStoreStorageKey(chainInfo),
-          JSON.stringify(store.getPublicState()),
-        );
-      }
+      const syncing = runSync(chainInfo).finally(() => inFlightSyncs.delete(storeKey));
+
+      inFlightSyncs.set(storeKey, syncing);
+
+      return syncing;
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =

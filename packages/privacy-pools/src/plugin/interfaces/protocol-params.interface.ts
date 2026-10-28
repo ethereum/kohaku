@@ -301,6 +301,16 @@ export interface IGetHistoryParams extends IBaseOperationParams {
   assets?: Address[];
 }
 
+/** Options for the plugin's read-only methods (balance, notes, history). */
+export interface PPv1ViewOptions {
+  /**
+   * Sync with the chain before reading (default: true). Pass false to read the
+   * state as of the last sync, e.g. after calling sync() once for several reads.
+   * A state that was never synced reads as empty, or as the initial snapshot.
+   */
+  sync?: boolean;
+}
+
 /**
  * One of the user's deposits, withdrawals or ragequits.
  * `value` is always the amount moved by the event: the amount credited to the

@@ -63,7 +63,12 @@ export const userSecretsSlice = createSlice({
       const record = map.get(precommitment);
 
       if (record) {
-        map.set(precommitment, { ...record, noteSecrets: [...record.noteSecrets, ...noteSecrets] });
+        // Discovery derives notes by position, so a note index already held must
+        // never be appended again: it would shift every later index by one.
+        const knownIndexes = new Set(record.noteSecrets.map(({ noteIndex }) => noteIndex));
+        const newNoteSecrets = noteSecrets.filter(({ noteIndex }) => !knownIndexes.has(noteIndex));
+
+        map.set(precommitment, { ...record, noteSecrets: [...record.noteSecrets, ...newNoteSecrets] });
       }
 
       return serialize({ recordsByPrecommitment: [...map] });
