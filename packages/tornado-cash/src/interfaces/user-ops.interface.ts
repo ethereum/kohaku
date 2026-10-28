@@ -61,3 +61,10 @@ export interface BuildSignedTornadoUserOpParams {
    *  deposit index when multiple userOps share the same ephemeral sender. */
   nonce?: bigint;
 }
+/** Best effort applies only to standard, recoverable withdrawals without user tail calls. */
+export type GasEstimationPolicy = 'required' | 'best-effort';
+
+/** Preparation quality; fallback is not a claim that simulation succeeded. */
+export type PaymasterGasEstimation =
+  | { status: 'estimated' }
+  | { status: 'fallback'; reason: 'transport-unavailable' | 'bundler-internal'; message: string };

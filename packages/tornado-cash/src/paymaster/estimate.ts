@@ -1,4 +1,6 @@
-import type { SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
+import { estimateWithTransportRetry, estimationUnavailableReason } from './estimation-retry';
+import { tornadoFallbackGas } from './fallback';
+import type { PaymasterGasEstimation, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
 
 const GAS_FIELDS = [
   'callGasLimit', 'verificationGasLimit', 'preVerificationGas',
@@ -9,13 +11,15 @@ const MAX_ESTIMATION_ATTEMPTS = 3;
 /**
  * Gas limits affect both the account signature and the fee committed in the
  * sponsoring withdrawal proof. Rebuild them together, then estimate that exact
- * signed payload. Never return static fallback limits after an estimation error.
+ * signed payload. Unestimated fallback requires explicit eligibility from the
+ * caller, is limited to availability failures, and is marked in the result.
  */
 export async function buildEstimatedTornadoUserOp<T extends { userOperation: SerializedUserOperation }>(
   baseline: UserOpGasLimits,
   build: (gas: UserOpGasLimits) => Promise<T>,
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
-): Promise<T> {
+  options: { allowFallback?: boolean } = {},
+): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
   let gas = { ...baseline };
 
   for (let attempt = 0; attempt < MAX_ESTIMATION_ATTEMPTS; attempt++) {
@@ -23,10 +27,25 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
     let estimated: UserOpGasLimits;
 
     try {
-      estimated = await estimate(prepared.userOperation);
+      estimated = await estimateWithTransportRetry(() => estimate(prepared.userOperation));
     } catch (cause) {
       const details = cause instanceof Error && 'details' in cause && typeof cause.details === 'string'
         ? cause.details : cause instanceof Error ? cause.message.split('\n')[0] : String(cause);
+
+      const reason = estimationUnavailableReason(cause);
+
+      if (options.allowFallback && reason) {
+        // Rebuild at the fallback fee before returning anything. Never patch
+        // gas on the old signed operation or reuse its fee-bearing proof.
+        const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation);
+        const fallback = await build(fallbackGas);
+
+        if (tornadoFallbackGas(fallbackGas, fallback.userOperation).preVerificationGas > fallbackGas.preVerificationGas) {
+          throw new Error('Tornado fallback payload size changed during preparation; use required gas estimation.');
+        }
+
+        return { ...fallback, gasEstimation: { status: 'fallback', reason, message: details ?? 'Estimation unavailable' } };
+      }
 
       throw new Error(`Tornado paymaster gas estimation failed: ${details}. Withdrawal preparation stopped; no operation was submitted.`, { cause });
     }
@@ -54,7 +73,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       }
     }
 
-    if (!changed) return prepared;
+    if (!changed) return { ...prepared, gasEstimation: { status: 'estimated' } };
 
     gas = next;
   }

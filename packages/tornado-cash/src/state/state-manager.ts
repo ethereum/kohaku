@@ -295,6 +295,7 @@ export const storeStateManager = async ({
               secretManager,
               tailCalls: params.tailCalls,
               tailCallsGasEstimate: params.tailCallsGasEstimate,
+              gasEstimationPolicy: params.gasEstimationPolicy,
             }),
           ),
         );

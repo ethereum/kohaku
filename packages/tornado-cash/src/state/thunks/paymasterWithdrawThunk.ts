@@ -15,7 +15,7 @@ import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/c
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
-import { UserOpGasLimits } from "../../interfaces/user-ops.interface";
+import { GasEstimationPolicy, UserOpGasLimits } from "../../interfaces/user-ops.interface";
 import { DelegatorAccount } from "../../account/delegation.interface";
 import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
@@ -46,6 +46,7 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   secretManager: ISecretManager;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
+  gasEstimationPolicy?: GasEstimationPolicy;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -63,8 +64,13 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   secretManager,
   tailCalls,
   tailCallsGasEstimate,
+  gasEstimationPolicy = 'best-effort',
   ...rest
 }, { getState, dispatch }) => {
+  if (gasEstimationPolicy !== 'required' && gasEstimationPolicy !== 'best-effort') {
+    throw new Error('Unknown Tornado gas estimation policy.');
+  }
+
   const state = getState();
   const { chainId: rawChainId } = instanceRegistryInfoSelector(state);
   const chainId = Number(rawChainId);
@@ -247,16 +253,23 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     tailCalls != null,
     tailCallsGasEstimate,
   );
-  const { sponsoringProof, userOperation } = await buildEstimatedTornadoUserOp(
+  const { sponsoringProof, userOperation, gasEstimation } = await buildEstimatedTornadoUserOp(
     baselineGas,
     async (gas) => {
       const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
+
+      if (fee >= pools.get(sponsoringDeposit.pool)!.denomination) {
+        throw new Error('Tornado paymaster fee would consume the sponsoring note. Use a larger note or wait for lower gas prices.');
+      }
+
       const sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
       const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
       return { sponsoringProof, userOperation };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
+    { allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
+        delegation?.mode !== 'random' && (chainId === 1 || chainId === 11155111) },
   );
 
   return [{
@@ -268,5 +281,6 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     entryPointAddress,
     bundlerUrl,
     userOperation,
+    gasEstimation,
   }] satisfies IGenericPaymasterWithdrawalPayload[];
 });
