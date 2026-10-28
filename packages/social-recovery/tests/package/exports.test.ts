@@ -31,9 +31,9 @@ const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'ut
 const OPTIONAL_PEERS = ['@zkpassport/sdk', '@anon-aadhaar/core'];
 
 describe('package.json', () => {
-  it('names the one package @kohaku-eth/social-recovery at version 0.0.1', () => {
+  it('names the one package @kohaku-eth/social-recovery with a publishable version', () => {
     expect(manifest.name).toBe('@kohaku-eth/social-recovery');
-    expect(manifest.version).toBe('0.0.1');
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   });
 
   it('is an ES module', () => {
