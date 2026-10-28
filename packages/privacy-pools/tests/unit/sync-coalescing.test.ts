@@ -67,17 +67,34 @@ const setupManager = (dataService = emptyChainDataService(), storage = asyncStor
   } as never),
 });
 
+/** Holds the first head lookup until released, so a sync can be kept running. */
+const holdFirstHead = (dataService: ReturnType<typeof emptyChainDataService>, heads: bigint[]) => {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => { release = resolve; });
+  let call = 0;
+
+  dataService.getBlockNumber.mockImplementation(async () => {
+    const head = heads[Math.min(call++, heads.length - 1)]!;
+
+    if (call === 1) await released;
+
+    return head;
+  });
+
+  return release;
+};
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 describe('storeStateManager.sync', () => {
-  it('runs one sync for concurrent callers', async () => {
+  it('runs the first sync and one follow-up for a burst of calls', async () => {
     const { manager, dataService, storage } = setupManager();
 
     await Promise.all([manager.sync(), manager.sync(), manager.sync()]);
 
-    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);
-    expect(dataService.getEntrypointEvents).toHaveBeenCalledTimes(1);
+    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(2);
     // One store was loaded: the state and history keys were each read once.
     expect(storage.get).toHaveBeenCalledTimes(2);
-    expect(storage.set).toHaveBeenCalledTimes(1);
   });
 
   it('runs a new sync once the previous one has finished', async () => {
@@ -89,18 +106,51 @@ describe('storeStateManager.sync', () => {
     expect(dataService.getBlockNumber).toHaveBeenCalledTimes(2);
   });
 
-  it('fails every joined caller and lets the next call retry', async () => {
+  it('answers a call made during a sync with a later sync, which sees a newer head', async () => {
+    const { manager, dataService } = setupManager();
+    const release = holdFirstHead(dataService, [200n, 201n]);
+
+    const first = manager.sync();
+
+    await vi.waitFor(() => expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1));
+
+    const second = manager.sync();
+
+    await flush();
+    // The second call did not start a sync that overlaps the running one.
+    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);
+
+    release();
+    await Promise.all([first, second]);
+
+    expect(dataService.getEntrypointEvents.mock.calls.map(([{ toBlock }]) => toBlock)).toEqual([200n, 201n]);
+  });
+
+  it('shares one follow-up between every call made during a sync', async () => {
+    const { manager, dataService } = setupManager();
+    const release = holdFirstHead(dataService, [200n, 201n]);
+
+    const first = manager.sync();
+
+    await vi.waitFor(() => expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1));
+
+    const followUps = [manager.sync(), manager.sync(), manager.sync()];
+
+    await flush();
+    release();
+    await Promise.all([first, ...followUps]);
+
+    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs the follow-up even when the running sync fails', async () => {
     const { manager, dataService } = setupManager();
 
     dataService.getBlockNumber.mockRejectedValueOnce(new Error('rpc down'));
 
     const results = await Promise.allSettled([manager.sync(), manager.sync()]);
 
-    expect(results.map(({ status }) => status)).toEqual(['rejected', 'rejected']);
-    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);
-
-    await manager.sync();
-
+    expect(results.map(({ status }) => status)).toEqual(['rejected', 'fulfilled']);
     expect(dataService.getBlockNumber).toHaveBeenCalledTimes(2);
   });
 

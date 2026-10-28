@@ -260,22 +260,43 @@ export const storeStateManager = (
   // At most one sync per store at a time: interleaved syncs would derive and
   // append the same note secrets twice, and one sync's root re-verification
   // would briefly unset the verified ASP root a withdrawal is checking.
-  const inFlightSyncs = new Map<StoreKey, Promise<void>>();
+  // A call never joins a sync that already started: that sync's head may predate
+  // a transaction the caller just saw confirmed. It waits for one follow-up sync
+  // instead, shared with every call made while the follow-up has not started.
+  const syncQueues = new Map<StoreKey, { running?: Promise<void>; queued?: Promise<void> }>();
 
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
       const storeKey = getStoreKey(chainInfo);
-      const inFlight = inFlightSyncs.get(storeKey);
+      const queue = syncQueues.get(storeKey) ?? {};
 
-      // Joining callers get the running sync's result, or its error.
-      if (inFlight) return inFlight;
+      syncQueues.set(storeKey, queue);
 
-      const syncing = runSync(chainInfo).finally(() => inFlightSyncs.delete(storeKey));
+      if (queue.queued) return queue.queued;
 
-      inFlightSyncs.set(storeKey, syncing);
+      const start = (): Promise<void> => {
+        const running = runSync(chainInfo).finally(() => {
+          if (queue.running === running) queue.running = undefined;
+        });
 
-      return syncing;
+        queue.running = running;
+
+        return running;
+      };
+
+      if (!queue.running) return start();
+
+      // Runs whether the current sync succeeds or fails; its callers get its outcome.
+      const queued = queue.running.catch(() => undefined).then(() => {
+        queue.queued = undefined;
+
+        return start();
+      });
+
+      queue.queued = queued;
+
+      return queued;
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =

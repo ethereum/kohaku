@@ -7,8 +7,10 @@ Add an optional `{ sync?: boolean }` (`PPv1ViewOptions`, default `true`) to
 several times without re-syncing. Write methods still always sync.
 
 Fix concurrency issues when calls overlap on the same chain store:
-- concurrent `sync()` calls now share a single in-flight sync instead of
-  interleaving (which could append duplicate note secrets or briefly unset the
-  verified ASP root during a withdrawal);
+- `sync()` calls no longer overlap on the same store (overlapping syncs could
+  append duplicate note secrets or briefly unset the verified ASP root during a
+  withdrawal). A call made while a sync is running waits for one follow-up sync,
+  shared with the other calls made meanwhile, so it always sees a head read after
+  the call;
 - concurrent first calls share one store load instead of each building its own;
 - `addNoteSecrets` ignores note indexes the record already holds.
