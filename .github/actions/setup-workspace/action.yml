@@ -1,75 +1,50 @@
 name: 'Setup Workspace'
-description: 'Sets up Node.js, pnpm, Rust, Foundry, and builds packages'
+description: 'Sets up Node.js and pnpm, installs dependencies, and optionally Foundry and a package build'
 
+# Packages build with tsc/tsup/vite only, so no Rust, wasm-pack, binaryen or
+# just here. Foundry is only for jobs that start anvil (the e2e suites).
 inputs:
   build-packages:
     description: 'Whether to build packages'
+    required: false
+    default: 'true'
+  foundry:
+    description: 'Whether to install Foundry (anvil) for e2e tests'
+    required: false
+    default: 'false'
+  pnpm-cache:
+    description: 'Whether to restore and save the pnpm store cache'
     required: false
     default: 'true'
 
 runs:
   using: 'composite'
   steps:
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: 1.93.0
-        components: rust-src,llvm-tools
-        targets: wasm32-unknown-unknown
-
-    - uses: Swatinem/rust-cache@v2
-
     - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@v1
+      if: inputs.foundry == 'true'
+      uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
       with:
         version: v1.4.4
 
-    # wasm-pack 0.14 still bundles Binaryen 117, which cannot parse current Rust +
-    # wasm-bindgen wasm. Nix devShell puts newer binaryen on PATH; CI needs the same.
-    - name: Install wasm-pack
-      uses: jetli/wasm-pack-action@v0.4.0
-      with:
-        version: v0.14.0
-
-    - name: Install binaryen (wasm-opt for wasm-pack)
-      shell: bash
-      env:
-        BINARYEN_TAG: version_129
-      run: |
-        set -euo pipefail
-        case "${RUNNER_ARCH}" in
-          X64|X86) target=x86_64-linux ;;
-          ARM64|ARM) target=aarch64-linux ;;
-          *) echo "unsupported RUNNER_ARCH=${RUNNER_ARCH}"; exit 1 ;;
-        esac
-        url="https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN_TAG}/binaryen-${BINARYEN_TAG}-${target}.tar.gz"
-        curl -fsSL "$url" | tar xz -C "${RUNNER_TEMP}"
-        bin="${RUNNER_TEMP}/binaryen-${BINARYEN_TAG}/bin"
-        echo "$bin" >> "${GITHUB_PATH}"
-        # GITHUB_PATH only affects later steps; export for this step's wasm-opt check.
-        export PATH="$bin:$PATH"
-        wasm-opt --version
-
-    - name: Install just
-      uses: extractions/setup-just@v2
-
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: '24'
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
       with:
         version: '11'
 
     - name: Get pnpm store directory
+      if: inputs.pnpm-cache == 'true'
       shell: bash
       run: |
         echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
     - name: Cache pnpm store
-      uses: actions/cache@v4
+      if: inputs.pnpm-cache == 'true'
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ env.STORE_PATH }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -79,7 +54,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        pnpm install --ignore-scripts
+        pnpm install --frozen-lockfile --ignore-scripts
 
     - name: Build packages
       if: inputs.build-packages == 'true'

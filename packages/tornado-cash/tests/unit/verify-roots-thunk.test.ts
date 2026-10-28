@@ -1,304 +1,176 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { computeMimcMerkleTreeRoot } from '@kohaku-eth/mimc-tree';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
-import type { Address } from '../../src/interfaces/types.interface';
+import type { IDepositEvent, IPool } from '../../src/data/interfaces/events.interface';
+import type { Address, Commitment } from '../../src/interfaces/types.interface';
+import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { verifyRootsThunk } from '../../src/state/thunks/verifyRootsThunk';
-import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
-import {
-  verifyStateRootOnChain,
-} from '../../src/verification/root-verification.js';
 
-vi.mock('../../src/verification/root-verification.js', () => ({
-  verifyAspRootOnChain: vi.fn().mockResolvedValue(undefined),
-  verifyStateRootOnChain: vi.fn().mockResolvedValue(undefined),
-}));
+const POOL_A = 1000n as Address;
+const POOL_B = 2000n as Address;
+const EMPTY_POOL = 3000n as Address;
+
+function pool(address: Address): IPool {
+  return {
+    address,
+    asset: 0n as Address,
+    isERC20: false,
+    protocolFeePercentage: 0,
+    denomination: 10n ** 17n,
+    registeredBlock: 0n,
+    state: 1,
+    rootHistorySize: 100,
+  };
+}
+
+function deposit(poolAddress: Address, commitment: bigint, leafIndex: number): IDepositEvent {
+  return {
+    pool: poolAddress,
+    commitment: commitment as Commitment,
+    leafIndex,
+    timestamp: 0n,
+    blockNumber: BigInt(leafIndex + 1),
+    transactionHash: commitment,
+  };
+}
+
+function storeWithPools() {
+  const store = storeFactory({
+    protocolConfig: {
+      chainId: 1n,
+      ensSubdomainKey: 'eth',
+      instanceRegistry: { address: 1n, deploymentBlock: 0n },
+      relayerRegistry: { address: 2n, deploymentBlock: 0n },
+      aggregator: { address: 3n },
+    },
+    logLevel: 'off',
+  });
+
+  store.dispatch(registerPools([pool(POOL_A), pool(POOL_B), pool(EMPTY_POOL)]));
+  // Registered out of leafIndex order: the local tree must follow leafIndex.
+  store.dispatch(registerDeposits([
+    deposit(POOL_A, 30n, 2),
+    deposit(POOL_A, 10n, 0),
+    deposit(POOL_A, 20n, 1),
+    deposit(POOL_B, 77n, 0),
+  ]));
+
+  return store;
+}
+
+// Roots from the single-threaded MiMC tree, independent of the worker-backed
+// tree the thunk builds through the pool selectors.
+const ROOT_A = computeMimcMerkleTreeRoot([10n, 20n, 30n]);
+const ROOT_B = computeMimcMerkleTreeRoot([77n]);
+
+function fakeDataService({
+  currentRoots,
+  knownRoots = new Map(),
+}: {
+  currentRoots: Map<Address, bigint>;
+  knownRoots?: Map<Address, bigint[]>;
+}) {
+  const dataService = {
+    getPoolStateRoot: vi.fn(async (address: Address) => currentRoots.get(address) ?? 1n),
+    isPoolRootValid: vi.fn(async (address: Address, root: bigint) => (knownRoots.get(address) ?? []).includes(root)),
+  };
+
+  return { dataService, asService: dataService as unknown as IDataService };
+}
 
 describe('verifyRootsThunk', () => {
-  const entrypointAddress = 900n as Address;
-  const poolAddress = 1000n as Address;
-
   beforeEach(() => {
-    vi.clearAllMocks();
+    // poolMerkleTreeRootSelector logs tree build timings.
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
-  it('verifies the ASP root and each pool root from the synced state', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('accepts pools whose current on-chain root equals the locally rebuilt tree root', async () => {
+    expect(ROOT_A).not.toBe(computeMimcMerkleTreeRoot([30n, 10n, 20n]));
+
+    const store = storeWithPools();
+    const { dataService, asService } = fakeDataService({
+      currentRoots: new Map([[POOL_A, ROOT_A], [POOL_B, ROOT_B]]),
     });
 
-    store.dispatch(registerAspTree({
-      leaves: [44n, 55n],
-      aspTreeRoot: 333n,
-      blockNumber: 12n,
-    }));
-
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
-
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [
-        {
-          index: 2n,
-          commitment: 30n,
-          root: 999n,
-          blockNumber: 3n,
-          transactionHash: 13n,
-        },
-        {
-          index: 0n,
-          commitment: 10n,
-          root: 999n,
-          blockNumber: 1n,
-          transactionHash: 11n,
-        },
-        {
-          index: 1n,
-          commitment: 20n,
-          root: 999n,
-          blockNumber: 2n,
-          transactionHash: 12n,
-        },
-      ],
-    }));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService: asService }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyAspRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      entrypointAddress,
-      333n,
-    );
-    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      poolAddress,
-      computeMerkleTreeRoot([10n, 20n, 30n]),
-    );
+    expect(dataService.getPoolStateRoot.mock.calls).toEqual([[POOL_A], [POOL_B]]);
+    expect(dataService.isPoolRootValid).not.toHaveBeenCalled();
   });
 
-  it('skips verification when ASP root is zero and a pool has no leaves', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
+  it('falls back to isKnownRoot with the local root when the pool has moved on', async () => {
+    const store = storeWithPools();
+    const { dataService, asService } = fakeDataService({
+      currentRoots: new Map([[POOL_A, 5n], [POOL_B, 6n]]),
+      knownRoots: new Map([[POOL_A, [ROOT_A]], [POOL_B, [ROOT_B]]]),
     });
 
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService: asService }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyAspRootOnChain).not.toHaveBeenCalled();
-    expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect(dataService.isPoolRootValid.mock.calls).toEqual([[POOL_A, ROOT_A], [POOL_B, ROOT_B]]);
   });
 
-  it('rejects when ASP root verification fails', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
+  it('never queries pools without deposits, whose local root would be 0n', async () => {
+    const store = storeWithPools();
+    const { dataService, asService } = fakeDataService({
+      currentRoots: new Map([[POOL_A, ROOT_A], [POOL_B, ROOT_B]]),
     });
 
-    store.dispatch(registerAspTree({
-      leaves: [44n],
-      aspTreeRoot: 333n,
-      blockNumber: 12n,
-    }));
+    const action = await store.dispatch(verifyRootsThunk({ dataService: asService }));
 
-    vi.mocked(verifyAspRootOnChain).mockRejectedValueOnce(
-      new Error('ASP root verification failed'),
-    );
+    expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(dataService.getPoolStateRoot).not.toHaveBeenCalledWith(EMPTY_POOL);
+    expect(dataService.isPoolRootValid).not.toHaveBeenCalledWith(EMPTY_POOL, expect.anything());
+  });
 
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+  it('rejects and stops when a pool does not know the local root', async () => {
+    const store = storeWithPools();
+    const { dataService, asService } = fakeDataService({
+      currentRoots: new Map([[POOL_A, 5n], [POOL_B, ROOT_B]]),
+      knownRoots: new Map([[POOL_A, [4n]]]),
+    });
+
+    const action = await store.dispatch(verifyRootsThunk({ dataService: asService }));
 
     expect(action.meta.requestStatus).toBe('rejected');
-    expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect('error' in action && action.error.message).toContain(
+      `State root verification failed: root not found in Pool recent history (expected=${ROOT_A}, currentOnChain=5)`,
+    );
+    expect(dataService.getPoolStateRoot).not.toHaveBeenCalledWith(POOL_B);
   });
 
-  it('rejects when pool state root verification fails', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+  it('rejects when the RPC fails instead of skipping the pool', async () => {
+    const store = storeWithPools();
+    const { dataService, asService } = fakeDataService({ currentRoots: new Map() });
 
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
+    dataService.getPoolStateRoot.mockRejectedValueOnce(new Error('connection refused'));
 
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [{
-        index: 0n,
-        commitment: 10n,
-        root: 999n,
-        blockNumber: 1n,
-        transactionHash: 11n,
-      }],
-    }));
-
-    vi.mocked(verifyStateRootOnChain).mockRejectedValueOnce(
-      new Error('State root verification failed'),
-    );
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService: asService }));
 
     expect(action.meta.requestStatus).toBe('rejected');
+    expect('error' in action && action.error.message).toBe('connection refused');
   });
 
-  it('verifies each pool independently when multiple pools have leaves', async () => {
-    const dataService = {} as IDataService;
-    const poolAddress2 = 2000n as Address;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
+  it('only verifies the requested pools and ignores unknown addresses', async () => {
+    const store = storeWithPools();
+    const { dataService, asService } = fakeDataService({
+      currentRoots: new Map([[POOL_A, ROOT_A], [POOL_B, ROOT_B]]),
     });
 
-    store.dispatch(registerPools([
-      {
-        address: poolAddress,
-        asset: 2000n as Address,
-        scope: 3000n,
-        registeredBlock: 0n,
-        woundDownAtBlock: null,
-      },
-      {
-        address: poolAddress2,
-        asset: 4000n as Address,
-        scope: 5000n,
-        registeredBlock: 0n,
-        woundDownAtBlock: null,
-      },
-    ]));
-
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [{
-        index: 0n,
-        commitment: 10n,
-        root: 999n,
-        blockNumber: 1n,
-        transactionHash: 11n,
-      }],
+    const action = await store.dispatch(verifyRootsThunk({
+      dataService: asService,
+      onlyThesePools: [POOL_B, 9999n as Address],
     }));
-
-    store.dispatch(registerPoolLeaves({
-      poolAddress: poolAddress2,
-      leaves: [{
-        index: 0n,
-        commitment: 77n,
-        root: 888n,
-        blockNumber: 2n,
-        transactionHash: 22n,
-      }],
-    }));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(2);
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      poolAddress,
-      computeMerkleTreeRoot([10n]),
-    );
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      poolAddress2,
-      computeMerkleTreeRoot([77n]),
-    );
-  });
-
-  it('skips ASP but verifies pool when ASP root is zero and pool has leaves', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
-
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
-
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [{
-        index: 0n,
-        commitment: 10n,
-        root: 999n,
-        blockNumber: 1n,
-        transactionHash: 11n,
-      }],
-    }));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
-
-    expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      poolAddress,
-      computeMerkleTreeRoot([10n]),
-    );
+    expect(dataService.getPoolStateRoot.mock.calls).toEqual([[POOL_B]]);
   });
 });

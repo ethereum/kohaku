@@ -25,6 +25,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:unit": "vitest run",
     "build": "tsc",
     "benchmark": "npm run build && node benchmark/tree-creation.js"
   },
