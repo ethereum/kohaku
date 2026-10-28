@@ -10,7 +10,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
-import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { computeMinimumViableFee, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice } from "../../paymaster/utils";
 import { poolAbi } from "../../data/abis/pool.abi";
@@ -153,8 +153,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   // The shared delegator that owns the consolidated userOp. All withdrawals land
   // in this EOA and are then spent by the execution phase (tailCalls or the
-  // synthesized forward). It holds funds only transiently within the atomic
-  // userOp, so it is recoverable by default; `random` opts out.
+  // synthesized forward). Any postOp refund can remain on the sender, so it
+  // is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
@@ -167,67 +167,11 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // No tail calls, single deposit: a sender that never holds funds (the
-  // withdrawal goes straight to the user's `recipient`), so a random default is
-  // fine.
-  const resolveIndependentSigner = (deposit: (typeof deposits)[number]): Promise<DelegatorAccount> =>
-    delegation?.mode === 'deterministic'
-      ? ephemeralSigner(deposit)
-      : Promise.resolve(privateKeyToAccount(generatePrivateKey()));
-
-  // A single deposit with no tailCalls needs no consolidation: the paymaster
-  // releases the funds straight to the recipient in one userOp (callData empty,
-  // the withdrawal happens during paymaster validation).
-  const needsConsolidation = deposits.length > 1 || tailCalls != null;
-
-  if (!needsConsolidation) {
-    const deposit = deposits[0]!;
-    const signer = await resolveIndependentSigner(deposit);
-
-    // No execution phase in this flow (funds go straight to the recipient
-    // during paymaster validation) — callGasLimit must stay 0 regardless of
-    // what the bundler estimates for it (a nonzero value here would trip
-    // the paymaster's `recipient != sender` check).
-    const baselineGas: UserOpGasLimits = { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n };
-    const { proof, userOperation } = await buildEstimatedTornadoUserOp(
-      baselineGas,
-      async (gas) => {
-        const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
-        const proof = await prove(deposit, originalRecipient, relayerAddress, fee);
-        const userOperation = await buildSignedTornadoUserOp({
-          signer,
-          chainId,
-          paymasterAddress,
-          paymasterData: buildPaymasterData(deposit.pool, proof),
-          gas,
-          maxFeePerGas,
-          maxPriorityFeePerGas,
-          nonce: 0n,
-        });
-
-        return { proof, userOperation };
-      },
-      (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    );
-
-    return [{
-      mode: 'paymaster' as const,
-      proof,
-      poolAddress: deposit.pool,
-      isERC20: poolInfo.isERC20,
-      paymasterAddress,
-      entryPointAddress,
-      bundlerUrl,
-      userOperation,
-    }] satisfies IGenericPaymasterWithdrawalPayload[];
-  }
-
-  // Consolidated batch: ONE userOp carrying ONE EIP-7702 authorization. This
-  // avoids Pimlico's "AA10 sender already constructed: Sender already has an
-  // inflight EIP-7702 authorization", which fires when several userOps for the
-  // same shared sender each carry their own authorization. All deposits land in
-  // one shared delegator; deposit[0] is sponsored by the paymaster, and the rest
-  // run as direct pool.withdraw calls inside the execution phase (callData).
+  // Always withdraw to the 7702 sender before forwarding or running tail calls,
+  // including for one note. Bundlers replace callGasLimit with a nonzero search
+  // ceiling during estimation (e.g. 10M). A proof bound to a different recipient
+  // would trigger CallGasLimitNonZero even if the requested final limit is zero.
+  // The default sender is note-derived so any postOp refund remains recoverable.
   const signer = await resolveBatchDelegator();
   const senderAddress = BigInt(signer.address) as Address;
 
