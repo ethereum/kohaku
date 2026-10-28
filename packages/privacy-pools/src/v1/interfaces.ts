@@ -1,6 +1,6 @@
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AccountId, AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
+import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PPv1ViewOptions, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
 import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
@@ -36,6 +36,7 @@ export type {
     PPv1ShieldEstimate,
     PPv1UnshieldEstimate,
     PPv1UnshieldOptions,
+    PPv1ViewOptions,
 } from '../plugin/interfaces/protocol-params.interface.js';
 
 export type PPv1AssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
@@ -52,7 +53,13 @@ export interface PPv1MnemonicCretendial extends PPv1BaseCredential {
 
 export type PPv1Credentials = PPv1NativeCredential | PPv1MnemonicCretendial;
 
-type PPv1InstanceFactory<Credential extends PPv1Credentials> = PluginInstance<
+// balance() and notes() take PPv1ViewOptions on top of the shared plugin signatures.
+type PPv1InstanceFactory<Credential extends PPv1Credentials> = Omit<PPv1PluginInstance<Credential>, 'balance' | 'notes'> & {
+    balance(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1AssetBalance[]>,
+    notes(assets?: ERC20AssetId[], includeSpent?: boolean, options?: PPv1ViewOptions): Promise<INote[]>,
+};
+
+type PPv1PluginInstance<Credential extends PPv1Credentials> = PluginInstance<
     PPv1Address,
     {
         credential: Credential,
@@ -72,7 +79,7 @@ type PPv1InstanceFactory<Credential extends PPv1Credentials> = PluginInstance<
             estimateShield(asset: PPv1AssetAmount): Promise<PPv1ShieldEstimate>,
             estimateUnshield(asset: AssetAmount, to: AccountId, options?: PPv1EstimateUnshieldOptions): Promise<PPv1UnshieldEstimate>,
             sync(): Promise<void>,
-            history(assets?: ERC20AssetId[]): Promise<PPv1HistoryEvent[]>,
+            history(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1HistoryEvent[]>,
         },
         publicOp: PPv1PublicOperation,
         privateOp: PPv1PrivateOperation,

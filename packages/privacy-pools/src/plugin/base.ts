@@ -38,6 +38,7 @@ import {
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
   PPv1ShieldEstimate,
+  PPv1ViewOptions,
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
   PrivacyPoolsV1ProtocolParams,
@@ -151,9 +152,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * Only process supported assets or error out?
    * Returns the balances of the requested assets.
    * The assets retain the provided order. If an asset is not supported its balance will be 0
+   * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
-  async balance(assets: ERC20AssetId[] = []): Promise<PPv1AssetBalance[]> {
-    await this.stateManager.sync();
+  async balance(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1AssetBalance[]> {
+    if (sync) await this.stateManager.sync();
+
     const parsedDesiredAssets = assets.map(({ contract }) => BigInt(contract));
 
     const balances = await this.stateManager.getBalances(
@@ -240,12 +243,14 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * Returns all notes for the account.
    * @param assets - Filter by specific assets (optional, if empty returns all chains)
    * @param includeSpent - Include notes with zero balance (default: false)
+   * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
   async notes(
     assets: ERC20AssetId[] = [],
     includeSpent = false,
+    { sync = true }: PPv1ViewOptions = {},
   ): Promise<INote[]> {
-    await this.stateManager.sync();
+    if (sync) await this.stateManager.sync();
 
     const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
 
@@ -258,9 +263,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   /**
    * Returns the account's deposits, withdrawals and ragequits, newest first.
    * @param assets - Filter by specific assets (optional, if empty returns all)
+   * @param options - See {@link PPv1ViewOptions} (syncs by default). The block
+   * timestamps history interpolates from are fetched either way.
    */
-  async history(assets: ERC20AssetId[] = []): Promise<PPv1HistoryEvent[]> {
-    await this.stateManager.sync();
+  async history(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1HistoryEvent[]> {
+    if (sync) await this.stateManager.sync();
 
     const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
 
