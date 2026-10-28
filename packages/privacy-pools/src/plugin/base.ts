@@ -140,6 +140,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       entrypoint,
       paymasterConfig,
       devOptions,
+      provider: host.provider,
+      network: host.network,
     });
   }
 
@@ -230,6 +232,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       mode: options?.mode,
       hasTailCalls: !!options?.tailCalls,
       tailCallsGasEstimate: options?.tailCallsGasEstimate,
+      maxGasLimits: options?.maxGasLimits,
     });
   }
 
@@ -426,6 +429,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         delegation: options.delegation,
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
+        maxGasLimits: options.maxGasLimits,
         batch: options.batch,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });

@@ -1,3 +1,4 @@
+import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import { AccountId, ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
@@ -88,6 +89,8 @@ export interface PPv1RelayerUnshieldOptions extends PPv1CommonUnshieldOptions {
 /** Paymaster-mode withdrawal options. The fields below only apply when the paymaster
  * sponsors the withdrawal. */
 export interface PPv1PaymasterUnshieldOptions extends PPv1CommonUnshieldOptions {
+  /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
+  maxGasLimits?: PaymasterGasLimits;
   mode: 'paymaster';
   delegation?: DelegationConfig;
   /**
@@ -150,6 +153,8 @@ export interface PPv1PaymasterUnshieldEstimate {
 export type PPv1UnshieldEstimate = PPv1RelayerUnshieldEstimate | PPv1PaymasterUnshieldEstimate;
 
 export interface PPv1EstimateUnshieldOptions {
+  /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
+  maxGasLimits?: PaymasterGasLimits;
   mode?: 'relayer' | 'paymaster';
   tailCalls?: UnshieldOptions['tailCalls'];
   tailCallsGasEstimate?: bigint;
@@ -243,6 +248,8 @@ export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams
 }
 
 export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {
+  /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
+  maxGasLimits?: PaymasterGasLimits;
   delegation?: DelegationConfig;
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
@@ -259,6 +266,8 @@ export interface IExactWithdrawalOperationParams extends Omit<IWithdrawapOperati
 }
 
 export interface IEstimateUnshieldOperationParams extends IDepositOperationParams {
+  /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
+  maxGasLimits?: PaymasterGasLimits;
   recipient: Address;
   mode?: PPv1EstimateUnshieldOptions['mode'];
   /** Whether the withdrawal carries tail calls (they add an execution phase to the paymaster userOp). */

@@ -29,6 +29,10 @@ export interface IGenericPaymasterWithdrawalPayload {
   userOperation: SerializedUserOperation;
   /** Present in newly prepared payloads; absent in payloads from older SDKs. */
   gasEstimation?: PaymasterGasEstimation;
+  /** Proof-bound fee in newly prepared payloads; optional for older stored operations. */
+  fee?: bigint;
+  /** Total note denominations spent by the operation, before the fee. */
+  withdrawnValue?: bigint;
 }
 
 export interface PaymasterBroadcastResult {

@@ -1,3 +1,4 @@
+import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   encodeFunctionData,
@@ -40,11 +41,32 @@ export type UserOperationGasPrice = {
  * `waitForUserOperationReceipt` action directly; the two helpers below cover
  * the only methods viem doesn't expose natively.
  */
-export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
+export function createPaymasterBundlerClient(bundlerUrl: string, network?: Network): BundlerClient {
+  const fetchFn = network ? (input: RequestInfo | URL, init?: RequestInit) => network.fetch(input, init) : undefined;
+
   return createBundlerClient({
-    transport: http(bundlerUrl, { timeout: 180_000, retryCount: 0 }),
+    transport: http(bundlerUrl, { timeout: 180_000, retryCount: 0, fetchFn }),
   });
 }
+
+/** Cloneable bundler POST carried over the restricted host bridge. */
+export type BundlerPost = (url: string, body: string) => Promise<{ status: number; body: string }>;
+
+export const bundlerPostVia = (network: Network): BundlerPost => async (url, body) => {
+  const response = await network.fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+  });
+
+  return { status: response.status, body: await response.text() };
+};
+
+export const networkFromBundlerPost = (post: BundlerPost): Network => ({
+  fetch: async (input, init) => {
+    const { status, body } = await post(String(input), String(init?.body ?? ''));
+
+    return new Response(body, { status, headers: { 'Content-Type': 'application/json' } });
+  },
+});
 
 /**
  * Pimlico gas-price oracle (`pimlico_getUserOperationGasPrice`). Not a standard

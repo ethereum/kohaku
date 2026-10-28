@@ -18,3 +18,5 @@ export type { Commitment, Nullifier } from './account/types';
 
 // Configs
 export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';
+
+export type { PaymasterGasLimits } from './paymaster/gas-bounds';

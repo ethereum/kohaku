@@ -18,3 +18,5 @@ export { TornadoInstances } from './instances';
 export type { ITornadoInstance } from './instances';
 
 export type { GasEstimationPolicy, PaymasterGasEstimation } from './interfaces/user-ops.interface';
+
+export type { PaymasterGasLimits } from './paymaster/gas-bounds';

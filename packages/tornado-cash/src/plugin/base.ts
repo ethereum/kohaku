@@ -1,3 +1,4 @@
+import { bundlerPostVia } from '../paymaster/utils';
 /* eslint-disable max-lines */
 import {
   AccountId,
@@ -10,6 +11,7 @@ import {
 import { loadStateManagerWorker } from '#worker-loader';
 import { exposeCall, exposeOnly } from './host-bridge';
 import {
+  bundlerPostCheck,
   externalSyncPolicy,
   keystorePolicy,
   providerPolicy,
@@ -136,6 +138,7 @@ export class TornadoCashProtocol implements TCInstance {
             return (remote.getWithdrawalPayloads)(
               rest as IWithdrawapOperationParams,
               tailCalls ? exposeCall(tailCalls, tailCallsCheck) : undefined,
+              exposeCall(bundlerPostVia(host.network), bundlerPostCheck(Object.values(paymasterConfig).map(c => c.bundlerUrl))),
             );
           }
 
@@ -288,6 +291,7 @@ export class TornadoCashProtocol implements TCInstance {
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         gasEstimationPolicy: options.gasEstimationPolicy,
+        maxGasLimits: options.maxGasLimits,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

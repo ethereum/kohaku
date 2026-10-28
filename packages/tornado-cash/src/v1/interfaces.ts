@@ -1,3 +1,4 @@
+import type { PaymasterGasLimits } from '../paymaster/gas-bounds';
 import type { GasEstimationPolicy } from '../interfaces/user-ops.interface';
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
@@ -54,6 +55,8 @@ export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
      * static callGasLimit.
      */
     tailCallsGasEstimate?: bigint;
+    /** Absolute gas ceilings after buffering. Execution gas is uncapped unless explicitly limited here. */
+    maxGasLimits?: PaymasterGasLimits;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;

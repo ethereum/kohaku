@@ -1,6 +1,8 @@
+import type { EthereumProvider } from '@kohaku-eth/provider';
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference } from '../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, Storage } from "@kohaku-eth/plugins";
+import { ChainId, Network, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
 
 import { ISecretManager } from "../account/keys";
@@ -71,6 +73,9 @@ import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 
 export interface StoreFactoryParams extends SyncAspThunkParams {
+  /** Supplied by the plugin, independently of a custom data service. */
+  provider?: EthereumProvider;
+  network?: Network;
   secretManager: ISecretManager;
   dataService: IDataService;
   relayerClient: IRelayerClient;
@@ -270,6 +275,7 @@ export const storeStateManager = (
       mode = 'relayer',
       hasTailCalls = false,
       tailCallsGasEstimate,
+      maxGasLimits,
     }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
       const chainInfo = await getChainInfo();
 
@@ -282,14 +288,20 @@ export const storeStateManager = (
 
         const { bundlerUrl, paymasterAddress } = paymasterConfig;
         const isERC20 = asset !== BigInt(E_ADDRESS);
-        const {
-          standard: { maxFeePerGas },
-        } = await getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl));
+        const [{ standard: price }, reference] = await Promise.all([
+          getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
+          readGasFeeReference(params.provider),
+        ]);
+
+        assertGasPriceWithinBounds(price, reference);
+        const { maxFeePerGas } = price;
         // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
         const gas = {
           ...reasonableGasUnits(isERC20),
           callGasLimit: hasTailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : 0n,
         };
+
+        assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
         const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
         const fee = isERC20
           ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
@@ -490,6 +502,7 @@ export const storeStateManager = (
       delegation,
       tailCalls,
       tailCallsGasEstimate,
+      maxGasLimits,
       batch,
       refundRecipient,
     }: IPaymasterWithdrawapOperationParams) => {
@@ -515,6 +528,9 @@ export const storeStateManager = (
             delegation,
             tailCalls,
             tailCallsGasEstimate,
+            maxGasLimits,
+            provider: params.provider,
+            network: params.network,
             batch,
             refundRecipient,
           }),
