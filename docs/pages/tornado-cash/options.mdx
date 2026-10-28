@@ -55,7 +55,17 @@ The paymaster sponsors gas. The user's public account does not pay the withdrawa
 
 Every paymaster unshield pays the EIP-7702 sender first, including a single note; without user tail calls, the execution phase forwards the amount minus the fee to the requested recipient. This avoids the paymaster rejecting the nonzero execution gas limit that bundlers inject during estimation. When an unshield spends multiple notes, the SDK consolidates them into this same user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
 
-User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. Bundler estimation is required; estimates can increase the conservative gas floors, and the final signed operation is estimated again after fee/proof changes.
+User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is the initial gas budget for that phase. User tail calls always require successful bundler estimation; a supplied gas estimate alone does not enable fallback. Estimates can increase the conservative gas floors, and the final signed operation is estimated again after fee/proof changes.
+
+### Gas-estimation availability
+
+`gasEstimationPolicy` defaults to `'best-effort'`. On mainnet and Sepolia, standard withdrawals without user tail calls may use conservative fallback gas when estimation is unavailable. The sender must be recoverable (the default or an explicit deterministic path); random senders require successful estimation. Known validation rejections, invalid responses and non-convergence still fail. Fallback is limited to recognized transport failures or the bundler's opaque `could not parse simulate validation result` internal error, not every JSON-RPC error.
+
+Read-only estimation requests retry recognized temporary transport failures once using the same signed payload. This does not retry broadcasts. Eligible fallbacks rebuild the fee, sponsoring proof, forwarding calls and signature using a pre-verification budget of 350,000 gas plus 40 gas per variable calldata/paymaster-data byte, retaining any higher previously refined limits. This is a conservative heuristic, not a promise of bundler acceptance. It may cost more than measured gas, and its fee must remain below the sponsoring note's denomination.
+
+Inspect `operation.withdrawals[n].gasEstimation`: `status: 'estimated'` means the final payload was estimated; `status: 'fallback'` includes the reason and message. Consumers should show fallback status and the actual fee committed in `withdrawal.proof.args[4]` before submission. A strict consumer may reject fallback payloads. Older payloads may have no metadata and should not be assumed estimated.
+
+Use `gasEstimationPolicy: 'required'` when preparing an unshield to require a successful estimate in every case. The broadcaster still submits every operation for bundler admission; fallback does not bypass validation. An execution failure can still charge gas and leave funds on the recoverable sender instead of the final recipient.
 
 ### Delegation
 

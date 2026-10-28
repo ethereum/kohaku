@@ -1,7 +1,7 @@
 import { unwrapResult } from '@reduxjs/toolkit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { decodeFunctionData, toHex } from 'viem';
+import { RpcRequestError, decodeFunctionData, toHex } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
 import { SIMPLE_7702_EXECUTE_ABI } from '../../src/data/abis/account.abi';
 import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
@@ -10,21 +10,25 @@ import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdraw
 
 const fixture = vi.hoisted(() => ({
   isERC20: false,
+  chainId: 11155111n,
+  kind: 'signature' as 'signature' | 'legacy',
   count: 1,
+  maxFeePerGas: 2n,
   fees: [] as bigint[],
   proofRecipients: [] as bigint[],
   quote: vi.fn(async (_paymaster: bigint, _asset: bigint, fee: bigint) => fee * 7n),
   estimate: vi.fn(),
+  deriveLegacy: vi.fn(async () => `0x${'03'.repeat(32)}` as const),
   deriveSignature: vi.fn(async () => `0x${'01'.repeat(32)}` as const),
   deriveDelegator: vi.fn(async () => `0x${'02'.repeat(32)}` as const),
 }));
 
 vi.mock('../../src/state/selectors/slices.selectors', () => ({
-  instanceRegistryInfoSelector: () => ({ chainId: 11155111n }),
+  instanceRegistryInfoSelector: () => ({ chainId: fixture.chainId }),
   poolsSelector: () => new Map([[1n, { denomination: 10n ** 18n, isERC20: fixture.isERC20, asset: fixture.isERC20 ? 2n : 0n }]]),
 }));
 vi.mock('../../src/state/selectors/withdrawals.selector', () => ({
-  getWithdrawableDepositsSelector: () => Array.from({ length: fixture.count }, () => ({ pool: 1n, kind: 'signature', nonce: 0n })),
+  getWithdrawableDepositsSelector: () => Array.from({ length: fixture.count }, () => ({ pool: 1n, kind: fixture.kind, nonce: 0n, nullifier: 7n })),
 }));
 vi.mock('../../src/state/thunks/verifyRootsThunk', () => ({
   verifyRootsThunk: () => async () => ({ payload: undefined }),
@@ -39,29 +43,34 @@ vi.mock('../../src/state/thunks/withdrawalsProofThunk', () => ({
 vi.mock('../../src/paymaster/utils', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../src/paymaster/utils')>(),
   createPaymasterBundlerClient: () => ({}),
-  getUserOperationGasPrice: async () => ({ standard: { maxFeePerGas: 2n, maxPriorityFeePerGas: 1n } }),
+  getUserOperationGasPrice: async () => ({ standard: { maxFeePerGas: fixture.maxFeePerGas, maxPriorityFeePerGas: 1n } }),
   estimateUserOperationGas: (_client: unknown, op: SerializedUserOperation) => fixture.estimate(op),
 }));
 
-async function prepare(delegation: { mode: 'random' } | { mode: 'deterministic'; path?: string } | null = { mode: 'random' }) {
+async function prepare(delegation: { mode: 'random' } | { mode: 'deterministic'; path?: string } | null = { mode: 'random' }, overrides: Record<string, unknown> = {}) {
   const store = storeFactory({ logLevel: 'off' });
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
-    dataService: { getChainId: async () => 11155111n, quoteWeiInToken: fixture.quote },
+    dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote },
     assetAddress: fixture.isERC20 ? 2n : 0n,
     amount: BigInt(fixture.count) * 10n ** 18n,
     recipient: 3n,
-    secretManager: { deriveSignatureEphemeralSigner: fixture.deriveSignature, deriveDelegatorSigner: fixture.deriveDelegator },
-    paymasterSettings: { 11155111: {
+    secretManager: { deriveLegacyEphemeralSigner: fixture.deriveLegacy, deriveSignatureEphemeralSigner: fixture.deriveSignature, deriveDelegatorSigner: fixture.deriveDelegator },
+    paymasterSettings: { [Number(fixture.chainId)]: {
       paymasterAddress: '0x0000000000000000000000000000000000000004',
       entryPointAddress: '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108', bundlerUrl: 'unused',
       supportedPools: ['0x0000000000000000000000000000000000000001'],
     }, ...(delegation ? { delegation } : {}) },
     proverFactory: async () => ({}),
+    ...overrides,
   } as never)));
 }
 
 describe('paymaster withdrawal preparation integration', () => {
   beforeEach(() => {
+    fixture.maxFeePerGas = 2n;
+    fixture.chainId = 11155111n;
+    fixture.kind = 'signature';
+    fixture.deriveLegacy.mockClear();
     fixture.fees = [];
     fixture.proofRecipients = [];
     fixture.quote.mockClear();
@@ -122,6 +131,56 @@ describe('paymaster withdrawal preparation integration', () => {
     if (walletDerived!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
     expect(walletDerived!.userOperation.sender).toBe(privateKeyToAccount(`0x${'02'.repeat(32)}`).address);
     expect(fixture.deriveDelegator).toHaveBeenCalledWith({ path });
+  });
+
+  it('allows explicit best-effort fallback for a recoverable standard withdrawal and exposes metadata', async () => {
+    fixture.count = 1;
+    fixture.isERC20 = false;
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
+    const [withdrawal] = await prepare(null);
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
+    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBeGreaterThan(350_000n);
+    expect(BigInt(withdrawal!.proof.args[4])).toBe(fixture.fees.at(-1));
+  });
+
+  it('supports legacy-note fallback with a recoverable legacy-derived sender', async () => {
+    fixture.count = 1;
+    fixture.kind = 'legacy';
+    fixture.isERC20 = false;
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
+    const [withdrawal] = await prepare(null);
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    expect(withdrawal!.gasEstimation!.status).toBe('fallback');
+    expect(withdrawal!.userOperation.sender).toBe(privateKeyToAccount(`0x${'03'.repeat(32)}`).address);
+    expect(fixture.deriveLegacy).toHaveBeenCalledWith({ nullifier: 7n });
+    expect(BigInt(withdrawal!.proof.args[2])).toBe(BigInt(withdrawal!.userOperation.sender));
+  });
+
+  it('does not guess Ethereum fallback budgets for an unknown chain', async () => {
+    fixture.count = 1;
+    fixture.chainId = 31337n;
+    fixture.isERC20 = false;
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
+    await expect(prepare(null)).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
+  });
+
+  it('rejects a fallback fee that would consume the sponsoring note before generating another proof', async () => {
+    fixture.count = 1;
+    fixture.isERC20 = false;
+    fixture.maxFeePerGas = 1_000_000_000_000n;
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
+    await expect(prepare(null)).rejects.toMatchObject({ message: expect.stringContaining('fee would consume the sponsoring note') });
+    expect(fixture.fees).toHaveLength(1);
+  });
+
+  it('does not fallback for strict callers, random senders, or user tail calls', async () => {
+    fixture.count = 1;
+    fixture.isERC20 = false;
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
+    await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
+    await expect(prepare({ mode: 'random' })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
+    await expect(prepare(null, { tailCalls: async () => [], tailCallsGasEstimate: 0n })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
   });
 
   it('rejects preparation instead of returning a baseline signed operation', async () => {

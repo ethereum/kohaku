@@ -16,3 +16,5 @@ export { TORNADO_CIRCUIT_SHA256, TORNADO_PROVING_KEY_SHA256, TornadoArtifactsInt
 export { TornadoCashConfigs, E_ADDRESS, TornadoPaymasterConfigs, ExtendedEthPools, extendedEthPoolSet } from './config.js';
 export { TornadoInstances } from './instances';
 export type { ITornadoInstance } from './instances';
+
+export type { GasEstimationPolicy, PaymasterGasEstimation } from './interfaces/user-ops.interface';

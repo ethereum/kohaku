@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { recoverTypedDataAddress, toHex } from 'viem';
+import { HttpRequestError, RpcRequestError, recoverTypedDataAddress, size, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { entryPoint08Address, getUserOperationTypedData } from 'viem/account-abstraction';
 import type { SerializedUserOperation, UserOpGasLimits } from '../../src/interfaces/user-ops.interface';
@@ -89,6 +89,67 @@ describe('Tornado paymaster gas estimation', () => {
     await expect(buildEstimatedTornadoUserOp(baseline, builder(), vi.fn().mockRejectedValue(cause))).rejects.toThrow('bundler unavailable');
     const afterRebuild = vi.fn().mockResolvedValueOnce({ ...baseline, preVerificationGas: 281_260n }).mockRejectedValue(cause);
     await expect(buildEstimatedTornadoUserOp(baseline, builder(), afterRebuild)).rejects.toThrow('preparation stopped');
+  });
+
+  it('retries a temporary final-estimate failure without re-proving or altering the signed payload', async () => {
+    const build = builder(true);
+    const base = reasonableGasUnitsForBatch(false, 0, false);
+    const estimated = { ...base, preVerificationGas: 281_260n };
+    const estimate = vi.fn()
+      .mockResolvedValueOnce(estimated)
+      .mockRejectedValueOnce(new HttpRequestError({ url: 'https://bundler.invalid', status: 503 }))
+      .mockResolvedValueOnce(estimated);
+    const result = await buildEstimatedTornadoUserOp(base, build, estimate);
+    expect(build).toHaveBeenCalledTimes(2);
+    expect(estimate).toHaveBeenCalledTimes(3);
+    expect(estimate.mock.calls[1]![0]).toBe(result.userOperation);
+    expect(estimate.mock.calls[2]![0]).toBe(result.userOperation);
+  });
+
+  it('returns a marked payload-sized fallback with a newly bound fee, proof and signature when eligible', async () => {
+    const build = builder(true);
+    const failure = new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
+    const estimate = vi.fn().mockRejectedValue(failure);
+    const base = reasonableGasUnitsForBatch(false, 0, false);
+    const result = await buildEstimatedTornadoUserOp(base, build, estimate, { allowFallback: true });
+    const original = await build.mock.results[0]!.value;
+    const expected = 350_000n + 40n * BigInt(size(result.userOperation.callData) + size(result.userOperation.paymasterData!));
+    expect(result.gasEstimation.status).toBe('fallback');
+    expect(result.gasEstimation).toMatchObject({ reason: 'bundler-internal' });
+    expect(BigInt(result.userOperation.preVerificationGas)).toBe(expected);
+    expect(BigInt(result.proof.args[4])).toBe(result.fee);
+    expect(result.fee).toBeGreaterThan(original.fee);
+    expect(result.userOperation.callData).not.toBe(original.userOperation.callData);
+    expect(result.userOperation.signature).not.toBe(original.userOperation.signature);
+    expect(await recoverTypedDataAddress({
+      ...getUserOperationTypedData({ chainId: 11155111, entryPointAddress: entryPoint08Address, userOperation: rawOperation(result.userOperation) }),
+      signature: result.userOperation.signature,
+    })).toBe(signer.address);
+    // The marked fallback is deliberately not represented as estimated.
+    expect(estimate).toHaveBeenCalledTimes(1);
+    expect(estimate.mock.calls[0]![0]).toBe(original.userOperation);
+  });
+
+  it('preserves already-refined limits if availability fails after an earlier successful estimate', async () => {
+    const base = reasonableGasUnitsForBatch(false, 0, false);
+    const failure = new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
+    const estimate = vi.fn().mockResolvedValueOnce({ ...base, preVerificationGas: 700_000n, callGasLimit: 400_000n }).mockRejectedValue(failure);
+    const result = await buildEstimatedTornadoUserOp(base, builder(true), estimate, { allowFallback: true });
+    expect(result.gasEstimation.status).toBe('fallback');
+    expect(BigInt(result.userOperation.preVerificationGas)).toBe(840_000n);
+    expect(BigInt(result.userOperation.callGasLimit)).toBe(480_000n);
+  });
+
+  it.each([
+    { code: -32500, message: 'AA33 reverted' },
+    { code: -32500, message: 'preVerificationGas is not enough, required: 281260, got: 100000' },
+    { code: -32603, message: 'AA33 reverted 0x1234' },
+    { code: -32603, message: 'Internal error' },
+  ])('does not fallback on known invalidity or an unclassified RPC error: $message', async (error) => {
+    const failure = new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error });
+    const build = builder(true);
+    await expect(buildEstimatedTornadoUserOp(reasonableGasUnitsForBatch(false, 0, false), build, vi.fn().mockRejectedValue(failure), { allowFallback: true })).rejects.toThrow('preparation stopped');
+    expect(build).toHaveBeenCalledTimes(1);
   });
 
   it('retains baseline floors when estimates omit paymaster gas', async () => {

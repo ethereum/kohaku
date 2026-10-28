@@ -1,3 +1,4 @@
+import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
 import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
@@ -109,13 +110,15 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 }
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
+  /** Default best-effort: eligible standard withdrawals may return marked, unestimated fallback limits. */
+  gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   /**
    * Optional baseline for the execution-phase gas of user `tailCalls` (not
-   * including per-note direct withdraws). Used when bundler estimation fails;
-   * when estimation succeeds the bundler estimate still wins.
+   * including per-note direct withdraws). Successful bundler estimation is
+   * still required and can increase this budget.
    */
   tailCallsGasEstimate?: bigint;
 }

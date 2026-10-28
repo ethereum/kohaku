@@ -287,6 +287,7 @@ export class TornadoCashProtocol implements TCInstance {
         delegation: options.delegation,
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
+        gasEstimationPolicy: options.gasEstimationPolicy,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({
