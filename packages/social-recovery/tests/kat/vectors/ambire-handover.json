@@ -1,0 +1,30 @@
+{
+  "format": "ambire-handover-v1",
+  "source": "design/onchain/contracts.md",
+  "derivation": "abi.encode(address newAuthority, address removedAuthority)",
+  "vectors": [
+    {
+      "id": "normal",
+      "input": {
+        "newAuthority": "0x7777777777777777777777777777777777777777",
+        "removedAuthority": "0x8888888888888888888888888888888888888888"
+      },
+      "expected": {
+        "encoded": "0x00000000000000000000000077777777777777777777777777777777777777770000000000000000000000008888888888888888888888888888888888888888",
+        "payloadHash": "0x899b752a4a691d2c9ec089312a1ce24b54d5f2c310b658454a052b415a5a60e1",
+        "managerAcceptance": "opaque",
+        "actionAcceptance": true
+      }
+    },
+    {
+      "id": "trailing-byte",
+      "input": {
+        "encoded": "0x0000000000000000000000007777777777777777777777777777777777777777000000000000000000000000888888888888888888888888888888888888888800"
+      },
+      "expected": {
+        "actionAcceptance": false,
+        "reason": "canonical re-encoding hashes differently from the supplied payload"
+      }
+    }
+  ]
+}

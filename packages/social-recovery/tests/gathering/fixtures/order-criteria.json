@@ -1,0 +1,621 @@
+{
+  "format": "gathering-order-criteria-v1",
+  "blessed": false,
+  "source": "tester-authored boundary rows",
+  "derivation": "order(record, undefined, now): the satisfying set ranked by no stopped method, then size, then fewest stoppable methods, then earliest filed; 'method' is an index naming one method address",
+  "vectors": [
+    {
+      "id": "stopped-left-out",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": true
+          }
+        ],
+        "filed": [
+          0,
+          1
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          1
+        ]
+      },
+      "criterion": "no stopped method"
+    },
+    {
+      "id": "stopped-kept-when-no-set-avoids-it",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 2,
+            "places": [
+              0,
+              1
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          0,
+          1
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          0,
+          1
+        ]
+      },
+      "criterion": "no stopped method"
+    },
+    {
+      "id": "stopped-kept-in-its-own-clause",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0
+            ]
+          },
+          {
+            "threshold": 1,
+            "places": [
+              1,
+              2
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          0,
+          1,
+          2
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          0,
+          1
+        ]
+      },
+      "criterion": "no stopped method"
+    },
+    {
+      "id": "three-of-five-not-five",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 3,
+            "places": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 3,
+            "method": 3,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 4,
+            "method": 4,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          4,
+          3,
+          2,
+          1,
+          0
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          2,
+          3,
+          4
+        ]
+      },
+      "criterion": "smallest set"
+    },
+    {
+      "id": "one-per-clause-not-all",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1
+            ]
+          },
+          {
+            "threshold": 1,
+            "places": [
+              2,
+              3
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 3,
+            "method": 3,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          0,
+          2
+        ]
+      },
+      "criterion": "smallest set"
+    },
+    {
+      "id": "non-stoppable-over-earlier-stoppable",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          0,
+          1
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          1
+        ]
+      },
+      "criterion": "fewest stoppable"
+    },
+    {
+      "id": "one-stoppable-over-two",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 2,
+            "places": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": true
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          0,
+          1,
+          2
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          0,
+          2
+        ]
+      },
+      "criterion": "fewest stoppable"
+    },
+    {
+      "id": "earliest-filed-single",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          1,
+          0
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          1
+        ]
+      },
+      "criterion": "earliest filed"
+    },
+    {
+      "id": "earliest-filed-pair",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 2,
+            "places": [
+              0,
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 3,
+            "method": 3,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          3,
+          1,
+          0,
+          2
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          1,
+          3
+        ]
+      },
+      "criterion": "earliest filed"
+    },
+    {
+      "id": "replaced-reply-keeps-its-turn",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          1,
+          0
+        ],
+        "refiled": [
+          1
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          1
+        ]
+      },
+      "criterion": "earliest filed"
+    },
+    {
+      "id": "unfilled-places-never-chosen",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": false
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": false
+          }
+        ],
+        "filed": [
+          2
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          2
+        ]
+      }
+    },
+    {
+      "id": "one-stoppable-method-at-two-places",
+      "criterion": "fewest stoppable",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 2,
+            "places": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 0,
+            "standing": "not-stopped",
+            "stoppable": true
+          },
+          {
+            "place": 2,
+            "method": 2,
+            "standing": "not-stopped",
+            "stoppable": true
+          }
+        ],
+        "filed": [
+          0,
+          2,
+          1
+        ],
+        "ignoresPause": false
+      },
+      "expected": {
+        "chosen": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "stops-ignored-by-setup",
+      "criterion": "no stopped method",
+      "input": {
+        "clauses": [
+          {
+            "threshold": 1,
+            "places": [
+              0,
+              1
+            ]
+          }
+        ],
+        "places": [
+          {
+            "place": 0,
+            "method": 0,
+            "standing": "stopped",
+            "stoppable": true
+          },
+          {
+            "place": 1,
+            "method": 1,
+            "standing": "not-stopped",
+            "stoppable": true
+          }
+        ],
+        "filed": [
+          0,
+          1
+        ],
+        "ignoresPause": true
+      },
+      "expected": {
+        "chosen": [
+          0
+        ]
+      }
+    }
+  ]
+}

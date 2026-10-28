@@ -1,0 +1,263 @@
+{
+  "format": "gathering-count-findings-v1",
+  "blessed": false,
+  "source": "tester-authored boundary rows",
+  "derivation": "count(record, now, bounds).findings over the window end, the pinned timestamp, the moment, the floor and consumableAfter",
+  "vectors": [
+    {
+      "id": "inside-window",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799913660,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "window-passed-by-one",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799999700",
+        "now": 1800000001,
+        "floor": 0
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "request.expired",
+            "values": {
+              "validUntil": 1800000000,
+              "moment": 1800000001,
+              "blockTimestamp": 1799999700
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "moment-at-window-end",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799999700",
+        "now": 1800000000,
+        "floor": 0
+      },
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "window-under-floor-by-one",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799996401",
+        "now": 1799996401,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "request.window-short",
+            "values": {
+              "window": 3599,
+              "floor": 3600
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "window-at-floor",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799996400",
+        "now": 1799996400,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "moment-ahead-past-span",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799914501,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "request.moment-skew",
+            "values": {
+              "moment": 1799914501,
+              "blockTimestamp": 1799913600,
+              "span": 900
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "moment-ahead-at-span",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799914500,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "moment-behind-past-span",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799912699,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "request.moment-skew",
+            "values": {
+              "moment": 1799912699,
+              "blockTimestamp": 1799913600,
+              "span": 900
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "moment-behind-at-span",
+      "input": {
+        "purpose": "approval",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799912700,
+        "floor": 3600
+      },
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "cancel-window-ends-after-spendable",
+      "input": {
+        "purpose": "cancellation",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799913600,
+        "floor": 3600,
+        "consumableAfter": "1799999999"
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "cancel.window-late",
+            "values": {
+              "validUntil": 1800000000,
+              "consumableAfter": 1799999999
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cancel-window-ends-at-spendable",
+      "input": {
+        "purpose": "cancellation",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799913600",
+        "now": 1799913600,
+        "floor": 3600,
+        "consumableAfter": "1800000000"
+      },
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "cancel-window-under-floor",
+      "input": {
+        "purpose": "cancellation",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799996401",
+        "now": 1799996401,
+        "floor": 3600,
+        "consumableAfter": "1800000000"
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "request.window-short",
+            "values": {
+              "window": 3599,
+              "floor": 3600
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "all-four-at-once",
+      "input": {
+        "purpose": "cancellation",
+        "validUntil": "1800000000",
+        "pinnedAt": "1799999900",
+        "now": 1800001000,
+        "floor": 3600,
+        "consumableAfter": "1799999999"
+      },
+      "expected": {
+        "findings": [
+          {
+            "code": "request.expired",
+            "values": {
+              "validUntil": 1800000000,
+              "moment": 1800001000,
+              "blockTimestamp": 1799999900
+            }
+          },
+          {
+            "code": "request.window-short",
+            "values": {
+              "window": 100,
+              "floor": 3600
+            }
+          },
+          {
+            "code": "request.moment-skew",
+            "values": {
+              "moment": 1800001000,
+              "blockTimestamp": 1799999900,
+              "span": 900
+            }
+          },
+          {
+            "code": "cancel.window-late",
+            "values": {
+              "validUntil": 1800000000,
+              "consumableAfter": 1799999999
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

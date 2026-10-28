@@ -1,0 +1,153 @@
+{
+  "format": "ambire-creation-privileges-v1",
+  "blessed": false,
+  "note": "Tester-authored, not blessed. Expected values computed outside the implementation: abi.encode by viem encodeAbiParameters (selectors recomputed from the struct signatures), keccak256 over hand-built words, CREATE2 by viem getContractAddress and by hand, creation code assembled by hand from the proxy layout. A row whose expected member carries refused holds code the parser must refuse with that message.",
+  "source": "tester-authored boundary rows",
+  "derivation": "account = create2(factory, salt, keccak256(bytecode)); entries = the (PUSHn value, PUSH32 slot, SSTORE) groups of the creation code, slot = keccak256(abi.encode(uint256(addr), uint256(0)))",
+  "vectors": [
+    {
+      "id": "fresh-account",
+      "input": {
+        "factory": "0x26cE6745A633030A6faC5e64e41D21fb6246dc2d",
+        "bytecode": "0x7f00000000000000000000000000000000000000000000000000000000000000027f977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f553d602d80604d3d3981f3363d3d373d3d3d363d730f2aa7bcda3d9d210df69a394b6965cb2566c8285af43d82803e903d91602b57fd5bf3",
+        "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "implementation": "0x0F2AA7bcda3d9D210dF69a394b6965CB2566c828",
+        "privileges": [
+          {
+            "addr": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+            "valueBytes": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          }
+        ]
+      },
+      "expected": {
+        "bytecodeHash": "0x5d39a9fdd1a9c5339c9f2b45c6b0cf790f5419d336a2a7d2714071771923f565",
+        "account": "0xb03Aa48373DfBd909Eabc33d3E3F1344eF951c76",
+        "entries": [
+          {
+            "slot": "0x977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          }
+        ]
+      }
+    },
+    {
+      "id": "two-entries",
+      "input": {
+        "factory": "0x26cE6745A633030A6faC5e64e41D21fb6246dc2d",
+        "bytecode": "0x7f00000000000000000000000000000000000000000000000000000000000000027f977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f5560017f11ebd24d8597b956dcfa0ac63f03b9b79270dda6404157805e908a5dca64635a553d602d8060713d3981f3363d3d373d3d3d363d730f2aa7bcda3d9d210df69a394b6965cb2566c8285af43d82803e903d91602b57fd5bf3",
+        "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "implementation": "0x0F2AA7bcda3d9D210dF69a394b6965CB2566c828",
+        "privileges": [
+          {
+            "addr": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+            "valueBytes": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          },
+          {
+            "addr": "0x4444444444444444444444444444444444444444",
+            "valueBytes": "0x01"
+          }
+        ]
+      },
+      "expected": {
+        "bytecodeHash": "0x0053740050f5691909e4ca2c395cd174e656cccf689c088ef409db19f6bfba78",
+        "account": "0x90C56e6b39196CBbfD981233d19AD5A77DFFdEAb",
+        "entries": [
+          {
+            "slot": "0x977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          },
+          {
+            "slot": "0x11ebd24d8597b956dcfa0ac63f03b9b79270dda6404157805e908a5dca64635a",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "three-entries",
+      "input": {
+        "factory": "0x26cE6745A633030A6faC5e64e41D21fb6246dc2d",
+        "bytecode": "0x60027f977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f5560017f11ebd24d8597b956dcfa0ac63f03b9b79270dda6404157805e908a5dca64635a5561abcd7ff717c0872df7782ad75519f27f6bd1c23039dfe8d6772b3481daa935eed555e8553d602d8060773d3981f3363d3d373d3d3d363d730f2aa7bcda3d9d210df69a394b6965cb2566c8285af43d82803e903d91602b57fd5bf3",
+        "salt": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "implementation": "0x0F2AA7bcda3d9D210dF69a394b6965CB2566c828",
+        "privileges": [
+          {
+            "addr": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+            "valueBytes": "0x02"
+          },
+          {
+            "addr": "0x4444444444444444444444444444444444444444",
+            "valueBytes": "0x01"
+          },
+          {
+            "addr": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+            "valueBytes": "0xabcd"
+          }
+        ]
+      },
+      "expected": {
+        "bytecodeHash": "0x7201b59dd853c9e1c0f0d96263099020d339077a2770af76fcc06d4033d40c7c",
+        "account": "0xCbe065918829f41d25ab83C30736d3De3cFA7DaB",
+        "entries": [
+          {
+            "slot": "0x977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          },
+          {
+            "slot": "0x11ebd24d8597b956dcfa0ac63f03b9b79270dda6404157805e908a5dca64635a",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000001"
+          },
+          {
+            "slot": "0xf717c0872df7782ad75519f27f6bd1c23039dfe8d6772b3481daa935eed555e8",
+            "value": "0x000000000000000000000000000000000000000000000000000000000000abcd"
+          }
+        ]
+      }
+    },
+    {
+      "id": "builder-trimmed-implementation",
+      "note": "The pinned builder's own defective output for a leading-zero implementation: it pushes the address short (PUSH16), so the proxy's fixed runtime length and jump target do not hold. Refused.",
+      "input": {
+        "factory": "0x26cE6745A633030A6faC5e64e41D21fb6246dc2d",
+        "bytecode": "0x7f00000000000000000000000000000000000000000000000000000000000000027f977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f553d602d80604d3d3981f3363d3d373d3d3d363d6f71727de22e5e9d8baf0edac6f37da0325af43d82803e903d91602b57fd5bf3",
+        "salt": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "implementation": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+        "privileges": [
+          {
+            "addr": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+            "valueBytes": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          }
+        ]
+      },
+      "expected": {
+        "bytecodeHash": "0x7449508e7cb4095482ebc51a1e6725f8e887e3e2b50dd83610c84ce9856b1bf5",
+        "refused": "bytecode does not push the implementation at byte 86 as exactly 20 bytes"
+      }
+    },
+    {
+      "id": "padded-leading-zero-implementation",
+      "input": {
+        "factory": "0x26cE6745A633030A6faC5e64e41D21fb6246dc2d",
+        "bytecode": "0x7f00000000000000000000000000000000000000000000000000000000000000027f977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f553d602d80604d3d3981f3363d3d373d3d3d363d730000000071727de22e5e9d8baf0edac6f37da0325af43d82803e903d91602b57fd5bf3",
+        "salt": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "implementation": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+        "privileges": [
+          {
+            "addr": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
+            "valueBytes": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          }
+        ]
+      },
+      "expected": {
+        "bytecodeHash": "0x883b680f52b19d685aea28d28ece9b349ced4673b4e34e007c65b57e73207a44",
+        "account": "0x94317914b57f10a23d854e04ACd7E5adbDcb6338",
+        "entries": [
+          {
+            "slot": "0x977b86d8b2c12cb1b0cf5c34210e07337f1ed424f3f38ee3bddb639468b3095f",
+            "value": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          }
+        ]
+      }
+    }
+  ]
+}

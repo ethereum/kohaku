@@ -17,5 +17,6 @@ packages:
   - "packages/mimc-tree"
   - "packages/poseidon"
   - "packages/railgun"
+  - "packages/social-recovery"
   - "examples/pq-account"
   - "docs"

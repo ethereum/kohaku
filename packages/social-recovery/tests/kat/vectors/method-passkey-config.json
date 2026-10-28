@@ -1,0 +1,19 @@
+{
+  "format": "method-passkey-config-v1",
+  "source": "design/onchain/contracts.md",
+  "derivation": "abi.encode(uint256 x, uint256 y, bytes32 rpIdHash)",
+  "vectors": [
+    {
+      "id": "recover-example",
+      "input": {
+        "x": "56515219790691171413109057904011688695424810155802929973526481321309856242040",
+        "y": "3377031843712258259223711451491452598088675519751548567112458094635497583569",
+        "rpId": "recover.example",
+        "rpIdHash": "0x1f4228a6a013a3f630b909758979b417fe85c904352c0bb7ca7fa5bcfe8f91c4"
+      },
+      "expected": {
+        "encoded": "0x7cf27b188d034f7e8a52380304b51ac3c08969e277f21b35a60b48fc4766997807775510db8ed040293d9ac69f7430dbba7dade63ce982299e04b79d227873d11f4228a6a013a3f630b909758979b417fe85c904352c0bb7ca7fa5bcfe8f91c4"
+      }
+    }
+  ]
+}

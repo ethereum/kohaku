@@ -1,0 +1,78 @@
+{
+  "format": "cancellation-digest-v1",
+  "blessed": false,
+  "note": "Tester-authored, not blessed. Expected values computed outside the implementation: abi.encode by viem encodeAbiParameters, EIP-712 assembled by hand from the Approval, PaymentOrder and Cancellation type strings.",
+  "source": "tester-authored boundary rows",
+  "derivation": "EIP-712 Cancellation under PolicyManager domain version 1",
+  "vectors": [
+    {
+      "id": "zero-window",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "1",
+          "setupNonce": "1",
+          "setupBodyHash": "0xf52bbf1a342dd59a19bd205499377b584666aca9f2fd671611066a3b5b439dfa",
+          "validUntil": "0",
+          "place": "0"
+        }
+      },
+      "expected": {
+        "digest": "0x8ae11fcd98858e7f0a558381aeae60d6a3210d869bc07ef5ca176668dc4f478d"
+      }
+    },
+    {
+      "id": "maximum-widths",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 11155111,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0xffffffffffffffffffffffffffffffffffffffff",
+          "action": "0xffffffffffffffffffffffffffffffffffffffff",
+          "attemptId": "18446744073709551615",
+          "setupNonce": "18446744073709551615",
+          "setupBodyHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "validUntil": "281474976710655",
+          "place": "9007199254740991"
+        }
+      },
+      "expected": {
+        "digest": "0xed4c29eb527f26cc827853ec0519183fc2d06ee23b63f1611287f4fa3014e660"
+      }
+    },
+    {
+      "id": "one-clause-body-place-2",
+      "input": {
+        "domain": {
+          "name": "PolicyManager",
+          "version": "1",
+          "chainId": 1,
+          "verifyingContract": "0x6666666666666666666666666666666666666666"
+        },
+        "message": {
+          "account": "0x1111111111111111111111111111111111111111",
+          "action": "0x2222222222222222222222222222222222222222",
+          "attemptId": "9",
+          "setupNonce": "7",
+          "setupBodyHash": "0xf52bbf1a342dd59a19bd205499377b584666aca9f2fd671611066a3b5b439dfa",
+          "validUntil": "1800000000",
+          "place": "2"
+        }
+      },
+      "expected": {
+        "digest": "0xf13285be547f5486ece4465f9226bb6c6a25f483db7782fff8950e022c7d75a8"
+      }
+    }
+  ]
+}
