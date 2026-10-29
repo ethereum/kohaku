@@ -6,6 +6,7 @@ export default defineConfig({
     globals: false,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    exclude: ['tests/**/*.browser.test.ts'],
     testTimeout: 15_000,
   },
 });

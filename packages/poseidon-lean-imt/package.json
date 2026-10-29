@@ -22,6 +22,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:browser": "playwright install chromium && tsc && vitest run -c vitest.browser.config.ts",
     "build": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -44,7 +45,9 @@
     "@kohaku-eth/poseidon": "workspace:*"
   },
   "devDependencies": {
+    "@vitest/browser": "^3.2.6",
     "@zk-kit/lean-imt": "^2.2.4",
+    "playwright": "^1.61.1",
     "typescript": "^6.0.3",
     "vitest": "^3.0.0"
   }
