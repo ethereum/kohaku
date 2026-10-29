@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { count, fileReply, order, placeMap, requests, seed, type Configuration, type SetupBody } from '../../src/index';
+import { count, fileReply, order, orderVerdict, placeMap, requests, seed, type Configuration, type SetupBody } from '../../src/index';
 import {
   ACCOUNT,
   approvalGathering,
@@ -13,6 +13,7 @@ import {
   placeEntry,
   replyFor,
   sharedObjects,
+  VALID_UNTIL,
 } from './support';
 
 const NOW = PINNED_AT + 60;
@@ -82,6 +83,36 @@ describe.each([
     expect(requests(record)).toStrictEqual(requests(record));
     expect(count(record, NOW, BOUNDS)).toStrictEqual(count(record, NOW, BOUNDS));
     expect(order(record, undefined, NOW)).toStrictEqual(order(record, undefined, NOW));
+  });
+
+  it('orderVerdict, ordered or refused, mutates nothing and shares no object with the record or the selection', () => {
+    const { record, snapshot } = frozenCase(make);
+    const selection = deepFreeze([2, 1, 0]);
+    const short = deepFreeze([1]);
+    const outputs = [
+      orderVerdict(record, undefined, NOW),
+      orderVerdict(record, selection, NOW),
+      orderVerdict(record, short, NOW),
+      orderVerdict(record, undefined, VALID_UNTIL + 1),
+    ];
+
+    expect(outputs.map((verdict) => verdict.outcome)).toStrictEqual(['ordered', 'ordered', 'refused', 'refused']);
+    expect(record).toStrictEqual(snapshot);
+    expect(selection).toStrictEqual([2, 1, 0]);
+    expect(short).toStrictEqual([1]);
+    expect(sharedObjects(outputs, [record, selection, short])).toStrictEqual([]);
+  });
+
+  it('orderVerdict gives fresh, equal verdicts on every call', () => {
+    const { record } = frozenCase(make);
+
+    for (const [selection, now] of [[undefined, NOW], [[1], NOW], [undefined, VALID_UNTIL + 1]] as const) {
+      const first = orderVerdict(record, selection, now);
+      const second = orderVerdict(record, selection, now);
+
+      expect(first).toStrictEqual(second);
+      expect(sharedObjects(first, second)).toStrictEqual([]);
+    }
   });
 
   it('seed mutates neither argument and shares no object with them', () => {

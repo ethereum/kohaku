@@ -4,3 +4,4 @@ export { requests } from './requests';
 export { fileReply } from './file-reply';
 export { count } from './count';
 export { order } from './order';
+export { orderVerdict } from './verdict';

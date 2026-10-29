@@ -1,4 +1,5 @@
-import type { Gathering, GatheringPlace, Reply, Standing } from '../interfaces';
+import type { GATHERING_ORDER_REFUSALS } from '../constants';
+import type { Gathering, GatheringPlace, ProofPlace, Reply, Standing, ValidationResult } from '../interfaces';
 
 /** What the init read for one place: its method's stop and pause holder and whether its config address holds code. */
 export type PlaceStanding = {
@@ -26,3 +27,11 @@ export type ClausePool = {
   readonly threshold: number;
   readonly pool: readonly FiledPlace[];
 };
+
+/** Why the ordering's verdict refuses a completion. */
+export type OrderRefusal = (typeof GATHERING_ORDER_REFUSALS)[number];
+
+/** The ordering's verdict: the proofs a completion submits, or the refusal reason with its findings. */
+export type OrderVerdict =
+  | { readonly outcome: 'ordered'; readonly proofs: readonly ProofPlace[] }
+  | { readonly outcome: 'refused'; readonly reason: OrderRefusal; readonly findings: ValidationResult };

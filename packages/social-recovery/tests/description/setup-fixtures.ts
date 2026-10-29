@@ -1,5 +1,6 @@
 import { getAddress } from 'viem';
 import type {
+  ActionInfo,
   Address,
   ClientConfiguration,
   Credential,
@@ -143,12 +144,15 @@ export const METHOD_READS: readonly MethodDescriptionReads[] = [
   reads(THIRD_PARTY, 'their-method', { implemented: false, tier: undefined }),
 ];
 
+/** The bound action's own `actionInfo()` answer, its name a phrase as a module may state it. */
+export const ACTION_INFO: ActionInfo = { name: 'Ambire recovery action', version: '1.0.0 beta', supportsInterface: true };
+
 /** Every read answered, the shipped action bound, two candidate keys of which one is an authority. */
 export const CONTEXT: SetupDescriptionContext = {
   descriptor: DESCRIPTOR,
   configuration: CONFIGURATION,
   methods: METHOD_READS,
-  action: { address: ACTION, actionInfo: { answered: true, value: { name: 'ambire', version: '1', supportsInterface: true } }, supportsAccount: true, accountHoldsCode: true },
+  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true },
   candidateKeys: [
     { key: CANDIDATE_A, isAuthority: true },
     { key: CANDIDATE_B, isAuthority: false },

@@ -1,5 +1,5 @@
 import type { Address, Hex } from './chain';
-import type { Parties, ReadResult, RemovedKey } from './manager';
+import type { ActionInfo, Parties, ReadResult, RemovedKey } from './manager';
 import type { BackupChoice, DraftPrivacy } from './setup';
 
 /** One described credential; it never carries the salt. */
@@ -46,6 +46,19 @@ export type MethodStanding = {
   readonly paused: ReadResult<boolean>;
 };
 
+/** The action a setup commits, as its own answer and the deployment name it. */
+export type DescribedAction = {
+  readonly address: Address;
+  /** Its own `actionInfo()` answer (name, version, ERC-165 probe), self-attested, unanswered where that read failed. */
+  readonly info: ReadResult<ActionInfo>;
+  /** Whether it is the descriptor's own action. */
+  readonly shipped: boolean;
+  /** Whether the descriptor's audited list names it. */
+  readonly audited: boolean;
+  /** Its `supportsAccount` answer, absent where the account holds no code yet and the fit is unjudgeable. */
+  readonly supportsAccount?: boolean;
+};
+
 /** The disclosure the SDK owes a holder about a setup before it is committed. */
 export type SetupDescription = {
   readonly rule: { readonly clauses: readonly DescribedClause[] };
@@ -68,6 +81,8 @@ export type SetupDescription = {
   readonly cancel: { readonly cancelByVeto: boolean };
   /** Whether the account can be upgraded in place, absent where the action's account is not one the SDK knows. */
   readonly upgrade: { readonly upgradeableInPlace?: boolean };
+  /** The action this setup commits, named as the party that holds the account's authority once armed. */
+  readonly action: DescribedAction;
   /** Per named method whether it is stopped now and who holds that stop, beside this setup's own choice. */
   readonly pause: {
     readonly ignoresPause: boolean;

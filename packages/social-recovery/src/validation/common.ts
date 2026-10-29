@@ -1,6 +1,7 @@
 export { normalizeAddresses } from '../formats/guards';
+import { assertBool, assertObject } from '../formats/guards';
 import type { Address, ErrorCode, FindingSubject, FindingValues, ValidationResult, WarningCode } from '../interfaces';
-import type { Findings } from '../types/validation';
+import type { ActionReads, Findings } from '../types/validation';
 
 /** An empty collection. */
 export const emptyFindings = (): Findings => ({ errors: [], warnings: [] });
@@ -32,4 +33,16 @@ export function methodTable<Value>(entries: readonly (readonly [Address, Value])
   }
 
   return table;
+}
+
+/** Refuses action reads whose records are not the shapes they declare, an answered `actionInfo` without a value among them. */
+export function assertActionReads(action: ActionReads, path: string): void {
+  assertObject(action, path);
+  assertObject(action.actionInfo, `${path}.actionInfo`);
+  assertBool(action.actionInfo.answered, `${path}.actionInfo.answered`);
+
+  if (action.actionInfo.answered) assertObject(action.actionInfo.value, `${path}.actionInfo.value`);
+
+  assertBool(action.supportsAccount, `${path}.supportsAccount`);
+  assertBool(action.accountHoldsCode, `${path}.accountHoldsCode`);
 }

@@ -17,6 +17,24 @@ import {
   PIN,
 } from './doubles';
 
+/** The provider and part calls one describeSetup made before the description named the action, in order. */
+const CALLS_BEFORE_ACTION = {
+  provider: ['block', 'code'],
+  parts: [
+    'manager.moduleInfo',
+    'manager.trustedParties',
+    'manager.paused',
+    'manager.moduleInfo',
+    'manager.trustedParties',
+    'manager.paused',
+    'action.actionInfo',
+    'action.supportsAccount',
+    'action.isAuthority',
+    'action.isAuthority',
+    'events.fetch',
+  ],
+};
+
 /** The description context the client should hand the pure function, built from what the doubles answer. */
 const expectedContext = (draft: SetupDraft, authority: readonly boolean[], removedKey: RemovedKey = 'no-source'): SetupDescriptionContext => ({
   descriptor: DESCRIPTOR,
@@ -86,6 +104,36 @@ describe('describeSetup', () => {
 
   it('describes under the version escape', async () => {
     await expect(build({ escaped: true }).client.describeSetup(DRAFT)).resolves.toBeDefined();
+  });
+
+  it('names the bound action from the reads it already made', async () => {
+    const description = await build().client.describeSetup(DRAFT);
+
+    expect(description.action).toStrictEqual({
+      address: ACTION,
+      info: { answered: true, value: ACTION_INFO },
+      shipped: true,
+      audited: true,
+      supportsAccount: true,
+    });
+  });
+
+  it('leaves supportsAccount out of the action on a code-less account', async () => {
+    const description = await build({ world: { code: '0x' } }).client.describeSetup(DRAFT);
+
+    expect('supportsAccount' in description.action).toBe(false);
+    expect(description.action.address).toBe(ACTION);
+  });
+
+  it('makes no new read: the provider and part calls are the ones made before the action was described', async () => {
+    const { client, seen } = build();
+
+    await client.describeSetup(DRAFT);
+
+    expect(seen.provider).toEqual(CALLS_BEFORE_ACTION.provider);
+    expect(members(seen)).toEqual(CALLS_BEFORE_ACTION.parts);
+    expect(seen.calls).toEqual([]);
+    expect(seen.codes).toHaveLength(1);
   });
 
   it('pins every part call to the one block', async () => {

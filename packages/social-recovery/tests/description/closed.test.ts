@@ -1,22 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { describeRequest, describeSetup, describeStatus } from '../../src/index';
 import { approvalFromVector, cancellationFromVector, codecRegistry, describingMethod, handoverRows, methodRegistry, strictCodec } from './request-fixtures';
-import { CONTEXT, DRAFT, serialize, SUPPLIED_SALT } from './setup-fixtures';
+import { ACTION_INFO, CONTEXT, DRAFT, serialize, SUPPLIED_SALT } from './setup-fixtures';
 import { at, METHOD_A, paused, PAYLOAD, RECOVERY_STATE, SCOPE, SETUP_STATE, started } from './status-fixtures';
 
-/** Keys whose string values are the holder's or a module's own words rather than codes. */
+/** Keys whose string values are the holder's or a module's own words rather than codes, wherever they sit. */
 const FREE_TEXT_KEYS = new Set(['label', 'methodName', 'app']);
 
-/** Every (key, value) pair reachable in a value. */
-function entries(value: unknown, key = ''): (readonly [string, unknown])[] {
-  if (Array.isArray(value)) return value.flatMap((inner) => entries(inner, key));
+/** Paths whose string values are the action's self-stated `actionInfo()` words; `name` and `version` are free only here. */
+const FREE_TEXT_PATHS = new Set(['action.info.value.name', 'action.info.value.version']);
 
-  if (typeof value === 'object' && value !== null) {
-    return Object.entries(value).flatMap(([inner, child]) => [[inner, child] as const, ...entries(child, inner)]);
+/** Every (key path, value) pair reachable in a value, once each; an array's items keep the array's path. */
+function entries(value: unknown, path: readonly string[] = []): (readonly [readonly string[], unknown])[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((inner) => (typeof inner === 'object' && inner !== null ? entries(inner, path) : [[path, inner] as const]));
   }
 
-  return [[key, value]];
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value).flatMap(([inner, child]) => [[[...path, inner], child] as const, ...entries(child, [...path, inner])]);
+  }
+
+  return [];
 }
+
+/** The last key of a path. */
+const keyOf = (path: readonly string[]): string => path[path.length - 1] ?? '';
+
+/** The string values holding whitespace outside the free-text keys and paths: the closed check fails where any exist. */
+const sentencesIn = (description: unknown): (readonly [string, unknown])[] =>
+  entries(description)
+    .filter(([path, value]) => typeof value === 'string' && /\s/.test(value) && !FREE_TEXT_KEYS.has(keyOf(path)) && !FREE_TEXT_PATHS.has(path.join('.')))
+    .map(([path, value]) => [path.join('.'), value] as const);
 
 /** Recursively frozen copy, so a write to an input throws. */
 function frozen<T>(value: T): T {
@@ -28,6 +42,9 @@ function frozen<T>(value: T): T {
 
   return value;
 }
+
+/** A setup description. */
+type Described = ReturnType<typeof describeSetup>;
 
 const { canonical } = handoverRows();
 const approval = { ...approvalFromVector(), payload: canonical };
@@ -44,7 +61,7 @@ const descriptions = {
 
 describe('every description is a closed record of values and codes', () => {
   it.each(Object.entries(descriptions))('the %s description carries no salt key', (_name, build) => {
-    expect(entries(build()).filter(([key]) => key === 'salt')).toEqual([]);
+    expect(entries(build()).filter(([path]) => keyOf(path) === 'salt')).toEqual([]);
   });
 
   it('the setup description never carries a supplied salt value', () => {
@@ -58,11 +75,32 @@ describe('every description is a closed record of values and codes', () => {
   });
 
   it.each(Object.entries(descriptions))('the %s description holds no sentence outside labels and self-stated names', (_name, build) => {
-    const sentences = entries(build()).filter(
-      ([key, value]) => typeof value === 'string' && !FREE_TEXT_KEYS.has(key) && /\s/.test(value),
-    );
+    expect(sentencesIn(build())).toEqual([]);
+  });
+});
 
-    expect(sentences).toEqual([]);
+describe('the action\'s self-stated words are the only sentences it adds', () => {
+  it('the setup description carries the action\'s name and version as stated, with their spaces, under action.info', () => {
+    const stated = entries(descriptions.setup())
+      .filter(([path, value]) => FREE_TEXT_PATHS.has(path.join('.')) && typeof value === 'string')
+      .map(([path, value]) => [path.join('.'), value]);
+
+    expect(/\s/.test(ACTION_INFO.name)).toBe(true);
+    expect(stated).toEqual([['action.info.value.name', ACTION_INFO.name], ['action.info.value.version', ACTION_INFO.version]]);
+  });
+
+  it.each<[string, (d: Described) => object, string]>([
+    ['a top-level name', (d) => ({ ...d, name: 'a phrase' }), 'name'],
+    ['a top-level version', (d) => ({ ...d, version: '1.0 beta' }), 'version'],
+    ['a name under the action but outside its info', (d) => ({ ...d, action: { ...d.action, name: 'a phrase' } }), 'action.name'],
+    ['a version beside a rule credential', (d) => ({ ...d, rule: { ...d.rule, version: '2 b' } }), 'rule.version'],
+  ])('fails the closed check for a whitespace string under %s', (_name, change, path) => {
+    expect(sentencesIn(change(descriptions.setup())).map(([where]) => where)).toEqual([path]);
+  });
+
+  it('keeps label, methodName and app free wherever they sit', () => {
+    expect(sentencesIn({ deep: { label: 'a b', methodName: 'c d', app: 'e f' } })).toEqual([]);
+    expect(sentencesIn({ deep: { code: 'a b' } })).toEqual([['deep.code', 'a b']]);
   });
 });
 
