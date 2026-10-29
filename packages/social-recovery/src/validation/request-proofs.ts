@@ -1,5 +1,5 @@
 import { assertObject, normalizeAddress } from '../formats/guards';
-import type { Address, ReadResult } from '../interfaces';
+import type { Address, ProofPlace, ReadResult } from '../interfaces';
 import type { CheckedRequest, Findings, RequestValidationContext } from '../types/validation';
 import { addError, addWarning, methodTable, normalizeAddresses } from './common';
 import { filledPerClause, satisfies } from './rule-count';
@@ -17,7 +17,10 @@ export function placeOrderFindings(request: CheckedRequest, findings: Findings):
  * `proof.place-out-of-range` per proof past the body's credential count, and `request.rule-unsatisfied`
  * per clause whose filled places miss its threshold, or once for a rule nothing satisfies.
  */
-export function ruleCountFindings(request: CheckedRequest, findings: Findings): void {
+export function ruleCountFindings(
+  request: { readonly body?: CheckedRequest['body']; readonly proofs: readonly Pick<ProofPlace, 'place'>[] },
+  findings: Findings,
+): void {
   const { body } = request;
 
   if (body === undefined) return;

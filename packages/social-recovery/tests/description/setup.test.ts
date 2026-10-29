@@ -2,11 +2,13 @@ import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { describeSetup, REMOVED_KEY_UNNAMED, type Address, type RemovedKey, type SetupDraft } from '../../src/index';
 import {
+  ACTION_INFO,
   byMethod,
   CANDIDATE_A,
   CANDIDATE_B,
   CONFIGURATION,
   CONTEXT,
+  DESCRIPTOR,
   DRAFT,
   ECDSA,
   GUARDIAN,
@@ -268,5 +270,104 @@ describe('describeSetup: upgrade and pause', () => {
 
     expect(holders).toContainEqual([ZKPASSPORT, { answered: true, value: OTHER_PAUSE_HOLDER }]);
     expect(holders).toContainEqual([ECDSA, { answered: true, value: PAUSE_HOLDER }]);
+  });
+});
+
+describe('describeSetup: the committed action', () => {
+  const withAction = (change: Partial<typeof CONTEXT.action>, descriptor: Partial<typeof DESCRIPTOR> = {}): typeof CONTEXT => ({
+    ...CONTEXT,
+    descriptor: { ...DESCRIPTOR, ...descriptor },
+    action: { ...CONTEXT.action, ...change },
+  });
+
+  it('names the shipped, audited action with its own answer and its fit', () => {
+    expect(full.action).toStrictEqual({
+      address: ACTION,
+      info: { answered: true, value: ACTION_INFO },
+      shipped: true,
+      audited: true,
+      supportsAccount: true,
+    });
+  });
+
+  it('a third-party action is neither shipped nor audited', () => {
+    expect(describeSetup(DRAFT, withAction({ address: OTHER_ACTION })).action).toStrictEqual({
+      address: OTHER_ACTION,
+      info: { answered: true, value: ACTION_INFO },
+      shipped: false,
+      audited: false,
+      supportsAccount: true,
+    });
+  });
+
+  it('an audited third-party action is audited but not shipped', () => {
+    const action = describeSetup(DRAFT, withAction({ address: AUDITED_ONLY_ACTION })).action;
+
+    expect(action.shipped).toBe(false);
+    expect(action.audited).toBe(true);
+  });
+
+  it('shipped and not audited where the descriptor\'s audited list leaves its own action out', () => {
+    const action = describeSetup(DRAFT, withAction({}, { auditedActions: [AUDITED_ONLY_ACTION] })).action;
+
+    expect(action.shipped).toBe(true);
+    expect(action.audited).toBe(false);
+  });
+
+  it('keeps an unanswered actionInfo as unanswered', () => {
+    const action = describeSetup(DRAFT, withAction({ actionInfo: { answered: false } })).action;
+
+    expect(action.info).toStrictEqual({ answered: false });
+    expect(action.shipped).toBe(true);
+  });
+
+  it('copies the self-stated answer as read, a failed ERC-165 probe included', () => {
+    const info = { name: 'their action', version: 'v0', supportsInterface: false };
+
+    expect(describeSetup(DRAFT, withAction({ actionInfo: { answered: true, value: info } })).action.info).toStrictEqual({ answered: true, value: info });
+  });
+
+  it.each([true, false])('leaves supportsAccount out where the account holds no code (read %s)', (supportsAccount) => {
+    const action = describeSetup(DRAFT, withAction({ accountHoldsCode: false, supportsAccount })).action;
+
+    expect('supportsAccount' in action).toBe(false);
+    expect(Object.keys(action).sort()).toStrictEqual(['address', 'audited', 'info', 'shipped']);
+  });
+
+  it('says supportsAccount false for an account with code the action does not fit', () => {
+    expect(describeSetup(DRAFT, withAction({ supportsAccount: false })).action.supportsAccount).toBe(false);
+  });
+
+  it('checksums the address and matches the descriptor and audited list in any case spelling', () => {
+    const lettered = getAddress('0xabcdef0123456789abcdef0123456789abcdefaa');
+    const context = withAction(
+      { address: lettered.toLowerCase() as Address },
+      { action: lettered.toUpperCase().replace('0X', '0x') as Address, auditedActions: [lettered.toLowerCase() as Address] },
+    );
+    const action = describeSetup(DRAFT, context).action;
+
+    expect(action.address).toBe(lettered);
+    expect(action.shipped).toBe(true);
+    expect(action.audited).toBe(true);
+    expect(describeSetup(DRAFT, context).upgrade).toEqual({ upgradeableInPlace: false });
+  });
+
+  it.each<[string, Partial<typeof CONTEXT.action>, Partial<typeof DESCRIPTOR>, boolean]>([
+    ['the shipped action', {}, {}, true],
+    ['the shipped action in lower case, left out of the audited list', { address: ACTION.toLowerCase() as Address }, { auditedActions: [] }, true],
+    ['an audited third party', { address: AUDITED_ONLY_ACTION }, {}, false],
+    ['a third party', { address: OTHER_ACTION }, {}, false],
+    ['a third party on a code-less account', { address: OTHER_ACTION, accountHoldsCode: false }, {}, false],
+  ])('upgradeableInPlace is false exactly where the action is shipped: %s', (_name, change, descriptor, shipped) => {
+    const described = describeSetup(DRAFT, withAction(change, descriptor));
+
+    expect(described.action.shipped).toBe(shipped);
+    expect(described.upgrade).toStrictEqual(shipped ? { upgradeableInPlace: false } : {});
+    expect('upgradeableInPlace' in described.upgrade).toBe(shipped);
+  });
+
+  it('carries no account-code flag and no upgrade flag of its own', () => {
+    expect(Object.keys(full.action)).not.toContain('accountHoldsCode');
+    expect(Object.keys(full.action)).not.toContain('upgradeableInPlace');
   });
 });

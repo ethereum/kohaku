@@ -11,7 +11,7 @@ export type {
   SetupValidationContext,
   WindowFacts,
 } from './validation';
-export type { GatheringMembers, PlaceStanding } from './gathering';
+export type { GatheringMembers, OrderRefusal, OrderVerdict, PlaceStanding } from './gathering';
 export type {
   ActionCodecRegistry,
   CandidateKeyAuthority,

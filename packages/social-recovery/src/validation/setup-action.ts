@@ -1,17 +1,14 @@
-import { assertArray, assertBool, assertObject, normalizeAddress } from '../formats/guards';
+import { assertArray, normalizeAddress } from '../formats/guards';
 import type { Address, FindingValues, KitNotification } from '../interfaces';
 import type { Findings, SetupEvent, SetupValidationContext } from '../types/validation';
-import { addError, addWarning, normalizeAddresses } from './common';
+import { addError, addWarning, assertActionReads, normalizeAddresses } from './common';
 
 /**
  * The account's deployment, the action's fit and audit findings: `account.not-deployed` in place of `action.unsupported`
  * where the account holds no code, since the fit is then unjudgeable, and `action.unaudited`.
  */
 export function actionFindings(context: SetupValidationContext, findings: Findings): void {
-  assertObject(context.action, 'context.action');
-  assertObject(context.action.actionInfo, 'context.action.actionInfo');
-  assertBool(context.action.supportsAccount, 'context.action.supportsAccount');
-  assertBool(context.action.accountHoldsCode, 'context.action.accountHoldsCode');
+  assertActionReads(context.action, 'context.action');
 
   const action = normalizeAddress(context.action.address, 'context.action.address');
   const account = normalizeAddress(context.account, 'context.account');

@@ -1,9 +1,9 @@
 import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { count, fileReply, KitRefusalError, order, requests, type AttemptRequest, type CancelRequest, type Reply } from '../../src/index';
+import { count, fileReply, KitRefusalError, order, requests, type AttemptRequest, type CancelRequest, type Gathering, type Hex, type Reply } from '../../src/index';
 import { PINNED_AT, replyFor, VALID_UNTIL } from '../gathering/support';
 import { approvalWith, cancellationWith, expectedMembers, loweredMembers, loweredProof, proofOfReply } from './completion-fixtures';
-import { CLIENT_CONFIGURATION, errorCodes, rig } from './doubles';
+import { ACCOUNT, ACTION, CLIENT_CONFIGURATION, errorCodes, HEADER, rejectionOf, rig } from './doubles';
 
 const NOW = PINNED_AT;
 
@@ -163,5 +163,27 @@ describe('complete: the proofs are the merged ordering\'s', () => {
     expect(request.proofs).toEqual(order(record(), selection, NOW));
 
     for (const proof of request.proofs) expect(proof.method).toBe(getAddress(proof.method));
+  });
+});
+
+describe('complete judges the rule, not the record\'s shape: a malformed member is refused at the prepare', () => {
+  it.each([
+    ['not hex', 'not-hex'],
+    ['an odd hex length', '0xabc'],
+    ['a number', 7],
+  ] as [string, unknown][])('a hand-edited payload (%s) completes, and prepareStartAttempt refuses it with a TypeError before any provider call', async (_name, payload) => {
+    const filed = approvalWith([0, 1, 2]);
+    const edited = { ...filed, request: { ...filed.request, account: ACCOUNT, action: ACTION, payload: payload as Hex } } as Gathering;
+    const built = rig();
+    const request = built.client.complete(edited, undefined, NOW) as AttemptRequest;
+
+    expect(request.payload).toBe(payload);
+    expect(request.proofs).toEqual(order(edited, undefined, NOW));
+    expect(built.seen).toEqual([]);
+
+    const thrown = await rejectionOf(built.client.prepareStartAttempt(request, HEADER.timestamp));
+
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect(built.seen).toEqual([]);
   });
 });

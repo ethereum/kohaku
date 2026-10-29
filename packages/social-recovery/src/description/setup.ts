@@ -3,6 +3,7 @@ import { assertArray, assertBool, assertBytes, assertObject, assertUintNumber, i
 import {
   METHOD_TIERS,
   type Address,
+  type DescribedAction,
   type DescribedClause,
   type FailureDomain,
   type RemovedKey,
@@ -11,7 +12,7 @@ import {
 } from '../interfaces';
 import type { CandidateKeyAuthority, MethodDescriptionReads, SetupDescriptionContext } from '../types/description';
 import type { PlacedCredential } from '../types/validation';
-import { normalizeAddresses } from '../validation/common';
+import { assertActionReads, normalizeAddresses } from '../validation/common';
 import { placedCredentials } from '../validation/setup-draft';
 import { readsByMethod } from '../validation/setup-methods';
 import { describedParties, distinctMethods, methodStanding, passkeyDomains, pauseOf } from './setup-methods';
@@ -21,7 +22,7 @@ function assertDescriptionContext(context: SetupDescriptionContext): void {
   assertObject(context, 'context');
   assertObject(context.descriptor, 'context.descriptor');
   assertObject(context.configuration, 'context.configuration');
-  assertObject(context.action, 'context.action');
+  assertActionReads(context.action, 'context.action');
   assertUintNumber(context.configuration.defaultWait, FORMATS_SAFE_INTEGER_BITS, 'context.configuration.defaultWait');
 }
 
@@ -107,12 +108,19 @@ function failureDomainsOf(draft: SetupDraft, credentials: readonly PlacedCredent
   });
 }
 
-/** False where the action is the descriptor's own, whose account cannot be upgraded in place; absent otherwise. */
-function upgradeOf(context: SetupDescriptionContext): SetupDescription['upgrade'] {
-  const action = normalizeAddress(context.action.address, 'context.action.address');
-  const shipped = normalizeAddress(context.descriptor.action, 'context.descriptor.action');
+/** The committed action with its own `actionInfo` answer, the deployment's view of it and its fit where the account holds code. */
+function actionOf(context: SetupDescriptionContext): DescribedAction {
+  const address = normalizeAddress(context.action.address, 'context.action.address');
+  const audited = normalizeAddresses(context.descriptor.auditedActions, 'context.descriptor.auditedActions');
+  const { actionInfo, supportsAccount, accountHoldsCode } = context.action;
 
-  return action === shipped ? { upgradeableInPlace: false } : {};
+  return {
+    address,
+    info: actionInfo,
+    shipped: address === normalizeAddress(context.descriptor.action, 'context.descriptor.action'),
+    audited: audited.includes(address),
+    ...(accountHoldsCode ? { supportsAccount } : {}),
+  };
 }
 
 /**
@@ -130,6 +138,7 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
   assertTiers(context.methods);
 
   const { descriptor } = context;
+  const action = actionOf(context);
   const suppliedSaltPlaces = credentials.filter(({ salt }) => salt !== undefined).map(({ place }) => place);
 
   return {
@@ -145,7 +154,8 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
     backup: { choice: draft.privacy.backup, anySuppliedSalt: suppliedSaltPlaces.length > 0 },
     reveals: { suppliedSaltPlaces },
     cancel: { cancelByVeto: !draft.ignoresPause },
-    upgrade: upgradeOf(context),
+    upgrade: action.shipped ? { upgradeableInPlace: false } : {},
+    action,
     pause: pauseOf(credentials, table, draft.ignoresPause),
   };
 }

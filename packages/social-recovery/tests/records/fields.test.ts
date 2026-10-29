@@ -5,13 +5,16 @@ import {
   ADD_OUTCOMES,
   type Address,
   type ApproverRequest,
+  type ActionInfo,
   type Configuration,
   type Ctx,
+  type DescribedAction,
   type ConfigurationSource,
   type GatheringPlace,
   type LogPosition,
   NO_BACKUP_CASES,
   NOT_LANDED_CAUSES,
+  type ReadResult,
   type RecoveryState,
   REMOVED_KEY_UNNAMED,
   type RemovedKey,
@@ -81,15 +84,46 @@ const SETUP_DESCRIPTION_FIELDS = [
   'cancel',
   'upgrade',
   'pause',
+  'action',
 ];
 
+/** DescribedAction's fields, listed independently of src/. */
+const DESCRIBED_ACTION_FIELDS = ['address', 'info', 'shipped', 'audited', 'supportsAccount'];
+
 describe('the setup description and the recovery state', () => {
-  it('derives thirteen fields besides removedKey', () => {
-    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(13);
+  it('derives fourteen fields besides removedKey', () => {
+    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(14);
   });
 
-  it('SetupDescription carries exactly the thirteen fields and removedKey', () => {
+  it('SetupDescription carries exactly the fourteen fields and removedKey', () => {
     expect(fieldsOf(typeOf('SetupDescription'))).toEqual(sorted([...SETUP_DESCRIPTION_FIELDS, 'removedKey']));
+  });
+
+  it('action is required and is a DescribedAction', () => {
+    const description = typeOf('SetupDescription');
+
+    expect(optional(description, 'action')).toBe(false);
+    expect(mutuallyAssignable(field(description, 'action'), typeOf('DescribedAction'))).toBe(true);
+    expectTypeOf<SetupDescription['action']>().toEqualTypeOf<DescribedAction>();
+  });
+
+  it('DescribedAction carries exactly address, info, shipped, audited and an optional supportsAccount, no salt', () => {
+    const action = typeOf('DescribedAction');
+
+    expect(fieldsOf(action)).toEqual(sorted(DESCRIBED_ACTION_FIELDS));
+    expect(fieldsOf(action)).not.toContain('salt');
+    expect(fieldsOf(action)).not.toContain('accountHoldsCode');
+    expect(fieldsOf(action)).not.toContain('upgradeableInPlace');
+    expect(fieldsOf(action).filter((name) => optional(action, name))).toEqual(['supportsAccount']);
+    expect(mutuallyAssignable(field(action, 'address'), typeOf('Address'))).toBe(true);
+    expect(hasFlag(field(action, 'shipped'), ts.TypeFlags.Boolean)).toBe(true);
+    expect(hasFlag(field(action, 'audited'), ts.TypeFlags.Boolean)).toBe(true);
+    expect(hasFlag(field(action, 'supportsAccount'), ts.TypeFlags.Boolean)).toBe(true);
+    expectTypeOf<DescribedAction['address']>().toEqualTypeOf<Address>();
+    expectTypeOf<DescribedAction['info']>().toEqualTypeOf<ReadResult<ActionInfo>>();
+    expectTypeOf<DescribedAction['shipped']>().toEqualTypeOf<boolean>();
+    expectTypeOf<DescribedAction['audited']>().toEqualTypeOf<boolean>();
+    expectTypeOf<NonNullable<DescribedAction['supportsAccount']>>().toEqualTypeOf<boolean>();
   });
 
   it('removedKey is an address or one of the three values saying why none was named, and is required', () => {
