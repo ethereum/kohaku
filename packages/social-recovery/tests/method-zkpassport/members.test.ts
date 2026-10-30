@@ -162,11 +162,12 @@ describe('the method\'s constants', () => {
 
 describe('the changesets', () => {
   const changesets = join(PACKAGE_ROOT, '..', '..', '.changeset');
-  const named = readdirSync(changesets)
+  const every = readdirSync(changesets)
     .filter((name) => name.endsWith('.md'))
-    .map((name) => ({ name, text: readFileSync(join(changesets, name), 'utf8') }))
-    .filter(({ text }) => text.includes('zkPassportMethod'));
+    .map((name) => ({ name, text: readFileSync(join(changesets, name), 'utf8') }));
+  const named = every.filter(({ text }) => text.includes('zkPassportMethod'));
   const texts = [named.map(({ text }) => text).join('\n')];
+  const constantTexts = every.filter(({ text }) => text.includes('METHOD_ZKPASSPORT_')).map(({ text }) => text).join('\n');
 
   it('the method\'s own changeset and the dev-mode one name the method, each as a patch of the package', () => {
     expect(named.map(({ name }) => name).sort()).toEqual(['identity-test-modes.md', 'social-recovery-method-zkpassport.md']);
@@ -182,8 +183,8 @@ describe('the changesets', () => {
     expect(text).toContain('devMode');
   });
 
-  it('names the METHOD_ZKPASSPORT_ constants, by prefix or one by one', () => {
-    const text = texts[0] ?? '';
+  it('names the METHOD_ZKPASSPORT_ constants, by prefix or one by one, across the changesets that name any', () => {
+    const text = constantTexts;
     const byPrefix = /METHOD_ZKPASSPORT_(?![A-Z0-9])|METHOD_ZKPASSPORT_\*/.test(text);
 
     expect(OWN.length).toBeGreaterThan(0);

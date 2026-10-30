@@ -22,6 +22,13 @@ export const METHOD_AADHAAR_FRESHNESS_WINDOW = 86400n;
 /** The shortest freshness window, in seconds, a config may carry; a shorter one is judged `rejected`. */
 export const METHOD_AADHAAR_MIN_FRESHNESS_WINDOW = 3600n;
 
+/**
+ * The seconds past the window a QR's signing time read before proving may lie before `replyFrom` refuses it: none, since the
+ * read is the circuit's own `timestamp` input, both truncated to the hour from the same QR bytes, so the pre-prover check refuses
+ * exactly what `isFresh` would refuse after proving.
+ */
+export const METHOD_AADHAAR_SIGNED_AT_SLACK = 0n;
+
 /** The proof's ABI layout, the Groth16 verifier's `verifyProof` arguments. */
 export const METHOD_AADHAAR_PROOF_ABI = [
   { name: 'a', type: 'uint256[2]' },
@@ -104,7 +111,14 @@ export const METHOD_AADHAAR_STACK_VERSION = '2.4.3';
 /** The calls the loaded stack must expose as functions. */
 export const METHOD_AADHAAR_STACK_CALLS = Object.freeze(['init', 'generateArgs', 'prove', 'verify'] as const);
 
-/** The stack's members naming the two signing keys it verifies against: UIDAI's outside test mode, its own test key in it. */
+/** The calls the default stack reads a QR's signing time with, without `init`; a peer missing one still loads, its `signedAt` answering undefined. */
+export const METHOD_AADHAAR_STACK_TIME_CALLS = Object.freeze([
+  'timestampToUTCUnix',
+  'decompressByteArray',
+  'convertBigIntToByteArray',
+] as const);
+
+/** The stack's members naming its two signing keys: UIDAI's 2021 key and its own test key, the one `verify` refuses locally outside test mode. */
 export const METHOD_AADHAAR_STACK_KEY_MEMBERS = Object.freeze(['productionPublicKeyHash', 'testPublicKeyHash'] as const);
 
 /** The stack's member naming its artifact origins, and the member a CommonJS package's exports may arrive under. */
@@ -171,6 +185,7 @@ export const METHOD_AADHAAR_STACK_SURFACE_MESSAGE = 'does not expose the expecte
 export const METHOD_AADHAAR_STACK_MISSING_MESSAGE = 'is not installed';
 export const METHOD_AADHAAR_STACK_ORIGIN_MESSAGE = 'the stack names no such artifacts origin';
 export const METHOD_AADHAAR_STACK_INIT_MESSAGE = 'the stack could not initialise with the given artifacts';
+/** Kept for compatibility; no longer raised, since the installed stack defaults to `METHOD_AADHAAR_DEFAULT_ARTIFACTS`. */
 export const METHOD_AADHAAR_NO_ARTIFACTS_MESSAGE = 'no artifacts were given';
 export const METHOD_AADHAAR_SIGNAL_FAULT_MESSAGE =
   'the material signal threw while this module read it or added or removed its abort listener';

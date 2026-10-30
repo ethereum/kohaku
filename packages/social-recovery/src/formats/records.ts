@@ -4,18 +4,14 @@ import {
   type Address,
   type BlockTags,
   type ClientConfiguration,
-  type CreationRecord,
   type DeploymentDescriptor,
   type RequestWindowBounds,
 } from '../interfaces';
 import {
   assertBool,
-  assertBytes,
-  assertBytes32,
   assertObject,
   assertUintBigint,
   assertUintNumber,
-  lowerHex,
   normalizeAddress,
   normalizeAddresses,
 } from './guards';
@@ -89,20 +85,6 @@ function checkedBlockTags(value: unknown, name: string): BlockTags {
   return { read: tags.read, watch: tags.watch };
 }
 
-/** The creation record, its factory checksummed and its bytecode and salt lower-cased. */
-function checkedCreation(value: unknown, name: string): CreationRecord {
-  assertObject(value, name);
-
-  const creation = value as CreationRecord;
-  const factory = normalizeAddress(creation.factory, `${name}.factory`);
-
-  assertBytes(creation.bytecode, `${name}.bytecode`);
-  assertBytes32(creation.salt, `${name}.salt`);
-  assertSafeUint(creation.block, `${name}.block`);
-
-  return { factory, bytecode: lowerHex(creation.bytecode), salt: lowerHex(creation.salt), block: creation.block };
-}
-
 /** The candidate keys checksummed, refusing two entries that name one address. */
 function checkedCandidateKeys(value: unknown, name: string): Address[] {
   const keys = normalizeAddresses(value, name);
@@ -132,7 +114,7 @@ export function checkedConfiguration(value: unknown, name: string): ClientConfig
 
   assertBool(configuration.simulate, `${name}.simulate`);
 
-  const { creation, accountImplementation } = configuration;
+  const { accountImplementation } = configuration;
 
   return {
     defaultWait: configuration.defaultWait,
@@ -141,7 +123,6 @@ export function checkedConfiguration(value: unknown, name: string): ClientConfig
     requestWindow: checkedRequestWindow(configuration.requestWindow, `${name}.requestWindow`),
     cancelWindow: configuration.cancelWindow,
     ruleCostBound: configuration.ruleCostBound,
-    ...(creation === undefined ? {} : { creation: checkedCreation(creation, `${name}.creation`) }),
     ...(accountImplementation === undefined
       ? {}
       : { accountImplementation: normalizeAddress(accountImplementation, `${name}.accountImplementation`) }),

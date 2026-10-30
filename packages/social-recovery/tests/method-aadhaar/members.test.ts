@@ -1,14 +1,28 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import type { DeploymentDescriptor, IRecoveryMethod } from '../../src/interfaces';
 import { DEVICE_BINDINGS } from '../../src/interfaces';
 import * as folder from '../../src/method-aadhaar';
+import * as aadhaarConstantsFile from '../../src/constants/method-aadhaar';
+import * as aadhaarBucketFile from '../../src/constants/method-aadhaar-bucket';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import * as recoveryMethods from '../../src/recovery-methods';
 import { PACKAGE_ROOT, SRC_ROOT, createSourceProgram, requireSourceFile, resolveExports } from '../helpers/source';
 import { configBytes, ctxFor, stackDouble } from './fixtures';
+
+/** Every METHOD_AADHAAR_* constant, from the two source files that declare them. */
+const aadhaarConstants: { readonly [name: string]: unknown } = { ...aadhaarConstantsFile, ...aadhaarBucketFile };
+
+/** The constant files whose exports make up the METHOD_AADHAAR_* source set. */
+const CONSTANT_FILES = [join(SRC_ROOT, 'constants', 'method-aadhaar.ts'), join(SRC_ROOT, 'constants', 'method-aadhaar-bucket.ts')];
+
+/** The names the two constant files export, as the compiler resolves them. */
+const constantNames = (program: ts.Program): string[] => [
+  ...new Set(CONSTANT_FILES.flatMap((file) => [...resolveExports(program.getTypeChecker(), requireSourceFile(program, file)).keys()])),
+];
 
 const TEN = [
   'codec',
@@ -168,16 +182,43 @@ describe('the package surface', () => {
     const program = createSourceProgram();
     const checker = program.getTypeChecker();
     const entry = resolveExports(checker, requireSourceFile(program, join(SRC_ROOT, 'index.ts')));
-    const constants = resolveExports(checker, requireSourceFile(program, join(SRC_ROOT, 'constants', 'method-aadhaar.ts')));
     const names = [...entry.keys()].filter((name) => /aadhaar/i.test(name));
 
     expect(names.filter((name) => !name.startsWith('METHOD_AADHAAR_'))).toEqual([]);
-    expect(names.sort()).toEqual([...constants.keys()].sort());
+    expect(names.sort()).toEqual(constantNames(program).sort());
     expect(names).toContain('METHOD_AADHAAR_DEFAULT_TEST_MODE');
   }, PROGRAM_TIMEOUT);
 
   it('the ./recovery-methods entry exports the same factory', () => {
     expect(recoveryMethods.anonAadhaarMethod).toBe(anonAadhaarMethod);
+  });
+
+  it('the ./recovery-methods entry exports every METHOD_AADHAAR_* constant as the same value, and no METHOD_ZKPASSPORT_* one', () => {
+    const second = recoveryMethods as { readonly [name: string]: unknown };
+    const names = Object.keys(aadhaarConstants);
+
+    expect(names.length).toBeGreaterThan(0);
+    expect(names.every((name) => name.startsWith('METHOD_AADHAAR_'))).toBe(true);
+
+    for (const name of names) expect(second[name], name).toBe(aadhaarConstants[name]);
+
+    expect(Object.keys(second).filter((name) => name.startsWith('METHOD_ZKPASSPORT_'))).toEqual([]);
+  });
+
+  it('the ./recovery-methods entry declares every METHOD_AADHAAR_* name of both constant files among its exports', () => {
+    const program = createSourceProgram();
+    const second = resolveExports(program.getTypeChecker(), requireSourceFile(program, join(SRC_ROOT, 'recovery-methods', 'index.ts')));
+
+    expect([...second.keys()]).toEqual(expect.arrayContaining(constantNames(program)));
+  }, PROGRAM_TIMEOUT);
+
+  it('the bucket file declares exactly the four bucket constants', () => {
+    expect(Object.keys(aadhaarBucketFile).sort()).toEqual([
+      'METHOD_AADHAAR_BUCKET_CHUNKED',
+      'METHOD_AADHAAR_BUCKET_SERVER',
+      'METHOD_AADHAAR_BUCKET_URL',
+      'METHOD_AADHAAR_DEFAULT_ARTIFACTS',
+    ]);
   });
 
   it('the core entry src/index.ts reaches neither the method folder nor the stack', () => {
@@ -223,6 +264,12 @@ describe('the built output (needs a build first)', () => {
     expect(scripts).toContain('recovery-methods.js');
 
     for (const name of scripts) expect(read(name).includes(needle), name).toBe(false);
+  });
+
+  it('recovery-methods.js exports every METHOD_AADHAAR_* constant of the source, with equal values', async () => {
+    const built = (await import(pathToFileURL(join(DIST, 'recovery-methods.js')).href)) as { readonly [name: string]: unknown };
+
+    for (const [name, value] of Object.entries(aadhaarConstants)) expect(built[name], name).toEqual(value);
   });
 
   it('recovery-methods.js keeps @anon-aadhaar/core external and the core entry never names it', () => {

@@ -40,7 +40,7 @@ function domainOf(members: CancellationMembers): TypedDataDomain {
 }
 
 /** The members both messages share, each checked against its width, addresses checksummed. */
-function cancellationMessageOf(members: CancellationMembers, place: number): CancellationMessage {
+function cancellationMessageOf(members: CancellationMembers, place: number | bigint): CancellationMessage {
   const account = normalizeAddress(members.account, 'account');
   const action = normalizeAddress(members.action, 'action');
 
@@ -48,7 +48,9 @@ function cancellationMessageOf(members: CancellationMembers, place: number): Can
   assertUintBigint(members.setupNonce, FORMATS_SETUP_NONCE_BITS, 'setupNonce');
   assertBytes32(members.setupBodyHash, 'setupBodyHash');
   assertUintNumber(members.validUntil, FORMATS_VALID_UNTIL_BITS, 'validUntil');
-  assertUintNumber(place, FORMATS_PLACE_BITS, 'place');
+
+  if (typeof place === 'bigint') assertUintBigint(place, FORMATS_PLACE_BITS, 'place');
+  else assertUintNumber(place, FORMATS_PLACE_BITS, 'place');
 
   return {
     account,
@@ -57,12 +59,12 @@ function cancellationMessageOf(members: CancellationMembers, place: number): Can
     setupNonce: members.setupNonce,
     setupBodyHash: members.setupBodyHash,
     validUntil: members.validUntil,
-    place,
+    place: BigInt(place),
   };
 }
 
 /** The checked domain and `Approval` message for one place, shared by the typed data and the digest. */
-function approvalParts(members: ApprovalMembers, place: number): { domain: TypedDataDomain; message: ApprovalMessage } {
+function approvalParts(members: ApprovalMembers, place: number | bigint): { domain: TypedDataDomain; message: ApprovalMessage } {
   const domain = domainOf(members);
   const shared = cancellationMessageOf(members, place);
 
@@ -72,46 +74,46 @@ function approvalParts(members: ApprovalMembers, place: number): { domain: Typed
 }
 
 /** The checked domain and `Cancellation` message for one place, shared by the typed data and the digest. */
-function cancellationParts(members: CancellationMembers, place: number): { domain: TypedDataDomain; message: CancellationMessage } {
+function cancellationParts(members: CancellationMembers, place: number | bigint): { domain: TypedDataDomain; message: CancellationMessage } {
   return { domain: domainOf(members), message: cancellationMessageOf(members, place) };
 }
 
 /**
- * The `Approval` typed data for one place, as a wallet's signing call takes it; throws on a member outside its width.
+ * The `Approval` typed data for one place, as a wallet's signing call takes it; throws on a member outside its width. The place is a non-negative safe integer as a number, or a `uint256` as a bigint.
  * The types omit `EIP712Domain`: a signing library supplies it from the domain, and a raw `eth_signTypedData_v4` caller adds it from the domain's four fields.
  */
-export function approvalTypedData(members: ApprovalMembers, place: number): ApprovalTypedData {
+export function approvalTypedData(members: ApprovalMembers, place: number | bigint): ApprovalTypedData {
   const { domain, message } = approvalParts(members, place);
 
   return { domain, types: copyTypes(FORMATS_APPROVAL_TYPED_DATA_TYPES), primaryType: FORMATS_APPROVAL_PRIMARY_TYPE, message };
 }
 
 /**
- * The `Cancellation` typed data for one place; throws on a member outside its width.
+ * The `Cancellation` typed data for one place; throws on a member outside its width. The place is a non-negative safe integer as a number, or a `uint256` as a bigint.
  * The types omit `EIP712Domain`: a signing library supplies it from the domain, and a raw `eth_signTypedData_v4` caller adds it from the domain's four fields.
  */
-export function cancellationTypedData(members: CancellationMembers, place: number): CancellationTypedData {
+export function cancellationTypedData(members: CancellationMembers, place: number | bigint): CancellationTypedData {
   const { domain, message } = cancellationParts(members, place);
 
   return { domain, types: copyTypes(FORMATS_CANCELLATION_TYPED_DATA_TYPES), primaryType: FORMATS_CANCELLATION_PRIMARY_TYPE, message };
 }
 
-/** The EIP-712 digest of typed data already built and checked, its place widened to the bigint its `uint256` field hashes. */
+/** The EIP-712 digest of typed data already built and checked. */
 export function typedDataDigest(typedData: ApprovalTypedData | CancellationTypedData): Hex {
   const { domain, types, primaryType, message } = typedData;
 
-  return hashTypedData({ domain, types, primaryType, message: { ...message, place: BigInt(message.place) } });
+  return hashTypedData({ domain, types, primaryType, message });
 }
 
-/** The EIP-712 digest of the `Approval` message for one place. */
-export function approvalDigest(members: ApprovalMembers, place: number): Hex {
+/** The EIP-712 digest of the `Approval` message for one place: a non-negative safe integer as a number, or a `uint256` as a bigint. */
+export function approvalDigest(members: ApprovalMembers, place: number | bigint): Hex {
   const { domain, message } = approvalParts(members, place);
 
   return typedDataDigest({ domain, types: FORMATS_APPROVAL_TYPED_DATA_TYPES, primaryType: FORMATS_APPROVAL_PRIMARY_TYPE, message });
 }
 
-/** The EIP-712 digest of the `Cancellation` message for one place. */
-export function cancellationDigest(members: CancellationMembers, place: number): Hex {
+/** The EIP-712 digest of the `Cancellation` message for one place: a non-negative safe integer as a number, or a `uint256` as a bigint. */
+export function cancellationDigest(members: CancellationMembers, place: number | bigint): Hex {
   const { domain, message } = cancellationParts(members, place);
 
   return typedDataDigest({ domain, types: FORMATS_CANCELLATION_TYPED_DATA_TYPES, primaryType: FORMATS_CANCELLATION_PRIMARY_TYPE, message });

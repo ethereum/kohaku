@@ -1,7 +1,8 @@
 /* eslint-disable max-lines */
-import { pinBlockHeader, simulatePrepared } from '../client-core';
+import { KitRefusalError, pinBlockHeader, simulatePrepared } from '../client-core';
+import { GATHERING_ORDER_REFUSAL_MESSAGES } from '../constants';
 import { assertBool, assertBytes, normalizeAddress } from '../formats/guards';
-import { count, fileReply, order, requests, seed } from '../gathering';
+import { count, fileReply, orderVerdict, requests, seed } from '../gathering';
 import type {
   AddResult,
   Address,
@@ -36,7 +37,7 @@ import { assertOptions, assertPreparesServed } from '../setup-client/check';
 import type { MethodRegistry } from '../types';
 import type { RecoveryClientParts } from '../types/recovery-client';
 import { assertSource, cancellingWindow, checkedHandover, serializedOrder, windowEnd, windowWidth } from './arguments';
-import { assertCompletable, requestOf } from './completion';
+import { requestOf } from './completion';
 import { describedBatch, executeCall } from './described';
 import { assertPayloadHash, assertSameAttempt, assertSpendNotVetoed, checkedAttempt, decodedHandover, payeeOf, payloadHashOf } from './execute';
 import { namedHandover } from './handover';
@@ -165,14 +166,17 @@ export class RecoveryClient implements IRecoveryClient {
    * The submission the record's members make with the chosen proofs, strictly increasing by place: the selection where one is
    * given, taken as given, otherwise the preferred satisfying set. The places chosen are the request's proof places; the
    * record's other filed places are the ones left out. Throws a `KitRefusalError` with the findings where the window has
-   * passed at `now` or the rule is unsatisfied, and a `RangeError` where the selection names a place no reply fills.
+   * passed at `now`, the rule is unsatisfied or a filed or selected place lies past the rule's count, and a `RangeError` where
+   * the selection names a place no reply fills.
    */
   complete(gathering: Gathering, selection: Selection | undefined, now: Moment): AttemptRequest | CancelRequest {
-    assertCompletable(gathering, selection, now);
+    const verdict = orderVerdict(gathering, selection, now);
 
-    const proofs = order(gathering, selection, now);
+    if (verdict.outcome === 'refused') {
+      throw new KitRefusalError(GATHERING_ORDER_REFUSAL_MESSAGES[verdict.reason], { findings: verdict.findings });
+    }
 
-    return requestOf(gathering, proofs);
+    return requestOf(gathering, verdict.proofs);
   }
 
   /**

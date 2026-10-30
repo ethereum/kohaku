@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PACKAGE_ROOT, REPO_ROOT } from '../helpers/source';
 
-type ExportTarget = { readonly types?: string; readonly import?: string };
+type ExportTarget = { readonly types?: string; readonly import?: string; readonly default?: string };
 
 type Manifest = {
   readonly name?: string;
@@ -51,6 +51,17 @@ describe('package.json', () => {
     const target = manifest.exports?.[subpath];
 
     expect(target).toMatchObject({ types: `./dist/${file}.d.ts`, import: `./dist/${file}.js` });
+  });
+
+  it.each(['.', './recovery-methods'])('gives %s a default condition equal to its import target, last after types and import', (subpath) => {
+    const target = manifest.exports?.[subpath];
+
+    expect(typeof target).toBe('object');
+
+    if (typeof target !== 'object') return;
+
+    expect(Object.keys(target)).toEqual(['types', 'import', 'default']);
+    expect(target.default).toBe(target.import);
   });
 
   it('exports ./package.json as itself', () => {

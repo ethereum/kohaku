@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { METHOD_AADHAAR_BUCKET_CHUNKED } from '../../src/constants';
 import { METHOD_AADHAAR_FRESHNESS_WINDOW } from '../../src/constants/method-aadhaar';
 import type { EnrollInput, Hex, Input, Material } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
@@ -25,7 +26,31 @@ const DIGEST: Hex = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac
 const PARAMS = { nullifierSeed: 77n, issuerCertificate: CERTIFICATE };
 const CONFIG = configBytes(22n, 77n);
 const boundPcd = pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST));
+/** The error the peer's chunk download throws where the browser offers no storage. */
+const STORAGE_FAILURE = 'No available storage method found.';
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+const core = vi.hoisted(() => ({
+  init: vi.fn((): Promise<void> => Promise.resolve()),
+  generateArgs: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  prove: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  verify: vi.fn<(pcd: unknown, testMode?: boolean) => Promise<boolean>>(() => Promise.resolve(true)),
+}));
+
+/** The peer, stubbed so the default bucket never reaches the network. */
+vi.mock('@anon-aadhaar/core', () => ({
+  ...core,
+  ArtifactsOrigin: { server: 0, local: 1, chunked: 2 },
+  productionPublicKeyHash: '18063425702624337643644061197836918910810808173893535653269228433734128853484',
+  testPublicKeyHash: '15134874015316324267425466444584014077184337590635665158241104437045239495873',
+}));
+
+/** What the peer's init receives for the default bucket. */
+const CHUNKED_INIT = { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 clockForFile(FRESH_NOW);
 
@@ -96,10 +121,36 @@ describe('enrollment', () => {
     }
   });
 
-  it('configFrom with no stack is device-unavailable', async () => {
+  it('configFrom under the default bucket proves through the peer, initialised once with the chunked bucket', async () => {
+    core.prove.mockResolvedValueOnce(boundPcd);
+
+    const method = anonAadhaarMethod();
+
+    expect(await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA })).toBe(configBytes(22n, 77n, METHOD_AADHAAR_FRESHNESS_WINDOW));
+    expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+    expect(core.generateArgs).toHaveBeenCalledTimes(1);
+    expect(core.prove).toHaveBeenCalledTimes(1);
+  });
+
+  it('configFrom through an injected adapter whose own init rejects is device-unavailable, the prover never called', async () => {
+    core.init.mockRejectedValueOnce(new Error('adapter: init refused'));
+
     const method = anonAadhaarMethod();
 
     expect(isFailure(await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA }), 'device-unavailable')).toBe(true);
+    expect(core.generateArgs).not.toHaveBeenCalled();
+    expect(core.prove).not.toHaveBeenCalled();
+  });
+
+  it('configFrom under the default bucket whose storage fails inside the peer\'s prove, after init and generateArgs, is material-rejected', async () => {
+    core.prove.mockRejectedValueOnce(new Error(STORAGE_FAILURE));
+
+    const method = anonAadhaarMethod();
+
+    expect(isFailure(await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA }), 'material-rejected')).toBe(true);
+    expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+    expect(core.generateArgs).toHaveBeenCalledTimes(1);
+    expect(core.prove).toHaveBeenCalledTimes(1);
   });
 
   it('configFrom aborted while proving is device-refused', async () => {
@@ -201,11 +252,49 @@ describe('signing', () => {
     expect(double.proveCalls).toHaveLength(0);
   });
 
-  it('replyFrom with no stack is device-unavailable', async () => {
+  it('replyFrom under the default bucket proves through the peer, initialised once with the chunked bucket', async () => {
+    core.prove.mockResolvedValueOnce(boundPcd);
+
+    const method = anonAadhaarMethod();
+    const ctx = ctxFor(CONFIG, DIGEST);
+    const reply = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA });
+
+    expect(typeof reply).toBe('string');
+    expect(((reply as Hex).length - 2) / 2).toBe(544);
+    expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+    expect(core.prove).toHaveBeenCalledTimes(1);
+  });
+
+  it('replyFrom under the default bucket whose storage fails inside the peer\'s prove, after init and generateArgs, is material-rejected', async () => {
+    core.prove.mockRejectedValueOnce(new Error(STORAGE_FAILURE));
+
     const method = anonAadhaarMethod();
     const ctx = ctxFor(CONFIG, DIGEST);
 
-    expect(isFailure(await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA }), 'device-unavailable')).toBe(true);
+    expect(isFailure(await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA }), 'material-rejected')).toBe(true);
+    expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+    expect(core.generateArgs).toHaveBeenCalledTimes(1);
+    expect(core.prove).toHaveBeenCalledTimes(1);
+  });
+
+  it('verify on a proof under the default bucket answers what the peer\'s verify answers, a failing prove storage notwithstanding', async () => {
+    core.prove.mockImplementation(() => Promise.reject(new Error(STORAGE_FAILURE)));
+    core.verify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    try {
+      const method = anonAadhaarMethod();
+      const ctx = ctxFor(CONFIG, DIGEST);
+      const proof = await anonAadhaarMethod({ stack: stackDouble({ pcd: boundPcd }).stack }).replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA });
+
+      expect(typeof proof).toBe('string');
+      expect(await method.verify(ctx, proof as Hex)).toBe('satisfied');
+      expect(await method.verify(ctx, proof as Hex)).toBe('rejected');
+      expect(core.init.mock.calls).toEqual([[CHUNKED_INIT]]);
+      expect(core.prove).not.toHaveBeenCalled();
+      expect(core.verify).toHaveBeenCalledTimes(2);
+    } finally {
+      core.prove.mockImplementation(() => Promise.resolve({}));
+    }
   });
 
   it.each(['hang', 'hang-until-aborted'] as const)('replyFrom aborted during a prove that does %s is device-refused', async (prove) => {

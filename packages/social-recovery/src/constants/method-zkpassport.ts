@@ -8,6 +8,15 @@ export const METHOD_ZKPASSPORT_CONFIG_LAYOUT = [
   { name: 'validityPeriodInSeconds', type: 'uint256' },
 ] as const;
 
+/** The trusted-key word holding the version the module accepts, the word the peer's `params.version` equals. */
+export const METHOD_ZKPASSPORT_VERSION_KEY = 0;
+
+/** The version word's parts, major, minor and patch, in that order. */
+export const METHOD_ZKPASSPORT_VERSION_PARTS = 3;
+
+/** The bytes of each big-endian version part, from the word's first byte; the rest of the word is zero. */
+export const METHOD_ZKPASSPORT_VERSION_PART_BYTES = 2;
+
 /** The proof's ABI layout, members in the verifier's own order. */
 export const METHOD_ZKPASSPORT_PROOF_LAYOUT = [
   {

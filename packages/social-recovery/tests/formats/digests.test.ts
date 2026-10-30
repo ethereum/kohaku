@@ -154,7 +154,7 @@ describe('the typed data objects', () => {
       payload: '0xabcdef',
       order: baseMembers().order,
       validUntil: 1_800_000_000,
-      place: 0,
+      place: 0n,
     });
   });
 
@@ -162,6 +162,8 @@ describe('the typed data objects', () => {
     const typed = cancellationTypedData(members(), 2);
 
     expect(typed.primaryType).toBe('Cancellation');
+    expect(typeof typed.message.place).toBe('bigint');
+    expect(typed.message.place).toBe(2n);
     expect(typed.types).toStrictEqual({
       Cancellation: [
         { name: 'account', type: 'address' },

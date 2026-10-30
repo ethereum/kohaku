@@ -5,6 +5,21 @@ import { approval, orchestratorOver, recordingMethod, REQUEST_METHOD, thrownBy }
 
 const DEVICE_UNAVAILABLE = { kind: 'reply-failure', cause: 'device-unavailable' } as const;
 
+const peer = vi.hoisted(() => ({
+  init: vi.fn((): Promise<void> => Promise.resolve()),
+  generateArgs: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  prove: vi.fn((): Promise<unknown> => Promise.resolve({})),
+  verify: vi.fn((): Promise<boolean> => Promise.resolve(true)),
+}));
+
+/** The Aadhaar peer, stubbed so the default bucket never reaches the network. */
+vi.mock('@anon-aadhaar/core', () => ({
+  ...peer,
+  ArtifactsOrigin: { server: 0, local: 1, chunked: 2 },
+  productionPublicKeyHash: '18063425702624337643644061197836918910810808173893535653269228433734128853484',
+  testPublicKeyHash: '15134874015316324267425466444584014077184337590635665158241104437045239495873',
+}));
+
 const without = (binding: DeviceBinding): DeviceBinding[] => DEVICE_BINDINGS.filter((other) => other !== binding);
 
 afterEach(() => {
@@ -126,6 +141,8 @@ describe('the shipped methods against a runtime lacking their binding', () => {
       expect(await orchestrator.configFrom(REQUEST_METHOD, { kind: 'ceremony' }, undefined)).toStrictEqual(DEVICE_UNAVAILABLE);
 
       for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+
+      expect(peer.init).not.toHaveBeenCalled();
     });
   }
 

@@ -8,6 +8,7 @@ import {
   METHOD_AADHAAR_MILLISECONDS_PER_SECOND,
   METHOD_AADHAAR_MIN_FRESHNESS_WINDOW,
   METHOD_AADHAAR_PUBLIC_INPUTS,
+  METHOD_AADHAAR_SIGNED_AT_SLACK,
 } from '../constants/method-aadhaar';
 import { assertBytes32 } from '../formats/guards';
 import type { Hex, Verdict } from '../interfaces';
@@ -42,6 +43,22 @@ export function isFresh(proof: AadhaarProof, config: AadhaarConfig, now: bigint)
   const signedAt = inputAt(proof.inputs, 'timestamp');
 
   return signedAt !== undefined && !(signedAt < now && now - signedAt > config.freshnessWindow);
+}
+
+/**
+ * Whether the stack reads the QR as signed before `now` by more than the config's window and the slack; an unread
+ * time, a throwing read or a stack without `signedAt` leaves the judgment to the prover and `isFresh`.
+ */
+export async function agedBeforeProving(stack: AnonAadhaarStack, qrData: string, config: AadhaarConfig, now: bigint): Promise<boolean> {
+  let signedAt: unknown;
+
+  try {
+    signedAt = await stack.signedAt?.(qrData);
+  } catch {
+    return false;
+  }
+
+  return typeof signedAt === 'bigint' && signedAt < now && now - signedAt > config.freshnessWindow + METHOD_AADHAAR_SIGNED_AT_SLACK;
 }
 
 /** The proof layout back as the stack's proof object, undoing `packProof`. */

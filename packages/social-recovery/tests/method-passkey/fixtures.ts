@@ -316,7 +316,7 @@ export const ctxFor = (config: Hex, options: { attemptId?: bigint; place?: numbe
       payload: '0x1234',
       order: { token: ADDRESS.token, amount: 0n, payee: ADDRESS.payee },
       validUntil: 1_900_000_000,
-      place,
+      place: BigInt(place),
     },
   };
   const digest =

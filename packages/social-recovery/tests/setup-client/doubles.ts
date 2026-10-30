@@ -389,6 +389,12 @@ export type Seen = {
   readonly provider: string[];
 };
 
+/** The stubs' config decoder: one shared function accepting every config, so a client registry's reads compare equal across builds. */
+export const ACCEPT_EVERY_CONFIG = (): object => ({});
+
+/** The stubs' codec, whose `decodeConfig` accepts every config. */
+const STUB_CODEC = { decodeConfig: ACCEPT_EVERY_CONFIG } as unknown as IRecoveryMethod['codec'];
+
 /** A stub method implementation serving the given modules, carrying a tier where one is given. */
 export const methodStub = (modules: readonly Address[], tier?: MethodTier): IRecoveryMethod => ({
     modules: () => modules,
@@ -407,7 +413,7 @@ export const methodStub = (modules: readonly Address[], tier?: MethodTier): IRec
     verify: async () => {
       throw new Error('not used');
     },
-    codec: {} as IRecoveryMethod['codec'],
+    codec: STUB_CODEC,
     deviceBinding: {} as IRecoveryMethod['deviceBinding'],
     describe: () => {
       throw new Error('not used');

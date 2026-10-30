@@ -1,13 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE } from '../../src/constants/method-aadhaar';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  METHOD_AADHAAR_BUCKET_CHUNKED,
+  METHOD_AADHAAR_BUCKET_SERVER,
+  METHOD_AADHAAR_DEFAULT_ARTIFACTS,
+  METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE,
+} from '../../src/constants';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
-import { CERTIFICATE, configBytes, ctxFor, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
+import { coreStack } from '../../src/method-aadhaar/stack';
+import { CERTIFICATE, clockAt, configBytes, ctxFor, FRESH_NOW, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
 
 const core = vi.hoisted(() => ({
   init: vi.fn((): Promise<void> => Promise.reject(new Error('fetch failed: https://unreachable.invalid/circuit.wasm'))),
   generateArgs: vi.fn((): Promise<unknown> => Promise.resolve({})),
   prove: vi.fn((): Promise<unknown> => Promise.resolve({})),
   verify: vi.fn<(pcd: unknown, testMode?: boolean) => Promise<boolean>>(() => Promise.resolve(true)),
+  timestampToUTCUnix: vi.fn((): number => 0),
+  decompressByteArray: vi.fn((): Uint8Array => {
+    throw new Error('incorrect header check');
+  }),
+  convertBigIntToByteArray: vi.fn((): Uint8Array => new Uint8Array([1])),
 }));
 
 /** The peer's two key hashes, `productionPublicKeyHash` and `testPublicKeyHash` of `@anon-aadhaar/core` 2.4.3. */
@@ -33,6 +44,10 @@ const ARTIFACTS = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('a stack whose init rejects', () => {
@@ -89,12 +104,59 @@ describe('the default stack passes the test-mode flag to the peer\'s verify', ()
   it.each([
     ['a test-key proof under the default', { artifacts: ARTIFACTS }, test],
     ['a production-key proof under testMode: true', { artifacts: ARTIFACTS, testMode: true }, production],
-    ['a proof under an unknown key, either mode', { artifacts: ARTIFACTS, testMode: false }, proof],
+    ['a proof under an unknown key under testMode: true', { artifacts: ARTIFACTS, testMode: true }, proof],
   ] as const)('%s is rejected once the peer is loaded, without calling its verify', async (_why, options, bytes) => {
     core.init.mockResolvedValueOnce(undefined);
 
     expect(await anonAadhaarMethod(options).verify(ctx, bytes)).toBe('rejected');
     expect(core.init).toHaveBeenCalledTimes(1);
+    expect(core.verify).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['by default', { artifacts: ARTIFACTS }],
+    ['under testMode: false', { artifacts: ARTIFACTS, testMode: false }],
+  ] as const)('a proof under an unknown key %s reaches the peer, whose key-mismatch throw is not-judged', async (_why, options) => {
+    core.init.mockResolvedValueOnce(undefined);
+    core.verify.mockRejectedValueOnce(new Error('VerificationError: public key mismatch.'));
+
+    expect(await anonAadhaarMethod(options).verify(ctx, proof)).toBe('not-judged');
+    expect(core.verify).toHaveBeenCalledTimes(1);
+    expect(core.verify.mock.calls[0]).toEqual([expect.objectContaining({ proof: expect.objectContaining({ pubkeyHash: '99' }) }), false]);
+  });
+
+  it('a production-key proof under the default reaches the peer and its true answer is satisfied', async () => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    expect(await anonAadhaarMethod({ artifacts: ARTIFACTS }).verify(ctx, production)).toBe('satisfied');
+    expect(core.verify).toHaveBeenCalledTimes(1);
+    expect(core.verify.mock.calls[0]).toEqual([expect.objectContaining({ proof: expect.objectContaining({ pubkeyHash: PRODUCTION_KEY }) }), false]);
+  });
+
+  it('an unknown-key proof under the default makes replyFrom hand the proof on, the prover run once', async () => {
+    clockAt(FRESH_NOW);
+    core.init.mockResolvedValueOnce(undefined);
+    core.generateArgs.mockResolvedValueOnce({});
+    core.prove.mockResolvedValueOnce(pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST, { pubkeyHash: 99n })));
+    core.verify.mockRejectedValueOnce(new Error('VerificationError: public key mismatch.'));
+
+    const method = anonAadhaarMethod({ artifacts: ARTIFACTS });
+    const reply = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { qrData: QR_DATA });
+
+    expect(typeof reply).toBe('string');
+    expect(((reply as string).length - 2) / 2).toBe(544);
+    expect(core.generateArgs).toHaveBeenCalledTimes(1);
+    expect(core.prove).toHaveBeenCalledTimes(1);
+    expect(core.verify).toHaveBeenCalledTimes(1);
+    expect(core.verify.mock.calls[0]?.[1]).toBe(false);
+  });
+
+  it.each([false, true])('an unparsable pubkeyHash answers false without calling the peer, testMode %s', async (testMode) => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    const pcd = pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST));
+
+    expect(await coreStack(ARTIFACTS).verify({ proof: { ...pcd.proof, pubkeyHash: 'not a number' } }, testMode)).toBe(false);
     expect(core.verify).not.toHaveBeenCalled();
   });
 
@@ -132,5 +194,146 @@ describe('the default stack passes the test-mode flag to the peer\'s verify', ()
     expect(core.init).not.toHaveBeenCalled();
     expect(core.verify).not.toHaveBeenCalled();
     expect(() => anonAadhaarMethod({ stack: double.stack, artifacts: ARTIFACTS })).toThrow(new TypeError(METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE));
+  });
+});
+
+describe('the artifacts the peer\'s init receives', () => {
+  const ctx = ctxFor(configBytes(22n, 77n), DIGEST);
+  const production = proofBytes({
+    a: [1n, 2n],
+    b: [
+      [4n, 3n],
+      [6n, 5n],
+    ],
+    c: [7n, 8n],
+    inputs: nine(signalsFor(22n, 77n, DIGEST, { pubkeyHash: BigInt(PRODUCTION_KEY) })),
+  });
+
+  /** Loads the method's stack through one verify and answers the one record the peer's init received. */
+  const initArgsOf = async (method: ReturnType<typeof anonAadhaarMethod>): Promise<unknown> => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    expect(await method.verify(ctx, production)).toBe('satisfied');
+    expect(core.init).toHaveBeenCalledTimes(1);
+
+    return (core.init.mock.calls[0] as unknown[] | undefined)?.[0];
+  };
+
+  it('no option: the chunked bucket\'s three URLs and the chunked origin, nothing else', async () => {
+    expect(await initArgsOf(anonAadhaarMethod())).toStrictEqual({
+      wasmURL: METHOD_AADHAAR_BUCKET_CHUNKED.wasmURL,
+      zkeyURL: METHOD_AADHAAR_BUCKET_CHUNKED.zkeyURL,
+      vkeyURL: METHOD_AADHAAR_BUCKET_CHUNKED.vkeyURL,
+      artifactsOrigin: 2,
+    });
+  });
+
+  it.each([
+    ['an empty options record', {}],
+    ['testMode: false alone', { testMode: false }],
+    ['the default constant passed by name', { artifacts: METHOD_AADHAAR_DEFAULT_ARTIFACTS }],
+    ['the chunked constant passed by name', { artifacts: METHOD_AADHAAR_BUCKET_CHUNKED }],
+  ] as const)('%s: the same chunked bucket', async (_why, options) => {
+    expect(await initArgsOf(anonAadhaarMethod(options))).toStrictEqual({ ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 });
+  });
+
+  it('testMode: true alone still loads the chunked bucket, and the peer\'s verify gets the flag', async () => {
+    core.init.mockResolvedValueOnce(undefined);
+
+    const test = proofBytes({
+      a: [1n, 2n],
+      b: [
+        [4n, 3n],
+        [6n, 5n],
+      ],
+      c: [7n, 8n],
+      inputs: nine(signalsFor(22n, 77n, DIGEST, { pubkeyHash: BigInt(TEST_KEY) })),
+    });
+
+    expect(await anonAadhaarMethod({ testMode: true }).verify(ctx, test)).toBe('satisfied');
+    expect((core.init.mock.calls[0] as unknown[] | undefined)?.[0]).toStrictEqual({ ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 });
+    expect(core.verify.mock.calls[0]?.[1]).toBe(true);
+  });
+
+  it('the server constant: the whole-zkey URL and the server origin', async () => {
+    const args = await initArgsOf(anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER }));
+
+    expect(args).toStrictEqual({
+      wasmURL: METHOD_AADHAAR_BUCKET_SERVER.wasmURL,
+      zkeyURL: METHOD_AADHAAR_BUCKET_SERVER.zkeyURL,
+      vkeyURL: METHOD_AADHAAR_BUCKET_SERVER.vkeyURL,
+      artifactsOrigin: 0,
+    });
+    expect((args as { zkeyURL: string }).zkeyURL).not.toBe(METHOD_AADHAAR_BUCKET_CHUNKED.zkeyURL);
+  });
+
+  it.each([
+    ['server', 0],
+    ['local', 1],
+    ['chunked', 2],
+  ] as const)('the integrator\'s own URLs under %s pass through unchanged, the origin mapped to %s', async (artifactsOrigin, value) => {
+    const own = { ...ARTIFACTS, artifactsOrigin };
+
+    expect(await initArgsOf(anonAadhaarMethod({ artifacts: own }))).toStrictEqual({ ...ARTIFACTS, artifactsOrigin: value });
+  });
+
+  it('Node paths under local pass through as given', async () => {
+    const paths = { wasmURL: '/srv/aadhaar/circuit.wasm', zkeyURL: '/srv/aadhaar/circuit_final.zkey', vkeyURL: '/srv/aadhaar/vkey.json', artifactsOrigin: 'local' } as const;
+
+    expect(await initArgsOf(anonAadhaarMethod({ artifacts: paths }))).toStrictEqual({ ...paths, artifactsOrigin: 1 });
+  });
+
+  it('a member beyond the four never reaches the peer', async () => {
+    const extra = { ...ARTIFACTS, headers: { authorization: 'x' } } as typeof ARTIFACTS;
+
+    expect(await initArgsOf(anonAadhaarMethod({ artifacts: extra }))).toStrictEqual({ ...ARTIFACTS, artifactsOrigin: 0 });
+  });
+
+  it('init runs once per stack: a second call on the same method does not call it again', async () => {
+    core.init.mockResolvedValue(undefined);
+
+    const method = anonAadhaarMethod();
+
+    expect(await method.verify(ctx, production)).toBe('satisfied');
+    expect(await method.verify(ctx, production)).toBe('satisfied');
+    expect(core.init).toHaveBeenCalledTimes(1);
+    expect(core.verify).toHaveBeenCalledTimes(2);
+  });
+
+  it('two methods each initialise the peer with their own artifacts', async () => {
+    core.init.mockResolvedValue(undefined);
+
+    await anonAadhaarMethod().verify(ctx, production);
+    await anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER }).verify(ctx, production);
+
+    expect(core.init.mock.calls.map((call) => (call as unknown[])[0])).toStrictEqual([
+      { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 },
+      { ...METHOD_AADHAAR_BUCKET_SERVER, artifactsOrigin: 0 },
+    ]);
+  });
+
+  it('building the method touches no peer: init waits for the first stack call', () => {
+    anonAadhaarMethod();
+    anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER });
+
+    expect(core.init).not.toHaveBeenCalled();
+  });
+
+  it('the constants are left as they were after a load', async () => {
+    const before = { ...METHOD_AADHAAR_BUCKET_CHUNKED };
+
+    await initArgsOf(anonAadhaarMethod());
+
+    expect(METHOD_AADHAAR_BUCKET_CHUNKED).toStrictEqual(before);
+    expect(Object.isFrozen(METHOD_AADHAAR_BUCKET_CHUNKED)).toBe(true);
+  });
+
+  it.each([
+    ['the server constant', METHOD_AADHAAR_BUCKET_SERVER],
+    ['the chunked constant', METHOD_AADHAAR_BUCKET_CHUNKED],
+    ['the integrator\'s own URLs', ARTIFACTS],
+  ] as const)('a stack with %s is a TypeError, before any import', (_why, artifacts) => {
+    expect(() => anonAadhaarMethod({ stack: stackDouble().stack, artifacts })).toThrow(new TypeError(METHOD_AADHAAR_STACK_AND_ARTIFACTS_MESSAGE));
+    expect(core.init).not.toHaveBeenCalled();
   });
 });

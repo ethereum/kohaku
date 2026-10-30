@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src';
 import * as constants from '../../src/constants/method-aadhaar';
+import * as recoveryMethods from '../../src/recovery-methods';
 import { anonAadhaarMethod, type AnonAadhaarMethodOptions, type AnonAadhaarStack } from '../../src/method-aadhaar';
 import { REPO_ROOT, SRC_ROOT, createSourceProgram, requireSourceFile, resolveExports, toPackagePath } from '../helpers/source';
 import { stackDouble } from './fixtures';
@@ -68,14 +69,55 @@ describe('the test mode surface', () => {
   });
 });
 
+describe('the pre-prover time read surface', () => {
+  it('the stack may carry an optional signedAt from the QR string to a bigint or undefined', () => {
+    expectTypeOf<AnonAadhaarStack['signedAt']>().toEqualTypeOf<((qrData: string) => Promise<bigint | undefined>) | undefined>();
+  });
+
+  it('the slack past the window is zero seconds, as a bigint: the read is the circuit\'s own hour-truncated time', () => {
+    expect(constants.METHOD_AADHAAR_SIGNED_AT_SLACK).toBe(0n);
+  });
+
+  it('the time calls are the peer\'s three helpers, frozen, and distinct from the calls init needs', () => {
+    expect([...constants.METHOD_AADHAAR_STACK_TIME_CALLS]).toEqual(['timestampToUTCUnix', 'decompressByteArray', 'convertBigIntToByteArray']);
+    expect(Object.isFrozen(constants.METHOD_AADHAAR_STACK_TIME_CALLS)).toBe(true);
+    expect([...constants.METHOD_AADHAAR_STACK_CALLS]).toEqual(['init', 'generateArgs', 'prove', 'verify']);
+  });
+});
+
 describe('the changesets', () => {
   const own = readFileSync(join(REPO_ROOT, '.changeset', 'social-recovery-method-aadhaar.md'), 'utf8');
   const modes = readFileSync(join(REPO_ROOT, '.changeset', 'identity-test-modes.md'), 'utf8');
-  const changeset = `${own}\n${modes}`;
+  const followUpsPath = join(REPO_ROOT, '.changeset', 'extension-follow-ups.md');
+  const followUps = existsSync(followUpsPath) ? readFileSync(followUpsPath, 'utf8') : '';
+  const artifacts = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifacts-config-validation.md'), 'utf8');
+  const changeset = `${own}\n${modes}\n${followUps}\n${artifacts}`;
 
   it('the method\'s own and the test-mode one are each a patch for the package', () => {
     expect(own).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
     expect(modes).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  });
+
+  it('both changesets say the METHOD_AADHAAR_* constants come from both entries, and the second entry now carries them', () => {
+    const second = recoveryMethods as { readonly [name: string]: unknown };
+
+    expect(modes).toContain('Every `METHOD_AADHAAR_*` constant is now exported from the core entry as well as from `./recovery-methods`.');
+    expect(own).toContain('the `METHOD_AADHAAR_*` constants are exported from both entries');
+
+    for (const [name, value] of Object.entries(constants)) {
+      expect(second[name], name).toBe(value);
+      expect((core as { readonly [name: string]: unknown })[name], name).toBe(value);
+    }
+  });
+
+  it('the artifacts changeset is a patch naming each bucket constant, the setup error and the reads member, with no breaking line', () => {
+    expect(artifacts).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+
+    for (const name of ['METHOD_AADHAAR_BUCKET_URL', 'METHOD_AADHAAR_BUCKET_CHUNKED', 'METHOD_AADHAAR_BUCKET_SERVER', 'METHOD_AADHAAR_DEFAULT_ARTIFACTS', 'credential.config-malformed', 'MethodReads.codec']) {
+      expect(artifacts, name).toContain(name);
+    }
+
+    expect(artifacts).not.toMatch(/^\s*(\*\*)?breaking/im);
   });
 
   it('the test-mode changeset names the option', () => {
