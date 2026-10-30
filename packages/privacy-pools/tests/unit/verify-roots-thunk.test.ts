@@ -90,9 +90,9 @@ describe('verifyRootsThunk', () => {
     expect(verifyAspRootOnChain).toHaveBeenCalledWith(
       dataService,
       entrypointAddress,
-      computeMerkleTreeRoot([44n, 55n]),
+      await computeMerkleTreeRoot([44n, 55n]),
     );
-    expect(verifiedAspRootSelector(store.getState())).toBe(computeMerkleTreeRoot([44n, 55n]));
+    expect(verifiedAspRootSelector(store.getState())).toBe(await computeMerkleTreeRoot([44n, 55n]));
     expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
@@ -267,12 +267,12 @@ describe('verifyRootsThunk', () => {
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
       poolAddress,
-      computeMerkleTreeRoot([10n]),
+      await computeMerkleTreeRoot([10n]),
     );
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
       poolAddress2,
-      computeMerkleTreeRoot([77n]),
+      await computeMerkleTreeRoot([77n]),
     );
   });
 
@@ -317,7 +317,7 @@ describe('verifyRootsThunk', () => {
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
       poolAddress,
-      computeMerkleTreeRoot([10n]),
+      await computeMerkleTreeRoot([10n]),
     );
   });
 });

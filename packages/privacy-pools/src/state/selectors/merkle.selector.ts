@@ -34,14 +34,17 @@ export const aspLeavesSelector = createSelector(
 
 // State Merkle proof selector - parameterized by pool + note. The tree is cached
 // per pool (see merkle-tree.cache), so repeated proofs reuse one built tree.
+/**
+ * MUST ONLY BE USED IN THUNKS
+ */
 export const stateMerkleProofSelector = createSelector(
   [
     stateLeavesSelector,
     (_state: RootState, poolAddress: bigint, _note: INote & Secret) => poolAddress,
     (_state: RootState, _poolAddress: bigint, note: INote & Secret) => note,
   ],
-  (stateLeaves, poolAddress, note): MerkleProof => {
-    const tree = getIncrementalTree('state', String(poolAddress), stateLeaves);
+  async (stateLeaves, poolAddress, note): Promise<MerkleProof> => {
+    const tree = await getIncrementalTree('state', String(poolAddress), stateLeaves);
     return proofFromTree(tree, commitment(note));
   }
 );
@@ -55,14 +58,19 @@ const aspTree = (aspLeaves: bigint[], entrypointAddress: bigint, aspTreeRoot: bi
  * Root of the tree built from the synced ASP leaves (0n when there are none).
  * This, never a root an ASP service reported, is what is checked against the
  * Entrypoint and what withdrawal proofs are built against.
+ *
+ * MUST ONLY BE USED IN THUNKS
  */
 export const aspLeavesRootSelector = createSelector(
   [aspLeavesSelector, entrypointInfoSelector, aspSelector],
-  (aspLeaves, { entrypointAddress }, { aspTreeRoot }): bigint =>
-    aspLeaves.length === 0 ? 0n : aspTree(aspLeaves, entrypointAddress, aspTreeRoot).root,
+  async (aspLeaves, { entrypointAddress }, { aspTreeRoot }): Promise<bigint> =>
+    aspLeaves.length === 0 ? 0n : (await aspTree(aspLeaves, entrypointAddress, aspTreeRoot)).root,
 );
 
 // ASP Merkle proof selector - parameterized by label.
+/**
+ * MUST ONLY BE USED IN THUNKS
+ */
 export const aspMerkleProofSelector = createSelector(
   [
     aspLeavesSelector,
@@ -70,6 +78,6 @@ export const aspMerkleProofSelector = createSelector(
     aspSelector,
     (_state: RootState, label: bigint) => label,
   ],
-  (aspLeaves, { entrypointAddress }, { aspTreeRoot }, label): MerkleProof =>
-    proofFromTree(aspTree(aspLeaves, entrypointAddress, aspTreeRoot), label),
+  async (aspLeaves, { entrypointAddress }, { aspTreeRoot }, label): Promise<MerkleProof> =>
+    proofFromTree(await aspTree(aspLeaves, entrypointAddress, aspTreeRoot), label),
 );

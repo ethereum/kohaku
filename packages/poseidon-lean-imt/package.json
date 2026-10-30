@@ -1,0 +1,54 @@
+{
+  "name": "@kohaku-eth/poseidon-lean-imt",
+  "version": "0.0.0",
+  "license": "MIT",
+  "author": "",
+  "description": "Lean incremental Merkle tree over Poseidon T3, with a parallel build",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/poseidon-lean-imt"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker.js": "./dist/worker.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:browser": "playwright install chromium && tsc && vitest run -c vitest.browser.config.ts",
+    "build": "tsc",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "benchmark": "npm run build && node benchmark/tree-creation.js"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./dist/worker.js"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@kohaku-eth/poseidon": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/browser": "^3.2.6",
+    "@zk-kit/lean-imt": "^2.2.4",
+    "playwright": "^1.61.1",
+    "typescript": "^6.0.3",
+    "vitest": "^3.0.0"
+  }
+}

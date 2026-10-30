@@ -82,7 +82,7 @@ export class OxBowAspService implements IAspService {
 
   async getAspTreeOxBow({ chainId, scope }: OxBowAspGetTreeParams): Promise<bigint[][]> {
     const leaves = await this.getMtLeaves({ chainId, scope });
-    const root = computeMerkleTreeRoot(leaves);
+    const root = await computeMerkleTreeRoot(leaves);
 
     return [
       leaves,
