@@ -23,7 +23,7 @@ const asset = 2000n as Address;
 
 // The real association set: the user's label 20n is approved.
 const realLeaves = [10n, 20n, 30n, 40n, 50n];
-const realRoot = computeMerkleTreeRoot(realLeaves);
+const realRoot = await computeMerkleTreeRoot(realLeaves);
 
 const rootUpdated = (root: bigint, blockNumber = 7n): IRootUpdatedEvent => ({
   root, ipfsCID: 'cid', timestamp: 1n, blockNumber, transactionHash: 0n,
@@ -162,7 +162,7 @@ describe('withdrawThunk ASP root', () => {
   it('refuses to prove against a tree other than the verified one', async () => {
     const store = setupWithdrawStore();
 
-    store.dispatch(setVerifiedAspRoot(computeMerkleTreeRoot([10n, 20n])));
+    store.dispatch(setVerifiedAspRoot(await computeMerkleTreeRoot([10n, 20n])));
 
     const { action, prove } = withdraw(store);
 

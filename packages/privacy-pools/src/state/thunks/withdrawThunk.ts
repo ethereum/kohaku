@@ -63,8 +63,10 @@ export const withdrawThunk = createAsyncThunk<
 
     // 4. Get Merkle proofs
     const existingNoteFull = { ...existingNote, ...existingSecrets };
-    const stateMerkleProof = stateMerkleProofSelector(state, poolInfo.address, existingNoteFull);
-    const aspMerkleProof = aspMerkleProofSelector(state, existingNote.label);
+    const [stateMerkleProof, aspMerkleProof] = await Promise.all([
+      stateMerkleProofSelector(state, poolInfo.address, existingNoteFull),
+      aspMerkleProofSelector(state, existingNote.label),
+    ]);
     const verifiedAspRoot = verifiedAspRootSelector(state);
 
     // The Entrypoint only accepts its latestRoot(); never prove against an ASP tree

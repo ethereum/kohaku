@@ -1,4 +1,4 @@
-import { LeanIMT } from "@zk-kit/lean-imt";
+import { PoseidonT3LeanIMT as LeanIMT } from "@kohaku-eth/poseidon-lean-imt";
 
 import { buildMerkleTree } from "../../utils/proof.util";
 
@@ -22,10 +22,15 @@ import { buildMerkleTree } from "../../utils/proof.util";
  * produce a bad proof.
  */
 
+/*
+ * Builds are async, so entries hold the tree's promise. count/last are updated
+ * synchronously and appends are chained onto that promise: concurrent callers
+ * share one build, and inserts apply in order even while a build is in flight.
+ */
 interface CachedTree {
   count: number;
   last: bigint;
-  tree: LeanIMT<bigint>;
+  tree: Promise<LeanIMT>;
 }
 
 const namespaces = new Map<string, Map<string, CachedTree>>();
@@ -56,7 +61,7 @@ export function getIncrementalTree(
   key: string,
   leaves: bigint[],
   expectedRoot?: bigint,
-): LeanIMT<bigint> {
+): Promise<LeanIMT> {
   const cache = namespace(ns);
   const cached = cache.get(key);
 
@@ -67,25 +72,53 @@ export function getIncrementalTree(
     leaves[cached.count - 1] === cached.last;
 
   if (cached && isAppendOf) {
-    for (let i = cached.count; i < leaves.length; i++) {
-      cached.tree.insert(leaves[i]!);
+    if (leaves.length > cached.count) {
+      const delta = leaves.slice(cached.count);
+
+      cached.tree = cached.tree.then((tree) => {
+        for (const leaf of delta) {
+          tree.insert(leaf);
+        }
+
+        return tree;
+      });
+      cached.count = leaves.length;
+      cached.last = leaves[leaves.length - 1]!;
+      evictOnFailure(cache, key, cached);
     }
 
-    cached.count = leaves.length;
-    cached.last = leaves[leaves.length - 1]!;
-
-    if (expectedRoot === undefined || cached.tree.root === expectedRoot) {
+    if (expectedRoot === undefined) {
       return cached.tree;
     }
+
+    return cached.tree.then((tree) =>
+      tree.root === expectedRoot ? tree : rebuild(cache, key, leaves),
+    );
   }
 
-  const tree = buildMerkleTree(leaves);
+  return rebuild(cache, key, leaves);
+}
 
-  cache.set(key, {
+function rebuild(cache: Map<string, CachedTree>, key: string, leaves: bigint[]): Promise<LeanIMT> {
+  const entry: CachedTree = {
     count: leaves.length,
     last: leaves[leaves.length - 1]!,
-    tree,
-  });
+    tree: buildMerkleTree(leaves),
+  };
 
-  return tree;
+  cache.set(key, entry);
+  evictOnFailure(cache, key, entry);
+
+  return entry.tree;
+}
+
+// A failed build or insert must not stay cached, or every later read rejects.
+function evictOnFailure(cache: Map<string, CachedTree>, key: string, entry: CachedTree): void {
+  const tree = entry.tree;
+
+  tree.catch(() => {
+    if (cache.get(key) === entry && entry.tree === tree) {
+      cache.delete(key);
+    }
+  });
 }

@@ -141,7 +141,7 @@ describe("Creates the dump state payload", () => {
         const indexes = sortedLeaves.map(leaf => Number(leaf.index));
         const commitments = sortedLeaves.map(leaf => BigInt(leaf.commitment));
         const root = (await getPoolStateRoot(pool, BigInt(address))).toString(16);
-        const { root: computedRoot } = generateMerkleProof(commitments, commitments[0]);
+        const { root: computedRoot } = await generateMerkleProof(commitments, commitments[0]);
 
         expect(`0x${root}`).toEqual(`0x${computedRoot.toString(16)}`);
         expect(indexes.length).toEqual(indexes[indexes.length - 1]);

@@ -18,7 +18,7 @@ export interface SyncAspThunkParams {
  * The root does not commit to the leaf count, though: a service can still pass
  * an upper level of the real tree off as its leaves, which hides every label.
  */
-const checkedLeaves = (aspTree: bigint[][], expectedRoot: bigint): bigint[] => {
+const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint): Promise<bigint[]> => {
   const leaves = aspTree.at(0) ?? [];
 
   // Poseidon reduces its inputs, so `label + p` would build the same root while
@@ -27,7 +27,7 @@ const checkedLeaves = (aspTree: bigint[][], expectedRoot: bigint): bigint[] => {
     throw new Error('ASP tree rejected: a leaf is not a SNARK field element');
   }
 
-  const root = leaves.length > 0 ? computeMerkleTreeRoot(leaves) : 0n;
+  const root = leaves.length > 0 ? await computeMerkleTreeRoot(leaves) : 0n;
 
   if (root !== expectedRoot) {
     throw new Error(
@@ -51,11 +51,11 @@ export const syncAspThunk = createAsyncThunk<void, SyncAspThunkParams, { state: 
 
     // Stored leaves are re-checked too: a state saved by an older version, or a
     // shared snapshot, may hold leaves that do not build the root stored with them.
-    if (isAspRootUpToDateSelector(state) && aspLeavesRootSelector(state) === lastUpdateRootEvent.root) {
+    if (isAspRootUpToDateSelector(state) && await aspLeavesRootSelector(state) === lastUpdateRootEvent.root) {
       return;
     }
 
-    const leaves = checkedLeaves(await aspService.getAspTree(state), lastUpdateRootEvent.root);
+    const leaves = await checkedLeaves(await aspService.getAspTree(state), lastUpdateRootEvent.root);
 
     dispatch(registerAspTree({
       leaves,
