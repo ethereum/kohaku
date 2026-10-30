@@ -1,3 +1,5 @@
+import type { PaymasterGasLimits } from '../paymaster/gas-bounds';
+import type { GasEstimationPolicy } from '../interfaces/user-ops.interface';
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
 import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote, ImportNoteResult } from '../plugin/interfaces/protocol-params.interface.js';
@@ -37,15 +39,24 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 }
 
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
+    /**
+     * Default 'best-effort': on mainnet/Sepolia, standard withdrawals with a
+     * recoverable sender and no user tail calls may return marked fallback gas
+     * after recognized estimation availability failures. Use 'required' to
+     * reject every failed estimate. Actual validation rejections always fail.
+     */
+    gasEstimationPolicy?: GasEstimationPolicy;
     mode: 'paymaster';
     delegation?: DelegationConfig;
     /**
      * Optional baseline for the execution-phase gas of user `tailCalls` (not
-     * including per-note direct withdraws). Used as the batch execution-tail
-     * baseline when bundler estimation fails; when estimation succeeds the
-     * bundler estimate still wins. Defaults to the SDK's static callGasLimit.
+     * including per-note direct withdraws). Successful bundler estimation is
+     * still required and can increase this budget. Defaults to the SDK's
+     * static callGasLimit.
      */
     tailCallsGasEstimate?: bigint;
+    /** Absolute gas ceilings after buffering. Execution gas is uncapped unless explicitly limited here. */
+    maxGasLimits?: PaymasterGasLimits;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;

@@ -1,0 +1,38 @@
+import type { IMethodCodec } from './method-codec';
+import type {
+  Address,
+  Ctx,
+  DeploymentDescriptor,
+  DeviceBinding,
+  DeviceFacts,
+  EnrollFailure,
+  EnrollInput,
+  Hex,
+  Input,
+  Material,
+  MethodTier,
+  Params,
+  ReplyFailure,
+  Verdict,
+} from './records';
+
+/** The client-side half of one method module. */
+export interface IRecoveryMethod {
+  /** The module addresses this implementation serves on the given deployment. */
+  modules(descriptor: DeploymentDescriptor): readonly Address[];
+  enrollInput(params: Params): EnrollInput;
+  /** The config bytes, or `EnrollFailure` naming why the material was not a config. */
+  configFrom(input: EnrollInput, material: Material): Promise<Hex | EnrollFailure>;
+  signingInput(ctx: Ctx, params?: Params): Input;
+  /** The proof bytes, or `ReplyFailure` naming the cause. */
+  replyFrom(ctx: Ctx, input: Input, material: Material): Promise<Hex | ReplyFailure>;
+  /** The local check under the method's own cryptography, reading no chain. */
+  verify(ctx: Ctx, proof: Hex): Promise<Verdict>;
+  readonly codec: IMethodCodec;
+  readonly deviceBinding: DeviceBinding;
+  describe(ctx: Ctx): DeviceFacts;
+  /** The known-answer vector files this implementation's tests replay. */
+  readonly vector: readonly string[];
+  /** The tier this implementation places its modules in, absent where it states none. */
+  readonly tier?: MethodTier;
+}

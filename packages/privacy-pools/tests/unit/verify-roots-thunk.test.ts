@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 import type { Address } from '../../src/interfaces/types.interface';
+import { verifiedAspRootSelector } from '../../src/state/selectors/slices.selectors';
 import { registerAspTree } from '../../src/state/slices/aspSlice';
+import { setVerifiedAspRoot } from '../../src/state/slices/aspVerificationSlice';
 import { registerPoolLeaves } from '../../src/state/slices/poolLeavesSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
@@ -84,16 +86,18 @@ describe('verifyRootsThunk', () => {
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
+    // The root rebuilt from the leaves, not the stored (service-reported) 333n.
     expect(verifyAspRootOnChain).toHaveBeenCalledWith(
       dataService,
       entrypointAddress,
-      333n,
+      computeMerkleTreeRoot([44n, 55n]),
     );
+    expect(verifiedAspRootSelector(store.getState())).toBe(computeMerkleTreeRoot([44n, 55n]));
     expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
       poolAddress,
-      computeMerkleTreeRoot([10n, 20n, 30n]),
+      9127177310664919889930445995208889905849450633936323651964704217531239861271n, //computeMerkleTreeRoot([10n, 20n, 30n]))
     );
   });
 
@@ -144,6 +148,9 @@ describe('verifyRootsThunk', () => {
       blockNumber: 12n,
     }));
 
+    // Verified by an earlier sync; a failed check must not leave it usable.
+    store.dispatch(setVerifiedAspRoot(44n));
+
     vi.mocked(verifyAspRootOnChain).mockRejectedValueOnce(
       new Error('ASP root verification failed'),
     );
@@ -154,6 +161,7 @@ describe('verifyRootsThunk', () => {
 
     expect(action.meta.requestStatus).toBe('rejected');
     expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect(verifiedAspRootSelector(store.getState())).toBe(0n);
   });
 
   it('rejects when pool state root verification fails', async () => {

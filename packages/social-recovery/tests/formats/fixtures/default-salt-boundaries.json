@@ -1,0 +1,64 @@
+{
+  "format": "default-salt-v1",
+  "blessed": false,
+  "note": "Tester-authored, not blessed. Expected values computed outside the implementation: abi.encode by viem encodeAbiParameters (selectors recomputed from the struct signatures), keccak256 over hand-built words, CREATE2 by viem getContractAddress and by hand, creation code assembled by hand from the proxy layout.",
+  "source": "tester-authored boundary rows",
+  "derivation": "keccak256(abi.encode(address account, uint256 place))",
+  "vectors": [
+    {
+      "id": "zero-account-place-0",
+      "input": {
+        "account": "0x0000000000000000000000000000000000000000",
+        "place": "0"
+      },
+      "expected": {
+        "preimage": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "salt": "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5"
+      }
+    },
+    {
+      "id": "place-0",
+      "input": {
+        "account": "0x1111111111111111111111111111111111111111",
+        "place": "0"
+      },
+      "expected": {
+        "preimage": "0x00000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000",
+        "salt": "0xf043c50fe795c69f30b8ff78b84032dc53a9d87ca283ae10a1dacfbb648e83ef"
+      }
+    },
+    {
+      "id": "normal",
+      "input": {
+        "account": "0x1111111111111111111111111111111111111111",
+        "place": "3"
+      },
+      "expected": {
+        "preimage": "0x00000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000003",
+        "salt": "0xfc40ea33816453f766ebc0872d4b5152b468882abe7b6b35528069db4d6e41c4"
+      }
+    },
+    {
+      "id": "place-max-safe",
+      "input": {
+        "account": "0x1111111111111111111111111111111111111111",
+        "place": "9007199254740991"
+      },
+      "expected": {
+        "preimage": "0x0000000000000000000000001111111111111111111111111111111111111111000000000000000000000000000000000000000000000000001fffffffffffff",
+        "salt": "0x41e76693165d6d8d03828d0ac2d30463d6ec4762dc5ef08a3082b0299f5fb8f4"
+      }
+    },
+    {
+      "id": "zero-account-place-1",
+      "input": {
+        "account": "0x0000000000000000000000000000000000000000",
+        "place": "1"
+      },
+      "expected": {
+        "preimage": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+        "salt": "0xa6eef7e35abe7026729641147f7915573c7e97b47efa546f5f6e3230263bcb49"
+      }
+    }
+  ]
+}

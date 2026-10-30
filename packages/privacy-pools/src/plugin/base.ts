@@ -5,9 +5,10 @@ import {
   AssetAmount,
   ERC20AssetId,
   Host,
+  scopeKeystore,
 } from "@kohaku-eth/plugins";
 
-import { ISecretManager } from "../account/keys";
+import { ISecretManager, PRIVACY_POOLS_KEYSTORE_PREFIX } from "../account/keys";
 import { SignatureSecretManager } from "../account/signature-keys";
 import { PrivacyPoolsPaymasterConfigs } from "../config.js";
 import { IPFSAspService } from "../data/ipfsAsp.service.js";
@@ -37,6 +38,7 @@ import {
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
   PPv1ShieldEstimate,
+  PPv1ViewOptions,
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
   PrivacyPoolsV1ProtocolParams,
@@ -94,6 +96,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   private entrypoint: IEntrypoint;
   private relayersList: Map<string, string>;
   private relayerClient: IRelayerClient;
+  // Wallet paths the integrator named in `delegation.path`.
+  private readonly delegationPaths = new Set<string>();
 
   constructor(
     readonly host: Host,
@@ -117,8 +121,12 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     this.entrypoint = entrypoint;
     this.relayersList = new Map(Object.entries(relayersList));
     this.relayerClient = relayerClientFactory();
+    // The secret manager only sees the Privacy Pools subtree, plus delegation paths.
     this.secretManager = secretManager({
-      host,
+      host: {
+        ...host,
+        keystore: scopeKeystore(host.keystore, { prefixes: [PRIVACY_POOLS_KEYSTORE_PREFIX], paths: this.delegationPaths }),
+      },
       accountIndex: this.accountIndex,
     });
     this.stateManager = stateManagerFactory({
@@ -133,6 +141,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       entrypoint,
       paymasterConfig,
       devOptions,
+      provider: host.provider,
+      network: host.network,
     });
   }
 
@@ -142,9 +152,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * Only process supported assets or error out?
    * Returns the balances of the requested assets.
    * The assets retain the provided order. If an asset is not supported its balance will be 0
+   * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
-  async balance(assets: ERC20AssetId[] = []): Promise<PPv1AssetBalance[]> {
-    await this.stateManager.sync();
+  async balance(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1AssetBalance[]> {
+    if (sync) await this.stateManager.sync();
+
     const parsedDesiredAssets = assets.map(({ contract }) => BigInt(contract));
 
     const balances = await this.stateManager.getBalances(
@@ -223,6 +235,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       mode: options?.mode,
       hasTailCalls: !!options?.tailCalls,
       tailCallsGasEstimate: options?.tailCallsGasEstimate,
+      maxGasLimits: options?.maxGasLimits,
     });
   }
 
@@ -230,12 +243,14 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * Returns all notes for the account.
    * @param assets - Filter by specific assets (optional, if empty returns all chains)
    * @param includeSpent - Include notes with zero balance (default: false)
+   * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
   async notes(
     assets: ERC20AssetId[] = [],
     includeSpent = false,
+    { sync = true }: PPv1ViewOptions = {},
   ): Promise<INote[]> {
-    await this.stateManager.sync();
+    if (sync) await this.stateManager.sync();
 
     const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
 
@@ -248,9 +263,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   /**
    * Returns the account's deposits, withdrawals and ragequits, newest first.
    * @param assets - Filter by specific assets (optional, if empty returns all)
+   * @param options - See {@link PPv1ViewOptions} (syncs by default). The block
+   * timestamps history interpolates from are fetched either way.
    */
-  async history(assets: ERC20AssetId[] = []): Promise<PPv1HistoryEvent[]> {
-    await this.stateManager.sync();
+  async history(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1HistoryEvent[]> {
+    if (sync) await this.stateManager.sync();
 
     const assetsAddresses = assets.map(({ contract }) => BigInt(contract));
 
@@ -407,6 +424,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     await this.stateManager.sync();
 
     if (options?.mode === 'paymaster') {
+      // The integrator named this wallet key, so the secret manager may derive exactly it.
+      if (options.delegation?.mode === 'deterministic' && options.delegation.path) {
+        this.delegationPaths.add(options.delegation.path);
+      }
+
       const [withdrawal] = await this.stateManager.getPaymasterWithdrawalPayloads({
         asset: assetAddress,
         amount,
@@ -414,6 +436,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         delegation: options.delegation,
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
+        maxGasLimits: options.maxGasLimits,
         batch: options.batch,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });

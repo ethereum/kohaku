@@ -1,14 +1,16 @@
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { RootState } from "../store";
-import { quoteThunk } from "./quoteThunk";
+import { quoteThunk, QuoteToken } from "./quoteThunk";
 import { IRelayerClient } from "../../relayer/interfaces/relayer-client.interface";
-import { assetSelector, poolsSelector } from "../selectors/slices.selectors";
+import { assetSelector, instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { Address } from "../../interfaces/types.interface";
 import { WithdrawalProofsThunkParams, withdrawalsProofThunk } from "./withdrawalsProofThunk";
-import { IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
+import { IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
+import { instanceCatalog, ITornadoInstance } from "../../instances";
+import { findPoolPaymaster } from "../../paymaster/config";
 
 export interface WithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
     relayerClient: IRelayerClient;
@@ -16,7 +18,13 @@ export interface WithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, '
     assetAddress: bigint;
     amount?: bigint;
     preferredRelayersEns?: Set<string>;
+    /** Source of the reference token price (the paymaster's TWAP) for ERC-20 pools. */
+    paymasterConfig?: IChainsPaymastersConfig;
+    /** Overrides the built-in instance catalog for this chain. */
+    instances?: readonly ITornadoInstance[];
 }
+
+const WITHDRAW_GAS = 550_000n;
 
 export const withdrawThunk = createAsyncThunk<
     IWithdrawalPayload[],
@@ -28,6 +36,8 @@ export const withdrawThunk = createAsyncThunk<
     assetAddress,
     amount,
     preferredRelayersEns,
+    paymasterConfig,
+    instances,
     ...rest
 }, { getState, dispatch }) => {
     const state = getState();
@@ -40,6 +50,14 @@ export const withdrawThunk = createAsyncThunk<
 
     if (!poolInfo) throw new Error(`No pool found for asset ${assetAddress}`);
 
+    const denominations = deposits.map((deposit) => {
+      const pool = pools.get(deposit.pool);
+
+      if (!pool) throw new Error('Pool not found');
+
+      return pool.denomination;
+    });
+
     const uniqueDepositPools = [...new Set(deposits.map((d) => d.pool))];
 
     unwrapResult(
@@ -49,80 +67,59 @@ export const withdrawThunk = createAsyncThunk<
       }))
     )
 
-    // Get best relayer quote
-    const quoteResultAction = await dispatch(
-      quoteThunk({
-        relayerClient: relayerClient,
-        preferredRelayersEns,
-        isERC20: poolInfo.isERC20,
-      }),
-    );
-
-    const { relayerUrl, rewardAccount, tornadoServiceFee, ethPrices } = unwrapResult(quoteResultAction);
-
-    const WITHDRAW_GAS = 550_000n;
     const gasPrice = await dataService.getGasPrice();
     const networkFee = gasPrice * WITHDRAW_GAS;
+    let token: QuoteToken | undefined;
 
-    const getWithdrawalsProofs = async () => {
-      const results: IWithdrawalPayload[] = [];
+    if (poolInfo.isERC20) {
+      const { chainId } = instanceRegistryInfoSelector(state);
+      // Catalog metadata first: the assets slice is read from the RPC.
+      const asset = instanceCatalog(chainId, instances)?.get(poolInfo.address) ?? assetSelector(state).get(assetAddress as Address);
 
-      for (const deposit of deposits) {
-        const pool = pools.get(deposit.pool);
+      if (!asset) throw new Error(`Asset info not found for ${assetAddress}`);
 
-        if (!pool) {
-          throw new Error('Pool not found');
-        }
+      const chainPaymaster = paymasterConfig?.[Number(chainId)];
+      const paymasterAddress = chainPaymaster && findPoolPaymaster(chainPaymaster, poolInfo.address);
+      // Without a paymaster quote for this token only the total fee cap applies.
+      const referenceNetworkFee = paymasterAddress
+        ? await dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, assetAddress, networkFee).catch(() => undefined)
+        : undefined;
 
-        const serviceFee = pool.denomination * BigInt(Math.round(tornadoServiceFee * 100)) / 10_000n;
-    
-        let fee: bigint;
-    
-        if (poolInfo.isERC20) {
-          const asset = assetSelector(state).get(assetAddress as Address);
-    
-          if (!asset) throw new Error(`Asset info not found for ${assetAddress}`);
-    
-          const tokenPriceStr =
-            ethPrices[asset.symbol.toLowerCase()] ??
-            ethPrices[asset.symbol.toUpperCase()] ??
-            ethPrices[asset.symbol];
-    
-          if (!tokenPriceStr) throw new Error(`No ETH price found for token ${asset.symbol}`);
-    
-          const tokenPrice = BigInt(tokenPriceStr);
-    
-          if (tokenPrice === 0n) throw new Error(`Token price is zero for ${asset.symbol}`);
-    
-          const ethFeeInToken = networkFee * (10n ** BigInt(asset.decimals)) / tokenPrice;
-    
-          fee = ethFeeInToken + serviceFee;
-        } else {
-          fee = networkFee + serviceFee;
-        }
-    
-        // Generate proofs for each deposit
-        const withdrawResultAction = await dispatch(
-          withdrawalsProofThunk({
-              ...rest,
-              deposit,
-              relayerAddress: BigInt(rewardAccount) as Address,
-              fee,
-          }),
-        );
-
-        const proof = unwrapResult(withdrawResultAction);
-
-        results.push({
-          mode: 'relayer' as const,
-          proof,
-          poolAddress: deposit.pool,
-          relayerUrl,
-        });
-      }
-      
-      return results;
+      token = { symbol: asset.symbol, decimals: asset.decimals, referenceNetworkFee };
     }
 
-    return getWithdrawalsProofs();
+    const { relayerUrl, rewardAccount, fees } = unwrapResult(await dispatch(
+      quoteThunk({
+        relayerClient,
+        preferredRelayersEns,
+        denominations,
+        networkFee,
+        token,
+      }),
+    ));
+
+    const results: IWithdrawalPayload[] = [];
+
+    for (const [i, deposit] of deposits.entries()) {
+      const fee = fees[i]!;
+      const proof = unwrapResult(await dispatch(
+        withdrawalsProofThunk({
+          ...rest,
+          deposit,
+          relayerAddress: BigInt(rewardAccount) as Address,
+          fee,
+        }),
+      ));
+
+      results.push({
+        mode: 'relayer' as const,
+        proof,
+        poolAddress: deposit.pool,
+        relayerUrl,
+        fee,
+        denomination: denominations[i]!,
+      });
+    }
+
+    return results;
 });

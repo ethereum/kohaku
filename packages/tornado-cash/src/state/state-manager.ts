@@ -1,3 +1,4 @@
+import type { EthereumProvider } from '@kohaku-eth/provider';
 /* eslint-disable max-lines */
 import { ChainId, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
@@ -32,10 +33,15 @@ import { IDataService } from "../data/interfaces/data.service.interface";
 import { ISyncService } from "../data/interfaces/sync.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
 import { ProtocolConfigState } from "./slices/protocolConfigSlice";
+import { removePools } from "./slices/poolsSlice";
+import { poolsSelector } from "./selectors/slices.selectors";
+import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from "../instances";
 
 const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
 export interface StoreFactoryParams {
+  /** Host RPC for independent fee-market checks; does not extend IDataService. */
+  provider?: EthereumProvider;
   secretManagerFactory: () => Promise<ISecretManager>;
   dataService: IDataService;
   syncService: ISyncService;
@@ -90,7 +96,8 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
 const storeByChainAndEntrypoint = ({
   storageToSyncTo,
   initialState: initialStateCallback,
-}: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState'>) => {
+  instances,
+}: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState'> & { instances?: readonly ITornadoInstance[] }) => {
 
   // The callback returns the full record for all chains at once.
   // Cache it so multiple chains lacking stored state only trigger one fetch.
@@ -140,6 +147,18 @@ const storeByChainAndEntrypoint = ({
 
         store.dispatch(setRelayerFeeConfig(relayerConfig));
 
+        // Pools saved by an older version (or a poisoned RPC) may not be
+        // catalog instances; drop them so nothing downstream can use them.
+        const catalog = instanceCatalog(getChainStoreParams.chainId, instances);
+
+        if (catalog) {
+          const outsideCatalog = [...poolsSelector(store.getState()).values()]
+            .filter((pool) => !catalogInstanceFor(catalog, pool))
+            .map((pool) => pool.address);
+
+          if (outsideCatalog.length > 0) store.dispatch(removePools(outsideCatalog));
+        }
+
         storeWithSelectors = initializeSelectors(store);
         chainStoreMap.set(computedChainKey, storeWithSelectors);
       }
@@ -163,19 +182,21 @@ const storeByChainAndEntrypoint = ({
 export const storeStateManager = async ({
   secretManagerFactory,
   dataService,
+  provider,
   syncService,
   relayerClient,
   paymasterConfig,
   proverFactory,
   storageToSyncTo,
   initialState,
-  protocolConfig,
+  protocolConfig: { instances, ...protocolConfig },
   relayerConfig,
 }: StoreFactoryParams): Promise<IStateManager> => {
   const secretManager = await secretManagerFactory();
   const { getChainStore, getAllStores } = storeByChainAndEntrypoint({
     storageToSyncTo,
     initialState,
+    instances,
   });
 
   const getChainInfo = async () => {
@@ -216,6 +237,7 @@ export const storeStateManager = async ({
             syncService,
             relayerClient,
             secretManager,
+            instances,
             ...store.selectors,
           }),
         ),
@@ -253,7 +275,7 @@ export const storeStateManager = async ({
 
       return unwrapResult(
         await store.dispatch(
-          getDepositPayloadThunk({ secretManager, asset, amount, strategy }),
+          getDepositPayloadThunk({ secretManager, asset, amount, strategy, instances }),
         ),
       );
     },
@@ -277,6 +299,10 @@ export const storeStateManager = async ({
               secretManager,
               tailCalls: params.tailCalls,
               tailCallsGasEstimate: params.tailCallsGasEstimate,
+              gasEstimationPolicy: params.gasEstimationPolicy,
+              maxGasLimits: params.maxGasLimits,
+              bundlerPost: params.bundlerPost,
+              provider,
             }),
           ),
         );
@@ -291,7 +317,9 @@ export const storeStateManager = async ({
             dataService,
             assetAddress: asset,
             amount,
-            preferredRelayersEns: params.preferredRelayersEns ? new Set(params.preferredRelayersEns) : undefined
+            preferredRelayersEns: params.preferredRelayersEns ? new Set(params.preferredRelayersEns) : undefined,
+            paymasterConfig,
+            instances,
           }),
         ),
       );

@@ -2,6 +2,9 @@ import { Hex } from "ox/Hex";
 import { EthereumProvider } from "@kohaku-eth/provider";
 export { MemoryStorage } from "./memory-storage";
 export { MnemonicKeystore } from "./mnemonic-keystore";
+export { parseDerivationPath } from "./derivation-path";
+export { scopeKeystore, KeystorePathNotAllowedError } from "./scoped-keystore";
+export type { KeystoreScope } from "./scoped-keystore";
 
 export type Host = {
     network: Network;
@@ -156,8 +159,9 @@ export type Storage = {
 export type Keystore = {
     /**
      * Derives a private key at the given BIP-32 path. Implementations MAY
-     * restrict which paths are allowed. Once an implementation has decided on
-     * a path, it MUST return the same key for subsequent calls with the same path.
+     * restrict which paths are allowed (see {@link scopeKeystore}). Once an
+     * implementation has decided on a path, it MUST return the same key for
+     * subsequent calls with the same path.
      * 
      * @param path BIP-32 path to derive the key at.
      * @returns The derived private key as a hex string.

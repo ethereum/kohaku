@@ -1,3 +1,6 @@
+import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
+import type { BundlerPost } from '../../paymaster/utils';
+import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
 import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
@@ -15,6 +18,7 @@ import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
 import type { DelegationConfig } from '../../account/delegation.interface';
+import type { ITornadoInstance } from '../../instances';
 
 export type { DelegationConfig, ImportNoteResult };
 
@@ -22,8 +26,9 @@ type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
   paymasterAddress: StringAddress;
   entryPointAddress: StringAddress;
-  poolsAccountsMap: Record<StringAddress, StringAddress>;
   bundlerUrl: string;
+  /** Pools allowlisted on the TornadoPaymaster at paymasterAddress. */
+  supportedPools: readonly StringAddress[];
 }
 
 export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
@@ -33,6 +38,10 @@ export interface IRelayerWithdrawalPayload {
   proof: TornadoProveOutput;
   poolAddress: Address;
   relayerUrl: string;
+  /** Relayer fee bound into the proof, in the pool asset's base units. */
+  fee: bigint;
+  /** Note denomination. The recipient receives `denomination - fee`. */
+  denomination: bigint;
 }
 
 export type IWithdrawalPayload = IRelayerWithdrawalPayload | IGenericPaymasterWithdrawalPayload;
@@ -50,7 +59,13 @@ export interface ITornadoArtifacts {
   provingKey: ArrayBuffer;
 }
 
-export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'>;
+export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'> & {
+  /**
+   * Instances deposits may target on this chain. Replaces the built-in
+   * `TornadoInstances` list; without either, deposits are refused.
+   */
+  instances?: readonly ITornadoInstance[];
+};
 
 export interface TCProtocolParams {
   accountIndex?: number;
@@ -70,7 +85,7 @@ export interface TCProtocolParams {
    */
   minExternalSyncBlocksAmount?: number;
   /**
-   * Opt in to the extended ETH denominations (0.01, 0.03, 0.3, 3, 30).
+   * Opt in to extended ETH pools (0.01, 0.03, 0.3, 3, 30, plus Sepolia 10 ETH).
    * Omitted or false keeps deposits, withdrawals, balances, and notes on the
    * classic pools. Pools already saved keep their per-pool sync cursor, so
    * turning this on later resumes there instead of the global cursor.
@@ -97,15 +112,21 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 }
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
+  /** Default best-effort: eligible standard withdrawals may return marked, unestimated fallback limits. */
+  gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   /**
    * Optional baseline for the execution-phase gas of user `tailCalls` (not
-   * including per-note direct withdraws). Used when bundler estimation fails;
-   * when estimation succeeds the bundler estimate still wins.
+   * including per-note direct withdraws). Successful bundler estimation is
+   * still required and can increase this budget.
    */
   tailCallsGasEstimate?: bigint;
+  /** Optional absolute ceilings, including buffers; not a fee percentage. */
+  maxGasLimits?: PaymasterGasLimits;
+  /** Worker transport supplied by the host. */
+  bundlerPost?: BundlerPost;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;

@@ -1,3 +1,71 @@
+## 0.1.0-alpha.32
+
+### Patch Changes
+
+- a98a88f: Check paymaster bundler gas prices against the host RPC fee market, bound validation overhead and payload-sized pre-verification gas, and send bundler requests through the host network. Tail-call execution gas can grow with the bundler estimate; optional `maxGasLimits` sets explicit absolute ceilings. There is no percentage-of-withdrawal fee cap. The sponsoring note must still cover the fee. Tornado prepared paymaster payloads include the proof-bound fee and total withdrawn value, with optional fields for compatibility with older saved operations.
+- 7a7c9a1: Improve paymaster estimation availability without restoring silent catch-all fallback.
+  Retry recognized temporary transport failures once, using the exact signed payload
+  and honoring short Retry-After headers. Broadcasts are never retried by this logic.
+
+  Add gasEstimationPolicy (default best-effort, with required available for strict
+  callers). On mainnet/Sepolia, standard withdrawals with recoverable senders and no
+  user tail calls may fall back after recognized transport failures or the bundler's
+  opaque simulation-parser internal error. Real validation failures, invalid estimates,
+  random senders, unknown chains and user tail calls never use this fallback.
+
+  Rebuild fallback fees, proofs, forwarding calldata and signatures using 350000 gas
+  of pre-verification overhead plus a variable-payload allowance, preserving higher
+  previous estimates. Reject fees that consume the sponsoring note. Prepared payloads
+  include gasEstimation metadata so consumers can display or reject fallback results.
+  Fallback budgets are conservative heuristics and may still be rejected or execute
+  unsuccessfully; consumers must display the actual committed fee before broadcasting.
+
+- eb83865: Require successful bundler gas estimation when preparing paymaster withdrawals.
+  Previously an estimation failure silently returned static limits, which could
+  produce signed operations rejected for insufficient preVerificationGas.
+
+  Single-note and consolidated withdrawals now rebuild the sponsoring fee, proof,
+  forwarding calldata and signature when gas estimates increase, then estimate the
+  exact rebuilt payload again. Refinement is bounded to three attempts.
+
+  Single-note withdrawals now also pay the recoverable sender and forward to the
+  requested recipient during execution.
+  This avoids `CallGasLimitNonZero` when bundlers inject a nonzero gas-search
+  ceiling during estimation. Explicit delegation settings apply to single notes
+  too; unused-gas refunds can remain on the sender after forwarding.
+
+  Bundler HTTP requests use a 180-second timeout and no transport retries. Preparation now rejects on estimation failure,
+  invalid estimates or non-convergence instead of returning an unchecked fallback.
+
+- Updated dependencies [d8bf680]
+- Updated dependencies [d8bf680]
+  - @kohaku-eth/provider@0.1.0-alpha.14
+  - @kohaku-eth/plugins@0.0.1-alpha.20
+
+## 0.1.0-alpha.31
+
+### Patch Changes
+
+- 33529e2: feat: new paymaster format
+
+## 0.1.0-alpha.30
+
+### Patch Changes
+
+- ad9c520: Pin the Tornado proving artifacts. The prover now checks the circuit JSON and proving key against SHA-256 pins before parsing them, whatever `artifactsLoader` returns, and throws `TornadoArtifactsIntegrityError` on a mismatch. The default loader now fetches from a fixed tornado-cli commit and fails on HTTP errors. The pins are exported as `TORNADO_CIRCUIT_SHA256` and `TORNADO_PROVING_KEY_SHA256`.
+- 3cf4609: Narrow what the state worker can do with host objects. They used to cross as plain comlink `proxy()`s, which answer on any property path. Each host object now gets its own channel that only accepts calls to the methods the worker uses, with plain-data arguments: read-only `provider.request` methods, `tornado-cash-` storage keys, and a keystore scoped to `m/29795'/1'` plus the exact `delegation.path` of an unshield. A custom `secretManagerFactory` receives that scoped keystore too.
+- 70b93ba: Only deposit into known Tornado instances. Pool addresses and denominations read from the RPC are now checked against a static per-chain catalog (`TornadoInstances`, mainnet and Sepolia); pools that are missing from it or disagree with it are ignored on sync and dropped from saved state on load. `protocolConfig.instances` replaces the catalog for a chain, and on a chain with neither `prepareShield` throws.
+- 70b93ba: Bound the relayer fee before proving a relayer withdrawal. For ERC-20 pools the relayer's token price may not put the network fee more than `relayerConfig.maxPriceDeviationBps` (default 20%) above the paymaster's on-chain TWAP quote, and every note's total fee is capped at `relayerConfig.maxTotalFeeBps` (default 20%) of its denomination. The relayer is now chosen by lowest total fee, and each relayer withdrawal exposes the proven `fee` and the note `denomination`.
+- 70b93ba: `prepareShield` now honours `{ strategy: DepositStrategy.MaxAnonimitySet }`. The enum value is `0`, which was replaced by `MinFee` as a falsy value.
+- Updated dependencies [3cf4609]
+  - @kohaku-eth/plugins@0.0.1-alpha.19
+
+## 0.1.0-alpha.29
+
+### Patch Changes
+
+- a684e89: chore: add sep 10 eth pools
+
 ## 0.1.0-alpha.28
 
 ### Patch Changes

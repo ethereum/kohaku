@@ -1,0 +1,30 @@
+{
+  "format": "method-ecdsa-proof-v1",
+  "source": "design/onchain/contracts.md",
+  "derivation": "raw signature bytes over the place digest; not abi.encode(bytes)",
+  "vectors": [
+    {
+      "id": "deterministic-test-key",
+      "input": {
+        "privateKeyNotice": "public test fixture key 0x01",
+        "signer": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+        "digest": "0x45da43ac350a49f946b432051597379c9c780adb797231750744a4bcc6df4f87"
+      },
+      "expected": {
+        "proof": "0x9cc23b364d1bc8c5cc2100a486709fbeb2e4328cf3635788903fb1b4b92a8e590ae8eda1f77fa8c62365613c80e78b243fe4b5269607974473eed59e631fb6db1b",
+        "eoaVerification": true
+      }
+    },
+    {
+      "id": "empty",
+      "input": {
+        "signer": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+        "digest": "0x45da43ac350a49f946b432051597379c9c780adb797231750744a4bcc6df4f87"
+      },
+      "expected": {
+        "proof": "0x",
+        "eoaVerification": false
+      }
+    }
+  ]
+}

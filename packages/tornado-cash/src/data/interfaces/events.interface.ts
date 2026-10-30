@@ -73,7 +73,7 @@ export interface IPool {
   state: 0 | 1;
   rootHistorySize: number;
   /**
-   * One of the newer ETH denominations (0.01, 0.03, 0.3, 3, 30). Absent on
+   * An opt-in ETH pool (0.01, 0.03, 0.3, 3, 30, or Sepolia 10 ETH). Absent on
    * classic pools and on snapshots saved before the field existed.
    */
   extended?: boolean;

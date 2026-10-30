@@ -26,26 +26,13 @@ ERC-20 shields emit an approval and a deposit for each note. The user's public a
 
 The CLI always passes `MinFee`, in `prepareProtocolShield` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).
 
-## Relayer withdrawal
+## ERC-4337 paymaster withdrawal
+
+Use the paymaster relay/broadcast path by passing `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
 
 ```ts
-const operation = await tornado.prepareUnshield(asset, recipient, {
-  mode: 'relayer',
-  preferredRelayersEns: ['relay.example.eth'],
-})
+import { createTCBroadcaster, TornadoPaymasterConfigs } from '@kohaku-eth/tornado-cash'
 
-const receipts = await createTCBroadcaster(host).broadcast(operation)
-```
-
-`mode: 'relayer'` is the default, so the options object is optional. `preferredRelayersEns` keeps only those ENS names from the registry. Names that are not registered, or that fall outside [`relayerConfig`](/tornado-cash/configuration), produce no quote. With an empty preferred list the plugin uses every relayer inside the fee window.
-
-Each withdrawal in `operation.withdrawals` has `mode: 'relayer'`, a `relayerUrl`, the pool, and the proof. The broadcaster POSTs them with `host.network.fetch`. A failure on one withdrawal is collected. The returned array contains the ones that succeeded, each as `{ id }` where `id` is the relayer job id. If you need all-or-nothing, check `receipts.length` against `operation.withdrawals.length` before you tell the user the funds have moved.
-
-`tailCalls` on a relayer unshield throws. Follow-up calls belong on the paymaster path.
-
-## Paymaster withdrawal
-
-```ts
 const operation = await tornado.prepareUnshield(asset, recipient, {
   mode: 'paymaster',
   delegation: { mode: 'deterministic' },
@@ -64,18 +51,42 @@ const receipts = await createTCBroadcaster(host, {
 }).broadcast(operation)
 ```
 
-The paymaster sponsors gas. The user's public account does not pay the withdrawal. `receipts[n].id` is the user operation hash.
+The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler and waits for its receipt. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
 
-`tailCalls` runs in the same user operation, after the notes are spent. The callback receives the sender that will execute them. `tailCallsGasEstimate` is a fallback gas budget for that phase. When the bundler estimates successfully, its number wins.
+Every paymaster unshield pays the EIP-7702 sender first, including a single note; without user tail calls, the execution phase forwards the amount minus the fee to the requested recipient. This avoids the paymaster rejecting the nonzero execution gas limit that bundlers inject during estimation. When an unshield spends multiple notes, the SDK consolidates them into this same user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
+
+User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is the initial gas budget for that phase. User tail calls always require successful bundler estimation; a supplied gas estimate alone does not enable fallback. Estimates can increase the conservative gas floors, and the final signed operation is estimated again after fee/proof changes.
+
+### Bundler gas bounds
+
+Bundler gas prices are checked against the host RPC: the tip may not exceed the larger of 2 gwei and three times `eth_maxPriorityFeePerGas`, and the maximum price may not exceed three times the latest base fee plus that tip allowance. Validation gas is bounded at twice the local baseline. The default pre-verification ceiling is twice `(350,000 + 40 × variable payload bytes)`, including calldata and paymaster data, so it grows with large batches instead of imposing a fixed 200,000-gas limit. These are conservative Ethereum allowances; `maxGasLimits` can replace individual gas ceilings for deployments with different requirements.
+
+The host provider must return the latest block's base fee; an unavailable tip RPC uses the 2 gwei allowance. Custom low-level state managers must forward the host provider when using the built-in paymaster thunk. Custom `IDataService` implementations need no new methods.
+
+Execution gas can increase with successful estimation, including for expensive tail calls. `tailCallsGasEstimate` remains an initial estimate, not a ceiling. To set an explicit limit, pass `maxGasLimits: { callGasLimit: 5_000_000n }` alongside your other paymaster options. All ceilings apply after the estimation buffer, and a bounds violation throws rather than entering fallback.
+
+There is no default execution-gas ceiling: without an explicit `callGasLimit` ceiling, the bundler can increase the proof-bound fee through its execution estimate, up to the sponsoring note's affordability limit. Review that fee or set an absolute ceiling when using an untrusted bundler. Deploy matching Tornado main and worker bundles together so the restricted host network bridge is available.
+
+There is no percentage fee cap: a small note may deliberately spend most of its value on sponsorship. The fee must still fit within the sponsoring note. Newly prepared withdrawals expose `fee` and `withdrawnValue`; older stored payloads may omit them. Show the proof-bound fee before submission. Bundler traffic, including estimation and receipt polling, uses `host.network.fetch`; make sure your host proxy or allowlist permits the configured bundler. Preparation sends signed operations for estimation, which a bundler can submit, so it is not a dry run.
+
+### Gas-estimation availability
+
+`gasEstimationPolicy` defaults to `'best-effort'`. On mainnet and Sepolia, standard withdrawals without user tail calls may use conservative fallback gas when estimation is unavailable. The sender must be recoverable (the default or an explicit deterministic path); random senders require successful estimation. Known validation rejections, invalid responses and non-convergence still fail. Fallback is limited to recognized transport failures or the bundler's opaque `could not parse simulate validation result` internal error, not every JSON-RPC error.
+
+Read-only estimation requests retry recognized temporary transport failures once using the same signed payload. This does not retry broadcasts. Eligible fallbacks rebuild the fee, sponsoring proof, forwarding calls and signature using a pre-verification budget of 350,000 gas plus 40 gas per variable calldata/paymaster-data byte, retaining any higher previously refined limits. This is a conservative heuristic, not a promise of bundler acceptance. It may cost more than measured gas, and its fee must remain below the sponsoring note's denomination.
+
+Inspect `operation.withdrawals[n].gasEstimation`: `status: 'estimated'` means the final payload was estimated; `status: 'fallback'` includes the reason and message. Consumers should show fallback status and the actual fee committed in `withdrawal.proof.args[4]` before submission. A strict consumer may reject fallback payloads. Older payloads may have no metadata and should not be assumed estimated.
+
+Use `gasEstimationPolicy: 'required'` when preparing an unshield to require a successful estimate in every case. The broadcaster still submits every operation for bundler admission; fallback does not bypass validation. An execution failure can still charge gas and leave funds on the recoverable sender instead of the final recipient.
 
 ### Delegation
 
-`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored when `tailCalls` is set. The delegator holds the withdrawn funds along the way, so it has to be a key the wallet can recover.
+`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for all paymaster unshields, including a single note. The delegator holds the withdrawn funds along the way and may receive unused-gas refunds after forwarding, so use a key the wallet can recover. The default is derived from the first note; `random` explicitly opts out of recovery.
 
 | Value | Delegator |
 | --- | --- |
 | omitted, or `{ mode: 'deterministic' }` | An ephemeral address derived from the batch's first deposit. Recoverable from the seed. |
-| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. |
+| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. The plugin lets the worker derive exactly this path, nothing else outside `m/29795'/1'`. |
 | `{ mode: 'random' }` | A throwaway key. The funds sitting on it during the call are unrecoverable if the user operation stalls. |
 
 ```ts
@@ -90,4 +101,4 @@ The CLI builds this delegation in [`src/utils/tornado-unshield-delegation.ts`](h
 
 ## Picking a path
 
-Use `MinFee` and a relayer when you want the fewest notes and a simple withdrawal. Use `MaxAnonimitySet` when the product wants every note in the smallest denomination. Use the paymaster when the recipient should receive funds without the user holding ETH for gas, or when the withdrawal should continue into `tailCalls`.
+Use `MinFee` when you want the fewest deposit notes. Use `MaxAnonimitySet` when the product wants every note in the smallest denomination. For withdrawals, use `mode: 'paymaster'` and broadcast through `createTCBroadcaster`. Add `tailCalls` when the withdrawal should continue into further calls.

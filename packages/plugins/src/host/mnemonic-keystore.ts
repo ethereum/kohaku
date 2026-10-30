@@ -1,35 +1,14 @@
 import { Keystore } from "./index";
 import { HDKey } from "@scure/bip32";
-import { mnemonicToSeedSync, generateMnemonic } from "@scure/bip39";
-import { wordlist } from "@scure/bip39/wordlists/english.js";
+import { mnemonicToSeedSync, generateMnemonic, validateMnemonic } from "@scure/bip39";
+import { wordlist as english } from "@scure/bip39/wordlists/english.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { Hex } from "ox";
+import { HARDENED_OFFSET, parseDerivationPath } from "./derivation-path";
 
 /** RAILGUN registered coin type (SLIP-0044). */
 const RAILGUN_COIN_TYPE = 1984;
-const HARDENED_OFFSET = 0x80000000;
-
-/**
- * Parses a BIP-32 style path ("m/44'/1984'/0'/0'/0'") into raw u32 indices
- * (hardened offset applied).
- */
-function parsePath(path: string): number[] {
-    const segments = path.split("/");
-
-    if (segments[0] !== "m") throw new Error(`Invalid derivation path: ${path}`);
-
-    return segments.slice(1).map((segment) => {
-        const hardened = segment.endsWith("'") || segment.endsWith("h");
-        const index = Number.parseInt(hardened ? segment.slice(0, -1) : segment, 10);
-
-        if (!Number.isInteger(index) || index < 0 || index >= HARDENED_OFFSET) {
-            throw new Error(`Invalid path segment "${segment}" in ${path}`);
-        }
-
-        return hardened ? index + HARDENED_OFFSET : index;
-    });
-}
 
 /**
  * RAILGUN engine compatible key derivation, as implemented in
@@ -68,21 +47,29 @@ function deriveRailgunEngineKey(seed: Uint8Array, indices: number[]): Uint8Array
  */
 export class MnemonicKeystore implements Keystore {
     readonly _brand = 'Keystore' as const;
-    private mnemonic: string;
+    // A real private field: code holding the keystore cannot read the phrase.
+    readonly #mnemonic: string;
 
-    constructor(mnemonic: string) {
-        this.mnemonic = mnemonic;
+    /**
+     * @param mnemonic BIP-39 phrase; the words and checksum are checked against `options.wordlist` (English by default).
+     */
+    constructor(mnemonic: string, { wordlist = english }: { wordlist?: string[] } = {}) {
+        if (typeof mnemonic !== "string" || !validateMnemonic(mnemonic, wordlist)) {
+            throw new Error("Invalid mnemonic: expected a BIP-39 phrase with a valid checksum");
+        }
+
+        this.#mnemonic = mnemonic;
     }
 
     static random(): MnemonicKeystore {
-        const mnemonic = generateMnemonic(wordlist, 256);
+        const mnemonic = generateMnemonic(english, 256);
 
         return new MnemonicKeystore(mnemonic);
     }
 
     async deriveAt(path: string): Promise<Hex.Hex> {
-        const seed = mnemonicToSeedSync(this.mnemonic);
-        const indices = parsePath(path);
+        const indices = parseDerivationPath(path);
+        const seed = mnemonicToSeedSync(this.#mnemonic);
 
         // RAILGUN paths (m/44'/1984'/… spending, m/420'/1984'/… viewing) must use
         // the engine's "babyjubjub seed" tree to stay compatible with the RAILGUN
@@ -91,8 +78,7 @@ export class MnemonicKeystore implements Keystore {
             return Hex.fromBytes(deriveRailgunEngineKey(seed, indices));
         }
 
-        const root = HDKey.fromMasterSeed(seed);
-        const child = root.derive(path);
+        const child = indices.reduce((node, index) => node.deriveChild(index), HDKey.fromMasterSeed(seed));
 
         if (!child.privateKey) throw new Error(`Could not derive private key at path ${path}`);
 

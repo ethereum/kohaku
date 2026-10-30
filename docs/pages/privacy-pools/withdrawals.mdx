@@ -1,30 +1,16 @@
 # Withdrawals
 
-`prepareUnshield(asset, recipient, options)` builds a private operation. `createPPv1Broadcaster` submits it. The shape of `options` picks the path.
+`prepareUnshield(asset, recipient, options)` builds a private operation. `createPPv1Broadcaster` submits it. Use the ERC-4337 paymaster relay/broadcast path as the default integration path. Pass `mode: 'paymaster'` explicitly on both preparation and fee previews; omitting it selects the SDK's regular relayer mode.
 
-Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof. `prepareUnshield` takes a new quote when you are ready to submit, so a preview can go slightly stale. Quote expiry on the relayer estimate is `expiration`, in milliseconds.
+Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof. `prepareUnshield` estimates again when you are ready to submit, so a preview can go slightly stale.
 
 ```ts
 const preview = await pools.estimateUnshield(asset, recipient, {
-  mode: 'relayer',
+  mode: 'paymaster',
 })
 ```
 
 `asset.amount` is the gross withdrawn from the pool, unless you set `exact`. The recipient receives `preview.netAmount`.
-
-## Relayer
-
-This is the default. Omit `options`, or pass `{ mode: 'relayer' }`.
-
-```ts
-const operation = await pools.prepareUnshield(asset, recipient)
-
-await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
-```
-
-The relayer pays gas and takes `fee` from the withdrawn amount. `operation.quoteData` carries the quote and the relayer id. `operation.txData` is the entrypoint call the relayer will send. You broadcast with the broadcaster. You do not put `txData` through the user's public account.
-
-A relayer-mode operation can include `tailCalls` on the type, for a later release. This version does not execute them. Use paymaster mode when the withdrawal must run further calls.
 
 ## Paymaster
 
@@ -37,6 +23,8 @@ const operation = await pools.prepareUnshield(asset, recipient, {
 
 const receipt = await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
 ```
+
+`broadcasterUrl` is a required constructor field, but paymaster broadcasting uses the bundler URL carried by the prepared operation.
 
 `receipt.requestId` is the user operation hash. `receipt.txHash` is the transaction that included it.
 
@@ -57,7 +45,7 @@ Point `refundRecipient` at a payer or change address when the recipient should s
 
 ### Several notes, one user operation
 
-`batch: true` spends enough approved notes to reach `amount` inside one sponsored user operation.
+`batch: true` spends enough approved notes to reach `amount` inside one sponsored ERC-4337 user operation. The first selected note (the largest) covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in its execution phase (tail calls). Any user-supplied `tailCalls` run after those withdrawals in the same user operation; each note does not require its own user operation.
 
 ```ts
 await pools.prepareUnshield(asset, recipient, {
@@ -88,6 +76,18 @@ await pools.prepareUnshield(asset, recipient, {
 
 `estimateUnshield` needs the same `tailCalls` (or at least their presence) and the same gas estimate, or the preview will miss the execution phase.
 
+### Bundler gas bounds
+
+The bundler's gas price is checked against the host provider's latest base fee and tip suggestion: at most three times the base fee plus a tip allowance of `max(2 gwei, 3 × suggested tip)`. Validation limits are bounded at twice the local baseline. Pre-verification gas has a payload-sized ceiling of twice `(350,000 + 40 × calldata/paymaster-data bytes)` rather than a fixed limit. Hosts must support reading the latest block's base fee; a missing tip RPC falls back to the 2 gwei allowance.
+
+Tail-call execution gas uses the buffered bundler estimate instead of being held at the old 300,000-gas default. `tailCallsGasEstimate` is an initial estimate. Optional `maxGasLimits` provides absolute ceilings after buffering, for example `{ callGasLimit: 5_000_000n }`. You can replace individual validation or pre-verification ceilings with the same option. A violation throws instead of silently reverting to baseline gas. Pass the same limits to `estimateUnshield` when setting them for preparation; its preview still uses baseline gas and is not a simulation of the tail calls.
+
+There is no default execution-gas ceiling: without an explicit `callGasLimit` ceiling, the bundler can increase the proof-bound fee through its execution estimate, up to the sponsoring withdrawal's affordability limit. Review that fee or set an absolute ceiling when using an untrusted bundler.
+
+There is no percentage-of-withdrawal fee cap. Spending most of a small sponsoring withdrawal on gas is permitted, provided it covers the fee. Bundler estimation and broadcasting use `host.network.fetch`, including receipt polling, so hosts with URL allowlists must permit their configured bundler. The host provider supplies the fee-market reference independently of any custom data service; custom `IDataService` implementations need no new methods. Custom low-level state managers must forward the provider/network supplied by the plugin when using the built-in paymaster helpers.
+
+Preparation sends a signed operation with a valid proof to the bundler for estimation before broadcasting, so the bundler could submit that provisional operation. Show the proof-bound fee and do not treat preparation as a dry run.
+
 ### Who signs the user operation
 
 `delegation` chooses the ephemeral sender.
@@ -109,7 +109,11 @@ Set `options.exact` when `asset.amount` is the amount the recipient must receive
 const operation = await pools.prepareUnshield(
   { asset, amount: 1_000_000n }, // recipient gets 1 USDC (6 decimals)
   recipient,
-  { exact: { gasBumpBPS: 1_500n } },
+  {
+    mode: 'paymaster',
+    refundRecipient: payer,
+    exact: { gasBumpBPS: 1_500n },
+  },
 )
 
 operation.exact
@@ -117,10 +121,6 @@ operation.exact
 ```
 
 `gasBumpBPS` adds headroom to the quote's gas component. `10000` is 100%, so `1500` is 15%. That is the default, exported as `DEFAULT_EXACT_GAS_BUMP_BPS`. The bump applies to the gas term, and the fee still has to fit the asset's on-chain max relay fee. If it does not, the call throws.
-
-On the relayer path `expectedNet` equals `requestedNet`. The embedded fee is tipped so a small gas move between quote and submission still clears the relayer.
-
-### Exact output with a paymaster
 
 `refundRecipient` is required. The gross is sized from the worst-case gas fee, and the overcharge comes back in `postOp`. The call throws if you omit the refund address.
 
@@ -136,6 +136,6 @@ Send the refund to `payer` and the recipient nets `requestedNet`. Send the refun
 
 If the built operation would deliver less than `requestedNet`, `prepareUnshield` throws `PPv1ExactOutputError`. `requestedNet` and `expectedNet` are on the error. Raise the balance, lower the amount, or widen the fee headroom and try again.
 
-## Which mode to offer
+## Integration default
 
-Offer the relayer when the user has no need for follow-up calls and is happy to pay a quoted fee. Offer the paymaster when the wallet should sponsor gas, batch notes, or append `tailCalls`. Show `estimateUnshield` before either confirmation. Broadcast with `createPPv1Broadcaster` and the same relayer map the plugin used.
+Use `mode: 'paymaster'` for withdrawals, including those without batching or follow-up calls. Show `estimateUnshield` with the same mode before confirmation, then broadcast the prepared operation with `createPPv1Broadcaster`.

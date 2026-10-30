@@ -1,5 +1,7 @@
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
+import type { Network } from "@kohaku-eth/plugins";
+import type { EthereumProvider } from "@kohaku-eth/provider";
 import { TxData } from "@kohaku-eth/provider";
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 import { encodeFunctionData, erc20Abi } from "viem";
@@ -11,6 +13,7 @@ import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
 import { DelegationConfig, DelegatorAccount, UserOpGasLimits } from "../../interfaces/user-ops.interface";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
 import {
   buildSignedUserOp,
@@ -70,6 +73,9 @@ export interface PaymasterWithdrawThunkParams {
    * the recipient nets exactly its payout).
    */
   refundRecipient?: Address;
+  maxGasLimits?: PaymasterGasLimits;
+  provider?: EthereumProvider;
+  network?: Network;
 }
 
 export const paymasterWithdrawThunk = createAsyncThunk<
@@ -93,6 +99,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       tailCallsGasEstimate,
       batch,
       refundRecipient: refundRecipientOverride,
+      maxGasLimits,
+      provider,
+      network,
     },
     { getState, dispatch },
   ) => {
@@ -128,10 +137,14 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // on the same unchanged state). Re-verifying here repeats 15 on-chain reads for no
     // benefit, so it's intentionally omitted.
 
-    const bundlerClient = createPaymasterBundlerClient(bundlerUrl);
-    const {
-      standard: { maxFeePerGas, maxPriorityFeePerGas },
-    } = await getUserOperationGasPrice(bundlerClient);
+    const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
+    const [{ standard: price }, reference] = await Promise.all([
+      getUserOperationGasPrice(bundlerClient),
+      readGasFeeReference(provider),
+    ]);
+
+    assertGasPriceWithinBounds(price, reference);
+    const { maxFeePerGas, maxPriorityFeePerGas } = price;
 
     const signer = await resolveSigner({
       delegation,
@@ -229,9 +242,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       ? reasonableGasUnitsForBatch(isERC20, directNotes.length, tailCalls != null, tailCallsGasEstimate)
       : { ...reasonableGasUnits(isERC20), callGasLimit: 0n };
 
-    // Keep our computed callGasLimit after bundler refinement (0 without an execution
-    // phase — a nonzero value would trip the adapter's `recipient != sender` check).
-    const withGas = (base: UserOpGasLimits): UserOpGasLimits => ({ ...base, callGasLimit: baselineGas.callGasLimit });
+    assertGasLimitsWithinBounds(baselineGas, baselineGas, undefined, maxGasLimits);
 
     const buildUserOp = async (gas: UserOpGasLimits) => {
       const fee = await feeFor(computeMinimumViableFee(gas, maxFeePerGas));
@@ -262,6 +273,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         tailCalls: hasExecutionPhase ? executionCalls(fee) : undefined,
       });
 
+      assertGasLimitsWithinBounds(gas, baselineGas, userOperation, maxGasLimits);
+
       return { proof, userOperation, fee };
     };
 
@@ -269,10 +282,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
     // Refine gas against the bundler; re-prove once at the refined fee. Best-effort —
     // on failure the safe baseline is kept.
-    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas);
+    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits);
 
     if (refinedGas !== baselineGas) {
-      ({ proof, userOperation, fee } = await buildUserOp(withGas(refinedGas)));
+      ({ proof, userOperation, fee } = await buildUserOp(refinedGas));
     }
 
     return [
@@ -347,23 +360,32 @@ async function refineGasWithBundler(
   provisionalUserOp: Awaited<ReturnType<typeof buildSignedUserOp>>,
   entryPointAddress: `0x${string}`,
   baselineGas: UserOpGasLimits,
+  maxGasLimits?: PaymasterGasLimits,
 ): Promise<UserOpGasLimits> {
-  try {
-    const estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
-    const buffer = (x: bigint) => (x * 12n) / 10n;
-    const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+  let estimated: UserOpGasLimits;
 
-    return {
-      callGasLimit: orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
-      verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
-      preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
-      paymasterVerificationGasLimit: orBaseline(
-        estimated.paymasterVerificationGasLimit,
-        baselineGas.paymasterVerificationGasLimit,
-      ),
-      paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
-    };
+  try {
+    estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
   } catch {
     return baselineGas;
   }
+
+  const buffer = (x: bigint) => (x * 12n + 9n) / 10n;
+  const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
+  const refined: UserOpGasLimits = {
+    // Only a withdrawal with no execution phase must retain a zero limit.
+    callGasLimit: baselineGas.callGasLimit === 0n ? 0n : orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
+    verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
+    preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
+    paymasterVerificationGasLimit: orBaseline(
+      estimated.paymasterVerificationGasLimit,
+      baselineGas.paymasterVerificationGasLimit,
+    ),
+    paymasterPostOpGasLimit: orBaseline(estimated.paymasterPostOpGasLimit, baselineGas.paymasterPostOpGasLimit),
+  };
+
+  // A bounds violation must fail, never masquerade as unavailable estimation.
+  assertGasLimitsWithinBounds(refined, baselineGas, provisionalUserOp, maxGasLimits);
+
+  return refined;
 }

@@ -1,0 +1,26 @@
+{
+  "format": "method-ecdsa-config-v1",
+  "source": "design/onchain/contracts.md",
+  "derivation": "abi.encode(address signer)",
+  "vectors": [
+    {
+      "id": "test-signer",
+      "input": {
+        "signer": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
+      "expected": {
+        "encoded": "0x0000000000000000000000007e5f4552091a69125d5dfcb7b8c2659029395bdf"
+      }
+    },
+    {
+      "id": "zero-address",
+      "input": {
+        "signer": "0x0000000000000000000000000000000000000000"
+      },
+      "expected": {
+        "encoded": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "verification": "cannot recover zero signer"
+      }
+    }
+  ]
+}

@@ -3,38 +3,33 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 import { Wallet } from 'ethers';
-import { parseEther, type Hex } from 'viem';
+import { decodeFunctionData, parseEther, type Hex } from 'viem';
 
+import { SIMPLE_7702_EXECUTE_ABI } from '../../../src/data/abis/account.abi';
 import { E_ADDRESS } from '../../../src/config';
 import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { getProtocolWithState, sendMultipleTxsAndWait, setupWallet } from '../../utils/test-helpers';
-import { getChainConfigSetup } from '../../constants';
+import { getPaymasterChainConfigSetup } from '../../constants';
 
 const DEPLOYER_PK = '0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6' as Hex;
 const EXECUTOR_PK = '0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5' as Hex;
 const UTILITY_PK  = '0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6' as Hex;
 const HUNDRED_ETH = `0x${parseEther('100').toString(16)}`;
 
-// A single deposit (no tailCalls) never needs consolidation — the paymaster
-// releases funds straight to the recipient during validation instead of
-// through an execution-phase call (see paymasterWithdrawThunk.ts). Every
-// other paymaster e2e test happens to select 2+ deposits per withdrawal, so
-// this path went completely uncovered and shipped with a `paymasterVerificationGasLimit`
-// baseline (350_000n) that left only ~2.5k gas of headroom over the ~347.5k
-// a real pool.withdraw (groth16 verify + merkle proof) actually costs —
-// nowhere near enough for the surrounding paymaster/adapter overhead, causing
-// a silent out-of-gas revert. This test pins the single-deposit path down.
-describe('TornadoCash Paymaster Unshield E2E — single deposit (no consolidation)', () => {
+// A single note still needs a sender-and-forward operation: during gas
+// estimation the bundler injects a nonzero execution limit, which the paymaster
+// rejects if the sponsoring proof pays a recipient other than the sender.
+describe('TornadoCash Paymaster Unshield E2E — single deposit (sender and forward)', () => {
   let anvil: AnvilInstance;
   let pool: AnvilPool;
   let bundlerRpcUrl: string;
   let stopBundler: () => Promise<void>;
 
   const chainId = inject('chainId');
-  const { forkBlockNumber, rpcUrl, paymasterConfig } = getChainConfigSetup(chainId);
+  const { forkBlockNumber, rpcUrl, paymasterConfig } = getPaymasterChainConfigSetup(chainId);
   const { entryPointAddress, paymasterAddress } = paymasterConfig;
 
   beforeAll(async () => {
@@ -56,11 +51,14 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (no consolidatio
   }, 300_000);
 
   afterAll(async () => {
-    await stopBundler();
-    await anvil.stop();
+    try {
+      await stopBundler?.();
+    } finally {
+      await anvil?.stop();
+    }
   });
 
-  it('[prepareUnshieldPaymaster] single native deposit withdraws without consolidation', { timeout: 180_000 }, async () => {
+  it('[prepareUnshieldPaymaster] single native deposit estimates and forwards to the requested recipient', { timeout: 180_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
 
     const { protocol, broadcaster } = await getProtocolWithState({
@@ -96,6 +94,15 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (no consolidatio
     );
 
     expect(unshieldOp.withdrawals.length).toBe(1);
+    const withdrawal = unshieldOp.withdrawals[0]!;
+    expect(withdrawal.mode).toBe('paymaster');
+    if (withdrawal.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
+    expect(BigInt(withdrawal.proof.args[2])).toBe(BigInt(withdrawal.userOperation.sender));
+    expect(BigInt(withdrawal.userOperation.callGasLimit)).toBeGreaterThan(0n);
+    const forwarding = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: withdrawal.userOperation.callData });
+    expect(forwarding.functionName).toBe('execute');
+    expect(BigInt(forwarding.args![0] as string)).toBe(BigInt(bob));
+    expect(forwarding.args![1]).toBe(parseEther('1') - BigInt(withdrawal.proof.args[4]));
 
     await broadcaster.broadcast(unshieldOp);
     await pool.mine(1);
@@ -105,7 +112,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (no consolidatio
     const paymasterBalance = await pool.getBalance(paymasterAddress);
 
     expect(postTCBalance).toBe(0n);
-    expect(postWithdrawalBalance).toBeGreaterThan(preWithdrawalBalance);
+    expect(postWithdrawalBalance - preWithdrawalBalance).toBe(parseEther('1') - BigInt(withdrawal.proof.args[4]));
     expect(paymasterBalance).toBeGreaterThan(0n);
   });
 });
