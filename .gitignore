@@ -12,3 +12,4 @@ packages/pq-account/foundry.lock
 .direnv
 .vscode
 target/
+.specify
