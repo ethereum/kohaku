@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/poseidon-lean-imt",
-  "version": "0.0.0",
+  "version": "0.0.1-alpha.0",
   "license": "MIT",
   "author": "",
   "description": "Lean incremental Merkle tree over Poseidon T3, with a parallel build",

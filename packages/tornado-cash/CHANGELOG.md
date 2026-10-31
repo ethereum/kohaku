@@ -1,3 +1,9 @@
+## 0.1.0-alpha.33
+
+### Patch Changes
+
+- 51669b3: Skip the uncatalogued-pool warning when an explicit instance catalog deliberately restricts pool selection. Continue filtering excluded pools, and retain warnings for unexpected gaps in the default chain catalog.
+
 ## 0.1.0-alpha.32
 
 ### Patch Changes
