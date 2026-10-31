@@ -98,6 +98,31 @@ function secretManager(): ISecretManager {
 }
 
 describe('syncPoolsThunk extended ETH pools', () => {
+  it.each([false, true])('filters uncatalogued pools, warning only for the default catalog (custom: %s)', async (custom) => {
+    const store = storeWith();
+    const unknown = 123n as Address;
+    const dataService = {
+      getAllPoolsAddresses: vi.fn().mockResolvedValue([CLASSIC, unknown]),
+      getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      unwrapResult(await store.dispatch(syncPoolsThunk({
+        dataService: dataService as unknown as IDataService,
+        syncService: { getPoolDeploymentBlock: vi.fn().mockResolvedValue(10n) } as unknown as ISyncService,
+        ...(custom ? { instances: TornadoInstances[1].filter((instance) => instance.address === CLASSIC) } : {}),
+      })));
+      expect(dataService.getPoolConfig).toHaveBeenCalledTimes(1);
+      expect(dataService.getPoolConfig).toHaveBeenCalledWith(1n, CLASSIC);
+      expect(poolsSelector(store.getState()).has(unknown)).toBe(false);
+      expect(poolsSelector(store.getState()).has(CLASSIC)).toBe(true);
+      if (custom) expect(warn).not.toHaveBeenCalled();
+      else expect(warn).toHaveBeenCalledWith('Ignoring pools missing from the instance catalog', [addressToHex(unknown)]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('registers an extended pool missing from the registry as native ETH', async () => {
     const store = storeWith(true);
     const dataService = {
