@@ -21,3 +21,4 @@ packages:
   - "packages/social-recovery"
   - "examples/pq-account"
   - "docs"
+  - "packages/security"
