@@ -1,3 +1,9 @@
+## 0.1.0-alpha.34
+
+### Patch Changes
+
+- 7597523: fix: final audit fixes
+
 ## 0.1.0-alpha.33
 
 ### Patch Changes
