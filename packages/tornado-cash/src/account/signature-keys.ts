@@ -105,6 +105,10 @@ export class KeystoreEnvelopeSigner implements EnvelopeSigner {
 
 export interface SignatureSecretManagerParams extends SecretManagerParams {
   signer?: EnvelopeSigner;
+  /** Sign the first note envelope twice per manager session and reject a signer
+   * whose canonical signature differs (default `true`). Disable only for a
+   * signer already known to be deterministic across sessions. */
+  verifyDeterminism?: boolean;
 }
 
 export interface SignatureSecretSource {
@@ -116,9 +120,13 @@ export async function SignatureSecretManager({
   host,
   accountIndex = 0,
   signer,
+  verifyDeterminism = true,
 }: SignatureSecretManagerParams): Promise<SignatureSecretSource> {
   const envelopeSigner = signer ?? new KeystoreEnvelopeSigner(host.keystore, accountIndex);
   const sigCache = new Map<string, Promise<Hex>>();
+  // Signature-derived note secrets are not saved. Check before returning the
+  // first secret so a randomized signer cannot create an unrecoverable deposit.
+  let determinismCheck: Promise<void> | undefined;
 
   const signNonce = (nonce: number, chainId: bigint): Promise<Hex> => {
     const key = `${chainId}:${nonce}`;
@@ -126,10 +134,32 @@ export async function SignatureSecretManager({
 
     if (hit) return hit;
 
-    const pending = envelopeSigner.signEnvelope(buildNoteEnvelope(nonce, chainId)).catch((err) => {
-      sigCache.delete(key);
-      throw err;
-    });
+    const envelope = buildNoteEnvelope(nonce, chainId);
+    const pending = envelopeSigner.signEnvelope(envelope)
+      .then(async (sig) => {
+        if (verifyDeterminism) {
+          determinismCheck ??= envelopeSigner.signEnvelope(envelope)
+            .then((again) => {
+              if (bytesToHex(canonicalRS(again)) !== bytesToHex(canonicalRS(sig))) {
+                throw new Error(
+                  'Note signer is not deterministic: the same Tornado note envelope gave different ' +
+                  'signatures. A deposit made with this signer could not be withdrawn after a restart.',
+                );
+              }
+            })
+            .catch((err) => {
+              determinismCheck = undefined;
+              throw err;
+            });
+          await determinismCheck;
+        }
+
+        return sig;
+      })
+      .catch((err) => {
+        sigCache.delete(key);
+        throw err;
+      });
 
     sigCache.set(key, pending);
 

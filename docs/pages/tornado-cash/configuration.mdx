@@ -114,6 +114,8 @@ Leave `secretManagerFactory` unset. The worker then uses both managers:
 
 A factory you pass replaces that pair. Return both if the wallet has historical notes, or only the scheme you intend to support on a fresh account.
 
+Signature-derived note secrets are re-created after a restart, so a custom note signer must produce the same canonical signature for the same envelope every time. On its first derivation each session, `SignatureSecretManager` signs one envelope twice and rejects a signer whose signatures differ, before a deposit commitment is returned. This can require an extra hardware-wallet prompt. Pass `verifyDeterminism: false` only for a signer already known to be deterministic across sessions.
+
 ```ts
 import { SecretManager, SignatureSecretManager } from '@kohaku-eth/tornado-cash'
 
