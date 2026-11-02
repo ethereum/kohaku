@@ -70,6 +70,10 @@ type GenericGetEvents = GetEventsFn<
   IPoolEvents & IRelayerRegistryEvents & InstanceRegistryEventTypes
 >;
 
+// Each relayer returns up to 20 ENS records. Keep the eth_call small enough
+// for RPC providers with response-size or execution limits.
+const RELAYER_DATA_BATCH_SIZE = 16;
+
 export class DataService implements IDataService {
   private readonly ethClient!: EthClient;
 
@@ -282,20 +286,26 @@ export class DataService implements IDataService {
     subdomains: string[],
   ): Promise<IRelayerAggregatorData[]> {
     const hashes = relayerNameHashes.map((h) => toHex(h, { size: 32 }) as `0x${string}`);
-    const results = await this.ethClient.makeContractRequest(
-      aggregatorAddress,
-      'aggregator',
-      'relayersData',
-      hashes,
-      subdomains,
-    );
+    const relayers: IRelayerAggregatorData[] = [];
 
-    return results.map(({ owner, balance, isRegistered, records }) => ({
-      owner: BigInt(owner),
-      balance,
-      isRegistered,
-      records: Array.from(records),
-    }));
+    for (let start = 0; start < hashes.length; start += RELAYER_DATA_BATCH_SIZE) {
+      const results = await this.ethClient.makeContractRequest(
+        aggregatorAddress,
+        'aggregator',
+        'relayersData',
+        hashes.slice(start, start + RELAYER_DATA_BATCH_SIZE),
+        subdomains,
+      );
+
+      relayers.push(...results.map(({ owner, balance, isRegistered, records }) => ({
+        owner: BigInt(owner),
+        balance,
+        isRegistered,
+        records: Array.from(records),
+      })));
+    }
+
+    return relayers;
   }
 
   async getGasPrice(): Promise<bigint> {
