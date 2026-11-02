@@ -40,11 +40,9 @@ export const syncRelayersThunk = createAsyncThunk<void, SyncRelayersThunkParams,
       fromBlock: registrySyncedBlock || relayerRegistryDeploymentBlock,
     });
 
-    // Record how far the registry is synced even when no new relayers appeared,
-    // so the next sync resumes from here instead of the deployment block.
-    dispatch(setRelayerRegistrySyncedBlock(toBlock));
-
     if (events.length === 0) {
+      dispatch(setRelayerRegistrySyncedBlock(toBlock));
+
       return;
     }
 
@@ -97,5 +95,9 @@ export const syncRelayersThunk = createAsyncThunk<void, SyncRelayersThunkParams,
     if (validRelayers.length > 0) {
       dispatch(registerRelayers(validRelayers));
     }
+
+    // Commit the cursor only after every aggregator batch succeeds. A failed
+    // eth_call must leave these events available for the next sync attempt.
+    dispatch(setRelayerRegistrySyncedBlock(toBlock));
   },
 );

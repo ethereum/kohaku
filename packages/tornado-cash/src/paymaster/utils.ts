@@ -149,9 +149,10 @@ export async function estimateUserOperationGas(
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
  * 7702 sender, returning it serialized for the broadcast phase.
  *
- * The sender is a fresh EOA (so its EntryPoint nonce is 0) delegated to the
- * Simple7702 implementation; the owner signs the userOp. No RPC access is
- * required — gas limits and fees are supplied by the caller.
+ * The sender is delegated to Simple7702Account and signs the userOp. The
+ * paymaster flow uses EntryPoint nonce 0, including for a wallet-path EOA with
+ * prior transactions. The caller supplies that EOA's authorization nonce; this
+ * helper performs no RPC reads.
  */
 export async function buildSignedTornadoUserOp({
   signer,
@@ -163,6 +164,7 @@ export async function buildSignedTornadoUserOp({
   maxPriorityFeePerGas,
   tailCalls = async () => [],
   nonce = 0n,
+  authorizationNonce,
 }: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
   const owner = signer;
@@ -186,14 +188,13 @@ export async function buildSignedTornadoUserOp({
     });
   }
 
-  // The EIP-7702 authorization nonce must equal the sender's EOA nonce at the
-  // time the bundle tx is processed. Each time a 7702 auth is consumed the EOA
-  // nonce increments, so for the k-th userOp from the same shared sender we
-  // need nonce = k (matching the userOp's EntryPoint sequence number).
+  // A wallet-path sender may have prior EOA transactions even though this is
+  // its first UserOperation. For note-derived/random senders both nonces stay 0.
+  // EntryPoint nonce 0 is intentionally single-use for all paymaster withdrawals.
   const authorization = await owner.signAuthorization({
     address: SIMPLE_7702_IMPLEMENTATION,
     chainId,
-    nonce: Number(nonce),
+    nonce: Number(authorizationNonce ?? nonce),
   });
 
   const userOperation = {

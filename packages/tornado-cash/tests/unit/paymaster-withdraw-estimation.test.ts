@@ -22,6 +22,7 @@ const fixture = vi.hoisted(() => ({
   deriveLegacy: vi.fn(async () => `0x${'03'.repeat(32)}` as const),
   deriveSignature: vi.fn(async () => `0x${'01'.repeat(32)}` as const),
   deriveDelegator: vi.fn(async () => `0x${'02'.repeat(32)}` as const),
+  getAccountNonce: vi.fn(async () => 7),
 }));
 
 vi.mock('../../src/state/selectors/slices.selectors', () => ({
@@ -53,7 +54,7 @@ async function prepare(delegation: { mode: 'random' } | { mode: 'deterministic';
   const store = storeFactory({ logLevel: 'off' });
 
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
-    dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote },
+    dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote, getAccountNonce: fixture.getAccountNonce },
     provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber'
       ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n) },
     assetAddress: fixture.isERC20 ? 2n : 0n,
@@ -85,6 +86,7 @@ describe('paymaster withdrawal preparation integration', () => {
     fixture.estimate.mockReset();
     fixture.deriveSignature.mockClear();
     fixture.deriveDelegator.mockClear();
+    fixture.getAccountNonce.mockClear();
   });
 
   it.each([
@@ -137,7 +139,7 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(fixture.quote).toHaveBeenCalledTimes(isERC20 ? 2 : 0);
   });
 
-  it('keeps the single-note forwarding sender recoverable and honors an explicit wallet path', async () => {
+  it('uses EOA nonce zero for note-derived senders and the current EOA nonce for an explicit wallet path', async () => {
     fixture.count = 1;
     fixture.isERC20 = false;
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 281_260n });
@@ -146,6 +148,9 @@ describe('paymaster withdrawal preparation integration', () => {
     if (noteDerived!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
 
     expect(noteDerived!.userOperation.sender).toBe(privateKeyToAccount(`0x${'01'.repeat(32)}`).address);
+    expect(noteDerived!.userOperation.nonce).toBe('0x0');
+    expect(noteDerived!.userOperation.eip7702Auth?.nonce).toBe('0x0');
+    expect(fixture.getAccountNonce).not.toHaveBeenCalled();
     expect(fixture.deriveSignature).toHaveBeenCalledWith({ nonce: 0n, chainId: 11155111n, poolAddress: 1n });
     const path = "m/44'/60'/0'/0/3";
     const [walletDerived] = await prepare({ mode: 'deterministic', path });
@@ -153,7 +158,21 @@ describe('paymaster withdrawal preparation integration', () => {
     if (walletDerived!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
 
     expect(walletDerived!.userOperation.sender).toBe(privateKeyToAccount(`0x${'02'.repeat(32)}`).address);
+    expect(walletDerived!.userOperation.nonce).toBe('0x0');
+    expect(walletDerived!.userOperation.eip7702Auth?.nonce).toBe('0x7');
+    expect(fixture.getAccountNonce).toHaveBeenCalledExactlyOnceWith(BigInt(walletDerived!.userOperation.sender));
     expect(fixture.deriveDelegator).toHaveBeenCalledWith({ path });
+  });
+
+  it('keeps a random sender at EOA and EntryPoint nonce zero without querying the account', async () => {
+    fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 281_260n });
+    const [withdrawal] = await prepare({ mode: 'random' });
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
+
+    expect(withdrawal!.userOperation.nonce).toBe('0x0');
+    expect(withdrawal!.userOperation.eip7702Auth?.nonce).toBe('0x0');
+    expect(fixture.getAccountNonce).not.toHaveBeenCalled();
   });
 
   it('allows explicit best-effort fallback for a recoverable standard withdrawal and exposes metadata', async () => {

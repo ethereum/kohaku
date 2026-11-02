@@ -25,6 +25,7 @@ import {
 import { allNotesSelector } from "./selectors/notes.selector";
 import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
+import { syncRelayersThunk } from "./thunks/syncRelayersThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
@@ -280,7 +281,8 @@ export const storeStateManager = async ({
       );
     },
     getWithdrawalPayloads: async (params: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
-      const store = await getChainStore(await getChainInfo());
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
       const { asset, amount, recipient } = params;
 
       if (params.mode === 'paymaster') {
@@ -307,6 +309,11 @@ export const storeStateManager = async ({
           ),
         );
       }
+
+      // ENS/TORN-staked relayers are only needed for traditional withdrawals.
+      // Balances, shields and paymaster withdrawals must not depend on them.
+      unwrapResult(await store.dispatch(syncRelayersThunk({ dataService, syncService })));
+      await persistStateIfAvailable(chainInfo, store);
 
       return unwrapResult(
         await store.dispatch(

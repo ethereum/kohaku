@@ -70,6 +70,25 @@ type GenericGetEvents = GetEventsFn<
   IPoolEvents & IRelayerRegistryEvents & InstanceRegistryEventTypes
 >;
 
+// Keep normal reads bounded; split reverting batches to isolate broken ENS.
+const RELAYER_DATA_BATCH_SIZE = 16;
+
+function isExecutionReverted(error: unknown): boolean {
+  const seen = new Set<object>();
+
+  while (error && typeof error === 'object' && !seen.has(error)) {
+    seen.add(error);
+    const cause = error as { message?: unknown; details?: unknown; cause?: unknown };
+
+    if ([cause.message, cause.details].some((value) =>
+      typeof value === 'string' && /\bexecution reverted\b/i.test(value))) return true;
+
+    error = cause.cause;
+  }
+
+  return false;
+}
+
 export class DataService implements IDataService {
   private readonly ethClient!: EthClient;
 
@@ -282,20 +301,52 @@ export class DataService implements IDataService {
     subdomains: string[],
   ): Promise<IRelayerAggregatorData[]> {
     const hashes = relayerNameHashes.map((h) => toHex(h, { size: 32 }) as `0x${string}`);
-    const results = await this.ethClient.makeContractRequest(
-      aggregatorAddress,
-      'aggregator',
-      'relayersData',
-      hashes,
-      subdomains,
-    );
+    const relayers: IRelayerAggregatorData[] = [];
+    const readBatch = async (
+      batch: Hex[],
+      lookupSubdomains = subdomains,
+    ): Promise<IRelayerAggregatorData[]> => {
+      try {
+        const results = await this.ethClient.makeContractRequest(
+          aggregatorAddress,
+          'aggregator',
+          'relayersData',
+          batch,
+          lookupSubdomains,
+        );
 
-    return results.map(({ owner, balance, isRegistered, records }) => ({
-      owner: BigInt(owner),
-      balance,
-      isRegistered,
-      records: Array.from(records),
-    }));
+        return results.map(({ owner, balance, isRegistered, records }) => ({
+          owner: BigInt(owner),
+          balance,
+          isRegistered,
+          records: Array.from(records),
+        }));
+      } catch (error) {
+        if (!isExecutionReverted(error)) throw error;
+
+        if (batch.length > 1) {
+          const middle = Math.floor(batch.length / 2);
+          const left = await readBatch(batch.slice(0, middle), lookupSubdomains);
+          const right = await readBatch(batch.slice(middle), lookupSubdomains);
+
+          return [...left, ...right];
+        }
+
+        // The aggregator calls resolver.text without checking the resolver.
+        // Read a broken ENS entry without URLs, preserving its registry data
+        // and position. Empty URL records exclude it from relayer selection.
+        // If even the registry-only read fails, propagate that failure.
+        if (lookupSubdomains.length > 0) return readBatch(batch, []);
+
+        throw error;
+      }
+    };
+
+    for (let start = 0; start < hashes.length; start += RELAYER_DATA_BATCH_SIZE) {
+      relayers.push(...await readBatch(hashes.slice(start, start + RELAYER_DATA_BATCH_SIZE)));
+    }
+
+    return relayers;
   }
 
   async getGasPrice(): Promise<bigint> {

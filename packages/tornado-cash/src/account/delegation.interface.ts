@@ -17,15 +17,18 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
 };
 
 /**
- * How the batch delegator for a tail-call paymaster withdrawal is produced.
- * Only honored when `tailCalls` are present (see `paymasterWithdrawThunk`).
+ * How the paymaster withdrawal sender is produced. Honored for every sponsored
+ * withdrawal, including a single note without user-supplied `tailCalls`.
  *
  * - `deterministic` (default): recoverable. With `path`, the delegator is a
  *   classical wallet-path address; without `path`, an ephemeral address keyed by
  *   the batch's first deposit.
- * - `random`: a throwaway, unrecoverable EOA — an explicit opt-out of
- *   recoverability. Never the default, because in the tail-call path the
- *   delegator holds the withdrawn funds.
+ * - `random`: an expert-only, throwaway EOA whose private key is discarded.
+ *   Every withdrawal pays it before forwarding or running `tailCalls`; failed,
+ *   empty, or incomplete execution can permanently strand the net withdrawal.
+ *   Any postOp gas refund arrives after forwarding and is also irrecoverable
+ *   even when execution succeeds. Do not use in production unless you
+ *   deliberately accept those losses and know exactly why this mode is needed.
  */
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }
