@@ -57,9 +57,14 @@ export interface BuildSignedTornadoUserOpParams {
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
   tailCalls?: (address: Address) => Promise<TxData[]>;
-  /** EntryPoint nonce for this sender. Defaults to 0 (fresh EOA). Set to the
-   *  deposit index when multiple userOps share the same ephemeral sender. */
+  /** EntryPoint nonce for this sender. Paymaster withdrawals use 0 so a sender
+   *  cannot be reused for a second UserOperation. */
   nonce?: bigint;
+  /** EOA transaction-count nonce for the EIP-7702 authorization. Defaults to
+   *  `nonce` (0 for a fresh sender). An explicit wallet-path delegator may have
+   *  prior EOA transactions, so its authorization uses the current EOA nonce
+   *  while the EntryPoint nonce remains 0. */
+  authorizationNonce?: bigint;
 }
 /** Best effort applies only to standard, recoverable withdrawals without user tail calls. */
 export type GasEstimationPolicy = 'required' | 'best-effort';

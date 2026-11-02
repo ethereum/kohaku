@@ -86,10 +86,12 @@ Use `gasEstimationPolicy: 'required'` when preparing an unshield to require a su
 | Value | Delegator |
 | --- | --- |
 | omitted, or `{ mode: 'deterministic' }` | An ephemeral address derived from the batch's first deposit. Recoverable from the seed. |
-| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. The host must allow that path. The plugin lets the worker derive exactly this path, nothing else outside `m/29795'/1'`. |
+| `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. Its current EOA transaction count is used for the EIP-7702 authorization, so prior EOA transactions are allowed. The host must allow the path. The plugin lets the worker derive exactly this path, nothing else outside `m/29795'/1'`. |
 | `{ mode: 'random' }` | A throwaway key that is discarded. Failed, empty, or incomplete execution can permanently strand the net withdrawal; a later gas refund is also unrecoverable even if execution succeeds. |
 
 Do not use `random` in production unless you knowingly accept irreversible loss of any sender balance. Every sponsored withdrawal pays this sender first, including a single note. The paymaster sends any unused gas-fee refund in `postOp`, after the forwarding call, so that refund cannot be forwarded by the same operation. Prefer the default deterministic delegation.
+
+Every paymaster withdrawal uses EntryPoint UserOperation nonce zero, so the same sender cannot submit a second UserOperation. Note-derived and random senders also sign the EIP-7702 authorization with EOA nonce zero; only an explicit wallet path can authorize at a nonzero EOA nonce. The two nonce values are independent.
 
 ```ts
 await tornado.prepareUnshield(asset, recipient, {

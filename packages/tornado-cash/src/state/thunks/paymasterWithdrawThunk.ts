@@ -194,6 +194,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // The default sender is note-derived so any postOp refund remains recoverable.
   const signer = await resolveBatchDelegator();
   const senderAddress = BigInt(signer.address) as Address;
+  // Match Privacy Pools: an explicit wallet path may be an EOA with prior
+  // transactions. All note-derived/random senders keep authorization nonce 0;
+  // every paymaster UserOperation still uses EntryPoint nonce 0 (single-use).
+  const authorizationNonce = delegation?.mode === 'deterministic' && delegation.path
+    ? BigInt(await dataService.getAccountNonce(senderAddress))
+    : undefined;
 
   const sponsoringDeposit = deposits[0]!;
   const directDeposits = deposits.slice(1);
@@ -257,6 +263,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       maxPriorityFeePerGas,
       tailCalls: composeTailCalls(fee),
       nonce: 0n,
+      authorizationNonce,
     });
 
   // Every refinement re-quotes the pool asset, re-proves the sponsoring
