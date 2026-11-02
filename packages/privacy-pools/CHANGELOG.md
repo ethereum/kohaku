@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.37
+
+### Patch Changes
+
+- 7597523: fix: final audit fixes
+
 ## 0.1.0-alpha.36
 
 ### Patch Changes
