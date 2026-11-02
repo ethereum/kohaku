@@ -11,6 +11,60 @@ import { storeFactory } from '../../src/state/store';
 import { syncRelayersThunk } from '../../src/state/thunks/syncRelayersThunk';
 
 describe('relayer aggregator RPC', () => {
+  it('isolates a reverting ENS entry and retains the other relayers in order', async () => {
+    const badHash = toHex(17n, { size: 32 });
+    const registryOnly: Hex[] = [];
+    const request = vi.fn(async (rpc: { params: unknown[] }) => {
+      const [{ data }] = rpc.params as [{ data: Hex }, string];
+      const { args: [hashes, subdomains] } = decodeFunctionData({ abi: aggregatorAbi, data });
+
+      if (subdomains.length && hashes.includes(badHash)) {
+        // Match a wrapped provider error, as seen with viem/Ankr.
+        throw { cause: { code: 3, message: 'execution reverted' } };
+      }
+
+      if (!subdomains.length) registryOnly.push(...hashes);
+
+      return encodeFunctionResult({
+        abi: aggregatorAbi,
+        functionName: 'relayersData',
+        result: hashes.map((hash) => ({
+          owner: toHex(BigInt(hash), { size: 20 }),
+          balance: BigInt(hash),
+          isRegistered: true,
+          records: Array(20).fill(subdomains.length ? 'relay.example' : ''),
+        })) as never,
+      });
+    });
+    const service = new DataService({ provider: { request } as unknown as EthereumProvider });
+    const hashes = Array.from({ length: 33 }, (_, i) => BigInt(i + 1));
+    const relayers = await service.getRelayerData(1n, hashes, ['mainnet-tornado']);
+
+    expect(relayers.map(({ owner }) => owner)).toEqual(hashes);
+    expect(registryOnly).toEqual([badHash]);
+    expect(relayers[16]).toMatchObject({ owner: 17n, balance: 17n, isRegistered: true });
+    expect(relayers[16]?.records.every((record) => record === '')).toBe(true);
+    expect(relayers.filter(({ records }) => records[0] === 'relay.example')).toHaveLength(32);
+  });
+
+  it('propagates transport errors without splitting or discarding relayers', async () => {
+    const failure = new Error('HTTP request timed out');
+    const request = vi.fn().mockRejectedValue(failure);
+    const service = new DataService({ provider: { request } as unknown as EthereumProvider });
+
+    await expect(service.getRelayerData(1n, [1n, 2n], ['mainnet-tornado'])).rejects.toBe(failure);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates a revert when the registry-only fallback also fails', async () => {
+    const failure = { details: 'execution reverted' };
+    const request = vi.fn().mockRejectedValue(failure);
+    const service = new DataService({ provider: { request } as unknown as EthereumProvider });
+
+    await expect(service.getRelayerData(1n, [1n], ['mainnet-tornado'])).rejects.toBe(failure);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it('looks up relayers in ordered batches of at most 16', async () => {
     const batchSizes: number[] = [];
     const request = vi.fn(async (rpc: { method: string; params: unknown[] }) => {

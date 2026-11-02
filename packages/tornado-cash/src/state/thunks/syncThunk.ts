@@ -8,7 +8,6 @@ import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
 import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
-import { syncRelayersThunk } from './syncRelayersThunk';
 import { verifyRootsThunk } from './verifyRootsThunk';
 import { discoverUserEventsThunk } from './discoverUserEventsThunk';
 
@@ -32,8 +31,6 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       syncService,
       instances,
     })));
-
-    unwrapResult(await dispatch(syncRelayersThunk({ dataService, syncService })));
 
     const syncEventsResult = await dispatch(syncEventsThunk({ syncService }));
 
