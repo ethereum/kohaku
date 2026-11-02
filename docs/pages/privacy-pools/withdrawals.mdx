@@ -95,9 +95,9 @@ Preparation sends a signed operation with a valid proof to the bundler for estim
 | `delegation` | Sender |
 | --- | --- |
 | omitted, or `{ mode: 'deterministic' }` | Derived from the note index. A stuck sender can be recovered from the seed. |
-| `{ mode: 'random' }` | A one-off key. In the single-note flow the funds move to the recipient during validation, so the sender does not hold them. |
+| `{ mode: 'random' }` | A one-off key that is discarded. A single-note withdrawal without `tailCalls` pays the recipient during validation. With `batch` or `tailCalls`, funds pass through the sender and any amount left there is permanently inaccessible. |
 
-Prefer `deterministic` unless you have a reason to throw the key away.
+Do not use `random` in production unless you knowingly accept irreversible loss of any sender balance. A failed execution, an empty `tailCalls` result, or calls that forward less than the payout can leave funds there even if the sponsoring note was successfully withdrawn. Prefer `deterministic` unless you have a specific reason to throw the key away.
 
 The CLI's paymaster wiring is [`src/utils/privacy-pools-paymaster.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/privacy-pools-paymaster.ts) and the unshield flow in [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts).
 
