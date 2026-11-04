@@ -399,21 +399,38 @@ export const storeStateManager = (
 
       return specificAssetsBalanceSelector(assets, balanceType);
     },
-    getDepositPayload: async ({ asset, amount }: IDepositOperationParams) => {
+    getDepositPayload: async ({ asset, amount, depositIndex: requestedIndex }: IDepositOperationParams) => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
       const state = store.getState();
       const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-      const depositIndex = [...userSecretsSelector(state).values()]
-        .reduce(
-          (next, record) => Math.max(next, record.depositIndex + 1),
-          0
-        );
+      const knownIndices = [...userSecretsSelector(state).values()]
+        .map((record) => record.depositIndex);
+
+      const automaticIndex = knownIndices.reduce(
+        (next, index) => Math.max(next, index + 1),
+        0,
+      );
+
+      const depositIndex = requestedIndex ?? automaticIndex;
+
+      if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+        throw new RangeError("Invalid deposit index");
+      }
+
+      if (knownIndices.includes(depositIndex)) {
+        throw new Error("Deposit index already registered");
+      }
+
       const { precommitment } = await secretManager.getDepositSecrets({
         entrypointAddress,
         chainId,
         depositIndex,
       });
+
+      if (depositsSelector(state).has(precommitment)) {
+        throw new Error("Deposit credential already exists on-chain");
+      }
 
       return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
     },

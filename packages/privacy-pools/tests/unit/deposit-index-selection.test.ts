@@ -1,0 +1,102 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { storeStateManager } from '../../src/state/state-manager';
+import { buildDepositPayload } from '../../src/state/selectors/deposits.selector';
+import type { StoreFactoryParams } from '../../src/state/state-manager';
+
+const CHAIN = 11155111n;
+const ENTRYPOINT = 0x34a2068192b1297f2a7f85d7d8cde66f8f0921cbn;
+const ETH = 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeen;
+const AMOUNT = 100000000000000000n;
+
+function setup() {
+  const derive = vi.fn(async ({ depositIndex }: {
+    depositIndex: number;
+  }) => ({
+    nullifier: 1n,
+    salt: 2n,
+    precommitment: BigInt(1000 + depositIndex),
+    nullifierHash: 3n,
+  }));
+
+  const manager = storeStateManager({
+    entrypoint: {
+      address: ENTRYPOINT,
+      deploymentBlock: 8587019n,
+    },
+    dataService: {
+      getChainId: async () => CHAIN,
+    },
+    secretManager: {
+      getDepositSecrets: derive,
+    },
+    aspService: {},
+    relayerClient: {},
+    relayersList: new Map(),
+    proverFactory: () => {
+      throw new Error('Proof generation not expected');
+    },
+  } as unknown as StoreFactoryParams);
+
+  return { manager, derive };
+}
+
+describe('explicit Privacy Pools deposit-index selection', () => {
+  it('preserves automatic index 0', async () => {
+    const { manager, derive } = setup();
+
+    const tx = await manager.getDepositPayload({
+      asset: ETH,
+      amount: AMOUNT,
+    });
+
+    expect(derive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chainId: CHAIN,
+        entrypointAddress: ENTRYPOINT,
+        depositIndex: 0,
+      }),
+    );
+
+    expect(tx).toEqual(
+      buildDepositPayload(1000n, ETH, AMOUNT, ENTRYPOINT),
+    );
+  });
+
+  it('uses explicit sparse index 17', async () => {
+    const { manager, derive } = setup();
+
+    const tx = await manager.getDepositPayload({
+      asset: ETH,
+      amount: AMOUNT,
+      depositIndex: 17,
+    });
+
+    expect(derive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chainId: CHAIN,
+        entrypointAddress: ENTRYPOINT,
+        depositIndex: 17,
+      }),
+    );
+
+    expect(tx).toEqual(
+      buildDepositPayload(1017n, ETH, AMOUNT, ENTRYPOINT),
+    );
+  });
+
+  it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid deposit index %s before derivation',
+    async (index) => {
+      const { manager, derive } = setup();
+
+      await expect(manager.getDepositPayload({
+        asset: ETH,
+        amount: AMOUNT,
+        depositIndex: index,
+      })).rejects.toThrow('Invalid deposit index');
+
+      expect(derive).not.toHaveBeenCalled();
+    },
+  );
+});

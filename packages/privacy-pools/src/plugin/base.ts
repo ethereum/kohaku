@@ -195,6 +195,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   async prepareShield(
     assets: PPv1AssetAmount,
+    options?: string | { depositIndex?: number },
   ): Promise<PPv1PublicOperation> {
     const { asset, amount } = assets;
 
@@ -203,6 +204,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     const tx = await this.stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
+      depositIndex: typeof options === "string"
+        ? undefined
+        : options?.depositIndex,
     });
 
     return { txns: [tx] } as PPv1PublicOperation;

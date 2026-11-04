@@ -236,6 +236,8 @@ interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no
 export interface IDepositOperationParams extends IBaseOperationParams {
   asset: Address;
   amount: bigint;
+  /** Explicit credential index; omitted preserves automatic allocation. */
+  depositIndex?: number;
 }
 
 export interface IGetBalancesOperationParams extends IBaseOperationParams {
