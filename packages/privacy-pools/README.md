@@ -23,7 +23,7 @@ This works with single-note, `batch`, tail-call and exact-output unshields.
 Returned signatures are checked against the selected EOA; authorization is cached
 during one preparation. External mode requires successful bundler estimation of
 the final signed payload. Existing deterministic/random modes retain their
-current behavior. See [the integration and UX guide](./docs/host-signing.md).
+current behavior.
 
 ## Random paymaster delegation
 
