@@ -9,7 +9,7 @@ import { ISecretManager } from "../account/keys";
 import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
-import { Address } from "../interfaces/types.interface";
+import { Address, Precommitment } from "../interfaces/types.interface";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
@@ -53,8 +53,10 @@ import {
 } from "./selectors/pools.selector";
 import {
   entrypointInfoSelector,
+  depositsSelector,
+  userSecretsSelector,
 } from "./selectors/slices.selectors";
-import { buildDepositPayload, myDepositsCountSelector } from "./selectors/deposits.selector";
+import { buildDepositPayload } from "./selectors/deposits.selector";
 import {
   IBalanceType,
   SpecificAssetBalanceFn,
@@ -63,6 +65,8 @@ import {
 import { getNoteSelector } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
 import { setVerifiedAspRoot } from "./slices/aspVerificationSlice";
+import { addUserSecret } from "./slices/userSecretsSlice";
+import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
@@ -263,6 +267,35 @@ export const storeStateManager = (
   // A call never joins a sync that already started: that sync's head may predate
   // a transaction the caller just saw confirmed. It waits for one follow-up sync
   // instead, shared with every call made while the follow-up has not started.
+  // Serialize operations sharing a secret manager and a chain store.
+  // Every tail resolves, including when its operation fails.
+  const operationTails = new Map<StoreKey, Promise<void>>();
+
+  const serializeOperation = async <T>(
+    storeKey: StoreKey,
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const previous = operationTails.get(storeKey);
+
+    let release!: () => void;
+    const current = new Promise<void>(resolve => {
+      release = resolve;
+    });
+
+    operationTails.set(storeKey, current);
+
+    if (previous) await previous;
+
+    try {
+      return await operation();
+    } finally {
+      if (operationTails.get(storeKey) === current) {
+        operationTails.delete(storeKey);
+      }
+      release();
+    }
+  };
+
   const syncQueues = new Map<StoreKey, { running?: Promise<void>; queued?: Promise<void> }>();
 
   return {
@@ -276,7 +309,10 @@ export const storeStateManager = (
       if (queue.queued) return queue.queued;
 
       const start = (): Promise<void> => {
-        const running = runSync(chainInfo).finally(() => {
+        const running = serializeOperation(
+          storeKey,
+          () => runSync(chainInfo),
+        ).finally(() => {
           if (queue.running === running) queue.running = undefined;
         });
 
@@ -298,6 +334,65 @@ export const storeStateManager = (
 
       return queued;
     },
+    registerDepositIndex: async (depositIndex: number): Promise<boolean> => {
+      if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+        throw new RangeError("Invalid deposit index");
+      }
+
+      const chainInfo = await getChainInfo();
+      return serializeOperation(
+        getStoreKey(chainInfo),
+        async () => {
+        const store = await getChainStore(chainInfo);
+        const state = store.getState();
+        const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+
+        const secret = await secretManager.getDepositSecrets({
+          chainId,
+          entrypointAddress,
+          depositIndex,
+        });
+
+        const precommitment = secret.precommitment as Precommitment;
+
+        // Never register an unmatched private credential.
+        if (!depositsSelector(state).has(precommitment)) {
+          return false;
+        }
+
+        const known = userSecretsSelector(state);
+
+        for (const [key, record] of known) {
+          if (
+            record.depositIndex === depositIndex &&
+            key !== precommitment
+          ) {
+            throw new Error("Deposit index already registered");
+          }
+        }
+
+        const existing = known.get(precommitment);
+
+        if (existing && existing.depositIndex !== depositIndex) {
+          throw new Error("Credential index conflicts with existing record");
+        }
+
+        if (!existing) {
+          store.dispatch(addUserSecret({
+            depositIndex,
+            noteSecrets: [{ noteIndex: 0, ...secret }],
+          }));
+        }
+
+        // Recover withdrawal lineage using the existing SDK thunk.
+        unwrapResult(await store.dispatch(
+          discoverUserSecretsThunk({ secretManager })
+        ));
+
+        return true;
+        },
+      );
+    },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =
         await getChainStore(await getChainInfo());
@@ -309,7 +404,11 @@ export const storeStateManager = (
       const store = await getChainStore(chainInfo);
       const state = store.getState();
       const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-      const depositIndex = myDepositsCountSelector(state);
+      const depositIndex = [...userSecretsSelector(state).values()]
+        .reduce(
+          (next, record) => Math.max(next, record.depositIndex + 1),
+          0
+        );
       const { precommitment } = await secretManager.getDepositSecrets({
         entrypointAddress,
         chainId,

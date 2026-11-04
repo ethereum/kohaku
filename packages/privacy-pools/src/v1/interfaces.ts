@@ -80,6 +80,7 @@ type PPv1PluginInstance<Credential extends PPv1Credentials> = PluginInstance<
             estimateShield(asset: PPv1AssetAmount): Promise<PPv1ShieldEstimate>,
             estimateUnshield(asset: AssetAmount, to: AccountId, options?: PPv1EstimateUnshieldOptions): Promise<PPv1UnshieldEstimate>,
             sync(): Promise<void>,
+            registerDepositIndex(index: number): Promise<boolean>,
             history(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1HistoryEvent[]>,
         },
         publicOp: PPv1PublicOperation,

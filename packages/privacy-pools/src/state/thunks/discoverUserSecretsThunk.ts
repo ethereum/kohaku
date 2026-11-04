@@ -30,7 +30,15 @@ export const discoverUserSecretsThunk = createAsyncThunk<
     // Phase 1: discover new deposits starting from the next unknown index
     const initialSecretsMap = userSecretsSelector(state);
 
-    for (let depositIndex = initialSecretsMap.size; ; depositIndex++) {
+    const knownIndexes = new Set(
+      [...initialSecretsMap.values()].map(record => record.depositIndex)
+    );
+
+    let firstMissing = 0;
+    while (knownIndexes.has(firstMissing)) firstMissing++;
+
+    for (let depositIndex = firstMissing; ; depositIndex++) {
+      if (knownIndexes.has(depositIndex)) continue;
       const s = await secretManager.getDepositSecrets({ entrypointAddress, chainId, depositIndex });
 
       if (!depositsMap.has(s.precommitment as Precommitment)) break;
