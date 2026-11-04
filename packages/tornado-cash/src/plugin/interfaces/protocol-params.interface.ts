@@ -17,7 +17,7 @@ import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
-import type { DelegationConfig } from '../../account/delegation.interface';
+import type { DelegationConfig, WorkerDelegationConfig } from '../../account/delegation.interface';
 import type { ITornadoInstance } from '../../instances';
 
 export type { DelegationConfig, ImportNoteResult };
@@ -130,6 +130,10 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
+
+/** Signing functions must not be nested in a structured-cloned options object. */
+export type WorkerWithdrawParams = IRelayerWithdrawParams |
+  (Omit<IPaymasterWithdrawParams, 'delegation'> & { delegation?: WorkerDelegationConfig });
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
   assets?: Address[];

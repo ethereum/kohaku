@@ -7,6 +7,7 @@ import { SIMPLE_7702_EXECUTE_ABI } from '../../src/data/abis/account.abi';
 import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
 import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdrawThunk';
+import type { DelegationConfig, DelegatorAccount } from '../../src/account/delegation.interface';
 
 const fixture = vi.hoisted(() => ({
   isERC20: false,
@@ -50,7 +51,7 @@ vi.mock('../../src/paymaster/utils', async (importOriginal) => ({
   estimateUserOperationGas: (_client: unknown, op: SerializedUserOperation) => fixture.estimate(op),
 }));
 
-async function prepare(delegation: { mode: 'random' } | { mode: 'deterministic'; path?: string } | null = { mode: 'random' }, overrides: Record<string, unknown> = {}) {
+async function prepare(delegation: DelegationConfig | null = { mode: 'random' }, overrides: Record<string, unknown> = {}) {
   const store = storeFactory({ logLevel: 'off' });
 
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
@@ -173,6 +174,46 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
     expect(withdrawal!.userOperation.eip7702Auth?.nonce).toBe('0x0');
     expect(fixture.getAccountNonce).not.toHaveBeenCalled();
+  });
+
+  it('requests external signatures, caches authorization across gas refinements and never derives a key', async () => {
+    fixture.count = 2;
+    const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
+    const signAuthorization = vi.fn(account.signAuthorization);
+    const signTypedData = vi.fn(account.signTypedData);
+    const signer = { address: account.address, signAuthorization, signTypedData } as DelegatorAccount;
+    fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
+    const [withdrawal] = await prepare({ mode: 'external', signer });
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
+    expect(withdrawal!.userOperation.sender).toBe(account.address);
+    expect(withdrawal!.userOperation.nonce).toBe('0x0');
+    expect(withdrawal!.userOperation.eip7702Auth?.nonce).toBe('0x7');
+    expect(signAuthorization).toHaveBeenCalledTimes(1);
+    expect(signTypedData).toHaveBeenCalledTimes(2);
+    expect(fixture.estimate).toHaveBeenLastCalledWith(withdrawal!.userOperation);
+    expect(fixture.deriveSignature).not.toHaveBeenCalled();
+    expect(fixture.deriveLegacy).not.toHaveBeenCalled();
+    expect(fixture.deriveDelegator).not.toHaveBeenCalled();
+  });
+
+  it.each(['authorization', 'userop', 'rejected'] as const)('stops on a bad external %s signature without fallback signing', async (mode) => {
+    const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
+    const other = privateKeyToAccount(`0x${'08'.repeat(32)}`);
+    const signer: DelegatorAccount = { address: account.address,
+      signAuthorization: mode === 'authorization' ? other.signAuthorization : mode === 'rejected' ? async () => { throw new Error('User rejected authorization'); } : account.signAuthorization,
+      signTypedData: mode === 'userop' ? other.signTypedData : account.signTypedData };
+    await expect(prepare({ mode: 'external', signer })).rejects.toThrow(mode === 'rejected' ? 'User rejected' : 'does not match');
+    expect(fixture.estimate).not.toHaveBeenCalled();
+    expect(fixture.deriveSignature).not.toHaveBeenCalled();
+    expect(fixture.deriveDelegator).not.toHaveBeenCalled();
+  });
+
+  it('requires a successful estimate for external signing rather than requesting a fallback signature', async () => {
+    const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
+    const signTypedData = vi.fn(account.signTypedData);
+    fixture.estimate.mockRejectedValue(new Error('network timeout'));
+    await expect(prepare({ mode: 'external', signer: { ...account, signTypedData } as DelegatorAccount })).rejects.toThrow('gas estimation failed');
+    expect(signTypedData).toHaveBeenCalledTimes(1);
   });
 
   it('allows explicit best-effort fallback for a recoverable standard withdrawal and exposes metadata', async () => {

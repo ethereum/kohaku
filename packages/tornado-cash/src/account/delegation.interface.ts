@@ -29,7 +29,15 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
  *   Any postOp gas refund arrives after forwarding and is also irrecoverable
  *   even when execution succeeds. Do not use in production unless you
  *   deliberately accept those losses and know exactly why this mode is needed.
+ * - `external`: an explicitly selected host signer. Its key stays on the host;
+ *   only scoped signing requests and verified signatures cross the worker bridge.
+ *   Successful bundler estimation is required even with best-effort policy.
  */
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }
-  | { mode: 'random' };
+  | { mode: 'random' }
+  | { mode: 'external'; signer: DelegatorAccount };
+
+/** Plain-data representation sent to the worker; callbacks use a separate port. */
+export type WorkerDelegationConfig = Exclude<DelegationConfig, { mode: 'external' }> |
+  { mode: 'external'; address: DelegatorAccount['address'] };

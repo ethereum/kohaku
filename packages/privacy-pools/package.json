@@ -27,6 +27,7 @@
     "dev": "tsup --config tsup.config.ts --watch",
     "test": "vitest run --project=e2e-sepolia",
     "test:unit": "vitest run --project=unit",
+    "test:types": "tsc --noEmit -p tests/tsconfig.types.json",
     "test:e2e:mainnet": ". ./.env.e2e.tests && vitest run --project=e2e-mainnet",
     "test:e2e:sepolia": ". ./.env.e2e.tests && vitest run --project=e2e-sepolia",
     "test:e2e:wl": ". ./.env.e2e.tests && vitest run --project=withdraw-live-sepolia",
