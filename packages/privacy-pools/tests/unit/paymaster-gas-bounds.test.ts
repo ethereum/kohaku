@@ -38,6 +38,12 @@ vi.mock('../../src/state/thunks/withdrawThunk', async () => {
 
 const GWEI = 1_000_000_000n;
 const ONE_ETH = 10n ** 18n;
+const feeHistory = (tips: bigint[], baseFeePerGas = GWEI) => ({
+  oldestBlock: '0x1',
+  reward: tips.map(tip => [toHex(tip)]),
+  baseFeePerGas: [...tips.map(() => toHex(baseFeePerGas)), toHex(100n * GWEI)],
+  gasUsedRatio: tips.map(() => 0.5),
+});
 const POOL = 0x1000n as Address;
 const ADAPTER = '0x000000000000000000000000000000000000ada9';
 const PAYMASTER = '0x000000000000000000000000000000000000fee1';
@@ -77,7 +83,7 @@ const mockBundler = ({
   return { requests, network: { fetch: handler('network') }, globalFetch: handler('global') };
 };
 
-const setup = (bundler: ReturnType<typeof mockBundler>, noteValue = ONE_ETH) => {
+const setup = (bundler: ReturnType<typeof mockBundler>, noteValue = ONE_ETH, recentTips?: bigint[]) => {
   const store = storeFactory({
     logLevel: 'off',
     devOptions: TEST_STORE_DEV_OPTIONS,
@@ -120,8 +126,12 @@ const setup = (bundler: ReturnType<typeof mockBundler>, noteValue = ONE_ETH) => 
     maxGasLimits: overrides.maxGasLimits,
     tailCalls: overrides.tailCalls,
     tailCallsGasEstimate: overrides.tailCallsGasEstimate,
-    provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber'
-      ? { baseFeePerGas: toHex(FEE_REFERENCE.baseFeePerGas) } : toHex(FEE_REFERENCE.maxPriorityFeePerGas) } as never,
+    provider: { request: async ({ method }: { method: string }) => {
+      if (method === 'eth_feeHistory' && recentTips) return feeHistory(recentTips, FEE_REFERENCE.baseFeePerGas);
+
+      return method === 'eth_getBlockByNumber'
+        ? { baseFeePerGas: toHex(FEE_REFERENCE.baseFeePerGas) } : toHex(FEE_REFERENCE.maxPriorityFeePerGas);
+    } } as never,
     network: bundler.network,
   })).unwrap();
 
@@ -161,6 +171,34 @@ describe('paymaster bundler safety', () => {
     const bundler = mockBundler({ price: { maxFeePerGas: 1_000n * GWEI, maxPriorityFeePerGas: GWEI } });
 
     await expect(setup(bundler).withdraw()).rejects.toThrow('host RPC bounds');
+    expect(proveCalls.count).toBe(0);
+    expect(sentUserOps(bundler)).toHaveLength(0);
+  });
+
+  it('accepts a fair tip spike using host history throughout quote and preparation', async () => {
+    const price = { maxFeePerGas: 16n * GWEI, maxPriorityFeePerGas: 4n * GWEI };
+    const bundler = mockBundler({ price, estimate: estimate() });
+    const recentTips = [...Array<bigint>(9).fill(15_166n), 4n * GWEI];
+    const provider = { request: async ({ method }: { method: string }) => method === 'eth_feeHistory'
+      ? feeHistory(recentTips, FEE_REFERENCE.baseFeePerGas) : toHex(15_166n) };
+    const manager = storeStateManager({
+      dataService: { getChainId: async () => 1n }, secretManager: {}, entrypoint: { address: 900n },
+      paymasterConfig: { 1: { bundlerUrl: BUNDLER_URL, paymasterAddress: PAYMASTER } },
+      provider, network: bundler.network,
+    } as never);
+    const quote = await manager.getUnshieldEstimate({ asset: BigInt(E_ADDRESS) as Address, amount: ONE_ETH, recipient: 0xbeefn as Address, mode: 'paymaster' });
+    const [withdrawal] = await setup(bundler, ONE_ETH, recentTips).withdraw();
+
+    expect(quote.mode).toBe('paymaster');
+    expect(BigInt(withdrawal!.userOperation.maxPriorityFeePerGas)).toBe(price.maxPriorityFeePerGas);
+    expect(BigInt(withdrawal!.userOperation.maxFeePerGas)).toBe(price.maxFeePerGas);
+    expect(withdrawal!.fee).toBe(committedFee(withdrawal!.userOperation as unknown as Record<string, `0x${string}`>));
+  });
+
+  it('rejects tips over 20 gwei before proving, even with extreme host history', async () => {
+    const bundler = mockBundler({ price: { maxFeePerGas: 40n * GWEI, maxPriorityFeePerGas: 21n * GWEI } });
+
+    await expect(setup(bundler, ONE_ETH, [100n * GWEI]).withdraw()).rejects.toThrow('requested: maxFeePerGas=40000000000, maxPriorityFeePerGas=21000000000');
     expect(proveCalls.count).toBe(0);
     expect(sentUserOps(bundler)).toHaveLength(0);
   });
