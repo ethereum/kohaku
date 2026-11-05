@@ -1,5 +1,11 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.38
+
+### Patch Changes
+
+- dc9cc90: feat: external delegation mode
+
 ## 0.1.0-alpha.37
 
 ### Patch Changes
