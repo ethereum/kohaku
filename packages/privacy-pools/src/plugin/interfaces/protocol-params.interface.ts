@@ -92,6 +92,7 @@ export interface PPv1PaymasterUnshieldOptions extends PPv1CommonUnshieldOptions 
   /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
   maxGasLimits?: PaymasterGasLimits;
   mode: 'paymaster';
+  /** External mode awaits host authorization/UserOperation signatures; no delegator key is derived. */
   delegation?: DelegationConfig;
   /**
    * Where the paymaster sends the gas-overcharge refund in postOp (`fee - actualGasCost`).

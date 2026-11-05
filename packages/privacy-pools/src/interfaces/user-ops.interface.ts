@@ -26,10 +26,15 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
  *   first. Failed, empty, or incomplete execution can leave the net withdrawal
  *   permanently inaccessible. Do not use in production unless you deliberately
  *   accept that risk and know exactly why this mode is needed.
+ * - `external`: a host-held EOA implementing the two signing callbacks below.
+ *   The SDK never asks the SecretManager for its private key. Returned signatures
+ *   are verified, authorization is cached per preparation, and bundler estimation
+ *   must succeed. Note-secret discovery/proving is unchanged.
  */
 export type DelegationConfig =
   | { mode: "deterministic"; path?: string }
-  | { mode: "random" };
+  | { mode: "random" }
+  | { mode: "external"; signer: DelegatorAccount };
 
 export interface SerializedAuth {
   address: `0x${string}`;
