@@ -16,6 +16,7 @@ const fixture = vi.hoisted(() => ({
   count: 1,
   denomination: 10n ** 18n,
   maxFeePerGas: 2n,
+  maxPriorityFeePerGas: 1n,
   fees: [] as bigint[],
   proofRecipients: [] as bigint[],
   quote: vi.fn(async (_paymaster: bigint, _asset: bigint, fee: bigint) => fee * 7n),
@@ -47,7 +48,7 @@ vi.mock('../../src/state/thunks/withdrawalsProofThunk', () => ({
 vi.mock('../../src/paymaster/utils', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../src/paymaster/utils')>(),
   createPaymasterBundlerClient: () => ({}),
-  getUserOperationGasPrice: async () => ({ standard: { maxFeePerGas: fixture.maxFeePerGas, maxPriorityFeePerGas: 1n } }),
+  getUserOperationGasPrice: async () => ({ standard: { maxFeePerGas: fixture.maxFeePerGas, maxPriorityFeePerGas: fixture.maxPriorityFeePerGas } }),
   estimateUserOperationGas: (_client: unknown, op: SerializedUserOperation) => fixture.estimate(op),
 }));
 
@@ -75,6 +76,7 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
 describe('paymaster withdrawal preparation integration', () => {
   beforeEach(() => {
     fixture.maxFeePerGas = 2n;
+    fixture.maxPriorityFeePerGas = 1n;
     fixture.denomination = 10n ** 18n;
     fixture.count = 1;
     fixture.isERC20 = false;
@@ -182,9 +184,12 @@ describe('paymaster withdrawal preparation integration', () => {
     const signAuthorization = vi.fn(account.signAuthorization);
     const signTypedData = vi.fn(account.signTypedData);
     const signer = { address: account.address, signAuthorization, signTypedData } as DelegatorAccount;
+
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
     const [withdrawal] = await prepare({ mode: 'external', signer });
+
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
+
     expect(withdrawal!.userOperation.sender).toBe(account.address);
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
     expect(withdrawal!.userOperation.eip7702Auth?.nonce).toBe('0x7');
@@ -202,6 +207,7 @@ describe('paymaster withdrawal preparation integration', () => {
     const signer: DelegatorAccount = { address: account.address,
       signAuthorization: mode === 'authorization' ? other.signAuthorization : mode === 'rejected' ? async () => { throw new Error('User rejected authorization'); } : account.signAuthorization,
       signTypedData: mode === 'userop' ? other.signTypedData : account.signTypedData };
+
     await expect(prepare({ mode: 'external', signer })).rejects.toThrow(mode === 'rejected' ? 'User rejected' : 'does not match');
     expect(fixture.estimate).not.toHaveBeenCalled();
     expect(fixture.deriveSignature).not.toHaveBeenCalled();
@@ -211,6 +217,7 @@ describe('paymaster withdrawal preparation integration', () => {
   it('requires a successful estimate for external signing rather than requesting a fallback signature', async () => {
     const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
     const signTypedData = vi.fn(account.signTypedData);
+
     fixture.estimate.mockRejectedValue(new Error('network timeout'));
     await expect(prepare({ mode: 'external', signer: { ...account, signTypedData } as DelegatorAccount })).rejects.toThrow('gas estimation failed');
     expect(signTypedData).toHaveBeenCalledTimes(1);
@@ -281,6 +288,40 @@ describe('paymaster withdrawal preparation integration', () => {
     await expect(prepare()).rejects.toMatchObject({ message: expect.stringContaining('host RPC bounds') });
     expect(fixture.fees).toHaveLength(0);
     expect(fixture.deriveSignature).not.toHaveBeenCalled();
+  });
+
+  it('accepts a recent tip spike even when the RPC tip suggestion is near zero', async () => {
+    fixture.maxFeePerGas = 16_000_000_000n;
+    fixture.maxPriorityFeePerGas = 4_000_000_000n;
+    fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(false, 0, false));
+    const request = vi.fn(async () => ({
+      baseFeePerGas: Array(11).fill(toHex(10_000_000_000n)),
+      reward: [...Array(9).fill([toHex(15_166n)]), [toHex(4_000_000_000n)]],
+    }));
+    const [withdrawal] = await prepare(null, { provider: { request } });
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(request).toHaveBeenCalledExactlyOnceWith({ method: 'eth_feeHistory', params: ['0xa', 'latest', [90]] });
+    expect(BigInt(withdrawal!.userOperation.maxPriorityFeePerGas)).toBe(fixture.maxPriorityFeePerGas);
+    expect(BigInt(withdrawal!.userOperation.maxFeePerGas)).toBe(fixture.maxFeePerGas);
+    expect(fixture.estimate).toHaveBeenLastCalledWith(withdrawal!.userOperation);
+  });
+
+  it('rejects tips over 20 gwei before deriving a signer or proving', async () => {
+    fixture.maxFeePerGas = 40_000_000_000n;
+    fixture.maxPriorityFeePerGas = 21_000_000_000n;
+    const request = async () => ({
+      baseFeePerGas: [toHex(10_000_000_000n), toHex(10_000_000_000n)],
+      reward: [[toHex(100_000_000_000n)]],
+    });
+
+    await expect(prepare(null, { provider: { request } })).rejects.toMatchObject({
+      message: expect.stringContaining('requested: maxFeePerGas=40000000000, maxPriorityFeePerGas=21000000000'),
+    });
+    expect(fixture.fees).toHaveLength(0);
+    expect(fixture.deriveSignature).not.toHaveBeenCalled();
+    expect(fixture.estimate).not.toHaveBeenCalled();
   });
 
   it('allows heavy tail calls and large calldata with payload-aware pre-verification bounds', async () => {
