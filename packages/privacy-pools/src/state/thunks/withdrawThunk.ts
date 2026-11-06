@@ -73,7 +73,7 @@ export const withdrawThunk = createAsyncThunk<
     // this session has not matched to it (see verifyRootsThunk).
     if (verifiedAspRoot === 0n || aspMerkleProof.root !== verifiedAspRoot) {
       throw new Error(
-        'ASP root not verified on-chain: sync before withdrawing ' +
+        'ASP root not verified on-chain: sync before withdrawing, and check the ASP service is reachable ' +
         `(proof root=${aspMerkleProof.root}, verified root=${verifiedAspRoot})`,
       );
     }

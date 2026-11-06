@@ -6,10 +6,10 @@ import { registerEntrypointDeposits } from '../slices/entrypointDepositsSlice';
 import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
 import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { registerLastUpdateRootEvent } from '../slices/updateRootEventsSlice';
-import { syncAspThunk, SyncAspThunkParams } from './syncAspThunk';
+import { isAspTreeCurrent, syncAspThunk, SyncAspThunkParams } from './syncAspThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
-import { entrypointInfoSelector } from '../selectors/slices.selectors';
+import { entrypointInfoSelector, lastUpdateRootEventSelector } from '../selectors/slices.selectors';
 import { verifyRootsThunk } from './verifyRootsThunk';
 
 export interface SyncThunkParams extends
@@ -19,6 +19,8 @@ export interface SyncThunkParams extends
   SyncAspThunkParams {
   dataService: IDataService;
   verify?: boolean;
+  /** Leave the ASP service out of this sync, keeping the stored tree. */
+  skipAsp?: boolean;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface SyncThunkParams extends
  */
 export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
-  async ({ dataService, verify = true, ...params }, { getState, dispatch }) => {
+  async ({ dataService, verify = true, skipAsp = false, ...params }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     const fromBlock = selectLastSyncedBlock(state);
@@ -69,10 +71,22 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
 
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
-    unwrapResult(await dispatch(syncAspThunk({ ...params })));
+    if (!skipAsp) {
+      // An unreachable or lying ASP service must not take the chain state down with
+      // it: the last good tree stays, and the next sync tries again.
+      const aspResult = await dispatch(syncAspThunk({ ...params }));
+
+      if (syncAspThunk.rejected.match(aspResult)) {
+        console.warn(`ASP sync failed, keeping the last good tree: ${aspResult.error.message}`);
+      }
+    }
 
     if (verify) {
-      const verifyResult = await dispatch(verifyRootsThunk({ dataService }));
+      // A tree behind the last RootUpdated cannot match latestRoot(). Its check is
+      // left out, so the verified root stays unset and withdrawals are refused.
+      const hasRootEvent = lastUpdateRootEventSelector(getState()) !== undefined;
+      const verifyAspRoot = !hasRootEvent || await isAspTreeCurrent(getState());
+      const verifyResult = await dispatch(verifyRootsThunk({ dataService, verifyAspRoot }));
 
       unwrapResult(verifyResult);
     }

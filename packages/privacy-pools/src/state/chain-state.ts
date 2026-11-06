@@ -12,7 +12,7 @@ import { ChainRootState, PublicRootState, RootState, storeFactory } from "./stor
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { selectLastSyncedBlock } from "./selectors/last-synced-block.selector";
 import { getPPv1ChainStateKey, getPPv1TimestampsKey } from "./storage-keys";
-import { createLoadCache, createSyncQueue } from "./utils/async.utils";
+import { createLoadCache, createSkipAspSyncQueue, createSyncQueue } from "./utils/async.utils";
 import { syncHistoryTimestampsThunk } from "./thunks/syncHistoryTimestampsThunk";
 import { syncThunk, SyncThunkParams } from "./thunks/syncThunk";
 
@@ -80,14 +80,14 @@ const loadChainEntry = async (
   // Accounts read this, not the store: mid-sync the store holds events that are
   // not verified yet and no verified ASP root, which a withdrawal must not see.
   let published = readChainState();
-  const enqueueSync = createSyncQueue();
+  const enqueueSync = createSkipAspSyncQueue();
   // Apart from syncs: a queued follow-up runs the work of whoever queued it first.
   const enqueueTimestamps = createSyncQueue();
 
   return {
     getState: () => published,
-    sync: (syncParams) => enqueueSync(async () => {
-      unwrapResult(await store.dispatch(syncThunk(syncParams)));
+    sync: ({ skipAsp = false, ...syncParams }) => enqueueSync(skipAsp, async (runSkipAsp) => {
+      unwrapResult(await store.dispatch(syncThunk({ ...syncParams, skipAsp: runSkipAsp })));
       published = readChainState();
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

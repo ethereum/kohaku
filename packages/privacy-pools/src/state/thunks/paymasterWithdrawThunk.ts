@@ -137,7 +137,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // Roots were already verified against chain by the sync() that the plugin runs
     // immediately before building this withdrawal (buildUnshield → sync → verifyRoots,
     // on the same unchanged state). Re-verifying here repeats 15 on-chain reads for no
-    // benefit, so it's intentionally omitted.
+    // benefit, so it's intentionally omitted. If that sync could not refresh the ASP
+    // tree, withdrawThunk refuses to prove.
 
     const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
     const [{ standard: price }, reference] = await Promise.all([

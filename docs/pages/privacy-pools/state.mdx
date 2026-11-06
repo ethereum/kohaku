@@ -10,6 +10,8 @@ await pools.sync()
 
 A sync reads the chain head once, scans the entrypoint and every pool up to that block, and stores it as the next starting point. If any scan fails, the whole sync fails and the next one retries the same range, so an event is never skipped.
 
+The association set is the exception. If the ASP service is down, or serves a tree that does not match the on-chain root, the sync still succeeds and logs a warning. The last good set stays, so `approved` and the `'pending'` balance can be out of date (and every deposit reads as pending if no set was ever fetched). `prepareUnshield` throws until a sync gets the current set, because the entrypoint only accepts proofs against its latest root. Each sync tries again.
+
 ## Notes
 
 ```ts
@@ -83,6 +85,8 @@ for (const tx of txns) {
 ```
 
 `ragequit` takes labels, not asset addresses. One label is one note. The returned `txns` are `{ to, data, value }` calls to the pool, sent by the user's public account, the same way a shield is sent. An empty label list builds no transactions.
+
+The contract does not consult the ASP for a ragequit, so `ragequit` syncs without calling the ASP service and works while it is down.
 
 Approved value stays in the pool. Withdraw that with [prepareUnshield](/privacy-pools/withdrawals).
 
