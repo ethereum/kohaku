@@ -1,3 +1,9 @@
+## 0.1.0-alpha.35
+
+### Patch Changes
+
+- dc9cc90: feat: external delegation mode
+
 ## 0.1.0-alpha.34
 
 ### Patch Changes

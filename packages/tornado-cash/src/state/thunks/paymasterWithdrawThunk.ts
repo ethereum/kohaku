@@ -19,6 +19,7 @@ import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
 import { GasEstimationPolicy, UserOpGasLimits } from "../../interfaces/user-ops.interface";
 import { DelegatorAccount } from "../../account/delegation.interface";
+import { verifiedExternalDelegator } from '../../account/external-delegator';
 import { DelegationConfig, IChainsPaymastersConfig, IWithdrawalPayload } from "../../plugin/interfaces/protocol-params.interface";
 import { instanceRegistryInfoSelector, poolsSelector } from "../selectors/slices.selectors";
 import { RootState } from "../store";
@@ -176,6 +177,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // synthesized forward). Any postOp refund can remain on the sender, so it
   // is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
+    if (delegation?.mode === 'external') return delegation.signer;
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
     if (delegation?.mode === 'deterministic' && delegation.path) {
@@ -192,14 +194,18 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // ceiling during estimation (e.g. 10M). A proof bound to a different recipient
   // would trigger CallGasLimitNonZero even if the requested final limit is zero.
   // The default sender is note-derived so any postOp refund remains recoverable.
-  const signer = await resolveBatchDelegator();
+  let signer = await resolveBatchDelegator();
   const senderAddress = BigInt(signer.address) as Address;
-  // Match Privacy Pools: an explicit wallet path may be an EOA with prior
-  // transactions. All note-derived/random senders keep authorization nonce 0;
+  // Explicit wallet-path and external senders may have prior EOA transactions.
+  // All note-derived/random senders keep authorization nonce 0;
   // every paymaster UserOperation still uses EntryPoint nonce 0 (single-use).
-  const authorizationNonce = delegation?.mode === 'deterministic' && delegation.path
+  const authorizationNonce = delegation?.mode === 'external' || (delegation?.mode === 'deterministic' && delegation.path)
     ? BigInt(await dataService.getAccountNonce(senderAddress))
     : undefined;
+
+  if (delegation?.mode === 'external') {
+    signer = verifiedExternalDelegator(signer, chainId, authorizationNonce!);
+  }
 
   const sponsoringDeposit = deposits[0]!;
   const directDeposits = deposits.slice(1);
@@ -291,7 +297,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
     { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
       allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
-        delegation?.mode !== 'random' && (chainId === 1 || chainId === 11155111) },
+        delegation?.mode !== 'random' && delegation?.mode !== 'external' && (chainId === 1 || chainId === 11155111) },
   );
 
   return [{

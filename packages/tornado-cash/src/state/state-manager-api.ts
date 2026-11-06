@@ -1,4 +1,5 @@
 import { EthereumProvider, TxData } from '@kohaku-eth/provider';
+import { releaseProxy } from 'comlink';
 import type { Storage, Keystore } from '@kohaku-eth/plugins';
 import { ISecretManager, SecretManager } from '../account/keys';
 import { SignatureSecretManager } from '../account/signature-keys';
@@ -15,6 +16,7 @@ import {
   IPaymasterWithdrawParams,
   IWithdrawapOperationParams,
   IWithdrawalPayload,
+  WorkerWithdrawParams,
   StoreStorageKey,
   TCProtocolConfig,
   IChainsPaymastersConfig,
@@ -23,6 +25,7 @@ import {
 import { PublicRootState } from './store';
 import { Address } from '../interfaces/types.interface';
 import { IRelayerFeeConfig } from './slices/relayersSlice';
+import type { DelegatorAccount } from '../account/delegation.interface';
 
 export interface WorkerInitOptions {
   protocolConfig: TCProtocolConfig,
@@ -104,12 +107,26 @@ export const workerApi = {
     return getStateManager().importNotes(params);
   },
 
-  getWithdrawalPayloads(params: IWithdrawapOperationParams, tailCalls?: IPaymasterWithdrawParams['tailCalls'], bundlerPost?: IPaymasterWithdrawParams['bundlerPost']): Promise<IWithdrawalPayload[]> {
+  async getWithdrawalPayloads(params: WorkerWithdrawParams, tailCalls?: IPaymasterWithdrawParams['tailCalls'], bundlerPost?: IPaymasterWithdrawParams['bundlerPost'], externalSigner?: Omit<DelegatorAccount, 'address'>): Promise<IWithdrawalPayload[]> {
+    const delegation = params.mode === 'paymaster' ? params.delegation : undefined;
+    if (delegation?.mode === 'external' && !externalSigner) throw new Error('External delegation requires host signing callbacks.');
     const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster'
-      ? { ...params, tailCalls, bundlerPost }
+      ? { ...params, tailCalls, bundlerPost, delegation: delegation?.mode === 'external' ? {
+        mode: 'external', signer: {
+          address: delegation.address,
+          signAuthorization: async (authorization) => externalSigner!.signAuthorization(authorization),
+          signTypedData: async (typedData) => externalSigner!.signTypedData(typedData),
+        },
+      } : delegation }
       : params;
 
-    return getStateManager().getWithdrawalPayloads(fullParams);
+    try {
+      return await getStateManager().getWithdrawalPayloads(fullParams);
+    } finally {
+      // This signer capability belongs to this preparation only, including
+      // rejection paths. Close its bridge rather than waiting for proxy GC.
+      (externalSigner as (Omit<DelegatorAccount, 'address'> & { [releaseProxy]?: () => void }) | undefined)?.[releaseProxy]?.();
+    }
   },
 
   dumpState(): Record<StoreStorageKey, PublicRootState> {

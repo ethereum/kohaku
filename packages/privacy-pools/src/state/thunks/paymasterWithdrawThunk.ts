@@ -8,6 +8,7 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import { ISecretManager } from "../../account/keys";
+import { verifiedExternalDelegator } from '../../account/external-delegator';
 import { E_ADDRESS } from "../../config";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
@@ -146,7 +147,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     assertGasPriceWithinBounds(price, reference);
     const { maxFeePerGas, maxPriorityFeePerGas } = price;
 
-    const signer = await resolveSigner({
+    let signer = await resolveSigner({
       delegation,
       secretManager,
       chainId,
@@ -155,14 +156,18 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       withdrawIndex: sponsoring!.note.withdraw,
     });
 
-    // A wallet-path delegator can be a reused EOA with a nonzero transaction
+    // A wallet-path or external delegator can be a reused EOA with a nonzero transaction
     // count, which the 7702 authorization must bind to. Ephemeral/random senders
     // are fresh single-use EOAs (nonce 0), so we skip the RPC and let the auth
     // default to 0 — keeping that hot path RPC-free.
     const authorizationNonce =
-      delegation?.mode === "deterministic" && delegation.path
+      delegation?.mode === "external" || (delegation?.mode === "deterministic" && delegation.path)
         ? BigInt(await dataService.getTransactionCount(signer.address))
         : undefined;
+
+    if (delegation?.mode === 'external') {
+      signer = verifiedExternalDelegator(signer, { chainId: Number(chainId), nonce: authorizationNonce!, entryPointAddress, paymasterAddress });
+    }
 
     const payoutRecipient = hasExecutionPhase ? signer.address : addressToHex(recipient);
 
@@ -280,12 +285,24 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
     let { proof, userOperation, fee } = await buildUserOp(baselineGas);
 
-    // Refine gas against the bundler; re-prove once at the refined fee. Best-effort —
-    // on failure the safe baseline is kept.
-    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits);
+    // Existing derived-key modes retain best-effort refinement. External signers
+    // require successful estimation and validation of the final signed payload.
+    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits, delegation?.mode === 'external');
 
     if (refinedGas !== baselineGas) {
       ({ proof, userOperation, fee } = await buildUserOp(refinedGas));
+    }
+
+    if (delegation?.mode === 'external') {
+      const finalGas = await estimateUserOperationGas(bundlerClient, userOperation, entryPointAddress);
+      assertGasLimitsWithinBounds(finalGas, baselineGas, userOperation, maxGasLimits);
+      const fields = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
+      // Validation-only withdrawals have empty callData and must keep execution
+      // gas zero even when the bundler reports a nonzero search estimate.
+      if (finalGas.verificationGasLimit <= 0n || finalGas.preVerificationGas <= 0n || fields.some(field => finalGas[field] < 0n ||
+        ((field !== 'callGasLimit' || userOperation.callData !== '0x') && finalGas[field] > BigInt(userOperation[field]!)))) {
+        throw new Error('External Privacy Pools UserOperation gas requirements changed after signing. Prepare a new withdrawal.');
+      }
     }
 
     return [
@@ -340,6 +357,7 @@ async function resolveSigner({
   depositIndex: number;
   withdrawIndex: number;
 }): Promise<DelegatorAccount> {
+  if (delegation?.mode === 'external') return delegation.signer;
   if (delegation?.mode === "random") {
     return privateKeyToAccount(generatePrivateKey());
   }
@@ -361,12 +379,14 @@ async function refineGasWithBundler(
   entryPointAddress: `0x${string}`,
   baselineGas: UserOpGasLimits,
   maxGasLimits?: PaymasterGasLimits,
+  requireEstimation = false,
 ): Promise<UserOpGasLimits> {
   let estimated: UserOpGasLimits;
 
   try {
     estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
-  } catch {
+  } catch (cause) {
+    if (requireEstimation) throw new Error('External Privacy Pools signing requires successful bundler gas estimation.', { cause });
     return baselineGas;
   }
 
