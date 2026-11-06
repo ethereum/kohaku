@@ -24,14 +24,15 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
  *   classical wallet-path address; without `path`, an ephemeral address keyed by
  *   the batch's first deposit.
  * - `random`: an expert-only, throwaway EOA whose private key is discarded.
- *   Every withdrawal pays it before forwarding or running `tailCalls`; failed,
+ *   Batches and withdrawals with `tailCalls` pay it before execution; failed,
  *   empty, or incomplete execution can permanently strand the net withdrawal.
- *   Any postOp gas refund arrives after forwarding and is also irrecoverable
- *   even when execution succeeds. Do not use in production unless you
+ *   Their postOp gas refund arrives after forwarding and is also irrecoverable
+ *   even when execution succeeds. A direct single-note withdrawal pays the
+ *   recipient (including its refund). Do not use random execution unless you
  *   deliberately accept those losses and know exactly why this mode is needed.
  * - `external`: an explicitly selected host signer. Its key stays on the host;
  *   only scoped signing requests and verified signatures cross the worker bridge.
- *   Successful bundler estimation is required even with best-effort policy.
+ *   Successful estimation and final simulation are required even with best-effort policy.
  */
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }

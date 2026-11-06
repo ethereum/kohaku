@@ -71,5 +71,5 @@ export type GasEstimationPolicy = 'required' | 'best-effort';
 
 /** Preparation quality; fallback is not a claim that simulation succeeded. */
 export type PaymasterGasEstimation =
-  | { status: 'estimated' }
+  | { status: 'estimated'; source?: 'bundler' | 'rpc' }
   | { status: 'fallback'; reason: 'transport-unavailable' | 'bundler-internal'; message: string };

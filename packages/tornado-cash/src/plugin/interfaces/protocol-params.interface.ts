@@ -112,7 +112,7 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 }
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
-  /** Default best-effort: eligible standard withdrawals may return marked, unestimated fallback limits. */
+  /** Direct single notes require host-RPC simulation; best-effort fallback applies only to eligible execution-phase withdrawals. */
   gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;

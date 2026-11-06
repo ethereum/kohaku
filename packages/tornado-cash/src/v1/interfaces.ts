@@ -40,7 +40,9 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     /**
-     * Default 'best-effort': on mainnet/Sepolia, standard withdrawals with a
+     * Single notes without tail calls require successful host-RPC estimation
+     * and simulation; their withdrawal and gas refund pay the recipient directly.
+     * Default 'best-effort': on mainnet/Sepolia, execution-phase withdrawals with a
      * recoverable sender and no user tail calls may return marked fallback gas
      * after recognized estimation availability failures. Use 'required' to
      * reject every failed estimate. Actual validation rejections always fail.

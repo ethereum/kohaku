@@ -20,6 +20,9 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
   options: {
     allowFallback?: boolean;
+    source?: 'bundler' | 'rpc';
+    /** RPC PVG already includes a conservative overhead allowance. */
+    bufferPreVerificationGas?: boolean;
     validateGas?: (gas: UserOpGasLimits, operation?: SerializedUserOperation) => void;
   } = {},
 ): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
@@ -77,7 +80,8 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 
       // Keep the baseline floor and add 20% headroom to each estimate. Limits
       // only increase, avoiding fee/proof oscillation between iterations.
-      const buffered = (estimated[field] * 12n + 9n) / 10n;
+      const buffered = field === 'preVerificationGas' && options.bufferPreVerificationGas === false
+        ? estimated[field] : (estimated[field] * 12n + 9n) / 10n;
 
       if (buffered > next[field]) {
         next[field] = buffered;
@@ -85,7 +89,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       }
     }
 
-    if (!changed) return { ...prepared, gasEstimation: { status: 'estimated' } };
+    if (!changed) return { ...prepared, gasEstimation: { status: 'estimated', ...(options.source ? { source: options.source } : {}) } };
 
     // Reject inflated limits outside the availability catch: never downgrade a
     // bounds violation into fallback or prove/sign an operation at those limits.

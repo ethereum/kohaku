@@ -10,8 +10,9 @@ import { Address } from "../../interfaces/types.interface";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
+import { estimateValidationOnlyGas, validateValidationOnlyOperation } from '../../paymaster/rpc-estimation';
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
-import { computeMinimumViableFee, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
@@ -174,10 +175,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   // The shared delegator that owns the consolidated userOp. All withdrawals land
   // in this EOA and are then spent by the execution phase (tailCalls or the
-  // synthesized forward). Any postOp refund can remain on the sender, so it
+  // synthesized forward) when there is an execution phase. Its refund can
+  // remain on the sender, so it
   // is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
     if (delegation?.mode === 'external') return delegation.signer;
+
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
     if (delegation?.mode === 'deterministic' && delegation.path) {
@@ -189,11 +192,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // Always withdraw to the 7702 sender before forwarding or running tail calls,
-  // including for one note. Bundlers replace callGasLimit with a nonzero search
-  // ceiling during estimation (e.g. 10M). A proof bound to a different recipient
-  // would trigger CallGasLimitNonZero even if the requested final limit is zero.
-  // The default sender is note-derived so any postOp refund remains recoverable.
+  // A single note without tail calls pays the recipient in validation, including
+  // its postOp gas refund. Estimate that path via the host RPC so bundlers cannot
+  // replace its mandatory zero execution limit with a nonzero search ceiling.
+  const validationOnly = deposits.length === 1 && tailCalls == null;
   let signer = await resolveBatchDelegator();
   const senderAddress = BigInt(signer.address) as Address;
   // Explicit wallet-path and external senders may have prior EOA transactions.
@@ -267,14 +269,14 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       gas,
       maxFeePerGas,
       maxPriorityFeePerGas,
-      tailCalls: composeTailCalls(fee),
+      tailCalls: validationOnly ? undefined : composeTailCalls(fee),
       nonce: 0n,
       authorizationNonce,
     });
 
   // Every refinement re-quotes the pool asset, re-proves the sponsoring
   // deposit and rebuilds forwarding calldata/signature before final estimation.
-  const baselineGas = reasonableGasUnitsForBatch(
+  const baselineGas = validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,
@@ -289,16 +291,20 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         throw new Error('Tornado paymaster fee would consume the sponsoring note. Use a larger note or wait for lower gas prices.');
       }
 
-      const sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
+      const sponsoringProof = await prove(sponsoringDeposit, validationOnly ? originalRecipient : senderAddress, relayerAddress, fee);
       const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
       return { sponsoringProof, userOperation, fee };
     },
-    (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
-      allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
+    (op) => validationOnly
+      ? estimateValidationOnlyGas(provider, op, entryPointAddress, chainId)
+      : estimateUserOperationGas(bundlerClient, op, entryPointAddress),
+    { source: validationOnly ? 'rpc' : 'bundler', bufferPreVerificationGas: !validationOnly, validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
+      allowFallback: !validationOnly && gasEstimationPolicy === 'best-effort' && tailCalls == null &&
         delegation?.mode !== 'random' && delegation?.mode !== 'external' && (chainId === 1 || chainId === 11155111) },
   );
+
+  if (validationOnly) await validateValidationOnlyOperation(provider, userOperation, entryPointAddress, chainId);
 
   return [{
     mode: 'paymaster' as const,
