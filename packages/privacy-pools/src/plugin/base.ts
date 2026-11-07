@@ -45,6 +45,7 @@ import {
   StateWithdrawalPayload,
 } from "./interfaces/protocol-params.interface";
 import { TxData } from "@kohaku-eth/provider";
+import { checkDepositor, PPv1DepositorCheckError, PPv1UnshieldWarning } from "./depositor-check";
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
@@ -316,11 +317,47 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * at the recipient over-delivers (then `operation.exact.expectedNet` is a lower bound).
    */
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
-    if (options?.exact) {
-      return this.prepareExactUnshield(assets, to, options);
+    const warnings = await this.runDepositorCheck(assets, to, options);
+
+    const operation = options?.exact
+      ? await this.prepareExactUnshield(assets, to, options)
+      : await this.buildUnshield(assets, assets.amount, to, options);
+
+    if (warnings.length > 0) {
+      operation.warnings = warnings;
     }
 
-    return this.buildUnshield(assets, assets.amount, to, options);
+    return operation;
+  }
+
+  /**
+   * Compares the recipient with the depositor of the spendable notes, using the
+   * in-memory state only. Throws {@link PPv1DepositorCheckError} in `block` mode, or in
+   * `warn` mode unless `depositorCheck.confirmed` is set. Returns the warnings to attach
+   * to the operation.
+   */
+  private async runDepositorCheck(
+    assets: AssetAmount,
+    to: AccountId,
+    options?: PPv1UnshieldOptions,
+  ): Promise<PPv1UnshieldWarning[]> {
+    const asset = this.unshieldAssetAddress(assets);
+    const mode = options?.depositorCheck?.mode ?? 'warn';
+
+    await this.stateManager.sync();
+
+    const notes = await this.stateManager.getNotes({ includeSpent: false, assets: [asset] });
+    const result = checkDepositor(notes, asset, BigInt(to));
+
+    if (result.status === 'ok') return [];
+
+    if (result.status === 'skipped') return [result.warning];
+
+    if (mode === 'block' || !options?.depositorCheck?.confirmed) {
+      throw new PPv1DepositorCheckError(result.warning, mode);
+    }
+
+    return [result.warning];
   }
 
   private async prepareExactUnshield(
