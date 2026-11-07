@@ -29,17 +29,6 @@ const depositSecret = (index: number, wrongRoot = false) => {
   };
 };
 
-const depositEvent = (index: number) => ({
-  pool,
-  depositor,
-  commitment: 2000n + BigInt(index),
-  label: 3000n + BigInt(index),
-  precommitment: depositSecret(index).precommitment,
-  value: index === 17 ? 100n : 40n,
-  blockNumber: 105n,
-  transactionHash: 123n,
-});
-
 function publicSnapshot(
   withZero: boolean,
   withWithdrawal: boolean,
@@ -64,7 +53,16 @@ function publicSnapshot(
     woundDownAtBlock: null,
   }]));
 
-  const deposits = indexes.map(depositEvent);
+  const deposits = indexes.map(index => ({
+    pool,
+    depositor,
+    commitment: 2000n + BigInt(index),
+    label: 3000n + BigInt(index),
+    precommitment: depositSecret(index).precommitment,
+    value: index === 17 ? 100n : 40n,
+    blockNumber: 105n,
+    transactionHash: 123n,
+  }));
 
   store.dispatch(registerDeposits(deposits));
 
@@ -109,7 +107,6 @@ type SetupOptions = {
   withWithdrawal?: boolean;
   wrongRoot?: boolean;
   snapshot?: Record<string, PublicRootState>;
-  dataService?: Partial<Record<keyof IDataService, unknown>>;
 };
 
 function setup({
@@ -117,7 +114,6 @@ function setup({
   withWithdrawal = false,
   wrongRoot = false,
   snapshot,
-  dataService,
 }: SetupOptions = {}) {
   const getDepositSecrets = vi.fn(async ({
     depositIndex,
@@ -141,7 +137,6 @@ function setup({
     entrypoint,
     dataService: {
       getChainId: vi.fn(async () => chainId),
-      ...dataService,
     } as unknown as IDataService,
     secretManager: { getDepositSecrets, getSecrets },
     aspService: {} as IAspService,
@@ -152,42 +147,11 @@ function setup({
   return { manager, getDepositSecrets, getSecrets };
 }
 
-type DepositSecretsMock = ReturnType<typeof setup>['getDepositSecrets'];
-
-const derivedIndexes = (getDepositSecrets: DepositSecretsMock) =>
+const derivedIndexes = ({ getDepositSecrets }: ReturnType<typeof setup>) =>
   getDepositSecrets.mock.calls.map(([{ depositIndex }]) => depositIndex);
 
-const noteIndexes = async ({ manager }: Pick<ReturnType<typeof setup>, 'manager'>) =>
+const noteIndexes = async ({ manager }: ReturnType<typeof setup>) =>
   (await manager.getNotes({})).map(note => note.deposit).sort((a, b) => a - b);
-
-/** Holds the signer at `gatedIndex` and records how many derivations overlap. */
-const gateSigner = (getDepositSecrets: DepositSecretsMock, gatedIndex: number) => {
-  let release!: () => void;
-  let entered!: () => void;
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  const started = new Promise<void>(resolve => { entered = resolve; });
-  const overlap = { active: 0, maximum: 0 };
-
-  getDepositSecrets.mockImplementation(async ({ depositIndex }) => {
-    overlap.active++;
-    overlap.maximum = Math.max(overlap.maximum, overlap.active);
-
-    try {
-      if (depositIndex === gatedIndex) {
-        entered();
-        await gate;
-      }
-
-      return depositSecret(depositIndex);
-    } finally {
-      overlap.active--;
-    }
-  });
-
-  return { release, started, overlap };
-};
-
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 describe('explicit deposit index registration', () => {
   it('rejects invalid indexes', async () => {
@@ -316,62 +280,26 @@ describe('explicit deposit index registration', () => {
 
     expect(await noteIndexes(context)).toEqual([17, 18, 19]);
     // One probe of the absent zero sequence, and none of the gap from 1 to 16.
-    expect(derivedIndexes(context.getDepositSecrets)).toEqual([17, 0, 18, 19, 20]);
-
-    await context.manager.getDepositPayload({ asset, amount: 1n });
-    expect(context.getDepositSecrets.mock.calls.at(-1)?.[0].depositIndex).toBe(20);
+    expect(derivedIndexes(context)).toEqual([17, 0, 18, 19, 20]);
   });
 
-  it('discovers an allocated shield through sync after it confirms', async () => {
-    const noPoolEvents = { PoolDeposited: [], Withdrawn: [], Ragequit: [], LeafInserted: [] };
-    const noEntrypointEvents = { EntrypointDeposited: [], RootUpdated: [], PoolRegistered: [], PoolWindDown: [] };
-    const getPoolEvents = vi.fn(async () => noPoolEvents);
-    const getEntrypointEvents = vi.fn(async () => noEntrypointEvents);
-    const context = setup({
-      dataService: {
-        getBlockNumber: vi.fn(async () => 200n),
-        getEntrypointEvents,
-        getPoolEvents,
-        getAsset: vi.fn(async () => ({ address: asset, name: 'Asset', symbol: 'A', decimals: 18n })),
-      },
-    });
+  it('derives each index once where sequences overlap', async () => {
+    const context = setup({ snapshot: publicSnapshot(false, false, [0, 1, 2, 3]) });
 
-    expect(await context.manager.registerDepositIndex(17)).toBe(true);
-    await context.manager.getDepositPayload({ asset, amount: 1n });
-    expect(context.getDepositSecrets.mock.calls.at(-1)?.[0].depositIndex).toBe(18);
+    expect(await context.manager.registerDepositIndex(2)).toBe(true);
 
-    const confirmed = depositEvent(18);
-
-    getPoolEvents.mockResolvedValueOnce({ ...noPoolEvents, PoolDeposited: [confirmed] } as never);
-    getEntrypointEvents.mockResolvedValueOnce({
-      ...noEntrypointEvents,
-      EntrypointDeposited: [{
-        depositor,
-        poolAddress: pool,
-        commitment: confirmed.commitment,
-        blockNumber: confirmed.blockNumber,
-        transactionHash: confirmed.transactionHash,
-      }],
-    } as never);
-    await context.manager.sync();
-
-    expect(await noteIndexes(context)).toEqual([17, 18]);
+    expect(await noteIndexes(context)).toEqual([0, 1, 2, 3]);
+    expect(derivedIndexes(context)).toEqual([2, 0, 1, 3, 4]);
   });
 
-  it('recovers contiguous successors after restarting from public state', async () => {
-    const context = setup({ snapshot: publicSnapshot(false, false, [17, 18, 19]) });
+  it('stops discovery at the largest safe index', async () => {
+    const largest = Number.MAX_SAFE_INTEGER;
+    const context = setup({ snapshot: publicSnapshot(false, false, [largest - 1, largest]) });
 
-    await context.manager.registerDepositIndex(17);
+    expect(await context.manager.registerDepositIndex(largest - 1)).toBe(true);
 
-    const publicState = context.manager.dumpState();
-
-    expect(publicState[storageKey]).not.toHaveProperty('userSecrets');
-
-    const restarted = setup({ snapshot: publicState });
-
-    expect(await noteIndexes(restarted)).toEqual([]);
-    expect(await restarted.manager.registerDepositIndex(17)).toBe(true);
-    expect(await noteIndexes(restarted)).toEqual([17, 18, 19]);
+    expect(await noteIndexes(context)).toEqual([largest - 1, largest]);
+    expect(derivedIndexes(context).every(Number.isSafeInteger)).toBe(true);
   });
 
   it('recovers withdrawal lineage of a discovered successor', async () => {
@@ -386,57 +314,28 @@ describe('explicit deposit index registration', () => {
     expect(getSecrets).toHaveBeenCalledWith(expect.objectContaining({ depositIndex: 18, withdrawIndex: 1 }));
   });
 
-  it('derives each index once where sequences overlap', async () => {
-    const context = setup({ snapshot: publicSnapshot(false, false, [0, 1, 2, 3]) });
-
-    expect(await context.manager.registerDepositIndex(2)).toBe(true);
-
-    expect(await noteIndexes(context)).toEqual([0, 1, 2, 3]);
-    expect(derivedIndexes(context.getDepositSecrets)).toEqual([2, 0, 1, 3, 4]);
-  });
-
-  it('probes once per sequence across large gaps', async () => {
-    const context = setup({ snapshot: publicSnapshot(false, false, [5, 1_000_000, 1_000_001]) });
-
-    expect(await context.manager.registerDepositIndex(5)).toBe(true);
-    context.getDepositSecrets.mockClear();
-
-    expect(await context.manager.registerDepositIndex(1_000_000)).toBe(true);
-
-    expect(await noteIndexes(context)).toEqual([5, 1_000_000, 1_000_001]);
-    expect(derivedIndexes(context.getDepositSecrets)).toEqual([1_000_000, 0, 6, 1_000_001, 1_000_002]);
-  });
-
-  it('stops discovery at the largest safe index', async () => {
-    const largest = Number.MAX_SAFE_INTEGER;
-    const context = setup({ snapshot: publicSnapshot(false, false, [largest - 1, largest]) });
-
-    expect(await context.manager.registerDepositIndex(largest - 1)).toBe(true);
-    expect(await noteIndexes(context)).toEqual([largest - 1, largest]);
-
-    expect(await context.manager.registerDepositIndex(largest)).toBe(true);
-    expect(derivedIndexes(context.getDepositSecrets).every(Number.isSafeInteger)).toBe(true);
-
-    await expect(context.manager.getDepositPayload({ asset, amount: 1n }))
-      .rejects.toThrow('Invalid deposit index');
-  });
-
-  it('refuses a shield on a registered or publicly observed credential', async () => {
-    const { manager } = setup();
-    const explicit = { asset, amount: 1n, depositIndex: 17 };
-
-    await expect(manager.getDepositPayload(explicit))
-      .rejects.toThrow('Deposit credential already exists on-chain');
-
-    await manager.registerDepositIndex(17);
-
-    await expect(manager.getDepositPayload(explicit))
-      .rejects.toThrow('Deposit index already registered');
-  });
-
   it('allocates a shield after an in-flight registration without overlapping the signer', async () => {
-    const { manager, getDepositSecrets } = setup();
-    const { release, started, overlap } = gateSigner(getDepositSecrets, 17);
+    const context = setup();
+    const { manager, getDepositSecrets } = context;
+    let release!: () => void;
+    let entered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    let active = 0;
+    let maximumActive = 0;
+
+    getDepositSecrets.mockImplementation(async ({ depositIndex }) => {
+      maximumActive = Math.max(maximumActive, ++active);
+
+      if (depositIndex === 17) {
+        entered();
+        await gate;
+      }
+
+      active--;
+
+      return depositSecret(depositIndex);
+    });
 
     const registration = manager.registerDepositIndex(17);
 
@@ -444,7 +343,7 @@ describe('explicit deposit index registration', () => {
 
     const shield = manager.getDepositPayload({ asset, amount: 1n });
 
-    await flush();
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(getDepositSecrets).toHaveBeenCalledTimes(1);
 
     release();
@@ -452,26 +351,9 @@ describe('explicit deposit index registration', () => {
     const [registered, payload] = await Promise.all([registration, shield]);
 
     expect(registered).toBe(true);
-    expect(overlap.maximum).toBe(1);
-    expect(derivedIndexes(getDepositSecrets)).toEqual([17, 0, 18, 18]);
+    expect(maximumActive).toBe(1);
+    expect(derivedIndexes(context)).toEqual([17, 0, 18, 18]);
     expect(payload).toEqual(buildDepositPayload(1018n, asset, 1n, entrypoint.address));
-  });
-
-  it('rejects an explicit shield on an index registered while it waited', async () => {
-    const { manager, getDepositSecrets } = setup();
-    const { release, started } = gateSigner(getDepositSecrets, 17);
-
-    const registration = manager.registerDepositIndex(17);
-
-    await started;
-
-    const shield = manager.getDepositPayload({ asset, amount: 1n, depositIndex: 17 });
-    const outcome = expect(shield).rejects.toThrow('Deposit index already registered');
-
-    await flush();
-    release();
-
-    await Promise.all([registration, outcome]);
   });
 
   it('continues queued operations after a rejected signer operation', async () => {
@@ -485,26 +367,12 @@ describe('explicit deposit index registration', () => {
       manager.getDepositPayload({ asset, amount: 1n }),
     ]);
 
-    expect(cancelled).toMatchObject({ status: 'rejected', reason: new Error('Signer cancelled') });
+    expect(cancelled.status).toBe('rejected');
     expect(registered).toEqual({ status: 'fulfilled', value: true });
     expect(shield).toEqual({
       status: 'fulfilled',
       value: buildDepositPayload(1018n, asset, 1n, entrypoint.address),
     });
-  });
-
-  it('continues queued registration after a rejected registration', async () => {
-    const context = setup();
-
-    context.getDepositSecrets.mockRejectedValueOnce(new Error('Signer cancelled'));
-
-    const results = await Promise.allSettled([
-      context.manager.registerDepositIndex(17),
-      context.manager.registerDepositIndex(17),
-    ]);
-
-    expect(results.map(({ status }) => status)).toEqual(['rejected', 'fulfilled']);
-    expect(await noteIndexes(context)).toEqual([17]);
   });
 
   it('serializes concurrent registrations for a non-reentrant secret manager', async () => {

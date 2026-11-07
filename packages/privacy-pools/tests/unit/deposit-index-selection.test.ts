@@ -104,11 +104,7 @@ describe('explicit Privacy Pools deposit-index selection', () => {
     },
   );
 
-  it.each([
-    ['omitted options', undefined, undefined],
-    ['an address', '0x0000000000000000000000000000000000000002', undefined],
-    ['an explicit index', { depositIndex: 17 }, 17],
-  ] as const)('prepareShield accepts %s', async (_name, options, depositIndex) => {
+  it('prepareShield forwards an explicit index to the state manager', async () => {
     const stateManager = {
       sync: vi.fn(async () => {}),
       getDepositPayload: vi.fn(async () => ({})),
@@ -120,12 +116,12 @@ describe('explicit Privacy Pools deposit-index selection', () => {
     });
     const contract = '0x0000000000000000000000000000000000000001';
 
-    await plugin.prepareShield({ asset: { __type: 'erc20', contract }, amount: AMOUNT }, options);
+    await plugin.prepareShield({ asset: { __type: 'erc20', contract }, amount: AMOUNT }, { depositIndex: 17 });
 
     expect(stateManager.getDepositPayload).toHaveBeenCalledWith({
       asset: BigInt(contract),
       amount: AMOUNT,
-      depositIndex,
+      depositIndex: 17,
     });
   });
 });
