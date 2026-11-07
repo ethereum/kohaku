@@ -21,6 +21,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
   options: {
     allowFallback?: boolean;
+    isERC20?: boolean;
     validateGas?: (gas: UserOpGasLimits, operation?: SerializedUserOperation) => void;
   } = {},
 ): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
@@ -46,14 +47,14 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       if (options.allowFallback && reason) {
         // Rebuild at the fallback fee before returning anything. Never patch
         // gas on the old signed operation or reuse its fee-bearing proof.
-        const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation);
+        const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation, options.isERC20 ?? false);
 
         options.validateGas?.(fallbackGas, prepared.userOperation);
         const fallback = await build(fallbackGas);
 
         options.validateGas?.(fallbackGas, fallback.userOperation);
 
-        if (tornadoFallbackGas(fallbackGas, fallback.userOperation).preVerificationGas > fallbackGas.preVerificationGas) {
+        if (tornadoFallbackGas(fallbackGas, fallback.userOperation, options.isERC20 ?? false).preVerificationGas > fallbackGas.preVerificationGas) {
           throw new Error('Tornado fallback payload size changed during preparation; use required gas estimation.');
         }
 

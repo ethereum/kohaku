@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
-import { Wallet } from 'ethers';
-import { parseEther, type Hex } from 'viem';
+import { Contract, Wallet } from 'ethers';
+import { decodeAbiParameters, parseAbiParameters, parseEther, toHex, type Hex } from 'viem';
 
 import { E_ADDRESS } from '../../../src/config';
 import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
@@ -57,9 +57,9 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     }
   });
 
-  it('[prepareUnshieldPaymaster] single native deposit directly pays and refunds the recipient after incompatible bundler estimation', { timeout: 180_000 }, async () => {
+  it.each(['existing', 'fresh'])('[prepareUnshieldPaymaster] single note directly pays and refunds recipient (%s) after incompatible bundler estimation', { timeout: 240_000 }, async recipientKind => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
-    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+    const host = createMockHost({ rpcUrl: pool.rpcUrl, mnemonic: Wallet.createRandom().mnemonic!.phrase });
     const request = host.provider.request.bind(host.provider);
 
     host.provider.request = async args => {
@@ -82,6 +82,8 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
 
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
     const { txns } = await protocol.prepareShield({ asset: nativeAsset, amount: parseEther('1') });
+
+    expect(txns.length).toBeGreaterThan(0);
     const receipts = await sendMultipleTxsAndWait(alice, txns);
 
     for (const receipt of receipts) {
@@ -93,9 +95,12 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
 
     expect(preBalance).toBe(parseEther('1'));
 
-    const bob = TEST_ACCOUNTS.bob.address;
+    // Also cover a never-funded EOA, including its creation cost.
+    const bob = recipientKind === 'fresh' ? Wallet.createRandom().address : TEST_ACCOUNTS.bob.address;
     const preWithdrawalBalance = await pool.getBalance(bob);
     const prePaymasterBalance = await pool.getBalance(paymasterAddress);
+
+    if (recipientKind === 'fresh') expect(preWithdrawalBalance).toBe(0n);
 
     const unshieldOp = await protocol.prepareUnshield(
       { asset: nativeAsset, amount: parseEther('1') },
@@ -116,6 +121,35 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     expect(withdrawal.userOperation.callData).toBe('0x');
 
     expect(withdrawal.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
+    expect(BigInt(withdrawal.userOperation.preVerificationGas)).toBe(300_000n);
+    expect(BigInt(withdrawal.userOperation.paymasterPostOpGasLimit!)).toBe(50_000n);
+    expect(BigInt(withdrawal.userOperation.verificationGasLimit)).toBe(100_000n);
+    expect(BigInt(withdrawal.userOperation.paymasterVerificationGasLimit!)).toBe(650_000n);
+
+    if (recipientKind === 'fresh') {
+      // Exercise the oldest retained root without mining extra deposits.
+      // Classic pools pack currentRootIndex/nextIndex in slot 3. Preserve the
+      // deposit count and all roots; only change the ring's starting index on
+      // this disposable fork. The original proof must remain valid.
+      const [data] = decodeAbiParameters(parseAbiParameters('(address instance, bytes proof, bytes32 root, bytes32 nullifierHash, address recipient, uint256 fee)'), withdrawal.userOperation.paymasterData!);
+      const provider = await pool.getProvider();
+      const instance = new Contract(data.instance, [
+        'function currentRootIndex() view returns(uint32)',
+        'function ROOT_HISTORY_SIZE() view returns(uint32)',
+        'function roots(uint256) view returns(bytes32)',
+        'function isKnownRoot(bytes32) view returns(bool)',
+      ], provider);
+      const index = BigInt(await instance.currentRootIndex!());
+      const historySize = BigInt(await instance.ROOT_HISTORY_SIZE!());
+      const slot = toHex(3n, { size: 32 });
+      const packed = BigInt(await provider.send('eth_getStorageAt', [data.instance, slot, 'latest']));
+
+      expect(await instance.roots!(index)).toBe(data.root);
+      expect(packed & 0xffffffffn).toBe(index);
+      await provider.send('anvil_setStorageAt', [data.instance, slot, toHex((packed & ~0xffffffffn) | ((index + historySize - 1n) % historySize), { size: 32 })]);
+      expect(await instance.currentRootIndex!()).toBe((index + historySize - 1n) % historySize);
+      expect(await instance.isKnownRoot!(data.root)).toBe(true);
+    }
 
     await broadcaster.broadcast(unshieldOp);
     await pool.mine(1);

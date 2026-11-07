@@ -97,6 +97,9 @@ describe('paymaster withdrawal preparation integration', () => {
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
 
     expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
+    expect(BigInt(withdrawal!.userOperation.verificationGasLimit)).toBe(150_000n);
+    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBe(300_000n);
+    expect(BigInt(withdrawal!.userOperation.paymasterVerificationGasLimit!)).toBe(1_200_000n);
     expect(withdrawal!.userOperation.callData).toBe('0x');
     expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
     expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
@@ -117,6 +120,9 @@ describe('paymaster withdrawal preparation integration', () => {
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
 
     expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'transport-unavailable' });
+    expect(BigInt(withdrawal!.userOperation.verificationGasLimit)).toBe(150_000n);
+    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBe(300_000n);
+    expect(BigInt(withdrawal!.userOperation.paymasterVerificationGasLimit!)).toBe(650_000n);
     expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
     expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
   });

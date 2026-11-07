@@ -301,7 +301,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return { sponsoringProof, userOperation, fee };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits), allowFallback },
+    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20), allowFallback, isERC20: poolInfo.isERC20 },
   );
 
   return [{
