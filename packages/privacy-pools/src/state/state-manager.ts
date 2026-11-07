@@ -9,7 +9,7 @@ import { ISecretManager } from "../account/keys";
 import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
-import { Address } from "../interfaces/types.interface";
+import { Address, Precommitment } from "../interfaces/types.interface";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
@@ -53,8 +53,10 @@ import {
 } from "./selectors/pools.selector";
 import {
   entrypointInfoSelector,
+  depositsSelector,
+  userSecretsSelector,
 } from "./selectors/slices.selectors";
-import { buildDepositPayload, myDepositsCountSelector } from "./selectors/deposits.selector";
+import { buildDepositPayload } from "./selectors/deposits.selector";
 import {
   IBalanceType,
   SpecificAssetBalanceFn,
@@ -63,6 +65,8 @@ import {
 import { getNoteSelector } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
 import { setVerifiedAspRoot } from "./slices/aspVerificationSlice";
+import { addUserSecret } from "./slices/userSecretsSlice";
+import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
@@ -257,6 +261,22 @@ export const storeStateManager = (
     }
   };
 
+  // Sync, registration and shield preparation share one queue per store, because
+  // they share a secret manager and read the state that the others change. Each
+  // tail resolves, so a failed or cancelled operation does not block the next one.
+  const operationTails = new Map<StoreKey, Promise<unknown>>();
+
+  const serializeOperation = <T>(
+    storeKey: StoreKey,
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const result = (operationTails.get(storeKey) ?? Promise.resolve()).then(operation);
+
+    operationTails.set(storeKey, result.catch(() => undefined));
+
+    return result;
+  };
+
   // At most one sync per store at a time: interleaved syncs would derive and
   // append the same note secrets twice, and one sync's root re-verification
   // would briefly unset the verified ASP root a withdrawal is checking.
@@ -276,7 +296,10 @@ export const storeStateManager = (
       if (queue.queued) return queue.queued;
 
       const start = (): Promise<void> => {
-        const running = runSync(chainInfo).finally(() => {
+        const running = serializeOperation(
+          storeKey,
+          () => runSync(chainInfo),
+        ).finally(() => {
           if (queue.running === running) queue.running = undefined;
         });
 
@@ -298,25 +321,108 @@ export const storeStateManager = (
 
       return queued;
     },
+    registerDepositIndex: async (depositIndex: number): Promise<boolean> => {
+      if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+        throw new RangeError("Invalid deposit index");
+      }
+
+      const chainInfo = await getChainInfo();
+      return serializeOperation(
+        getStoreKey(chainInfo),
+        async () => {
+        const store = await getChainStore(chainInfo);
+        const state = store.getState();
+        const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+
+        const secret = await secretManager.getDepositSecrets({
+          chainId,
+          entrypointAddress,
+          depositIndex,
+        });
+
+        const precommitment = secret.precommitment as Precommitment;
+
+        // Never register an unmatched private credential.
+        if (!depositsSelector(state).has(precommitment)) {
+          return false;
+        }
+
+        const known = userSecretsSelector(state);
+
+        for (const [key, record] of known) {
+          if (
+            record.depositIndex === depositIndex &&
+            key !== precommitment
+          ) {
+            throw new Error("Deposit index already registered");
+          }
+        }
+
+        const existing = known.get(precommitment);
+
+        if (existing && existing.depositIndex !== depositIndex) {
+          throw new Error("Credential index conflicts with existing record");
+        }
+
+        if (!existing) {
+          store.dispatch(addUserSecret({
+            depositIndex,
+            noteSecrets: [{ noteIndex: 0, ...secret }],
+          }));
+        }
+
+        // Recover withdrawal lineage using the existing SDK thunk.
+        unwrapResult(await store.dispatch(
+          discoverUserSecretsThunk({ secretManager })
+        ));
+
+        return true;
+        },
+      );
+    },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =
         await getChainStore(await getChainInfo());
 
       return specificAssetsBalanceSelector(assets, balanceType);
     },
-    getDepositPayload: async ({ asset, amount }: IDepositOperationParams) => {
+    getDepositPayload: async ({ asset, amount, depositIndex: requestedIndex }: IDepositOperationParams) => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
-      const state = store.getState();
-      const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-      const depositIndex = myDepositsCountSelector(state);
-      const { precommitment } = await secretManager.getDepositSecrets({
-        entrypointAddress,
-        chainId,
-        depositIndex,
-      });
 
-      return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
+      return serializeOperation(getStoreKey(chainInfo), async () => {
+        const store = await getChainStore(chainInfo);
+        const state = store.getState();
+        const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+        const knownIndices = [...userSecretsSelector(state).values()]
+          .map((record) => record.depositIndex);
+
+        const automaticIndex = knownIndices.reduce(
+          (next, index) => Math.max(next, index + 1),
+          0,
+        );
+
+        const depositIndex = requestedIndex ?? automaticIndex;
+
+        if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+          throw new RangeError("Invalid deposit index");
+        }
+
+        if (knownIndices.includes(depositIndex)) {
+          throw new Error("Deposit index already registered");
+        }
+
+        const { precommitment } = await secretManager.getDepositSecrets({
+          entrypointAddress,
+          chainId,
+          depositIndex,
+        });
+
+        if (depositsSelector(state).has(precommitment)) {
+          throw new Error("Deposit credential already exists on-chain");
+        }
+
+        return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
+      });
     },
     getShieldEstimate: async ({ asset, amount }: IDepositOperationParams): Promise<PPv1ShieldEstimate> => {
       const { vettingFeeBPS, minimumDepositAmount } =

@@ -27,18 +27,32 @@ export const discoverUserSecretsThunk = createAsyncThunk<
     const withdrawalsMap = withdrawalsSelector(state);
     const { chainId, entrypointAddress } = entrypointInfoSelector(state);
 
-    // Phase 1: discover new deposits starting from the next unknown index
+    // Phase 1: follow the sequence from zero and the one after each known index.
+    // Gaps stay unsearched, so a sparse index must be registered explicitly.
     const initialSecretsMap = userSecretsSelector(state);
 
-    for (let depositIndex = initialSecretsMap.size; ; depositIndex++) {
-      const s = await secretManager.getDepositSecrets({ entrypointAddress, chainId, depositIndex });
+    const knownIndexes = new Set(
+      [...initialSecretsMap.values()].map(record => record.depositIndex)
+    );
 
-      if (!depositsMap.has(s.precommitment as Precommitment)) break;
+    const starts = [0, ...[...knownIndexes].map(index => index + 1)];
 
-      dispatch(addUserSecret({
-        depositIndex,
-        noteSecrets: [{ noteIndex: 0, ...s }],
-      }));
+    for (const start of starts) {
+      for (
+        let depositIndex = start;
+        Number.isSafeInteger(depositIndex) && !knownIndexes.has(depositIndex);
+        depositIndex++
+      ) {
+        const s = await secretManager.getDepositSecrets({ entrypointAddress, chainId, depositIndex });
+
+        if (!depositsMap.has(s.precommitment as Precommitment)) break;
+
+        dispatch(addUserSecret({
+          depositIndex,
+          noteSecrets: [{ noteIndex: 0, ...s }],
+        }));
+        knownIndexes.add(depositIndex);
+      }
     }
 
     // Phase 2: discover new withdrawal secrets for all known deposits (re-read after phase 1)

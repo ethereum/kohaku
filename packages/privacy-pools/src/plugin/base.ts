@@ -38,6 +38,7 @@ import {
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
   PPv1ShieldEstimate,
+  PPv1ShieldOptions,
   PPv1ViewOptions,
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
@@ -154,6 +155,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * The assets retain the provided order. If an asset is not supported its balance will be 0
    * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
+  /** Register a known deposit index after synchronizing public events. */
+  async registerDepositIndex(index: number): Promise<boolean> {
+    return this.stateManager.registerDepositIndex(index);
+  }
+
   async balance(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1AssetBalance[]> {
     if (sync) await this.stateManager.sync();
 
@@ -190,6 +196,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   async prepareShield(
     assets: PPv1AssetAmount,
+    options?: string | PPv1ShieldOptions,
   ): Promise<PPv1PublicOperation> {
     const { asset, amount } = assets;
 
@@ -198,6 +205,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     const tx = await this.stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
+      depositIndex: typeof options === "string"
+        ? undefined
+        : options?.depositIndex,
     });
 
     return { txns: [tx] } as PPv1PublicOperation;
