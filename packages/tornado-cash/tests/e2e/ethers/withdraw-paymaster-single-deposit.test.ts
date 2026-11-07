@@ -3,9 +3,8 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 import { Wallet } from 'ethers';
-import { decodeFunctionData, parseEther, type Hex } from 'viem';
+import { parseEther, type Hex } from 'viem';
 
-import { SIMPLE_7702_EXECUTE_ABI } from '../../../src/data/abis/account.abi';
 import { E_ADDRESS } from '../../../src/config';
 import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, loadInitialState } from '../../utils/common';
@@ -19,10 +18,10 @@ const EXECUTOR_PK = '0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4
 const UTILITY_PK  = '0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384f1f01a6' as Hex;
 const HUNDRED_ETH = `0x${parseEther('100').toString(16)}`;
 
-// A single note still needs a sender-and-forward operation: during gas
-// estimation the bundler injects a nonzero execution limit, which the paymaster
-// rejects if the sponsoring proof pays a recipient other than the sender.
-describe('TornadoCash Paymaster Unshield E2E — single deposit (sender and forward)', () => {
+// A single note without tail calls pays the recipient and its gas refund
+// directly. Host-RPC estimation preserves callGasLimit = 0, so a disposable
+// random sender never takes custody of funds, including after settlement.
+describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)', () => {
   let anvil: AnvilInstance;
   let pool: AnvilPool;
   let bundlerRpcUrl: string;
@@ -58,7 +57,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (sender and forw
     }
   });
 
-  it('[prepareUnshieldPaymaster] single native deposit estimates and forwards to the requested recipient', { timeout: 180_000 }, async () => {
+  it('[prepareUnshieldPaymaster] single native deposit directly pays and refunds the recipient with a random sender', { timeout: 180_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
 
     const { protocol, broadcaster } = await getProtocolWithState({
@@ -86,23 +85,26 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (sender and forw
 
     const bob = TEST_ACCOUNTS.bob.address;
     const preWithdrawalBalance = await pool.getBalance(bob);
+    const prePaymasterBalance = await pool.getBalance(paymasterAddress);
 
     const unshieldOp = await protocol.prepareUnshield(
       { asset: nativeAsset, amount: parseEther('1') },
       bob as AccountId,
-      { mode: 'paymaster' },
+      { mode: 'paymaster', delegation: { mode: 'random' } },
     );
 
     expect(unshieldOp.withdrawals.length).toBe(1);
     const withdrawal = unshieldOp.withdrawals[0]!;
+
     expect(withdrawal.mode).toBe('paymaster');
+
     if (withdrawal.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
-    expect(BigInt(withdrawal.proof.args[2])).toBe(BigInt(withdrawal.userOperation.sender));
-    expect(BigInt(withdrawal.userOperation.callGasLimit)).toBeGreaterThan(0n);
-    const forwarding = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: withdrawal.userOperation.callData });
-    expect(forwarding.functionName).toBe('execute');
-    expect(BigInt(forwarding.args![0] as string)).toBe(BigInt(bob));
-    expect(forwarding.args![1]).toBe(parseEther('1') - BigInt(withdrawal.proof.args[4]));
+
+    expect(BigInt(withdrawal.proof.args[2])).toBe(BigInt(bob));
+    expect(BigInt(withdrawal.userOperation.sender)).not.toBe(BigInt(bob));
+    expect(BigInt(withdrawal.userOperation.callGasLimit)).toBe(0n);
+    expect(withdrawal.userOperation.callData).toBe('0x');
+    expect(withdrawal.gasEstimation).toEqual({ status: 'estimated', source: 'rpc' });
 
     await broadcaster.broadcast(unshieldOp);
     await pool.mine(1);
@@ -111,8 +113,18 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (sender and forw
     const postWithdrawalBalance = await pool.getBalance(bob);
     const paymasterBalance = await pool.getBalance(paymasterAddress);
 
+    const proofFee = BigInt(withdrawal.proof.args[4]);
+    const retainedFee = paymasterBalance - prePaymasterBalance;
+    const recipientReceived = postWithdrawalBalance - preWithdrawalBalance;
+
     expect(postTCBalance).toBe(0n);
-    expect(postWithdrawalBalance - preWithdrawalBalance).toBe(parseEther('1') - BigInt(withdrawal.proof.args[4]));
-    expect(paymasterBalance).toBeGreaterThan(0n);
+    // The recipient receives the proof-bound net payout AND the unused-gas refund.
+    // The paymaster retains only its fee after refunding; gas itself is paid from
+    // its separate EntryPoint deposit. Account for the full note, not just the net.
+    expect(retainedFee).toBeGreaterThan(0n);
+    expect(retainedFee).toBeLessThan(proofFee);
+    expect(recipientReceived).toBeGreaterThan(parseEther('1') - proofFee);
+    expect(recipientReceived + retainedFee).toBe(parseEther('1'));
+    expect(await pool.getBalance(withdrawal.userOperation.sender)).toBe(0n);
   });
 });
