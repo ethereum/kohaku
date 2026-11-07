@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { RpcRequestError, toHex } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
-import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
+import { RpcSimulationUnsupportedError } from '../../src/paymaster/estimation-retry';
+import { reasonableGasUnits, reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
 import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdrawThunk';
 import type { DelegationConfig, DelegatorAccount } from '../../src/account/delegation.interface';
@@ -79,15 +80,110 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
 }
 
 describe('paymaster withdrawal preparation integration', () => {
-  it('never silently falls back to executor forwarding when direct RPC estimation fails', async () => {
+  it('rejects unclassified direct RPC failures without switching to executor forwarding', async () => {
     fixture.count = 1;
-    fixture.rpcEstimate.mockRejectedValue(new Error('RPC state overrides unsupported'));
-    await expect(prepare(null)).rejects.toThrow('RPC state overrides unsupported');
+    fixture.rpcEstimate.mockRejectedValue(new Error('unclassified simulation failure'));
+    await expect(prepare(null)).rejects.toThrow('unclassified simulation failure');
     expect(fixture.estimate).not.toHaveBeenCalled();
     expect(fixture.rpcValidate).not.toHaveBeenCalled();
   });
 
-  it('rejects a final direct operation that fails host-RPC simulation', async () => {
+  it.each(['random', 'deterministic', 'external'] as const)('keeps direct payout with marked best-effort fallback for a %s sender', async mode => {
+    fixture.count = 1;
+    fixture.isERC20 = true;
+    const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
+    const delegation: DelegationConfig = mode === 'external' ? { mode, signer: account as DelegatorAccount } : { mode };
+
+    fixture.rpcEstimate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('state overrides unsupported')));
+    const [withdrawal] = await prepare(delegation);
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'rpc-unsupported' });
+    expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
+    expect(BigInt(withdrawal!.proof.args[4])).toBe(fixture.fees.at(-1));
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(2);
+    expect(fixture.fees.at(-1)).toBeGreaterThan(fixture.fees[0]!);
+    expect(fixture.quote).toHaveBeenCalledTimes(2);
+    expect(fixture.rpcValidate).not.toHaveBeenCalled();
+    expect(fixture.estimate).not.toHaveBeenCalled();
+  });
+
+  it('allows marked direct fallback after a transport outage on mainnet', async () => {
+    fixture.count = 1;
+    fixture.chainId = 1n;
+    const failure = Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' });
+
+    fixture.rpcEstimate.mockRejectedValue(failure);
+    const [withdrawal] = await prepare();
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'transport-unavailable' });
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
+  });
+
+  it('marks an otherwise estimated direct payload when only final simulation is unavailable', async () => {
+    fixture.count = 1;
+    fixture.rpcEstimate.mockResolvedValue({ ...reasonableGasUnits(false), callGasLimit: 0n, preVerificationGas: 281_260n });
+    fixture.rpcValidate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('method not found')));
+    const [withdrawal] = await prepare();
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'rpc-unsupported' });
+    expect(fixture.rpcValidate).toHaveBeenCalledExactlyOnceWith(withdrawal!.userOperation);
+    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBe(281_260n);
+    expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
+    expect(BigInt(withdrawal!.proof.args[4])).toBe(fixture.fees.at(-1));
+    expect(fixture.estimate).not.toHaveBeenCalled();
+  });
+
+  it.each(['estimate', 'final'] as const)('requires successful direct %s simulation under required policy', async stage => {
+    fixture.count = 1;
+    fixture.rpcEstimate.mockResolvedValue({ ...reasonableGasUnits(false), callGasLimit: 0n });
+    const failure = new RpcSimulationUnsupportedError(new Error('state overrides unsupported'));
+
+    if (stage === 'estimate') fixture.rpcEstimate.mockRejectedValue(failure);
+    else fixture.rpcValidate.mockRejectedValue(failure);
+
+    await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toThrow('Host RPC does not support withdrawal simulation');
+    expect(fixture.estimate).not.toHaveBeenCalled();
+  });
+
+  it('does not use direct fallback on an unknown chain', async () => {
+    fixture.count = 1;
+    fixture.chainId = 31337n;
+    fixture.rpcEstimate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('state overrides unsupported')));
+    await expect(prepare()).rejects.toThrow('preparation stopped');
+  });
+
+  it('rejects a direct fallback fee that would consume the note', async () => {
+    fixture.count = 1;
+    fixture.maxFeePerGas = 1_100_000_000_000n;
+    fixture.rpcEstimate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('state overrides unsupported')));
+    await expect(prepare()).rejects.toThrow('fee would consume the sponsoring note');
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
+  });
+
+  it.each([
+    { code: -32500, message: 'AA33 invalid proof' },
+    { code: -32602, message: 'Invalid params' },
+    { code: -32603, message: 'Internal error' },
+    { code: -32603, message: 'Unknown error, could not parse simulate validation result.' },
+  ])('rejects direct estimation errors that are not simulation availability failures: $message', async error => {
+    fixture.count = 1;
+    fixture.rpcEstimate.mockRejectedValue(new RpcRequestError({ url: 'https://rpc.invalid', body: {}, error }));
+    await expect(prepare()).rejects.toThrow('preparation stopped');
+    expect(fixture.rpcValidate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a final direct operation that fails host-RPC simulation' , async () => {
     fixture.count = 1;
     fixture.rpcEstimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), callGasLimit: 0n });
     fixture.rpcValidate.mockRejectedValue(new Error('AA33 final validation rejected'));
@@ -293,7 +389,7 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
   });
 
-  it('does not fallback for strict callers, random senders, or user tail calls', async () => {
+  it('does not fallback on execution paths for strict callers, random senders, or user tail calls', async () => {
     fixture.count = 2;
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));

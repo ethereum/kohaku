@@ -4,6 +4,7 @@ import { entryPoint08Abi, entryPoint08Address, getUserOperationHash, toPackedUse
 import { recoverAuthorizationAddress } from 'viem/utils';
 import type { SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
 import { tornadoFallbackGas } from './fallback';
+import { isRpcSimulationUnsupported, RpcSimulationUnsupportedError } from './estimation-retry';
 import { reasonableGasUnits } from './fee';
 import { SIMPLE_7702_IMPLEMENTATION } from './utils';
 
@@ -16,6 +17,18 @@ const paymasterAbi = parseAbi([
 const BENEFICIARY = '0x000000000000000000000000000000000000dEaD';
 
 type RpcProvider = Pick<EthereumProvider, 'request'>;
+
+/** Missing override support is an availability failure, not a failed proof.
+ * Keep this classification scoped to simulation calls; preserve real reverts. */
+async function requestSimulation(provider: RpcProvider, request: Parameters<RpcProvider['request']>[0]) {
+  try {
+    return await provider.request(request);
+  } catch (cause) {
+    if (isRpcSimulationUnsupported(cause)) throw new RpcSimulationUnsupportedError(cause);
+
+    throw cause;
+  }
+}
 
 function quantity(value: unknown): bigint {
   if (typeof value !== 'string' || !/^0x[0-9a-f]+$/i.test(value) || BigInt(value) <= 0n) {
@@ -95,14 +108,14 @@ export async function estimateValidationOnlyGas(
   for (const [index, call] of calls.entries()) {
     // Validate return data too: a successful eth_estimateGas alone does not mean
     // the account signature (or paymaster time range) was accepted.
-    const result = await s.provider.request({ method: 'eth_call', params: [{ from: entryPoint, ...call }, 'latest', s.overrides] });
+    const result = await requestSimulation(s.provider, { method: 'eth_call', params: [{ from: entryPoint, ...call }, 'latest', s.overrides] });
     const validation = index === 0
       ? decodeFunctionResult({ abi: accountAbi, functionName: 'validateUserOp', data: result as Hex })
       : decodeFunctionResult({ abi: paymasterAbi, functionName: 'validatePaymasterUserOp', data: result as Hex })[1];
 
     if (validation !== 0n) throw new Error('Host RPC rejected the withdrawal signature or paymaster validation.');
 
-    estimates.push(quantity(await s.provider.request({ method: 'eth_estimateGas', params: [{ from: entryPoint, ...call }, 'latest', s.overrides] })));
+    estimates.push(quantity(await requestSimulation(s.provider, { method: 'eth_estimateGas', params: [{ from: entryPoint, ...call }, 'latest', s.overrides] })));
   }
 
   return {
@@ -114,14 +127,15 @@ export async function estimateValidationOnlyGas(
 
 /** Check the exact final signature, proof-bound fee, nonce and all allocated gas
  * limits together. No simulation-only fee bypass or altered paymaster code. No
- * transaction is sent; bundler admission and inclusion remain separate. */
+ * transaction is sent; bundler admission and inclusion remain separate. A caller
+ * using best-effort may return marked fallback on availability failures only. */
 export async function validateValidationOnlyOperation(
   provider: RpcProvider | undefined, op: SerializedUserOperation, entryPoint: Hex, chainId: number,
 ): Promise<void> {
   const s = await simulation(provider, op, entryPoint, chainId);
   const limit = s.raw.verificationGasLimit + s.raw.paymasterVerificationGasLimit + s.raw.paymasterPostOpGasLimit + s.raw.preVerificationGas + 100_000n;
   const data = encodeFunctionData({ abi: entryPoint08Abi, functionName: 'handleOps', args: [[s.packed], BENEFICIARY] });
-  const estimated = quantity(await s.provider.request({
+  const estimated = quantity(await requestSimulation(s.provider, {
     method: 'eth_estimateGas', params: [{ from: BENEFICIARY, to: entryPoint, data, gas: toHex(limit), gasPrice: '0x0' }, 'latest', s.overrides],
   }));
 

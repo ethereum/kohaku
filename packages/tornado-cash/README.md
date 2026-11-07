@@ -15,7 +15,7 @@ pnpm add @kohaku-eth/tornado-cash
 
 > **`delegation: { mode: 'random' }` is safe ONLY for a single-note withdrawal with no `tailCalls`. It is UNSAFE for ALL multi-note withdrawals and ANY withdrawal with `tailCalls`.**
 
-The safe single-note path uses `callGasLimit = 0` and pays both the withdrawal and its unused gas-fee refund directly to the requested recipient. Neither is routed through the throwaway sender.
+The safe single-note path uses `callGasLimit = 0` and pays both the withdrawal and its unused gas-fee refund directly to the requested recipient. Neither is routed through the throwaway sender. On mainnet/Sepolia, the default `gasEstimationPolicy: 'best-effort'` can return marked fallback gas if host-RPC simulation is unavailable or state overrides are unsupported, while preserving this direct payout. Use `'required'` to require successful estimation and final simulation. Fallback is not a guarantee of bundler acceptance or a gas refund; review its fee before submission.
 
 Multi-note withdrawals and withdrawals with `tailCalls` pay the sender before execution. An execution failure can permanently strand the sponsoring note's proceeds; a later gas refund can also be inaccessible even when forwarding succeeds. The random key is discarded, so successful estimation does not make these paths safe. Use a securely recoverable deterministic or external signer instead.
 

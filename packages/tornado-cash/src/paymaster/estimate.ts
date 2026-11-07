@@ -45,7 +45,8 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 
       const reason = estimationUnavailableReason(cause);
 
-      if (options.allowFallback && reason) {
+      if (options.allowFallback && reason &&
+          (options.source === 'rpc' ? reason !== 'bundler-internal' : reason !== 'rpc-unsupported')) {
         // Rebuild at the fallback fee before returning anything. Never patch
         // gas on the old signed operation or reuse its fee-bearing proof.
         const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation);

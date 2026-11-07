@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpRequestError, InternalRpcError, RpcRequestError, TimeoutError } from 'viem';
-import { estimateWithTransportRetry, estimationUnavailableReason } from '../../src/paymaster/estimation-retry';
+import { estimateWithTransportRetry, estimationUnavailableReason, isRpcSimulationUnsupported } from '../../src/paymaster/estimation-retry';
 
 const url = 'https://bundler.invalid';
 const body = { method: 'eth_estimateUserOperationGas', params: [] };
@@ -9,13 +9,33 @@ const httpError = (status: number, retryAfter?: string) => new HttpRequestError(
 });
 
 describe('estimation availability classification', () => {
+  it.each([
+    'state overrides unsupported',
+    'Unsupported state override',
+    'stateOverrides are not supported',
+    'too many arguments, want at most 2',
+    'Method not found',
+    'The method eth_estimateGas does not exist / is not available.',
+  ])('recognizes an explicit missing override capability across message-only host bridges: %s', message => {
+    expect(isRpcSimulationUnsupported(new Error(message))).toBe(true);
+  });
+
+  it.each([
+    'Invalid params', 'Internal error', 'out of gas', 'invalid signature',
+    'AA33 reverted: state overrides unsupported',
+  ])('does not classify an invalid/ambiguous operation as missing override support: %s', message => {
+    expect(isRpcSimulationUnsupported(new Error(message))).toBe(false);
+  });
+
   it('recognizes the opaque parser error through viem RPC wrappers', () => {
     const error = new RpcRequestError({ url, body, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
+
     expect(estimationUnavailableReason(new InternalRpcError(error))).toBe('bundler-internal');
   });
 
   it('rejects even the parser message when it includes revert data', () => {
     const error = new RpcRequestError({ url, body, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.', data: '0x54107e37' } });
+
     expect(estimationUnavailableReason(new InternalRpcError(error))).toBeUndefined();
   });
 
@@ -34,6 +54,7 @@ describe('read-only estimation transport retries', () => {
     const result = { preVerificationGas: 281_260n };
     const estimate = vi.fn().mockRejectedValueOnce(httpError(status)).mockResolvedValue(result);
     const pending = estimateWithTransportRetry(estimate);
+
     await vi.runAllTimersAsync();
     expect(await pending).toBe(result);
     expect(estimate).toHaveBeenCalledTimes(2);
@@ -46,6 +67,7 @@ describe('read-only estimation transport retries', () => {
   ])('recovers a recognized timeout or connection reset', async (failure) => {
     const estimate = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(123n);
     const pending = estimateWithTransportRetry(estimate);
+
     await vi.runAllTimersAsync();
     expect(await pending).toBe(123n);
     expect(estimate).toHaveBeenCalledTimes(2);
@@ -60,6 +82,7 @@ describe('read-only estimation transport retries', () => {
     new DOMException('cancelled', 'AbortError'),
   ])('does not retry a simulation rejection, permanent HTTP failure or unclassified error', async (failure) => {
     const estimate = vi.fn().mockRejectedValue(failure);
+
     await expect(estimateWithTransportRetry(estimate)).rejects.toBe(failure);
     expect(estimate).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
@@ -68,6 +91,7 @@ describe('read-only estimation transport retries', () => {
   it('does not retry an RPC rejection hidden inside a transient-looking HTTP wrapper', async () => {
     const failure = new HttpRequestError({ url, status: 503, cause: new RpcRequestError({ url, body, error: { code: -32500, message: 'invalid proof' } }) });
     const estimate = vi.fn().mockRejectedValue(failure);
+
     await expect(estimateWithTransportRetry(estimate)).rejects.toBe(failure);
     expect(estimate).toHaveBeenCalledTimes(1);
   });
@@ -75,6 +99,7 @@ describe('read-only estimation transport retries', () => {
   it('honors a short Retry-After without retrying sooner', async () => {
     const estimate = vi.fn().mockRejectedValueOnce(httpError(429, '2')).mockResolvedValue(123n);
     const pending = estimateWithTransportRetry(estimate);
+
     await vi.advanceTimersByTimeAsync(1999);
     expect(estimate).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
@@ -85,6 +110,7 @@ describe('read-only estimation transport retries', () => {
   it('surfaces a long Retry-After instead of sleeping indefinitely or ignoring it', async () => {
     const failure = httpError(429, '60');
     const estimate = vi.fn().mockRejectedValue(failure);
+
     await expect(estimateWithTransportRetry(estimate)).rejects.toBe(failure);
     expect(estimate).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
@@ -94,6 +120,7 @@ describe('read-only estimation transport retries', () => {
     const failure = new TimeoutError({ url, body });
     const estimate = vi.fn().mockRejectedValue(failure);
     const pending = expect(estimateWithTransportRetry(estimate)).rejects.toBe(failure);
+
     await vi.runAllTimersAsync();
     await pending;
     expect(estimate).toHaveBeenCalledTimes(2);

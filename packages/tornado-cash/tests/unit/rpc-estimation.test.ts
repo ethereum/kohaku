@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { RpcRequestError } from 'viem';
+import { RpcSimulationUnsupportedError, estimationUnavailableReason } from '../../src/paymaster/estimation-retry';
 import { decodeFunctionData, encodeFunctionResult, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { entryPoint08Abi, entryPoint08Address, toPackedUserOperation } from 'viem/account-abstraction';
@@ -133,12 +135,41 @@ describe('host RPC estimation for direct single-note withdrawals', () => {
     await expect(estimateValidationOnlyGas(f.provider, f.op, entryPoint08Address, chainId)).rejects.toThrow('invalid withdrawal gas estimate');
   });
 
-  it('fails closed on unsupported RPC state overrides and on final simulation failure', async () => {
+  it.each([
+    { code: -32601, message: 'Method not found', unsupported: true },
+    { code: -32602, message: 'too many arguments, want at most 2', unsupported: true },
+    { code: -32602, message: 'Invalid params', unsupported: false },
+    { code: -32000, message: 'execution reverted: invalid proof', unsupported: false },
+    { code: -32602, message: 'state overrides unsupported', data: '0x1234', unsupported: false },
+  ])('classifies override-call failure without hiding invalidity: $message', async ({ unsupported, ...error }) => {
+    const f = await fixture(), normal = f.request.getMockImplementation()!;
+    const failure = new RpcRequestError({ url: 'https://rpc.invalid', body: {}, error });
+
+    f.request.mockImplementation(r => r.method === 'eth_call' ? Promise.reject(failure) : normal(r));
+    let caught: unknown;
+
+    try { await estimateValidationOnlyGas(f.provider, f.op, entryPoint08Address, chainId); }
+    catch (cause) { caught = cause; }
+
+    expect(caught).toBeInstanceOf(unsupported ? RpcSimulationUnsupportedError : RpcRequestError);
+    expect(estimationUnavailableReason(caught)).toBe(unsupported ? 'rpc-unsupported' : undefined);
+  });
+
+  it('does not label failures of ordinary sender checks as missing simulation support', async () => {
+    const f = await fixture(), normal = f.request.getMockImplementation()!;
+    const failure = new RpcRequestError({ url: 'https://rpc.invalid', body: {}, error: { code: -32601, message: 'Method not found' } });
+
+    f.request.mockImplementation(r => r.method === 'eth_getCode' ? Promise.reject(failure) : normal(r));
+    await expect(estimateValidationOnlyGas(f.provider, f.op, entryPoint08Address, chainId)).rejects.toBe(failure);
+    expect(estimationUnavailableReason(failure)).toBeUndefined();
+  });
+
+  it('labels explicitly unsupported state overrides for the caller to apply its estimation policy', async () => {
     const f = await fixture(), normal = f.request.getMockImplementation()!;
 
     f.request.mockImplementation(r => r.method === 'eth_call' || r.method === 'eth_estimateGas' ? Promise.reject(new Error('state overrides unsupported')) : normal(r));
-    await expect(estimateValidationOnlyGas(f.provider, f.op, entryPoint08Address, chainId)).rejects.toThrow('state overrides unsupported');
-    await expect(validateValidationOnlyOperation(f.provider, f.op, entryPoint08Address, chainId)).rejects.toThrow('state overrides unsupported');
+    await expect(estimateValidationOnlyGas(f.provider, f.op, entryPoint08Address, chainId)).rejects.toBeInstanceOf(RpcSimulationUnsupportedError);
+    await expect(validateValidationOnlyOperation(f.provider, f.op, entryPoint08Address, chainId)).rejects.toBeInstanceOf(RpcSimulationUnsupportedError);
     await expect(estimateValidationOnlyGas(undefined, f.op, entryPoint08Address, chainId)).rejects.toThrow('require a host RPC');
   });
 

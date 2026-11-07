@@ -35,7 +35,9 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
  *   securely recoverable deterministic or external signer instead.
  * - `external`: an explicitly selected host signer. Its key stays on the host;
  *   only scoped signing requests and verified signatures cross the worker bridge.
- *   Successful estimation and final simulation are required even with best-effort policy.
+ *   Execution-phase withdrawals require successful estimation. A direct single
+ *   note without tailCalls may use marked best-effort fallback on mainnet/Sepolia;
+ *   the requested recipient receives the payout/refund without sender custody.
  */
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }

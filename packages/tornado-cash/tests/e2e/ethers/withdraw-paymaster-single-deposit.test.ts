@@ -57,11 +57,29 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     }
   });
 
-  it('[prepareUnshieldPaymaster] single native deposit directly pays and refunds the recipient with a random sender', { timeout: 180_000 }, async () => {
+  it.each(['rpc', 'fallback'] as const)('[prepareUnshieldPaymaster] single native deposit directly pays and refunds the recipient with a random sender (%s)', { timeout: 180_000 }, async source => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
 
+    const host = createMockHost({ rpcUrl: pool.rpcUrl,
+      // Independent notes across cases on the same fork.
+      ...(source === 'fallback' ? { mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about' } : {}),
+    });
+
+    if (source === 'fallback') {
+      const request = host.provider.request.bind(host.provider);
+
+      host.provider.request = async args => {
+        if ((args.method === 'eth_call' || args.method === 'eth_estimateGas') && Array.isArray(args.params) && args.params.length === 3) {
+          // Emulate a host RPC that serves normal reads but lacks state overrides.
+          throw Object.assign(new Error('too many arguments, want at most 2'), { code: -32602 });
+        }
+
+        return request(args);
+      };
+    }
+
     const { protocol, broadcaster } = await getProtocolWithState({
-      host: createMockHost({ rpcUrl: pool.rpcUrl }),
+      host,
       chainId,
       initialState: () => loadInitialState(chainId),
       rpcUrl: pool.rpcUrl,
@@ -104,7 +122,9 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     expect(BigInt(withdrawal.userOperation.sender)).not.toBe(BigInt(bob));
     expect(BigInt(withdrawal.userOperation.callGasLimit)).toBe(0n);
     expect(withdrawal.userOperation.callData).toBe('0x');
-    expect(withdrawal.gasEstimation).toEqual({ status: 'estimated', source: 'rpc' });
+
+    if (source === 'rpc') expect(withdrawal.gasEstimation).toEqual({ status: 'estimated', source: 'rpc' });
+    else expect(withdrawal.gasEstimation).toMatchObject({ status: 'fallback', reason: 'rpc-unsupported' });
 
     await broadcaster.broadcast(unshieldOp);
     await pool.mine(1);
