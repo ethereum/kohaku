@@ -1,3 +1,9 @@
+## 0.1.0-alpha.36
+
+### Patch Changes
+
+- f9db950: fix: single-note withdrawal delegation
+
 ## 0.1.0-alpha.35
 
 ### Patch Changes
