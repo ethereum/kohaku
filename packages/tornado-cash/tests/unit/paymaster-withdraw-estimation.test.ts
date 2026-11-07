@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { RpcRequestError, toHex } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
-import { RpcSimulationUnsupportedError } from '../../src/paymaster/estimation-retry';
-import { reasonableGasUnits, reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
+import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
 import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdrawThunk';
 import type { DelegationConfig, DelegatorAccount } from '../../src/account/delegation.interface';
@@ -21,8 +20,6 @@ const fixture = vi.hoisted(() => ({
   proofRecipients: [] as bigint[],
   quote: vi.fn(async (_paymaster: bigint, _asset: bigint, fee: bigint) => fee * 7n),
   estimate: vi.fn(),
-  rpcEstimate: vi.fn(),
-  rpcValidate: vi.fn(async () => {}),
   deriveLegacy: vi.fn(async () => `0x${'03'.repeat(32)}` as const),
   deriveSignature: vi.fn(async () => `0x${'01'.repeat(32)}` as const),
   deriveDelegator: vi.fn(async () => `0x${'02'.repeat(32)}` as const),
@@ -47,10 +44,6 @@ vi.mock('../../src/state/thunks/withdrawalsProofThunk', () => ({
     return { payload: { proof: '0x1234', args: [toHex(1n, { size: 32 }), toHex(2n, { size: 32 }), toHex(params.recipient, { size: 20 }), toHex(params.relayerAddress, { size: 20 }), toHex(params.fee), '0x00'] } };
   },
 }));
-vi.mock('../../src/paymaster/rpc-estimation', () => ({
-  estimateValidationOnlyGas: (_provider: unknown, op: SerializedUserOperation) => fixture.rpcEstimate(op),
-  validateValidationOnlyOperation: (_provider: unknown, op: SerializedUserOperation) => fixture.rpcValidate(op),
-}));
 vi.mock('../../src/paymaster/utils', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../src/paymaster/utils')>(),
   createPaymasterBundlerClient: () => ({}),
@@ -63,8 +56,13 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
 
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
     dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote, getAccountNonce: fixture.getAccountNonce },
-    provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber'
-      ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n) },
+    provider: { request: async ({ method }: { method: string }) => {
+      if (method === 'eth_getBlockByNumber') return { baseFeePerGas: toHex(1_000_000_000_000n) };
+
+      if (method === 'eth_maxPriorityFeePerGas') return toHex(1n);
+
+      throw new Error(`Unexpected host RPC method: ${method}`);
+    } },
     assetAddress: fixture.isERC20 ? 2n : 0n,
     amount: BigInt(fixture.count) * 10n ** 18n,
     recipient: 3n,
@@ -80,26 +78,25 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
 }
 
 describe('paymaster withdrawal preparation integration', () => {
-  it('rejects unclassified direct RPC failures without switching to executor forwarding', async () => {
-    fixture.count = 1;
-    fixture.rpcEstimate.mockRejectedValue(new Error('unclassified simulation failure'));
-    await expect(prepare(null)).rejects.toThrow('unclassified simulation failure');
-    expect(fixture.estimate).not.toHaveBeenCalled();
-    expect(fixture.rpcValidate).not.toHaveBeenCalled();
+  const incompatibleEstimator = () => new RpcRequestError({
+    url: 'https://bundler.invalid', body: {}, error: {
+      code: -32501,
+      message: 'AA33 reverted 0x54107e370000000000000000000000000000000000000000000000000000000000989680',
+    },
   });
 
-  it.each(['random', 'deterministic', 'external'] as const)('keeps direct payout with marked best-effort fallback for a %s sender', async mode => {
+  it.each(['random', 'deterministic', 'external'] as const)('keeps direct payout when bundler estimation is incompatible for a %s sender', async mode => {
     fixture.count = 1;
     fixture.isERC20 = true;
     const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
     const delegation: DelegationConfig = mode === 'external' ? { mode, signer: account as DelegatorAccount } : { mode };
 
-    fixture.rpcEstimate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('state overrides unsupported')));
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
     const [withdrawal] = await prepare(delegation);
 
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
 
-    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'rpc-unsupported' });
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
     expect(withdrawal!.userOperation.callData).toBe('0x');
     expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
     expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
@@ -107,16 +104,14 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(2);
     expect(fixture.fees.at(-1)).toBeGreaterThan(fixture.fees[0]!);
     expect(fixture.quote).toHaveBeenCalledTimes(2);
-    expect(fixture.rpcValidate).not.toHaveBeenCalled();
-    expect(fixture.estimate).not.toHaveBeenCalled();
+    expect(fixture.estimate).toHaveBeenCalledTimes(1);
+    expect(fixture.estimate.mock.calls[0]![0].callGasLimit).toBe('0x0');
   });
 
   it('allows marked direct fallback after a transport outage on mainnet', async () => {
     fixture.count = 1;
     fixture.chainId = 1n;
-    const failure = Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' });
-
-    fixture.rpcEstimate.mockRejectedValue(failure);
+    fixture.estimate.mockRejectedValue(Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' }));
     const [withdrawal] = await prepare();
 
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
@@ -126,69 +121,37 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
   });
 
-  it('marks an otherwise estimated direct payload when only final simulation is unavailable', async () => {
+  it('requires successful bundler estimation under required policy', async () => {
     fixture.count = 1;
-    fixture.rpcEstimate.mockResolvedValue({ ...reasonableGasUnits(false), callGasLimit: 0n, preVerificationGas: 281_260n });
-    fixture.rpcValidate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('method not found')));
-    const [withdrawal] = await prepare();
-
-    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
-
-    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'rpc-unsupported' });
-    expect(fixture.rpcValidate).toHaveBeenCalledExactlyOnceWith(withdrawal!.userOperation);
-    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBe(281_260n);
-    expect(withdrawal!.userOperation.callData).toBe('0x');
-    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
-    expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
-    expect(BigInt(withdrawal!.proof.args[4])).toBe(fixture.fees.at(-1));
-    expect(fixture.estimate).not.toHaveBeenCalled();
-  });
-
-  it.each(['estimate', 'final'] as const)('requires successful direct %s simulation under required policy', async stage => {
-    fixture.count = 1;
-    fixture.rpcEstimate.mockResolvedValue({ ...reasonableGasUnits(false), callGasLimit: 0n });
-    const failure = new RpcSimulationUnsupportedError(new Error('state overrides unsupported'));
-
-    if (stage === 'estimate') fixture.rpcEstimate.mockRejectedValue(failure);
-    else fixture.rpcValidate.mockRejectedValue(failure);
-
-    await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toThrow('Host RPC does not support withdrawal simulation');
-    expect(fixture.estimate).not.toHaveBeenCalled();
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
+    await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toThrow('preparation stopped');
+    expect(fixture.estimate).toHaveBeenCalledTimes(1);
   });
 
   it('does not use direct fallback on an unknown chain', async () => {
     fixture.count = 1;
     fixture.chainId = 31337n;
-    fixture.rpcEstimate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('state overrides unsupported')));
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
     await expect(prepare()).rejects.toThrow('preparation stopped');
   });
 
   it('rejects a direct fallback fee that would consume the note', async () => {
     fixture.count = 1;
     fixture.maxFeePerGas = 1_100_000_000_000n;
-    fixture.rpcEstimate.mockRejectedValue(new RpcSimulationUnsupportedError(new Error('state overrides unsupported')));
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
     await expect(prepare()).rejects.toThrow('fee would consume the sponsoring note');
     expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
   });
 
   it.each([
     { code: -32500, message: 'AA33 invalid proof' },
+    { code: -32500, message: 'AA24 signature error' },
     { code: -32602, message: 'Invalid params' },
     { code: -32603, message: 'Internal error' },
-    { code: -32603, message: 'Unknown error, could not parse simulate validation result.' },
-  ])('rejects direct estimation errors that are not simulation availability failures: $message', async error => {
+  ])('rejects genuine or unclassified direct estimation failures: $message', async error => {
     fixture.count = 1;
-    fixture.rpcEstimate.mockRejectedValue(new RpcRequestError({ url: 'https://rpc.invalid', body: {}, error }));
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error }));
     await expect(prepare()).rejects.toThrow('preparation stopped');
-    expect(fixture.rpcValidate).not.toHaveBeenCalled();
-  });
-
-  it('rejects a final direct operation that fails host-RPC simulation' , async () => {
-    fixture.count = 1;
-    fixture.rpcEstimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), callGasLimit: 0n });
-    fixture.rpcValidate.mockRejectedValue(new Error('AA33 final validation rejected'));
-    await expect(prepare(null)).rejects.toThrow('AA33 final validation rejected');
-    expect(fixture.estimate).not.toHaveBeenCalled();
   });
 
   beforeEach(() => {
@@ -204,8 +167,6 @@ describe('paymaster withdrawal preparation integration', () => {
     fixture.proofRecipients = [];
     fixture.quote.mockClear();
     fixture.estimate.mockReset();
-    fixture.rpcEstimate.mockReset();
-    fixture.rpcValidate.mockReset().mockResolvedValue(undefined);
     fixture.deriveSignature.mockClear();
     fixture.deriveDelegator.mockClear();
     fixture.getAccountNonce.mockClear();
@@ -219,7 +180,7 @@ describe('paymaster withdrawal preparation integration', () => {
     fixture.isERC20 = isERC20;
     const gas = reasonableGasUnitsForBatch(isERC20, count - 1, false);
 
-    const estimate = count === 1 ? fixture.rpcEstimate : fixture.estimate;
+    const estimate = fixture.estimate;
 
     estimate.mockImplementation(async (op: SerializedUserOperation) => {
       // The bundler searches execution gas with a 10M ceiling. The paymaster
@@ -241,8 +202,7 @@ describe('paymaster withdrawal preparation integration', () => {
 
     expect(estimate).toHaveBeenCalledTimes(2);
     expect(estimate).toHaveBeenLastCalledWith(withdrawal.userOperation);
-    expect(fixture.rpcValidate).toHaveBeenCalledTimes(count === 1 ? 1 : 0);
-    expect(BigInt(withdrawal.userOperation.preVerificationGas)).toBe(count === 1 ? 281_260n : 337_512n);
+    expect(BigInt(withdrawal.userOperation.preVerificationGas)).toBe(337_512n);
     const sponsoringFees = fixture.fees.filter((fee) => fee > 0n);
 
     expect(sponsoringFees).toHaveLength(2);
@@ -253,7 +213,7 @@ describe('paymaster withdrawal preparation integration', () => {
       expect(withdrawal.userOperation.callData).toBe('0x');
       expect(withdrawal.userOperation.callGasLimit).toBe('0x0');
       expect(BigInt(withdrawal.proof.args[2])).toBe(3n);
-      expect(withdrawal.gasEstimation).toEqual({ status: 'estimated', source: 'rpc' });
+      expect(withdrawal.gasEstimation).toEqual({ status: 'estimated' });
     } else {
       expect(withdrawal.userOperation.callData).not.toBe('0x');
       expect(BigInt(withdrawal.userOperation.callGasLimit)).toBeGreaterThan(0n);

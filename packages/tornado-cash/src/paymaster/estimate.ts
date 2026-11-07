@@ -12,7 +12,8 @@ const MAX_ESTIMATION_ATTEMPTS = 3;
  * Gas limits affect both the account signature and the fee committed in the
  * sponsoring withdrawal proof. Rebuild them together, then estimate that exact
  * signed payload. Unestimated fallback requires explicit eligibility from the
- * caller, is limited to availability failures, and is marked in the result.
+ * caller, is limited to availability failures or a known estimator incompatibility,
+ * and is marked in the result.
  */
 export async function buildEstimatedTornadoUserOp<T extends { userOperation: SerializedUserOperation }>(
   baseline: UserOpGasLimits,
@@ -20,9 +21,6 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
   options: {
     allowFallback?: boolean;
-    source?: 'bundler' | 'rpc';
-    /** RPC PVG already includes a conservative overhead allowance. */
-    bufferPreVerificationGas?: boolean;
     validateGas?: (gas: UserOpGasLimits, operation?: SerializedUserOperation) => void;
   } = {},
 ): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
@@ -43,10 +41,9 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       const details = cause instanceof Error && 'details' in cause && typeof cause.details === 'string'
         ? cause.details : cause instanceof Error ? cause.message.split('\n')[0] : String(cause);
 
-      const reason = estimationUnavailableReason(cause);
+      const reason = estimationUnavailableReason(cause, prepared.userOperation);
 
-      if (options.allowFallback && reason &&
-          (options.source === 'rpc' ? reason !== 'bundler-internal' : reason !== 'rpc-unsupported')) {
+      if (options.allowFallback && reason) {
         // Rebuild at the fallback fee before returning anything. Never patch
         // gas on the old signed operation or reuse its fee-bearing proof.
         const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation);
@@ -81,8 +78,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 
       // Keep the baseline floor and add 20% headroom to each estimate. Limits
       // only increase, avoiding fee/proof oscillation between iterations.
-      const buffered = field === 'preVerificationGas' && options.bufferPreVerificationGas === false
-        ? estimated[field] : (estimated[field] * 12n + 9n) / 10n;
+      const buffered = (estimated[field] * 12n + 9n) / 10n;
 
       if (buffered > next[field]) {
         next[field] = buffered;
@@ -90,7 +86,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       }
     }
 
-    if (!changed) return { ...prepared, gasEstimation: { status: 'estimated', ...(options.source ? { source: options.source } : {}) } };
+    if (!changed) return { ...prepared, gasEstimation: { status: 'estimated' } };
 
     // Reject inflated limits outside the availability catch: never downgrade a
     // bounds violation into fallback or prove/sign an operation at those limits.

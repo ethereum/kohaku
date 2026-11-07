@@ -19,7 +19,7 @@ const UTILITY_PK  = '0xdd4b2564c83ff7de602c39ffda1146055dc1814b07c083d7971722384
 const HUNDRED_ETH = `0x${parseEther('100').toString(16)}`;
 
 // A single note without tail calls pays the recipient and its gas refund
-// directly. Host-RPC estimation preserves callGasLimit = 0, so a disposable
+// directly. Bundler-estimation fallback preserves callGasLimit = 0, so a disposable
 // random sender never takes custody of funds, including after settlement.
 describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)', () => {
   let anvil: AnvilInstance;
@@ -57,26 +57,18 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     }
   });
 
-  it.each(['rpc', 'fallback'] as const)('[prepareUnshieldPaymaster] single native deposit directly pays and refunds the recipient with a random sender (%s)', { timeout: 180_000 }, async source => {
+  it('[prepareUnshieldPaymaster] single native deposit directly pays and refunds the recipient after incompatible bundler estimation', { timeout: 180_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+    const request = host.provider.request.bind(host.provider);
 
-    const host = createMockHost({ rpcUrl: pool.rpcUrl,
-      // Independent notes across cases on the same fork.
-      ...(source === 'fallback' ? { mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about' } : {}),
-    });
+    host.provider.request = async args => {
+      if ((args.method === 'eth_call' || args.method === 'eth_estimateGas') && Array.isArray(args.params) && args.params.length === 3) {
+        throw new Error('Host state-override simulation must not be used');
+      }
 
-    if (source === 'fallback') {
-      const request = host.provider.request.bind(host.provider);
-
-      host.provider.request = async args => {
-        if ((args.method === 'eth_call' || args.method === 'eth_estimateGas') && Array.isArray(args.params) && args.params.length === 3) {
-          // Emulate a host RPC that serves normal reads but lacks state overrides.
-          throw Object.assign(new Error('too many arguments, want at most 2'), { code: -32602 });
-        }
-
-        return request(args);
-      };
-    }
+      return request(args);
+    };
 
     const { protocol, broadcaster } = await getProtocolWithState({
       host,
@@ -123,8 +115,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     expect(BigInt(withdrawal.userOperation.callGasLimit)).toBe(0n);
     expect(withdrawal.userOperation.callData).toBe('0x');
 
-    if (source === 'rpc') expect(withdrawal.gasEstimation).toEqual({ status: 'estimated', source: 'rpc' });
-    else expect(withdrawal.gasEstimation).toMatchObject({ status: 'fallback', reason: 'rpc-unsupported' });
+    expect(withdrawal.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
 
     await broadcaster.broadcast(unshieldOp);
     await pool.mine(1);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HttpRequestError, InternalRpcError, RpcRequestError, TimeoutError } from 'viem';
-import { estimateWithTransportRetry, estimationUnavailableReason, isRpcSimulationUnsupported } from '../../src/paymaster/estimation-retry';
+import { encodeErrorResult, HttpRequestError, InternalRpcError, parseAbi, RpcRequestError, TimeoutError } from 'viem';
+import { estimateWithTransportRetry, estimationUnavailableReason } from '../../src/paymaster/estimation-retry';
 
 const url = 'https://bundler.invalid';
 const body = { method: 'eth_estimateUserOperationGas', params: [] };
@@ -9,22 +9,34 @@ const httpError = (status: number, retryAfter?: string) => new HttpRequestError(
 });
 
 describe('estimation availability classification', () => {
-  it.each([
-    'state overrides unsupported',
-    'Unsupported state override',
-    'stateOverrides are not supported',
-    'too many arguments, want at most 2',
-    'Method not found',
-    'The method eth_estimateGas does not exist / is not available.',
-  ])('recognizes an explicit missing override capability across message-only host bridges: %s', message => {
-    expect(isRpcSimulationUnsupported(new Error(message))).toBe(true);
+  const empty = { callData: '0x', callGasLimit: '0x0' } as const;
+  const revertData = (gas: bigint) => encodeErrorResult({
+    abi: parseAbi(['error CallGasLimitNonZero(uint256 callGasLimit)']),
+    errorName: 'CallGasLimitNonZero', args: [gas],
+  });
+  const incompatible = new RpcRequestError({ url, body, error: {
+    code: -32501, message: `AA33 reverted ${revertData(10_000_000n)}`,
+  } });
+
+  it('recognizes the exact nonzero execution search revert only for a zero-execution operation', () => {
+    expect(estimationUnavailableReason(new InternalRpcError(incompatible), empty)).toBe('bundler-internal');
+    expect(estimationUnavailableReason(incompatible)).toBeUndefined();
+    expect(estimationUnavailableReason(incompatible, { ...empty, callData: '0x1234' })).toBeUndefined();
+    expect(estimationUnavailableReason(incompatible, { ...empty, callGasLimit: '0x1' })).toBeUndefined();
+  });
+
+  it('recognizes the search revert supplied in RPC data', () => {
+    const error = new RpcRequestError({ url, body, error: { code: -32501, message: 'AA33 reverted', data: revertData(1n) } });
+
+    expect(estimationUnavailableReason(error, empty)).toBe('bundler-internal');
   });
 
   it.each([
-    'Invalid params', 'Internal error', 'out of gas', 'invalid signature',
-    'AA33 reverted: state overrides unsupported',
-  ])('does not classify an invalid/ambiguous operation as missing override support: %s', message => {
-    expect(isRpcSimulationUnsupported(new Error(message))).toBe(false);
+    revertData(0n), '0x54107e37', '0x1234', `${revertData(1n)}00`,
+  ])('does not treat zero, truncated, unrelated or malformed revert data as the search incompatibility: %s', data => {
+    const error = new RpcRequestError({ url, body, error: { code: -32501, message: `AA33 reverted ${data}` } });
+
+    expect(estimationUnavailableReason(error, empty)).toBeUndefined();
   });
 
   it('recognizes the opaque parser error through viem RPC wrappers', () => {

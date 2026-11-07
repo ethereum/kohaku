@@ -1,4 +1,5 @@
 import { HttpRequestError, RpcRequestError, TimeoutError } from 'viem';
+import type { SerializedUserOperation } from '../interfaces/user-ops.interface';
 
 const RETRYABLE_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
 const RETRYABLE_NETWORK_CODES = new Set([
@@ -7,14 +8,6 @@ const RETRYABLE_NETWORK_CODES = new Set([
 ]);
 const DEFAULT_RETRY_DELAY_MS = 250;
 const MAX_RETRY_DELAY_MS = 5_000;
-
-/** Only created around eth_call/eth_estimateGas with state overrides. */
-export class RpcSimulationUnsupportedError extends Error {
-  constructor(cause: unknown) {
-    super('Host RPC does not support withdrawal simulation with state overrides.', { cause });
-    this.name = 'RpcSimulationUnsupportedError';
-  }
-}
 
 type ErrorCause = { cause?: unknown; code?: unknown; details?: unknown; message?: unknown; data?: unknown };
 
@@ -30,26 +23,6 @@ function causeChain(error: unknown): ErrorCause[] {
   }
 
   return chain;
-}
-
-/** Recognize missing simulation capabilities, never a contract/AA rejection or
- * a generic invalid-params/internal error. Call only for override-bearing RPCs,
- * so an unsupported ordinary read cannot bypass sender/authentication checks. */
-export function isRpcSimulationUnsupported(error: unknown): boolean {
-  const chain = causeChain(error);
-  const details = chain.flatMap(cause => [cause.details, cause.message])
-    .filter((value): value is string => typeof value === 'string').join('\n');
-
-  if (/\bAA\d{2}\b|\brevert(?:ed)?\b/i.test(details) ||
-      chain.some(cause => cause.data != null && cause.data !== '0x')) return false;
-
-  if (chain.some(cause => cause.code === -32601 || cause.code === -32004)) return true;
-
-  // Some host bridges preserve Error.message but not custom RPC properties.
-  return /^method (?:not found|not supported|not available)[.!]?$/im.test(details) ||
-    /\beth_(?:call|estimateGas)\b.{0,80}\b(?:not found|not supported|does not exist|not available)\b/i.test(details) ||
-    /\bstate[ -]?overrides?\b.{0,80}\b(?:unsupported|not supported|unavailable|disabled)\b|\b(?:unsupported|does not support)\b.{0,80}\bstate[ -]?overrides?\b/i.test(details) ||
-    /\btoo many (?:arguments|params|parameters)\b.{0,80}\b(?:2|two)\b/i.test(details);
 }
 
 /** Return a delay only for recognized transport failures, never RPC rejections. */
@@ -110,15 +83,24 @@ export async function estimateWithTransportRetry<T>(estimate: () => Promise<T>):
 }
 
 /** Classify availability failures separately from known-invalid operations. */
-export function estimationUnavailableReason(error: unknown): 'transport-unavailable' | 'bundler-internal' | 'rpc-unsupported' | undefined {
+export function estimationUnavailableReason(
+  error: unknown, operation?: Pick<SerializedUserOperation, 'callData' | 'callGasLimit'>,
+): 'transport-unavailable' | 'bundler-internal' | undefined {
   const chain = causeChain(error);
-
-  if (chain.some(cause => cause instanceof RpcSimulationUnsupportedError)) return 'rpc-unsupported';
-
   const rpc = chain.filter((cause) => cause instanceof RpcRequestError ||
     (typeof cause.code === 'number' && cause.code < 0));
 
   if (rpc.length) {
+    // Some estimators replace callGasLimit=0 with a nonzero search ceiling.
+    // Only the exact CallGasLimitNonZero(uint256) revert with a NONZERO argument
+    // is incompatible with our known-empty operation. Other AA33 errors still fail.
+    if (operation?.callData === '0x' && BigInt(operation.callGasLimit) === 0n &&
+        chain.some(cause => [cause.details, cause.message, cause.data].some(value => {
+          const match = typeof value === 'string' && /\b0x54107e37([0-9a-f]{64})(?![0-9a-f])/i.exec(value);
+
+          return match && BigInt(`0x${match[1]}`) > 0n;
+        }))) return 'bundler-internal';
+
     // This specific opaque estimator failure has been observed on otherwise
     // executable batches. Never treat AAxx reverts or supplied revert data as it.
     const opaque = rpc.every((cause) => cause.code === -32603 && cause.data == null &&

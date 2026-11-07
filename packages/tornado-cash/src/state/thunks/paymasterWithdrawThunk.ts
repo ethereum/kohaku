@@ -10,8 +10,6 @@ import { Address } from "../../interfaces/types.interface";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
-import { estimateValidationOnlyGas, validateValidationOnlyOperation } from '../../paymaster/rpc-estimation';
-import { estimateWithTransportRetry, estimationUnavailableReason } from '../../paymaster/estimation-retry';
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
@@ -174,11 +172,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     );
   };
 
-  // The shared delegator that owns the consolidated userOp. All withdrawals land
-  // in this EOA and are then spent by the execution phase (tailCalls or the
-  // synthesized forward) when there is an execution phase. Its refund can
-  // remain on the sender, so it
-  // is recoverable by default; `random` opts out.
+  // The shared delegator owns the userOp. Execution-phase withdrawals land
+  // here before tailCalls or synthesized forwarding; postOp refunds can remain
+  // here too. It is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
     if (delegation?.mode === 'external') return delegation.signer;
 
@@ -196,8 +192,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // A single note without tail calls pays the recipient in validation, with
   // postOp refunding that same recipient. Keep execution gas/calldata empty even
   // in best-effort fallback: simulation is not what makes a throwaway sender safe.
-  // Prefer host-RPC estimates because bundler estimation searches with nonzero
-  // execution limits, which this recipient != sender path cannot accept.
+  // Try bundler estimation; eligible fallback also preserves zero execution gas
+  // when the estimator substitutes an incompatible nonzero search limit.
   const validationOnly = deposits.length === 1 && tailCalls == null;
   // Fallback can still be rejected or miss a postOp refund. Gas/fee bounds
   // remain enforced; simulation availability does not change payout custody.
@@ -290,7 +286,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     tailCalls != null,
     tailCallsGasEstimate,
   );
-  const { sponsoringProof, userOperation, gasEstimation: preparationEstimation, fee } = await buildEstimatedTornadoUserOp(
+  const { sponsoringProof, userOperation, gasEstimation, fee } = await buildEstimatedTornadoUserOp(
     baselineGas,
     async (gas) => {
       const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
@@ -304,31 +300,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
       return { sponsoringProof, userOperation, fee };
     },
-    (op) => validationOnly
-      ? estimateValidationOnlyGas(provider, op, entryPointAddress, chainId)
-      : estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { source: validationOnly ? 'rpc' : 'bundler', bufferPreVerificationGas: !validationOnly, validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
-      allowFallback },
+    (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
+    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits), allowFallback },
   );
-
-  let gasEstimation = preparationEstimation;
-
-  // A fallback remains the same direct-payout operation, not sender forwarding.
-  // Do not require the unavailable simulator again after rebuilding fallback.
-  // If only the final simulation is unavailable, retain the already estimated
-  // signed gas/fee/proof and mark it as fallback instead of claiming completion.
-  if (validationOnly && gasEstimation.status !== 'fallback') {
-    try {
-      await estimateWithTransportRetry(() => validateValidationOnlyOperation(provider, userOperation, entryPointAddress, chainId));
-    } catch (cause) {
-      const reason = estimationUnavailableReason(cause);
-
-      if (!allowFallback || !reason || reason === 'bundler-internal') throw cause;
-
-      gasEstimation = { status: 'fallback', reason,
-        message: cause instanceof Error ? cause.message.split('\n')[0]! : 'Final host-RPC simulation unavailable' };
-    }
-  }
 
   return [{
     mode: 'paymaster' as const,

@@ -112,7 +112,7 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 }
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
-  /** Best effort allows marked fallback for direct single notes or eligible recoverable execution paths; required rejects unavailable estimation/simulation. */
+  /** Best effort allows marked fallback for direct single notes or eligible recoverable execution paths; required enforces successful bundler estimation. */
   gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;
