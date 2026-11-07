@@ -1,0 +1,59 @@
+# Relayers and fees
+
+A spend can reach the pool two ways. `mode` picks one for the plugin, and each spend method takes a `mode` per call.
+
+| Mode | Who sends | Costs | Visible on chain |
+| --- | --- | --- | --- |
+| `relayer` | A relayer, through `createTacitBroadcaster(host).broadcast(operation)` | A fee out of the shielded funds, no gas | The relayer made a private transfer or a withdrawal; nothing names your account |
+| `self` | The user's own account, sending `operation.txns` | Gas | That account made a private transfer or a withdrawal |
+
+Shielding is always sent by the user's account, because a deposit is paid by whoever sends it.
+
+## The relayer's fee
+
+In `relayer` mode the plugin asks the relayer for a quote and checks it before anything is signed: it must be for this chain and pool, from the address the config names, and no more than the config's `maxRelayFee`. The proof binds the relayer's address and the fee, together with the recipient, amount, and memos, and the pool recomputes that binding. A relayer cannot redirect funds, change an amount, or raise its fee after the proof is made. It holds no key that can spend.
+
+```ts
+const fee = await tacit.quote() // wei, for one spend now
+const operation = await tacit.prepareTransfer(amount, recipientAddress, { maxFee: fee })
+
+operation.fee // the fee in this operation, paid on top of operation.amount
+```
+
+`maxFee` is the most the spend may pay: a dearer quote throws `TacitFeeError` before anything is proven, so a spend never costs more than the fee the caller showed. `prepareTransfer`, `prepareUnshield`, and `prepareConsolidate` all take `{ mode, maxFee }`.
+
+The relayer sees the IP address of the request, the spend it is asked to send (which becomes public), and the block that a history read starts from. Every request to it, and the download of the proving files, goes through `host.network.fetch`, so a wallet can route them through Tor or a proxy while the RPC stays on a node the user picked.
+
+## When the pool moves first
+
+A transfer or unshield that creates a change note inserts leaves at the pool's current head, so its proof is good only while that head stays. If another transaction lands first, `broadcast` throws `TacitStaleProofError`, or a self-sent transaction reverts with `StaleRoot` or `WrongInsertionIndex`. Call `prepareTransfer` or `prepareUnshield` again; nothing was spent.
+
+In `relayer` mode the plugin proves against the relayer's head with its queued insertions when the relayer reports them, which makes a stale proof less likely when several wallets send at once. A withdrawal that spends its notes exactly creates no change note, inserts nothing, and never goes stale.
+
+| Error | Meaning |
+| --- | --- |
+| `TacitStaleProofError` | The pool moved on. Prepare again. |
+| `TacitFeeError` | The relayer's fee is above `maxRelayFee` or the `maxFee` you passed, or no longer covers its gas. Ask for a new quote. |
+| `TacitFragmentedBalanceError` | The balance is enough but sits in more than two notes. Consolidate. |
+| `TacitRelayerError` | The relayer refused or did not answer. `status` carries the HTTP code. If it says the funds were already spent, call `rescan()` and prepare again. |
+| `InsufficientBalanceError` | The balance does not cover the amount and the fee. |
+
+A `TacitRelayerError` that says the relayer did not answer, including a request that timed out or was reset, means the spend may still have been sent. Sync and check the balance before sending again.
+
+## Consolidate
+
+One transaction spends at most two notes. A balance in more parts needs merging first:
+
+```ts
+const merge = await tacit.prepareConsolidate()
+
+await createTacitBroadcaster(host).broadcast(merge)
+```
+
+This spends the two largest notes into one, paying the relayer's fee once. Repeat until two notes cover the amount.
+
+## What each route shows
+
+Amounts at both ends of the pool are public, and notes can be any amount, so a withdrawal that empties exactly what one deposit put in pairs with it. Withdrawing a different amount, or later, keeps the two apart. A private transfer hides the sender, the recipient, and the amount. Every transfer has two outputs, the payment and a change note that is zero-valued when nothing is left over, so a payment with no change looks like one with change.
+
+Spending authority is the Tacit key, not the account that sends the transaction. The proof does not name a sender, so any account can submit a spend. In `self` mode, sending from an account that did not make the deposit, and is not otherwise tied to you, keeps your depositing account off the transaction.

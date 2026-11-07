@@ -1,0 +1,6 @@
+/** The BN254 scalar field. */
+export const P_FR = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+/** Notes and amounts are below 2^120 wei. */
+export const VALUE_LIMIT = 1n << 120n;
+/** Order of the prime-order subgroup of BabyJubJub. */
+export const L_BJJ = 2736030358979909402780800718157159386076813972158567259200215660948447373041n;
