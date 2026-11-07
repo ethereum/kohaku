@@ -106,7 +106,7 @@ export function assertGasLimitsWithinBounds(
   limits: PaymasterGasLimits = {},
   isERC20 = false,
 ): void {
-  const bytes = operation ? BigInt(size(operation.callData) + size(operation.paymasterData ?? '0x')) : 0n;
+  const bytes = operation ? BigInt(size(operation.callData) + size(operation.paymasterData ?? '0x') + size(operation.factoryData ?? '0x')) : 0n;
   const direct = operation?.callData === '0x' && operation.callGasLimit === '0x0';
   const defaults: PaymasterGasLimits = {
     verificationGasLimit: direct &&

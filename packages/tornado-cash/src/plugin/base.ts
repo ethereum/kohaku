@@ -1,3 +1,4 @@
+import { readEntryPointNonce } from '../account/execution-account';
 import { bundlerPostVia } from '../paymaster/utils';
 /* eslint-disable max-lines */
 import {
@@ -132,17 +133,30 @@ export class TornadoCashProtocol implements TCInstance {
               delegationPaths.add(delegation.path);
             }
 
-            if (delegation?.mode === 'external') {
+            if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') {
               const chainId = Number(await host.provider.getChainId());
               const config = paymasterConfig[chainId];
+
               if (!config) throw new Error('No paymaster configuration for the external signer chain.');
+
               const address = delegation.signer.address;
-              const nonce = await host.provider.request({ method: 'eth_getTransactionCount', params: [address, 'latest'] });
-              const policy = externalSignerPolicy({ address, chainId, nonce: BigInt(nonce as string), ...config });
+              const nonce = delegation.mode === 'smart-account' ? '0x0' : await host.provider.request({ method: 'eth_getTransactionCount', params: [address, 'latest'] });
+              const sender = delegation.mode === 'smart-account' ? delegation.account.address : address;
+              const userOpNonce = await readEntryPointNonce(host.provider, config.entryPointAddress, sender, delegation.nonce);
+              const code = delegation.mode === 'smart-account' ? await host.provider.request({ method: 'eth_getCode', params: [sender, 'latest'] }) : '0x';
+              const smartAccount = delegation.mode === 'smart-account' ? { ...delegation.account, ...(code !== '0x' ? { factory: undefined } : {}) } : undefined;
+              const policy = externalSignerPolicy({ address, chainId, nonce: BigInt(nonce as string), ...config,
+                implementation: delegation.mode === 'external' ? delegation.implementation : undefined,
+                sender: delegation.mode === 'smart-account' ? delegation.account.address : address,
+                userOpNonce, smartAccount: delegation.mode === 'smart-account',
+                factory: smartAccount?.factory });
+
               // A dedicated top-level host bridge exposes only the two signing
               // methods. The signer/account object is never structured-cloned.
               return remote.getWithdrawalPayloads(
-                { ...rest, delegation: { mode: 'external', address } },
+                { ...rest, delegation: delegation.mode === 'smart-account'
+                  ? { mode: 'smart-account', owner: address, account: smartAccount!, nonce: userOpNonce, allowUsed: delegation.allowUsed }
+                  : { mode: 'external', address, implementation: delegation.implementation, nonce: userOpNonce, allowUsed: delegation.allowUsed } },
                 tailCalls ? exposeCall(tailCalls, tailCallsCheck) : undefined,
                 exposeCall(bundlerPostVia(host.network), bundlerPostCheck(Object.values(paymasterConfig).map(c => c.bundlerUrl))),
                 exposeOnly(delegation.signer, policy),

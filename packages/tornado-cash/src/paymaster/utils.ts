@@ -1,3 +1,5 @@
+/* eslint-disable max-lines */
+import { simpleAccountFactoryData } from '../account/execution-account';
 import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
@@ -79,9 +81,9 @@ export async function getUserOperationGasPrice(
   const result = (await client.request({
     method: 'pimlico_getUserOperationGasPrice',
     params: [],
-  } as any)) as any;
+  } as never)) as unknown as Record<'slow' | 'standard' | 'fast', { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex } >;
 
-  const parse = (tier: any): GasPrice => ({
+  const parse = (tier: { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex }): GasPrice => ({
     maxFeePerGas: BigInt(tier.maxFeePerGas),
     maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas),
   });
@@ -134,7 +136,7 @@ export async function estimateUserOperationGas(
   const result = (await client.request({
     method: 'eth_estimateUserOperationGas',
     params: [op, entryPoint],
-  } as any)) as any;
+  } as never)) as unknown as Record<'callGasLimit' | 'verificationGasLimit' | 'preVerificationGas', Hex> & Partial<Record<'paymasterVerificationGasLimit' | 'paymasterPostOpGasLimit', Hex>>;
 
   return {
     callGasLimit: BigInt(result.callGasLimit),
@@ -156,6 +158,7 @@ export async function estimateUserOperationGas(
  */
 export async function buildSignedTornadoUserOp({
   signer,
+  executionAccount,
   chainId,
   paymasterAddress,
   paymasterData,
@@ -169,7 +172,7 @@ export async function buildSignedTornadoUserOp({
 
   const owner = signer;
 
-  const calls = await tailCalls(owner.address);
+  const calls = await tailCalls(executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address);
   let callData: Hex = '0x';
 
   if (calls.length === 1) {
@@ -191,14 +194,22 @@ export async function buildSignedTornadoUserOp({
   // A wallet-path sender may have prior EOA transactions even though this is
   // its first UserOperation. For note-derived/random senders both nonces stay 0.
   // EntryPoint nonce 0 is intentionally single-use for all paymaster withdrawals.
-  const authorization = await owner.signAuthorization({
-    address: SIMPLE_7702_IMPLEMENTATION,
+  const nativeNonce = authorizationNonce ?? nonce;
+
+  if (executionAccount?.kind !== 'simple-account' && (nativeNonce < 0n || nativeNonce > BigInt(Number.MAX_SAFE_INTEGER))) throw new Error('Authorization nonce exceeds the safe integer range');
+
+  const authorization = executionAccount?.kind === 'simple-account' ? undefined : await owner.signAuthorization({
+    address: executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION,
     chainId,
     nonce: Number(authorizationNonce ?? nonce),
   });
+  const deployment = executionAccount?.kind === 'simple-account' && executionAccount.factory
+    ? { factory: executionAccount.factory.address, factoryData: simpleAccountFactoryData(owner.address, executionAccount.factory) } : {};
+
 
   const userOperation = {
-    sender: owner.address,
+    sender: executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address,
+    ...deployment,
     nonce,
     callData,
     callGasLimit: gas.callGasLimit,
@@ -237,13 +248,14 @@ export async function buildSignedTornadoUserOp({
     paymasterPostOpGasLimit: toHex(userOperation.paymasterPostOpGasLimit),
     paymasterData: userOperation.paymasterData,
     signature,
-    eip7702Auth: serializeAuth(authorization),
+    ...deployment,
+    ...(authorization ? { eip7702Auth: serializeAuth(authorization) } : {}),
   };
 }
 
 function serializeAuth(auth: SignedAuthorization): SerializedAuth {
   return {
-    address: (auth as any).address ?? (auth as any).contractAddress,
+    address: auth.address,
     chainId: toHex(auth.chainId),
     nonce: toHex(auth.nonce),
     r: auth.r,

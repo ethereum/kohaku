@@ -100,7 +100,7 @@ export function assertGasLimitsWithinBounds(
   operation?: SerializedUserOperation,
   limits: PaymasterGasLimits = {},
 ): void {
-  const bytes = operation ? BigInt(size(operation.callData) + size(operation.paymasterData ?? '0x')) : 0n;
+  const bytes = operation ? BigInt(size(operation.callData) + size(operation.paymasterData ?? '0x') + size(operation.factoryData ?? '0x')) : 0n;
   const defaults: PaymasterGasLimits = {
     verificationGasLimit: baseline.verificationGasLimit * 2n,
     paymasterVerificationGasLimit: baseline.paymasterVerificationGasLimit * 2n,

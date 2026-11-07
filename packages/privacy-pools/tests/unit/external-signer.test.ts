@@ -51,7 +51,12 @@ async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<
   const store = storeFactory({ logLevel: 'off', entrypointInfo: { chainId: 1n, entrypointAddress: 900n, deploymentBlock: 0n } });
   return store.dispatch(paymasterWithdrawThunk({
     dataService: { getTransactionCount: fixture.getTransactionCount, quoteWeiInToken: async (_paymaster: bigint, _asset: bigint, fee: bigint) => fee * 7n },
-    provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber' ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n) },
+    provider: { request: async ({ method }: { method: string }) => {
+      if (method === 'eth_getCode') return delegation?.mode === 'smart-account' && !delegation.account.factory ? '0x6000' : '0x';
+      if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
+      if (method === 'eth_call') return toHex(delegation?.nonce ?? 0n, { size: 32 });
+      return method === 'eth_getBlockByNumber' ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n);
+    } },
     secretManager: { deriveEphemeralSigner: fixture.deriveEphemeral, deriveDelegatorSigner: fixture.deriveDelegator },
     paymasterConfig: { paymasterAddress, entryPointAddress: entryPoint08Address, bundlerUrl: 'unused', poolsAccountsMap: { '0x0000000000000000000000000000000000000001': adapter } },
     recipient: BigInt(recipient), asset: fixture.isERC20 ? 2n : BigInt(E_ADDRESS), amount: BigInt(fixture.count) * 10n ** 18n,
@@ -71,7 +76,7 @@ describe('Privacy Pools external paymaster signing', () => {
   it.each([{ count: 1, isERC20: false }, { count: 2, isERC20: false }, { count: 2, isERC20: true }])('requests host signatures for $count notes, ERC20=$isERC20', async ({ count, isERC20 }) => {
     fixture.count = count; fixture.isERC20 = isERC20;
     const signer = externalSigner();
-    const [withdrawal] = await prepare({ mode: 'external', signer });
+    const [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer });
     expect(withdrawal!.userOperation.sender).toBe(account.address);
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
     expect(withdrawal!.userOperation.eip7702Auth!.nonce).toBe('0x0');
@@ -90,13 +95,13 @@ describe('Privacy Pools external paymaster signing', () => {
   });
   it('uses the external EOA transaction nonce independently of EntryPoint nonce zero', async () => {
     fixture.nonce = 7;
-    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', signer });
+    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer });
     expect(fixture.getTransactionCount).toHaveBeenCalledExactlyOnceWith(account.address);
     expect(withdrawal!.userOperation.eip7702Auth!.nonce).toBe('0x7');
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
   });
   it('supports external signing with user tail calls', async () => {
-    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', signer }, async () => []);
+    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer }, async () => []);
     expect(signer.signTypedData).toHaveBeenCalledTimes(2);
     expect(withdrawal!.userOperation.callData).toBe('0x');
   });
@@ -104,14 +109,14 @@ describe('Privacy Pools external paymaster signing', () => {
     const signer: DelegatorAccount = { address: account.address,
       signAuthorization: mode === 'authorization' ? other.signAuthorization : mode === 'authorization-rejected' ? async () => { throw new Error('User rejected authorization'); } : account.signAuthorization,
       signTypedData: mode === 'userop' ? other.signTypedData : mode === 'userop-rejected' ? async () => { throw new Error('User rejected operation'); } : account.signTypedData };
-    await expect(prepare({ mode: 'external', signer })).rejects.toThrow(mode.includes('rejected') ? 'User rejected' : 'does not match');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer })).rejects.toThrow(mode.includes('rejected') ? 'User rejected' : 'does not match');
     expect(fixture.estimate).not.toHaveBeenCalled();
     expect(fixture.deriveEphemeral).not.toHaveBeenCalled(); expect(fixture.deriveDelegator).not.toHaveBeenCalled();
   });
   it('propagates rejection of a refined operation without another authorization prompt', async () => {
     const signer = externalSigner();
     signer.signTypedData.mockImplementationOnce(account.signTypedData).mockRejectedValueOnce(new Error('User rejected refined operation'));
-    await expect(prepare({ mode: 'external', signer })).rejects.toThrow('User rejected');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer })).rejects.toThrow('User rejected');
     expect(signer.signAuthorization).toHaveBeenCalledTimes(1);
     expect(signer.signTypedData).toHaveBeenCalledTimes(2);
     expect(fixture.estimate).toHaveBeenCalledTimes(1);
@@ -119,21 +124,21 @@ describe('Privacy Pools external paymaster signing', () => {
   it('requires bundler estimation instead of returning an unestimated external operation', async () => {
     fixture.estimate.mockRejectedValue(new Error('RPC unavailable'));
     const signer = externalSigner();
-    await expect(prepare({ mode: 'external', signer })).rejects.toThrow('requires successful bundler');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer })).rejects.toThrow('requires successful bundler');
     expect(signer.signTypedData).toHaveBeenCalledTimes(1);
   });
   it('rejects a final payload that fails estimation or needs more gas after signing', async () => {
     const base = { ...reasonableGasUnits(false), callGasLimit: 0n };
     fixture.estimate.mockReset().mockResolvedValueOnce(base).mockRejectedValueOnce(new Error('Final estimate rejected'));
-    await expect(prepare({ mode: 'external', signer: externalSigner() })).rejects.toThrow('Final estimate rejected');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer: externalSigner() })).rejects.toThrow('Final estimate rejected');
     fixture.estimate.mockReset().mockResolvedValueOnce(base).mockResolvedValueOnce({ ...base, preVerificationGas: 130_000n });
-    await expect(prepare({ mode: 'external', signer: externalSigner() })).rejects.toThrow('gas requirements changed');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer: externalSigner() })).rejects.toThrow('gas requirements changed');
   });
   it('preserves default note-derived and explicit wallet-path behavior', async () => {
     await prepare();
     expect(fixture.deriveEphemeral).toHaveBeenCalledOnce(); expect(fixture.getTransactionCount).not.toHaveBeenCalled();
     fixture.nonce = 7;
-    const [wallet] = await prepare({ mode: 'deterministic', path: "m/44'/60'/0'/0/3" });
+    const [wallet] = await prepare({ mode: 'deterministic', allowUsed: true, path: "m/44'/60'/0'/0/3" });
     expect(fixture.deriveDelegator).toHaveBeenCalledWith({ path: "m/44'/60'/0'/0/3" });
     expect(wallet!.userOperation.eip7702Auth!.nonce).toBe('0x7');
   });
@@ -176,5 +181,33 @@ describe('external signer scope and returned signatures', () => {
     const signer = externalSigner();
     signer.signTypedData.mockImplementationOnce(async () => account.signTypedData({ ...typedData(), message: { ...typedData().message, nonce: 1n } }));
     await expect(verifiedExternalDelegator(signer, scope()).signTypedData(typedData())).rejects.toThrow('does not match');
+  });
+});
+
+describe('Privacy Pools execution account routes', () => {
+  const accountAddress = '0x0000000000000000000000000000000000000099';
+  it.each([false, true])('uses a separate account sender and typed-data-only owner (factory=%s)', async deploy => {
+    fixture.count = 2;
+    const signTypedData = vi.fn(account.signTypedData);
+    const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: { address: account.address, signTypedData }, nonce: deploy ? 0n : 3n,
+      account: { kind: 'simple-account', address: accountAddress, ...(deploy ? { factory: { address: adapter, salt: 7n } } : {}) } });
+    const op = withdrawal!.userOperation;
+    expect(op.sender).toBe(accountAddress); expect(op.nonce).toBe(deploy ? '0x0' : '0x3'); expect(op).not.toHaveProperty('eip7702Auth');
+    expect(!!op.factory).toBe(deploy); expect(!!op.factoryData).toBe(deploy);
+    expect(signTypedData).toHaveBeenCalledTimes(2);
+    expect(fixture.getTransactionCount).not.toHaveBeenCalled(); expect(fixture.deriveEphemeral).not.toHaveBeenCalled();
+    const [{ adapterData }] = decodeAbiParameters(parseAbiParameters('(address adapter, bytes adapterData)'), op.paymasterData!);
+    const [{ withdrawal: payload }] = decodeAbiParameters(parseAbiParameters('((address processooor, bytes data) withdrawal, (uint256[2] pA, uint256[2][2] pB, uint256[2] pC, uint256[8] pubSignals) proof)'), adapterData);
+    const [{ recipient: payout }] = decodeAbiParameters(parseAbiParameters('(address recipient, address feeRecipient, uint256 fee, address refundRecipient)'), payload.data);
+    expect(payout.toLowerCase()).toBe(accountAddress.toLowerCase());
+  });
+  it('pins a caller-selected compatible delegation target', async () => {
+    const signer = externalSigner();
+    const [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer, implementation: adapter });
+    expect(withdrawal!.userOperation.eip7702Auth!.address).toBe(adapter);
+  });
+  it('requires simulation for a deployed account without falling back', async () => {
+    fixture.estimate.mockRejectedValue(new Error('offline'));
+    await expect(prepare({ mode: 'smart-account', allowUsed: true, signer: account, nonce: 0n, account: { kind: 'simple-account', address: accountAddress } })).rejects.toThrow('requires successful');
   });
 });

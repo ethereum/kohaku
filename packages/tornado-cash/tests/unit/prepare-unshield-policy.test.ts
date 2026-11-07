@@ -28,7 +28,7 @@ describe('paymaster estimation policy API', () => {
 
   it('passes an external signer through its own bridge, leaving the worker options cloneable', async () => {
     const signer = privateKeyToAccount(`0x${'09'.repeat(32)}`);
-    const provider = { getChainId: async () => 1n, request: async () => '0x0' };
+    const provider = { getChainId: async () => 1n, request: async ({ method }: { method: string }) => method === 'eth_call' ? `0x${'0'.repeat(64)}` : '0x0' };
     remote.getWithdrawalPayloads.mockClear();
     remote.getWithdrawalPayloads.mockResolvedValue([]);
     const protocol = new TornadoCashProtocol({ ...host, provider } as unknown as Host, { protocolConfig: TornadoCashConfigs[1] });

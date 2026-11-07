@@ -1,7 +1,7 @@
 import { unwrapResult } from '@reduxjs/toolkit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { RpcRequestError, toHex } from 'viem';
+import { RpcRequestError, toHex, decodeFunctionData, recoverTypedDataAddress } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
 import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
@@ -57,6 +57,9 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
     dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote, getAccountNonce: fixture.getAccountNonce },
     provider: { request: async ({ method }: { method: string }) => {
+      if (method === 'eth_getCode') return delegation?.mode === 'smart-account' && !delegation.account.factory ? '0x6000' : '0x';
+      if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
+      if (method === 'eth_call') return toHex(delegation?.nonce ?? 0n, { size: 32 });
       if (method === 'eth_getBlockByNumber') return { baseFeePerGas: toHex(1_000_000_000_000n) };
 
       if (method === 'eth_maxPriorityFeePerGas') return toHex(1n);
@@ -77,6 +80,24 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
   } as never)));
 }
 
+  beforeEach(() => {
+    fixture.maxFeePerGas = 2n;
+    fixture.maxPriorityFeePerGas = 1n;
+    fixture.denomination = 10n ** 18n;
+    fixture.count = 2;
+    fixture.isERC20 = false;
+    fixture.chainId = 11155111n;
+    fixture.kind = 'signature';
+    fixture.deriveLegacy.mockClear();
+    fixture.fees = [];
+    fixture.proofRecipients = [];
+    fixture.quote.mockClear();
+    fixture.estimate.mockReset();
+    fixture.deriveSignature.mockClear();
+    fixture.deriveDelegator.mockClear();
+    fixture.getAccountNonce.mockReset().mockResolvedValue(7);
+  });
+
 describe('paymaster withdrawal preparation integration', () => {
   const incompatibleEstimator = () => new RpcRequestError({
     url: 'https://bundler.invalid', body: {}, error: {
@@ -88,6 +109,7 @@ describe('paymaster withdrawal preparation integration', () => {
   it.each(['random', 'deterministic', 'external'] as const)('keeps direct payout when bundler estimation is incompatible for a %s sender', async mode => {
     fixture.count = 1;
     fixture.isERC20 = true;
+    fixture.getAccountNonce.mockResolvedValue(0);
     const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
     const delegation: DelegationConfig = mode === 'external' ? { mode, signer: account as DelegatorAccount } : { mode };
 
@@ -160,23 +182,7 @@ describe('paymaster withdrawal preparation integration', () => {
     await expect(prepare()).rejects.toThrow('preparation stopped');
   });
 
-  beforeEach(() => {
-    fixture.maxFeePerGas = 2n;
-    fixture.maxPriorityFeePerGas = 1n;
-    fixture.denomination = 10n ** 18n;
-    fixture.count = 2;
-    fixture.isERC20 = false;
-    fixture.chainId = 11155111n;
-    fixture.kind = 'signature';
-    fixture.deriveLegacy.mockClear();
-    fixture.fees = [];
-    fixture.proofRecipients = [];
-    fixture.quote.mockClear();
-    fixture.estimate.mockReset();
-    fixture.deriveSignature.mockClear();
-    fixture.deriveDelegator.mockClear();
-    fixture.getAccountNonce.mockClear();
-  });
+
 
   it.each([
     { count: 1, isERC20: false }, { count: 2, isERC20: false },
@@ -243,7 +249,7 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(fixture.getAccountNonce).not.toHaveBeenCalled();
     expect(fixture.deriveSignature).toHaveBeenCalledWith({ nonce: 0n, chainId: 11155111n, poolAddress: 1n });
     const path = "m/44'/60'/0'/0/3";
-    const [walletDerived] = await prepare({ mode: 'deterministic', path });
+    const [walletDerived] = await prepare({ mode: 'deterministic', allowUsed: true, path });
 
     if (walletDerived!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
 
@@ -273,7 +279,7 @@ describe('paymaster withdrawal preparation integration', () => {
     const signer = { address: account.address, signAuthorization, signTypedData } as DelegatorAccount;
 
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
-    const [withdrawal] = await prepare({ mode: 'external', signer });
+    const [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer });
 
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
 
@@ -295,7 +301,7 @@ describe('paymaster withdrawal preparation integration', () => {
       signAuthorization: mode === 'authorization' ? other.signAuthorization : mode === 'rejected' ? async () => { throw new Error('User rejected authorization'); } : account.signAuthorization,
       signTypedData: mode === 'userop' ? other.signTypedData : account.signTypedData };
 
-    await expect(prepare({ mode: 'external', signer })).rejects.toThrow(mode === 'rejected' ? 'User rejected' : 'does not match');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer })).rejects.toThrow(mode === 'rejected' ? 'User rejected' : 'does not match');
     expect(fixture.estimate).not.toHaveBeenCalled();
     expect(fixture.deriveSignature).not.toHaveBeenCalled();
     expect(fixture.deriveDelegator).not.toHaveBeenCalled();
@@ -306,7 +312,7 @@ describe('paymaster withdrawal preparation integration', () => {
     const signTypedData = vi.fn(account.signTypedData);
 
     fixture.estimate.mockRejectedValue(new Error('network timeout'));
-    await expect(prepare({ mode: 'external', signer: { ...account, signTypedData } as DelegatorAccount })).rejects.toThrow('gas estimation failed');
+    await expect(prepare({ mode: 'external', allowUsed: true, signer: { ...account, signTypedData } as DelegatorAccount })).rejects.toThrow('gas estimation failed');
     expect(signTypedData).toHaveBeenCalledTimes(1);
   });
 
@@ -381,7 +387,7 @@ describe('paymaster withdrawal preparation integration', () => {
     fixture.maxFeePerGas = 16_000_000_000n;
     fixture.maxPriorityFeePerGas = 4_000_000_000n;
     fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(false, 0, false));
-    const request = vi.fn(async () => ({
+    const request = vi.fn(async ({ method }: { method: string }) => method === 'eth_getCode' ? '0x' : method === 'eth_call' ? toHex(0n, { size: 32 }) : method === 'eth_getBalance' || method === 'eth_getTransactionCount' ? '0x0' : ({
       baseFeePerGas: Array(11).fill(toHex(10_000_000_000n)),
       reward: [...Array(9).fill([toHex(15_166n)]), [toHex(4_000_000_000n)]],
     }));
@@ -389,7 +395,7 @@ describe('paymaster withdrawal preparation integration', () => {
 
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
 
-    expect(request).toHaveBeenCalledExactlyOnceWith({ method: 'eth_feeHistory', params: ['0xa', 'latest', [90]] });
+    expect(request).toHaveBeenCalledWith({ method: 'eth_feeHistory', params: ['0xa', 'latest', [90]] });
     expect(BigInt(withdrawal!.userOperation.maxPriorityFeePerGas)).toBe(fixture.maxPriorityFeePerGas);
     expect(BigInt(withdrawal!.userOperation.maxFeePerGas)).toBe(fixture.maxFeePerGas);
     expect(fixture.estimate).toHaveBeenLastCalledWith(withdrawal!.userOperation);
@@ -448,4 +454,39 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
   });
 
+});
+
+describe('execution account routes', () => {
+  const owner = privateKeyToAccount(`0x${'09'.repeat(32)}`);
+  const accountAddress = '0x0000000000000000000000000000000000000099';
+  it.each([false, true])('collects a multi-note batch in a SimpleAccount (factory=%s) with typed-data signing only', async deploy => {
+    fixture.count = 2;
+    const signTypedData = vi.fn(owner.signTypedData);
+    fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
+    const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: { address: owner.address, signTypedData }, nonce: deploy ? 0n : 3n,
+      account: { kind: 'simple-account', address: accountAddress, ...(deploy ? { factory: { address: '0x0000000000000000000000000000000000000088' as const, salt: 7n } } : {}) },
+    }, { recipient: BigInt(accountAddress) });
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    const op = withdrawal!.userOperation;
+    expect(op.sender).toBe(accountAddress); expect(op.nonce).toBe(deploy ? '0x0' : '0x3');
+    expect(op).not.toHaveProperty('eip7702Auth');
+    expect(!!op.factory).toBe(deploy); expect(!!op.factoryData).toBe(deploy);
+    const { SIMPLE_7702_EXECUTE_ABI } = await import('../../src/data/abis/account.abi');
+    const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: op.callData });
+    expect(decoded.functionName).toBe('execute'); // only the second withdrawal; no self-forward
+    expect(fixture.proofRecipients.every(recipient => recipient === BigInt(accountAddress))).toBe(true);
+    for (const [data] of signTypedData.mock.calls) expect(await recoverTypedDataAddress({ ...data, signature: await owner.signTypedData(data) } as never)).toBe(owner.address);
+    expect(fixture.getAccountNonce).not.toHaveBeenCalled(); expect(fixture.deriveSignature).not.toHaveBeenCalled();
+  });
+  it('pins a caller-selected compatible 7702 target in the authorization', async () => {
+    fixture.count = 2;
+    fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
+    const [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer: owner, implementation: accountAddress });
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    expect(withdrawal!.userOperation.eip7702Auth!.address).toBe(accountAddress);
+  });
+  it('never falls back when a deployed account cannot be simulated', async () => {
+    fixture.estimate.mockRejectedValue(new Error('network timeout'));
+    await expect(prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n, account: { kind: 'simple-account', address: accountAddress } })).rejects.toThrow('gas estimation failed');
+  });
 });

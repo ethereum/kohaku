@@ -1,3 +1,4 @@
+import { simpleAccountFactoryData } from '../account/execution-account';
 import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
@@ -125,6 +126,7 @@ export async function estimateUserOperationGas(
  */
 export async function buildSignedUserOp({
   signer,
+  executionAccount,
   chainId,
   paymasterAddress,
   paymasterData,
@@ -137,7 +139,7 @@ export async function buildSignedUserOp({
 }: BuildSignedUserOpParams): Promise<SerializedUserOperation> {
   const owner = signer;
 
-  const calls = tailCalls ? await tailCalls(owner.address) : [];
+  const calls = tailCalls ? await tailCalls(executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address) : [];
   let callData: Hex = "0x";
 
   if (calls.length === 1) {
@@ -161,14 +163,22 @@ export async function buildSignedUserOp({
   // passes `authorizationNonce`); a reused wallet-path delegator carries a
   // nonzero count, threaded in explicitly. This is the EOA nonce, distinct from
   // the EntryPoint `nonce` the userOp carries below.
-  const authorization = await owner.signAuthorization({
-    address: SIMPLE_7702_IMPLEMENTATION,
+  const nativeNonce = authorizationNonce ?? nonce;
+
+  if (executionAccount?.kind !== 'simple-account' && (nativeNonce < 0n || nativeNonce > BigInt(Number.MAX_SAFE_INTEGER))) throw new Error('Authorization nonce exceeds the safe integer range');
+
+  const authorization = executionAccount?.kind === 'simple-account' ? undefined : await owner.signAuthorization({
+    address: executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION,
     chainId,
     nonce: Number(authorizationNonce ?? nonce),
   });
+  const deployment = executionAccount?.kind === 'simple-account' && executionAccount.factory
+    ? { factory: executionAccount.factory.address, factoryData: simpleAccountFactoryData(owner.address, executionAccount.factory) } : {};
+
 
   const userOperation = {
-    sender: owner.address,
+    sender: executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address,
+    ...deployment,
     nonce,
     callData,
     callGasLimit: gas.callGasLimit,
@@ -207,7 +217,8 @@ export async function buildSignedUserOp({
     paymasterPostOpGasLimit: toHex(userOperation.paymasterPostOpGasLimit),
     paymasterData: userOperation.paymasterData,
     signature,
-    eip7702Auth: serializeAuth(authorization),
+    ...deployment,
+    ...(authorization ? { eip7702Auth: serializeAuth(authorization) } : {}),
   };
 }
 

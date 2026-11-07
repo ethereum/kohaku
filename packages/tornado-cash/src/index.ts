@@ -8,7 +8,7 @@ export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signat
 export type { SecretManagerParams, ISecretManager, LegacySecretManager } from './account/keys';
 export type { SignatureSecretManagerParams, EnvelopeSigner, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
-export type { DelegatorAccount, DelegationConfig } from './account/delegation.interface';
+export type { DelegatorAccount, DelegationConfig, TypedDataSigner, ExecutionAccountConfig, SmartAccountDelegation } from './account/delegation.interface';
 
 // Proving artifacts
 export { TORNADO_CIRCUIT_SHA256, TORNADO_PROVING_KEY_SHA256, TornadoArtifactsIntegrityError } from './utils/artifacts-integrity';

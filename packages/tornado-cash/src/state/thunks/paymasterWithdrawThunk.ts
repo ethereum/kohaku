@@ -1,3 +1,4 @@
+import { executionAccount, executionSender, externalAccountSigner, requiresAccountSimulation, executionGasBaseline, prepareExecutionAccount } from '../../account/execution-account';
 /* eslint-disable max-lines */
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 
@@ -176,7 +177,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // here before tailCalls or synthesized forwarding; postOp refunds can remain
   // here too. It is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
-    if (delegation?.mode === 'external') return delegation.signer;
+    if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') return externalAccountSigner(delegation);
 
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
@@ -197,20 +198,28 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const validationOnly = deposits.length === 1 && tailCalls == null;
   // Fallback can still be rejected or miss a postOp refund. Gas/fee bounds
   // remain enforced; simulation availability does not change payout custody.
-  const allowFallback = gasEstimationPolicy === 'best-effort' && tailCalls == null &&
+  const allowFallback = delegation?.allowUsed !== true && delegation?.mode !== 'smart-account' && !delegation?.implementation && (delegation?.nonce ?? 0n) === 0n && gasEstimationPolicy === 'best-effort' && tailCalls == null &&
     (chainId === 1 || chainId === 11155111) &&
-    (validationOnly || (delegation?.mode !== 'random' && delegation?.mode !== 'external'));
+    (validationOnly || (delegation?.mode !== 'random' && !requiresAccountSimulation(delegation)));
+
+  executionAccount(delegation);
   let signer = await resolveBatchDelegator();
-  const senderAddress = BigInt(signer.address) as Address;
+  const senderAddress = BigInt(executionSender(delegation, signer)) as Address;
   // Explicit wallet-path and external senders may have prior EOA transactions.
-  // All note-derived/random senders keep authorization nonce 0;
-  // every paymaster UserOperation still uses EntryPoint nonce 0 (single-use).
-  const authorizationNonce = delegation?.mode === 'external' || (delegation?.mode === 'deterministic' && delegation.path)
+  // All sender families are checked on-chain below; reuse requires allowUsed.
+  // Native authorization and EntryPoint nonces are independent.
+  const knownNativeNonce = delegation?.mode !== 'smart-account' && (delegation?.mode === 'external' || (delegation?.mode === 'deterministic' && delegation.path) || delegation?.nonce !== undefined || !!delegation?.implementation)
     ? BigInt(await dataService.getAccountNonce(senderAddress))
     : undefined;
 
-  if (delegation?.mode === 'external') {
-    signer = verifiedExternalDelegator(signer, chainId, authorizationNonce!);
+  const preparedAccount = await prepareExecutionAccount(delegation, signer, provider, entryPointAddress, knownNativeNonce);
+  const { account: accountConfig, nonce: userOpNonce, authorizationNonce } = preparedAccount;
+
+  if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') {
+    signer = verifiedExternalDelegator(signer, chainId, authorizationNonce ?? 0n, {
+      implementation: delegation.mode === 'external' ? delegation.implementation : undefined,
+      sender: executionSender(delegation, signer), userOpNonce, smartAccount: delegation.mode === 'smart-account',
+    });
   }
 
   const sponsoringDeposit = deposits[0]!;
@@ -244,6 +253,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const forwardCalls = (fee: bigint): TxData[] => {
     const amount = totalDenomination - fee;
   
+    if (BigInt(originalRecipient) === senderAddress) return [];
+
     if (poolInfo.isERC20) {
       const data = encodeFunctionData({
         abi: erc20Abi,
@@ -267,6 +278,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const buildOp = (gas: UserOpGasLimits, fee: bigint, paymasterData: `0x${string}`) =>
     buildSignedTornadoUserOp({
       signer,
+      executionAccount: accountConfig,
       chainId,
       paymasterAddress,
       paymasterData,
@@ -274,18 +286,18 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       maxFeePerGas,
       maxPriorityFeePerGas,
       tailCalls: validationOnly ? undefined : composeTailCalls(fee),
-      nonce: 0n,
+      nonce: userOpNonce,
       authorizationNonce,
     });
 
   // Every refinement re-quotes the pool asset, re-proves the sponsoring
   // deposit and rebuilds forwarding calldata/signature before final estimation.
-  const baselineGas = validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
+  const baselineGas = executionGasBaseline(delegation, validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,
     tailCallsGasEstimate,
-  );
+  ));
   const { sponsoringProof, userOperation, gasEstimation, fee } = await buildEstimatedTornadoUserOp(
     baselineGas,
     async (gas) => {
