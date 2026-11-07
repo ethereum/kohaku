@@ -10,7 +10,7 @@ import {
 } from '@kohaku-eth/privacy-pools'
 ```
 
-Both return an object with `prepareShield`, `prepareUnshield`, `balance`, `notes`, `history`, `ragequit`, `estimateShield`, `estimateUnshield`, and `sync`.
+Both return an object with `prepareShield`, `prepareUnshield`, `balance`, `notes`, `history`, `ragequit`, `estimateShield`, `estimateUnshield`, `sync`, and `registerDepositIndex`.
 
 ## Factory options
 
@@ -83,6 +83,20 @@ Note secrets are never stored. After a restart they are signed again, so the sig
 [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts) passes `secretManager: SecretManager` inside `createProtocolPlugin` because that wallet's existing deposits use the BIP-32 scheme. A new wallet can keep the default.
 
 `relayersList` on the class is the same map the factory builds from `broadcasterUrl`.
+
+## Explicit deposit indices
+
+By default, `prepareShield` chooses the index above the highest recovered deposit. To choose the index yourself, pass `depositIndex`:
+
+```ts
+await pools.prepareShield(deposit, { depositIndex: 17 })
+```
+
+After a shield at an explicit index confirms, call `sync` so the plugin has its public events. Then call `registerDepositIndex(17)` when `sync` can't reach that index. `registerDepositIndex` reads only events that are already synced. It returns `false` when those events lack a deposit for that index, and on a match it also recovers the deposit's withdrawals.
+
+Discovery follows consecutive deposits from index zero and from each registered index, and it doesn't search the gaps between them. A wallet must keep each sparse index in its private recovery metadata and register it again after a restart. Registration lasts only for the session, and `dumpState` excludes credentials and their indices.
+
+Preparing a transaction doesn't reserve its index, so two shields prepared before either confirms can choose the same index. Confirm and sync one shield before you prepare the next.
 
 ## Association set
 
