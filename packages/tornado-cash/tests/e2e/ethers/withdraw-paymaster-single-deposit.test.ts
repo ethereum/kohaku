@@ -123,7 +123,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     expect(withdrawal.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
     expect(BigInt(withdrawal.userOperation.preVerificationGas)).toBe(300_000n);
     expect(BigInt(withdrawal.userOperation.paymasterPostOpGasLimit!)).toBe(50_000n);
-    expect(BigInt(withdrawal.userOperation.verificationGasLimit)).toBe(100_000n);
+    expect(BigInt(withdrawal.userOperation.verificationGasLimit)).toBe(150_000n);
     expect(BigInt(withdrawal.userOperation.paymasterVerificationGasLimit!)).toBe(650_000n);
 
     if (recipientKind === 'fresh') {
