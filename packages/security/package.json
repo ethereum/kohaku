@@ -1,0 +1,23 @@
+{
+  "name": "@kohaku-eth/security",
+  "version": "0.0.1-alpha.1",
+  "description": "",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "packageManager": "pnpm@10.24.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {}
+}
