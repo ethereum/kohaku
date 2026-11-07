@@ -261,41 +261,28 @@ export const storeStateManager = (
     }
   };
 
+  // Sync, registration and shield preparation share one queue per store, because
+  // they share a secret manager and read the state that the others change. Each
+  // tail resolves, so a failed or cancelled operation does not block the next one.
+  const operationTails = new Map<StoreKey, Promise<unknown>>();
+
+  const serializeOperation = <T>(
+    storeKey: StoreKey,
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const result = (operationTails.get(storeKey) ?? Promise.resolve()).then(operation);
+
+    operationTails.set(storeKey, result.catch(() => undefined));
+
+    return result;
+  };
+
   // At most one sync per store at a time: interleaved syncs would derive and
   // append the same note secrets twice, and one sync's root re-verification
   // would briefly unset the verified ASP root a withdrawal is checking.
   // A call never joins a sync that already started: that sync's head may predate
   // a transaction the caller just saw confirmed. It waits for one follow-up sync
   // instead, shared with every call made while the follow-up has not started.
-  // Serialize operations sharing a secret manager and a chain store.
-  // Every tail resolves, including when its operation fails.
-  const operationTails = new Map<StoreKey, Promise<void>>();
-
-  const serializeOperation = async <T>(
-    storeKey: StoreKey,
-    operation: () => Promise<T>,
-  ): Promise<T> => {
-    const previous = operationTails.get(storeKey);
-
-    let release!: () => void;
-    const current = new Promise<void>(resolve => {
-      release = resolve;
-    });
-
-    operationTails.set(storeKey, current);
-
-    if (previous) await previous;
-
-    try {
-      return await operation();
-    } finally {
-      if (operationTails.get(storeKey) === current) {
-        operationTails.delete(storeKey);
-      }
-      release();
-    }
-  };
-
   const syncQueues = new Map<StoreKey, { running?: Promise<void>; queued?: Promise<void> }>();
 
   return {
@@ -401,38 +388,41 @@ export const storeStateManager = (
     },
     getDepositPayload: async ({ asset, amount, depositIndex: requestedIndex }: IDepositOperationParams) => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
-      const state = store.getState();
-      const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-      const knownIndices = [...userSecretsSelector(state).values()]
-        .map((record) => record.depositIndex);
 
-      const automaticIndex = knownIndices.reduce(
-        (next, index) => Math.max(next, index + 1),
-        0,
-      );
+      return serializeOperation(getStoreKey(chainInfo), async () => {
+        const store = await getChainStore(chainInfo);
+        const state = store.getState();
+        const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+        const knownIndices = [...userSecretsSelector(state).values()]
+          .map((record) => record.depositIndex);
 
-      const depositIndex = requestedIndex ?? automaticIndex;
+        const automaticIndex = knownIndices.reduce(
+          (next, index) => Math.max(next, index + 1),
+          0,
+        );
 
-      if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
-        throw new RangeError("Invalid deposit index");
-      }
+        const depositIndex = requestedIndex ?? automaticIndex;
 
-      if (knownIndices.includes(depositIndex)) {
-        throw new Error("Deposit index already registered");
-      }
+        if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+          throw new RangeError("Invalid deposit index");
+        }
 
-      const { precommitment } = await secretManager.getDepositSecrets({
-        entrypointAddress,
-        chainId,
-        depositIndex,
+        if (knownIndices.includes(depositIndex)) {
+          throw new Error("Deposit index already registered");
+        }
+
+        const { precommitment } = await secretManager.getDepositSecrets({
+          entrypointAddress,
+          chainId,
+          depositIndex,
+        });
+
+        if (depositsSelector(state).has(precommitment)) {
+          throw new Error("Deposit credential already exists on-chain");
+        }
+
+        return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
       });
-
-      if (depositsSelector(state).has(precommitment)) {
-        throw new Error("Deposit credential already exists on-chain");
-      }
-
-      return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
     },
     getShieldEstimate: async ({ asset, amount }: IDepositOperationParams): Promise<PPv1ShieldEstimate> => {
       const { vettingFeeBPS, minimumDepositAmount } =

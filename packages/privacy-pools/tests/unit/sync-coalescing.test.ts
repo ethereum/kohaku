@@ -192,7 +192,7 @@ describe('credential operation synchronization', () => {
     await expect(registration).resolves.toBe(false);
   });
 
-  it('waits for hardware derivation before starting sync', async () => {
+  it.each(['registration', 'shield'] as const)('waits for %s derivation before starting sync', async (operation) => {
     let release!: () => void;
     let entered!: () => void;
 
@@ -229,7 +229,9 @@ describe('credential operation synchronization', () => {
       devOptions: TEST_STORE_DEV_OPTIONS,
     } as never);
 
-    const registration = manager.registerDepositIndex(17);
+    const deriving = operation === 'registration'
+      ? manager.registerDepositIndex(17)
+      : manager.getDepositPayload({ asset: BigInt(asset.contract) as Address, amount: 1n });
     await started;
 
     const syncing = manager.sync();
@@ -239,7 +241,7 @@ describe('credential operation synchronization', () => {
 
     release();
 
-    await expect(registration).resolves.toBe(false);
+    await deriving;
     await syncing;
 
     expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);

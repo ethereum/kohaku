@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { PrivacyPoolsV1Protocol } from '../../src/plugin/base';
+import type { IStateManager } from '../../src/plugin/interfaces/protocol-params.interface';
 import { storeStateManager } from '../../src/state/state-manager';
 import { buildDepositPayload } from '../../src/state/selectors/deposits.selector';
 import type { StoreFactoryParams } from '../../src/state/state-manager';
+import type { IDataService } from '../../src/data/interfaces/data.service.interface';
+import { createMockHost } from '../utils/mock-host';
 
 const CHAIN = 11155111n;
 const ENTRYPOINT = 0x34a2068192b1297f2a7f85d7d8cde66f8f0921cbn;
@@ -99,4 +103,25 @@ describe('explicit Privacy Pools deposit-index selection', () => {
       expect(derive).not.toHaveBeenCalled();
     },
   );
+
+  it('prepareShield forwards an explicit index to the state manager', async () => {
+    const stateManager = {
+      sync: vi.fn(async () => {}),
+      getDepositPayload: vi.fn(async () => ({})),
+    };
+    const plugin = new PrivacyPoolsV1Protocol(createMockHost(), {
+      entrypoint: { address: ENTRYPOINT, deploymentBlock: 8587019n },
+      dataService: {} as IDataService,
+      stateManager: () => stateManager as unknown as IStateManager,
+    });
+    const contract = '0x0000000000000000000000000000000000000001';
+
+    await plugin.prepareShield({ asset: { __type: 'erc20', contract }, amount: AMOUNT }, { depositIndex: 17 });
+
+    expect(stateManager.getDepositPayload).toHaveBeenCalledWith({
+      asset: BigInt(contract),
+      amount: AMOUNT,
+      depositIndex: 17,
+    });
+  });
 });

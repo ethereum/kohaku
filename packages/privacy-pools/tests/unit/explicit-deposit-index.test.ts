@@ -5,6 +5,7 @@ import type { Address } from '../../src/interfaces/types.interface';
 import type { PublicRootState } from '../../src/state/store';
 import { storeStateManager } from '../../src/state/state-manager';
 import { storeFactory } from '../../src/state/store';
+import { buildDepositPayload } from '../../src/state/selectors/deposits.selector';
 import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerEntrypointDeposits } from '../../src/state/slices/entrypointDepositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
@@ -28,7 +29,12 @@ const depositSecret = (index: number, wrongRoot = false) => {
   };
 };
 
-function publicSnapshot(withZero: boolean, withWithdrawal: boolean) {
+function publicSnapshot(
+  withZero: boolean,
+  withWithdrawal: boolean,
+  indexes = withZero ? [0, 17] : [17],
+  spentIndex = 17,
+) {
   const store = storeFactory({
     logLevel: 'off',
     devOptions: TEST_STORE_DEV_OPTIONS,
@@ -46,8 +52,6 @@ function publicSnapshot(withZero: boolean, withWithdrawal: boolean) {
     registeredBlock: 100n,
     woundDownAtBlock: null,
   }]));
-
-  const indexes = withZero ? [0, 17] : [17];
 
   const deposits = indexes.map(index => ({
     pool,
@@ -75,7 +79,7 @@ function publicSnapshot(withZero: boolean, withWithdrawal: boolean) {
   if (withWithdrawal) {
     store.dispatch(registerWithdrawals([{
       pool,
-      spentNullifier: depositSecret(17).nullifierHash,
+      spentNullifier: depositSecret(spentIndex).nullifierHash,
       commitment: 8888n,
       value: 30n,
       blockNumber: 106n,
@@ -142,6 +146,12 @@ function setup({
 
   return { manager, getDepositSecrets, getSecrets };
 }
+
+const derivedIndexes = ({ getDepositSecrets }: ReturnType<typeof setup>) =>
+  getDepositSecrets.mock.calls.map(([{ depositIndex }]) => depositIndex);
+
+const noteIndexes = async ({ manager }: ReturnType<typeof setup>) =>
+  (await manager.getNotes({})).map(note => note.deposit).sort((a, b) => a - b);
 
 describe('explicit deposit index registration', () => {
   it('rejects invalid indexes', async () => {
@@ -260,6 +270,108 @@ describe('explicit deposit index registration', () => {
 
     expect(finalCall).toMatchObject({
       depositIndex: 18,
+    });
+  });
+
+  it('discovers contiguous deposits after a registered sparse index', async () => {
+    const context = setup({ snapshot: publicSnapshot(false, false, [17, 18, 19]) });
+
+    expect(await context.manager.registerDepositIndex(17)).toBe(true);
+
+    expect(await noteIndexes(context)).toEqual([17, 18, 19]);
+    // One probe of the absent zero sequence, and none of the gap from 1 to 16.
+    expect(derivedIndexes(context)).toEqual([17, 0, 18, 19, 20]);
+  });
+
+  it('derives each index once where sequences overlap', async () => {
+    const context = setup({ snapshot: publicSnapshot(false, false, [0, 1, 2, 3]) });
+
+    expect(await context.manager.registerDepositIndex(2)).toBe(true);
+
+    expect(await noteIndexes(context)).toEqual([0, 1, 2, 3]);
+    expect(derivedIndexes(context)).toEqual([2, 0, 1, 3, 4]);
+  });
+
+  it('stops discovery at the largest safe index', async () => {
+    const largest = Number.MAX_SAFE_INTEGER;
+    const context = setup({ snapshot: publicSnapshot(false, false, [largest - 1, largest]) });
+
+    expect(await context.manager.registerDepositIndex(largest - 1)).toBe(true);
+
+    expect(await noteIndexes(context)).toEqual([largest - 1, largest]);
+    expect(derivedIndexes(context).every(Number.isSafeInteger)).toBe(true);
+  });
+
+  it('recovers withdrawal lineage of a discovered successor', async () => {
+    const { manager, getSecrets } = setup({ snapshot: publicSnapshot(false, true, [17, 18], 18) });
+
+    expect(await manager.registerDepositIndex(17)).toBe(true);
+
+    expect(await manager.getNotes({})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ deposit: 17, withdraw: 0 }),
+      expect.objectContaining({ deposit: 18, withdraw: 1 }),
+    ]));
+    expect(getSecrets).toHaveBeenCalledWith(expect.objectContaining({ depositIndex: 18, withdrawIndex: 1 }));
+  });
+
+  it('allocates a shield after an in-flight registration without overlapping the signer', async () => {
+    const context = setup();
+    const { manager, getDepositSecrets } = context;
+    let release!: () => void;
+    let entered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    let active = 0;
+    let maximumActive = 0;
+
+    getDepositSecrets.mockImplementation(async ({ depositIndex }) => {
+      maximumActive = Math.max(maximumActive, ++active);
+
+      if (depositIndex === 17) {
+        entered();
+        await gate;
+      }
+
+      active--;
+
+      return depositSecret(depositIndex);
+    });
+
+    const registration = manager.registerDepositIndex(17);
+
+    await started;
+
+    const shield = manager.getDepositPayload({ asset, amount: 1n });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(getDepositSecrets).toHaveBeenCalledTimes(1);
+
+    release();
+
+    const [registered, payload] = await Promise.all([registration, shield]);
+
+    expect(registered).toBe(true);
+    expect(maximumActive).toBe(1);
+    expect(derivedIndexes(context)).toEqual([17, 0, 18, 18]);
+    expect(payload).toEqual(buildDepositPayload(1018n, asset, 1n, entrypoint.address));
+  });
+
+  it('continues queued operations after a rejected signer operation', async () => {
+    const { manager, getDepositSecrets } = setup();
+
+    getDepositSecrets.mockRejectedValueOnce(new Error('Signer cancelled'));
+
+    const [cancelled, registered, shield] = await Promise.allSettled([
+      manager.getDepositPayload({ asset, amount: 1n }),
+      manager.registerDepositIndex(17),
+      manager.getDepositPayload({ asset, amount: 1n }),
+    ]);
+
+    expect(cancelled.status).toBe('rejected');
+    expect(registered).toEqual({ status: 'fulfilled', value: true });
+    expect(shield).toEqual({
+      status: 'fulfilled',
+      value: buildDepositPayload(1018n, asset, 1n, entrypoint.address),
     });
   });
 

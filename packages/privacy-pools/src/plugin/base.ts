@@ -38,6 +38,7 @@ import {
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
   PPv1ShieldEstimate,
+  PPv1ShieldOptions,
   PPv1ViewOptions,
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
@@ -195,7 +196,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   async prepareShield(
     assets: PPv1AssetAmount,
-    options?: string | { depositIndex?: number },
+    options?: string | PPv1ShieldOptions,
   ): Promise<PPv1PublicOperation> {
     const { asset, amount } = assets;
 
