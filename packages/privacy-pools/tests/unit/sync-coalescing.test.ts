@@ -52,14 +52,19 @@ const asyncStorage = () => {
   };
 };
 
-const setupManager = (dataService = emptyChainDataService(), storage = asyncStorage()) => ({
+const shieldParams = { asset: BigInt(asset.contract) as Address, amount: 1n };
+
+const setupManager = (
+  dataService = emptyChainDataService(),
+  storage = asyncStorage(),
+  getDepositSecrets = vi.fn(async () => ({ nullifier: 1n, salt: 2n, precommitment: 999n, nullifierHash: 5n })),
+) => ({
   dataService,
   storage,
+  getDepositSecrets,
   manager: storeStateManager({
     dataService: dataService as unknown as IDataService,
-    secretManager: {
-      getDepositSecrets: async () => ({ nullifier: 1n, salt: 2n, precommitment: 999n, nullifierHash: 5n }),
-    } as unknown as ISecretManager,
+    secretManager: { getDepositSecrets } as unknown as ISecretManager,
     aspService: {} as IAspService,
     entrypoint,
     storageToSyncTo: storage as unknown as Storage,
@@ -192,7 +197,40 @@ describe('credential operation synchronization', () => {
     await expect(registration).resolves.toBe(false);
   });
 
-  it('waits for hardware derivation before starting sync', async () => {
+  it('runs a shield between a running sync and its follow-up', async () => {
+    const { manager, dataService, getDepositSecrets } = setupManager();
+    const release = holdFirstHead(dataService, [200n, 201n]);
+
+    const first = manager.sync();
+
+    await vi.waitFor(() => expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1));
+
+    const shield = manager.getDepositPayload(shieldParams);
+    const followUp = manager.sync();
+
+    await flush();
+    expect(getDepositSecrets).not.toHaveBeenCalled();
+
+    release();
+    await Promise.all([first, shield, followUp]);
+
+    expect(dataService.getEntrypointEvents.mock.calls.map(([{ toBlock }]) => toBlock)).toEqual([200n, 201n]);
+    // Discovery in the first sync derives first, then the shield, then the follow-up's head.
+    expect(getDepositSecrets.mock.invocationCallOrder[1]).toBeLessThan(dataService.getBlockNumber.mock.invocationCallOrder[1]!);
+  });
+
+  it('runs a queued sync after a rejected shield', async () => {
+    const { manager, dataService, getDepositSecrets } = setupManager();
+
+    getDepositSecrets.mockRejectedValueOnce(new Error('Signer cancelled'));
+
+    const results = await Promise.allSettled([manager.getDepositPayload(shieldParams), manager.sync()]);
+
+    expect(results.map(({ status }) => status)).toEqual(['rejected', 'fulfilled']);
+    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['registration', 'shield'] as const)('waits for %s derivation before starting sync', async (operation) => {
     let release!: () => void;
     let entered!: () => void;
 
@@ -229,7 +267,9 @@ describe('credential operation synchronization', () => {
       devOptions: TEST_STORE_DEV_OPTIONS,
     } as never);
 
-    const registration = manager.registerDepositIndex(17);
+    const deriving = operation === 'registration'
+      ? manager.registerDepositIndex(17)
+      : manager.getDepositPayload(shieldParams);
     await started;
 
     const syncing = manager.sync();
@@ -239,7 +279,7 @@ describe('credential operation synchronization', () => {
 
     release();
 
-    await expect(registration).resolves.toBe(false);
+    await deriving;
     await syncing;
 
     expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);

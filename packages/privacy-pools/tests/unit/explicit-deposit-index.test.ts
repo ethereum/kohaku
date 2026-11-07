@@ -5,6 +5,7 @@ import type { Address } from '../../src/interfaces/types.interface';
 import type { PublicRootState } from '../../src/state/store';
 import { storeStateManager } from '../../src/state/state-manager';
 import { storeFactory } from '../../src/state/store';
+import { buildDepositPayload } from '../../src/state/selectors/deposits.selector';
 import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerEntrypointDeposits } from '../../src/state/slices/entrypointDepositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
@@ -158,6 +159,35 @@ const derivedIndexes = (getDepositSecrets: DepositSecretsMock) =>
 
 const noteIndexes = async ({ manager }: Pick<ReturnType<typeof setup>, 'manager'>) =>
   (await manager.getNotes({})).map(note => note.deposit).sort((a, b) => a - b);
+
+/** Holds the signer at `gatedIndex` and records how many derivations overlap. */
+const gateSigner = (getDepositSecrets: DepositSecretsMock, gatedIndex: number) => {
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const overlap = { active: 0, maximum: 0 };
+
+  getDepositSecrets.mockImplementation(async ({ depositIndex }) => {
+    overlap.active++;
+    overlap.maximum = Math.max(overlap.maximum, overlap.active);
+
+    try {
+      if (depositIndex === gatedIndex) {
+        entered();
+        await gate;
+      }
+
+      return depositSecret(depositIndex);
+    } finally {
+      overlap.active--;
+    }
+  });
+
+  return { release, started, overlap };
+};
+
+const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 describe('explicit deposit index registration', () => {
   it('rejects invalid indexes', async () => {
@@ -402,6 +432,65 @@ describe('explicit deposit index registration', () => {
 
     await expect(manager.getDepositPayload(explicit))
       .rejects.toThrow('Deposit index already registered');
+  });
+
+  it('allocates a shield after an in-flight registration without overlapping the signer', async () => {
+    const { manager, getDepositSecrets } = setup();
+    const { release, started, overlap } = gateSigner(getDepositSecrets, 17);
+
+    const registration = manager.registerDepositIndex(17);
+
+    await started;
+
+    const shield = manager.getDepositPayload({ asset, amount: 1n });
+
+    await flush();
+    expect(getDepositSecrets).toHaveBeenCalledTimes(1);
+
+    release();
+
+    const [registered, payload] = await Promise.all([registration, shield]);
+
+    expect(registered).toBe(true);
+    expect(overlap.maximum).toBe(1);
+    expect(derivedIndexes(getDepositSecrets)).toEqual([17, 0, 18, 18]);
+    expect(payload).toEqual(buildDepositPayload(1018n, asset, 1n, entrypoint.address));
+  });
+
+  it('rejects an explicit shield on an index registered while it waited', async () => {
+    const { manager, getDepositSecrets } = setup();
+    const { release, started } = gateSigner(getDepositSecrets, 17);
+
+    const registration = manager.registerDepositIndex(17);
+
+    await started;
+
+    const shield = manager.getDepositPayload({ asset, amount: 1n, depositIndex: 17 });
+    const outcome = expect(shield).rejects.toThrow('Deposit index already registered');
+
+    await flush();
+    release();
+
+    await Promise.all([registration, outcome]);
+  });
+
+  it('continues queued operations after a rejected signer operation', async () => {
+    const { manager, getDepositSecrets } = setup();
+
+    getDepositSecrets.mockRejectedValueOnce(new Error('Signer cancelled'));
+
+    const [cancelled, registered, shield] = await Promise.allSettled([
+      manager.getDepositPayload({ asset, amount: 1n }),
+      manager.registerDepositIndex(17),
+      manager.getDepositPayload({ asset, amount: 1n }),
+    ]);
+
+    expect(cancelled).toMatchObject({ status: 'rejected', reason: new Error('Signer cancelled') });
+    expect(registered).toEqual({ status: 'fulfilled', value: true });
+    expect(shield).toEqual({
+      status: 'fulfilled',
+      value: buildDepositPayload(1018n, asset, 1n, entrypoint.address),
+    });
   });
 
   it('continues queued registration after a rejected registration', async () => {
