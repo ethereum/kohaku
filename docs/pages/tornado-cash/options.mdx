@@ -53,7 +53,9 @@ const receipts = await createTCBroadcaster(host, {
 
 The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler and waits for its receipt. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
 
-Every paymaster unshield pays the EIP-7702 sender first, including a single note; without user tail calls, the execution phase forwards the amount minus the fee to the requested recipient. This avoids the paymaster rejecting the nonzero execution gas limit that bundlers inject during estimation. When an unshield spends multiple notes, the SDK consolidates them into this same user operation automatically. The first note covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in the execution phase (tail calls) of that same user operation. You do not need to supply `tailCalls` to enable this consolidation.
+A **single-note withdrawal without `tailCalls`** pays the requested recipient directly during validation. Its unused gas-fee refund also goes directly to that recipient. The SDK estimates this path through the host RPC with empty execution calldata and `callGasLimit = 0`, then simulates the final operation. No withdrawal proceeds or refund are routed to the EIP-7702 sender, so random delegation is safe for this path.
+
+**Multi-note withdrawals and withdrawals with `tailCalls` require a securely recoverable sender. Never use `delegation: { mode: 'random' }` for either path.** They pay the EIP-7702 sender before execution. Without user tail calls, execution forwards the amount minus the fee to the requested recipient. When an unshield spends multiple notes, the SDK consolidates them into one user operation automatically: the first note covers paymaster sponsorship, and subsequent notes run as direct pool withdrawals in execution. You do not need to supply `tailCalls` to enable this consolidation. One UserOperation can therefore still be a multi-note withdrawal.
 
 User-supplied `tailCalls` run after those withdrawals in the same user operation. The callback receives the sender that will execute them. `tailCallsGasEstimate` is the initial gas budget for that phase. User tail calls always require successful bundler estimation; a supplied gas estimate alone does not enable fallback. Estimates can increase the conservative gas floors, and the final signed operation is estimated again after fee/proof changes.
 
@@ -65,15 +67,17 @@ If fee history is unavailable or malformed, the SDK uses the latest block's base
 
 Validation gas remains bounded at twice the local baseline. The default pre-verification ceiling is twice `(350,000 + 40 × variable payload bytes)`, including calldata and paymaster data, so it grows with large batches instead of imposing a fixed 200,000-gas limit. These are conservative Ethereum allowances; `maxGasLimits` can replace individual gas ceilings for deployments with different requirements.
 
-Execution gas can increase with successful estimation, including for expensive tail calls. `tailCallsGasEstimate` remains an initial estimate, not a ceiling. To set an explicit limit, pass `maxGasLimits: { callGasLimit: 5_000_000n }` alongside your other paymaster options. All ceilings apply after the estimation buffer, and a bounds violation throws rather than entering fallback.
+For multi-note withdrawals or withdrawals with `tailCalls`, execution gas can increase with successful estimation, including for expensive tail calls. `tailCallsGasEstimate` remains an initial estimate, not a ceiling. To set an explicit limit, pass `maxGasLimits: { callGasLimit: 5_000_000n }` alongside your other paymaster options. All ceilings apply after the estimation buffer, and a bounds violation throws rather than entering fallback.
 
-There is no default execution-gas ceiling: without an explicit `callGasLimit` ceiling, the bundler can increase the proof-bound fee through its execution estimate, up to the sponsoring note's affordability limit. Review that fee or set an absolute ceiling when using an untrusted bundler. Deploy matching Tornado main and worker bundles together so the restricted host network bridge is available.
+On those execution paths, there is no default execution-gas ceiling: without an explicit `callGasLimit` ceiling, the bundler can increase the proof-bound fee through its execution estimate, up to the sponsoring note's affordability limit. Review that fee or set an absolute ceiling when using an untrusted bundler. Deploy matching Tornado main and worker bundles together so the restricted host network bridge is available.
 
 There is no percentage fee cap: a small note may deliberately spend most of its value on sponsorship. The fee must still fit within the sponsoring note. Newly prepared withdrawals expose `fee` and `withdrawnValue`; older stored payloads may omit them. Show the proof-bound fee before submission. Bundler traffic, including estimation and receipt polling, uses `host.network.fetch`; make sure your host proxy or allowlist permits the configured bundler. Preparation sends signed operations for estimation, which a bundler can submit, so it is not a dry run.
 
 ### Gas-estimation availability
 
-`gasEstimationPolicy` defaults to `'best-effort'`. On mainnet and Sepolia, standard withdrawals without user tail calls may use conservative fallback gas when estimation is unavailable. The sender must be recoverable (the default or an explicit deterministic path); random senders require successful estimation. Known validation rejections, invalid responses and non-convergence still fail. Fallback is limited to recognized transport failures or the bundler's opaque `could not parse simulate validation result` internal error, not every JSON-RPC error.
+Single-note withdrawals without `tailCalls` require successful host-RPC estimation and final full-operation simulation with `callGasLimit = 0`. They never use conservative fallback gas, including when `gasEstimationPolicy` is `'best-effort'`.
+
+`gasEstimationPolicy` defaults to `'best-effort'`. On mainnet and Sepolia, multi-note withdrawals without user tail calls may use conservative fallback gas when estimation is unavailable. The sender must be recoverable through default or explicit-path deterministic delegation; random and external signers never use fallback. Successful estimation does not make random delegation safe for multi-note withdrawals. Known validation rejections, invalid responses and non-convergence still fail. Fallback is limited to recognized transport failures or the bundler's opaque `could not parse simulate validation result` internal error, not every JSON-RPC error.
 
 Read-only estimation requests retry recognized temporary transport failures once using the same signed payload. This does not retry broadcasts. Eligible fallbacks rebuild the fee, sponsoring proof, forwarding calls and signature using a pre-verification budget of 350,000 gas plus 40 gas per variable calldata/paymaster-data byte, retaining any higher previously refined limits. This is a conservative heuristic, not a promise of bundler acceptance. It may cost more than measured gas, and its fee must remain below the sponsoring note's denomination.
 
@@ -83,17 +87,21 @@ Use `gasEstimationPolicy: 'required'` when preparing an unshield to require a su
 
 ### Delegation
 
-`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for all paymaster unshields, including a single note. The delegator holds the withdrawn funds along the way and may receive unused-gas refunds after forwarding, so use a key the wallet can recover. The default is derived from the first note; `random` explicitly opts out of recovery.
+`delegation` picks the account that signs the EIP-7702 authorization and the user operation. It is honored for all paymaster unshields. Only a single-note withdrawal with no `tailCalls` pays the recipient and its refund directly without routing funds through this account. Multi-note withdrawals and withdrawals with `tailCalls` pay the sender first and can leave principal or refunds there, so its key must remain securely recoverable. The default is derived from the first note; `random` discards the key.
 
 | Value | Delegator |
 | --- | --- |
 | omitted, or `{ mode: 'deterministic' }` | An ephemeral address derived from the batch's first deposit. Recoverable from the seed. |
 | `{ mode: 'deterministic', path }` | The key at `path`, via `keystore.deriveAt`. Use a normal wallet path when you want a stable address. Its current EOA transaction count is used for the EIP-7702 authorization, so prior EOA transactions are allowed. The host must allow the path. The plugin lets the worker derive exactly this path, nothing else outside `m/29795'/1'`. |
-| `{ mode: 'random' }` | A throwaway key that is discarded. Failed, empty, or incomplete execution can permanently strand the net withdrawal; a later gas refund is also unrecoverable even if execution succeeds. |
+| `{ mode: 'random' }` | **Safe ONLY for exactly one note with `tailCalls` omitted. UNSAFE for all multi-note withdrawals and any `tailCalls`.** Its discarded key makes any sender balance permanently inaccessible. |
 
-Do not use `random` in production unless you knowingly accept irreversible loss of any sender balance. Every sponsored withdrawal pays this sender first, including a single note. The paymaster sends any unused gas-fee refund in `postOp`, after the forwarding call, so that refund cannot be forwarded by the same operation. Prefer the default deterministic delegation.
+> **Random delegation is safe ONLY for single-note withdrawals without `tailCalls`. NEVER use it for multi-note withdrawals or any withdrawal with `tailCalls`.**
+>
+> In those unsafe paths, execution failure can permanently strand the sponsoring note's proceeds on the sender. The paymaster's unused gas-fee refund arrives in `postOp`, after execution, so it can remain inaccessible even when forwarding succeeds. Successful estimation or forwarding does not make the random sender safe. Use a securely recoverable deterministic or external signer.
 
-Every paymaster withdrawal uses EntryPoint UserOperation nonce zero, so the same sender cannot submit a second UserOperation. Note-derived and random senders also sign the EIP-7702 authorization with EOA nonce zero; only an explicit wallet path can authorize at a nonzero EOA nonce. The two nonce values are independent.
+The number of **notes**, not UserOperations, determines whether this is safe. Check the notes selected by the SDK; a single UserOperation can spend multiple notes. Omit `tailCalls` entirely for the safe single-note path: even `tailCalls: async () => []` selects the unsafe execution path. The SDK currently permits random delegation on those unsafe paths; applications must enforce this safety requirement before preparation.
+
+Every paymaster withdrawal uses EntryPoint UserOperation nonce zero, so the same sender cannot submit a second UserOperation. Note-derived and random senders also sign the EIP-7702 authorization with EOA nonce zero; explicit wallet-path and external signers use their current EOA transaction count for authorization. The two nonce values are independent.
 
 ```ts
 await tornado.prepareUnshield(asset, recipient, {

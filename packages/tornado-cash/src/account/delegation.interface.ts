@@ -23,20 +23,30 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
  * - `deterministic` (default): recoverable. With `path`, the delegator is a
  *   classical wallet-path address; without `path`, an ephemeral address keyed by
  *   the batch's first deposit.
- * - `random`: an expert-only, throwaway EOA whose private key is discarded.
- *   Batches and withdrawals with `tailCalls` pay it before execution; failed,
- *   empty, or incomplete execution can permanently strand the net withdrawal.
- *   Their postOp gas refund arrives after forwarding and is also irrecoverable
- *   even when execution succeeds. A direct single-note withdrawal pays the
- *   recipient (including its refund). Do not use random execution unless you
- *   deliberately accept those losses and know exactly why this mode is needed.
+ * - `random`: SAFE ONLY FOR A SINGLE-NOTE WITHDRAWAL WITH NO `tailCalls`.
+ *   That direct-payout path uses `callGasLimit = 0` and sends both the withdrawal
+ *   and its gas refund to the requested recipient, never to the throwaway sender.
+ *   UNSAFE FOR ALL MULTI-NOTE WITHDRAWALS AND ANY WITHDRAWAL WITH `tailCalls`,
+ *   even a callback returning no calls. Those paths pay the sender in validation;
+ *   an execution failure can strand the principal, and the later postOp refund
+ *   can remain there even after successful forwarding. The random private key
+ *   is discarded, so these funds are permanently inaccessible. Successful gas
+ *   estimation does NOT make random delegation safe for those paths. Use a
+ *   securely recoverable deterministic or external signer instead.
  * - `external`: an explicitly selected host signer. Its key stays on the host;
  *   only scoped signing requests and verified signatures cross the worker bridge.
  *   Successful estimation and final simulation are required even with best-effort policy.
  */
 export type DelegationConfig =
   | { mode: 'deterministic'; path?: string }
-  | { mode: 'random' }
+  | {
+    /**
+     * SAFE ONLY for exactly one note with `tailCalls` omitted.
+     * NEVER use for multi-note withdrawals or any `tailCalls`: the discarded
+     * sender key makes stranded principal and gas refunds permanently inaccessible.
+     */
+    mode: 'random';
+  }
   | { mode: 'external'; signer: DelegatorAccount };
 
 /** Plain-data representation sent to the worker; callbacks use a separate port. */
