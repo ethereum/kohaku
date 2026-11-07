@@ -1,9 +1,8 @@
 import { unwrapResult } from '@reduxjs/toolkit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { RpcRequestError, decodeFunctionData, toHex } from 'viem';
+import { RpcRequestError, toHex } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
-import { SIMPLE_7702_EXECUTE_ABI } from '../../src/data/abis/account.abi';
 import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
 import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdrawThunk';
@@ -57,8 +56,13 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
 
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
     dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote, getAccountNonce: fixture.getAccountNonce },
-    provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber'
-      ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n) },
+    provider: { request: async ({ method }: { method: string }) => {
+      if (method === 'eth_getBlockByNumber') return { baseFeePerGas: toHex(1_000_000_000_000n) };
+
+      if (method === 'eth_maxPriorityFeePerGas') return toHex(1n);
+
+      throw new Error(`Unexpected host RPC method: ${method}`);
+    } },
     assetAddress: fixture.isERC20 ? 2n : 0n,
     amount: BigInt(fixture.count) * 10n ** 18n,
     recipient: 3n,
@@ -74,11 +78,93 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
 }
 
 describe('paymaster withdrawal preparation integration', () => {
+  const incompatibleEstimator = () => new RpcRequestError({
+    url: 'https://bundler.invalid', body: {}, error: {
+      code: -32501,
+      message: 'AA33 reverted 0x54107e370000000000000000000000000000000000000000000000000000000000989680',
+    },
+  });
+
+  it.each(['random', 'deterministic', 'external'] as const)('keeps direct payout when bundler estimation is incompatible for a %s sender', async mode => {
+    fixture.count = 1;
+    fixture.isERC20 = true;
+    const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
+    const delegation: DelegationConfig = mode === 'external' ? { mode, signer: account as DelegatorAccount } : { mode };
+
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
+    const [withdrawal] = await prepare(delegation);
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'bundler-internal' });
+    expect(BigInt(withdrawal!.userOperation.verificationGasLimit)).toBe(150_000n);
+    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBe(300_000n);
+    expect(BigInt(withdrawal!.userOperation.paymasterVerificationGasLimit!)).toBe(1_200_000n);
+    expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
+    expect(BigInt(withdrawal!.proof.args[4])).toBe(fixture.fees.at(-1));
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(2);
+    expect(fixture.fees.at(-1)).toBeGreaterThan(fixture.fees[0]!);
+    expect(fixture.quote).toHaveBeenCalledTimes(2);
+    expect(fixture.estimate).toHaveBeenCalledTimes(1);
+    expect(fixture.estimate.mock.calls[0]![0].callGasLimit).toBe('0x0');
+  });
+
+  it('allows marked direct fallback after a transport outage on mainnet', async () => {
+    fixture.count = 1;
+    fixture.chainId = 1n;
+    fixture.estimate.mockRejectedValue(Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' }));
+    const [withdrawal] = await prepare();
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(withdrawal!.gasEstimation).toMatchObject({ status: 'fallback', reason: 'transport-unavailable' });
+    expect(BigInt(withdrawal!.userOperation.verificationGasLimit)).toBe(150_000n);
+    expect(BigInt(withdrawal!.userOperation.preVerificationGas)).toBe(300_000n);
+    expect(BigInt(withdrawal!.userOperation.paymasterVerificationGasLimit!)).toBe(650_000n);
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(BigInt(withdrawal!.proof.args[2])).toBe(3n);
+  });
+
+  it('requires successful bundler estimation under required policy', async () => {
+    fixture.count = 1;
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
+    await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toThrow('preparation stopped');
+    expect(fixture.estimate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not use direct fallback on an unknown chain', async () => {
+    fixture.count = 1;
+    fixture.chainId = 31337n;
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
+    await expect(prepare()).rejects.toThrow('preparation stopped');
+  });
+
+  it('rejects a direct fallback fee that would consume the note', async () => {
+    fixture.count = 1;
+    fixture.maxFeePerGas = 1_100_000_000_000n;
+    fixture.estimate.mockRejectedValue(incompatibleEstimator());
+    await expect(prepare()).rejects.toThrow('fee would consume the sponsoring note');
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
+  });
+
+  it.each([
+    { code: -32500, message: 'AA33 invalid proof' },
+    { code: -32500, message: 'AA24 signature error' },
+    { code: -32602, message: 'Invalid params' },
+    { code: -32603, message: 'Internal error' },
+  ])('rejects genuine or unclassified direct estimation failures: $message', async error => {
+    fixture.count = 1;
+    fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error }));
+    await expect(prepare()).rejects.toThrow('preparation stopped');
+  });
+
   beforeEach(() => {
     fixture.maxFeePerGas = 2n;
     fixture.maxPriorityFeePerGas = 1n;
     fixture.denomination = 10n ** 18n;
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.isERC20 = false;
     fixture.chainId = 11155111n;
     fixture.kind = 'signature';
@@ -100,12 +186,14 @@ describe('paymaster withdrawal preparation integration', () => {
     fixture.isERC20 = isERC20;
     const gas = reasonableGasUnitsForBatch(isERC20, count - 1, false);
 
-    fixture.estimate.mockImplementation(async (op: SerializedUserOperation) => {
+    const estimate = fixture.estimate;
+
+    estimate.mockImplementation(async (op: SerializedUserOperation) => {
       // The bundler searches execution gas with a 10M ceiling. The paymaster
       // rejects that ceiling if the sponsoring recipient differs from sender.
       const proofRecipient = fixture.proofRecipients.at(-1)!;
 
-      if (proofRecipient !== BigInt(op.sender)) {
+      if (proofRecipient !== (count === 1 ? 3n : BigInt(op.sender))) {
         throw new Error('AA33 reverted 0x54107e370000000000000000000000000000000000000000000000000000000000989680');
       }
 
@@ -118,32 +206,31 @@ describe('paymaster withdrawal preparation integration', () => {
 
     if (withdrawal.mode !== 'paymaster') throw new Error('Expected paymaster payload');
 
-    expect(fixture.estimate).toHaveBeenCalledTimes(2);
-    expect(fixture.estimate).toHaveBeenLastCalledWith(withdrawal.userOperation);
+    expect(estimate).toHaveBeenCalledTimes(2);
+    expect(estimate).toHaveBeenLastCalledWith(withdrawal.userOperation);
     expect(BigInt(withdrawal.userOperation.preVerificationGas)).toBe(337_512n);
     const sponsoringFees = fixture.fees.filter((fee) => fee > 0n);
 
     expect(sponsoringFees).toHaveLength(2);
     expect(sponsoringFees[1]).toBeGreaterThan(sponsoringFees[0]!);
     expect(BigInt(withdrawal.proof.args[4])).toBe(sponsoringFees[1]);
-    expect(withdrawal.userOperation.callData).not.toBe('0x');
-    expect(BigInt(withdrawal.userOperation.callGasLimit)).toBeGreaterThan(0n);
-    expect(BigInt(withdrawal.proof.args[2])).toBe(BigInt(withdrawal.userOperation.sender));
 
     if (count === 1) {
-      const call = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: withdrawal.userOperation.callData });
-
-      expect(call.functionName).toBe('execute');
-      expect(BigInt(call.args![0] as string)).toBe(isERC20 ? 2n : 3n);
-
-      if (!isERC20) expect(call.args![1]).toBe(10n ** 18n - BigInt(withdrawal.proof.args[4]));
+      expect(withdrawal.userOperation.callData).toBe('0x');
+      expect(withdrawal.userOperation.callGasLimit).toBe('0x0');
+      expect(BigInt(withdrawal.proof.args[2])).toBe(3n);
+      expect(withdrawal.gasEstimation).toEqual({ status: 'estimated' });
+    } else {
+      expect(withdrawal.userOperation.callData).not.toBe('0x');
+      expect(BigInt(withdrawal.userOperation.callGasLimit)).toBeGreaterThan(0n);
+      expect(BigInt(withdrawal.proof.args[2])).toBe(BigInt(withdrawal.userOperation.sender));
     }
 
     expect(fixture.quote).toHaveBeenCalledTimes(isERC20 ? 2 : 0);
   });
 
   it('uses EOA nonce zero for note-derived senders and the current EOA nonce for an explicit wallet path', async () => {
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.isERC20 = false;
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 281_260n });
     const [noteDerived] = await prepare(null);
@@ -224,7 +311,7 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('allows explicit best-effort fallback for a recoverable standard withdrawal and exposes metadata', async () => {
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
     const [withdrawal] = await prepare(null);
@@ -237,7 +324,7 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('supports legacy-note fallback with a recoverable legacy-derived sender', async () => {
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.kind = 'legacy';
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
@@ -252,7 +339,7 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('does not guess Ethereum fallback budgets for an unknown chain', async () => {
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.chainId = 31337n;
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
@@ -260,16 +347,16 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('rejects a fallback fee that would consume the sponsoring note before generating another proof', async () => {
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.isERC20 = false;
-    fixture.maxFeePerGas = 1_000_000_000_000n;
+    fixture.maxFeePerGas = 700_000_000_000n;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
     await expect(prepare(null)).rejects.toMatchObject({ message: expect.stringContaining('fee would consume the sponsoring note') });
-    expect(fixture.fees).toHaveLength(1);
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
   });
 
-  it('does not fallback for strict callers, random senders, or user tail calls', async () => {
-    fixture.count = 1;
+  it('does not fallback on execution paths for strict callers, random senders, or user tail calls', async () => {
+    fixture.count = 2;
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
     await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
@@ -278,7 +365,7 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('rejects preparation instead of returning a baseline signed operation', async () => {
-    fixture.count = 1;
+    fixture.count = 2;
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new Error('bundler is offline'));
     await expect(prepare()).rejects.toMatchObject({ message: expect.stringContaining('gas estimation failed: bundler is offline') });
@@ -349,15 +436,16 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('enforces explicit execution ceilings without falling back or proving the inflated result', async () => {
+    fixture.count = 1;
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, true), callGasLimit: 1_000_000n });
     await expect(prepare(null, { tailCalls: async () => [{ to: '0x0000000000000000000000000000000000000003', value: 0n, data: '0x' }], maxGasLimits: { callGasLimit: 500_000n } })).rejects.toMatchObject({ message: expect.stringContaining('callGasLimit') });
-    expect(fixture.fees).toHaveLength(1);
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
   });
 
   it('rejects inflated fully charged pre-verification gas before rebuilding', async () => {
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 10_000_000n });
     await expect(prepare(null)).rejects.toMatchObject({ message: expect.stringContaining('preVerificationGas') });
-    expect(fixture.fees).toHaveLength(1);
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
   });
 
 });

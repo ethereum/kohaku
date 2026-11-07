@@ -11,7 +11,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
-import { computeMinimumViableFee, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
@@ -172,12 +172,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     );
   };
 
-  // The shared delegator that owns the consolidated userOp. All withdrawals land
-  // in this EOA and are then spent by the execution phase (tailCalls or the
-  // synthesized forward). Any postOp refund can remain on the sender, so it
-  // is recoverable by default; `random` opts out.
+  // The shared delegator owns the userOp. Execution-phase withdrawals land
+  // here before tailCalls or synthesized forwarding; postOp refunds can remain
+  // here too. It is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
     if (delegation?.mode === 'external') return delegation.signer;
+
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
     if (delegation?.mode === 'deterministic' && delegation.path) {
@@ -189,11 +189,17 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // Always withdraw to the 7702 sender before forwarding or running tail calls,
-  // including for one note. Bundlers replace callGasLimit with a nonzero search
-  // ceiling during estimation (e.g. 10M). A proof bound to a different recipient
-  // would trigger CallGasLimitNonZero even if the requested final limit is zero.
-  // The default sender is note-derived so any postOp refund remains recoverable.
+  // A single note without tail calls pays the recipient in validation, with
+  // postOp refunding that same recipient. Keep execution gas/calldata empty even
+  // in best-effort fallback: simulation is not what makes a throwaway sender safe.
+  // Try bundler estimation; eligible fallback also preserves zero execution gas
+  // when the estimator substitutes an incompatible nonzero search limit.
+  const validationOnly = deposits.length === 1 && tailCalls == null;
+  // Fallback can still be rejected or miss a postOp refund. Gas/fee bounds
+  // remain enforced; simulation availability does not change payout custody.
+  const allowFallback = gasEstimationPolicy === 'best-effort' && tailCalls == null &&
+    (chainId === 1 || chainId === 11155111) &&
+    (validationOnly || (delegation?.mode !== 'random' && delegation?.mode !== 'external'));
   let signer = await resolveBatchDelegator();
   const senderAddress = BigInt(signer.address) as Address;
   // Explicit wallet-path and external senders may have prior EOA transactions.
@@ -267,14 +273,14 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       gas,
       maxFeePerGas,
       maxPriorityFeePerGas,
-      tailCalls: composeTailCalls(fee),
+      tailCalls: validationOnly ? undefined : composeTailCalls(fee),
       nonce: 0n,
       authorizationNonce,
     });
 
   // Every refinement re-quotes the pool asset, re-proves the sponsoring
   // deposit and rebuilds forwarding calldata/signature before final estimation.
-  const baselineGas = reasonableGasUnitsForBatch(
+  const baselineGas = validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,
@@ -289,15 +295,13 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         throw new Error('Tornado paymaster fee would consume the sponsoring note. Use a larger note or wait for lower gas prices.');
       }
 
-      const sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
+      const sponsoringProof = await prove(sponsoringDeposit, validationOnly ? originalRecipient : senderAddress, relayerAddress, fee);
       const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
       return { sponsoringProof, userOperation, fee };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
-      allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
-        delegation?.mode !== 'random' && delegation?.mode !== 'external' && (chainId === 1 || chainId === 11155111) },
+    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20), allowFallback, isERC20: poolInfo.isERC20 },
   );
 
   return [{

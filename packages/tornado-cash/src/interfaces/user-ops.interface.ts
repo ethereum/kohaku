@@ -66,7 +66,9 @@ export interface BuildSignedTornadoUserOpParams {
    *  while the EntryPoint nonce remains 0. */
   authorizationNonce?: bigint;
 }
-/** Best effort applies only to standard, recoverable withdrawals without user tail calls. */
+/** Best effort permits marked fallback for direct single-note withdrawals
+ * (including random/external senders), or recoverable execution-phase withdrawals
+ * without user tail calls, on mainnet/Sepolia. Known invalidity still fails. */
 export type GasEstimationPolicy = 'required' | 'best-effort';
 
 /** Preparation quality; fallback is not a claim that simulation succeeded. */

@@ -12,7 +12,8 @@ const MAX_ESTIMATION_ATTEMPTS = 3;
  * Gas limits affect both the account signature and the fee committed in the
  * sponsoring withdrawal proof. Rebuild them together, then estimate that exact
  * signed payload. Unestimated fallback requires explicit eligibility from the
- * caller, is limited to availability failures, and is marked in the result.
+ * caller, is limited to availability failures or a known estimator incompatibility,
+ * and is marked in the result.
  */
 export async function buildEstimatedTornadoUserOp<T extends { userOperation: SerializedUserOperation }>(
   baseline: UserOpGasLimits,
@@ -20,6 +21,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
   options: {
     allowFallback?: boolean;
+    isERC20?: boolean;
     validateGas?: (gas: UserOpGasLimits, operation?: SerializedUserOperation) => void;
   } = {},
 ): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
@@ -40,19 +42,19 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       const details = cause instanceof Error && 'details' in cause && typeof cause.details === 'string'
         ? cause.details : cause instanceof Error ? cause.message.split('\n')[0] : String(cause);
 
-      const reason = estimationUnavailableReason(cause);
+      const reason = estimationUnavailableReason(cause, prepared.userOperation);
 
       if (options.allowFallback && reason) {
         // Rebuild at the fallback fee before returning anything. Never patch
         // gas on the old signed operation or reuse its fee-bearing proof.
-        const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation);
+        const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation, options.isERC20 ?? false);
 
         options.validateGas?.(fallbackGas, prepared.userOperation);
         const fallback = await build(fallbackGas);
 
         options.validateGas?.(fallbackGas, fallback.userOperation);
 
-        if (tornadoFallbackGas(fallbackGas, fallback.userOperation).preVerificationGas > fallbackGas.preVerificationGas) {
+        if (tornadoFallbackGas(fallbackGas, fallback.userOperation, options.isERC20 ?? false).preVerificationGas > fallbackGas.preVerificationGas) {
           throw new Error('Tornado fallback payload size changed during preparation; use required gas estimation.');
         }
 

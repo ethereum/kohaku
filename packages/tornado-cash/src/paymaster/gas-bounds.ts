@@ -1,5 +1,6 @@
 import type { EthereumProvider } from '@kohaku-eth/provider';
 import { size } from 'viem';
+import { SINGLE_NOTE_FALLBACK_ERC20_PAYMASTER_GAS } from './fallback';
 import type { SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
 
 /** Optional absolute gas ceilings, in gas units, including estimation buffers. */
@@ -9,6 +10,10 @@ type FeeReference = { baseFeePerGas: bigint; maxPriorityFeePerGas: bigint };
 type GasPrice = { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
 const GAS_FIELDS = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas',
   'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
+
+// Keep the existing ceiling for successful estimates, independently of the
+// 150k single-note fallback account-validation target.
+const DIRECT_VERIFICATION_GAS_CEILING = 250_000n;
 
 const MIN_TIP_CAP = 2_000_000_000n;
 const MAX_TIP_CAP = 20_000_000_000n;
@@ -99,11 +104,16 @@ export function assertGasLimitsWithinBounds(
   baseline: UserOpGasLimits,
   operation?: SerializedUserOperation,
   limits: PaymasterGasLimits = {},
+  isERC20 = false,
 ): void {
   const bytes = operation ? BigInt(size(operation.callData) + size(operation.paymasterData ?? '0x')) : 0n;
+  const direct = operation?.callData === '0x' && operation.callGasLimit === '0x0';
   const defaults: PaymasterGasLimits = {
-    verificationGasLimit: baseline.verificationGasLimit * 2n,
-    paymasterVerificationGasLimit: baseline.paymasterVerificationGasLimit * 2n,
+    verificationGasLimit: direct &&
+      baseline.verificationGasLimit * 2n < DIRECT_VERIFICATION_GAS_CEILING
+      ? DIRECT_VERIFICATION_GAS_CEILING : baseline.verificationGasLimit * 2n,
+    paymasterVerificationGasLimit: direct && isERC20 && baseline.paymasterVerificationGasLimit * 2n < SINGLE_NOTE_FALLBACK_ERC20_PAYMASTER_GAS
+      ? SINGLE_NOTE_FALLBACK_ERC20_PAYMASTER_GAS : baseline.paymasterVerificationGasLimit * 2n,
     paymasterPostOpGasLimit: baseline.paymasterPostOpGasLimit * 2n,
     preVerificationGas: (350_000n + 40n * bytes) * 2n,
   };

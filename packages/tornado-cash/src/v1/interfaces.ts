@@ -40,10 +40,13 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     /**
-     * Default 'best-effort': on mainnet/Sepolia, standard withdrawals with a
-     * recoverable sender and no user tail calls may return marked fallback gas
-     * after recognized estimation availability failures. Use 'required' to
-     * reject every failed estimate. Actual validation rejections always fail.
+     * Single notes without tail calls pay the recipient and gas refund directly,
+     * with zero execution gas. Default 'best-effort': on mainnet/Sepolia, these
+     * direct withdrawals (including random/external senders), or execution-phase
+     * withdrawals with a recoverable sender and no user tail calls, may return
+     * marked fallback on bundler unavailability or the zero-execution estimator
+     * incompatibility. Use 'required' to require successful bundler estimation.
+     * Other validation rejections and gas/fee bounds violations always fail.
      */
     gasEstimationPolicy?: GasEstimationPolicy;
     mode: 'paymaster';
