@@ -240,6 +240,9 @@ export interface IDepositOperationParams extends IBaseOperationParams {
   depositIndex?: number;
 }
 
+/** Options for the plugin's prepareShield method. */
+export type PPv1ShieldOptions = Pick<IDepositOperationParams, 'depositIndex'>;
+
 export interface IGetBalancesOperationParams extends IBaseOperationParams {
   assets?: Address[];
   balanceType?: 'approved' | 'unapproved';
