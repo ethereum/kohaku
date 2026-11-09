@@ -91,7 +91,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
     await anvil.stop();
   });
 
-  it('[paymaster] consolidates three notes into one sponsored withdrawal', { timeout: 300_000 }, async () => {
+  it.each([false, true])('[paymaster] consolidates three notes, obfuscateAmounts=%s', { timeout: 300_000 }, async obfuscateAmounts => {
     const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
     const provider = await pool.getProvider();
     const host = createMockHost({ rpcUrl: pool.rpcUrl });
@@ -155,11 +155,13 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
 
     const approvedBefore = unwrapBalance(await protocol.balance([nativeAsset]), nativeAsset).approved?.amount ?? 0n;
 
-    // 3. Withdraw the whole approved balance — spans all three notes — with batch.
+    // 3. Explicitly choose a lower amount for obfuscation; retain the full-spend case.
+    const preview = await protocol.previewBatchUnshield({ asset: nativeAsset, amount: approvedBefore });
+    const grossAmount = obfuscateAmounts ? preview.suggestedAmount! : approvedBefore;
     const op = await protocol.prepareUnshield(
-      { asset: nativeAsset, amount: approvedBefore },
+      { asset: nativeAsset, amount: grossAmount },
       FINAL_RECIPIENT as AccountId,
-      { mode: 'paymaster', batch: true },
+      { mode: 'paymaster', batch: true, obfuscateAmounts },
     );
 
     if (op.mode !== 'paymaster') throw new Error('expected paymaster operation');
@@ -180,25 +182,29 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
 
     const recipientBefore = await provider.getBalance(FINAL_RECIPIENT);
 
-    expect(recipientBefore).toBe(0n);
-
     // 4. Broadcast + mine.
     await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
-    // 5. The consolidated forward paid the recipient (whole amount minus fee), and
-    //    all three notes were spent.
+    // 5. The recipient is paid and change remains recoverable through normal sync.
     const recipientAfter = await provider.getBalance(FINAL_RECIPIENT);
     const approvedAfter = unwrapBalance(await protocol.balance([nativeAsset]), nativeAsset).approved?.amount ?? 0n;
 
-    expect(recipientAfter).toBeGreaterThan(0n);
-    expect(recipientAfter).toBeLessThan(approvedBefore);
-    expect(approvedAfter).toBe(0n);
+    expect(recipientAfter - recipientBefore).toBeGreaterThan(0n);
+    expect(recipientAfter - recipientBefore).toBeLessThan(grossAmount);
+    expect(approvedAfter).toBe(approvedBefore - grossAmount);
+
+    if (obfuscateAmounts) {
+      const changeNotes = await protocol.notes([nativeAsset]);
+
+      expect(changeNotes).toHaveLength(3);
+      expect(changeNotes.every(note => note.balance > 0n && note.withdraw === 1)).toBe(true);
+    }
 
     // The paymaster's postOp refund (fee charged minus actual gas) is routed to the
     // real recipient via the adapter's `refundRecipient`, so the recipient nets
     // strictly more than the execution-phase forward alone — proving the overcharge
     // is no longer stranded on the ephemeral sender.
-    expect(recipientAfter).toBeGreaterThan(forward!.value);
+    expect(recipientAfter - recipientBefore).toBeGreaterThan(forward!.value);
   });
 });

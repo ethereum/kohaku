@@ -4,6 +4,7 @@ import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
 import { PaymasterBroadcastResult } from "../relayer/interfaces/paymaster-client.interface.js";
 import { IBaseRelayResponse, ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
+import type { PPv1BatchWithdrawalPlan } from '../withdrawal/batch-plan';
 
 export type PPv1BroadcasterParameters = {
     broadcasterUrl: string | Record<string, string>;
@@ -91,6 +92,7 @@ type PPv1PluginInstance<Credential extends PPv1Credentials> = PluginInstance<
             ragequit(labels: INote['label'][]): Promise<PPv1PublicOperation>,
             estimateShield(asset: PPv1AssetAmount): Promise<PPv1ShieldEstimate>,
             estimateUnshield(asset: AssetAmount, to: AccountId, options?: PPv1EstimateUnshieldOptions): Promise<PPv1UnshieldEstimate>,
+            previewBatchUnshield(asset: PPv1AssetAmount): Promise<PPv1BatchWithdrawalPlan>,
             sync(): Promise<void>,
             history(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1HistoryEvent[]>,
         },

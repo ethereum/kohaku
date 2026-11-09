@@ -67,6 +67,63 @@ await pools.prepareUnshield(asset, recipient, {
 
 Leave it off to spend a single note. If one note cannot cover `amount`, the call throws.
 
+### Leave change on every batched note
+
+The default largest-first allocation can fully spend several notes, exposing
+their exact balances together. The wallet can inspect that allocation before
+asking the user to confirm:
+
+```ts
+const privacy = await pools.previewBatchUnshield({ asset, amount })
+// privacy.fullySpentNoteCount, privacy.suggestedAmount, privacy.maxObfuscatedAmount
+```
+
+This syncs the account but creates no proof or signed user operation. Amounts in
+the preview are gross, before fees. `suggestedAmount` is present when a multi-note
+batch would fully spend notes; it leaves room for at least 5% change per selected
+note and never exceeds the request. It can equal the request when redistribution
+alone is enough. The wallet chooses what to suggest and the user chooses the amount.
+
+```ts
+const operation = await pools.prepareUnshield(
+  { asset, amount: chosenAmount },
+  recipient,
+  { mode: 'paymaster', batch: true, obfuscateAmounts: true },
+)
+```
+
+`obfuscateAmounts` preserves the requested total. For a multi-note batch, it reserves
+a cryptographically random 1–5% of each note's current balance, then withdraws
+against those reduced capacities, largest first. The last note supplies the
+remainder and can leave more than 5% change. Reserves round up to whole asset base
+units. Near the maximum, random draws are constrained by the available headroom;
+at the 1% boundary the split can be deterministic. An extra note can be selected
+if the original minimal set cannot leave enough change. Single-note batches keep
+their existing allocation.
+
+If the total is too close to the approved balance to leave at least 1% on every
+selected note, preparation throws `PPv1AmountObfuscationError` before generating
+proofs or requesting signatures. Its `requestedAmount`, `maxObfuscatedAmount`,
+and `suggestedAmount` fields are gross amounts. The SDK never silently reduces
+the total. Omit the option or set it to `false` to allow the original full-spend
+allocation. Using it without paymaster mode and `batch: true` throws.
+
+The remaining balance stays in each note's existing lineage and is recovered by
+normal sync. With `exact`, the requested recipient output stays unchanged and the
+headroom check includes fees; error suggestions are still gross, so do not use
+them directly as exact recipient amounts. `estimateUnshield` remains a fee preview,
+not a simulation of the batch's final execution gas or privacy allocation.
+
+For local planning without a sync, the package exports
+`planPPv1BatchWithdrawal(notes, assetAddress, amount, { obfuscateAmounts: true })`.
+Supply notes from one account and chain. Each call samples a fresh split;
+preparation samples once and retains that split through fee refinement. Treat
+the returned per-note information as private wallet data.
+
+This avoids full-balance matches but does not guarantee an anonymity set. The
+batch still links its withdrawals, and nearby deposit amounts, timing, change
+withdrawals and the aggregate total can still support correlation.
+
 ### Calls after the withdrawal
 
 `tailCalls` receives the sender address and returns extra transactions that run in the same user operation. `tailCallsGasEstimate` is the gas budget for that execution phase.

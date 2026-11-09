@@ -102,6 +102,13 @@ export interface PPv1PaymasterUnshieldOptions extends PPv1CommonUnshieldOptions 
   refundRecipient?: AccountId;
   /** Consolidate multiple approved notes to reach the amount in one sponsored userOp. */
   batch?: boolean;
+  /**
+   * Requires `batch: true`. For multi-note batches, randomize per-note withdrawals
+   * and leave at least 1% change on every note. Preserves the requested gross/net;
+   * throws PPv1AmountObfuscationError if insufficient headroom remains. Single-note
+   * batches are unchanged. Preview with `previewBatchUnshield` before preparing.
+   */
+  obfuscateAmounts?: boolean;
 }
 
 /**
@@ -261,6 +268,7 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
   batch?: boolean;
+  obfuscateAmounts?: boolean;
   /** Gas-overcharge refund target (postOp). Defaults to `recipient`. */
   refundRecipient?: Address;
 }

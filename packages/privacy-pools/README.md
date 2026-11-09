@@ -37,6 +37,34 @@ The plugin saves JSON under these keys, in `chainStorage` when it is set and oth
 
 Nothing is saved per account. States saved by earlier versions, under `privacy-pool-state-<chainId>-<entrypoint>`, and their history entries are no longer read: the chain is synced again, from the `initialState` snapshot if one is given. Snapshots and `dumpState()` keep the key without the version.
 
+## Batch amount obfuscation
+
+Pass `{ mode: 'paymaster', batch: true, obfuscateAmounts: true }` to
+`prepareUnshield` to preserve an explicit total while leaving change on every
+note in a multi-note batch. Non-final notes contribute a random 95–99% of their
+balance; the last supplies the remainder and can leave more change. Reserves
+round up to whole asset base units. Single-note batches are unchanged.
+
+The SDK never lowers the requested total. If there is insufficient headroom to
+leave at least 1% on every selected note, it throws the exported
+`PPv1AmountObfuscationError`, with `requestedAmount`, `maxObfuscatedAmount`, and
+`suggestedAmount` (all gross amounts, before fees). The wallet can suggest a lower
+amount or let the user proceed with obfuscation disabled.
+
+`await pools.previewBatchUnshield({ asset, amount })` syncs and returns the default
+allocation, `fullySpentNoteCount`, and a conservative `suggestedAmount` when a
+multi-note batch would fully spend notes. It creates no proof or signed operation.
+`planPPv1BatchWithdrawal(notes, assetAddress, amount, { obfuscateAmounts: true })`
+also exposes local planning using an existing account/chain snapshot. Preparation
+samples its own allocation and reuses it through fee refinement.
+
+Amounts are gross unless `exact` is supplied. Exact-output preparation checks
+headroom against the fee-inclusive gross; its error suggestions remain gross.
+Change follows the existing note lineage and is available after normal sync.
+The planner may select an extra note to leave enough headroom. Batching still
+links the withdrawals, and near-deposit amounts, timing and the total can remain
+identifying; this option makes no anonymity-set guarantee.
+
 ## External paymaster signing
 
 Paymaster unshields accept `delegation: { mode: 'external', signer }`. The exported

@@ -1,5 +1,7 @@
 export * from './v1';
 export * from './v2';
+export { planPPv1BatchWithdrawal, PPv1AmountObfuscationError } from './withdrawal/batch-plan';
+export type { PPv1BatchWithdrawalPlan } from './withdrawal/batch-plan';
 // Main factory
 export { PrivacyPoolsV1Protocol, PPv1ExactOutputError, DEFAULT_EXACT_GAS_BUMP_BPS } from './plugin/base';
 export { IPFSAspService } from './data/ipfsAsp.service.js';

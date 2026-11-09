@@ -9,6 +9,7 @@ import { SIMPLE_7702_IMPLEMENTATION } from '../../src/paymaster/utils';
 import { reasonableGasUnits, reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdrawThunk';
 import { storeFactory } from '../../src/state/store';
+import type { NoteToSpend } from '../../src/state/selectors/notes.selector';
 
 const fixture = vi.hoisted(() => ({
   count: 1, isERC20: false, nonce: 0, deployed: false,
@@ -47,7 +48,7 @@ function externalSigner() {
   const signAuthorization = vi.fn(account.signAuthorization), signTypedData = vi.fn(account.signTypedData);
   return { address: account.address, signAuthorization, signTypedData } as DelegatorAccount & { signAuthorization: typeof signAuthorization; signTypedData: typeof signTypedData };
 }
-async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<[]>) {
+async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<[]>, notesToSpend?: NoteToSpend[]) {
   const store = storeFactory({ logLevel: 'off', entrypointInfo: { chainId: 1n, entrypointAddress: 900n, deploymentBlock: 0n } });
   return store.dispatch(paymasterWithdrawThunk({
     dataService: { getTransactionCount: fixture.getTransactionCount, quoteWeiInToken: async (_paymaster: bigint, _asset: bigint, fee: bigint) => fee * 7n },
@@ -59,8 +60,9 @@ async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<
     } },
     secretManager: { deriveEphemeralSigner: fixture.deriveEphemeral, deriveDelegatorSigner: fixture.deriveDelegator },
     paymasterConfig: { paymasterAddress, entryPointAddress: entryPoint08Address, bundlerUrl: 'unused', poolsAccountsMap: { '0x0000000000000000000000000000000000000001': adapter } },
-    recipient: BigInt(recipient), asset: fixture.isERC20 ? 2n : BigInt(E_ADDRESS), amount: BigInt(fixture.count) * 10n ** 18n,
-    batch: fixture.count > 1, delegation, tailCalls, getNextNote: vi.fn(), proverFactory: vi.fn(),
+    recipient: BigInt(recipient), asset: fixture.isERC20 ? 2n : BigInt(E_ADDRESS),
+    amount: notesToSpend?.reduce((sum, n) => sum + n.withdrawnValue, 0n) ?? BigInt(fixture.count) * 10n ** 18n,
+    batch: fixture.count > 1, delegation, tailCalls, notesToSpend, getNextNote: vi.fn(), proverFactory: vi.fn(),
   } as never)).unwrap();
 }
 beforeEach(() => {
@@ -73,6 +75,32 @@ beforeEach(() => {
 });
 
 describe('Privacy Pools external paymaster signing', () => {
+  it.each([false, true])('keeps planned partial amounts through proof refinement and forwarding, ERC20=%s', async isERC20 => {
+    fixture.count = 2; fixture.isERC20 = isERC20;
+    const balances = [970_000_000_000_000_000n, 930_000_000_000_000_000n];
+    const notesToSpend = balances.map((withdrawnValue, deposit) => ({
+      note: { deposit, withdraw: 0, balance: 10n ** 18n }, withdrawnValue,
+    })) as NoteToSpend[];
+    const [withdrawal] = await prepare({ mode: 'external', signer: externalSigner() }, undefined, notesToSpend);
+    expect(withdrawal!.withdrawnValue).toBe(1_900_000_000_000_000_000n);
+    // The direct note is proved once; both sponsoring proofs use the same partial amount.
+    const proofParams = fixture.proof.mock.calls.map(call => call[0]);
+    expect(proofParams.filter(p => p.note.deposit === 1).map(p => p.amount)).toEqual([balances[1]]);
+    expect(proofParams.filter(p => p.note.deposit === 0).map(p => p.amount)).toEqual([balances[0], balances[0]]);
+    const { decodeFunctionData, erc20Abi } = await import('viem');
+    const { SIMPLE_7702_EXECUTE_ABI } = await import('../../src/data/abis/account.abi');
+    const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: withdrawal!.userOperation.callData });
+    const calls = decoded.args[0] as readonly { target: string; value: bigint; data: `0x${string}` }[];
+    expect(calls).toHaveLength(2);
+    const forward = calls[1]!;
+    const expected = withdrawal!.withdrawnValue - withdrawal!.fee;
+    if (isERC20) {
+      expect(decodeFunctionData({ abi: erc20Abi, data: forward.data }).args).toEqual([recipient, expected]);
+    } else {
+      expect(forward.value).toBe(expected);
+      expect(forward.target).toBe(recipient);
+    }
+  });
   it.each([{ count: 1, isERC20: false }, { count: 2, isERC20: false }, { count: 2, isERC20: true }])('requests host signatures for $count notes, ERC20=$isERC20', async ({ count, isERC20 }) => {
     fixture.count = count; fixture.isERC20 = isERC20;
     const signer = externalSigner();

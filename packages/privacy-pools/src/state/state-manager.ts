@@ -78,6 +78,7 @@ import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
+import { planPPv1BatchWithdrawal } from '../withdrawal/batch-plan';
 
 export interface StoreFactoryParams extends SyncAspThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
@@ -478,6 +479,7 @@ export const storeStateManager = (
       tailCallsGasEstimate,
       maxGasLimits,
       batch,
+      obfuscateAmounts,
       refundRecipient,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
@@ -487,6 +489,17 @@ export const storeStateManager = (
       if (!paymasterConfig) {
         throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
       }
+
+      if (obfuscateAmounts && !batch) throw new Error('obfuscateAmounts requires batch: true');
+
+      if (obfuscateAmounts && amount == null) throw new Error('Batch withdrawal requires an explicit amount');
+
+      // Plan outside Redux so the structured headroom error reaches the caller intact.
+      // Resolve randomness once and reuse the allocation for every fee/proof refinement.
+      const notesToSpend = obfuscateAmounts
+        ? planPPv1BatchWithdrawal(store.selectors.getAllNotes(), asset, amount!,
+          { obfuscateAmounts: true }).notes
+        : undefined;
 
       return unwrapResult(
         await store.dispatch(
@@ -506,6 +519,7 @@ export const storeStateManager = (
             provider: params.provider,
             network: params.network,
             batch,
+            notesToSpend,
             refundRecipient,
           }),
         ),

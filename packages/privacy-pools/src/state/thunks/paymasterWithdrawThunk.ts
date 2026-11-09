@@ -69,6 +69,8 @@ export interface PaymasterWithdrawThunkParams {
    * execution phase and the consolidated balance is forwarded to `recipient`.
    */
   batch?: boolean;
+  /** Internal allocation, resolved once by the state manager before proof generation. */
+  notesToSpend?: NoteToSpend[];
   /**
    * Where the paymaster sends the gas-overcharge refund in postOp. Defaults to
    * `recipient`; set it to route the refund elsewhere (e.g. a payer/change address so
@@ -100,6 +102,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       tailCalls,
       tailCallsGasEstimate,
       batch,
+      notesToSpend: plannedNotes,
       refundRecipient: refundRecipientOverride,
       maxGasLimits,
       provider,
@@ -125,7 +128,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
     // Select the note(s): a batch consolidates the minimal set of approved notes to
     // reach `amount`; otherwise the single smallest-sufficient note.
-    const notesToSpend = batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount);
+    const notesToSpend = plannedNotes ?? (batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount));
     const totalWithdrawn = notesToSpend.reduce((sum, n) => sum + n.withdrawnValue, 0n);
     // Largest note (first) is sponsored — it pays the fee; the rest run in the
     // execution phase. An execution phase exists when consolidating extra notes or
