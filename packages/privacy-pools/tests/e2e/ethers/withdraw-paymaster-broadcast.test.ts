@@ -160,7 +160,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast (real bundle
     expect(recipientBefore).toBe(0n);
 
     // 4. Broadcast for real through the bundler, then mine the bundle.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. Assert on-chain effects.

@@ -21,12 +21,21 @@ const operation = await pools.prepareUnshield(asset, recipient, {
   mode: 'paymaster',
 })
 
-const receipt = await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
+const broadcast = await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
+const { txHash } = await broadcast.wait()
 ```
 
 `broadcasterUrl` is a required constructor field, but paymaster broadcasting uses the bundler URL carried by the prepared operation.
 
-`receipt.requestId` is the user operation hash. `receipt.txHash` is the transaction that included it.
+`broadcast()` resolves as soon as the bundler accepts the user operation, and `broadcast.requestId` is its hash. `wait()` polls for the receipt and returns the `txHash` of the transaction that included it. Wallets that track the hash themselves can skip `wait()`, but must check the receipt's `success` field.
+
+Both calls throw a `PaymasterBroadcastError`, whose message is safe to report because it never includes the signed user operation. Its `failure` field says what happened:
+
+| `failure` | Thrown by | Meaning |
+| --- | --- | --- |
+| `not-accepted` | `broadcast()` | The bundler rejected the user operation, or the send request failed. |
+| `reverted` | `wait()` | Mined with `success: false`. Notes spent before the revert stay spent, and their funds may be held by the sender. `txHash` is set. |
+| `unconfirmed` | `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. Call `wait()` again to keep checking. |
 
 The fee is the sponsored gas, priced into the pool asset (`fee` and `gasFeeWei` on the estimate). The broadcaster posts the user operation to the bundler. The user's public account does not need ETH for gas.
 

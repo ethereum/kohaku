@@ -180,7 +180,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
     expect(recipientBefore).toBe(0n);
 
     // 4. Broadcast + mine.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. The tail call delivered FORWARD_AMOUNT to the fresh recipient; the paymaster's
@@ -277,7 +277,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
     const [a0, b0] = await Promise.all([usdcBalance(TAIL_RECIPIENT_A), usdcBalance(TAIL_RECIPIENT_B)]);
 
     // 4. Broadcast + mine.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. Both transfers landed; recipient A is the designated unshield recipient, so the
@@ -378,7 +378,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
     const recipientBefore = await usdtBalance(FINAL_RECIPIENT);
 
     // 4. Broadcast + mine — the wallet-path delegator signs the 7702 auth + userOp.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. The withdrawal landed at the recipient and the note was spent — the

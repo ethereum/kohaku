@@ -5,6 +5,7 @@ export { PrivacyPoolsV1Protocol, PPv1ExactOutputError, DEFAULT_EXACT_GAS_BUMP_BP
 export { IPFSAspService } from './data/ipfsAsp.service.js';
 export { OxBowAspService } from './data/0xbowAsp.service';
 export { DataService } from './data/data.service';
+export { PaymasterBroadcastError } from './relayer/interfaces/paymaster-client.interface';
 export { createSagaLogSource, createSagaDataService } from './data/saga-log-source';
 export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
 export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
@@ -16,6 +17,12 @@ export type { SecretManagerParams, ISecretManager } from './account/keys';
 export type { SignatureSecretManagerParams, EnvelopeSigner, NoteMessage, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
 export type { DelegatorAccount, DelegationConfig } from './interfaces/user-ops.interface';
+export type {
+  IPaymasterBroadcasterClient,
+  PaymasterBroadcastFailure,
+  PaymasterBroadcastResult,
+  PaymasterConfirmation,
+} from './relayer/interfaces/paymaster-client.interface';
 
 // Configs
 export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';

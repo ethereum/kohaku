@@ -1,14 +1,23 @@
-import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AccountId, AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PPv1UnshieldOptions, PPv1ViewOptions, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
+import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PaymasterPrivateOperation, PPv1PrivateOperation, PPv1PublicOperation, PPv1RelayerPrivateOperation, PPv1ShieldEstimate, PPv1UnshieldEstimate, PPv1UnshieldOptions, PPv1ViewOptions, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspService } from "../data/asp.interface.js";
-import { ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
+import { PaymasterBroadcastResult } from "../relayer/interfaces/paymaster-client.interface.js";
+import { IBaseRelayResponse, ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
 
 export type PPv1BroadcasterParameters = {
     broadcasterUrl: string | Record<string, string>;
 };
-export type PPv1Broadcaster = Broadcaster<PPv1PrivateOperation, ISuccessfullRelayResponse>;
+/** Returned once the bundler accepts the userOp. `requestId` is the userOp hash. */
+export interface PPv1PaymasterBroadcastResponse extends IBaseRelayResponse, Pick<PaymasterBroadcastResult, "wait"> {
+    success: true;
+}
+export type PPv1Broadcaster = {
+    /** @throws {PaymasterBroadcastError} If the bundler did not accept the userOp. */
+    broadcast(operation: PPv1PaymasterPrivateOperation): Promise<PPv1PaymasterBroadcastResponse>;
+    broadcast(operation: PPv1RelayerPrivateOperation): Promise<ISuccessfullRelayResponse>;
+    broadcast(operation: PPv1PrivateOperation): Promise<PPv1PaymasterBroadcastResponse | ISuccessfullRelayResponse>;
+};
 interface PPv1BaseCredential {
     accountIndex: number;
 }
