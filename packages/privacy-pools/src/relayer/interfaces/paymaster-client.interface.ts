@@ -21,6 +21,8 @@ export interface IGenericPaymasterWithdrawalPayload {
   entryPointAddress: `0x${string}`;
   bundlerUrl: string;
   userOperation: SerializedUserOperation;
+  /** Hash of `userOperation`, computed when it was signed. */
+  userOpHash: Hash;
 }
 
 export interface PaymasterConfirmation {
@@ -53,10 +55,12 @@ export interface IPaymasterBroadcasterClient {
 }
 
 /**
- * - `not-accepted`: the bundler rejected the userOp, or the send request failed.
+ * - `not-accepted`: the send request failed and the bundler does not know the userOp.
  * - `reverted`: the userOp was mined with `success: false`. Notes spent before
  *   the revert stay spent, and their funds may be held by the userOp sender.
- * - `unconfirmed`: the outcome is unknown, the userOp may still land.
+ * - `unconfirmed`: the outcome is unknown, the userOp may still land. Thrown by
+ *   `broadcast()` when the send request failed and the bundler could not be
+ *   asked whether it got the userOp anyway.
  */
 export type PaymasterBroadcastFailure = "not-accepted" | "reverted" | "unconfirmed";
 

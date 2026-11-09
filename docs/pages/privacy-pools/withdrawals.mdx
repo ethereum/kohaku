@@ -29,13 +29,15 @@ const { txHash } = await broadcast.wait()
 
 `broadcast()` resolves as soon as the bundler accepts the user operation, and `broadcast.requestId` is its hash. `wait()` polls for the receipt and returns the `txHash` of the transaction that included it. Wallets that track the hash themselves can skip `wait()`, but must check the receipt's `success` field.
 
+If the send request fails, for example on a timeout, `broadcast()` asks the bundler whether it got the user operation anyway, using the hash computed when it was signed (`operation.withdrawal.userOpHash`). If it did, `broadcast()` resolves as usual.
+
 Both calls throw a `PaymasterBroadcastError`, whose message is safe to report because it never includes the signed user operation. Its `failure` field says what happened:
 
 | `failure` | Thrown by | Meaning |
 | --- | --- | --- |
-| `not-accepted` | `broadcast()` | The bundler rejected the user operation, or the send request failed. |
+| `not-accepted` | `broadcast()` | The send request failed and the bundler does not know the user operation. |
 | `reverted` | `wait()` | Mined with `success: false`. Notes spent before the revert stay spent, and their funds may be held by the sender. `txHash` is set. |
-| `unconfirmed` | `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. Call `wait()` again to keep checking. |
+| `unconfirmed` | `broadcast()`, `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. `userOpHash` is set. After `wait()`, call it again to keep checking. |
 
 The fee is the sponsored gas, priced into the pool asset (`fee` and `gasFeeWei` on the estimate). The broadcaster posts the user operation to the bundler. The user's public account does not need ETH for gas.
 

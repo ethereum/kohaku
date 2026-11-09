@@ -1,7 +1,7 @@
 import type { Network } from '@kohaku-eth/plugins';
 import { BaseError, type Hash } from "viem";
 import type { BundlerClient } from "viem/account-abstraction";
-import { createPaymasterBundlerClient, sendSerializedUserOperation } from "./utils";
+import { createPaymasterBundlerClient, isUserOperationKnown, sendSerializedUserOperation } from "./utils";
 import {
   IGenericPaymasterWithdrawalPayload,
   IPaymasterBroadcasterClient,
@@ -52,6 +52,32 @@ const waitForConfirmation = async (
   return { txHash };
 };
 
+/** Throws unless the bundler knows the userOp whose send request failed with `sendError`. */
+const assertKnownToBundler = async (
+  bundlerClient: BundlerClient,
+  userOpHash: Hash,
+  sendError: unknown,
+): Promise<void> => {
+  let known: boolean;
+
+  try {
+    known = await isUserOperationKnown(bundlerClient, userOpHash);
+  } catch {
+    throw new PaymasterBroadcastError(
+      "unconfirmed",
+      `Could not tell whether the bundler accepted userOp ${userOpHash}, it may still land: ${describeError(sendError)}`,
+      { userOpHash },
+    );
+  }
+
+  if (!known) {
+    throw new PaymasterBroadcastError(
+      "not-accepted",
+      `Bundler did not accept the userOp: ${describeError(sendError)}`,
+    );
+  }
+};
+
 /**
  * Relays paymaster-sponsored withdrawals to the bundler. The userOps are fully
  * built and signed during the prepare phase (see `paymasterWithdrawThunk`), so
@@ -67,7 +93,7 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
   }
 
   static async broadcastOne(
-    { bundlerUrl, entryPointAddress, userOperation }: IGenericPaymasterWithdrawalPayload,
+    { bundlerUrl, entryPointAddress, userOperation, userOpHash: expectedHash }: IGenericPaymasterWithdrawalPayload,
     network?: Network,
   ): Promise<PaymasterBroadcastResult> {
     const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
@@ -76,10 +102,10 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
     try {
       userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress);
     } catch (error) {
-      throw new PaymasterBroadcastError(
-        "not-accepted",
-        `Bundler did not accept the userOp: ${describeError(error)}`,
-      );
+      // The bundler may have accepted the userOp and the response got lost, e.g.
+      // a timeout, then "already known" on viem's retry.
+      await assertKnownToBundler(bundlerClient, expectedHash, error);
+      userOpHash = expectedHash;
     }
 
     return { userOpHash, wait: () => waitForConfirmation(bundlerClient, userOpHash) };

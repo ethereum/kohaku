@@ -1,7 +1,11 @@
 import type { Network } from '@kohaku-eth/plugins';
+import { recoverAddress } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { entryPoint08Address, getUserOperationHash } from 'viem/account-abstraction';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PaymasterBroadcaster } from '../../src/paymaster/paymaster-broadcaster';
+import { buildSignedUserOp } from '../../src/paymaster/utils';
 import { PrivacyPoolsBroadcaster } from '../../src/plugin/broadcaster';
 import {
   IGenericPaymasterWithdrawalPayload,
@@ -18,6 +22,7 @@ const withdrawal = {
   bundlerUrl: BUNDLER_URL,
   entryPointAddress: ADDRESS,
   userOperation: { sender: ADDRESS, signature: SIGNATURE },
+  userOpHash: USER_OP_HASH,
 } as unknown as IGenericPaymasterWithdrawalPayload;
 
 const makeReceipt = (success: boolean, reason?: string) => ({
@@ -72,6 +77,18 @@ const makeNetwork = (handler: Handler) => {
 
 const accepted = (onReceipt: () => ReturnType<Handler>): Handler => (method) =>
   method === 'eth_sendUserOperation' ? { result: USER_OP_HASH } : onReceipt();
+
+/** The send request fails; `onLookup` answers `eth_getUserOperationByHash` (unknown by default). */
+const sendFails = (
+  sendResponse: () => ReturnType<Handler>,
+  onLookup: () => ReturnType<Handler> = () => ({ result: null }),
+): Handler => (method) => {
+  if (method === 'eth_sendUserOperation') return sendResponse();
+
+  return method === 'eth_getUserOperationByHash' ? onLookup() : { result: makeReceipt(true) };
+};
+
+const AA23 = () => ({ error: { code: -32500, message: 'AA23 reverted' } });
 
 const catchError = async (promise: Promise<unknown>) => {
   const error = await promise.then(
@@ -159,7 +176,7 @@ describe('PaymasterBroadcaster', () => {
   });
 
   it('throws `not-accepted` with the real reason but no userOp on an RPC error', async () => {
-    const { network } = makeNetwork(() => ({ error: { code: -32500, message: 'AA23 reverted' } }));
+    const { network } = makeNetwork(sendFails(AA23));
 
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
 
@@ -170,11 +187,39 @@ describe('PaymasterBroadcaster', () => {
   });
 
   it('throws `not-accepted` without the userOp on an HTTP error', async () => {
-    const { network } = makeNetwork(() => new Response('nope', { status: 400 }));
+    const { network } = makeNetwork(sendFails(() => new Response('nope', { status: 400 })));
 
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
 
     expect(error.failure).toBe('not-accepted');
+    expect(error.message).toContain('HTTP request failed');
+    expectNoUserOp(error);
+  });
+
+  it('recovers when the send fails but the bundler already has the userOp', async () => {
+    const pending = { userOperation: {}, entryPoint: ADDRESS, blockNumber: null, blockHash: null, transactionHash: null };
+    const { network, calls } = makeNetwork(sendFails(
+      () => ({ error: { code: -32602, message: 'Already known' } }),
+      () => ({ result: pending }),
+    ));
+
+    const [{ userOpHash, wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
+
+    expect(userOpHash).toBe(USER_OP_HASH);
+    expect(calls).toEqual(['eth_sendUserOperation', 'eth_getUserOperationByHash']);
+    await expect(wait()).resolves.toEqual({ txHash: TX_HASH });
+  });
+
+  it('throws `unconfirmed` with the hash when the send fails and the lookup fails too', async () => {
+    const { network } = makeNetwork(sendFails(
+      () => new Response('gateway timeout', { status: 400 }),
+      () => ({ error: { code: -32601, message: 'method not supported' } }),
+    ));
+
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.failure).toBe('unconfirmed');
+    expect(error.userOpHash).toBe(USER_OP_HASH);
     expect(error.message).toContain('HTTP request failed');
     expectNoUserOp(error);
   });
@@ -193,8 +238,8 @@ describe('PaymasterBroadcaster', () => {
 
   it('rejects instead of omitting a withdrawal the bundler did not accept', async () => {
     const other = { ...withdrawal, bundlerUrl: 'http://other.bundler' };
-    const { network } = makeNetwork((_method, url) => url.startsWith('http://other.bundler')
-      ? { error: { code: -32500, message: 'AA23 reverted' } }
+    const { network } = makeNetwork((method, url) => url.startsWith('http://other.bundler')
+      ? sendFails(AA23)(method, url)
       : { result: USER_OP_HASH });
 
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal, other]));
@@ -223,11 +268,55 @@ describe('PrivacyPoolsBroadcaster paymaster path', () => {
   });
 
   it('propagates the real error instead of a generic one', async () => {
-    const { network } = makeNetwork(() => ({ error: { code: -32500, message: 'AA23 reverted' } }));
+    const { network } = makeNetwork(sendFails(AA23));
 
     const error = await catchError(makeBroadcaster(network).broadcast(operation));
 
     expect(error.message).toContain('AA23 reverted');
     expectNoUserOp(error);
+  });
+});
+
+describe('buildSignedUserOp', () => {
+  it('returns the EntryPoint v0.8 hash of the userOp, which is what the signer signed', async () => {
+    const signer = privateKeyToAccount(generatePrivateKey());
+    const chainId = 11155111;
+    const { userOperation, userOpHash } = await buildSignedUserOp({
+      signer,
+      chainId,
+      paymasterAddress: ADDRESS,
+      paymasterData: '0x1234',
+      gas: {
+        callGasLimit: 0n,
+        verificationGasLimit: 500_000n,
+        preVerificationGas: 60_000n,
+        paymasterVerificationGasLimit: 900_000n,
+        paymasterPostOpGasLimit: 50_000n,
+      },
+      maxFeePerGas: 2_000_000_000n,
+      maxPriorityFeePerGas: 1_000_000n,
+    });
+
+    expect(await recoverAddress({ hash: userOpHash, signature: userOperation.signature })).toBe(signer.address);
+    expect(userOpHash).toBe(getUserOperationHash({
+      chainId,
+      entryPointAddress: entryPoint08Address,
+      entryPointVersion: '0.8',
+      userOperation: {
+        sender: userOperation.sender,
+        nonce: BigInt(userOperation.nonce),
+        callData: userOperation.callData,
+        callGasLimit: BigInt(userOperation.callGasLimit),
+        verificationGasLimit: BigInt(userOperation.verificationGasLimit),
+        preVerificationGas: BigInt(userOperation.preVerificationGas),
+        maxFeePerGas: BigInt(userOperation.maxFeePerGas),
+        maxPriorityFeePerGas: BigInt(userOperation.maxPriorityFeePerGas),
+        paymaster: userOperation.paymaster,
+        paymasterVerificationGasLimit: BigInt(userOperation.paymasterVerificationGasLimit!),
+        paymasterPostOpGasLimit: BigInt(userOperation.paymasterPostOpGasLimit!),
+        paymasterData: userOperation.paymasterData,
+        signature: userOperation.signature,
+      },
+    }));
   });
 });

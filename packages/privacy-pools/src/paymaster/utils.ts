@@ -2,6 +2,7 @@ import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
   encodeFunctionData,
+  hashTypedData,
   http,
   toHex,
   type Address,
@@ -113,6 +114,20 @@ export async function estimateUserOperationGas(
 }
 
 /**
+ * Asks the bundler whether it knows a userOp (pending or included). viem's
+ * `getUserOperation` is not used because it fails to format pending userOps,
+ * whose `blockNumber` is null.
+ */
+export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
+  const result = await client.request({
+    method: "eth_getUserOperationByHash",
+    params: [hash],
+  });
+
+  return result !== null;
+}
+
+/**
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
  * 7702 sender, returning it serialized for the broadcast phase. Without
  * `tailCalls` the execution phase is empty (callData `0x`) and the withdrawal
@@ -122,6 +137,7 @@ export async function estimateUserOperationGas(
  *
  * The sender is a fresh EOA (EntryPoint nonce 0) delegated to the Simple7702
  * implementation; the owner signs the userOp. No RPC access is required.
+ * Also returns the userOp hash, which is what the owner signs.
  */
 export async function buildSignedUserOp({
   signer,
@@ -134,7 +150,7 @@ export async function buildSignedUserOp({
   nonce = 0n,
   authorizationNonce,
   tailCalls,
-}: BuildSignedUserOpParams): Promise<SerializedUserOperation> {
+}: BuildSignedUserOpParams): Promise<{ userOperation: SerializedUserOperation; userOpHash: Hash }> {
   const owner = signer;
 
   const calls = tailCalls ? await tailCalls(owner.address) : [];
@@ -182,18 +198,20 @@ export async function buildSignedUserOp({
     paymasterData,
   };
 
-  const signature = await owner.signTypedData(
-    getUserOperationTypedData({
-      chainId,
-      entryPointAddress: entryPoint08Address,
-      // viem's type requires a `signature`, but the userOp typedData does not contain one.
-      userOperation: userOperation as unknown as Parameters<
-        typeof getUserOperationTypedData
-      >[0]["userOperation"],
-    }),
-  );
+  const typedData = getUserOperationTypedData({
+    chainId,
+    entryPointAddress: entryPoint08Address,
+    // viem's type requires a `signature`, but the userOp typedData does not contain one.
+    userOperation: userOperation as unknown as Parameters<
+      typeof getUserOperationTypedData
+    >[0]["userOperation"],
+  });
+  const signature = await owner.signTypedData(typedData);
 
-  return {
+  // From EntryPoint v0.8 on, the userOp hash is the EIP-712 hash of this typed data.
+  const userOpHash = hashTypedData(typedData);
+
+  const serialized: SerializedUserOperation = {
     sender: userOperation.sender,
     nonce: toHex(userOperation.nonce),
     callData: userOperation.callData,
@@ -209,6 +227,8 @@ export async function buildSignedUserOp({
     signature,
     eip7702Auth: serializeAuth(authorization),
   };
+
+  return { userOperation: serialized, userOpHash };
 }
 
 function serializeAuth(auth: SignedAuthorization): SerializedAuth {
