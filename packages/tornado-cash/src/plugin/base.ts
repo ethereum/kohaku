@@ -322,6 +322,7 @@ export class TornadoCashProtocol implements TCInstance {
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         gasEstimationPolicy: options.gasEstimationPolicy,
+        executionGasRetry: options.executionGasRetry,
         maxGasLimits: options.maxGasLimits,
       });
     } else {

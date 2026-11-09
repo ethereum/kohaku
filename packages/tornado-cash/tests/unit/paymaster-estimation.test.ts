@@ -43,6 +43,58 @@ function rawOperation(op: SerializedUserOperation) {
 }
 
 describe('Tornado paymaster gas estimation', () => {
+  it('rebuilds at a higher execution probe, then tightens and re-estimates the exact signed fee', async () => {
+    const base = { ...reasonableGasUnits(false), callGasLimit: 300_000n };
+    const build = builder(true);
+    const estimate = vi.fn(async (op: SerializedUserOperation) => {
+      if (BigInt(op.callGasLimit) < 500_000n) throw new RpcRequestError({ url: 'unused', body: { paymaster }, error: { code: -32521, message: 'Execution out of gas' } });
+      return { ...base, callGasLimit: 450_000n };
+    });
+    const result = await buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 800_000n });
+    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 540_000n]);
+    expect(BigInt(result.userOperation.callGasLimit)).toBe(540_000n);
+    expect(estimate).toHaveBeenLastCalledWith(result.userOperation);
+    expect(BigInt(result.proof.args[4])).toBe(result.fee);
+    expect(result.userOperation.signature).not.toBe((await build.mock.results[0]!.value).userOperation.signature);
+    expect(result.fee).toBe(computeMinimumViableFee(build.mock.calls.at(-1)![0], 2n));
+    expect(result.gasEstimation.status).toBe('estimated');
+  });
+
+  it.each(['Insufficient funds', 'ERC20: insufficient allowance', 'AA23 reverted: out of gas', 'Unknown error', 'gas required exceeds allowance'])('never increases execution gas for %s', async message => {
+    const base = reasonableGasUnitsForBatch(false, 0, true), build = builder(true), estimate = vi.fn().mockRejectedValue(new Error(message));
+    await expect(buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
+    expect(build).toHaveBeenCalledOnce();
+  });
+
+  it('does not downgrade a failed execution retry into unestimated fallback', async () => {
+    const base = reasonableGasUnitsForBatch(false, 0, true), build = builder(true);
+    const unavailable = new RpcRequestError({ url: 'unused', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
+    const estimate = vi.fn().mockRejectedValueOnce(new Error('Execution out of gas')).mockRejectedValue(unavailable);
+
+    await expect(buildEstimatedTornadoUserOp(base, build, estimate, { allowFallback: true, executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
+    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n]);
+    expect(estimate).toHaveBeenCalledTimes(2);
+  });
+
+  it('never probes above the explicit ceiling or retries a zero-execution operation', async () => {
+    const base = reasonableGasUnitsForBatch(false, 0, true), build = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
+    await expect(buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 700_000n })).rejects.toThrow('preparation stopped');
+    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 700_000n]);
+    const direct = builder();
+    await expect(buildEstimatedTornadoUserOp(baseline, direct, estimate, { executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
+    expect(direct).toHaveBeenCalledOnce();
+  });
+
+  it('caps gas-shortage probes at three and honors validation before another proof', async () => {
+    const base = reasonableGasUnitsForBatch(false, 0, true), build = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
+    await expect(buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
+    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 1_200_000n, 2_400_000n]);
+    const bounded = builder(true);
+    await expect(buildEstimatedTornadoUserOp(base, bounded, estimate, { executionGasRetryLimit: 8_000_000n,
+      validateGas: gas => { if (gas.callGasLimit > 500_000n) throw new Error('Absolute ceiling'); } })).rejects.toThrow('Absolute ceiling');
+    expect(bounded).toHaveBeenCalledOnce();
+  });
+
   it.each([false, true])('rebuilds the 100000 -> 281260 budget with matching fee/proof/signature (ERC20=%s)', async (isERC20) => {
     const build = builder(false, isERC20);
     const estimate = vi.fn(async () => ({ ...baseline, preVerificationGas: 281_260n, callGasLimit: 9_000n }));
