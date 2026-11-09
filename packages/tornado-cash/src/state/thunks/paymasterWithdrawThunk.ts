@@ -190,12 +190,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // A single note without tail calls pays the recipient in validation, with
+  // In the 7702 flow, a single note without tail calls pays in validation, with
   // postOp refunding that same recipient. Keep execution gas/calldata empty even
   // in best-effort fallback: simulation is not what makes a throwaway sender safe.
   // Try bundler estimation; eligible fallback also preserves zero execution gas
   // when the estimator substitutes an incompatible nonzero search limit.
-  const validationOnly = deposits.length === 1 && tailCalls == null;
+  // Smart accounts keep the execution path even for one note: their factory /
+  // account estimation must use the same sender-recipient rules as batches.
+  // This also preserves synthesized forwarding for a one-note smart account.
+  const validationOnly = deposits.length === 1 && tailCalls == null && delegation?.mode !== 'smart-account';
   // Fallback can still be rejected or miss a postOp refund. Gas/fee bounds
   // remain enforced; simulation availability does not change payout custody.
   const allowFallback = delegation?.allowUsed !== true && delegation?.mode !== 'smart-account' && !delegation?.implementation && (delegation?.nonce ?? 0n) === 0n && gasEstimationPolicy === 'best-effort' && tailCalls == null &&
@@ -313,7 +316,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return { sponsoringProof, userOperation, fee };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20), allowFallback, isERC20: poolInfo.isERC20 },
+    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20), allowFallback, isERC20: poolInfo.isERC20,
+      executionGasRetryLimit: tailCalls && delegation?.mode === 'smart-account' ? maxGasLimits?.callGasLimit : undefined },
   );
 
   return [{

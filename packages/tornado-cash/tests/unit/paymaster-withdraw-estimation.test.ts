@@ -478,6 +478,46 @@ describe('execution account routes', () => {
     for (const [data] of signTypedData.mock.calls) expect(await recoverTypedDataAddress({ ...data, signature: await owner.signTypedData(data) } as never)).toBe(owner.address);
     expect(fixture.getAccountNonce).not.toHaveBeenCalled(); expect(fixture.deriveSignature).not.toHaveBeenCalled();
   });
+  it.each([false, true])('keeps one-note smart-account payout in execution mode (forward=%s)', async forward => {
+    fixture.count = 1;
+    fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 281_260n });
+    const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n,
+      account: { kind: 'simple-account', address: accountAddress },
+    }, { recipient: forward ? 3n : BigInt(accountAddress) });
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    expect(fixture.proofRecipients.every(recipient => recipient === BigInt(accountAddress))).toBe(true);
+    expect(BigInt(withdrawal!.userOperation.callGasLimit)).toBeGreaterThan(0n);
+    if (forward) {
+      const { SIMPLE_7702_EXECUTE_ABI } = await import('../../src/data/abis/account.abi');
+      const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: withdrawal!.userOperation.callData });
+      expect(decoded.functionName).toBe('execute');
+      if (decoded.functionName !== 'execute') throw new Error('Expected execute');
+      expect(BigInt(decoded.args[0])).toBe(3n);
+      expect(decoded.args[1]).toBe(fixture.denomination - withdrawal!.fee);
+    } else expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(withdrawal!.gasEstimation!.status).toBe('estimated');
+  });
+  it('retries recognized execution gas shortages for custom smart-account calls within the caller ceiling', async () => {
+    fixture.count = 1;
+    const seen: bigint[] = [];
+    fixture.estimate.mockImplementation(async (op: SerializedUserOperation) => {
+      const gas = BigInt(op.callGasLimit); seen.push(gas);
+      if (gas < 500_000n) throw new Error('Execution out of gas');
+      return { ...reasonableGasUnitsForBatch(false, 0, true), callGasLimit: 450_000n };
+    });
+    const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n,
+      account: { kind: 'simple-account', address: accountAddress } }, {
+      recipient: BigInt(accountAddress), tailCalls: async () => [{ to: owner.address, value: 0n, data: '0x' }], maxGasLimits: { callGasLimit: 800_000n },
+    });
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    expect(seen).toEqual([300_000n, 600_000n, 540_000n]);
+    expect(withdrawal!.gasEstimation!.status).toBe('estimated');
+    fixture.estimate.mockRejectedValue(new Error('Execution out of gas'));
+    await expect(prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n,
+      account: { kind: 'simple-account', address: accountAddress } }, {
+      tailCalls: async () => [{ to: owner.address, value: 0n, data: '0x' }],
+    })).rejects.toThrow('preparation stopped'); // No explicit ceiling, no probes.
+  });
   it('pins a caller-selected compatible 7702 target in the authorization', async () => {
     fixture.count = 2;
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
