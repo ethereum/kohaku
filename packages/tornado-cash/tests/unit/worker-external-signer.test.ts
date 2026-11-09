@@ -59,6 +59,8 @@ it('carries a smart account and exposes only its owner typed-data signing capabi
   const sender = '0x0000000000000000000000000000000000000099';
   prepare.mockImplementation(async (full: IPaymasterWithdrawParams) => {
     if (full.delegation?.mode !== 'smart-account') throw new Error('Expected smart account');
+    expect(full.executionGasRetry).toBe(true);
+    expect(full.maxGasLimits).toEqual({ callGasLimit: 8_000_000n });
     const { externalAccountSigner } = await import('../../src/account/execution-account');
     const operation = await buildSignedTornadoUserOp({ signer: externalAccountSigner(full.delegation), executionAccount: full.delegation.account,
       nonce: full.delegation.nonce, chainId: 1, paymasterAddress, paymasterData: '0x',
@@ -70,7 +72,7 @@ it('carries a smart account and exposes only its owner typed-data signing capabi
   const hostSigner = exposeOnly({ address: account.address, signTypedData }, externalSignerPolicy({ address: account.address, sender,
     smartAccount: true, userOpNonce: 3n, chainId: 1, nonce: 0n, entryPointAddress: entryPoint08Address, paymasterAddress }));
   const remote = remoteWorker();
-  const result = await remote.getWithdrawalPayloads({ ...params, delegation: { mode: 'smart-account', owner: account.address, nonce: 3n,
+  const result = await remote.getWithdrawalPayloads({ ...params, executionGasRetry: true, maxGasLimits: { callGasLimit: 8_000_000n }, delegation: { mode: 'smart-account', owner: account.address, nonce: 3n,
     account: { kind: 'simple-account', address: sender } } }, undefined, undefined, hostSigner);
   expect(result[0]).toMatchObject({ userOperation: { sender, nonce: '0x3' } });
   expect(result[0]!.mode === 'paymaster' && result[0]!.userOperation).not.toHaveProperty('eip7702Auth');

@@ -66,6 +66,16 @@ describe('Tornado paymaster gas estimation', () => {
     expect(build).toHaveBeenCalledOnce();
   });
 
+  it('does not downgrade a failed execution retry into unestimated fallback', async () => {
+    const base = reasonableGasUnitsForBatch(false, 0, true), build = builder(true);
+    const unavailable = new RpcRequestError({ url: 'unused', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
+    const estimate = vi.fn().mockRejectedValueOnce(new Error('Execution out of gas')).mockRejectedValue(unavailable);
+
+    await expect(buildEstimatedTornadoUserOp(base, build, estimate, { allowFallback: true, executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
+    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n]);
+    expect(estimate).toHaveBeenCalledTimes(2);
+  });
+
   it('never probes above the explicit ceiling or retries a zero-execution operation', async () => {
     const base = reasonableGasUnitsForBatch(false, 0, true), build = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
     await expect(buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 700_000n })).rejects.toThrow('preparation stopped');

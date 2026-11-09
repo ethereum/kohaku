@@ -8,6 +8,7 @@ const GAS_FIELDS = [
   'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit',
 ] as const;
 const MAX_ESTIMATION_ATTEMPTS = 3;
+const MAX_EXECUTION_GAS_RETRIES = 3;
 
 /**
  * Gas limits affect both the account signature and the fee committed in the
@@ -22,7 +23,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
   options: {
     allowFallback?: boolean;
-    /** Opt-in for custom smart-account calls with an explicit absolute ceiling.
+    /** Opt-in for execution calls with an explicit absolute ceiling.
      * At most three probes; each rebuilds the proof, fee and signature. */
     executionGasRetryLimit?: bigint;
     isERC20?: boolean;
@@ -31,7 +32,8 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 ): Promise<T & { gasEstimation: PaymasterGasEstimation }> {
   let gas = { ...baseline };
   let previousOperation: SerializedUserOperation | undefined;
-  let executionRetries = 0, trimRetryBudget = false;
+  let executionRetries = 0;
+  let trimRetryBudget = false;
 
   for (let attempt = 0; attempt < MAX_ESTIMATION_ATTEMPTS; attempt++) {
     options.validateGas?.(gas, previousOperation);
@@ -48,12 +50,16 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
         ? cause.details : cause instanceof Error ? cause.message.split('\n')[0] : String(cause);
 
       const ceiling = options.executionGasRetryLimit;
-      if (ceiling !== undefined && executionRetries < 3 && gas.callGasLimit > 0n &&
+
+      if (ceiling !== undefined && executionRetries < MAX_EXECUTION_GAS_RETRIES && gas.callGasLimit > 0n &&
           prepared.userOperation.callData !== '0x' && gas.callGasLimit < ceiling && isExecutionOutOfGas(cause)) {
         const doubled = gas.callGasLimit * 2n;
         const next = { ...gas, callGasLimit: doubled < ceiling ? doubled : ceiling };
+
         options.validateGas?.(next, prepared.userOperation);
-        gas = next; executionRetries++; trimRetryBudget = true;
+        gas = next;
+        executionRetries++;
+        trimRetryBudget = true;
         // These failed probes do not consume the three successful refinement
         // rounds. Total extra probes are independently capped above.
         attempt--;
@@ -62,7 +68,9 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 
       const reason = estimationUnavailableReason(cause, prepared.userOperation);
 
-      if (options.allowFallback && reason) {
+      // Once execution failed, require a successful estimate of the replacement.
+      // An unavailable estimator must not bypass the recovery path's final check.
+      if (options.allowFallback && executionRetries === 0 && reason) {
         // Rebuild at the fallback fee before returning anything. Never patch
         // gas on the old signed operation or reuse its fee-bearing proof.
         const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation, options.isERC20 ?? false);
@@ -111,7 +119,12 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
     if (trimRetryBudget) {
       const buffered = (estimated.callGasLimit * 12n + 9n) / 10n;
       const settled = buffered > baseline.callGasLimit ? buffered : baseline.callGasLimit;
-      if (settled < next.callGasLimit) { next.callGasLimit = settled; changed = true; }
+
+      if (settled < next.callGasLimit) {
+        next.callGasLimit = settled;
+        changed = true;
+      }
+
       trimRetryBudget = false;
     }
 

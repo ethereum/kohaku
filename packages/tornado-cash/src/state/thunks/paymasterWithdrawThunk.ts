@@ -51,6 +51,7 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
   gasEstimationPolicy?: GasEstimationPolicy;
+  executionGasRetry?: boolean;
   maxGasLimits?: PaymasterGasLimits;
   provider?: EthereumProvider;
   bundlerPost?: BundlerPost;
@@ -72,6 +73,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   tailCalls,
   tailCallsGasEstimate,
   gasEstimationPolicy = 'best-effort',
+  executionGasRetry = false,
   maxGasLimits,
   provider,
   bundlerPost,
@@ -81,10 +83,26 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     throw new Error('Unknown Tornado gas estimation policy.');
   }
 
+  if (typeof executionGasRetry !== 'boolean') {
+    throw new Error('Tornado executionGasRetry must be a boolean.');
+  }
+
+  const executionGasRetryLimit = executionGasRetry ? maxGasLimits?.callGasLimit : undefined;
+
+  if (executionGasRetry && (typeof executionGasRetryLimit !== 'bigint' || executionGasRetryLimit <= 0n)) {
+    throw new Error('Tornado executionGasRetry requires a positive maxGasLimits.callGasLimit ceiling.');
+  }
+
   const state = getState();
   const { chainId: rawChainId } = instanceRegistryInfoSelector(state);
   const chainId = Number(rawChainId);
   const deposits = getWithdrawableDepositsSelector(state, assetAddress, amount);
+
+  // Without tail calls, one note pays and refunds the requested recipient
+  // directly. Explicit tail calls opt into sender-bound sponsorship and execution
+  // for either account family, even when spending only one note.
+  const validationOnly = deposits.length === 1 && tailCalls == null;
+
   const poolsToWithdrawFrom = [...new Set(deposits.map((d) => d.pool))];
 
   const pools = poolsSelector(state);
@@ -190,15 +208,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // In the 7702 flow, a single note without tail calls pays in validation, with
-  // postOp refunding that same recipient. Keep execution gas/calldata empty even
-  // in best-effort fallback: simulation is not what makes a throwaway sender safe.
-  // Try bundler estimation; eligible fallback also preserves zero execution gas
-  // when the estimator substitutes an incompatible nonzero search limit.
-  // Smart accounts keep the execution path even for one note: their factory /
-  // account estimation must use the same sender-recipient rules as batches.
-  // This also preserves synthesized forwarding for a one-note smart account.
-  const validationOnly = deposits.length === 1 && tailCalls == null && delegation?.mode !== 'smart-account';
+  // Preserve zero execution gas/calldata for direct single notes with either account
+  // family, including eligible fallback when a bundler substitutes a search limit.
   // Fallback can still be rejected or miss a postOp refund. Gas/fee bounds
   // remain enforced; simulation availability does not change payout custody.
   const allowFallback = delegation?.allowUsed !== true && delegation?.mode !== 'smart-account' && !delegation?.implementation && (delegation?.nonce ?? 0n) === 0n && gasEstimationPolicy === 'best-effort' && tailCalls == null &&
@@ -208,6 +219,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   executionAccount(delegation);
   let signer = await resolveBatchDelegator();
   const senderAddress = BigInt(executionSender(delegation, signer)) as Address;
+
   // Explicit wallet-path and external senders may have prior EOA transactions.
   // All sender families are checked on-chain below; reuse requires allowUsed.
   // Native authorization and EntryPoint nonces are independent.
@@ -316,8 +328,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return { sponsoringProof, userOperation, fee };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20), allowFallback, isERC20: poolInfo.isERC20,
-      executionGasRetryLimit: tailCalls && delegation?.mode === 'smart-account' ? maxGasLimits?.callGasLimit : undefined },
+    {
+      validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20),
+      allowFallback,
+      isERC20: poolInfo.isERC20,
+      executionGasRetryLimit,
+    },
   );
 
   return [{

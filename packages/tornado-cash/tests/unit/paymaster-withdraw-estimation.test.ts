@@ -1,7 +1,7 @@
 import { unwrapResult } from '@reduxjs/toolkit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { RpcRequestError, toHex, decodeFunctionData, recoverTypedDataAddress } from 'viem';
+import { RpcRequestError, toHex, decodeFunctionData, decodeAbiParameters, parseAbiParameters, recoverTypedDataAddress } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
 import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
@@ -478,45 +478,136 @@ describe('execution account routes', () => {
     for (const [data] of signTypedData.mock.calls) expect(await recoverTypedDataAddress({ ...data, signature: await owner.signTypedData(data) } as never)).toBe(owner.address);
     expect(fixture.getAccountNonce).not.toHaveBeenCalled(); expect(fixture.deriveSignature).not.toHaveBeenCalled();
   });
-  it.each([false, true])('keeps one-note smart-account payout in execution mode (forward=%s)', async forward => {
+  const singleNoteAccounts: { name: string; delegation: DelegationConfig | null }[] = [
+    { name: 'note-derived', delegation: null },
+    { name: 'random 7702', delegation: { mode: 'random' } },
+    { name: 'external 7702', delegation: { mode: 'external', signer: owner, allowUsed: true } },
+    { name: 'alternate 7702', delegation: { mode: 'external', signer: owner, implementation: accountAddress, allowUsed: true } },
+    { name: 'deployed smart account', delegation: { mode: 'smart-account', allowUsed: true, signer: owner, nonce: 3n,
+      account: { kind: 'simple-account', address: accountAddress } } },
+    { name: 'factory smart account', delegation: { mode: 'smart-account', signer: owner,
+      account: { kind: 'simple-account', address: accountAddress, factory: { address: '0x0000000000000000000000000000000000000088', salt: 7n } } } },
+  ];
+
+  describe.each([false, true])('single-note direct payouts (ERC20=%s)', isERC20 => {
+    it.each(singleNoteAccounts)('pays and refunds the recipient directly for $name', async ({ delegation }) => {
+      fixture.count = 1;
+      fixture.isERC20 = isERC20;
+      fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(isERC20, 0, false), callGasLimit: 9_000n, preVerificationGas: 281_260n });
+      const [withdrawal] = await prepare(delegation, { executionGasRetry: true, maxGasLimits: { callGasLimit: 800_000n } });
+      if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+      const op = withdrawal!.userOperation;
+      const [data] = decodeAbiParameters(parseAbiParameters('(address instance, bytes proof, bytes32 root, bytes32 nullifierHash, address recipient, uint256 fee)'), op.paymasterData!);
+
+      // TornadoPaymaster uses this same bound recipient for payout and postOp refund.
+      expect(BigInt(data.recipient)).toBe(3n);
+      expect(BigInt(op.sender)).not.toBe(3n);
+      expect(fixture.proofRecipients.every(recipient => recipient === 3n)).toBe(true);
+      expect(op.callData).toBe('0x');
+      expect(op.callGasLimit).toBe('0x0');
+      for (const [candidate] of fixture.estimate.mock.calls) {
+        expect(candidate.callData).toBe('0x');
+        expect(candidate.callGasLimit).toBe('0x0');
+      }
+      expect(fixture.estimate).toHaveBeenLastCalledWith(op);
+      expect(withdrawal!.gasEstimation!.status).toBe('estimated');
+      expect(Boolean(op.factory)).toBe(delegation?.mode === 'smart-account' && Boolean(delegation.account.factory));
+      expect(Boolean(op.eip7702Auth)).toBe(delegation?.mode !== 'smart-account');
+    });
+
+    it.each(singleNoteAccounts.filter(account => account.name !== 'random 7702'))('funds $name before executing single-note tail calls', async ({ delegation }) => {
+      fixture.count = 1;
+      fixture.isERC20 = isERC20;
+      fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(isERC20, 0, true));
+      const tailCalls = vi.fn(async () => [{ to: owner.address, value: 0n, data: '0x1234' as const }]);
+      const [withdrawal] = await prepare(delegation, { tailCalls });
+      if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+      const op = withdrawal!.userOperation;
+      const [data] = decodeAbiParameters(parseAbiParameters('(address instance, bytes proof, bytes32 root, bytes32 nullifierHash, address recipient, uint256 fee)'), op.paymasterData!);
+      expect(BigInt(data.recipient)).toBe(BigInt(op.sender));
+      expect(BigInt(data.recipient)).not.toBe(3n);
+      expect(fixture.proofRecipients.every(recipient => recipient === BigInt(op.sender))).toBe(true);
+      expect(tailCalls).toHaveBeenCalledWith(op.sender);
+      expect(BigInt(op.callGasLimit)).toBeGreaterThan(0n);
+      const { SIMPLE_7702_EXECUTE_ABI } = await import('../../src/data/abis/account.abi');
+      const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: op.callData });
+      expect(decoded.functionName).toBe('execute');
+      expect(decoded.args).toEqual([owner.address, 0n, '0x1234']);
+      expect(fixture.estimate).toHaveBeenLastCalledWith(op);
+      expect(withdrawal!.gasEstimation!.status).toBe('estimated');
+    });
+  });
+
+  it.each(['smart-account', 'external'] as const)('pays directly when the requested recipient is the %s sender itself', async mode => {
     fixture.count = 1;
-    fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 281_260n });
-    const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n,
-      account: { kind: 'simple-account', address: accountAddress },
-    }, { recipient: forward ? 3n : BigInt(accountAddress) });
+    fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(false, 0, false));
+    const signTypedData = vi.fn(owner.signTypedData), signAuthorization = vi.fn(owner.signAuthorization);
+    const delegation: DelegationConfig = mode === 'smart-account'
+      ? { mode, signer: { address: owner.address, signTypedData }, account: { kind: 'simple-account', address: accountAddress }, allowUsed: true }
+      : { mode, signer: { ...owner, signTypedData, signAuthorization }, allowUsed: true };
+    const recipient = BigInt(mode === 'smart-account' ? accountAddress : owner.address);
+    const [withdrawal] = await prepare(delegation, { recipient });
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+    expect(fixture.proofRecipients.every(target => target === recipient)).toBe(true);
+    expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(signTypedData).toHaveBeenCalled();
+  });
+
+  it('treats an explicit empty tail-call callback as sender-funded execution', async () => {
+    fixture.count = 1;
+    fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(false, 0, true));
+    const tailCalls = vi.fn(async () => []);
+    const [withdrawal] = await prepare({ mode: 'smart-account', signer: owner, allowUsed: true,
+      account: { kind: 'simple-account', address: accountAddress } }, { tailCalls, recipient: BigInt(accountAddress) });
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
     expect(fixture.proofRecipients.every(recipient => recipient === BigInt(accountAddress))).toBe(true);
     expect(BigInt(withdrawal!.userOperation.callGasLimit)).toBeGreaterThan(0n);
-    if (forward) {
-      const { SIMPLE_7702_EXECUTE_ABI } = await import('../../src/data/abis/account.abi');
-      const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: withdrawal!.userOperation.callData });
-      expect(decoded.functionName).toBe('execute');
-      if (decoded.functionName !== 'execute') throw new Error('Expected execute');
-      expect(BigInt(decoded.args[0])).toBe(3n);
-      expect(decoded.args[1]).toBe(fixture.denomination - withdrawal!.fee);
-    } else expect(withdrawal!.userOperation.callData).toBe('0x');
-    expect(withdrawal!.gasEstimation!.status).toBe('estimated');
+    expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(tailCalls).toHaveBeenCalledWith(accountAddress);
   });
-  it('retries recognized execution gas shortages for custom smart-account calls within the caller ceiling', async () => {
-    fixture.count = 1;
+
+  it.each((['smart-account', 'external'] as const).flatMap(mode => [1, 2].map(count => ({ mode, count }))))('explicitly retries $mode execution shortages for $count note(s) within the ceiling', async ({ mode, count }) => {
+    fixture.count = count;
+    const base = reasonableGasUnitsForBatch(false, count - 1, true);
+    const required = base.callGasLimit + 150_000n;
     const seen: bigint[] = [];
     fixture.estimate.mockImplementation(async (op: SerializedUserOperation) => {
       const gas = BigInt(op.callGasLimit); seen.push(gas);
-      if (gas < 500_000n) throw new Error('Execution out of gas');
-      return { ...reasonableGasUnitsForBatch(false, 0, true), callGasLimit: 450_000n };
+      if (gas < required) throw new Error('Execution out of gas');
+      return { ...base, callGasLimit: required };
     });
-    const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n,
-      account: { kind: 'simple-account', address: accountAddress } }, {
-      recipient: BigInt(accountAddress), tailCalls: async () => [{ to: owner.address, value: 0n, data: '0x' }], maxGasLimits: { callGasLimit: 800_000n },
+    const delegation: DelegationConfig = mode === 'smart-account'
+      ? { mode, allowUsed: true, signer: owner, account: { kind: 'simple-account', address: accountAddress } }
+      : { mode, allowUsed: true, signer: owner };
+    const [withdrawal] = await prepare(delegation, {
+      executionGasRetry: true,
+      tailCalls: async () => [{ to: owner.address, value: 0n, data: '0x' }], maxGasLimits: { callGasLimit: base.callGasLimit * 3n },
     });
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
-    expect(seen).toEqual([300_000n, 600_000n, 540_000n]);
+    expect(seen).toEqual([base.callGasLimit, base.callGasLimit * 2n, required * 12n / 10n]);
     expect(withdrawal!.gasEstimation!.status).toBe('estimated');
+  });
+
+  it.each([undefined, false])('does not treat a ceiling as retry opt-in (executionGasRetry=%s)', async executionGasRetry => {
     fixture.estimate.mockRejectedValue(new Error('Execution out of gas'));
-    await expect(prepare({ mode: 'smart-account', allowUsed: true, signer: owner, nonce: 0n,
-      account: { kind: 'simple-account', address: accountAddress } }, {
-      tailCalls: async () => [{ to: owner.address, value: 0n, data: '0x' }],
-    })).rejects.toThrow('preparation stopped'); // No explicit ceiling, no probes.
+    await expect(prepare({ mode: 'smart-account', allowUsed: true, signer: owner, account: { kind: 'simple-account', address: accountAddress } }, {
+      executionGasRetry, maxGasLimits: { callGasLimit: 8_000_000n }, tailCalls: async () => [],
+    })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
+    expect(fixture.estimate).toHaveBeenCalledOnce();
+    expect(fixture.fees.filter(fee => fee > 0n)).toHaveLength(1);
+  });
+
+  it.each([undefined, 0n, -1n, 1_000_000])('rejects retry opt-in without a valid positive ceiling (%s) before signing', async callGasLimit => {
+    await expect(prepare(null, { executionGasRetry: true, maxGasLimits: { callGasLimit } })).rejects.toMatchObject({ message: expect.stringContaining('requires a positive') });
+    expect(fixture.fees).toHaveLength(0);
+    expect(fixture.deriveSignature).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid retry flag before signing', async () => {
+    await expect(prepare(null, { executionGasRetry: 'true', maxGasLimits: { callGasLimit: 8_000_000n } })).rejects.toMatchObject({ message: expect.stringContaining('must be a boolean') });
+    expect(fixture.fees).toHaveLength(0);
+    expect(fixture.deriveSignature).not.toHaveBeenCalled();
   });
   it('pins a caller-selected compatible 7702 target in the authorization', async () => {
     fixture.count = 2;
