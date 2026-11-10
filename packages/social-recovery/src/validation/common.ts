@@ -1,5 +1,5 @@
 export { normalizeAddresses } from '../formats/guards';
-import { assertBool, assertObject } from '../formats/guards';
+import { assertAddress, assertBool, assertObject } from '../formats/guards';
 import type { Address, ErrorCode, FindingSubject, FindingValues, ValidationResult, WarningCode } from '../interfaces';
 import type { ActionReads, Findings } from '../types/validation';
 
@@ -45,4 +45,8 @@ export function assertActionReads(action: ActionReads, path: string): void {
 
   assertBool(action.supportsAccount, `${path}.supportsAccount`);
   assertBool(action.accountHoldsCode, `${path}.accountHoldsCode`);
+  assertObject(action.manager, `${path}.manager`);
+  assertBool(action.manager.answered, `${path}.manager.answered`);
+
+  if (action.manager.answered) assertAddress(action.manager.value, `${path}.manager.value`);
 }

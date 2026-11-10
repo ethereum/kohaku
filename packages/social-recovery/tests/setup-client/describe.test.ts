@@ -10,6 +10,8 @@ import {
   DRAFT,
   KEY_1,
   KEY_2,
+  MANAGER,
+  MANAGER_SELECTOR,
   members,
   METHOD_A,
   METHOD_B,
@@ -19,7 +21,7 @@ import {
 
 /** The provider and part calls one describeSetup made before the description named the action, in order. */
 const CALLS_BEFORE_ACTION = {
-  provider: ['block', 'code'],
+  provider: ['block', 'code', 'call'],
   parts: [
     'manager.moduleInfo',
     'manager.trustedParties',
@@ -44,7 +46,7 @@ const expectedContext = (draft: SetupDraft, authority: readonly boolean[], remov
     ...MODULE_ANSWERS,
     implemented: module === METHOD_A || module === METHOD_B,
   })),
-  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true },
+  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true, manager: { answered: true, value: MANAGER } },
   candidateKeys: [KEY_1, KEY_2].map((key, index) => ({ key, isAuthority: authority[index] ?? false })),
   removedKey,
 });
@@ -132,7 +134,7 @@ describe('describeSetup', () => {
 
     expect(seen.provider).toEqual(CALLS_BEFORE_ACTION.provider);
     expect(members(seen)).toEqual(CALLS_BEFORE_ACTION.parts);
-    expect(seen.calls).toEqual([]);
+    expect(seen.calls.map((call) => call.data)).toEqual([MANAGER_SELECTOR]);
     expect(seen.codes).toHaveLength(1);
   });
 

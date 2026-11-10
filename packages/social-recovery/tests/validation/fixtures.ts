@@ -37,6 +37,8 @@ export const NEW_KEY: Address = '0x7000000000000000000000000000000000000001';
 export const OLD_KEY: Address = '0x7000000000000000000000000000000000000002';
 export const ZERO: Address = '0x0000000000000000000000000000000000000000';
 export const SALT: Hex = '0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5';
+/** A manager other than the descriptor's, as a mispaired action answers `MANAGER()`. */
+export const OTHER_MANAGER: Address = '0x8000000000000000000000000000000000000009';
 
 /** The shipped client numbers: 48 h default and short wait, 30 d maximum, a 24 h window with a 1 h floor, 12 h cancel, 10 M gas. */
 export const CONFIGURATION: ClientConfiguration = {
@@ -118,6 +120,7 @@ export const SETUP_CONTEXT: SetupValidationContext = {
     actionInfo: { answered: true, value: { name: 'a', version: '1', supportsInterface: true } },
     supportsAccount: true,
     accountHoldsCode: true,
+    manager: { answered: true, value: DESCRIPTOR.manager },
   },
   managerEvents: [],
   costs: [],

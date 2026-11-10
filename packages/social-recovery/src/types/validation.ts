@@ -64,6 +64,11 @@ export type ActionReads = {
    * Deploy the account first, or in the transaction that carries the commit; the manager's `commitSetup` refuses an account the action does not serve.
    */
   readonly accountHoldsCode: boolean;
+  /**
+   * The action's `MANAGER()` answer at the block, unanswered where it reverts or does not decode; an answer other than the
+   * descriptor's manager is `action.manager-mismatch`, since the action spends only that manager's attempts.
+   */
+  readonly manager: ReadResult<Address>;
 };
 
 /** The reads a setup client hands `validateSetup`, all pinned to one block. */

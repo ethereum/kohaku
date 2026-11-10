@@ -152,7 +152,7 @@ export const CONTEXT: SetupDescriptionContext = {
   descriptor: DESCRIPTOR,
   configuration: CONFIGURATION,
   methods: METHOD_READS,
-  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true },
+  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true, manager: { answered: true, value: DESCRIPTOR.manager } },
   candidateKeys: [
     { key: CANDIDATE_A, isAuthority: true },
     { key: CANDIDATE_B, isAuthority: false },

@@ -31,6 +31,9 @@ export const BUILDER_BODY_ENCODER_MESSAGE = "the manager is not one this build's
 /** The refusal message where a manager reading handed to the builder was taken on another chain or for another manager. */
 export const BUILDER_READING_MISMATCH_MESSAGE = 'the manager reading was taken on another chain or for another manager';
 
+/** The refusal message where the bound recovery action answers `MANAGER()` with another manager than the descriptor's. */
+export const BUILDER_ACTION_MANAGER_MESSAGE = "the recovery action answers MANAGER() with another manager than the descriptor's";
+
 /** The refusal message of the disarming write on an action part handed out for a deployment version this build does not serve. */
 export const BUILDER_VERSION_ESCAPED_MESSAGE = 'this action part prepares nothing: the deployment answers a version this build does not serve';
 

@@ -42,6 +42,19 @@ export function actionFindings(context: SetupValidationContext, findings: Findin
   }
 }
 
+/** `action.manager-mismatch` where the action's `MANAGER()` answers another manager than the descriptor's, the only one whose attempts it spends. */
+export function actionManagerFindings(context: SetupValidationContext, findings: Findings): void {
+  const answer = context.action.manager;
+
+  if (!answer.answered) return;
+
+  const action = normalizeAddress(context.action.address, 'context.action.address');
+  const manager = normalizeAddress(context.descriptor.manager, 'context.descriptor.manager');
+  const actionManager = normalizeAddress(answer.value, 'context.action.manager.value');
+
+  if (actionManager !== manager) addError(findings, 'action.manager-mismatch', 'action', { action, manager, actionManager });
+}
+
 const isSetupEvent = (event: KitNotification): event is SetupEvent =>
   event.kind === 'setup-committed' || event.kind === 'setup-cleared';
 

@@ -14,6 +14,7 @@ import {
   OPENING,
   OTHER_ACTION,
   OTHER_IMPLEMENTATION,
+  OTHER_MANAGER,
   OTHER_TOKEN,
   PASSKEY,
   REQUEST_CONTEXT,
@@ -57,7 +58,7 @@ const committed = (account: string, action: string, block: number) => ({
 export function setupScenarios(): readonly [string, SetupDraft, SetupValidationContext][] {
   const deadAction = {
     ...SETUP_CONTEXT,
-    action: { ...SETUP_CONTEXT.action, supportsAccount: false },
+    action: { ...SETUP_CONTEXT.action, supportsAccount: false, manager: { answered: true as const, value: OTHER_MANAGER } },
     configuration: { ...CONFIGURATION, accountImplementation: OTHER_IMPLEMENTATION },
     costs: COSTS,
   };

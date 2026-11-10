@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
+  BUILDER_ACTION_MANAGER_MESSAGE,
   BUILDER_CHAIN_MISMATCH_MESSAGE,
   BUILDER_DIGEST_VERSION_MESSAGE,
   BUILDER_DOMAIN_CHAIN_MESSAGE,
@@ -14,9 +15,12 @@ import {
 } from '../../src/index';
 import { ChainDouble, FC_PARAMS, OTHER_MANAGER, TIMEOUT, goodDomain, goodWorld, holder, type ChainWorld, type DomainAnswer } from './doubles';
 
-type Fault = 'chain' | 'domain-revert' | 'domain-chain' | 'verifying' | 'fields' | 'version' | 'name' | 'release';
+type Fault = 'chain' | 'domain-revert' | 'domain-chain' | 'verifying' | 'fields' | 'version' | 'name' | 'release' | 'pairing';
 
-const FAULTS: readonly Fault[] = ['chain', 'domain-revert', 'domain-chain', 'verifying', 'fields', 'version', 'name', 'release'];
+const FAULTS: readonly Fault[] = ['chain', 'domain-revert', 'domain-chain', 'verifying', 'fields', 'version', 'name', 'release', 'pairing'];
+
+/** Every read a build makes when the manager's reads pass: the action's `MANAGER()` comes last. */
+const EVERY_READ = ['chainId', 'eip712Domain', 'version', 'MANAGER'];
 
 /** The world answering wrong in exactly the given faults. */
 function worldWith(faults: ReadonlySet<Fault>): ChainWorld {
@@ -33,6 +37,7 @@ function worldWith(faults: ReadonlySet<Fault>): ChainWorld {
     chainId: faults.has('chain') ? 5 : goodWorld().chainId,
     domain: faults.has('domain-revert') ? { reverts: '0x' } : domain,
     version: faults.has('release') ? '9.9.9' : '1.0.0',
+    actionManager: faults.has('pairing') ? OTHER_MANAGER : goodWorld().actionManager,
   };
 }
 
@@ -67,7 +72,15 @@ const MESSAGE_OF: Readonly<Record<Exclude<Fault, 'release'>, string>> = {
   fields: BUILDER_DOMAIN_FIELDS_MESSAGE,
   version: BUILDER_DIGEST_VERSION_MESSAGE,
   name: BUILDER_DOMAIN_NAME_MESSAGE,
+  pairing: BUILDER_ACTION_MANAGER_MESSAGE,
 };
+
+/** The reads a refused build made: the chain id alone, up to the domain, or every read where the action's pairing refused. */
+function refusalReads(faults: ReadonlySet<Fault>, message: string | undefined): readonly string[] {
+  if (faults.has('chain')) return ['chainId'];
+
+  return message === BUILDER_ACTION_MANAGER_MESSAGE ? EVERY_READ : ['chainId', 'eip712Domain'];
+}
 
 /** The messages the first failing check may carry, or the reading a passing build records. */
 function expected(faults: ReadonlySet<Fault>, escape: boolean): { readonly messages?: readonly string[]; readonly escaped?: readonly BuilderEscapedCheck[] } {
@@ -82,6 +95,8 @@ function expected(faults: ReadonlySet<Fault>, escape: boolean): { readonly messa
   if (!escape && faults.has('fields')) return messagesOf('fields');
 
   if (!escape && (faults.has('version') || faults.has('name'))) return messagesOf('version', 'name');
+
+  if (faults.has('pairing')) return messagesOf('pairing');
 
   const escaped: BuilderEscapedCheck[] = [];
 
@@ -106,12 +121,12 @@ describe('the construction sequence over arbitrary wrong answers', () => {
 
           if (want.messages !== undefined) {
             expect(want.messages).toContain(outcome.message);
-            expect(outcome.reads).toEqual(faults.has('chain') ? ['chainId'] : ['chainId', 'eip712Domain']);
+            expect(outcome.reads).toEqual(refusalReads(faults, outcome.message));
           } else {
             expect(outcome.message).toBeUndefined();
             expect(outcome.escaped).toEqual(want.escaped);
             expect(outcome.versionMismatch).toBe(faults.has('release'));
-            expect(outcome.reads).toEqual(['chainId', 'eip712Domain', 'version']);
+            expect(outcome.reads).toEqual(EVERY_READ);
           }
         }),
         FC_PARAMS,

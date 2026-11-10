@@ -125,6 +125,7 @@ const SETUP_ERRORS = [
   'wait.above-maximum',
   'action.unsupported',
   'account.not-deployed',
+  'action.manager-mismatch',
   'backup.too-wide',
 ];
 
@@ -304,7 +305,7 @@ describe('the three restore causes', () => {
 
 describe('the finding codes', () => {
   it.each([
-    ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 13],
+    ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 14],
     ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 14],
     ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 16],
     ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 8],
@@ -313,10 +314,10 @@ describe('the finding codes', () => {
     expect([...tuple]).toEqual(table);
   });
 
-  it("ValidationError's code is the setup and request errors together, twenty-nine codes", () => {
+  it("ValidationError's code is the setup and request errors together, thirty codes", () => {
     const expected = sorted([...new Set([...SETUP_ERRORS, ...REQUEST_ERRORS])]);
 
-    expect(expected).toHaveLength(29);
+    expect(expected).toHaveLength(30);
     expect(literalsOf('ValidationError', 'code')).toEqual(expected);
   });
 

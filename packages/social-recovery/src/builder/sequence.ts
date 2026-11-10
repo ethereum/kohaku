@@ -1,5 +1,6 @@
 import {
   BODY_ENCODER_KEY,
+  BUILDER_ACTION_MANAGER_MESSAGE,
   BUILDER_BODY_ENCODER_MESSAGE,
   BUILDER_CHAIN_MISMATCH_MESSAGE,
   BUILDER_DIGEST_VERSION_MESSAGE,
@@ -15,6 +16,7 @@ import {
 import { KitRefusalError } from '../client-core/refusal';
 import { sameAddress } from '../formats/guards';
 import type { Address, DeploymentDescriptor, Domain } from '../interfaces';
+import { actionManagerAt } from '../recovery-action/manager-read';
 import type { BuilderEscapedCheck, ManagerReading, SequenceInputs } from '../types/builder';
 import { resolvedDescriptor } from './inputs';
 import { frozenReading, readDomain, readVersion } from './reading';
@@ -66,10 +68,18 @@ async function namedChain(inputs: SequenceInputs): Promise<{ chainId: number; an
   return { chainId: answered, answered };
 }
 
+/** Refuses a bound action whose `MANAGER()` answers another manager than the descriptor's, whatever the escape; an unanswered read passes. */
+async function assertActionBound(inputs: SequenceInputs, descriptor: DeploymentDescriptor): Promise<void> {
+  const answer = await actionManagerAt(inputs.provider, inputs.action ?? descriptor.action, inputs.readTag);
+
+  if (answer.answered && !sameAddress(answer.value, descriptor.manager)) throw new KitRefusalError(BUILDER_ACTION_MANAGER_MESSAGE);
+}
+
 /**
  * The construction checks, in order: the descriptor resolved, the provider's chain, the manager's domain and its bound
- * members, then the escapable checks and `version()` beside them. Each refusal is a `KitRefusalError`; a transport failure
- * propagates as itself. A handed-over reading of the same chain and manager stands in for both manager reads.
+ * members, then the escapable checks and `version()` beside them, then the bound action's `MANAGER()`. Each refusal is a
+ * `KitRefusalError`; a transport failure propagates as itself. A handed-over reading of the same chain and manager stands
+ * in for both manager reads, never for the action's.
  */
 export async function constructionChecks(
   inputs: SequenceInputs,
@@ -92,6 +102,8 @@ export async function constructionChecks(
 
   const escaped = escapedChecks(domain, descriptor, inputs.versionEscape, encoderKey);
   const version = handed?.version ?? (await readVersion(provider, descriptor.manager, readTag));
+
+  await assertActionBound(inputs, descriptor);
 
   return {
     descriptor,

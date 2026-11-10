@@ -11,6 +11,7 @@ import {
   type PinnedBlock,
   type ReadResult,
 } from '../interfaces';
+import { actionManagerAt } from '../recovery-action/manager-read';
 import type { PinnedHeader } from '../types/client-core';
 import type { JudgmentReads, SetupClientParts } from '../types/setup-client';
 import type { ActionReads, MethodReads } from '../types/validation';
@@ -77,15 +78,20 @@ async function actionInfoRead(parts: SetupClientParts, block: PinnedBlock): Prom
   }
 }
 
+/** The action's `MANAGER()` at the block; a revert or undecodable answer reads as unanswered, a failed transport propagates. */
+const managerRead = (parts: SetupClientParts, block: PinnedBlock): Promise<ReadResult<Address>> =>
+  actionManagerAt(parts.provider, parts.action, block.number);
+
 /** The action contract's reads at the block, beside the account's code read the caller made once. */
 async function actionReads(parts: SetupClientParts, block: PinnedBlock, deployed: Promise<boolean>): Promise<ActionReads> {
-  const [actionInfo, supportsAccount, accountHoldsCode] = await Promise.all([
+  const [actionInfo, supportsAccount, accountHoldsCode, manager] = await Promise.all([
     actionInfoRead(parts, block),
     parts.recoveryAction.supportsAccount(block),
     deployed,
+    managerRead(parts, block),
   ]);
 
-  return { address: parts.action, actionInfo, supportsAccount, accountHoldsCode };
+  return { address: parts.action, actionInfo, supportsAccount, accountHoldsCode, manager };
 }
 
 /** Each distinct method's reads, once per method, and the action's reads, all at the block; `deployed` is the account's one code read. */

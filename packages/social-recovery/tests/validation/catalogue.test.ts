@@ -92,6 +92,7 @@ describe('the finding catalogue', () => {
     const [[, wide, wideContext], [, empty, emptyContext]] = setupScenarios() as [[string, typeof DRAFT, typeof SETUP_CONTEXT], [string, typeof DRAFT, typeof SETUP_CONTEXT]];
 
     expect(sorted(validateSetup(wide, wideContext).errors.map((finding) => finding.code))).toEqual([
+      'action.manager-mismatch',
       'action.unsupported',
       'backup.too-wide',
       'clause.empty',
@@ -102,6 +103,7 @@ describe('the finding catalogue', () => {
       'wait.field-width',
     ]);
     expect(sorted(validateSetup(empty, emptyContext).errors.map((finding) => finding.code))).toEqual([
+      'action.manager-mismatch',
       'action.unsupported',
       'rule.empty',
       'wait.above-maximum',

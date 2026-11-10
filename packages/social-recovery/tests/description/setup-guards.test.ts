@@ -79,6 +79,10 @@ describe('describeSetup refuses a malformed action read, naming the path', () =>
     ['a string actionInfo', { actionInfo: 'ambire' }, /context\.action\.actionInfo/],
     ['an actionInfo whose answered is a string', { actionInfo: { answered: 'yes' } }, /context\.action\.actionInfo\.answered/],
     ['an answered actionInfo without a value', { actionInfo: { answered: true } }, /context\.action\.actionInfo\.value/],
+    ['a missing manager', { manager: undefined }, /context\.action\.manager/],
+    ['a bare address as the manager', { manager: '0x8000000000000000000000000000000000000001' }, /context\.action\.manager/],
+    ['a manager whose answered is a string', { manager: { answered: 'yes' } }, /context\.action\.manager\.answered/],
+    ['an answered manager whose value is no address', { manager: { answered: true, value: 'nope' } }, /context\.action\.manager/],
   ])('throws a TypeError for %s', (_name, change, path) => {
     const context = { ...CONTEXT, action: { ...CONTEXT.action, ...change } } as unknown as typeof CONTEXT;
 
@@ -116,6 +120,8 @@ describe('describeSetup and validateSetup share one guard over the action reads'
     ['accountHoldsCode', (action) => ({ ...action, accountHoldsCode: 1 }), /^context\.action\.accountHoldsCode /],
     ['actionInfo.answered', (action) => ({ ...action, actionInfo: { answered: 'yes' } }), /^context\.action\.actionInfo\.answered /],
     ['actionInfo.value', (action) => ({ ...action, actionInfo: { answered: true } }), /^context\.action\.actionInfo\.value /],
+    ['manager', (action) => ({ ...action, manager: 'nope' }), /^context\.action\.manager /],
+    ['manager.answered', (action) => ({ ...action, manager: { answered: 'yes' } }), /^context\.action\.manager\.answered /],
   ])('a malformed %s throws the same TypeError message from both', (_member, change, path) => {
     const described = thrownBy(() => describeSetup(DRAFT, { ...CONTEXT, action: change(CONTEXT.action) } as unknown as typeof CONTEXT));
     const validated = thrownBy(() =>

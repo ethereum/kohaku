@@ -12,6 +12,7 @@ export const SETUP_ERROR_CODES = [
   'wait.above-maximum',
   'action.unsupported',
   'account.not-deployed',
+  'action.manager-mismatch',
   'backup.too-wide',
 ] as const;
 

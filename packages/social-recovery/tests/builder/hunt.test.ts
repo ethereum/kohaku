@@ -150,7 +150,7 @@ describe('inputs a naive builder lets through', () => {
 
     await builder.buildSetupClient();
 
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'chainId', 'eip712Domain', 'version', 'MANAGER']);
   });
 
   it('builds one set of parts when two builds race on a fresh builder', async () => {

@@ -336,7 +336,7 @@ describe('the parts the integrator supplies', () => {
     expect(of('PolicyManager')).toHaveLength(0);
     expect(setupArgs().policyManager).toBe(manager);
     expect(recoveryArgs().policyManager).toBe(manager);
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'MANAGER']);
     expect(callsOf(manager, 'eip712Domain')).toHaveLength(0);
   });
 

@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseAbi } from 'viem';
+import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseAbi, toFunctionSelector } from 'viem';
 import {
   POLICY_MANAGER_WRITES_ABI,
   RECOVERY_ACTION_SET_ADDR_PRIVILEGE_ABI,
@@ -340,6 +340,12 @@ export const MODULE_ANSWERS: ModuleAnswers = {
 
 export const ACTION_INFO: ActionInfo = { name: 'AmbireRecoveryAction', version: '1.0.0', supportsInterface: true };
 
+/** The action's `MANAGER()` selector, from the signature written out by hand. */
+export const MANAGER_SELECTOR: Hex = toFunctionSelector('MANAGER()');
+
+/** One ABI word holding the address, as a clean `MANAGER()` return. */
+export const addressWord = (address: Address): Hex => encodeAbiParameters([{ type: 'address' }], [address]);
+
 /** The chain the doubles answer from; every member may be replaced per test. */
 export type World = {
   header: Answer<unknown>;
@@ -356,6 +362,8 @@ export type World = {
   allActions: Answer<readonly KitNotification[]>;
   /** What `call` answers for one simulation, by its index. */
   simulate: (to: Address, data: Hex, from: Address, index: number) => Promise<Hex>;
+  /** What `call` answers to the action's `MANAGER()`, which is no simulation. */
+  manager: Answer<Hex>;
 };
 
 export const defaultWorld = (): World => ({
@@ -370,6 +378,7 @@ export const defaultWorld = (): World => ({
   bound: [],
   allActions: [],
   simulate: async () => '0x',
+  manager: addressWord(MANAGER),
 });
 
 /** The filter the events double hands out for the bound action. */
@@ -444,6 +453,7 @@ const unexpected = (name: string) => async (): Promise<never> => {
 
 export function doubles(world: World): Doubles {
   const seen: Seen = { blockTags: [], calls: [], codes: [], parts: [], fetches: [], filterOptions: [], provider: [] };
+  let simulations = 0;
   const note = (part: PartCall['part'], member: string, args: readonly unknown[]): void => {
     seen.parts.push({ part, member, args });
   };
@@ -458,7 +468,11 @@ export function doubles(world: World): Doubles {
       seen.provider.push('call');
       seen.calls.push({ to, data, from, block });
 
-      return world.simulate(to, data, from, seen.calls.length - 1);
+      if (data.slice(0, 10).toLowerCase() === MANAGER_SELECTOR) return answer(world.manager);
+
+      simulations += 1;
+
+      return world.simulate(to, data, from, simulations - 1);
     },
     async logs() {
       seen.provider.push('logs');

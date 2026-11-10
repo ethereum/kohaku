@@ -81,6 +81,17 @@ export const RECOVERY_ACTION_VIEWS_ABI = [
   },
 ] as const satisfies readonly AbiFunctionItem[];
 
+/** The recovery action's `MANAGER()`, the manager whose attempts it spends. */
+export const RECOVERY_ACTION_MANAGER_ABI = [
+  {
+    type: 'function',
+    name: 'MANAGER',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '_manager', type: 'address' }],
+  },
+] as const satisfies readonly AbiFunctionItem[];
+
 /** A boolean view's return data: one word holding 0 or 1. */
 export const RECOVERY_ACTION_BOOL_RETURN_ABI = [{ type: 'bool' }] as const;
 
