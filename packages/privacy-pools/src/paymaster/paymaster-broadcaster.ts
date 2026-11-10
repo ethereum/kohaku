@@ -4,6 +4,7 @@ import type { BundlerClient } from "viem/account-abstraction";
 import {
   createPaymasterBundlerClient,
   describeError,
+  isBundlerRejection,
   isUserOperationKnown,
   sendSerializedUserOperation,
 } from "./utils";
@@ -46,30 +47,32 @@ const waitForConfirmation = async (
   return { txHash };
 };
 
-/** Throws unless the bundler knows the userOp whose send request failed with `sendError`. */
+/**
+ * Throws unless the bundler knows the userOp whose send request failed with
+ * `sendError`. Some bundlers only know mined userOps, so a userOp they don't
+ * know was only rejected if they answered the send with a JSON-RPC error.
+ */
 const assertKnownToBundler = async (
   bundlerClient: BundlerClient,
   userOpHash: Hash,
   sendError: unknown,
 ): Promise<void> => {
-  let known: boolean;
+  const known = await isUserOperationKnown(bundlerClient, userOpHash).catch(() => false);
 
-  try {
-    known = await isUserOperationKnown(bundlerClient, userOpHash);
-  } catch {
-    throw new PaymasterBroadcastError(
-      "unconfirmed",
-      `Could not tell whether the bundler accepted userOp ${userOpHash}, it may still land: ${describeError(sendError)}`,
-      { userOpHash },
-    );
-  }
+  if (known) return;
 
-  if (!known) {
+  if (isBundlerRejection(sendError)) {
     throw new PaymasterBroadcastError(
       "not-accepted",
       `Bundler did not accept the userOp: ${describeError(sendError)}`,
     );
   }
+
+  throw new PaymasterBroadcastError(
+    "unconfirmed",
+    `Could not tell whether the bundler accepted userOp ${userOpHash}, it may still land: ${describeError(sendError)}`,
+    { userOpHash },
+  );
 };
 
 /**
@@ -96,8 +99,8 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
     try {
       userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress);
     } catch (error) {
-      // The bundler may have accepted the userOp and the response got lost, e.g.
-      // a timeout, then "already known" on viem's retry.
+      // The bundler may have accepted the userOp and the response got lost,
+      // e.g. a timeout.
       await assertKnownToBundler(bundlerClient, expectedHash, error);
       userOpHash = expectedHash;
     }

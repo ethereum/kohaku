@@ -5,6 +5,7 @@ import {
   encodeFunctionData,
   hashTypedData,
   http,
+  RpcRequestError,
   toHex,
   type Address,
   type Hash,
@@ -77,7 +78,11 @@ export async function getUserOperationGasPrice(
   };
 }
 
-/** Sends an already-built, serialized (hex) userOp directly to the bundler. */
+/**
+ * Sends an already-built, serialized (hex) userOp directly to the bundler. Not
+ * retried: a retry of a userOp the bundler already got is rejected like an
+ * invalid one, which would hide that it was accepted.
+ */
 export async function sendSerializedUserOperation(
   client: BundlerClient,
   op: SerializedUserOperation,
@@ -86,8 +91,12 @@ export async function sendSerializedUserOperation(
   return client.request({
     method: "eth_sendUserOperation",
     params: [op, entryPoint],
-  }) as Promise<Hash>;
+  }, { retryCount: 0 }) as Promise<Hash>;
 }
+
+/** Whether the bundler answered with a JSON-RPC error, as opposed to a transport failure. */
+export const isBundlerRejection = (error: unknown): boolean =>
+  error instanceof BaseError && error.walk((e) => e instanceof RpcRequestError) !== null;
 
 /**
  * viem error messages embed the request body, which for the paymaster flow is
@@ -135,7 +144,8 @@ export async function estimateUserOperationGas(
 }
 
 /**
- * Asks the bundler whether it knows a userOp (pending or included). viem's
+ * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
+ * only know mined userOps, not pending ones. viem's
  * `getUserOperation` is not used because it fails to format pending userOps,
  * whose `blockNumber` is null.
  */

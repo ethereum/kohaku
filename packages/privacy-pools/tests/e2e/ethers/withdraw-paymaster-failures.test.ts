@@ -9,6 +9,7 @@ import { E_ADDRESS, PrivacyPoolsPaymasterConfigs } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
 import { EthClient } from '../../../src/data/eth-client';
 import { PaymasterBroadcastError, PrivacyPoolsV1Protocol } from '../../../src/index';
+import { createPaymasterBundlerClient } from '../../../src/paymaster/utils';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
 import { addressToHex } from '../../../src/utils';
@@ -48,10 +49,11 @@ const USDT_BALANCE_SLOT = 2;
 /**
  * Forwards every `eth_sendUserOperation` to the bundler but throws instead of
  * returning its response, as when a request times out after the bundler got it.
- * viem retries the send, so every attempt is dropped.
+ * The dropped responses are kept in `dropped`.
  */
 const dropSendResponses = (host: Host) => {
   const methods: string[] = [];
+  const dropped: unknown[] = [];
   const network = {
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       const response = await host.network.fetch(input, init);
@@ -59,13 +61,16 @@ const dropSendResponses = (host: Host) => {
 
       methods.push(method);
 
-      if (method === 'eth_sendUserOperation') throw new Error('socket hang up');
+      if (method === 'eth_sendUserOperation') {
+        dropped.push(await response.json());
+        throw new Error('socket hang up');
+      }
 
       return response;
     },
   };
 
-  return { host: { ...host, network } as Host, methods };
+  return { host: { ...host, network } as Host, methods, dropped };
 };
 
 const catchBroadcastError = async (promise: Promise<unknown>) => {
@@ -181,7 +186,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast failures (re
     return { host, protocol, approvedBalance };
   };
 
-  it('[paymaster] recovers a userOp whose send responses were lost', { timeout: 300_000 }, async () => {
+  it('[paymaster] throws `unconfirmed` with the hash when the send response was lost', { timeout: 300_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
     const WITHDRAW_AMOUNT = parseEther('1');
     const { host, protocol, approvedBalance } = await depositApprovedNote(nativeAsset, parseEther('2'));
@@ -199,18 +204,23 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast failures (re
     const broadcaster = new PrivacyPoolsBroadcaster({ host: lossy.host, broadcasterUrl: { default: 'http://unused' } });
     const approvedBefore = await approvedBalance();
 
-    // Every send response is lost, so only the lookup of the hash computed at
-    // signing can tell that the bundler accepted it.
-    const response = await broadcaster.broadcast(op);
+    // alto only finds mined userOps, so the lookup right after the lost send
+    // cannot tell that it accepted this one.
+    const error = await catchBroadcastError(broadcaster.broadcast(op));
 
-    expect(lossy.methods).toContain('eth_getUserOperationByHash');
-    expect(response.requestId).toBe(op.withdrawal.userOpHash);
+    expect(error.failure).toBe('unconfirmed');
+    expect(error.userOpHash).toBe(op.withdrawal.userOpHash);
+    expect(lossy.methods).toEqual(['eth_sendUserOperation', 'eth_getUserOperationByHash']);
+    // The bundler did accept it, with the hash computed at signing.
+    expect(lossy.dropped).toEqual([expect.objectContaining({ result: op.withdrawal.userOpHash })]);
 
-    const { txHash } = await response.wait();
+    // It lands anyway.
+    const receipt = await createPaymasterBundlerClient(op.withdrawal.bundlerUrl)
+      .waitForUserOperationReceipt({ hash: error.userOpHash! });
 
     await pool.mine(1);
 
-    expect(txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(receipt.success).toBe(true);
     expect(await provider.getBalance(RECIPIENT)).toBeGreaterThan(0n);
     expect(await approvedBalance()).toBe(approvedBefore - WITHDRAW_AMOUNT);
   });

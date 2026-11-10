@@ -55,12 +55,13 @@ export interface IPaymasterBroadcasterClient {
 }
 
 /**
- * - `not-accepted`: the send request failed and the bundler does not know the userOp.
+ * - `not-accepted`: the bundler answered the send request with an error and
+ *   does not know the userOp.
  * - `reverted`: the userOp was mined with `success: false`. Notes spent before
  *   the revert stay spent, and their funds may be held by the userOp sender.
  * - `unconfirmed`: the outcome is unknown, the userOp may still land. Thrown by
- *   `broadcast()` when the send request failed and the bundler could not be
- *   asked whether it got the userOp anyway.
+ *   `broadcast()` when the send request failed without an answer from the
+ *   bundler, e.g. a timeout, and the bundler does not know the userOp yet.
  */
 export type PaymasterBroadcastFailure = "not-accepted" | "reverted" | "unconfirmed";
 

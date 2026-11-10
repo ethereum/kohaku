@@ -186,17 +186,38 @@ describe('PaymasterBroadcaster', () => {
     expectNoUserOp(error);
   });
 
-  it('throws `not-accepted` without the userOp on an HTTP error', async () => {
-    const { network } = makeNetwork(sendFails(() => new Response('nope', { status: 400 })));
+  it('throws `not-accepted` on an RPC error even when the lookup fails', async () => {
+    const { network } = makeNetwork(sendFails(AA23, () => ({ error: { code: -32601, message: 'method not supported' } })));
 
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
 
     expect(error.failure).toBe('not-accepted');
+    expect(error.message).toContain('AA23 reverted');
+  });
+
+  it('throws `unconfirmed` with the hash when the send response is lost and the bundler does not know the userOp yet', async () => {
+    const { network, calls } = makeNetwork(sendFails(() => { throw new Error('socket hang up'); }));
+
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.failure).toBe('unconfirmed');
+    expect(error.userOpHash).toBe(USER_OP_HASH);
+    // Not retried: a retry would be rejected like an invalid userOp.
+    expect(calls).toEqual(['eth_sendUserOperation', 'eth_getUserOperationByHash']);
+    expectNoUserOp(error);
+  });
+
+  it('throws `unconfirmed` without the userOp on an HTTP error', async () => {
+    const { network } = makeNetwork(sendFails(() => new Response('nope', { status: 400 })));
+
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.failure).toBe('unconfirmed');
     expect(error.message).toContain('HTTP request failed');
     expectNoUserOp(error);
   });
 
-  it('recovers when the send fails but the bundler already has the userOp', async () => {
+  it('recovers when the send fails but the bundler knows the userOp', async () => {
     const pending = { userOperation: {}, entryPoint: ADDRESS, blockNumber: null, blockHash: null, transactionHash: null };
     const { network, calls } = makeNetwork(sendFails(
       () => ({ error: { code: -32602, message: 'Already known' } }),
