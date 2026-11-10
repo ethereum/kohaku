@@ -436,8 +436,7 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
       // 3. Prepare withdrawal with real prover
       const withdrawOp = await protocol.prepareUnshield(
         { asset: nativeAsset, amount: withdraw_amount },
-        recipientAccount,
-        { obfuscateAmounts: false }, // This test deliberately drains the last note.
+        recipientAccount
       );
 
       receiverBalance += withdraw_amount - (withdraw_amount * BigInt(withdrawOp.quoteData.quote.feeBPS)) / 10_000n;

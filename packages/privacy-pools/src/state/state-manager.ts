@@ -196,7 +196,7 @@ export const storeStateManager = (
 
   const planWithdrawal = (
     store: Awaited<ReturnType<typeof getChainStore>>,
-    asset: Address, amount: bigint | undefined, batch = false, obfuscateAmounts = true,
+    asset: Address, amount: bigint | undefined, batch = false, obfuscateAmounts = false,
   ) => {
     if (!obfuscateAmounts) return undefined;
 

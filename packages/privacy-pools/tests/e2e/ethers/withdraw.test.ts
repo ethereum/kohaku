@@ -412,7 +412,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
         { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
         recipientAccount
       )
-    ).rejects.toThrow('exceeds maximum gross');
+    ).rejects.toThrow('No note with sufficient balance');
 
   });
 
@@ -451,7 +451,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     });
     await pool.mine(1);
 
-    // 2. Approve the note so amount protection passes before the relayer quote.
+    // 2. Approve the note so this is a valid withdrawal apart from the relayer failure.
     const [note] = await protocol.notes([nativeAsset]);
 
     mockAspService.addLabel(note.label);

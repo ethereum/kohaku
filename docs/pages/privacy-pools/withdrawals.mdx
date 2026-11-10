@@ -65,13 +65,13 @@ await pools.prepareUnshield(asset, recipient, {
 })
 ```
 
-Leave it off to spend a single note. If one note cannot cover `amount` while retaining the required change, the call throws.
+Leave it off to spend a single note. If one note cannot cover `amount` (including required change when obfuscation is enabled), the call throws.
 
 ### Amount obfuscation
 
 Fully spending several notes exposes their exact balances together, making
-amount-based correlation with deposits easier. `prepareUnshield` defaults to
-`obfuscateAmounts: true` for both paymaster and regular relayer withdrawals.
+amount-based correlation with deposits easier. Set `obfuscateAmounts: true` on
+`prepareUnshield` to enable amount obfuscation in either relay mode. It defaults to false.
 
 The requested total is preserved. Only approved notes of the requested asset
 are used, largest first, and every selected note retains at least 1%. If one
@@ -88,9 +88,29 @@ This applies even to single-note withdrawals. Above it, preparation throws
 `PPv1AmountObfuscationError` before proofs or signatures, with `requestedAmount`
 and `maxObfuscatedAmount` (both gross). With `exact`, fees count toward the ceiling.
 
-The SDK never adjusts the requested total. Explicitly set `obfuscateAmounts: false`
-to bypass the ceiling and permit full-note spends. If protection requires multiple
+The SDK never adjusts the requested total. When the option is omitted or false,
+the ceiling does not apply and full-note spends are permitted. If protection requires multiple
 notes, preparation requires paymaster mode with `batch: true`; it otherwise throws.
+
+To analyze a note snapshot before preparation:
+
+```ts
+import { analyzePPv1Withdrawal } from '@kohaku-eth/privacy-pools'
+
+const { needsObfuscation, maxObfuscatedAmount } = analyzePPv1Withdrawal(
+  noteSnapshot, BigInt(asset.contract), grossAmount, { batch: true },
+)
+const exceedsProtectedCeiling = grossAmount > maxObfuscatedAmount
+```
+
+This pure helper does not sync, quote fees, sample randomness or generate proofs.
+`needsObfuscation` reports whether the allocation with `obfuscateAmounts: false`
+would fully spend a note. Match the intended `batch` option: without it, selection
+uses the smallest sufficient note; with it, selection uses largest notes first.
+Compare the gross amount to the ceiling separately, even when the flag is false.
+The ceiling covers all eligible notes and may require batching. For `exact`, include
+fees in the gross amount. Analysis reflects the supplied snapshot; preparation
+rechecks the current balance. Neither result is an anonymity guarantee.
 
 Near the ceiling, random ranges narrow to leave enough funds for subsequent notes.
 Integer rounding can make tiny allocations deterministic.

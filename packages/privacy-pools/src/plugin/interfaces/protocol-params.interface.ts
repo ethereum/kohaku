@@ -66,10 +66,10 @@ export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
  */
 interface PPv1CommonUnshieldOptions extends UnshieldOptions {
   /**
-   * Default true: preserve the exact requested total, cap gross at 97% of approved
-   * balance, and retain at least 1% of every spent note (rounded up). Non-final
-   * notes retain a random 1–25% where feasible; the last supplies the remainder.
-   * False explicitly permits legacy full-note spends. No anonymity guarantee.
+   * Default false: allow full-note spends. True preserves the exact requested
+   * total, caps gross at 97% of approved balance, and retains at least 1% of every
+   * spent note (rounded up). Non-final notes retain a random 1–25% where feasible;
+   * the last supplies the remainder. No anonymity guarantee.
    */
   obfuscateAmounts?: boolean;
   /** Gas budget for the execution phase when `tailCalls` are supplied. */
@@ -259,7 +259,7 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
 export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
   amount?: bigint;
   recipient: Address;
-  /** Defaults to true. False explicitly permits full-note spends. */
+  /** Defaults to false. True enables amount obfuscation and its headroom limit. */
   obfuscateAmounts?: boolean;
 }
 

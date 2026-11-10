@@ -73,7 +73,7 @@ describe('batch amount obfuscation API', () => {
   it('preserves exact recipient output while obfuscating the fee-inclusive gross', async () => {
     const { protocol } = setup();
     const operation = await protocol.prepareUnshield({ asset: ASSET, amount: 1930n }, RECIPIENT, {
-      mode: 'paymaster', batch: true, exact: {}, refundRecipient: RECIPIENT,
+      mode: 'paymaster', batch: true, obfuscateAmounts: true, exact: {}, refundRecipient: RECIPIENT,
     });
 
     expect(operation.exact).toMatchObject({ requestedNet: 1930n, grossAmount: 1940n, expectedNet: 1930n, fee: 10n });
@@ -88,7 +88,7 @@ describe('batch amount obfuscation API', () => {
   it('checks headroom after adding exact-output fees', async () => {
     const { protocol } = setup();
     const prepare = protocol.prepareUnshield({ asset: ASSET, amount: 1931n }, RECIPIENT, {
-      mode: 'paymaster', batch: true, exact: {}, refundRecipient: RECIPIENT,
+      mode: 'paymaster', batch: true, obfuscateAmounts: true, exact: {}, refundRecipient: RECIPIENT,
     });
 
     await expect(prepare).rejects.toBeInstanceOf(PPv1AmountObfuscationError);
@@ -96,17 +96,17 @@ describe('batch amount obfuscation API', () => {
     expect(fixture.prepare).not.toHaveBeenCalled();
   });
 
-  it('requires an explicit opt-out to prepare a full-balance withdrawal', async () => {
+  it.each([undefined, false])('permits a full-balance withdrawal without opting in: %s', async obfuscateAmounts => {
     const { protocol } = setup();
 
-    await protocol.prepareUnshield({ asset: ASSET, amount: 2000n }, RECIPIENT, { mode: 'paymaster', batch: true, obfuscateAmounts: false });
+    await protocol.prepareUnshield({ asset: ASSET, amount: 2000n }, RECIPIENT, { mode: 'paymaster', batch: true, obfuscateAmounts });
     expect(fixture.prepare.mock.calls[0]![0].notesToSpend).toBeUndefined();
   });
 
-  it('protects a gross request equal to the largest note without an explicit flag', async () => {
+  it('protects a gross request equal to the largest note when explicitly enabled', async () => {
     const { protocol } = setup();
 
-    await protocol.prepareUnshield({ asset: ASSET, amount: 1000n }, RECIPIENT, { mode: 'paymaster', batch: true });
+    await protocol.prepareUnshield({ asset: ASSET, amount: 1000n }, RECIPIENT, { mode: 'paymaster', batch: true, obfuscateAmounts: true });
     const notes = fixture.prepare.mock.calls[0]![0].notesToSpend;
 
     expect(notes).toHaveLength(2);
@@ -119,31 +119,31 @@ describe('batch amount obfuscation API', () => {
 
     fixture.notes = fixture.notes.map(note => ({ ...note, balance: 5000n, value: 5000n }));
     await expect(protocol.prepareUnshield({ asset: ASSET, amount: 9998n }, RECIPIENT,
-      { mode: 'paymaster', batch: true })).rejects.toMatchObject({ requestedAmount: 9998n, maxObfuscatedAmount: 9700n });
+      { mode: 'paymaster', batch: true, obfuscateAmounts: true })).rejects.toMatchObject({ requestedAmount: 9998n, maxObfuscatedAmount: 9700n });
     expect(fixture.prepare).not.toHaveBeenCalled();
   });
 
   it.each(['paymaster', 'relayer'] as const)('rejects a protected multi-note request without a batch-capable path: %s', async mode => {
     const { protocol } = setup();
 
-    await expect(protocol.prepareUnshield({ asset: ASSET, amount: 1000n }, RECIPIENT, { mode }))
+    await expect(protocol.prepareUnshield({ asset: ASSET, amount: 1000n }, RECIPIENT, { mode, obfuscateAmounts: true }))
       .rejects.toThrow('use paymaster mode with batch: true');
     expect(fixture.prepare).not.toHaveBeenCalled();
     expect(fixture.prove).not.toHaveBeenCalled();
     expect(fixture.quote).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])('protects a relayer note by default, exact=%s', async exact => {
+  it.each([false, true])('protects a relayer note when enabled, exact=%s', async exact => {
     const { protocol } = setup();
 
-    await protocol.prepareUnshield({ asset: ASSET, amount: 100n }, RECIPIENT, { mode: 'relayer', ...(exact ? { exact: {} } : {}) });
+    await protocol.prepareUnshield({ asset: ASSET, amount: 100n }, RECIPIENT, { mode: 'relayer', obfuscateAmounts: true, ...(exact ? { exact: {} } : {}) });
     expect(fixture.prove).toHaveBeenCalledWith(expect.objectContaining({ amount: 100n, note: fixture.notes[0] }));
   });
 
-  it('forwards an explicit relayer opt-out to the legacy note selector', async () => {
+  it('uses legacy relayer selection when options are omitted', async () => {
     const { protocol } = setup();
 
-    await protocol.prepareUnshield({ asset: ASSET, amount: 1000n }, RECIPIENT, { mode: 'relayer', obfuscateAmounts: false });
+    await protocol.prepareUnshield({ asset: ASSET, amount: 1000n }, RECIPIENT);
     expect(fixture.prove).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000n, note: undefined }));
   });
 });
