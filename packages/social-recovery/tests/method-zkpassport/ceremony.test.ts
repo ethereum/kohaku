@@ -13,8 +13,10 @@ import {
   IDENTIFIER,
   makeCtx,
   member,
+  outerFor,
   outerInputs,
   PARAMS,
+  scopeWord,
   stackDouble,
   isArgumentError,
   readPinConfigRows,
@@ -135,7 +137,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
   });
 
   it('configFrom reads the domain and the scope off the input rather than taking them again', async () => {
-    const double = stackDouble();
+    const double = stackDouble({ outer: outerFor('other.example', 'other-scope') });
     const method = zkPassportMethod({ stack: double.stack });
     const input: EnrollInput = { ...method.enrollInput(PARAMS), domain: 'other.example', scope: 'other-scope' };
     const config = await method.configFrom(input, enrollMaterial());
@@ -146,10 +148,12 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
 
   it('a different scope derives a different config for the same result', async () => {
     const method = zkPassportMethod({ stack: stackDouble().stack });
+    const another = zkPassportMethod({ stack: stackDouble({ outer: outerFor(PARAMS.domain, 'another') }).stack });
     const a = await method.configFrom(method.enrollInput(PARAMS), enrollMaterial());
-    const b = await method.configFrom(method.enrollInput({ ...PARAMS, scope: 'another' }), enrollMaterial());
+    const b = await another.configFrom(another.enrollInput({ ...PARAMS, scope: 'another' }), enrollMaterial());
 
-    expect(a).not.toBe(b);
+    expect(a).toBe(CONFIG);
+    expect(b).toBe(encodeConfig(word(IDENTIFIER), PARAMS.domain, 'another', 604800n));
   });
 
   it.each<[string, Material, OuterMaterial | undefined]>([
@@ -168,7 +172,7 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
     ['a dev-mode mock nullifier (type 2)', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: outerInputs(IDENTIFIER, 2n) }],
     ['a dev-mode mock nullifier (type 3)', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: outerInputs(IDENTIFIER, 3n) }],
     ['too few public inputs', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: [word(IDENTIFIER)] }],
-    ['public inputs with a hole', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: sparse(6, { 0: word(1), 2: word(2), 3: word(0), 4: word(IDENTIFIER), 5: word(3) }) }],
+    ['public inputs with a hole', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: sparse(8, { 0: word(1), 2: word(2), 3: scopeWord(PARAMS.domain), 4: scopeWord(PARAMS.scope), 5: word(0), 6: word(IDENTIFIER), 7: word(3) }) }],
     ['a 31-byte public input', enrollMaterial(), { ...DEFAULT_OUTER, publicInputs: [`0x${'11'.repeat(31)}`, ...outerInputs(IDENTIFIER)] }],
   ])('configFrom answers the typed EnrollFailure for %s, never a throw', async (_why, material, outer) => {
     const method = zkPassportMethod({ stack: stackDouble(outer === undefined ? {} : { outer }).stack });
@@ -214,6 +218,9 @@ describe('enrollment: enrollInput(params) and configFrom(input, { result })', ()
     ['a ceremony input without a domain', { kind: 'ceremony', scope: PARAMS.scope }],
     ['a ceremony input without a scope', { kind: 'ceremony', domain: PARAMS.domain }],
     ['a ceremony input with a numeric scope', { kind: 'ceremony', domain: PARAMS.domain, scope: 7 }],
+    ['a ceremony input whose domain carries a scheme', { kind: 'ceremony', domain: `https://${PARAMS.domain}`, scope: PARAMS.scope }],
+    ['a ceremony input whose domain carries a capital letter', { kind: 'ceremony', domain: 'Recover.example', scope: PARAMS.scope }],
+    ['a ceremony input whose domain ends in a slash', { kind: 'ceremony', domain: `${PARAMS.domain}/`, scope: PARAMS.scope }],
   ])('configFrom answers EnrollFailure for %s, and asks the stack nothing', async (_why, input) => {
     const double = stackDouble();
 
@@ -328,7 +335,7 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
     ['bound data that is the digest without 0x', replyMaterial(DIGEST.slice(2)), undefined],
     ['no bound data', replyMaterial(null), undefined],
     ['a unique identifier that is not the config\'s', replyMaterial(), { ...DEFAULT_OUTER, publicInputs: outerInputs(IDENTIFIER + 1n) }],
-    ['public inputs with a hole', replyMaterial(), { ...DEFAULT_OUTER, publicInputs: sparse(6, { 0: word(1), 2: word(2), 3: word(0), 4: word(IDENTIFIER), 5: word(3) }) }],
+    ['public inputs with a hole', replyMaterial(), { ...DEFAULT_OUTER, publicInputs: sparse(8, { 0: word(1), 2: word(2), 3: scopeWord(PARAMS.domain), 4: scopeWord(PARAMS.scope), 5: word(0), 6: word(IDENTIFIER), 7: word(3) }) }],
     ['a public input that is not a word', replyMaterial(), { ...DEFAULT_OUTER, publicInputs: ['0x01', ...outerInputs(IDENTIFIER)] }],
   ])('replyFrom answers the typed ReplyFailure for %s, never a throw', async (_why, material, outer) => {
     const method = zkPassportMethod({ stack: stackDouble(outer === undefined ? {} : { outer }).stack });
@@ -354,6 +361,8 @@ describe('approval: signingInput(ctx, params) and replyFrom(ctx, input, { proofs
     ['an input without a scope', { domain: PARAMS.domain }, CONFIG],
     ['a config that is not the layout', { domain: PARAMS.domain, scope: PARAMS.scope }, word(IDENTIFIER)],
     ['an empty config', { domain: PARAMS.domain, scope: PARAMS.scope }, '0x'],
+    ['an input whose domain carries a scheme', { domain: `https://${PARAMS.domain}`, scope: PARAMS.scope }, CONFIG],
+    ['an input whose domain carries a port', { domain: `${PARAMS.domain}:443`, scope: PARAMS.scope }, CONFIG],
   ])('replyFrom answers ReplyFailure for %s, never a throw', async (_why, input, config) => {
     const method = zkPassportMethod({ stack: stackDouble().stack });
 
@@ -428,8 +437,15 @@ describe('the ceremony reproduces the pin\'s config row and the blessed proof ro
 
   const params = () => ({ ...PARAMS, domain: asText(member(configRow, 'input', 'domain')), scope: asText(member(configRow, 'input', 'scope')) });
 
-  it('configFrom writes the config row byte for byte when the stack answers the row\'s values', async () => {
-    const method = zkPassportMethod({ stack: stackDouble({ outer: rowOuter() }).stack });
+  /** The proof row's outer material with words 3 and 4 replaced by the config row's domain and scope words. */
+  const scopedRowOuter = (): OuterMaterial => {
+    const outer = rowOuter();
+
+    return { ...outer, publicInputs: outer.publicInputs.map((input, index) => (index === 3 ? scopeWord(params().domain) : index === 4 ? scopeWord(params().scope) : input)) };
+  };
+
+  it('configFrom writes the config row byte for byte when the stack answers the row\'s values and the words of its domain and scope', async () => {
+    const method = zkPassportMethod({ stack: stackDouble({ outer: scopedRowOuter() }).stack });
     const identifier = BigInt(asHex(member(configRow, 'input', 'uniqueIdentifier'))).toString(10);
 
     await expect(method.configFrom(method.enrollInput(params()), enrollMaterial({ uniqueIdentifier: identifier }))).resolves.toBe(
@@ -437,14 +453,25 @@ describe('the ceremony reproduces the pin\'s config row and the blessed proof ro
     );
   });
 
-  it('replyFrom writes the proof row byte for byte for the row\'s digest', async () => {
+  it('replyFrom refuses the proof row for the config row, since the row\'s words 3 and 4 are not the config\'s domain and scope words', async () => {
     const method = zkPassportMethod({ stack: stackDouble({ outer: rowOuter() }).stack });
     const digest = asHex(member(proofRow, 'input', 'digest'));
     const ctx = makeCtx(asHex(member(configRow, 'expected', 'encoded')), digest);
     const required = asText(member(proofRow, 'expected', 'requiredCustomData'));
 
+    expect(rowOuter().publicInputs.slice(3, 5)).not.toEqual([scopeWord(params().domain), scopeWord(params().scope)]);
+    await expect(method.replyFrom(ctx, method.signingInput(ctx, params()), replyMaterial(required))).resolves.toEqual(rejected);
+  });
+
+  it('replyFrom writes the proof row\'s layout for the row\'s digest once words 3 and 4 are the config\'s', async () => {
+    const outer = scopedRowOuter();
+    const method = zkPassportMethod({ stack: stackDouble({ outer }).stack });
+    const digest = asHex(member(proofRow, 'input', 'digest'));
+    const ctx = makeCtx(asHex(member(configRow, 'expected', 'encoded')), digest);
+    const required = asText(member(proofRow, 'expected', 'requiredCustomData'));
+
     await expect(method.replyFrom(ctx, method.signingInput(ctx, params()), replyMaterial(required))).resolves.toBe(
-      asHex(member(proofRow, 'expected', 'encoded')),
+      encodeProof(asHex(outer.vkeyHash), asHex(outer.proof), outer.publicInputs.map(asHex), asHex(outer.committedInputs)),
     );
   });
 });

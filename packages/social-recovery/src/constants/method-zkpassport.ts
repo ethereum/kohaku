@@ -82,6 +82,18 @@ export const METHOD_ZKPASSPORT_SCOPED_NULLIFIER_FROM_END = 2;
 /** The fewest public inputs that hold both trailing values. */
 export const METHOD_ZKPASSPORT_MIN_PUBLIC_INPUTS = 3;
 
+/** The outer proof's public input holding the service scope, the hash of the domain the proof was requested for. */
+export const METHOD_ZKPASSPORT_SERVICE_SCOPE_INPUT = 3;
+
+/** The outer proof's public input holding the service subscope, the hash of the request's scope. */
+export const METHOD_ZKPASSPORT_SERVICE_SUBSCOPE_INPUT = 4;
+
+/** The fewest public inputs that hold the five leading values and the three trailing ones. */
+export const METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS = 8;
+
+/** The leading bytes of a text's `sha256` that its scope hash keeps, read as a big-endian integer. */
+export const METHOD_ZKPASSPORT_SCOPE_HASH_BYTES = 31;
+
 /** The proof mode every request asks for. */
 export const METHOD_ZKPASSPORT_REQUEST_MODE = 'compressed-evm';
 
@@ -109,6 +121,9 @@ export const METHOD_ZKPASSPORT_MATERIAL_REJECTED: ReplyFailure = Object.freeze({
 /** The failure answered where the stack cannot be loaded. */
 export const METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'device-unavailable' });
 
+/** The failure a reply answers where the committed config's domain or scope is one no request can be made for. */
+export const METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'request-unsupported' });
+
 /** The names the codec's refusals give the two layouts. */
 export const METHOD_ZKPASSPORT_CONFIG_NAME = 'method-zkpassport config';
 export const METHOD_ZKPASSPORT_PROOF_NAME = 'method-zkpassport proof';
@@ -131,6 +146,9 @@ export const METHOD_ZKPASSPORT_DIGEST_WIDTH_MESSAGE = 'method-zkpassport: the di
 
 /** Thrown where the parameters lack a domain or a scope. */
 export const METHOD_ZKPASSPORT_SESSION_MESSAGE = 'method-zkpassport: params need a non-empty "domain" and "scope"';
+
+/** Thrown where the parameters' domain is one the zkPassport stack would rewrite. */
+export const METHOD_ZKPASSPORT_DOMAIN_MESSAGE = 'method-zkpassport: "domain" must be a host the zkPassport stack keeps as given: no surrounding space, scheme, port, path, query, fragment or capital letter';
 
 /** Thrown where a shown text is given but is not a string. */
 export const METHOD_ZKPASSPORT_DISPLAY_MESSAGE = 'method-zkpassport: "name", "logo" and "purpose" must be strings where given';

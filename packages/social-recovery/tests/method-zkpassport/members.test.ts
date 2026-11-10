@@ -7,10 +7,11 @@ import * as recoveryMethods from '../../src/recovery-methods';
 import { zkPassportMethod } from '../../src/method-zkpassport';
 import { getAddress } from 'viem';
 import * as constants from '../../src/constants';
+import * as parse from '../../src/constants/method-zkpassport-parse';
 import * as core from '../../src';
 import type { ZkPassportMethodOptions, ZkPassportStack } from '../../src';
 import { FORMATS_ZERO_ADDRESS } from '../../src/constants';
-import { DEVICE_KINDS } from '../../src/interfaces';
+import { DEVICE_KINDS, REPLY_FAILURE_CAUSES } from '../../src/interfaces';
 import { createSourceProgram, PACKAGE_ROOT, requireSourceFile, resolveExports, SRC_ROOT } from '../helpers/source';
 import { DEFAULT_OUTER, DESCRIPTOR, DIGEST, encodeConfig, makeCtx, PARAMS, stackDouble, stackProof, word } from './fixtures';
 
@@ -125,6 +126,19 @@ const sourceProgram = (): ts.Program => (program ??= createSourceProgram());
 /** The method's exported constants, by name. */
 const OWN = Object.entries(constants).filter(([name]) => name.startsWith('METHOD_ZKPASSPORT_'));
 
+/** The constants the domain refusal and the scope-word check add. */
+const DOMAIN_CONSTANTS = [
+  'METHOD_ZKPASSPORT_SERVICE_SCOPE_INPUT',
+  'METHOD_ZKPASSPORT_SERVICE_SUBSCOPE_INPUT',
+  'METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS',
+  'METHOD_ZKPASSPORT_SCOPE_HASH_BYTES',
+  'METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED',
+  'METHOD_ZKPASSPORT_DOMAIN_MESSAGE',
+];
+
+/** The private patterns of the stack's domain rule. */
+const DOMAIN_PATTERNS = ['SCHEME', 'PATH', 'PORT', 'QUERY', 'FRAGMENT'].map((part) => `METHOD_ZKPASSPORT_DOMAIN_${part}_PATTERN`);
+
 describe('the method\'s constants', () => {
   it('the material-rejected and device-unavailable failures are frozen typed records', () => {
     expect(constants.METHOD_ZKPASSPORT_MATERIAL_REJECTED).toEqual({ kind: 'reply-failure', cause: 'material-rejected' });
@@ -143,6 +157,36 @@ describe('the method\'s constants', () => {
     expect(Object.isFrozen(refused)).toBe(true);
     expect(unavailable).toEqual(constants.METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE);
     expect(Object.isFrozen(unavailable)).toBe(true);
+  });
+
+  it('the scope-word positions, the minimum count, the hash width and the domain message hold their values', () => {
+    expect(constants.METHOD_ZKPASSPORT_SERVICE_SCOPE_INPUT).toBe(3);
+    expect(constants.METHOD_ZKPASSPORT_SERVICE_SUBSCOPE_INPUT).toBe(4);
+    expect(constants.METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS).toBe(8);
+    expect(constants.METHOD_ZKPASSPORT_SCOPE_HASH_BYTES).toBe(31);
+    expect(constants.METHOD_ZKPASSPORT_DOMAIN_MESSAGE).toBe(
+      'method-zkpassport: "domain" must be a host the zkPassport stack keeps as given: no surrounding space, scheme, port, path, query, fragment or capital letter',
+    );
+  });
+
+  it('the request-unsupported failure is a frozen typed record, and the one replyFrom answers for a config it cannot serve', async () => {
+    const method = zkPassportMethod({ stack: stackDouble().stack });
+    const ctx = makeCtx(encodeConfig(word(7), `https://${PARAMS.domain}`, PARAMS.scope, 1n));
+    const unsupported = await method.replyFrom(ctx, method.signingInput(ctx, PARAMS), { proofs: [stackProof('outer_evm_count_5', DIGEST)] });
+
+    expect(constants.METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED).toEqual({ kind: 'reply-failure', cause: 'request-unsupported' });
+    expect(REPLY_FAILURE_CAUSES).toHaveLength(5);
+    expect(REPLY_FAILURE_CAUSES).toContain(constants.METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED.cause);
+    expect(Object.isFrozen(constants.METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED)).toBe(true);
+    expect(unsupported).toEqual(constants.METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED);
+    expect(Object.isFrozen(unsupported)).toBe(true);
+  });
+
+  it('the domain rule\'s patterns stay in the private parse module, out of the constants index and the core entry', () => {
+    for (const name of DOMAIN_PATTERNS) expect((parse as { readonly [key: string]: unknown })[name]).toBeInstanceOf(RegExp);
+
+    expect(Object.keys(constants).filter((name) => DOMAIN_PATTERNS.includes(name))).toEqual([]);
+    expect(Object.keys(core).filter((name) => DOMAIN_PATTERNS.includes(name))).toEqual([]);
   });
 
   it('the config layout is the pin\'s four flat fields, with no version', () => {
@@ -189,6 +233,15 @@ describe('the changesets', () => {
 
     expect(OWN.length).toBeGreaterThan(0);
     expect(byPrefix || OWN.every(([name]) => text.includes(name))).toBe(true);
+  });
+
+  it('the domain changeset is a patch with a Breaking line, names each new constant and never the factory', () => {
+    const own = every.find(({ name }) => name === 'zkpassport-domain-normalization.md')?.text ?? '';
+
+    expect(own).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+    expect(own).toMatch(/Breaking/);
+    expect(DOMAIN_CONSTANTS.filter((name) => !own.includes(name))).toEqual([]);
+    expect(own).not.toContain('zkPassportMethod');
   });
 
   it('names every type the method\'s types file exports', () => {

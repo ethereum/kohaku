@@ -2,11 +2,13 @@ import {
   METHOD_ZKPASSPORT_CUSTOM_DATA_KEY,
   METHOD_ZKPASSPORT_DISPLAY_MESSAGE,
   METHOD_ZKPASSPORT_DISPLAY_FIELDS,
+  METHOD_ZKPASSPORT_DOMAIN_MESSAGE,
   METHOD_ZKPASSPORT_REQUEST_MODE,
   METHOD_ZKPASSPORT_SESSION_MESSAGE,
 } from '../constants';
 import type { Input, Params } from '../interfaces';
 import type { ZkPassportRequest, ZkPassportRequestArgs, ZkPassportSession, ZkPassportStack } from '../types';
+import { isCanonicalDomain } from './domain';
 
 const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
@@ -25,13 +27,18 @@ const display = (source: { readonly [name: string]: unknown }): Pick<ZkPassportS
   return shown;
 };
 
-/** The session the parameters name; `TypeError` on a missing domain or scope or a shown text that is not a string. */
+/**
+ * The session the parameters name; `TypeError` on a missing domain or scope, a domain the stack would rewrite, or a shown text that is not a string.
+ * The domain is never rewritten, so the stack, its verifier parameters and the committed config all carry the string given.
+ */
 export const sessionFromParams = (params: Params | undefined): ZkPassportSession => {
   const p = params ?? {};
 
   if (!nonEmpty(p['domain']) || !nonEmpty(p['scope'])) {
     throw new TypeError(METHOD_ZKPASSPORT_SESSION_MESSAGE);
   }
+
+  if (!isCanonicalDomain(p['domain'])) throw new TypeError(METHOD_ZKPASSPORT_DOMAIN_MESSAGE);
 
   if (!optionalText(p['name']) || !optionalText(p['logo']) || !optionalText(p['purpose'])) {
     throw new TypeError(METHOD_ZKPASSPORT_DISPLAY_MESSAGE);
@@ -40,12 +47,12 @@ export const sessionFromParams = (params: Params | undefined): ZkPassportSession
   return { domain: p['domain'], scope: p['scope'], ...display(p) };
 };
 
-/** The session an input record carries, or undefined where it carries none. */
+/** The session an input record carries, or undefined where it carries none or its domain is one the stack would rewrite. */
 export const sessionFromInput = (input: Input): ZkPassportSession | undefined => {
   const domain = input['domain'];
   const scope = input['scope'];
 
-  if (!nonEmpty(domain) || !nonEmpty(scope)) return undefined;
+  if (!nonEmpty(domain) || !nonEmpty(scope) || !isCanonicalDomain(domain)) return undefined;
 
   return { domain, scope, ...display(input) };
 };

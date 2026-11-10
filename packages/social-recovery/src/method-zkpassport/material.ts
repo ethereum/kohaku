@@ -1,8 +1,15 @@
-import { METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE, METHOD_ZKPASSPORT_MATERIAL_REJECTED } from '../constants';
+import { METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE, METHOD_ZKPASSPORT_MATERIAL_REJECTED, METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED } from '../constants';
 import { METHOD_ZKPASSPORT_DECIMAL_PATTERN } from '../constants/method-zkpassport-parse';
 import type { EnrollFailure, Hex, Material, ReplyFailure } from '../interfaces';
-import type { ZkPassportProof, ZkPassportSession, ZkPassportStack, ZkPassportStackProof, ZkPassportVerifierParameters } from '../types';
-import { acceptedNullifierType, boundCustomData, digestText, identifierWord, isRecord, outerEvmProof, scopedNullifier } from './bindings';
+import type {
+  ZkPassportConfig,
+  ZkPassportProof,
+  ZkPassportSession,
+  ZkPassportStack,
+  ZkPassportStackProof,
+  ZkPassportVerifierParameters,
+} from '../types';
+import { acceptedNullifierType, boundCustomData, digestText, identifierWord, isRecord, outerEvmProof, scopedNullifier, scopedTo } from './bindings';
 import {
   configFromFields,
   decodeZkPassportConfig,
@@ -10,6 +17,7 @@ import {
   encodeZkPassportProof,
   proofFromFields,
 } from './codec';
+import { servable } from './domain';
 
 /** The stack's verifier parameters for the outer proof under the method's dev mode, with their proof part checked whole; `device-unavailable` where the stack does not load, `material-rejected` where it refuses the proof or answers a malformed one or the other mode. */
 const checkedParameters = async (
@@ -60,8 +68,9 @@ const enrolledProofs = (material: { readonly [key: string]: unknown }, result: {
   result['proofs'] === undefined ? material['proofs'] : result['proofs'];
 
 /**
- * The config built from `material.result`, the ceremony's proof list and the stack's verifier parameters for the session.
- * Rejected unless the result verified, the list holds an outer EVM proof, and its non-zero identifier is that proof's scoped nullifier under a nullifier type the mode accepts.
+ * The config built from `material.result`, the ceremony's proof list and the stack's verifier parameters, committing the session's domain and scope.
+ * Rejected unless the result verified, the list holds an outer EVM proof, its non-zero identifier is that proof's scoped nullifier under a nullifier type
+ * the mode accepts, and the proof's service scope and subscope words are the hashes of the session's domain and scope.
  */
 export const enrolledConfig = async (
   stack: ZkPassportStack,
@@ -88,13 +97,20 @@ export const enrolledConfig = async (
   const inputs = proof.proofVerificationData.publicInputs;
   const unique = BigInt(identifier);
 
-  if (unique === 0n || scopedNullifier(inputs) !== unique || !acceptedNullifierType(inputs, devMode)) return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
+  if (
+    unique === 0n ||
+    scopedNullifier(inputs) !== unique ||
+    !acceptedNullifierType(inputs, devMode) ||
+    !scopedTo(inputs, session.domain, session.scope)
+  ) {
+    return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
+  }
 
   try {
     const config = configFromFields({
       uniqueIdentifier: identifierWord(unique),
-      domain: params.serviceConfig.domain,
-      scope: params.serviceConfig.scope,
+      domain: session.domain,
+      scope: session.scope,
       validityPeriodInSeconds: params.serviceConfig.validityPeriodInSeconds,
     });
 
@@ -105,8 +121,9 @@ export const enrolledConfig = async (
 };
 
 /**
- * The proof layout packaged from the outer EVM proof in `material.proofs`.
- * Rejected unless that proof binds the digest's text, its scoped nullifier is the config's unique identifier and its nullifier type is one the mode accepts.
+ * The proof layout packaged from the outer EVM proof in `material.proofs`; `request-unsupported` before the stack is loaded where the config's domain or scope
+ * is one no request can be made for. Rejected unless that proof binds the digest's text, its scoped nullifier is the config's unique identifier, its nullifier
+ * type is one the mode accepts, and its service scope and subscope words are the hashes of the config's domain and scope.
  */
 export const packagedProof = async (
   stack: ZkPassportStack,
@@ -121,14 +138,16 @@ export const packagedProof = async (
   if (outer === undefined) return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
 
   let expected: string;
-  let committed: bigint;
+  let committed: ZkPassportConfig;
 
   try {
     expected = digestText(digest);
-    committed = BigInt(decodeZkPassportConfig(config).uniqueIdentifier);
+    committed = decodeZkPassportConfig(config);
   } catch {
     return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
   }
+
+  if (!servable(committed.domain, committed.scope)) return METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED;
 
   const checked = await checkedParameters(stack, session, outer, devMode);
 
@@ -137,7 +156,12 @@ export const packagedProof = async (
   const { proof } = checked;
   const inputs = proof.proofVerificationData.publicInputs;
 
-  if (boundCustomData(outer) !== expected || scopedNullifier(inputs) !== committed || !acceptedNullifierType(inputs, devMode)) {
+  if (
+    boundCustomData(outer) !== expected ||
+    scopedNullifier(inputs) !== BigInt(committed.uniqueIdentifier) ||
+    !acceptedNullifierType(inputs, devMode) ||
+    !scopedTo(inputs, committed.domain, committed.scope)
+  ) {
     return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
   }
 

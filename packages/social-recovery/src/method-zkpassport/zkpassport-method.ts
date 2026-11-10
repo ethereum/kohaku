@@ -24,8 +24,8 @@ import type {
   ReplyFailure,
   Verdict,
 } from '../interfaces';
-import type { ZkPassportStack } from '../types';
-import { acceptedNullifierType, digestText, scopedNullifier } from './bindings';
+import type { ZkPassportConfig, ZkPassportStack } from '../types';
+import { acceptedNullifierType, digestText, scopedNullifier, scopedTo } from './bindings';
 import { decodeZkPassportConfig, decodeZkPassportProof, zkPassportCodec } from './codec';
 import { enrolledConfig, packagedProof } from './material';
 import { opener, sessionFromInput, sessionFromParams } from './session';
@@ -55,7 +55,8 @@ export class ZkPassportMethod implements IRecoveryMethod {
   }
 
   /**
-   * The ceremony record for `params` `{ domain, scope, name?, logo?, purpose? }`, binding no custom field; `TypeError` on a missing domain or scope.
+   * The ceremony record for `params` `{ domain, scope, name?, logo?, purpose? }`, binding no custom field; `TypeError` on a missing domain or scope,
+   * or a domain the zkPassport stack would not keep as given, such as one with a scheme, path, port or capital letter.
    * Its `openRequest`: a second scan of one request's code makes the bridge refuse the second handshake with no event on the record; a page ends such a wait with `cancel()`.
    */
   enrollInput(params: Params): EnrollInput {
@@ -64,7 +65,10 @@ export class ZkPassportMethod implements IRecoveryMethod {
     return { kind: 'ceremony', ...session, openRequest: opener(this.#stack, session, undefined, this.#devMode) };
   }
 
-  /** The config from `material.result` and the proofs in `material.result.proofs` or else `material.proofs`, under the domain and scope the input carries. */
+  /**
+   * The config from `material.result` and the proofs in `material.result.proofs` or else `material.proofs`, committing the domain and scope the input carries.
+   * `material-rejected` where the input's domain is one the stack would rewrite or the proof's service scope and subscope words are not their hashes.
+   */
   async configFrom(input: EnrollInput, material: Material): Promise<Hex | EnrollFailure> {
     const session = input.kind === 'ceremony' ? sessionFromInput(input) : undefined;
 
@@ -74,7 +78,8 @@ export class ZkPassportMethod implements IRecoveryMethod {
   }
 
   /**
-   * The signing record for `params`, binding the digest's text as `customData`; `TypeError` on a missing domain or scope or a digest that is not hex, `RangeError` on a digest that is not 32 bytes.
+   * The signing record for `params`, binding the digest's text as `customData`; `TypeError` on a missing domain or scope, a domain the stack would not keep
+   * as given or a digest that is not hex, `RangeError` on a digest that is not 32 bytes. The domain and scope must be the config's: `replyFrom` refuses a proof made for another domain or scope.
    * Its `openRequest`: a second scan of one request's code makes the bridge refuse the second handshake with no event on the record; a page ends such a wait with `cancel()`.
    */
   signingInput(ctx: Ctx, params?: Params): Input {
@@ -84,7 +89,10 @@ export class ZkPassportMethod implements IRecoveryMethod {
     return { ...session, customData, openRequest: opener(this.#stack, session, customData, this.#devMode) };
   }
 
-  /** The proof from `material.proofs`, under the domain and scope the input carries. */
+  /**
+   * The proof from `material.proofs`, under the domain and scope the input carries; `request-unsupported` where the config's domain is one the stack
+   * would rewrite or its domain or scope is empty, and `material-rejected` where the proof's service scope and subscope words are not their hashes.
+   */
   async replyFrom(ctx: Ctx, input: Input, material: Material): Promise<Hex | ReplyFailure> {
     const session = sessionFromInput(input);
 
@@ -94,21 +102,31 @@ export class ZkPassportMethod implements IRecoveryMethod {
   }
 
   /**
-   * Rejected on bytes outside the two layouts, a zero identifier, a nullifier type the mode does not accept (the non-salted one, and in dev mode the fake passport's), or a scoped nullifier other than the config's.
+   * Rejected on bytes outside the two layouts, a zero identifier, a nullifier type the mode does not accept (the non-salted one, and in dev mode the fake passport's),
+   * a scoped nullifier other than the config's, or service scope and subscope words that are not the hashes of the config's domain and scope.
    * Otherwise not judged, since only the chain's verifier checks the outer EVM proof and this member never calls it.
    */
   async verify(ctx: Ctx, proof: Hex): Promise<Verdict> {
-    let unique: bigint;
+    let config: ZkPassportConfig;
     let inputs: readonly string[];
 
     try {
-      unique = BigInt(decodeZkPassportConfig(ctx.request.config).uniqueIdentifier);
+      config = decodeZkPassportConfig(ctx.request.config);
       inputs = decodeZkPassportProof(proof).proofVerificationData.publicInputs;
     } catch {
       return 'rejected';
     }
 
-    if (unique === 0n || !acceptedNullifierType(inputs, this.#devMode) || scopedNullifier(inputs) !== unique) return 'rejected';
+    const unique = BigInt(config.uniqueIdentifier);
+
+    if (
+      unique === 0n ||
+      !acceptedNullifierType(inputs, this.#devMode) ||
+      scopedNullifier(inputs) !== unique ||
+      !scopedTo(inputs, config.domain, config.scope)
+    ) {
+      return 'rejected';
+    }
 
     return 'not-judged';
   }
