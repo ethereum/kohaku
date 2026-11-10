@@ -451,7 +451,17 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     });
     await pool.mine(1);
 
-    // 2. Try to withdraw - relayer should fail
+    // 2. Approve the note so amount protection passes before the relayer quote.
+    const [note] = await protocol.notes([nativeAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(pool.rpcUrl,
+      "0x" + ENTRYPOINT_ADDRESS.toString(16),
+      "0x" + POSTMAN_ADDRESS.toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+    );
+
+    // 3. Try to withdraw - relayer should fail
     const recipientAccount = alice.address as AccountId;
 
     await expect(
