@@ -16,6 +16,7 @@ packages:
   - "packages/tornado-cash"
   - "packages/mimc-tree"
   - "packages/poseidon"
+  - "packages/poseidon-lean-imt"
   - "packages/railgun"
   - "packages/social-recovery"
   - "examples/pq-account"

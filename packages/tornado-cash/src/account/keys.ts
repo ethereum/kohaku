@@ -14,6 +14,9 @@ import { pedersenHash } from '../utils/proof.util';
  */
 const TORNADO_CASH_PATH = "m/29795'/1'";
 
+/** Every key Tornado derives (legacy and signature secrets) sits below this path. */
+export const TORNADO_KEYSTORE_PREFIX = TORNADO_CASH_PATH;
+
 // Tornado circuits constrain nullifier and secret to 248 bits (31 bytes).
 // Pedersen outputs are Baby JubJub x-coordinates (~254 bits), so we truncate.
 const MASK_248 = (1n << 248n) - 1n;

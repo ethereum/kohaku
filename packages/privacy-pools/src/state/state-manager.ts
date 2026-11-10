@@ -1,6 +1,8 @@
+import type { EthereumProvider } from '@kohaku-eth/provider';
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference } from '../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, Storage } from "@kohaku-eth/plugins";
+import { ChainId, Network, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
 
 import { ISecretManager } from "../account/keys";
@@ -36,7 +38,7 @@ import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
 import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
-import { decodeRelayData, encodeRelayData } from "../utils/encoding.utils";
+import { encodeRelayData } from "../utils/encoding.utils";
 import { deductFeeBPS, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
@@ -59,17 +61,21 @@ import {
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
 import { getNoteSelector } from "./selectors/notes.selector";
-import { myHistoryEventsWithoutMetadataSelector, myHistorySelector } from "./selectors/history.selector";
+import { myHistorySelector } from "./selectors/history.selector";
+import { setVerifiedAspRoot } from "./slices/aspVerificationSlice";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
-import { syncHistoryMetadataThunk } from "./thunks/syncHistoryMetadataThunk";
+import { syncHistoryTimestampsThunk } from "./thunks/syncHistoryTimestampsThunk";
 import { syncThunk } from "./thunks/syncThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 
 export interface StoreFactoryParams extends SyncAspThunkParams {
+  /** Supplied by the plugin, independently of a custom data service. */
+  provider?: EthereumProvider;
+  network?: Network;
   secretManager: ISecretManager;
   dataService: IDataService;
   relayerClient: IRelayerClient;
@@ -98,7 +104,6 @@ const initializeSelectors = <const T extends Store>({
       getNextNote,
       getAllNotes: () => allNotesSelector(store.getState()),
       getHistory: () => myHistorySelector(store.getState()),
-      getHistoryEventsWithoutMetadata: () => myHistoryEventsWithoutMetadataSelector(store.getState()),
       myPoolsSelector: () => myPoolsSelector(store.getState()),
       poolFromAssetSelector: (assetAddress: Address) => poolFromAssetSelector(store.getState(), assetAddress),
       getUnapprovedNotes: () => unapprovedNotesSelector(store.getState()),
@@ -107,7 +112,7 @@ const initializeSelectors = <const T extends Store>({
     },
     getPublicState: (): PublicRootState => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { userSecrets, historyMetadata, ...publicState } = store.getState() as RootState;
+      const { userSecrets, historyMetadata, aspVerification, ...publicState } = store.getState() as RootState;
 
       return publicState;
     },
@@ -147,47 +152,67 @@ const storeByChainAndEntrypoint = ({
       }
     : undefined;
 
-  const chainStoreMap = new Map<
-    StoreKey,
-    ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>
-  >();
+  type ChainStore = ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>;
+
+  const chainStoreMap = new Map<StoreKey, ChainStore>();
+  // Callers that ask for a store while it is being loaded share it, instead of
+  // each building their own and all but one ending up detached from the map.
+  const chainStoreLoads = new Map<StoreKey, Promise<ChainStore>>();
+
+  const loadChainStore = async (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
+    const {
+      chainId,
+      entrypoint: { address, deploymentBlock },
+    } = getChainStoreParams;
+    const storageKey = getStoreStorageKey(getChainStoreParams);
+    const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : null;
+    const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+    const snapshotInitialState = storedState || !resolveInitialState
+      ? undefined
+      : (await resolveInitialState())[storageKey];
+    const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
+    const rawHistoryMetadata = storageToSyncTo
+      ? await storageToSyncTo.get(getHistoryStorageKey(getChainStoreParams))
+      : null;
+    const historyMetadata: RootState['historyMetadata'] | undefined = rawHistoryMetadata
+      ? JSON.parse(rawHistoryMetadata)
+      : undefined;
+    const store = storeFactory({
+      entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
+      initialState: (historyMetadata
+        ? { ...initialState, historyMetadata }
+        : initialState) as RootState | undefined,
+      devOptions,
+    });
+
+    // On-chain verification is per session: never take it from storage or a snapshot.
+    store.dispatch(setVerifiedAspRoot(0n));
+
+    return initializeSelectors({ store, secretManager });
+  };
 
   return {
-    getChainStore: async (getChainStoreParams: GetChainStoreParams) => {
-      const {
-        chainId,
-        entrypoint: { address, deploymentBlock },
-      } = getChainStoreParams;
+    getChainStore: (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
       const computedChainKey = getStoreKey(getChainStoreParams);
-      let storeWithSelectors = chainStoreMap.get(computedChainKey);
+      let load = chainStoreLoads.get(computedChainKey);
 
-      if (!storeWithSelectors) {
-        const storageKey = getStoreStorageKey(getChainStoreParams);
-        const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : null;
-        const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
-        const snapshotInitialState = storedState || !resolveInitialState
-          ? undefined
-          : (await resolveInitialState())[storageKey];
-        const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
-        const rawHistoryMetadata = storageToSyncTo
-          ? await storageToSyncTo.get(getHistoryStorageKey(getChainStoreParams))
-          : null;
-        const historyMetadata: RootState['historyMetadata'] | undefined = rawHistoryMetadata
-          ? JSON.parse(rawHistoryMetadata)
-          : undefined;
-        const store = storeFactory({
-          entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
-          initialState: (historyMetadata
-            ? { ...initialState, historyMetadata }
-            : initialState) as RootState | undefined,
-          devOptions,
-        });
+      if (!load) {
+        load = loadChainStore(getChainStoreParams).then(
+          (storeWithSelectors) => {
+            chainStoreMap.set(computedChainKey, storeWithSelectors);
 
-        storeWithSelectors = initializeSelectors({ store, secretManager });
-        chainStoreMap.set(computedChainKey, storeWithSelectors);
+            return storeWithSelectors;
+          },
+          (error: unknown) => {
+            // Let the next call retry rather than replay this failure forever.
+            chainStoreLoads.delete(computedChainKey);
+            throw error;
+          },
+        );
+        chainStoreLoads.set(computedChainKey, load);
       }
 
-      return storeWithSelectors;
+      return load;
     },
     getAllStores: (): ReturnType<IStateManager['dumpState']> => {
       return Array.from(chainStoreMap).reduce(
@@ -212,26 +237,66 @@ export const storeStateManager = (
     entrypoint: params.entrypoint,
   });
 
+  const runSync = async (chainInfo: GetChainStoreParams): Promise<void> => {
+    const store = await getChainStore(chainInfo);
+
+    unwrapResult(
+      await store.dispatch(
+        syncThunk({
+          ...params,
+          secretManager,
+        }),
+      ),
+    );
+
+    if (storageToSyncTo) {
+      await storageToSyncTo.set(
+        getStoreStorageKey(chainInfo),
+        JSON.stringify(store.getPublicState()),
+      );
+    }
+  };
+
+  // At most one sync per store at a time: interleaved syncs would derive and
+  // append the same note secrets twice, and one sync's root re-verification
+  // would briefly unset the verified ASP root a withdrawal is checking.
+  // A call never joins a sync that already started: that sync's head may predate
+  // a transaction the caller just saw confirmed. It waits for one follow-up sync
+  // instead, shared with every call made while the follow-up has not started.
+  const syncQueues = new Map<StoreKey, { running?: Promise<void>; queued?: Promise<void> }>();
+
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
+      const storeKey = getStoreKey(chainInfo);
+      const queue = syncQueues.get(storeKey) ?? {};
 
-      unwrapResult(
-        await store.dispatch(
-          syncThunk({
-            ...params,
-            secretManager,
-          }),
-        ),
-      );
+      syncQueues.set(storeKey, queue);
 
-      if (storageToSyncTo) {
-        await storageToSyncTo.set(
-          getStoreStorageKey(chainInfo),
-          JSON.stringify(store.getPublicState()),
-        );
-      }
+      if (queue.queued) return queue.queued;
+
+      const start = (): Promise<void> => {
+        const running = runSync(chainInfo).finally(() => {
+          if (queue.running === running) queue.running = undefined;
+        });
+
+        queue.running = running;
+
+        return running;
+      };
+
+      if (!queue.running) return start();
+
+      // Runs whether the current sync succeeds or fails; its callers get its outcome.
+      const queued = queue.running.catch(() => undefined).then(() => {
+        queue.queued = undefined;
+
+        return start();
+      });
+
+      queue.queued = queued;
+
+      return queued;
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -267,6 +332,7 @@ export const storeStateManager = (
       mode = 'relayer',
       hasTailCalls = false,
       tailCallsGasEstimate,
+      maxGasLimits,
     }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
       const chainInfo = await getChainInfo();
 
@@ -279,14 +345,20 @@ export const storeStateManager = (
 
         const { bundlerUrl, paymasterAddress } = paymasterConfig;
         const isERC20 = asset !== BigInt(E_ADDRESS);
-        const {
-          standard: { maxFeePerGas },
-        } = await getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl));
+        const [{ standard: price }, reference] = await Promise.all([
+          getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
+          readGasFeeReference(params.provider),
+        ]);
+
+        assertGasPriceWithinBounds(price, reference);
+        const { maxFeePerGas } = price;
         // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
         const gas = {
           ...reasonableGasUnits(isERC20),
           callGasLimit: hasTailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : 0n,
         };
+
+        assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
         const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
         const fee = isERC20
           ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
@@ -296,9 +368,11 @@ export const storeStateManager = (
       }
 
       const store = await getChainStore(chainInfo);
+      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
       const {
         quote: { feeCommitment },
         relayerId,
+        relayData: { relayFeeBps },
       } = unwrapResult(
         await store.dispatch(
           quoteThunk({
@@ -307,11 +381,11 @@ export const storeStateManager = (
             asset,
             amount,
             recipient,
+            maxRelayFeeBPS,
           }),
         ),
       );
       // The fee actually charged on-chain is the one in the signed withdrawal data.
-      const { relayFeeBps } = decodeRelayData(feeCommitment.withdrawalData as `0x${string}`);
       const { fee, net } = deductFeeBPS(amount, relayFeeBps);
 
       return {
@@ -330,6 +404,7 @@ export const storeStateManager = (
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
+      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
 
       const quoteResultAction = await store.dispatch(
         quoteThunk({
@@ -338,6 +413,7 @@ export const storeStateManager = (
           asset,
           amount: amount ?? 0n,
           recipient,
+          maxRelayFeeBPS,
         }),
       );
 
@@ -345,7 +421,8 @@ export const storeStateManager = (
         throw new Error("Failed to get quote from relayers");
       }
 
-      const { quote, relayerId } = unwrapResult(quoteResultAction);
+      // quoteThunk has checked that the relay data pays `recipient` within the quoted fee.
+      const { quote, relayerId, relayData } = unwrapResult(quoteResultAction);
       const poolInfo = store.selectors.poolFromAssetSelector(asset);
 
       if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
@@ -374,7 +451,7 @@ export const storeStateManager = (
           context,
           scope: poolInfo.scope,
           relayDataAbi: JSON.stringify(relayDataAbi),
-          relayDataObject: decodeRelayData(withdrawal.data),
+          relayDataObject: relayData,
           withdrawalObject: withdrawal,
         },
         proofResult: withdrawProofResult,
@@ -405,24 +482,25 @@ export const storeStateManager = (
         throw new Error("Failed to get quote from relayers");
       }
 
-      const { quote, relayerId } = unwrapResult(quoteResultAction);
+      const { quote, relayerId, relayData: quoted } = unwrapResult(quoteResultAction);
       const poolInfo = store.selectors.poolFromAssetSelector(asset);
 
       if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
 
-      // Reuse the relayer's recipient/feeRecipient, but decompose its quoted fee into
-      // the fixed base rate and the (size-independent) gas cost, then size the gross so
-      // the on-chain deduction leaves exactly `requestedNet`. Because we choose both the
-      // gross and the embedded fee, the recipient's net is fixed here; the relayer can
-      // only accept or reject (it accepts any embedded fee at or above its live rate).
+      // Pay the caller's recipient and reuse the relayer's feeRecipient, but decompose its
+      // quoted fee into the fixed base rate and the (size-independent) gas cost, then size
+      // the gross so the on-chain deduction leaves exactly `requestedNet`. Because we choose
+      // both the gross and the embedded fee, the recipient's net is fixed here; the relayer
+      // can only accept or reject (it accepts any embedded fee at or above its live rate).
       //
       // Only the gas term is volatile between quote and submission, so `gasBumpBPS` adds
       // headroom to it alone — not the relayer's margin. sizeExactRelayerWithdrawal keeps
       // the embedded fee at or below the on-chain maxRelayFeeBPS (the Entrypoint reverts
       // above it).
       const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
-      const quoted = decodeRelayData(quote.feeCommitment.withdrawalData as `0x${string}`);
-      const baseFeeBPS = BigInt(quote.baseFeeBPS);
+      const quotedBaseFeeBPS = BigInt(quote.baseFeeBPS);
+      // The base rate is self-reported; it cannot exceed the fee the relayer embedded.
+      const baseFeeBPS = quotedBaseFeeBPS < quoted.relayFeeBps ? quotedBaseFeeBPS : quoted.relayFeeBps;
       const gasQuoteBPS = quoted.relayFeeBps > baseFeeBPS ? quoted.relayFeeBps - baseFeeBPS : 0n;
       const gasMoney = deductFeeBPS(requestedNet, gasQuoteBPS).fee;
       const { grossAmount, feeBPS: relayFeeBps } = sizeExactRelayerWithdrawal({
@@ -434,7 +512,7 @@ export const storeStateManager = (
       });
 
       const relayData = {
-        recipient: quoted.recipient,
+        recipient: addressToHex(recipient),
         feeRecipient: quoted.feeRecipient,
         relayFeeBps,
       };
@@ -481,6 +559,7 @@ export const storeStateManager = (
       delegation,
       tailCalls,
       tailCallsGasEstimate,
+      maxGasLimits,
       batch,
       refundRecipient,
     }: IPaymasterWithdrawapOperationParams) => {
@@ -506,6 +585,9 @@ export const storeStateManager = (
             delegation,
             tailCalls,
             tailCallsGasEstimate,
+            maxGasLimits,
+            provider: params.provider,
+            network: params.network,
             batch,
             refundRecipient,
           }),
@@ -599,15 +681,15 @@ export const storeStateManager = (
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
 
-      if (store.selectors.getHistoryEventsWithoutMetadata().length > 0) {
-        unwrapResult(
-          await store.dispatch(syncHistoryMetadataThunk({ dataService: params.dataService })),
-        );
-        await storageToSyncTo?.set(
-          getHistoryStorageKey(chainInfo),
-          JSON.stringify(store.getState().historyMetadata),
-        );
-      }
+      // Always refreshed, whether or not the account has events: the RPC must not
+      // be able to tell from history() calls who has activity, or where.
+      unwrapResult(
+        await store.dispatch(syncHistoryTimestampsThunk({ dataService: params.dataService })),
+      );
+      await storageToSyncTo?.set(
+        getHistoryStorageKey(chainInfo),
+        JSON.stringify(store.getState().historyMetadata),
+      );
 
       const history = store.selectors.getHistory();
 

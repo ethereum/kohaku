@@ -23,3 +23,11 @@ export const getChainConfigSetup = (chainId: 1 | 11155111) => {
     paymasterConfig: TornadoPaymasterConfigs[chainId],
   }
 };
+
+/** Fork after TornadoPaymaster deployment, pool allowlisting, deposit, and stake. */
+export const getPaymasterChainConfigSetup = (chainId: 1 | 11155111) => ({
+  ...getChainConfigSetup(chainId),
+  forkBlockNumber: chainId === 1
+    ? getEnv('TORNADO_MAINNET_PAYMASTER_FORK_BLOCK', '26285522')
+    : getEnv('TORNADO_SEPOLIA_PAYMASTER_FORK_BLOCK', '12006617'),
+});

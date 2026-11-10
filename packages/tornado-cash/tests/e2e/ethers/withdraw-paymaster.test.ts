@@ -12,7 +12,7 @@ import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import { getERC20Balance, getProtocolWithState, sendMultipleTxsAndWait, setUniswapV3PoolPrice, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
-import { getChainConfigSetup } from '../../constants';
+import { getPaymasterChainConfigSetup } from '../../constants';
 import { TCBroadcaster, TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
 import { Serializable } from '../../../src/state/interfaces/utils.interface';
 import { IPool } from '../../../src/data/interfaces/events.interface';
@@ -32,7 +32,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
   let erc20Pool: Serializable<IPool>;
   
   const chainId = inject('chainId');
-  const { forkBlockNumber, rpcUrl, paymasterConfig, erc20Address, erc20WhaleAddress } = getChainConfigSetup(chainId);
+  const { forkBlockNumber, rpcUrl, paymasterConfig, erc20Address, erc20WhaleAddress } = getPaymasterChainConfigSetup(chainId);
   const { entryPointAddress, paymasterAddress } = paymasterConfig;
 
   beforeAll(async () => {
@@ -77,7 +77,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
 
     const state = await protocol.dumpState();
 
-    const protocolPools = Object.values(state)[0].pools.poolsTuples.map(([_, pool]) => pool);
+    const protocolPools = Object.values(state)[0].pools.poolsTuples.map(([, pool]) => pool);
 
     erc20Pool = protocolPools.find((p) => BigInt(p.asset) === BigInt(erc20Address))!;
   }, 300_000);

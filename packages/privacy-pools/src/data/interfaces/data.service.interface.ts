@@ -40,15 +40,6 @@ export interface IPoolEvents {
   LeafInserted: ILeafInsertedEvent;
 }
 
-type WithLogIndex<T> = T & { logIndex: number };
-
-/** Pool events as found on-chain, with the log metadata saga does not provide. */
-export interface IPoolEventsWithLogMeta {
-  PoolDeposited: WithLogIndex<IRawPoolDepositEvent>[];
-  Withdrawn: WithLogIndex<IRawWithdrawalEvent>[];
-  Ragequit: WithLogIndex<IRawRagequitEvent>[];
-}
-
 type IGroupedEvents<NamesTable extends Record<string, unknown>> = {
   [key in keyof NamesTable]: NamesTable[key][];
 };
@@ -86,6 +77,8 @@ export interface IDataService {
   ): Promise<IPoolConfig>;
   getPoolScope(poolAddress: Address): Promise<bigint>;
   getChainId(): Promise<ChainId>;
+  /** Latest block number. A sync resolves it once and scans every contract up to it. */
+  getBlockNumber(): Promise<bigint>;
   /** EOA transaction count (native nonce) for an address — used to bind a 7702
    * authorization for a reused wallet-path delegator (see `paymasterWithdrawThunk`). */
   getTransactionCount(address: `0x${string}`): Promise<number>;
@@ -97,11 +90,6 @@ export interface IDataService {
   getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint>;
   getLatestBlockTimestamp(): Promise<bigint>;
   getBlockTimestamp(blockNumber: bigint): Promise<bigint>;
-  /**
-   * Fetches a pool's deposit/withdrawal/ragequit events at a single block
-   * directly from the RPC, including their real transactionHash and logIndex.
-   */
-  getPoolEventsAtBlock(poolAddress: Address, blockNumber: bigint): Promise<IPoolEventsWithLogMeta>;
   /**
    * Prices a wei-denominated gas fee in `feeToken` via the paymaster's own
    * oracle (same pool/TWAP it enforces during validation), so feePaid >= required

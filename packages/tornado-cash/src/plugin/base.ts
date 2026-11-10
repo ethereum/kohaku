@@ -1,13 +1,27 @@
+import { bundlerPostVia } from '../paymaster/utils';
 /* eslint-disable max-lines */
 import {
   AccountId,
   AssetAmount,
   ERC20AssetId,
   Host,
+  scopeKeystore,
   toExternalSyncClient,
 } from "@kohaku-eth/plugins";
-import { proxy } from 'comlink';
 import { loadStateManagerWorker } from '#worker-loader';
+import { exposeCall, exposeOnly } from './host-bridge';
+import {
+  bundlerPostCheck,
+  externalSyncPolicy,
+  keystorePolicy,
+  providerPolicy,
+  relayerClientPolicy,
+  secretManagerPolicy,
+  storagePolicy,
+  tailCallsCheck,
+} from './worker-host-policy';
+import { TORNADO_KEYSTORE_PREFIX } from '../account/keys';
+import { externalSignerPolicy } from './external-signer-policy';
 import { RelayerClient } from '../relayer/relayer-client';
 
 import { addressToHex, } from "../utils.js";
@@ -24,7 +38,6 @@ import {
 import {
   IPaymasterWithdrawParams,
   IStateManager,
-  IWithdrawapOperationParams,
   TCPrivateOperation,
   TCPublicOperation,
   TCProtocolParams,
@@ -55,6 +68,8 @@ export class TornadoCashProtocol implements TCInstance {
       secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
+    const delegationPaths = new Set<string>();
+
     this.stateManager = (async () => {
       const { remote, onError } = loadStateManagerWorker(stateManagerWorkerUrl);
 
@@ -67,25 +82,30 @@ export class TornadoCashProtocol implements TCInstance {
 
       // Adapt the host's streaming provider to a materialized-array client on the
       // main thread: async iterators can't cross the Comlink worker boundary, so
-      // we drain the stream here before proxying the result into the worker.
+      // we drain the stream here before exposing the result to the worker.
       const externalSyncClient = host.externalSyncProvider
         ? toExternalSyncClient(host.externalSyncProvider)
         : undefined;
 
+      // Tornado's subtree, plus wallet paths the integrator names in `delegation.path`.
+      const keystore = scopeKeystore(host.keystore, { prefixes: [TORNADO_KEYSTORE_PREFIX], paths: delegationPaths });
+
       const resolvedSecretManager = secretManagerFactory
-        ? await secretManagerFactory({ host: { keystore: host.keystore }, accountIndex })
+        ? await secretManagerFactory({ host: { keystore }, accountIndex })
         : undefined;
 
+      // Host objects reach the worker through the host bridge: only the listed
+      // methods are callable, never field reads, writes or constructors.
       await Promise.race([
         remote.init(
-          proxy(host.provider),
-          proxy(relayerClientFactory()),
-          proxy(host.keystore),
-          proxy(host.storage),
-          proxy(initialState),
-          proxy(artifactsLoader),
-          resolvedSecretManager ? proxy(resolvedSecretManager) : undefined,
-          externalSyncClient ? proxy(externalSyncClient) : undefined,
+          exposeOnly(host.provider, providerPolicy),
+          exposeOnly(relayerClientFactory(), relayerClientPolicy),
+          exposeOnly(keystore, keystorePolicy),
+          exposeOnly(host.storage, storagePolicy),
+          exposeCall(initialState),
+          exposeCall(artifactsLoader),
+          resolvedSecretManager ? exposeOnly(resolvedSecretManager, secretManagerPolicy(delegationPaths)) : undefined,
+          externalSyncClient ? exposeOnly(externalSyncClient, externalSyncPolicy) : undefined,
           {
             protocolConfig: { ...protocolConfig, useExtendedEthPools },
             accountIndex,
@@ -103,20 +123,43 @@ export class TornadoCashProtocol implements TCInstance {
         getNotes: (params) => remote.getNotes(params),
         getDepositPayload: (params) => remote.getDepositPayload(params),
         importNotes: (params) => remote.importNotes(params),
-        getWithdrawalPayloads: (params) => {
+        getWithdrawalPayloads: async (params) => {
           if (params.mode === 'paymaster') {
-            const { tailCalls, ...rest } = params as IPaymasterWithdrawParams;
+            const { tailCalls, delegation, ...rest } = params as IPaymasterWithdrawParams;
+
+            // The integrator named this wallet key, so the worker may derive exactly it.
+            if (delegation?.mode === 'deterministic' && delegation.path) {
+              delegationPaths.add(delegation.path);
+            }
+
+            if (delegation?.mode === 'external') {
+              const chainId = Number(await host.provider.getChainId());
+              const config = paymasterConfig[chainId];
+              if (!config) throw new Error('No paymaster configuration for the external signer chain.');
+              const address = delegation.signer.address;
+              const nonce = await host.provider.request({ method: 'eth_getTransactionCount', params: [address, 'latest'] });
+              const policy = externalSignerPolicy({ address, chainId, nonce: BigInt(nonce as string), ...config });
+              // A dedicated top-level host bridge exposes only the two signing
+              // methods. The signer/account object is never structured-cloned.
+              return remote.getWithdrawalPayloads(
+                { ...rest, delegation: { mode: 'external', address } },
+                tailCalls ? exposeCall(tailCalls, tailCallsCheck) : undefined,
+                exposeCall(bundlerPostVia(host.network), bundlerPostCheck(Object.values(paymasterConfig).map(c => c.bundlerUrl))),
+                exposeOnly(delegation.signer, policy),
+              );
+            }
+
             // tailCalls must be a top-level comlink arg (not nested in an object) so
-            // comlink's proxy transfer handler can wrap it in a MessagePort instead of
+            // the host-bridge transfer handler can wrap it in a MessagePort instead of
             // trying to structuredClone the function.
-          
             return (remote.getWithdrawalPayloads)(
-              rest as IWithdrawapOperationParams,
-              tailCalls ? proxy(tailCalls) : undefined,
+              { ...rest, delegation },
+              tailCalls ? exposeCall(tailCalls, tailCallsCheck) : undefined,
+              exposeCall(bundlerPostVia(host.network), bundlerPostCheck(Object.values(paymasterConfig).map(c => c.bundlerUrl))),
             );
           }
 
-          return remote.getWithdrawalPayloads(params as IWithdrawapOperationParams);
+          return remote.getWithdrawalPayloads(params);
         },
         dumpState: (() => remote.dumpState()) as unknown as IStateManager['dumpState'],
       } as IStateManager;
@@ -264,6 +307,8 @@ export class TornadoCashProtocol implements TCInstance {
         delegation: options.delegation,
         tailCalls: options.tailCalls,
         tailCallsGasEstimate: options.tailCallsGasEstimate,
+        gasEstimationPolicy: options.gasEstimationPolicy,
+        maxGasLimits: options.maxGasLimits,
       });
     } else {
       withdrawals = await stateManager.getWithdrawalPayloads({

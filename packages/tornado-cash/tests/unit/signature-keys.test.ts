@@ -115,7 +115,7 @@ describe('SignatureSecretManager', () => {
     expect(high).toEqual(low);
   });
 
-  it('caches the signature per chain and nonce across pools and ephemeral-signer calls', async () => {
+  it('checks the first signature twice, then caches per chain and nonce across pools and signer calls', async () => {
     const host = createMockHost();
     const inner = new KeystoreEnvelopeSigner(host.keystore, 0);
     let calls = 0;
@@ -133,15 +133,63 @@ describe('SignatureSecretManager', () => {
     await m.getSignatureSecrets({ ...params, poolAddress: POOL_B });
     await m.deriveSignatureEphemeralSigner(params);
 
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
 
     await m.getSignatureSecrets({ ...params, chainId: CHAIN_ID + 1n });
 
-    expect(calls).toBe(2);
+    expect(calls).toBe(3);
 
     await m.getSignatureSecrets({ ...params, nonce: 8 });
 
-    expect(calls).toBe(3);
+    expect(calls).toBe(4);
+  });
+
+  it('rejects a changing signer before returning note secrets or an ephemeral signer', async () => {
+    let calls = 0;
+    const changing: EnvelopeSigner = {
+      signEnvelope: (envelope) => privateKeyToAccount(
+        calls++ % 2 === 0 ? `0x${'42'.repeat(32)}` : `0x${'43'.repeat(32)}`,
+      ).signTypedData(envelope),
+    };
+    const m = await SignatureSecretManager({ host: createMockHost(), signer: changing });
+    const params = { poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 };
+
+    await expect(m.getSignatureSecrets(params)).rejects.toThrow('Note signer is not deterministic');
+    await expect(m.deriveSignatureEphemeralSigner({ ...params, nonce: 1 })).rejects.toThrow('Note signer is not deterministic');
+  });
+
+  it('runs one extra signature under concurrent first derivations', async () => {
+    const host = createMockHost();
+    const inner = new KeystoreEnvelopeSigner(host.keystore, 0);
+    let calls = 0;
+    const counting: EnvelopeSigner = {
+      signEnvelope: (envelope) => {
+        calls++;
+
+        return inner.signEnvelope(envelope);
+      },
+    };
+    const m = await SignatureSecretManager({ host, signer: counting });
+
+    await Promise.all([0, 1, 2].map((nonce) => m.getSignatureSecrets({ poolAddress: POOL, chainId: CHAIN_ID, nonce })));
+    expect(calls).toBe(4);
+  });
+
+  it('allows a known deterministic signer to opt out of the extra signature', async () => {
+    const host = createMockHost();
+    const inner = new KeystoreEnvelopeSigner(host.keystore, 0);
+    let calls = 0;
+    const counting: EnvelopeSigner = {
+      signEnvelope: (envelope) => {
+        calls++;
+
+        return inner.signEnvelope(envelope);
+      },
+    };
+    const m = await SignatureSecretManager({ host, signer: counting, verifyDeterminism: false });
+
+    await m.getSignatureSecrets({ poolAddress: POOL, chainId: CHAIN_ID, nonce: 0 });
+    expect(calls).toBe(1);
   });
 
   it('does not cache a failed signature (stays retryable)', async () => {
@@ -160,7 +208,7 @@ describe('SignatureSecretManager', () => {
 
     await expect(m.getSignatureSecrets(params)).rejects.toThrow('signer rejected');
     await expect(m.getSignatureSecrets(params)).resolves.toBeDefined();
-    expect(attempt).toBe(2);
+    expect(attempt).toBe(3); // the retry is signed twice by the determinism check
   });
 
   describe('deriveSignatureEphemeralSigner', () => {

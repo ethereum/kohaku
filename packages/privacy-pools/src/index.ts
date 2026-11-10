@@ -8,13 +8,16 @@ export { DataService } from './data/data.service';
 export { createSagaLogSource, createSagaDataService } from './data/saga-log-source';
 export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
 export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
-export { SecretManager } from './account/keys';
+export { SecretManager, PRIVACY_POOLS_KEYSTORE_PREFIX } from './account/keys';
 export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signature-keys';
 
 // Types
 export type { SecretManagerParams, ISecretManager } from './account/keys';
 export type { SignatureSecretManagerParams, EnvelopeSigner, NoteMessage, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
+export type { DelegatorAccount, DelegationConfig } from './interfaces/user-ops.interface';
 
 // Configs
 export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';
+
+export type { PaymasterGasLimits } from './paymaster/gas-bounds';

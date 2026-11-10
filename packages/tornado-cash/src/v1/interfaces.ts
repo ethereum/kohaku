@@ -1,3 +1,5 @@
+import type { PaymasterGasLimits } from '../paymaster/gas-bounds';
+import type { GasEstimationPolicy } from '../interfaces/user-ops.interface';
 import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
 import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote, ImportNoteResult } from '../plugin/interfaces/protocol-params.interface.js';
@@ -37,15 +39,27 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 }
 
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
+    /**
+     * Single notes without tail calls pay the recipient and gas refund directly,
+     * with zero execution gas. Default 'best-effort': on mainnet/Sepolia, these
+     * direct withdrawals (including random/external senders), or execution-phase
+     * withdrawals with a recoverable sender and no user tail calls, may return
+     * marked fallback on bundler unavailability or the zero-execution estimator
+     * incompatibility. Use 'required' to require successful bundler estimation.
+     * Other validation rejections and gas/fee bounds violations always fail.
+     */
+    gasEstimationPolicy?: GasEstimationPolicy;
     mode: 'paymaster';
     delegation?: DelegationConfig;
     /**
      * Optional baseline for the execution-phase gas of user `tailCalls` (not
-     * including per-note direct withdraws). Used as the batch execution-tail
-     * baseline when bundler estimation fails; when estimation succeeds the
-     * bundler estimate still wins. Defaults to the SDK's static callGasLimit.
+     * including per-note direct withdraws). Successful bundler estimation is
+     * still required and can increase this budget. Defaults to the SDK's
+     * static callGasLimit.
      */
     tailCallsGasEstimate?: bigint;
+    /** Absolute gas ceilings after buffering. Execution gas is uncapped unless explicitly limited here. */
+    maxGasLimits?: PaymasterGasLimits;
 }
 
 export type TCPrepareUnshieldOptions = TCRelayerUnshieldOptions | TCPaymasterUnshieldOptions;

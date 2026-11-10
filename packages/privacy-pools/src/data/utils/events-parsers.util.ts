@@ -68,9 +68,10 @@ export const EVENTS_PARSERS: {
       transactionHash: BigInt(transactionHash),
     };
   },
+  // Entrypoint deposits and leaves outnumber every other event and their hash is
+  // never read (history uses the pool events), so it is left out of the state.
   EntrypointDeposited: ({
     blockNumber,
-    transactionHash,
     args: {
       _pool: poolAddress,
       _amount: value,
@@ -80,7 +81,7 @@ export const EVENTS_PARSERS: {
   }) => {
     return {
       blockNumber,
-      transactionHash: BigInt(transactionHash),
+      transactionHash: 0n,
       depositor: BigInt(depositor),
       poolAddress: BigInt(poolAddress),
       commitment,
@@ -122,12 +123,11 @@ export const EVENTS_PARSERS: {
   },
   LeafInserted: function ({
     args: { _index, _leaf, _root },
-    transactionHash,
     blockNumber,
   }): ILeafInsertedEvent {
     return {
       blockNumber,
-      transactionHash: BigInt(transactionHash),
+      transactionHash: 0n,
       index: _index,
       commitment: _leaf,
       root: _root,

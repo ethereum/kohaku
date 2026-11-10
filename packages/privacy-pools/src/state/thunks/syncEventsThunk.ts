@@ -17,22 +17,30 @@ export interface SyncEventsThunkParams {
   dataService: IDataService;
 }
 
+interface SyncEventsParams extends SyncEventsThunkParams {
+  /** The sync's head; every pool is scanned up to it (see syncThunk). */
+  toBlock: bigint;
+}
+
 export const syncEventsThunk = createAsyncThunk<
-  bigint,
-  SyncEventsThunkParams,
+  void,
+  SyncEventsParams,
   { state: RootState; }
->("sync/events", async ({ dataService }, { getState, dispatch }) => {
+>("sync/events", async ({ dataService, toBlock }, { getState, dispatch }) => {
   const state = getState();
   const myPools = poolsSelector(state);
   const lastSyncedBlock = selectLastSyncedBlock(state);
 
-  // Fetch deposits, withdrawals, and ragequits from all pools in parallel
-  const results = await Promise.allSettled(
+  // Fetch deposits, withdrawals, and ragequits from all pools in parallel. A failed
+  // scan fails the sync: the head becomes the sync point, so a skipped pool's events
+  // would never be fetched again.
+  const results = await Promise.all(
     Array.from(myPools.values()).map(async (pool) => {
       const events = await dataService.getPoolEvents({
         events: ["PoolDeposited", "Withdrawn", "Ragequit", "LeafInserted"],
         fromBlock:
           lastSyncedBlock === 0n ? pool.registeredBlock : lastSyncedBlock,
+        toBlock,
         address: pool.address,
       });
 
@@ -47,30 +55,20 @@ export const syncEventsThunk = createAsyncThunk<
   const allDeposits: IPoolDepositEvent[] = [];
   const allWithdrawals: IWithdrawalEvent[] = [];
   const allRagequits: IRagequitEvent[] = [];
-  let maxBlock = lastSyncedBlock;
 
-  results.forEach((result) => {
-    if (result.status === "fulfilled") {
-      const { PoolDeposited, Withdrawn, Ragequit, LeafInserted, toBlock, pool } =
-        result.value;
+  results.forEach(({ PoolDeposited, Withdrawn, Ragequit, LeafInserted, pool }) => {
+    allDeposits.push(...PoolDeposited.map((e) => ({ ...e, pool })));
+    allWithdrawals.push(...Withdrawn.map((e) => ({ ...e, pool })));
+    allRagequits.push(...Ragequit.map((e) => ({ ...e, pool })));
 
-      allDeposits.push(...PoolDeposited.map((e) => ({ ...e, pool })));
-      allWithdrawals.push(...Withdrawn.map((e) => ({ ...e, pool })));
-      allRagequits.push(...Ragequit.map((e) => ({ ...e, pool })));
-
-      // Each registerPoolLeaves dispatch rebuilds and re-serializes the entire
-      // cross-pool leaf structure, so skip pools with no new leaves (the common
-      // case on an already-synced state — otherwise every pool pays that cost).
-      if (LeafInserted.length > 0) {
-        dispatch(registerPoolLeaves({
-          poolAddress: pool,
-          leaves: LeafInserted,
-        }));
-      }
-
-      if (toBlock > maxBlock) {
-        maxBlock = toBlock;
-      }
+    // Each registerPoolLeaves dispatch rebuilds and re-serializes the entire
+    // cross-pool leaf structure, so skip pools with no new leaves (the common
+    // case on an already-synced state — otherwise every pool pays that cost).
+    if (LeafInserted.length > 0) {
+      dispatch(registerPoolLeaves({
+        poolAddress: pool,
+        leaves: LeafInserted,
+      }));
     }
   });
 
@@ -86,7 +84,4 @@ export const syncEventsThunk = createAsyncThunk<
   if (allRagequits.length > 0) {
     dispatch(registerRagequits(allRagequits));
   }
-
-  // Return the block number from the last event fetched
-  return maxBlock;
 });

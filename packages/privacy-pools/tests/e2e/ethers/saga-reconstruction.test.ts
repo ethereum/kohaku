@@ -60,7 +60,7 @@ describe.skipIf(chainId !== 1 || !SAGA_SYNC_URL)('saga reconstruction — tree r
 
     leaves.sort((a, b) => (a.block === b.block ? Number(a.logIndex - b.logIndex) : Number(a.block - b.block)));
 
-    const localRoot = computeMerkleTreeRoot(leaves.map((l) => l.commitment));
+    const localRoot = await computeMerkleTreeRoot(leaves.map((l) => l.commitment));
     const onchainRoot = await rpc.readContract({ address, abi: poolAbi, functionName: 'currentRoot', blockNumber: cutoff });
 
     expect(leaves.length).toBeGreaterThan(0);

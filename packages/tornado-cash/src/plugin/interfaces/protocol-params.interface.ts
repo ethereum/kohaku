@@ -1,3 +1,6 @@
+import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
+import type { BundlerPost } from '../../paymaster/utils';
+import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
 import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
@@ -14,7 +17,7 @@ import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
-import type { DelegationConfig } from '../../account/delegation.interface';
+import type { DelegationConfig, WorkerDelegationConfig } from '../../account/delegation.interface';
 import type { ITornadoInstance } from '../../instances';
 
 export type { DelegationConfig, ImportNoteResult };
@@ -23,8 +26,9 @@ type StringAddress = `0x${string}`
 export interface IPaymasterConfig {
   paymasterAddress: StringAddress;
   entryPointAddress: StringAddress;
-  poolsAccountsMap: Record<StringAddress, StringAddress>;
   bundlerUrl: string;
+  /** Pools allowlisted on the TornadoPaymaster at paymasterAddress. */
+  supportedPools: readonly StringAddress[];
 }
 
 export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
@@ -108,18 +112,28 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 }
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
+  /** Best effort allows marked fallback for direct single notes or eligible recoverable execution paths; required enforces successful bundler estimation. */
+  gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   /**
    * Optional baseline for the execution-phase gas of user `tailCalls` (not
-   * including per-note direct withdraws). Used when bundler estimation fails;
-   * when estimation succeeds the bundler estimate still wins.
+   * including per-note direct withdraws). Successful bundler estimation is
+   * still required and can increase this budget.
    */
   tailCallsGasEstimate?: bigint;
+  /** Optional absolute ceilings, including buffers; not a fee percentage. */
+  maxGasLimits?: PaymasterGasLimits;
+  /** Worker transport supplied by the host. */
+  bundlerPost?: BundlerPost;
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
+
+/** Signing functions must not be nested in a structured-cloned options object. */
+export type WorkerWithdrawParams = IRelayerWithdrawParams |
+  (Omit<IPaymasterWithdrawParams, 'delegation'> & { delegation?: WorkerDelegationConfig });
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
   assets?: Address[];

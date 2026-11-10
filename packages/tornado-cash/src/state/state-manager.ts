@@ -1,3 +1,4 @@
+import type { EthereumProvider } from '@kohaku-eth/provider';
 /* eslint-disable max-lines */
 import { ChainId, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
@@ -24,6 +25,7 @@ import {
 import { allNotesSelector } from "./selectors/notes.selector";
 import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
+import { syncRelayersThunk } from "./thunks/syncRelayersThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
@@ -39,6 +41,8 @@ import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from "../instan
 const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
 export interface StoreFactoryParams {
+  /** Host RPC for independent fee-market checks; does not extend IDataService. */
+  provider?: EthereumProvider;
   secretManagerFactory: () => Promise<ISecretManager>;
   dataService: IDataService;
   syncService: ISyncService;
@@ -179,6 +183,7 @@ const storeByChainAndEntrypoint = ({
 export const storeStateManager = async ({
   secretManagerFactory,
   dataService,
+  provider,
   syncService,
   relayerClient,
   paymasterConfig,
@@ -276,7 +281,8 @@ export const storeStateManager = async ({
       );
     },
     getWithdrawalPayloads: async (params: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
-      const store = await getChainStore(await getChainInfo());
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
       const { asset, amount, recipient } = params;
 
       if (params.mode === 'paymaster') {
@@ -295,10 +301,19 @@ export const storeStateManager = async ({
               secretManager,
               tailCalls: params.tailCalls,
               tailCallsGasEstimate: params.tailCallsGasEstimate,
+              gasEstimationPolicy: params.gasEstimationPolicy,
+              maxGasLimits: params.maxGasLimits,
+              bundlerPost: params.bundlerPost,
+              provider,
             }),
           ),
         );
       }
+
+      // ENS/TORN-staked relayers are only needed for traditional withdrawals.
+      // Balances, shields and paymaster withdrawals must not depend on them.
+      unwrapResult(await store.dispatch(syncRelayersThunk({ dataService, syncService })));
+      await persistStateIfAvailable(chainInfo, store);
 
       return unwrapResult(
         await store.dispatch(

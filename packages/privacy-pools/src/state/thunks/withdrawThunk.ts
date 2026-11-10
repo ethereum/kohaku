@@ -7,7 +7,7 @@ import { INote } from '../../plugin/interfaces/protocol-params.interface';
 import { aspMerkleProofSelector, stateMerkleProofSelector } from '../selectors/merkle.selector';
 import { existingNoteSecretsSelector, getNoteSelector } from '../selectors/notes.selector';
 import { poolFromAssetSelector } from "../selectors/pools.selector";
-import { entrypointInfoSelector } from '../selectors/slices.selectors';
+import { entrypointInfoSelector, verifiedAspRootSelector } from '../selectors/slices.selectors';
 import { RootState } from '../store';
 
 export type ProveOutput = Awaited<ReturnType<Awaited<ReturnType<typeof Prover>>['prove']>>;
@@ -63,8 +63,20 @@ export const withdrawThunk = createAsyncThunk<
 
     // 4. Get Merkle proofs
     const existingNoteFull = { ...existingNote, ...existingSecrets };
-    const stateMerkleProof = stateMerkleProofSelector(state, poolInfo.address, existingNoteFull);
-    const aspMerkleProof = aspMerkleProofSelector(state, existingNote.label);
+    const [stateMerkleProof, aspMerkleProof] = await Promise.all([
+      stateMerkleProofSelector(state, poolInfo.address, existingNoteFull),
+      aspMerkleProofSelector(state, existingNote.label),
+    ]);
+    const verifiedAspRoot = verifiedAspRootSelector(state);
+
+    // The Entrypoint only accepts its latestRoot(); never prove against an ASP tree
+    // this session has not matched to it (see verifyRootsThunk).
+    if (verifiedAspRoot === 0n || aspMerkleProof.root !== verifiedAspRoot) {
+      throw new Error(
+        'ASP root not verified on-chain: sync before withdrawing ' +
+        `(proof root=${aspMerkleProof.root}, verified root=${verifiedAspRoot})`,
+      );
+    }
 
     // 5. Generate ZK proof
     const prover = await params.proverFactory();

@@ -1,3 +1,4 @@
+import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
   encodeFunctionData,
@@ -42,8 +43,10 @@ export type UserOperationGasPrice = {
 };
 
 /** viem bundler client for the paymaster flow. */
-export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
-  return createBundlerClient({ transport: http(bundlerUrl) });
+export function createPaymasterBundlerClient(bundlerUrl: string, network?: Network): BundlerClient {
+  const fetchFn = network ? (input: RequestInfo | URL, init?: RequestInit) => network.fetch(input, init) : undefined;
+
+  return createBundlerClient({ transport: http(bundlerUrl, { fetchFn }) });
 }
 
 /**

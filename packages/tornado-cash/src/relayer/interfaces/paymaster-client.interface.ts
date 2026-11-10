@@ -1,7 +1,7 @@
 import type { SignedAuthorization, Hash } from 'viem';
 import { TornadoProveOutput } from '../../utils/tornado-prover';
 import { Address } from '../../interfaces/types.interface';
-import { SerializedUserOperation } from '../../interfaces/user-ops.interface';
+import { PaymasterGasEstimation, SerializedUserOperation } from '../../interfaces/user-ops.interface';
 
 export interface SignedDelegation {
   senderAddress: `0x${string}`;
@@ -27,6 +27,12 @@ export interface IGenericPaymasterWithdrawalPayload {
   // The fully built and signed userOp, produced in the prepare phase. The
   // broadcaster only relays it to the bundler.
   userOperation: SerializedUserOperation;
+  /** Present in newly prepared payloads; absent in payloads from older SDKs. */
+  gasEstimation?: PaymasterGasEstimation;
+  /** Proof-bound fee in newly prepared payloads; optional for older stored operations. */
+  fee?: bigint;
+  /** Total note denominations spent by the operation, before the fee. */
+  withdrawnValue?: bigint;
 }
 
 export interface PaymasterBroadcastResult {

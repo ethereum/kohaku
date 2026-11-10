@@ -10,6 +10,7 @@ import { IDataService } from "../../data/interfaces/data.service.interface";
 import { verifyRootsThunk } from "./verifyRootsThunk";
 import { getWithdrawableDepositsSelector } from "../selectors/withdrawals.selector";
 import { instanceCatalog, ITornadoInstance } from "../../instances";
+import { findPoolPaymaster } from "../../paymaster/config";
 
 export interface WithdrawThunkParams extends Omit<WithdrawalProofsThunkParams, 'deposit' | 'fee' | 'relayerAddress'> {
     relayerClient: IRelayerClient;
@@ -77,7 +78,8 @@ export const withdrawThunk = createAsyncThunk<
 
       if (!asset) throw new Error(`Asset info not found for ${assetAddress}`);
 
-      const paymasterAddress = paymasterConfig?.[Number(chainId)]?.paymasterAddress;
+      const chainPaymaster = paymasterConfig?.[Number(chainId)];
+      const paymasterAddress = chainPaymaster && findPoolPaymaster(chainPaymaster, poolInfo.address);
       // Without a paymaster quote for this token only the total fee cap applies.
       const referenceNetworkFee = paymasterAddress
         ? await dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, assetAddress, networkFee).catch(() => undefined)

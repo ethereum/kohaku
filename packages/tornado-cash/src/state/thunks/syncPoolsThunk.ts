@@ -58,7 +58,11 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     const uncataloguedPools = catalog ? [...poolAddresses].filter((address) => !catalog.has(address)) : [];
 
     if (uncataloguedPools.length > 0) {
-      console.warn('Ignoring pools missing from the instance catalog', uncataloguedPools.map((address) => addressToHex(address)));
+      // A custom catalog may deliberately select only one pool for a deposit.
+      // Report unexpected gaps only when using the default chain catalog.
+      if (instances === undefined) {
+        console.warn('Ignoring pools missing from the instance catalog', uncataloguedPools.map((address) => addressToHex(address)));
+      }
       uncataloguedPools.forEach((address) => poolAddresses.delete(address));
     }
 

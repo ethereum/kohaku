@@ -11,6 +11,9 @@ import { poseidon } from "maci-crypto/build/ts/hashing.js";
 
 const PRIVACY_POOLS_PATH = "m/28784'/1'";
 
+/** Every key Privacy Pools derives (legacy and signature secrets) sits below this path. */
+export const PRIVACY_POOLS_KEYSTORE_PREFIX = PRIVACY_POOLS_PATH;
+
 export interface Secret {
   nullifier: bigint;
   salt: bigint;

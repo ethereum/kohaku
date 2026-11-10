@@ -1,3 +1,4 @@
+import type { TransactionReceipt } from 'ethers';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 
@@ -153,6 +154,20 @@ describe('PrivacyPools v1 E2E Flow', () => {
     ({ pending, approved } = unwrapBalance(postDepositBalance, nativeAsset));
     expect(approved?.amount).toBe(0n);
     expect(pending?.amount).toBe(DEPOSIT_AMOUNT_AFTER_EP_FEE);
+
+    // 4. History reports the deposit with the hash the sync stored (no per-event
+    // lookup) and a timestamp interpolated from the block grid.
+    const { hash, blockNumber } = receipt as TransactionReceipt;
+    const [event] = await protocol.history([nativeAsset]);
+    const block = await (await pool.getProvider()).getBlock(blockNumber);
+
+    expect(event).toMatchObject({
+      type: 'deposit',
+      transactionHash: BigInt(hash),
+      blockNumber: BigInt(blockNumber),
+      value: DEPOSIT_AMOUNT_AFTER_EP_FEE,
+    });
+    expect(Math.abs(Number(event!.timestamp) - block!.timestamp)).toBeLessThan(3600);
   });
 
   it('[prepareShield] generates valid ERC20 deposit transaction', { timeout: 60_000 }, async () => {

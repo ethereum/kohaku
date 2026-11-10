@@ -1,3 +1,4 @@
+import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   encodeFunctionData,
@@ -40,9 +41,32 @@ export type UserOperationGasPrice = {
  * `waitForUserOperationReceipt` action directly; the two helpers below cover
  * the only methods viem doesn't expose natively.
  */
-export function createPaymasterBundlerClient(bundlerUrl: string): BundlerClient {
-  return createBundlerClient({ transport: http(bundlerUrl) });
+export function createPaymasterBundlerClient(bundlerUrl: string, network?: Network): BundlerClient {
+  const fetchFn = network ? (input: RequestInfo | URL, init?: RequestInit) => network.fetch(input, init) : undefined;
+
+  return createBundlerClient({
+    transport: http(bundlerUrl, { timeout: 180_000, retryCount: 0, fetchFn }),
+  });
 }
+
+/** Cloneable bundler POST carried over the restricted host bridge. */
+export type BundlerPost = (url: string, body: string) => Promise<{ status: number; body: string }>;
+
+export const bundlerPostVia = (network: Network): BundlerPost => async (url, body) => {
+  const response = await network.fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+  });
+
+  return { status: response.status, body: await response.text() };
+};
+
+export const networkFromBundlerPost = (post: BundlerPost): Network => ({
+  fetch: async (input, init) => {
+    const { status, body } = await post(String(input), String(init?.body ?? ''));
+
+    return new Response(body, { status, headers: { 'Content-Type': 'application/json' } });
+  },
+});
 
 /**
  * Pimlico gas-price oracle (`pimlico_getUserOperationGasPrice`). Not a standard
@@ -99,8 +123,8 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
  * simulate the paymaster's validation and the delegated execution.
  *
  * Not on viem's bundler action surface for our serialized shape, so we issue the
- * raw request and parse the returned limits ourselves. Callers should treat this
- * as best-effort and fall back to static limits on failure.
+ * raw request and parse the returned limits ourselves. Preparation must stop on
+ * failure: static limits may not cover the bundler's pre-verification overhead.
  */
 export async function estimateUserOperationGas(
   client: BundlerClient,
@@ -125,9 +149,10 @@ export async function estimateUserOperationGas(
  * Builds and signs a paymaster-sponsored withdrawal userOp for an ephemeral
  * 7702 sender, returning it serialized for the broadcast phase.
  *
- * The sender is a fresh EOA (so its EntryPoint nonce is 0) delegated to the
- * Simple7702 implementation; the owner signs the userOp. No RPC access is
- * required — gas limits and fees are supplied by the caller.
+ * The sender is delegated to Simple7702Account and signs the userOp. The
+ * paymaster flow uses EntryPoint nonce 0, including for a wallet-path EOA with
+ * prior transactions. The caller supplies that EOA's authorization nonce; this
+ * helper performs no RPC reads.
  */
 export async function buildSignedTornadoUserOp({
   signer,
@@ -139,6 +164,7 @@ export async function buildSignedTornadoUserOp({
   maxPriorityFeePerGas,
   tailCalls = async () => [],
   nonce = 0n,
+  authorizationNonce,
 }: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
 
   const owner = signer;
@@ -162,14 +188,13 @@ export async function buildSignedTornadoUserOp({
     });
   }
 
-  // The EIP-7702 authorization nonce must equal the sender's EOA nonce at the
-  // time the bundle tx is processed. Each time a 7702 auth is consumed the EOA
-  // nonce increments, so for the k-th userOp from the same shared sender we
-  // need nonce = k (matching the userOp's EntryPoint sequence number).
+  // A wallet-path sender may have prior EOA transactions even though this is
+  // its first UserOperation. For note-derived/random senders both nonces stay 0.
+  // EntryPoint nonce 0 is intentionally single-use for all paymaster withdrawals.
   const authorization = await owner.signAuthorization({
     address: SIMPLE_7702_IMPLEMENTATION,
     chainId,
-    nonce: Number(nonce),
+    nonce: Number(authorizationNonce ?? nonce),
   });
 
   const userOperation = {

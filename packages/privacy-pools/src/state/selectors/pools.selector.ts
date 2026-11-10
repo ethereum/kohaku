@@ -100,7 +100,7 @@ export const poolCommitmentsSelector = createSelector(
 
 export const poolMerkleTreeRootSelector = createSelector(
   [poolCommitmentsSelector, (_state: RootState, poolAddress: Address) => poolAddress],
-  (commitments, poolAddress): bigint => {
+  async (commitments, poolAddress): Promise<bigint> => {
     const leaves = Array.from(commitments);
 
     if (leaves.length === 0) {
@@ -109,7 +109,7 @@ export const poolMerkleTreeRootSelector = createSelector(
 
     // Shares the per-pool cached tree with stateMerkleProofSelector, so verifying
     // the root and generating proofs build the tree at most once.
-    return getIncrementalTree('state', String(poolAddress), leaves).root;
+    return (await getIncrementalTree('state', String(poolAddress), leaves)).root;
   },
 );
 

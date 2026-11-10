@@ -20,13 +20,21 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
  *   a classical BIP-32 wallet-path key derived WITHOUT the privacy transform, so
  *   it resolves to a recoverable, wallet-native address a stuck sender can be
  *   swept from with standard tooling.
- * - `random`: a throwaway, unrecoverable EOA. Safe here because in the
- *   single-note flow the funds go straight to the recipient during paymaster
- *   validation and never sit in the sender.
+ * - `random`: an expert-only, throwaway EOA. Its private key is discarded and
+ *   cannot be recovered. A single-note withdrawal without `tailCalls` pays the
+ *   recipient during validation, but `batch` or `tailCalls` pays this sender
+ *   first. Failed, empty, or incomplete execution can leave the net withdrawal
+ *   permanently inaccessible. Do not use in production unless you deliberately
+ *   accept that risk and know exactly why this mode is needed.
+ * - `external`: a host-held EOA implementing the two signing callbacks below.
+ *   The SDK never asks the SecretManager for its private key. Returned signatures
+ *   are verified, authorization is cached per preparation, and bundler estimation
+ *   must succeed. Note-secret discovery/proving is unchanged.
  */
 export type DelegationConfig =
   | { mode: "deterministic"; path?: string }
-  | { mode: "random" };
+  | { mode: "random" }
+  | { mode: "external"; signer: DelegatorAccount };
 
 export interface SerializedAuth {
   address: `0x${string}`;

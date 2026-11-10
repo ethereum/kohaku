@@ -30,6 +30,9 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     const fromBlock = selectLastSyncedBlock(state);
+    // One head for the whole sync: the entrypoint and pool scans all stop at it and
+    // it becomes the next sync point, so no block can fall between two scans.
+    const toBlock = await dataService.getBlockNumber();
 
     const {
       EntrypointDeposited,
@@ -44,6 +47,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
         "PoolWindDown"
       ],
       fromBlock,
+      toBlock,
       address: entrypointAddress,
     });
 
@@ -60,9 +64,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       dispatch(registerLastUpdateRootEvent(RootUpdated.at(-1)!));
     }
 
-    const syncEventsResult = await dispatch(syncEventsThunk({ dataService, ...params }));
-
-    const syncEventsLastBlock = unwrapResult(syncEventsResult);
+    unwrapResult(await dispatch(syncEventsThunk({ dataService, toBlock, ...params })));
 
     unwrapResult(await dispatch(discoverUserSecretsThunk({ secretManager })));
 
@@ -76,6 +78,9 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       unwrapResult(verifyResult);
     }
 
-    dispatch(setLastSyncedBlock(syncEventsLastBlock));
+    // An RPC behind our sync point scans nothing; keep the point where it is.
+    if (toBlock > fromBlock) {
+      dispatch(setLastSyncedBlock(toBlock));
+    }
   }
 );
