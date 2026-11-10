@@ -14,3 +14,6 @@ export const VALIDATION_UNKNOWN_TOKEN_SHAPES = ['returns-false', 'no-code', 'acc
 
 /** What a handover's new key may not be, since nobody could sign for it as a key of the account; a finding names the first match, in this order. */
 export const VALIDATION_RESERVED_DESTINATIONS = ['account', 'manager', 'action', 'kit-slot', 'fallback-handler'] as const;
+
+/** Why a `credential.config-malformed` config can never verify: its layout does not decode, or a decoded value lies outside a bound its module keeps. */
+export const VALIDATION_CONFIG_FAULTS = ['layout', 'bound'] as const;

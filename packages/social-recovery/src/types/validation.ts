@@ -44,8 +44,8 @@ export type MethodReads = {
   readonly implemented: boolean;
   /** The tier the serving implementation states, absent where no implementation places it. */
   readonly tier?: MethodTier;
-  /** The serving implementation's config decoder; absent where no registered implementation serves the module or its codec has no `decodeConfig`, and then no config is judged. */
-  readonly codec?: Pick<IMethodCodec, 'decodeConfig'>;
+  /** The serving implementation's config decoder and the bounds it declares; absent where no registered implementation serves the module or its codec has no `decodeConfig`, and then no config is judged. */
+  readonly codec?: Pick<IMethodCodec, 'decodeConfig' | 'outOfBounds'>;
 };
 
 /** One method's verification cost in gas, per place it fills. */

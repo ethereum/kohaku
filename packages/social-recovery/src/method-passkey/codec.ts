@@ -17,6 +17,7 @@ import type { IMethodCodec } from '../interfaces';
 import type { Fields, Hex } from '../interfaces';
 import type { PasskeyConfig, PasskeyProof } from '../types/method-passkey';
 import { utf8Text } from './bytes';
+import { onCurve } from './credential';
 
 const [X_FIELD, Y_FIELD, RP_ID_HASH_FIELD] = METHOD_PASSKEY_CONFIG_FIELDS;
 const [AUTHENTICATOR_DATA_FIELD, CLIENT_DATA_FIELD, R_FIELD, S_FIELD] = METHOD_PASSKEY_PROOF_FIELDS;
@@ -121,10 +122,18 @@ const proofOf = (fields: Fields): PasskeyProof => {
   return fields as unknown as PasskeyProof;
 };
 
+/** The config fields the precompile never verifies against: both coordinates where they are not a point on P-256. */
+const keyOutOfBounds = (config: Hex): readonly string[] => {
+  const { x, y } = decodePasskeyConfig(config);
+
+  return onCurve(x, y) === undefined ? [X_FIELD, Y_FIELD] : [];
+};
+
 /** The passkey codec; each decode refuses bytes its encode would not reproduce, and each encode returns lower-case hex. */
 export const passkeyCodec: IMethodCodec = {
   encodeConfig: (fields: Fields): Hex => encodePasskeyConfig(configOf(fields)),
   decodeConfig: (config: Hex): Fields => decodePasskeyConfig(config),
   encodeProof: (fields: Fields): Hex => encodePasskeyProof(proofOf(fields)),
   decodeProof: (proof: Hex): Fields => decodePasskeyProof(proof),
+  outOfBounds: keyOutOfBounds,
 };

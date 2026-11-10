@@ -6,4 +6,9 @@ export interface IMethodCodec {
   decodeConfig(config: Hex): Fields;
   encodeProof(fields: Fields): Hex;
   decodeProof(proof: Hex): Fields;
+  /**
+   * The config fields, in layout order, whose values the module refuses at every proof or the SDK does not support; empty where every bound holds.
+   * Called only on a config `decodeConfig` accepted. The layout stays `decodeConfig`'s, so a refused value still encodes and decodes.
+   */
+  outOfBounds?(config: Hex): readonly string[];
 }

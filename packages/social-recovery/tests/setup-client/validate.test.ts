@@ -259,7 +259,7 @@ describe('validateSetup', () => {
     await expect(build({ world: { allActions: { rejects: failure } } }).client.validateSetup(DRAFT)).rejects.toBe(failure);
   });
 
-  it('a registry of the shipped methods: a config its method cannot decode is credential.config-malformed', async () => {
+  it('a registry of the shipped methods: a config its method cannot decode, or whose key is off the curve, is credential.config-malformed', async () => {
     const registry: MethodRegistry = new Map<Address, IRecoveryMethod>([
       [METHOD_A, walletMethod()],
       [METHOD_B, passkeyMethod()],
@@ -275,8 +275,9 @@ describe('validateSetup', () => {
     const result = await build({ methods: registry }).client.validateSetup(draft);
 
     expect(result.errors.filter((finding) => finding.code === 'credential.config-malformed')).toEqual([
-      { code: 'credential.config-malformed', subject: 'credential', values: { place: 1, module: METHOD_B, bytes: 32 } },
-      { code: 'credential.config-malformed', subject: 'credential', values: { place: 2, module: METHOD_A, bytes: 20 } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 1, module: METHOD_B, bytes: 32, reason: 'layout' } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 2, module: METHOD_A, bytes: 20, reason: 'layout' } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 3, module: METHOD_B, bytes: 96, reason: 'bound', fields: ['x', 'y'] } },
     ]);
     expect(result).toEqual(validateSetup(draft, expectedContext(draft, { registry })));
   });

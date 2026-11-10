@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, expectTypeOf, it } from 'vitest';
-import type { Address, BlockTag, Hex, IProvider, ISignerRecovery, RawTransaction } from '../../src/index';
+import type { Address, BlockTag, Hex, IMethodCodec, IProvider, ISignerRecovery, RawTransaction } from '../../src/index';
 import { createSourceProgram, findInterfaces, type InterfaceShape, type MemberKind, shapeOf } from '../helpers/source';
 
 /** Each interface's members, listed independently of src/: a member without parentheses is a 'property', any other a 'method'. */
@@ -88,6 +88,7 @@ const EXPECTED: Readonly<Record<string, Readonly<Record<string, MemberKind>>>> =
     decodeConfig: 'method',
     encodeProof: 'method',
     decodeProof: 'method',
+    outOfBounds: 'method',
   },
   IRecoveryMethod: {
     modules: 'method',
@@ -184,6 +185,17 @@ describe('ISignerRecovery.recoverSigner', () => {
   it('takes (RawTransaction, Address) and returns Promise<Address | undefined>', () => {
     expectTypeOf<ISignerRecovery['recoverSigner']>().parameters.toEqualTypeOf<[transaction: RawTransaction, account: Address]>();
     expectTypeOf<ISignerRecovery['recoverSigner']>().returns.toEqualTypeOf<Promise<Address | undefined>>();
+  });
+});
+
+describe('IMethodCodec.outOfBounds', () => {
+  it('is optional, so a codec of the four layout functions alone is still an IMethodCodec', () => {
+    expectTypeOf<Pick<IMethodCodec, 'encodeConfig' | 'decodeConfig' | 'encodeProof' | 'decodeProof'>>().toExtend<IMethodCodec>();
+  });
+
+  it('takes one Hex config and returns a read-only list of field names', () => {
+    expectTypeOf<NonNullable<IMethodCodec['outOfBounds']>>().parameters.toEqualTypeOf<[config: Hex]>();
+    expectTypeOf<NonNullable<IMethodCodec['outOfBounds']>>().returns.toEqualTypeOf<readonly string[]>();
   });
 });
 

@@ -152,3 +152,15 @@ export const METHOD_ZKPASSPORT_DOMAIN_MESSAGE = 'method-zkpassport: "domain" mus
 
 /** Thrown where a shown text is given but is not a string. */
 export const METHOD_ZKPASSPORT_DISPLAY_MESSAGE = 'method-zkpassport: "name", "logo" and "purpose" must be strings where given';
+
+/**
+ * The shortest validity period, in seconds, a config may carry. The root verifier accepts a proof only while its date plus
+ * the period lies after both that date and the block's time, so a period of zero refuses every proof.
+ */
+export const METHOD_ZKPASSPORT_MIN_VALIDITY = 1n;
+
+/**
+ * The longest validity period, in seconds, a config may carry: the largest safe integer, since the stack reports the period as a number.
+ * A longer period may still verify on chain until the date plus the period overflows the word and reverts; the SDK refuses it as unsupported.
+ */
+export const METHOD_ZKPASSPORT_MAX_VALIDITY = 9007199254740991n;

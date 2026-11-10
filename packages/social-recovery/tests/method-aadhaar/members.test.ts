@@ -101,8 +101,8 @@ describe('the ten members', () => {
     expect(names.sort()).toEqual([...TEN, 'tier'].sort());
   }, PROGRAM_TIMEOUT);
 
-  it('the codec carries exactly the four functions of IMethodCodec', () => {
-    expect(Object.keys(method.codec).sort()).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof']);
+  it('the codec carries exactly the five functions of IMethodCodec', () => {
+    expect(Object.keys(method.codec).sort()).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof', 'outOfBounds']);
   });
 
   it('modules(descriptor) is the descriptor own methodAadhaar address and nothing else', () => {

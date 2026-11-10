@@ -107,8 +107,8 @@ describe('the ten members', () => {
     expect([...method.vector]).toEqual(['method-zkpassport-config.json', 'method-zkpassport-proof.json']);
   });
 
-  it('codec carries the four pure functions of IMethodCodec', () => {
-    expect(membersOf(method.codec)).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof']);
+  it('codec carries the five pure functions of IMethodCodec', () => {
+    expect(membersOf(method.codec)).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof', 'outOfBounds']);
   });
 
   it('the default factory constructs and enrolls without loading the stack', () => {
