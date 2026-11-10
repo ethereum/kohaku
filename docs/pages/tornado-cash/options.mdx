@@ -49,9 +49,22 @@ const operation = await tornado.prepareUnshield(asset, recipient, {
 const receipts = await createTCBroadcaster(host, {
   paymasterConfig: TornadoPaymasterConfigs,
 }).broadcast(operation)
+const confirmations = await Promise.all(receipts.map((receipt) => receipt.wait()))
 ```
 
-The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler and waits for its receipt. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
+The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
+
+`broadcast()` resolves as soon as the bundler accepts the user operation. `wait()` polls for its receipt and returns the `txHash` of the transaction that included it. Wallets that track the hash themselves can skip `wait()`, but must check the receipt's `success` field.
+
+If the send request fails, for example on a timeout, `broadcast()` asks the bundler whether it got the user operation anyway, using the hash of the signed user operation. If it did, `broadcast()` resolves as usual.
+
+Both calls throw a `PaymasterBroadcastError`, whose message is safe to report because it never includes the signed user operation. Its `failure` field says what happened:
+
+| `failure` | Thrown by | Meaning |
+| --- | --- | --- |
+| `not-accepted` | `broadcast()` | The send request failed and the bundler does not know the user operation. |
+| `reverted` | `wait()` | Mined with `success: false`. Notes spent before the revert stay spent, and their funds may be held by the sender. `txHash` is set. |
+| `unconfirmed` | `broadcast()`, `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. `userOpHash` is set. After `wait()`, call it again to keep checking. |
 
 A **single-note withdrawal without `tailCalls`** pays the requested recipient directly during validation. Its unused gas-fee refund also goes directly to that recipient. The SDK attempts bundler estimation with empty execution calldata and `callGasLimit = 0`; eligible best-effort fallback preserves that same direct-payout operation. No host-RPC simulation or state overrides are required. No withdrawal proceeds or refund are routed to the EIP-7702 sender, so random delegation is safe for this path.
 

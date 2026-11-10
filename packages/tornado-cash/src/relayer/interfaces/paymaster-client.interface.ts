@@ -35,12 +35,58 @@ export interface IGenericPaymasterWithdrawalPayload {
   withdrawnValue?: bigint;
 }
 
+export interface PaymasterConfirmation {
+  /** The mined bundle transaction hash from the userOp receipt. */
+  txHash: Hash;
+}
+
 export interface PaymasterBroadcastResult {
+  /** Known as soon as the bundler accepts the userOp, before it is mined. */
   userOpHash: Hash;
+  /**
+   * Polls the bundler for the userOp receipt. Safe to call again after an
+   * `unconfirmed` failure.
+   *
+   * @throws {PaymasterBroadcastError} If the userOp reverted or could not be confirmed.
+   */
+  wait(): Promise<PaymasterConfirmation>;
 }
 
 export interface IPaymasterBroadcasterClient {
-    broadcast(
-        withdrawals: IPaymasterWithdrawalPayload[],
-    ): Promise<PaymasterBroadcastResult[]>
+  /**
+   * Resolves once the bundler accepts every userOp, with one result per
+   * withdrawal in the same order.
+   *
+   * @throws {PaymasterBroadcastError} With the first withdrawal the bundler did not accept.
+   */
+  broadcast(
+    withdrawals: IGenericPaymasterWithdrawalPayload[],
+  ): Promise<PaymasterBroadcastResult[]>;
+}
+
+/**
+ * - `not-accepted`: the send request failed and the bundler does not know the userOp.
+ * - `reverted`: the userOp was mined with `success: false`. Notes spent before
+ *   the revert stay spent, and their funds may be held by the userOp sender.
+ * - `unconfirmed`: the outcome is unknown, the userOp may still land. Thrown by
+ *   `broadcast()` when the send request failed and the bundler could not be
+ *   asked whether it got the userOp anyway.
+ */
+export type PaymasterBroadcastFailure = 'not-accepted' | 'reverted' | 'unconfirmed';
+
+/** Its message is safe to report: it never includes the signed userOp. */
+export class PaymasterBroadcastError extends Error {
+  readonly userOpHash?: Hash;
+  readonly txHash?: Hash;
+
+  constructor(
+    readonly failure: PaymasterBroadcastFailure,
+    message: string,
+    { userOpHash, txHash }: { userOpHash?: Hash; txHash?: Hash } = {},
+  ) {
+    super(message);
+    this.name = 'PaymasterBroadcastError';
+    this.userOpHash = userOpHash;
+    this.txHash = txHash;
+  }
 }

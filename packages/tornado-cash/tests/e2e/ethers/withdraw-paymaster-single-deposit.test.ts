@@ -151,7 +151,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
       expect(await instance.isKnownRoot!(data.root)).toBe(true);
     }
 
-    await broadcaster.broadcast(unshieldOp);
+    await Promise.all((await broadcaster.broadcast(unshieldOp)).map((r) => r.wait()));
     await pool.mine(1);
 
     const [{ amount: postTCBalance }] = await protocol.balance([nativeAsset]);

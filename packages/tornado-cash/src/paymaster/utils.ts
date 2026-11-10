@@ -1,7 +1,9 @@
 import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  BaseError,
   encodeFunctionData,
+  hashTypedData,
   http,
   toHex,
   type Address,
@@ -107,6 +109,63 @@ export async function sendSerializedUserOperation(
     method: 'eth_sendUserOperation',
     params: [op, entryPoint],
   }) as Promise<Hash>;
+}
+
+/**
+ * viem error messages embed the request body, which for the paymaster flow is
+ * the signed userOp, and integrators forward errors to crash reporting. Only the
+ * short message and the server-provided details are kept, and the original
+ * error must never be attached as a `cause`.
+ */
+export const describeError = (error: unknown): string =>
+  error instanceof BaseError
+    ? [error.shortMessage, error.details].filter(Boolean).join(' ')
+    : 'Unknown error.';
+
+/**
+ * Asks the bundler whether it knows a userOp (pending or included). viem's
+ * `getUserOperation` is not used because it fails to format pending userOps,
+ * whose `blockNumber` is null.
+ */
+export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
+  const result = await client.request({
+    method: 'eth_getUserOperationByHash',
+    params: [hash],
+  });
+
+  return result !== null;
+}
+
+/**
+ * The EntryPoint v0.8 hash of a userOp built by `buildSignedTornadoUserOp`,
+ * which is what its sender signed. Computed from the serialized userOp so it
+ * also covers payloads stored by older SDKs. The chain is the one the 7702
+ * authorization was signed for; `undefined` without an authorization.
+ */
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
+  if (!op.eip7702Auth) return undefined;
+
+  const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
+
+  return hashTypedData(getUserOperationTypedData({
+    chainId: Number(op.eip7702Auth.chainId),
+    entryPointAddress: entryPoint,
+    userOperation: {
+      sender: op.sender,
+      nonce: BigInt(op.nonce),
+      callData: op.callData,
+      callGasLimit: BigInt(op.callGasLimit),
+      verificationGasLimit: BigInt(op.verificationGasLimit),
+      preVerificationGas: BigInt(op.preVerificationGas),
+      maxFeePerGas: BigInt(op.maxFeePerGas),
+      maxPriorityFeePerGas: BigInt(op.maxPriorityFeePerGas),
+      paymaster: op.paymaster,
+      paymasterVerificationGasLimit: optional(op.paymasterVerificationGasLimit),
+      paymasterPostOpGasLimit: optional(op.paymasterPostOpGasLimit),
+      paymasterData: op.paymasterData,
+      signature: op.signature,
+    },
+  }));
 }
 
 

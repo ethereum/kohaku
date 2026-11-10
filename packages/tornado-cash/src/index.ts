@@ -21,3 +21,11 @@ export type { ITornadoInstance } from './instances';
 export type { GasEstimationPolicy, PaymasterGasEstimation } from './interfaces/user-ops.interface';
 
 export type { PaymasterGasLimits } from './paymaster/gas-bounds';
+
+export { PaymasterBroadcastError } from './relayer/interfaces/paymaster-client.interface';
+export type {
+  IPaymasterBroadcasterClient,
+  PaymasterBroadcastFailure,
+  PaymasterBroadcastResult,
+  PaymasterConfirmation,
+} from './relayer/interfaces/paymaster-client.interface';
