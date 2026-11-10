@@ -12,7 +12,7 @@ import {
 } from '../interfaces';
 import type { CandidateKeyAuthority, MethodDescriptionReads, SetupDescriptionContext } from '../types/description';
 import type { PlacedCredential } from '../types/validation';
-import { assertActionReads, normalizeAddresses } from '../validation/common';
+import { assertActionReads, fallbackHandlerOf, normalizeAddresses } from '../validation/common';
 import { placedCredentials } from '../validation/setup-draft';
 import { readsByMethod } from '../validation/setup-methods';
 import { describedParties, distinctMethods, methodStanding, passkeyDomains, pauseOf } from './setup-methods';
@@ -123,6 +123,15 @@ function actionOf(context: SetupDescriptionContext): DescribedAction {
   };
 }
 
+/** The account's fallback-handler entry as read, with the address it names; absent where the client did not read it. */
+function fallbackHandlerField(context: SetupDescriptionContext): Pick<SetupDescription, 'fallbackHandler'> {
+  const read = context.action.fallbackHandlerEntry;
+
+  if (read === undefined) return {};
+
+  return { fallbackHandler: read.answered ? { answered: true, value: fallbackHandlerOf(read.value) } : { answered: false } };
+}
+
 /**
  * The full configuration a holder reads before committing, with every party it trusts, from the draft and the reads its client made.
  * Throws a TypeError or RangeError on a malformed argument.
@@ -157,5 +166,6 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
     upgrade: action.shipped ? { upgradeableInPlace: false } : {},
     action,
     pause: pauseOf(credentials, table, draft.ignoresPause),
+    ...fallbackHandlerField(context),
   };
 }

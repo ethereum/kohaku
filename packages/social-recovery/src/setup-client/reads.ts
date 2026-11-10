@@ -1,9 +1,12 @@
+import { encodeFunctionData } from 'viem';
 import { pinBlockHeader } from '../client-core';
-import { assertBytes, assertDependency, sameAddress } from '../formats/guards';
+import { RECOVERY_ACTION_FALLBACK_HANDLER_SLOT, RECOVERY_ACTION_PRIVILEGES_ABI, RECOVERY_ACTION_READ_FROM } from '../constants';
+import { assertBytes, assertDependency, lowerHex, sameAddress } from '../formats/guards';
 import {
   METHOD_TIERS,
   type ActionInfo,
   type Address,
+  type Hex,
   type IMethodCodec,
   type IRecoveryMethod,
   type KitNotification,
@@ -12,6 +15,7 @@ import {
   type ReadResult,
 } from '../interfaces';
 import { actionManagerAt } from '../recovery-action/manager-read';
+import { wordReturn } from '../recovery-action/returns';
 import type { PinnedHeader } from '../types/client-core';
 import type { JudgmentReads, SetupClientParts } from '../types/setup-client';
 import type { ActionReads, MethodReads } from '../types/validation';
@@ -106,7 +110,7 @@ export async function judgmentReads(
     actionReads(parts, block, deployed),
   ]);
 
-  return { methods: methodEntries, action };
+  return { methods: methodEntries, action: await withFallbackHandler(parts, block, action) };
 }
 
 /** The manager's setup notifications over the account with the action topic left open, from the deployment block to the pinned one. */
@@ -132,4 +136,24 @@ export async function authorizedAt(parts: SetupClientParts, block: PinnedBlock):
   if (!(await holdsCode(parts, block))) return false;
 
   return await parts.recoveryAction.isAuthorized(block);
+}
+
+/** The account's word under its fallback-handler slot at the block; any rejection, a revert, an undecodable answer or a failed transport, reads as unanswered. */
+async function fallbackHandlerRead(parts: SetupClientParts, block: PinnedBlock): Promise<ReadResult<Hex>> {
+  const data = encodeFunctionData({ abi: RECOVERY_ACTION_PRIVILEGES_ABI, functionName: 'privileges', args: [RECOVERY_ACTION_FALLBACK_HANDLER_SLOT] });
+
+  try {
+    const returned = await parts.provider.call(parts.account, data, RECOVERY_ACTION_READ_FROM, block.number);
+
+    return { answered: true, value: lowerHex(wordReturn(returned, 'privileges')) };
+  } catch {
+    return { answered: false };
+  }
+}
+
+/** The action's reads with the account's fallback-handler entry, read only where the account holds code the deployment's own action serves. */
+async function withFallbackHandler(parts: SetupClientParts, block: PinnedBlock, action: ActionReads): Promise<ActionReads> {
+  if (!(action.accountHoldsCode && action.supportsAccount && sameAddress(parts.action, parts.descriptor.action))) return action;
+
+  return { ...action, fallbackHandlerEntry: await fallbackHandlerRead(parts, block) };
 }

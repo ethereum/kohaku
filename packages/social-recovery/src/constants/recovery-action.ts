@@ -116,5 +116,22 @@ export const RECOVERY_ACTION_ZERO_ADDRESS = FORMATS_ZERO_ADDRESS;
 /** The address the action's views are read from. */
 export const RECOVERY_ACTION_READ_FROM = FORMATS_ZERO_ADDRESS;
 
-/** The address under which the pinned implementation keeps its fallback handler. */
+/**
+ * The address under which the pinned account implementation keeps its fallback handler in `privileges`.
+ * The account delegatecalls that handler on any selector it does not know, and asks it about any interface id it does not know.
+ */
 export const RECOVERY_ACTION_FALLBACK_HANDLER_SLOT: Address = '0x0000000000000000000000000000000000006969';
+
+/** The account's privilege read, `privileges(address addr) returns (bytes32 privilege)`. */
+export const RECOVERY_ACTION_PRIVILEGES_ABI = [
+  {
+    type: 'function',
+    name: 'privileges',
+    stateMutability: 'view',
+    inputs: [{ name: 'addr', type: 'address' }],
+    outputs: [{ name: 'privilege', type: 'bytes32' }],
+  },
+] as const satisfies readonly AbiFunctionItem[];
+
+/** A word view's return data: one bytes32. */
+export const RECOVERY_ACTION_WORD_RETURN_ABI = [{ type: 'bytes32' }] as const;

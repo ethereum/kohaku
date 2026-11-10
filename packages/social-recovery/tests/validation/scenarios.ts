@@ -99,6 +99,10 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
       [{ threshold: 2, credentials: [credential(ECDSA, 1, { label: 'a' }), credential(PASSKEY, 2), credential(ECDSA, 3, { label: 'a' })] }],
       { wait: 0, privacy: { publicMetadata: '0x', backup: 'empty' } },
     ), SETUP_CONTEXT],
+    ['a fallback handler on the account', DRAFT, {
+      ...SETUP_CONTEXT,
+      action: { ...SETUP_CONTEXT.action, fallbackHandlerEntry: { answered: true, value: `0x${'00'.repeat(12)}${'69'.repeat(20)}` } },
+    }],
   ];
 }
 

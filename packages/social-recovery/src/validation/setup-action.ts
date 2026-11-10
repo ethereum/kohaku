@@ -1,7 +1,9 @@
+import { hexToBigInt } from 'viem';
+import { RECOVERY_ACTION_FALLBACK_HANDLER_SLOT } from '../constants';
 import { assertArray, normalizeAddress } from '../formats/guards';
 import type { Address, FindingValues, KitNotification } from '../interfaces';
 import type { Findings, SetupEvent, SetupValidationContext } from '../types/validation';
-import { addError, addWarning, assertActionReads, normalizeAddresses } from './common';
+import { addError, addWarning, assertActionReads, fallbackHandlerOf, normalizeAddresses } from './common';
 
 /**
  * The account's deployment, the action's fit and audit findings: `account.not-deployed` in place of `action.unsupported`
@@ -84,4 +86,24 @@ export function alreadyArmedFindings(context: SetupValidationContext, findings: 
       addWarning(findings, 'manager.already-armed', 'account', { account, action, nonce: event.nonce });
     }
   }
+}
+
+/** `account.fallback-handler` where the account keeps a nonzero word under its fallback-handler slot, code a recovery leaves in place. */
+export function fallbackHandlerFindings(context: SetupValidationContext, findings: Findings): void {
+  const read = context.action.fallbackHandlerEntry;
+
+  if (read === undefined || !read.answered) return;
+
+  const { entry, handler } = fallbackHandlerOf(read.value);
+
+  if (hexToBigInt(entry) === 0n) return;
+
+  const account = normalizeAddress(context.account, 'context.account');
+
+  addWarning(findings, 'account.fallback-handler', 'account', {
+    account,
+    slot: RECOVERY_ACTION_FALLBACK_HANDLER_SLOT,
+    entry,
+    ...(handler === undefined ? {} : { handler }),
+  });
 }

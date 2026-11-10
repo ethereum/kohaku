@@ -3,14 +3,17 @@ import { beforeAll, describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src/index';
 import {
   ADD_OUTCOMES,
+  type ActionReads,
   type Address,
   type ApproverRequest,
   type ActionInfo,
   type Configuration,
   type Ctx,
   type DescribedAction,
+  type DescribedFallbackHandler,
   type ConfigurationSource,
   type GatheringPlace,
+  type Hex,
   type LogPosition,
   NO_BACKUP_CASES,
   NOT_LANDED_CAUSES,
@@ -85,17 +88,18 @@ const SETUP_DESCRIPTION_FIELDS = [
   'upgrade',
   'pause',
   'action',
+  'fallbackHandler',
 ];
 
 /** DescribedAction's fields, listed independently of src/. */
 const DESCRIBED_ACTION_FIELDS = ['address', 'info', 'shipped', 'audited', 'supportsAccount'];
 
 describe('the setup description and the recovery state', () => {
-  it('derives fourteen fields besides removedKey', () => {
-    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(14);
+  it('derives fifteen fields besides removedKey', () => {
+    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(15);
   });
 
-  it('SetupDescription carries exactly the fourteen fields and removedKey', () => {
+  it('SetupDescription carries exactly the fifteen fields and removedKey', () => {
     expect(fieldsOf(typeOf('SetupDescription'))).toEqual(sorted([...SETUP_DESCRIPTION_FIELDS, 'removedKey']));
   });
 
@@ -124,6 +128,29 @@ describe('the setup description and the recovery state', () => {
     expectTypeOf<DescribedAction['shipped']>().toEqualTypeOf<boolean>();
     expectTypeOf<DescribedAction['audited']>().toEqualTypeOf<boolean>();
     expectTypeOf<NonNullable<DescribedAction['supportsAccount']>>().toEqualTypeOf<boolean>();
+  });
+
+  it('fallbackHandler is optional and is a read result of a DescribedFallbackHandler', () => {
+    const description = typeOf('SetupDescription');
+
+    expect(optional(description, 'fallbackHandler')).toBe(true);
+    expectTypeOf<NonNullable<SetupDescription['fallbackHandler']>>().toEqualTypeOf<ReadResult<DescribedFallbackHandler>>();
+  });
+
+  it("ActionReads' fallbackHandlerEntry is optional and is a read result of a word", () => {
+    expect(optional(typeOf('ActionReads'), 'fallbackHandlerEntry')).toBe(true);
+    expectTypeOf<NonNullable<ActionReads['fallbackHandlerEntry']>>().toEqualTypeOf<ReadResult<Hex>>();
+  });
+
+  it('DescribedFallbackHandler carries exactly the entry word and an optional handler address', () => {
+    const handler = typeOf('DescribedFallbackHandler');
+
+    expect(fieldsOf(handler)).toEqual(['entry', 'handler']);
+    expect(fieldsOf(handler).filter((name) => optional(handler, name))).toEqual(['handler']);
+    expect(mutuallyAssignable(field(handler, 'entry'), typeOf('Hex'))).toBe(true);
+    expect(mutuallyAssignable(field(handler, 'handler'), typeOf('Address'))).toBe(true);
+    expectTypeOf<DescribedFallbackHandler['entry']>().toEqualTypeOf<Hex>();
+    expectTypeOf<NonNullable<DescribedFallbackHandler['handler']>>().toEqualTypeOf<Address>();
   });
 
   it('removedKey is an address or one of the three values saying why none was named, and is required', () => {

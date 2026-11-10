@@ -69,6 +69,8 @@ export type ActionReads = {
    * descriptor's manager is `action.manager-mismatch`, since the action spends only that manager's attempts.
    */
   readonly manager: ReadResult<Address>;
+  /** The account's word under its fallback-handler slot, absent where it was not read. */
+  readonly fallbackHandlerEntry?: ReadResult<Hex>;
 };
 
 /** The reads a setup client hands `validateSetup`, all pinned to one block. */

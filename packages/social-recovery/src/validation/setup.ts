@@ -5,7 +5,7 @@ import type { SetupValidationContext } from '../types/validation';
 import { emptyFindings } from './common';
 import { ruleCostFindings } from './setup-cost';
 import { placedCredentials } from './setup-draft';
-import { actionFindings, actionManagerFindings, alreadyArmedFindings } from './setup-action';
+import { actionFindings, actionManagerFindings, alreadyArmedFindings, fallbackHandlerFindings } from './setup-action';
 import { methodFindings } from './setup-methods';
 import { clauseShapeFindings, duplicateFindings, repeatedPersonFindings, ruleShapeFindings } from './setup-rule';
 import { backupFindings, waitFindings } from './setup-wait-backup';
@@ -48,6 +48,7 @@ export function validateSetup(draft: SetupDraft, context: SetupValidationContext
   clauseShapeFindings(draft, credentials, findings);
   methodFindings(draft, credentials, context, findings);
   alreadyArmedFindings(context, findings);
+  fallbackHandlerFindings(context, findings);
   repeatedPersonFindings(credentials, findings);
 
   return findings;

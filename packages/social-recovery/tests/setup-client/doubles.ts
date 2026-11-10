@@ -33,6 +33,7 @@ import {
   type ReadResult,
   type SetupDraft,
 } from '../../src/index';
+import { selectorOf } from '../helpers/keccak';
 
 const numRuns = Number(process.env['FC_NUM_RUNS'] ?? 256);
 
@@ -673,6 +674,18 @@ export const revert = (data: Hex): { readonly data: Hex } => ({ data });
 
 /** A failure that is no revert: an unreachable node. */
 export const transportFailure = (): Error => new Error('connect ECONNREFUSED');
+
+/** The address the account keeps its fallback handler under, written out here rather than imported from the package. */
+export const HANDLER_SLOT: Address = '0x0000000000000000000000000000000000006969';
+
+/** `privileges(HANDLER_SLOT)` calldata, its selector hashed by the tests' own Keccak. */
+export const HANDLER_READ_DATA = `${selectorOf('privileges(address)')}${'0'.repeat(60)}6969` as Hex;
+
+/** A simulation answering the account's handler read with the given answer, and every other call with `0x`. */
+export const answeringHandler =
+  (word: Answer<Hex>): World['simulate'] =>
+  async (to, data) =>
+    to.toLowerCase() === ACCOUNT.toLowerCase() && data.toLowerCase() === HANDLER_READ_DATA ? answer(word) : '0x';
 
 /** An arbitrary valid draft: up to three clauses of up to three credentials over the three methods. */
 export const draftArbitrary: fc.Arbitrary<SetupDraft> = fc

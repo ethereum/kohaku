@@ -27,6 +27,7 @@ export const SETUP_WARNING_CODES = [
   'method.stopped',
   'action.unaudited',
   'manager.already-armed',
+  'account.fallback-handler',
   'setup.wait-short',
   'setup.wait-zero',
   'backup.clear',

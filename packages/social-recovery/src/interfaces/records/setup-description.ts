@@ -59,6 +59,14 @@ export type DescribedAction = {
   readonly supportsAccount?: boolean;
 };
 
+/** The account's word under its fallback-handler slot. */
+export type DescribedFallbackHandler = {
+  /** The full word in lower case; all zero means no handler is installed. */
+  readonly entry: Hex;
+  /** The address the account delegatecalls, the word's low 20 bytes checksummed; absent where they are zero. */
+  readonly handler?: Address;
+};
+
 /** The disclosure the SDK owes a holder about a setup before it is committed. */
 export type SetupDescription = {
   readonly rule: { readonly clauses: readonly DescribedClause[] };
@@ -92,4 +100,9 @@ export type SetupDescription = {
       readonly pauseHolder: ReadResult<Address>;
     }[];
   };
+  /**
+   * Code the account keeps under its fallback-handler slot, which a recovery leaves in place.
+   * Absent where not read: the account holds no code, the action does not serve it, or the action is not the deployment's.
+   */
+  readonly fallbackHandler?: ReadResult<DescribedFallbackHandler>;
 };

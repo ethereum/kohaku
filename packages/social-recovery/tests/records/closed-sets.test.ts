@@ -139,6 +139,7 @@ const SETUP_WARNINGS = [
   'method.stopped',
   'action.unaudited',
   'manager.already-armed',
+  'account.fallback-handler',
   'setup.wait-short',
   'setup.wait-zero',
   'backup.clear',
@@ -306,7 +307,7 @@ describe('the three restore causes', () => {
 describe('the finding codes', () => {
   it.each([
     ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 14],
-    ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 14],
+    ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 15],
     ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 16],
     ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 8],
   ] as const)('the %s tuple is the table, in its order', (_label, tuple, table, count) => {
@@ -324,7 +325,7 @@ describe('the finding codes', () => {
   it("ValidationWarning's code is the setup and request warnings together, method.unshipped once", () => {
     const expected = sorted([...new Set([...SETUP_WARNINGS, ...REQUEST_WARNINGS])]);
 
-    expect(expected).toHaveLength(21);
+    expect(expected).toHaveLength(22);
     expect(literalsOf('ValidationWarning', 'code')).toEqual(expected);
   });
 

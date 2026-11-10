@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeSetup, type RemovedKey, type SetupDescriptionContext, type SetupDraft } from '../../src/index';
 import {
+  ACCOUNT,
   ACTION,
   ACTION_INFO,
   ALL_ACTIONS_FILTER,
@@ -8,6 +9,7 @@ import {
   CONFIGURATION,
   DESCRIPTOR,
   DRAFT,
+  HANDLER_READ_DATA,
   KEY_1,
   KEY_2,
   MANAGER,
@@ -18,6 +20,8 @@ import {
   MODULE_ANSWERS,
   PIN,
 } from './doubles';
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 /** The provider and part calls one describeSetup made before the description named the action, in order. */
 const CALLS_BEFORE_ACTION = {
@@ -46,7 +50,14 @@ const expectedContext = (draft: SetupDraft, authority: readonly boolean[], remov
     ...MODULE_ANSWERS,
     implemented: module === METHOD_A || module === METHOD_B,
   })),
-  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true, manager: { answered: true, value: MANAGER } },
+  action: {
+    address: ACTION,
+    actionInfo: { answered: true, value: ACTION_INFO },
+    supportsAccount: true,
+    accountHoldsCode: true,
+    manager: { answered: true, value: MANAGER },
+    fallbackHandlerEntry: { answered: false },
+  },
   candidateKeys: [KEY_1, KEY_2].map((key, index) => ({ key, isAuthority: authority[index] ?? false })),
   removedKey,
 });
@@ -127,14 +138,17 @@ describe('describeSetup', () => {
     expect(description.action.address).toBe(ACTION);
   });
 
-  it('makes no new read: the provider and part calls are the ones made before the action was described', async () => {
+  it("makes one new read, the account's handler word: the part calls are the ones made before the action was described", async () => {
     const { client, seen } = build();
 
     await client.describeSetup(DRAFT);
 
-    expect(seen.provider).toEqual(CALLS_BEFORE_ACTION.provider);
+    expect(seen.provider).toEqual([...CALLS_BEFORE_ACTION.provider, 'call']);
     expect(members(seen)).toEqual(CALLS_BEFORE_ACTION.parts);
-    expect(seen.calls.map((call) => call.data)).toEqual([MANAGER_SELECTOR]);
+    expect(seen.calls.map((call) => ({ ...call, to: call.to.toLowerCase(), data: call.data.toLowerCase() }))).toEqual([
+      { to: ACTION.toLowerCase(), data: MANAGER_SELECTOR, from: ZERO_ADDRESS, block: PIN.number },
+      { to: ACCOUNT.toLowerCase(), data: HANDLER_READ_DATA, from: ZERO_ADDRESS, block: PIN.number },
+    ]);
     expect(seen.codes).toHaveLength(1);
   });
 

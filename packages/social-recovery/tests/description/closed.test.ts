@@ -54,6 +54,8 @@ const methods = methodRegistry([[approval.method, describingMethod({ kind: 'exte
 
 const descriptions = {
   setup: () => describeSetup(DRAFT, CONTEXT),
+  'handler-disclosing setup': () =>
+    describeSetup(DRAFT, { ...CONTEXT, action: { ...CONTEXT.action, fallbackHandlerEntry: { answered: true, value: `0x${'ff'.repeat(12)}${'69'.repeat(20)}` } } }),
   approval: () => describeRequest(approval, codecs, methods),
   cancellation: () => describeRequest(cancellation, codecs, methods),
   status: () => describeStatus(SETUP_STATE, RECOVERY_STATE, [started(5n, [0n, 2n], PAYLOAD, at(96)), paused(METHOD_A, at(97))], SCOPE),
