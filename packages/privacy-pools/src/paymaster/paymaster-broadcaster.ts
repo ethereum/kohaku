@@ -1,7 +1,12 @@
 import type { Network } from '@kohaku-eth/plugins';
-import { BaseError, type Hash } from "viem";
+import type { Hash } from "viem";
 import type { BundlerClient } from "viem/account-abstraction";
-import { createPaymasterBundlerClient, isUserOperationKnown, sendSerializedUserOperation } from "./utils";
+import {
+  createPaymasterBundlerClient,
+  describeError,
+  isUserOperationKnown,
+  sendSerializedUserOperation,
+} from "./utils";
 import {
   IGenericPaymasterWithdrawalPayload,
   IPaymasterBroadcasterClient,
@@ -9,17 +14,6 @@ import {
   PaymasterBroadcastResult,
   PaymasterConfirmation,
 } from "../relayer/interfaces/paymaster-client.interface";
-
-/**
- * viem error messages embed the request body, which here is the signed userOp,
- * and integrators forward errors to crash reporting. Only the short message and
- * the server-provided details are kept, and the original error is never attached
- * as a `cause`.
- */
-const describeError = (error: unknown): string =>
-  error instanceof BaseError
-    ? [error.shortMessage, error.details].filter(Boolean).join(" ")
-    : "Unknown error.";
 
 const waitForConfirmation = async (
   bundlerClient: BundlerClient,

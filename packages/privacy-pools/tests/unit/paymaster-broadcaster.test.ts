@@ -5,7 +5,7 @@ import { entryPoint08Address, getUserOperationHash } from 'viem/account-abstract
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PaymasterBroadcaster } from '../../src/paymaster/paymaster-broadcaster';
-import { buildSignedUserOp } from '../../src/paymaster/utils';
+import { buildSignedUserOp, createPaymasterBundlerClient, estimateUserOperationGas } from '../../src/paymaster/utils';
 import { PrivacyPoolsBroadcaster } from '../../src/plugin/broadcaster';
 import {
   IGenericPaymasterWithdrawalPayload,
@@ -102,7 +102,7 @@ const catchError = async (promise: Promise<unknown>) => {
 };
 
 /** Nothing reachable from the error may expose the signed userOp. */
-const expectNoUserOp = (error: PaymasterBroadcastError) => {
+const expectNoUserOp = (error: Error) => {
   expect(error.cause).toBeUndefined();
   expect(JSON.stringify({ ...error, message: error.message, stack: error.stack })).not.toContain(SIGNATURE);
 };
@@ -273,6 +273,35 @@ describe('PrivacyPoolsBroadcaster paymaster path', () => {
     const error = await catchError(makeBroadcaster(network).broadcast(operation));
 
     expect(error.message).toContain('AA23 reverted');
+    expectNoUserOp(error);
+  });
+});
+
+describe('estimateUserOperationGas', () => {
+  const estimate = (handler: Handler) => {
+    const { network } = makeNetwork(handler);
+
+    return estimateUserOperationGas(
+      createPaymasterBundlerClient(BUNDLER_URL, network),
+      withdrawal.userOperation,
+      entryPoint08Address,
+    ).then(
+      () => { throw new Error('expected a rejection'); },
+      (reason: Error) => reason,
+    );
+  };
+
+  it('throws the real reason but no userOp on an RPC error', async () => {
+    const error = await estimate(AA23);
+
+    expect(error.message).toContain('AA23 reverted');
+    expectNoUserOp(error);
+  });
+
+  it('throws without the userOp on an HTTP error', async () => {
+    const error = await estimate(() => new Response('nope', { status: 400 }));
+
+    expect(error.message).toContain('HTTP request failed');
     expectNoUserOp(error);
   });
 });

@@ -1,6 +1,7 @@
 import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
+  BaseError,
   encodeFunctionData,
   hashTypedData,
   http,
@@ -89,20 +90,40 @@ export async function sendSerializedUserOperation(
 }
 
 /**
+ * viem error messages embed the request body, which for the paymaster flow is
+ * the signed userOp, and integrators forward errors to crash reporting. Only the
+ * short message and the server-provided details are kept, and the original
+ * error must never be attached as a `cause`.
+ */
+export const describeError = (error: unknown): string =>
+  error instanceof BaseError
+    ? [error.shortMessage, error.details].filter(Boolean).join(" ")
+    : "Unknown error.";
+
+/**
  * Bundler gas estimation (`eth_estimateUserOperationGas`) for an already-built,
  * serialized userOp. Best-effort: callers should fall back to static limits on
  * failure.
+ *
+ * @throws {Error} Whose message is safe to report: it never includes the userOp.
  */
 export async function estimateUserOperationGas(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
 ): Promise<UserOpGasLimits> {
-  const result = (await client.request({
-    method: "eth_estimateUserOperationGas",
-    params: [op, entryPoint],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any)) as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let result: any;
+
+  try {
+    result = await client.request({
+      method: "eth_estimateUserOperationGas",
+      params: [op, entryPoint],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+  } catch (error) {
+    throw new Error(`Bundler gas estimation failed: ${describeError(error)}`);
+  }
 
   return {
     callGasLimit: BigInt(result.callGasLimit),
