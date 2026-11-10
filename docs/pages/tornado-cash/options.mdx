@@ -56,13 +56,13 @@ The paymaster sponsors gas. The user's public account does not pay the withdrawa
 
 `broadcast()` resolves as soon as the bundler accepts the user operation. `wait()` polls for its receipt and returns the `txHash` of the transaction that included it. Wallets that track the hash themselves can skip `wait()`, but must check the receipt's `success` field.
 
-If the send request fails, for example on a timeout, `broadcast()` asks the bundler whether it got the user operation anyway, using the hash of the signed user operation. If it did, `broadcast()` resolves as usual.
+If the send request fails, for example on a timeout, `broadcast()` asks the bundler whether it got the user operation anyway, using the hash of the signed user operation. If it did, `broadcast()` resolves as usual. Some bundlers only know user operations once they are mined, so if the bundler does not know it and never answered the send, `broadcast()` throws `unconfirmed` with the hash instead of reporting a failure.
 
 Both calls throw a `PaymasterBroadcastError`, whose message is safe to report because it never includes the signed user operation. Its `failure` field says what happened:
 
 | `failure` | Thrown by | Meaning |
 | --- | --- | --- |
-| `not-accepted` | `broadcast()` | The send request failed and the bundler does not know the user operation. |
+| `not-accepted` | `broadcast()` | The bundler answered the send request with an error and does not know the user operation. |
 | `reverted` | `wait()` | Mined with `success: false`. Notes spent before the revert stay spent, and their funds may be held by the sender. `txHash` is set. |
 | `unconfirmed` | `broadcast()`, `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. `userOpHash` is set. After `wait()`, call it again to keep checking. |
 
