@@ -46,7 +46,6 @@ import {
   StateWithdrawalPayload,
 } from "./interfaces/protocol-params.interface";
 import { TxData } from "@kohaku-eth/provider";
-import { planPPv1BatchWithdrawal, type PPv1BatchWithdrawalPlan } from '../withdrawal/batch-plan';
 
 type RequireOnly<T, Keys extends keyof T> = Partial<T> & Pick<T, Keys>;
 
@@ -243,17 +242,6 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
   }
 
-  /** Sync and inspect the default batch allocation without proofs or signatures.
-   * Amounts are gross, before gas fees; this is not an exact-output fee quote. */
-  async previewBatchUnshield(assets: PPv1AssetAmount): Promise<PPv1BatchWithdrawalPlan> {
-    const asset = this.unshieldAssetAddress(assets);
-
-    await this.stateManager.sync();
-    const notes = await this.stateManager.getNotes({ assets: [asset] });
-
-    return planPPv1BatchWithdrawal(notes, asset, assets.amount);
-  }
-
   /**
    * Returns all notes for the account.
    * @param assets - Filter by specific assets (optional, if empty returns all chains)
@@ -339,11 +327,6 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>;
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>;
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
-    if (options && 'obfuscateAmounts' in options && options.obfuscateAmounts &&
-      (options.mode !== 'paymaster' || !options.batch)) {
-      throw new Error('obfuscateAmounts requires paymaster mode and batch: true');
-    }
-
     if (options?.exact) {
       return this.prepareExactUnshield(assets, to, options);
     }
@@ -382,6 +365,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       recipient: BigInt(to),
       requestedNet,
       gasBumpBPS: options.exact?.gasBumpBPS ?? DEFAULT_EXACT_GAS_BUMP_BPS,
+      obfuscateAmounts: options.obfuscateAmounts ?? true,
     });
 
     // The recipient's net is fixed by the gross and embedded fee we chose, so it must
@@ -466,7 +450,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         maxGasLimits: options.maxGasLimits,
         batch: options.batch,
-        obfuscateAmounts: options.obfuscateAmounts,
+        obfuscateAmounts: options.obfuscateAmounts ?? true,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });
 
@@ -479,6 +463,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       asset: assetAddress,
       amount,
       recipient: BigInt(to),
+      obfuscateAmounts: options?.obfuscateAmounts ?? true,
     });
 
     if (!result) throw new Error("We failed to create a withdrawalPayload");

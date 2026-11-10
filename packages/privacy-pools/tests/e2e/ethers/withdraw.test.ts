@@ -412,7 +412,7 @@ describe('PrivacyPools v1 Unshield E2E', () => {
         { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
         recipientAccount
       )
-    ).rejects.toThrow('No note with sufficient balance');
+    ).rejects.toThrow('exceeds maximum gross');
 
   });
 

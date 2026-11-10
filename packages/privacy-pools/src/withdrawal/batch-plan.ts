@@ -1,30 +1,20 @@
 import type { Address } from '../interfaces/types.interface';
 import type { INote } from '../plugin/interfaces/protocol-params.interface';
-
-export interface PPv1BatchWithdrawalPlan {
-  /** Gross amount, before paymaster fees. Always equals the requested amount. */
-  amount: bigint;
-  notes: { note: INote; withdrawnValue: bigint; changeValue: bigint }[];
-  fullySpentNoteCount: number;
-  /** Maximum gross across all eligible notes while leaving at least 1% on each. */
-  maxObfuscatedAmount: bigint;
-  /** Suggested gross (at most the request) leaving at least 5% on selected notes. */
-  suggestedAmount?: bigint;
-}
+import type { NoteToSpend } from '../state/selectors/notes.selector';
 
 export class PPv1AmountObfuscationError extends Error {
   constructor(
     readonly requestedAmount: bigint,
     readonly maxObfuscatedAmount: bigint,
-    readonly suggestedAmount: bigint,
   ) {
-    super(`Cannot obfuscate batch amount ${requestedAmount}: maximum is ${maxObfuscatedAmount}; try ${suggestedAmount} or disable obfuscateAmounts`);
+    super(`Protected withdrawal amount ${requestedAmount} exceeds maximum gross ${maxObfuscatedAmount}`);
     this.name = 'PPv1AmountObfuscationError';
   }
 }
 
 const min = (a: bigint, b: bigint) => a < b ? a : b;
-const changeFor = (balance: bigint, percent: bigint) => (balance * percent + 99n) / 100n;
+const max = (a: bigint, b: bigint) => a > b ? a : b;
+const changeFor = (balance: bigint, bps: bigint) => (balance * bps + 9_999n) / 10_000n;
 
 /** Unbiased, cryptographically random integer in [0, maximum], including large token amounts. */
 function randomUpTo(maximum: bigint): bigint {
@@ -43,83 +33,44 @@ function randomUpTo(maximum: bigint): bigint {
   }
 }
 
-/**
- * Purely local planning; no proofs, signatures, or network requests. Input notes
- * must belong to the same account/chain snapshot. Unapproved/spent/other-asset
- * notes are ignored. Randomness is sampled anew on every obfuscated plan.
- */
-export function planPPv1BatchWithdrawal(
+/** Internal batch allocation. Reserves round up to asset base units. */
+export function planObfuscatedBatchWithdrawal(
   notes: readonly INote[],
   asset: Address,
   amount: bigint,
-  { obfuscateAmounts = false }: { obfuscateAmounts?: boolean } = {},
-): PPv1BatchWithdrawalPlan {
+): NoteToSpend[] {
   if (amount <= 0n) throw new Error('Withdrawal amount must be greater than zero');
 
   const eligible = notes.filter(note => note.assetAddress === asset && note.approved && note.balance > 0n)
     .sort((a, b) => a.balance > b.balance ? -1 : a.balance < b.balance ? 1 : 0);
   const total = eligible.reduce((sum, note) => sum + note.balance, 0n);
+  let available = eligible.reduce((sum, note) => sum + note.balance - changeFor(note.balance, 100n), 0n);
+  const maxObfuscatedAmount = min(total * 97n / 100n, available);
 
-  if (amount > total) throw new Error(`Insufficient approved balance: remaining ${amount - total} to spend`);
-
-  const maxObfuscatedAmount = eligible.reduce((sum, note) => sum + note.balance - changeFor(note.balance, 1n), 0n);
-  let remaining = amount;
-  let selected = eligible.filter(note => {
-    if (remaining <= 0n) return false;
-
-    remaining -= note.balance;
-
-    return true;
-  });
-  const obfuscate = obfuscateAmounts && selected.length > 1;
-
-  if (obfuscate) {
-    if (amount > maxObfuscatedAmount) {
-      const suggested = eligible.reduce((sum, note) => sum + note.balance - changeFor(note.balance, 5n), 0n);
-
-      throw new PPv1AmountObfuscationError(amount, maxObfuscatedAmount, suggested);
-    }
-
-    // Include an extra note when the original minimal set has too little headroom.
-    remaining = amount;
-    selected = eligible.filter(note => {
-      const capacity = note.balance - changeFor(note.balance, 1n);
-
-      if (remaining <= 0n || capacity === 0n) return false;
-
-      remaining -= capacity;
-
-      return true;
-    });
+  if (amount > maxObfuscatedAmount) {
+    throw new PPv1AmountObfuscationError(amount, maxObfuscatedAmount);
   }
 
-  // Random reserves are independent when there is room for 5% on every note.
-  // Near the maximum, constrain each draw to preserve enough room for the total.
-  let extraChange = selected.reduce((sum, note) => sum + note.balance - changeFor(note.balance, 1n), 0n) - amount;
+  let remaining = amount;
+  const selected: NoteToSpend[] = [];
 
-  remaining = amount;
-  const planned = selected.map(note => {
-    let reserve = 0n;
+  for (const note of eligible) {
+    if (remaining <= 0n) break;
 
-    if (obfuscate) {
-      const minimum = changeFor(note.balance, 1n);
-      const maximum = min(changeFor(note.balance, 5n), note.balance - 1n);
-      const extra = randomUpTo(min(maximum - minimum, extraChange));
+    const capacity = note.balance - changeFor(note.balance, 100n);
 
-      reserve = minimum + extra;
-      extraChange -= extra;
-    }
+    available -= capacity;
 
-    const withdrawnValue = min(note.balance - reserve, remaining);
+    if (capacity === 0n) continue;
 
+    // Finish with a partial note, or randomize a 75–99% spend. The lower bound
+    // ensures the unspent notes can always supply the rest of the exact request.
+    const lower = max(note.balance - changeFor(note.balance, 2_500n), remaining - available);
+    const withdrawnValue = remaining <= capacity ? remaining : lower + randomUpTo(capacity - lower);
+
+    selected.push({ note, withdrawnValue });
     remaining -= withdrawnValue;
+  }
 
-    return { note, withdrawnValue, changeValue: note.balance - withdrawnValue };
-  });
-  const fullySpentNoteCount = planned.filter(note => note.changeValue === 0n).length;
-  const suggestedAmount = planned.length > 1 && fullySpentNoteCount > 0
-    ? min(amount, selected.reduce((sum, note) => sum + note.balance - changeFor(note.balance, 5n), 0n))
-    : undefined;
-
-  return { amount, notes: planned, fullySpentNoteCount, maxObfuscatedAmount, suggestedAmount };
+  return selected;
 }

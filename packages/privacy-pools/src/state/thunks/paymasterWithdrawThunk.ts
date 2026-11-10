@@ -126,8 +126,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       throw new Error(`No paymaster adapter configured for pool ${addressToHex(poolInfo.address)}`);
     }
 
-    // Select the note(s): a batch consolidates the minimal set of approved notes to
-    // reach `amount`; otherwise the single smallest-sufficient note.
+    // Reuse the protected allocation, or fall back to legacy full-note selection.
     const notesToSpend = plannedNotes ?? (batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount));
     const totalWithdrawn = notesToSpend.reduce((sum, n) => sum + n.withdrawnValue, 0n);
     // Largest note (first) is sponsored — it pays the fee; the rest run in the

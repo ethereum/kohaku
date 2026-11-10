@@ -65,6 +65,13 @@ export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
  * {@link UnshieldOptions} API; relayer mode does not execute them yet but is expected to.
  */
 interface PPv1CommonUnshieldOptions extends UnshieldOptions {
+  /**
+   * Default true: preserve the exact requested total, cap gross at 97% of approved
+   * balance, and retain at least 1% of every spent note (rounded up). Non-final
+   * notes retain a random 1–25% where feasible; the last supplies the remainder.
+   * False explicitly permits legacy full-note spends. No anonymity guarantee.
+   */
+  obfuscateAmounts?: boolean;
   /** Gas budget for the execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
   /**
@@ -102,13 +109,6 @@ export interface PPv1PaymasterUnshieldOptions extends PPv1CommonUnshieldOptions 
   refundRecipient?: AccountId;
   /** Consolidate multiple approved notes to reach the amount in one sponsored userOp. */
   batch?: boolean;
-  /**
-   * Requires `batch: true`. For multi-note batches, randomize per-note withdrawals
-   * and leave at least 1% change on every note. Preserves the requested gross/net;
-   * throws PPv1AmountObfuscationError if insufficient headroom remains. Single-note
-   * batches are unchanged. Preview with `previewBatchUnshield` before preparing.
-   */
-  obfuscateAmounts?: boolean;
 }
 
 /**
@@ -259,6 +259,8 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
 export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
   amount?: bigint;
   recipient: Address;
+  /** Defaults to true. False explicitly permits full-note spends. */
+  obfuscateAmounts?: boolean;
 }
 
 export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {
@@ -268,7 +270,6 @@ export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperatio
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
   batch?: boolean;
-  obfuscateAmounts?: boolean;
   /** Gas-overcharge refund target (postOp). Defaults to `recipient`. */
   refundRecipient?: Address;
 }

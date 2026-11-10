@@ -78,7 +78,7 @@ import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
-import { planPPv1BatchWithdrawal } from '../withdrawal/batch-plan';
+import { planObfuscatedBatchWithdrawal } from '../withdrawal/batch-plan';
 
 export interface StoreFactoryParams extends SyncAspThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
@@ -193,6 +193,21 @@ export const storeStateManager = (
     chainId: await params.dataService.getChainId(),
     entrypoint: params.entrypoint,
   });
+
+  const planWithdrawal = (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    asset: Address, amount: bigint | undefined, batch = false, obfuscateAmounts = true,
+  ) => {
+    if (!obfuscateAmounts) return undefined;
+
+    if (amount == null) throw new Error('Protected withdrawals require an explicit amount');
+
+    const notes = planObfuscatedBatchWithdrawal(store.selectors.getAllNotes(), asset, amount);
+
+    if (!batch && notes.length > 1) throw new Error('Protected withdrawal needs multiple notes: use paymaster mode with batch: true');
+
+    return notes;
+  };
 
   const runSync = async (chainInfo: GetChainStoreParams, skipAsp: boolean): Promise<void> => {
     const store = await getChainStore(chainInfo);
@@ -319,9 +334,11 @@ export const storeStateManager = (
       asset,
       amount,
       recipient,
+      obfuscateAmounts,
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
+      const note = planWithdrawal(store, asset, amount, false, obfuscateAmounts)?.[0]?.note;
       const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
 
       const quoteResultAction = await store.dispatch(
@@ -359,6 +376,7 @@ export const storeStateManager = (
           amount: amount ?? 0n,
           recipient,
           context,
+          note,
         }),
       );
 
@@ -382,6 +400,7 @@ export const storeStateManager = (
       recipient,
       requestedNet,
       gasBumpBPS,
+      obfuscateAmounts,
     }: IExactWithdrawalOperationParams): Promise<StateExactWithdrawalPayload> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -428,6 +447,7 @@ export const storeStateManager = (
         gasBumpBPS,
         maxRelayFeeBPS,
       });
+      const note = planWithdrawal(store, asset, grossAmount, false, obfuscateAmounts)?.[0]?.note;
 
       const relayData = {
         recipient: addressToHex(recipient),
@@ -448,6 +468,7 @@ export const storeStateManager = (
           amount: grossAmount,
           recipient,
           context,
+          note,
         }),
       );
 
@@ -490,16 +511,9 @@ export const storeStateManager = (
         throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
       }
 
-      if (obfuscateAmounts && !batch) throw new Error('obfuscateAmounts requires batch: true');
-
-      if (obfuscateAmounts && amount == null) throw new Error('Batch withdrawal requires an explicit amount');
-
       // Plan outside Redux so the structured headroom error reaches the caller intact.
       // Resolve randomness once and reuse the allocation for every fee/proof refinement.
-      const notesToSpend = obfuscateAmounts
-        ? planPPv1BatchWithdrawal(store.selectors.getAllNotes(), asset, amount!,
-          { obfuscateAmounts: true }).notes
-        : undefined;
+      const notesToSpend = planWithdrawal(store, asset, amount, batch, obfuscateAmounts);
 
       return unwrapResult(
         await store.dispatch(

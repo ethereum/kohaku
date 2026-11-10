@@ -37,33 +37,29 @@ The plugin saves JSON under these keys, in `chainStorage` when it is set and oth
 
 Nothing is saved per account. States saved by earlier versions, under `privacy-pool-state-<chainId>-<entrypoint>`, and their history entries are no longer read: the chain is synced again, from the `initialState` snapshot if one is given. Snapshots and `dumpState()` keep the key without the version.
 
-## Batch amount obfuscation
+## Amount obfuscation
 
-Pass `{ mode: 'paymaster', batch: true, obfuscateAmounts: true }` to
-`prepareUnshield` to preserve an explicit total while leaving change on every
-note in a multi-note batch. Non-final notes contribute a random 95–99% of their
-balance; the last supplies the remainder and can leave more change. Reserves
-round up to whole asset base units. Single-note batches are unchanged.
+Fully spending several notes exposes their exact balances together, which can
+make the withdrawal easier to correlate with deposits.
 
-The SDK never lowers the requested total. If there is insufficient headroom to
-leave at least 1% on every selected note, it throws the exported
-`PPv1AmountObfuscationError`, with `requestedAmount`, `maxObfuscatedAmount`, and
-`suggestedAmount` (all gross amounts, before fees). The wallet can suggest a lower
-amount or let the user proceed with obfuscation disabled.
+`prepareUnshield` defaults to `obfuscateAmounts: true` in both relay modes.
+It preserves the requested total and retains at least 1% on every spent note.
+Non-final notes retain a cryptographically random 1–25%, constrained by the
+remaining amount; the final note supplies the exact remainder and may retain
+more. One partial note is used when sufficient. Multi-note withdrawals require
+`{ mode: 'paymaster', batch: true }`.
 
-`await pools.previewBatchUnshield({ asset, amount })` syncs and returns the default
-allocation, `fullySpentNoteCount`, and a conservative `suggestedAmount` when a
-multi-note batch would fully spend notes. It creates no proof or signed operation.
-`planPPv1BatchWithdrawal(notes, assetAddress, amount, { obfuscateAmounts: true })`
-also exposes local planning using an existing account/chain snapshot. Preparation
-samples its own allocation and reuses it through fee refinement.
+The gross ceiling is 97% of the approved balance of the requested asset.
+Reserves round up to base units, which can lower the ceiling for tiny notes and
+make their allocation deterministic. Above the ceiling, `PPv1AmountObfuscationError`
+includes `requestedAmount` and `maxObfuscatedAmount`. The SDK never changes the
+requested total. Explicitly set `obfuscateAmounts: false` to allow full-note spends
+and bypass this ceiling.
 
-Amounts are gross unless `exact` is supplied. Exact-output preparation checks
-headroom against the fee-inclusive gross; its error suggestions remain gross.
-Change follows the existing note lineage and is available after normal sync.
-The planner may select an extra note to leave enough headroom. Batching still
-links the withdrawals, and near-deposit amounts, timing and the total can remain
-identifying; this option makes no anonymity-set guarantee.
+With `exact`, fees count toward the ceiling. Preparation samples once and reuses
+the allocation through fee refinement. Change is available after normal sync.
+Batch linkage, nearby deposit amounts, timing and later change withdrawals can
+still identify a sender; this option only removes exact full-balance matches.
 
 ## External paymaster signing
 

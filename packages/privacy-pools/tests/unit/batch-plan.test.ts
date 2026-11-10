@@ -1,124 +1,114 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseEther } from 'viem';
 import type { INote } from '../../src/plugin/interfaces/protocol-params.interface';
-import { planPPv1BatchWithdrawal, PPv1AmountObfuscationError } from '../../src/withdrawal/batch-plan';
+import { planObfuscatedBatchWithdrawal, PPv1AmountObfuscationError } from '../../src/withdrawal/batch-plan';
 
 const asset = 1n;
 const note = (balance: bigint, deposit = 0): INote => ({
   balance, value: balance, deposit, withdraw: 0, assetAddress: asset, approved: true,
   label: BigInt(deposit + 1), precommitment: BigInt(deposit + 1), depositor: 5n, blockNumber: 1n,
 });
-const plan = (balances: bigint[], amount: bigint, obfuscateAmounts = true) =>
-  planPPv1BatchWithdrawal(balances.map(note), asset, amount, { obfuscateAmounts });
+const plan = (balances: bigint[], amount: bigint) => planObfuscatedBatchWithdrawal(balances.map(note), asset, amount);
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('batch amount planning', () => {
-  it('previews full spends and suggests a gross amount without consuming randomness', () => {
-    const random = vi.spyOn(globalThis.crypto, 'getRandomValues');
-    const result = plan([1100n, 150n, 100n], 1350n, false);
-    expect(result.notes.map(n => n.withdrawnValue)).toEqual([1100n, 150n, 100n]);
-    expect(result.fullySpentNoteCount).toBe(3);
-    expect(result.suggestedAmount).toBe(1282n);
-    expect(result.maxObfuscatedAmount).toBe(1336n);
-    expect(random).not.toHaveBeenCalled();
-  });
-
-  it('preserves the discussion’s 1.25 total while leaving change on all three notes', () => {
-    const balances = ['0.1', '0.15', '1.1'].map(value => parseEther(value));
+describe('batch amount allocation', () => {
+  it('breaks the original three-deposit amount pattern while preserving the exact request', () => {
     const amount = parseEther('1.25');
-    for (let i = 0; i < 30; i++) {
-      const result = plan(balances, amount);
-      expect(result.notes).toHaveLength(3);
-      expect(result.notes.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(amount);
-      expect(result.fullySpentNoteCount).toBe(0);
-      for (const entry of result.notes) {
-        expect(entry.withdrawnValue).toBeGreaterThan(0n);
-        expect(entry.changeValue * 100n).toBeGreaterThanOrEqual(entry.note.balance);
-        expect(entry.changeValue + entry.withdrawnValue).toBe(entry.note.balance);
-      }
-      for (const entry of result.notes.slice(0, -1)) {
-        expect(entry.changeValue * 100n).toBeLessThanOrEqual(entry.note.balance * 5n);
-      }
+    const result = plan(['1', '0.2', '0.123'].map(value => parseEther(value)), amount);
+
+    expect(result).toHaveLength(3);
+    expect(result.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(amount);
+
+    for (const entry of result) {
+      expect(entry.withdrawnValue).toBeGreaterThan(0n);
+      expect((entry.note.balance - entry.withdrawnValue) * 100n).toBeGreaterThanOrEqual(entry.note.balance);
+    }
+
+    for (const entry of result.slice(0, -1)) {
+      expect((entry.note.balance - entry.withdrawnValue) * 100n).toBeLessThanOrEqual(entry.note.balance * 25n);
     }
   });
 
-  it('rejects a full multi-note spend with a structured suggestion, and allows explicit opt-out', () => {
-    expect(() => plan([1000n, 1000n], 2000n)).toThrow(PPv1AmountObfuscationError);
-    try { plan([1000n, 1000n], 2000n); } catch (error) {
-      expect(error).toMatchObject({ requestedAmount: 2000n, maxObfuscatedAmount: 1980n, suggestedAmount: 1900n });
-    }
-    expect(plan([1000n, 1000n], 2000n, false).fullySpentNoteCount).toBe(2);
-  });
-
-  it('can add a spare note instead of draining the original minimal set', () => {
-    const result = plan([1000n, 1000n, 1000n], 1990n);
-    expect(result.notes).toHaveLength(3);
-    expect(result.notes.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(1990n);
-    expect(result.fullySpentNoteCount).toBe(0);
-  });
-
-  it('fits requests right at the 1% capacity without random failures', () => {
-    const result = plan([1000n, 1000n], 1980n);
-    expect(result.notes.map(n => n.changeValue)).toEqual([10n, 10n]);
-  });
-
-  it('keeps single-note batches unchanged', () => {
+  it('accepts the 97% ceiling and preserves exact totals at both extremes of a random draw', () => {
     const random = vi.spyOn(globalThis.crypto, 'getRandomValues');
-    expect(plan([1000n, 500n], 1000n).notes.map(n => n.withdrawnValue)).toEqual([1000n]);
-    expect(random).not.toHaveBeenCalled();
+
+    random.mockImplementation(buffer => { (buffer as Uint8Array).fill(0);
+
+ return buffer; });
+    expect(plan([1000n, 1000n, 1000n], 2910n).map(n => n.withdrawnValue)).toEqual([930n, 990n, 990n]);
+    random.mockImplementationOnce(buffer => { (buffer as Uint8Array).fill(60);
+
+ return buffer; });
+    random.mockImplementationOnce(buffer => { (buffer as Uint8Array).fill(60);
+
+ return buffer; });
+    expect(plan([1000n, 1000n, 1000n], 2910n).map(n => n.withdrawnValue)).toEqual([990n, 990n, 930n]);
+    expect(() => plan([1000n, 1000n, 1000n], 2911n)).toThrow(PPv1AmountObfuscationError);
   });
 
-  it('ignores spent, unapproved and other-asset notes without mutating the input', () => {
+  it('adds a spare note when the original minimal set cannot leave enough change', () => {
+    const result = plan([1000n, 1000n, 1000n], 1990n);
+
+    expect(result).toHaveLength(3);
+    expect(result.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(1990n);
+    expect(result.every(n => n.withdrawnValue > 0n && n.withdrawnValue < n.note.balance)).toBe(true);
+  });
+
+  it('uses one partial note when possible, enforces 1% change, and applies the global ceiling', () => {
+    const random = vi.spyOn(globalThis.crypto, 'getRandomValues');
+
+    for (const amount of [500n, 900n, 970n]) {
+      expect(plan([1000n], amount).map(n => n.withdrawnValue)).toEqual([amount]);
+    }
+    expect(plan([1000n, 1000n], 990n).map(n => n.withdrawnValue)).toEqual([990n]);
+    expect(random).not.toHaveBeenCalled();
+    expect(() => plan([1000n], 971n)).toThrow(PPv1AmountObfuscationError);
+    expect(() => plan([1000n], 1000n)).toThrow(PPv1AmountObfuscationError);
+    const result = plan([1000n, 1000n], 1000n);
+
+    expect(result).toHaveLength(2);
+    expect(result.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(1000n);
+    expect(result.every(n => n.withdrawnValue <= n.note.balance * 99n / 100n)).toBe(true);
+  });
+
+  it('ignores spent, unapproved and other-asset notes', () => {
     const input = [note(1000n, 1), { ...note(99999n, 2), approved: false },
       { ...note(99999n, 3), assetAddress: 2n }, note(0n, 4), note(500n, 5)];
-    const before = structuredClone(input);
-    const result = planPPv1BatchWithdrawal(input, asset, 1400n, { obfuscateAmounts: true });
-    expect(result.notes.map(n => n.note.deposit)).toEqual([1, 5]);
-    expect(input).toEqual(before);
+
+    expect(planObfuscatedBatchWithdrawal(input, asset, 1400n).map(n => n.note.deposit)).toEqual([1, 5]);
   });
 
-  it('handles integer rounding and excludes notes too small to leave change', () => {
-    const result = plan([1n, 3n, 3n], 4n);
-    expect(result.notes.map(n => n.withdrawnValue)).toEqual([2n, 2n]);
-    expect(result.notes.map(n => n.changeValue)).toEqual([1n, 1n]);
-    expect(() => plan([1n, 1n], 2n)).toThrow(PPv1AmountObfuscationError);
+  it('preserves integer change, allowing deterministic tiny splits only when necessary', () => {
+    const result = plan([1n, 101n, 101n], 196n);
+
+    expect(result).toHaveLength(2);
+    expect(result.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(196n);
+    expect(result.every(n => n.note.balance - n.withdrawnValue >= 2n)).toBe(true);
+    expect(() => plan([1n, 101n, 101n], 197n)).toThrow(PPv1AmountObfuscationError);
+    expect(plan([3n, 3n], 4n).map(n => n.withdrawnValue)).toEqual([2n, 2n]);
+    expect(() => plan([3n, 3n], 5n)).toThrow(PPv1AmountObfuscationError);
+    expect(() => plan([1n, 1n], 1n)).toThrow(PPv1AmountObfuscationError);
   });
 
-  it('uses fresh cryptographic draws, including rejection of out-of-range bytes', () => {
+  it('uses wider random ranges at 90% and 75%, rejecting out-of-range crypto samples', () => {
     const random = vi.spyOn(globalThis.crypto, 'getRandomValues');
-    random.mockImplementationOnce((buffer) => { (buffer as Uint8Array).fill(255); return buffer; });
-    random.mockImplementationOnce((buffer) => { (buffer as Uint8Array).fill(0); return buffer; });
-    const first = plan([1000n, 1000n], 1900n);
-    expect(first.notes[0]!.withdrawnValue).toBe(990n);
-    expect(random.mock.calls.length).toBeGreaterThanOrEqual(3);
-  });
 
-  it('preserves arbitrary-precision totals far beyond Number.MAX_SAFE_INTEGER', () => {
-    const balance = 10n ** 60n;
-    const amount = balance * 19n / 10n;
-    const result = plan([balance, balance], amount);
-    expect(result.notes.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(amount);
-    expect(result.fullySpentNoteCount).toBe(0);
-  });
+    random.mockImplementationOnce(buffer => { (buffer as Uint8Array).fill(0);
 
-  it('never suggests increasing a partial request', () => {
-    expect(plan([1000n, 1000n], 1001n, false).suggestedAmount).toBe(1001n);
-  });
+ return buffer; });
+    expect(plan([1000n, 1000n], 1800n).map(n => n.withdrawnValue)).toEqual([810n, 990n]);
+    random.mockImplementationOnce(buffer => { (buffer as Uint8Array).fill(0);
 
-  it('conserves totals and leaves integer change across small balances and tight budgets', () => {
-    for (let a = 2n; a <= 12n; a++) {
-      for (let b = 2n; b <= a; b++) {
-        for (let amount = a + 1n; amount <= a + b - 2n; amount++) {
-          const result = plan([a, b], amount);
-          expect(result.notes.reduce((sum, n) => sum + n.withdrawnValue, 0n)).toBe(amount);
-          expect(result.notes.every(n => n.changeValue > 0n && n.withdrawnValue > 0n)).toBe(true);
-        }
-      }
-    }
-  });
+ return buffer; });
+    expect(plan([1000n, 1000n], 1500n).map(n => n.withdrawnValue)).toEqual([750n, 750n]);
+    random.mockImplementationOnce(buffer => { (buffer as Uint8Array).fill(255);
 
-  it.each([0n, -1n, 3000n])('rejects invalid or unaffordable amounts: %s', amount => {
-    expect(() => plan([1000n, 1000n], amount)).toThrow();
+ return buffer; });
+    random.mockImplementationOnce(buffer => { (buffer as Uint8Array).fill(240);
+
+ return buffer; });
+    expect(plan([1000n, 1000n], 1500n).map(n => n.withdrawnValue)).toEqual([990n, 510n]);
+    expect(random).toHaveBeenCalledTimes(4);
   });
 });

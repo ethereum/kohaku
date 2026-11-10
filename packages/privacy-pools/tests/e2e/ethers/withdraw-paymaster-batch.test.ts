@@ -156,8 +156,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
     const approvedBefore = unwrapBalance(await protocol.balance([nativeAsset]), nativeAsset).approved?.amount ?? 0n;
 
     // 3. Explicitly choose a lower amount for obfuscation; retain the full-spend case.
-    const preview = await protocol.previewBatchUnshield({ asset: nativeAsset, amount: approvedBefore });
-    const grossAmount = obfuscateAmounts ? preview.suggestedAmount! : approvedBefore;
+    const grossAmount = obfuscateAmounts ? approvedBefore * 97n / 100n : approvedBefore;
     const op = await protocol.prepareUnshield(
       { asset: nativeAsset, amount: grossAmount },
       FINAL_RECIPIENT as AccountId,
