@@ -2,13 +2,14 @@ import { createAsyncThunk } from '@reduxjs/toolkit';
 
 import { IDataService } from '../../data/interfaces/data.service.interface';
 import { timestampAnchorsSelector } from '../selectors/history.selector';
-import { selectLastSyncedBlock } from '../selectors/last-synced-block.selector';
 import { entrypointInfoSelector } from '../selectors/slices.selectors';
-import { registerTimestampAnchors } from '../slices/historyMetadataSlice';
+import { registerTimestampAnchors } from '../slices/timestampsSlice';
 import { RootState } from '../store';
 
 export interface SyncHistoryTimestampsThunkParams {
   dataService: IDataService;
+  /** The last synced head of the verified state, not of a sync still running. */
+  head: bigint;
 }
 
 /**
@@ -30,10 +31,9 @@ const CONCURRENCY = 5;
  */
 export const syncHistoryTimestampsThunk = createAsyncThunk<void, SyncHistoryTimestampsThunkParams, { state: RootState }>(
   'sync/historyTimestamps',
-  async ({ dataService }, { dispatch, getState }) => {
+  async ({ dataService, head }, { dispatch, getState }) => {
     const state = getState();
     const { deploymentBlock } = entrypointInfoSelector(state);
-    const head = selectLastSyncedBlock(state);
     const known = new Set(timestampAnchorsSelector(state).map(([blockNumber]) => blockNumber));
     const missing: bigint[] = [];
 

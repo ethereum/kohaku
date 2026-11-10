@@ -1,6 +1,5 @@
 import { createAsyncThunk, unwrapResult } from '@reduxjs/toolkit';
 import { IDataService } from '../../data/interfaces/data.service.interface';
-import { ISecretManager } from '../../account/keys';
 import { selectLastSyncedBlock } from '../selectors/last-synced-block.selector';
 import { RootState } from '../store';
 import { registerEntrypointDeposits } from '../slices/entrypointDepositsSlice';
@@ -12,7 +11,6 @@ import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
 import { entrypointInfoSelector } from '../selectors/slices.selectors';
 import { verifyRootsThunk } from './verifyRootsThunk';
-import { discoverUserSecretsThunk } from './discoverUserSecretsThunk';
 
 export interface SyncThunkParams extends
   SyncEventsThunkParams,
@@ -20,13 +18,16 @@ export interface SyncThunkParams extends
   SyncAssetsThunkParams,
   SyncAspThunkParams {
   dataService: IDataService;
-  secretManager: ISecretManager;
   verify?: boolean;
 }
 
+/**
+ * Syncs everything that is the same for every account. An account finds its own
+ * notes in the result with discoverUserSecretsThunk.
+ */
 export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
-  async ({ dataService, secretManager, verify = true, ...params }, { getState, dispatch }) => {
+  async ({ dataService, verify = true, ...params }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     const fromBlock = selectLastSyncedBlock(state);
@@ -65,8 +66,6 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     }
 
     unwrapResult(await dispatch(syncEventsThunk({ dataService, toBlock, ...params })));
-
-    unwrapResult(await dispatch(discoverUserSecretsThunk({ secretManager })));
 
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
