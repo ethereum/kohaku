@@ -95,8 +95,9 @@ export class RecoveryClient implements IRecoveryClient {
    * The approval gathering for a handover, its payload encoded through the codec and its deadline the pinned block's
    * timestamp plus the window. Throws a `TypeError` or `RangeError` before any read on a malformed handover, order, window,
    * password or a source that is not an object; a malformed configuration source is refused by the restore after the block
-   * pin and `stateOf`. Throws a `KitRefusalError` while an attempt is waiting, on a restore cause or on a handover the action
-   * would refuse.
+   * pin and `stateOf`. Throws a `KitRefusalError` while an attempt is waiting, on a restore cause, on a handover the action
+   * would refuse, or on a new key nobody could use (the account, the manager, the action, its kit slot or the
+   * fallback-handler entry), before any approver request exists.
    */
   async initRecoveryGathering(
     source: ConfigurationSource,

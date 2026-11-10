@@ -11,3 +11,6 @@ export const VALIDATION_TIMESTAMP_MAX = 2 ** FORMATS_WAIT_BITS - 1;
 
 /** The ways a token outside the allowlist lets the handover land while nobody is paid. */
 export const VALIDATION_UNKNOWN_TOKEN_SHAPES = ['returns-false', 'no-code', 'accepting-fallback'] as const;
+
+/** What a handover's new key may not be, since nobody could sign for it as a key of the account; a finding names the first match, in this order. */
+export const VALIDATION_RESERVED_DESTINATIONS = ['account', 'manager', 'action', 'kit-slot', 'fallback-handler'] as const;

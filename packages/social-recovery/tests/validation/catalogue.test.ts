@@ -54,6 +54,10 @@ describe('the finding catalogue', () => {
     ]);
   });
 
+  it('validateRequest itself produces handover.new-reserved, so a gathering is not its only source', () => {
+    expect(requestResults().flatMap((result) => result.errors.map((finding) => finding.code))).toContain('handover.new-reserved');
+  });
+
   it('the union of both equals the four tuples minus handover.removed-unknown, request.window-short and cancel.window-late', () => {
     const produced = sorted([...setupResults(), ...requestResults()].flatMap((result) => [...result.errors, ...result.warnings].map((finding) => finding.code)));
     const tuples = sorted([...SETUP_ERROR_CODES, ...SETUP_WARNING_CODES, ...REQUEST_ERROR_CODES, ...REQUEST_WARNING_CODES]);
@@ -111,6 +115,7 @@ describe('the finding catalogue', () => {
     expect(sorted(validateRequest(request, context).errors.map((finding) => finding.code))).toEqual([
       'handover.malformed',
       'handover.new-holds-privilege',
+      'handover.new-reserved',
       'handover.removed-not-authority',
       'handover.same-authority',
       'proof.place-out-of-range',

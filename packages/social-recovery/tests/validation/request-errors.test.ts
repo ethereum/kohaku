@@ -1,5 +1,17 @@
+import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { validateRequest, type AttemptRequest, type CancelRequest, type Hex, type RequestValidationContext } from '../../src/index';
+import {
+  RECOVERY_ACTION_FALLBACK_HANDLER_SLOT,
+  VALIDATION_RESERVED_DESTINATIONS,
+  validateRequest,
+  type Address,
+  type AttemptRequest,
+  type CancelRequest,
+  type HandoverReads,
+  type Hex,
+  type RequestValidationContext,
+} from '../../src/index';
+import { oracleKitSlot } from '../formats/request-support';
 import { oracleBody, oracleCommitment } from '../formats/support';
 import {
   ACCOUNT,
@@ -7,9 +19,11 @@ import {
   BODY,
   CANCEL,
   CANCEL_CONTEXT,
+  DESCRIPTOR,
   NEW_KEY,
   OLD_KEY,
   OPENING,
+  OTHER_ACTION,
   PASSKEY,
   REQUEST_CONTEXT,
   STATE,
@@ -251,3 +265,110 @@ describe('validateRequest: a proof array with a hole', () => {
   });
 });
 
+
+/** The kit slot of `ACTION`, the `normal` row of the kit-slot vector. */
+const KIT_SLOT = getAddress('0xb64cddd1b613c46e97677526c0cd0115cf105553');
+const FALLBACK_HANDLER: Address = '0x0000000000000000000000000000000000006969';
+
+/** Each address a handover must not install, with the destination name the finding reports for it. */
+const RESERVED: readonly (readonly [string, Address])[] = [
+  ['account', ACCOUNT],
+  ['manager', DESCRIPTOR.manager],
+  ['action', ACTION],
+  ['kit-slot', KIT_SLOT],
+  ['fallback-handler', FALLBACK_HANDLER],
+];
+
+/** The healthy opening's context with the handover installing `newAuthority` in place of `OLD_KEY`. */
+const handingTo = (newAuthority: Address, extra: Partial<HandoverReads> = {}): RequestValidationContext =>
+  withHandover({ handover: { newAuthority, removedAuthority: OLD_KEY }, ...extra });
+
+/** The address in lower case with its first or last hex digit changed. */
+const nibbleAway = (address: Address, at: 'first' | 'last'): Address => {
+  const digits = address.slice(2).toLowerCase();
+  const index = at === 'first' ? 0 : digits.length - 1;
+  const changed = (Number.parseInt(digits.charAt(index), 16) ^ 1).toString(16);
+
+  return `0x${digits.slice(0, index)}${changed}${digits.slice(index + 1)}`;
+};
+
+/** The healthy opening's handover reads with no `manager` member at all. */
+const WITHOUT_MANAGER = Object.fromEntries(
+  Object.entries(REQUEST_CONTEXT.handover!).filter(([key]) => key !== 'manager'),
+) as unknown as HandoverReads;
+
+describe('the reserved destinations', () => {
+  it('VALIDATION_RESERVED_DESTINATIONS lists the five names in the order a match is looked for', () => {
+    expect([...VALIDATION_RESERVED_DESTINATIONS]).toEqual(['account', 'manager', 'action', 'kit-slot', 'fallback-handler']);
+  });
+
+  it('RECOVERY_ACTION_FALLBACK_HANDLER_SLOT is the address 0x…6969', () => {
+    expect(RECOVERY_ACTION_FALLBACK_HANDLER_SLOT).toBe('0x0000000000000000000000000000000000006969');
+  });
+});
+
+describe('validateRequest: a new key nobody can sign for', () => {
+  it.each(RESERVED)('raises handover.new-reserved as %s for that new key, and no other error', (reserved, newAuthority) => {
+    expect(validateRequest(OPENING, handingTo(newAuthority)).errors).toEqual([
+      { code: 'handover.new-reserved', subject: 'request', values: { newAuthority, reserved } },
+    ]);
+  });
+
+  it('raises the kit slot after handover.new-holds-privilege where the slot already holds a privilege', () => {
+    expect(validateRequest(OPENING, handingTo(KIT_SLOT, { newHoldsAnyPrivilege: true })).errors).toEqual([
+      { code: 'handover.new-holds-privilege', subject: 'request', values: { newAuthority: KIT_SLOT, holdsAnyPrivilege: true } },
+      { code: 'handover.new-reserved', subject: 'request', values: { newAuthority: KIT_SLOT, reserved: 'kit-slot' } },
+    ]);
+  });
+
+  it.each<[string, Address]>([
+    ['in lower case', KIT_SLOT.toLowerCase() as Address],
+    ['in upper case', `0x${KIT_SLOT.slice(2).toUpperCase()}`],
+    ['checksummed', KIT_SLOT],
+  ])('reports the kit slot spelled %s as its checksummed address', (_spelling, newAuthority) => {
+    expect(findingsOf(validateRequest(OPENING, handingTo(newAuthority)), 'handover.new-reserved')).toEqual([
+      { code: 'handover.new-reserved', subject: 'request', values: { newAuthority: KIT_SLOT, reserved: 'kit-slot' } },
+    ]);
+  });
+
+  it.each(RESERVED.flatMap(([reserved, address]) => (['first', 'last'] as const).map((at) => [reserved, at, nibbleAway(address, at)] as const)))(
+    'raises nothing for the %s address with its %s digit changed',
+    (_reserved, _at, near) => {
+      expect(errorCodes(OPENING, handingTo(near))).toEqual([]);
+    },
+  );
+
+  it('raises nothing for the kit slot of another action', () => {
+    expect(errorCodes(OPENING, handingTo(oracleKitSlot(OTHER_ACTION)))).toEqual([]);
+  });
+
+  it('raises handover.malformed alone for a zero new key', () => {
+    expect(validateRequest(OPENING, handingTo(ZERO)).errors).toEqual([
+      { code: 'handover.malformed', subject: 'request', values: { zeroNew: true, zeroRemoved: false, layoutDecodes: true } },
+    ]);
+  });
+
+  it('names the account, the first match, where the manager read is the account itself', () => {
+    expect(validateRequest(OPENING, handingTo(ACCOUNT, { manager: ACCOUNT })).errors).toEqual([
+      { code: 'handover.new-reserved', subject: 'request', values: { newAuthority: ACCOUNT, reserved: 'account' } },
+    ]);
+  });
+
+  it('judges no reserved key on a cancellation, nor its missing manager read', () => {
+    const reserved = { ...CANCEL_CONTEXT, handover: { ...REQUEST_CONTEXT.handover!, handover: { newAuthority: ACCOUNT, removedAuthority: OLD_KEY } } };
+
+    expect(errorCodes(CANCEL, reserved)).toEqual([]);
+    expect(errorCodes(CANCEL, { ...CANCEL_CONTEXT, handover: { ...WITHOUT_MANAGER, handover: { newAuthority: ACCOUNT, removedAuthority: OLD_KEY } } })).toEqual([]);
+  });
+
+  it.each<[string, HandoverReads]>([
+    ['no manager member', WITHOUT_MANAGER],
+    ['an undefined manager', { ...REQUEST_CONTEXT.handover!, manager: undefined as never }],
+    ['a short hex manager', { ...REQUEST_CONTEXT.handover!, manager: '0x1234' }],
+    ['a number', { ...REQUEST_CONTEXT.handover!, manager: 7 as never }],
+    ['a mixed-case manager whose checksum fails', { ...REQUEST_CONTEXT.handover!, manager: `0x${KIT_SLOT.slice(2).replace(/[a-f]/, (letter) => letter.toUpperCase())}` }],
+  ])('throws a TypeError naming context.handover.manager for %s on an opening, never a finding', (_label, handover) => {
+    expect(() => validateRequest(OPENING, { ...REQUEST_CONTEXT, handover })).toThrow(TypeError);
+    expect(() => validateRequest(OPENING, { ...REQUEST_CONTEXT, handover })).toThrow('context.handover.manager');
+  });
+});

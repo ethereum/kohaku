@@ -19,6 +19,7 @@ import type {
   ValidationError,
   ValidationWarning,
 } from '../interfaces';
+import type { VALIDATION_RESERVED_DESTINATIONS } from '../constants';
 import type { SetupBody } from './formats';
 
 /** A request window as the record carrying it states it, every value in seconds. */
@@ -89,7 +90,19 @@ export type HandoverReads = {
   readonly removedIsAuthority?: boolean;
   /** The action's `holdsAnyPrivilege` answer for the new key. */
   readonly newHoldsAnyPrivilege: boolean;
+  /** The policy manager the request is submitted to, the descriptor's `manager`. */
+  readonly manager: Address;
 };
+
+/** The addresses a handover is bound to, none of which its new key may be. */
+export type HandoverBinding = {
+  readonly account: Address;
+  readonly action: Address;
+  readonly manager: Address;
+};
+
+/** Which reserved address a handover's new key is. */
+export type ReservedDestination = (typeof VALIDATION_RESERVED_DESTINATIONS)[number];
 
 /** The reads a recovery client hands `validateRequest`, all pinned to one block. */
 export type RequestValidationContext = {

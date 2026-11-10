@@ -1,10 +1,12 @@
-import { encodeAbiParameters } from 'viem';
+import { encodeAbiParameters, getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { KitRefusalError, type Address, type Handover, type KitNotification, type LogPosition } from '../../src/index';
+import { oracleKitSlot } from '../formats/request-support';
 import {
   ACCOUNT,
   ACTION,
   callsTo,
+  CLIENT_CONFIGURATION,
   CONFIGURATION,
   DESCRIPTOR,
   errorCodes,
@@ -13,6 +15,7 @@ import {
   KEY_NEW,
   KEY_OLD,
   KEY_OTHER,
+  MANAGER,
   ORDER,
   pinnedOf,
   rejectionOf,
@@ -21,6 +24,7 @@ import {
   ZERO,
   type World,
 } from './doubles';
+import { boundAttempt } from './prepare-fixtures';
 
 const open = (overrides: Partial<World>, handover: Handover) => {
   const built = rig(world(overrides));
@@ -287,5 +291,72 @@ describe('the five reachable resolutions of the removed key', () => {
     const thrown = await rejectionOf(open({ failures: new Map([['action.isAuthority', failure]]) }, HANDOVER).run);
 
     expect(thrown).toBe(failure);
+  });
+});
+
+/** Each new key nobody can sign for, with the destination name its finding reports. */
+const RESERVED: readonly (readonly [string, Address])[] = [
+  ['account', ACCOUNT],
+  ['manager', MANAGER],
+  ['action', ACTION],
+  ['kit-slot', oracleKitSlot(ACTION)],
+  ['fallback-handler', '0x0000000000000000000000000000000000006969'],
+];
+
+describe('the init refuses a new key nobody can sign for', () => {
+  it.each(RESERVED)('a new key reserved as %s refuses with handover.new-reserved after the pinned reads, before any request exists', async (reserved, newAuthority) => {
+    const built = open({}, { newAuthority, removedAuthority: KEY_OLD });
+    const thrown = await rejectionOf(built.run);
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect((thrown as KitRefusalError).message).toBe('the handover would not pass the action');
+    expect((thrown as KitRefusalError).findings?.errors).toEqual([
+      { code: 'handover.new-reserved', subject: 'request', values: { newAuthority: getAddress(newAuthority), reserved } },
+    ]);
+    expect(built.codec.encoded).toEqual([]);
+    expect(callsTo(built.seen, 'action', 'holdsAnyPrivilege').map((one) => one.args)).toEqual([[getAddress(newAuthority), pinnedOf(HEADER)]]);
+
+    for (const one of callsTo(built.seen, 'action', 'isAuthority')) expect(one.args[1]).toEqual(pinnedOf(HEADER));
+  });
+
+  it('a kit slot that already holds a privilege refuses once, carrying both codes', async () => {
+    const slot = oracleKitSlot(ACTION);
+    const { codes, thrown } = await refusalCodes({ privileged: new Set([slot.toLowerCase()]) }, { newAuthority: slot, removedAuthority: KEY_OLD });
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect(codes).toEqual(['handover.new-holds-privilege', 'handover.new-reserved']);
+  });
+
+  it.each(RESERVED)('a new key reserved as %s refuses the same way when the removed key is inferred', async (reserved, newAuthority) => {
+    const built = open({ notifications: PREVIOUS }, { newAuthority });
+    const thrown = await rejectionOf(built.run);
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect((thrown as KitRefusalError).findings?.errors).toEqual([
+      { code: 'handover.new-reserved', subject: 'request', values: { newAuthority: getAddress(newAuthority), reserved } },
+    ]);
+    expect(built.codec.encoded).toEqual([]);
+  });
+
+  it('a new key at the kit slot of another action opens the gathering', async () => {
+    const newAuthority = oracleKitSlot(KEY_OTHER);
+    const built = open({}, { newAuthority, removedAuthority: KEY_OLD });
+    const record = await built.run;
+
+    if (record.purpose !== 'approval') throw new Error('approval expected');
+
+    expect(built.codec.decode(record.request.payload)).toEqual({ newAuthority, removedAuthority: KEY_OLD });
+  });
+});
+
+describe('a payload installing a key nobody can sign for, past the init', () => {
+  it.each(RESERVED)('prepareStartAttempt prepares and simulates a payload whose new key is reserved as %s, with no handover read', async (_reserved, newAuthority) => {
+    const built = rig(world(), { ...CLIENT_CONFIGURATION, simulate: true });
+    const prepared = await built.client.prepareStartAttempt({ ...boundAttempt(), payload: payloadOf(newAuthority, KEY_OLD) }, HEADER.timestamp);
+
+    expect(prepared.simulation).toEqual({ success: true });
+    expect(callsTo(built.seen, 'provider', 'call')).toHaveLength(1);
+    expect(callsTo(built.seen, 'action', 'holdsAnyPrivilege')).toEqual([]);
+    expect(callsTo(built.seen, 'action', 'isAuthority')).toEqual([]);
   });
 });

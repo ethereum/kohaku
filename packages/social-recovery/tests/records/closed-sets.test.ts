@@ -158,6 +158,7 @@ const REQUEST_ERRORS = [
   'proof.place-out-of-range',
   'handover.removed-not-authority',
   'handover.new-holds-privilege',
+  'handover.new-reserved',
   'handover.same-authority',
   'handover.malformed',
   'handover.removed-unknown',
@@ -305,17 +306,17 @@ describe('the finding codes', () => {
   it.each([
     ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 13],
     ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 14],
-    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 15],
+    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 16],
     ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 8],
   ] as const)('the %s tuple is the table, in its order', (_label, tuple, table, count) => {
     expect(table).toHaveLength(count);
     expect([...tuple]).toEqual(table);
   });
 
-  it("ValidationError's code is the setup and request errors together, twenty-eight codes", () => {
+  it("ValidationError's code is the setup and request errors together, twenty-nine codes", () => {
     const expected = sorted([...new Set([...SETUP_ERRORS, ...REQUEST_ERRORS])]);
 
-    expect(expected).toHaveLength(28);
+    expect(expected).toHaveLength(29);
     expect(literalsOf('ValidationError', 'code')).toEqual(expected);
   });
 

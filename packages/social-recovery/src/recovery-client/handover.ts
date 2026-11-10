@@ -25,7 +25,8 @@ function resolvedKey(key: RemovedKey, supplied: Address | undefined): ResolvedRe
 /**
  * The handover with the key it removes named: the supplied one once the action confirms it is a key, else the one
  * `inferRemovedKey` names. Refuses with one `KitRefusalError` carrying every handover finding: a zero address, one address
- * on both sides, a removed key that is not a key or cannot be named, and a new key that already holds a privilege.
+ * on both sides, a removed key that is not a key or cannot be named, a new key that already holds a privilege, or a new key
+ * nobody could use (the account, the manager, the action, its kit slot or the fallback-handler entry).
  * Every read is pinned to `block`. A rejection of the supplied key's `isAuthority` or of `holdsAnyPrivilege` rejects the init
  * with the same value, passed through by the inference; a failure inside the inference's own reads names nothing and becomes the `handover.removed-unknown` finding.
  */
@@ -46,7 +47,9 @@ export async function namedHandover(parts: RecoveryClientParts, handover: Handov
       layoutDecodes: true,
       removedIsAuthority,
       newHoldsAnyPrivilege: holds,
+      manager: parts.descriptor.manager,
     },
+    { account: parts.account, action: parts.action },
     findings,
   );
 

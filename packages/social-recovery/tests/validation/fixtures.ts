@@ -204,6 +204,7 @@ export const REQUEST_CONTEXT: RequestValidationContext = {
     layoutDecodes: true,
     removedIsAuthority: true,
     newHoldsAnyPrivilege: false,
+    manager: DESCRIPTOR.manager,
   },
   balance: 1_000n,
 };

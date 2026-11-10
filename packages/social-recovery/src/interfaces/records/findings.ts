@@ -47,6 +47,7 @@ export const REQUEST_ERROR_CODES = [
   'proof.place-out-of-range',
   'handover.removed-not-authority',
   'handover.new-holds-privilege',
+  'handover.new-reserved',
   'handover.same-authority',
   'handover.malformed',
   'handover.removed-unknown',

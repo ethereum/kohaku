@@ -1,5 +1,5 @@
 import { toFunctionSelector } from 'viem';
-import type { AbiFunctionItem, Hex } from '../interfaces/records';
+import type { AbiFunctionItem, Address, Hex } from '../interfaces/records';
 import { FORMATS_ZERO_ADDRESS } from './formats';
 
 /** The ERC-165 id of the policy-action interface. */
@@ -104,3 +104,6 @@ export const RECOVERY_ACTION_ZERO_ADDRESS = FORMATS_ZERO_ADDRESS;
 
 /** The address the action's views are read from. */
 export const RECOVERY_ACTION_READ_FROM = FORMATS_ZERO_ADDRESS;
+
+/** The address under which the pinned implementation keeps its fallback handler. */
+export const RECOVERY_ACTION_FALLBACK_HANDLER_SLOT: Address = '0x0000000000000000000000000000000000006969';

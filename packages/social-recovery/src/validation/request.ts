@@ -27,7 +27,7 @@ export function validateRequest(request: AttemptRequest | CancelRequest, context
   placeOrderFindings(checked, findings);
 
   if (checked.opening) {
-    handoverFindings(context.handover as HandoverReads, findings);
+    handoverFindings(context.handover as HandoverReads, { account: checked.account, action: checked.action }, findings);
     paymentFindings(checked.order, context, findings);
   }
 

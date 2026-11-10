@@ -11,7 +11,6 @@ import {
   CONFIGURATION,
   DRAFT,
   ECDSA,
-  OLD_KEY,
   OPENING,
   OTHER_ACTION,
   OTHER_IMPLEMENTATION,
@@ -116,7 +115,13 @@ export function everyOpeningError(): [AttemptRequest, RequestValidationContext] 
       moment: T + 90_000,
       block: { ...REQUEST_CONTEXT.block, timestamp: T + 89_500 },
       paused: [REQUEST_CONTEXT.paused[0]!, { method: PASSKEY, paused: { answered: true, value: true } }],
-      handover: { handover: { newAuthority: OLD_KEY, removedAuthority: OLD_KEY }, layoutDecodes: false, removedIsAuthority: false, newHoldsAnyPrivilege: true },
+      handover: {
+        ...REQUEST_CONTEXT.handover!,
+        handover: { newAuthority: ACCOUNT, removedAuthority: ACCOUNT },
+        layoutDecodes: false,
+        removedIsAuthority: false,
+        newHoldsAnyPrivilege: true,
+      },
     },
   ];
 }
