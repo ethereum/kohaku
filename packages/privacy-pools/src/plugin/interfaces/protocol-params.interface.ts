@@ -5,10 +5,10 @@ import { AccountId, ChainId, PrivateOperation, PublicOperation, Storage, Unshiel
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
-import { IAspService } from "../../data/asp.interface.js";
+import { IAspReviewService, IAspService } from "../../data/asp.interface.js";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
-import { Address, Label } from "../../interfaces/types.interface";
+import { Address, AspReviewStatus, Label } from "../../interfaces/types.interface";
 import { DelegationConfig } from "../../interfaces/user-ops.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
@@ -217,6 +217,11 @@ export interface PrivacyPoolsV1ProtocolParams {
   relayerClientFactory: () => IRelayerClient;
   entrypoint: IEntrypoint;
   aspServiceFactory: () => IAspService;
+  /**
+   * Opt-in source of declined / proof-of-innocence-required deposits (see
+   * `OxBowAspReviewService`). Without it, deposits outside the ASP tree read as `pending`.
+   */
+  aspReviewServiceFactory?: () => IAspReviewService;
   proverFactory: () => ReturnType<typeof Prover>;
   relayersList: Record<string, string>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
@@ -298,6 +303,8 @@ export interface IGetNotesParams extends IBaseOperationParams {
 export type INote = Pick<IDepositWithBalance,
   "label" | "precommitment" | "value" | "balance" | "assetAddress" | "approved" | "depositor" | "blockNumber"
 > & {
+  /** Set on every note the plugin returns; optional so hand-built notes keep compiling. */
+  reviewStatus?: IDepositWithBalance["reviewStatus"];
   // deposit index
   deposit: number;
   // withdraw index
@@ -337,7 +344,8 @@ export type PPv1HistoryEvent = {
       type: 'deposit';
       depositor: Address;
       label: Label;
-      aspStatus: 'pending' | 'approved';
+      /** `declined` and `poi_required` only appear with an `aspReviewServiceFactory`. */
+      aspStatus: AspReviewStatus;
     }
   | { type: 'withdrawal' }
   | {

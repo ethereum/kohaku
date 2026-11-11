@@ -34,11 +34,12 @@ Each note has:
 | `balance` | What is left. |
 | `assetAddress` | Pool asset, as a bigint. `E_ADDRESS` is ETH. |
 | `approved` | `true` once the association set has accepted the deposit. |
+| `reviewStatus` | `'approved'`, `'pending'`, `'declined'`, or `'poi_required'`. The last two need `aspReviewServiceFactory`, see [Review status](/privacy-pools/configuration#review-status). |
 | `precommitment` | The note's precommitment. |
 | `deposit` | Deposit index in this account's sequence. |
 | `withdraw` | How many withdrawals have already spent this note. |
 
-Approved balance is what `prepareUnshield` can spend. Unapproved balance is the `'pending'` row from `balance`. Sum `balance` yourself if you render a custom total. `balance()` already splits the two.
+Approved balance is what `prepareUnshield` can spend. Unapproved balance is the `'pending'` row from `balance`, declined and proof-of-innocence-required deposits included. Sum `balance` yourself if you render a custom total. `balance()` already splits the two.
 
 ## History
 
@@ -58,7 +59,7 @@ Events come back newest first. Each one is a deposit, a withdrawal, or a ragequi
 | `assetAddress`, `poolAddress` | Bigints. |
 | `transactionHash`, `blockNumber`, `logIndex`, `timestamp` | Where it happened. The timestamp is an estimate, see below. |
 
-Deposits also carry `depositor`, `label`, and `aspStatus` (`'pending'` or `'approved'`). Ragequits carry `ragequitter`. Withdrawals carry the shared fields only.
+Deposits also carry `depositor`, `label`, and `aspStatus` (the note's `reviewStatus`). Ragequits carry `ragequitter`. Withdrawals carry the shared fields only.
 
 `transactionHash` on the event is a bigint. Format it to hex when you link to a block explorer.
 
@@ -72,7 +73,7 @@ Exact headers for the account's blocks, even mixed with random decoy blocks, wou
 
 ## Ragequit
 
-Ragequit pulls the unapproved value of specific notes back out, as public transactions the user signs. It is the exit when a deposit should not wait for the association set, or should not enter it.
+Ragequit pulls the unapproved value of specific notes back out, as public transactions the user signs. It is the exit when a deposit should not wait for the association set, or should not enter it, and the usual one for a `'declined'` deposit.
 
 ```ts
 const pending = (await pools.notes()).filter((note) => !note.approved)
@@ -94,4 +95,4 @@ After the ragequit transactions confirm, `notes` and `balance` drop the unapprov
 
 ## Showing it in a wallet
 
-A practical screen is three numbers from `balance` (approved, pending, and their sum), a list from `notes` for the asset the user picked, and `history` for the activity row. Offer ragequit on pending notes, and unshield on approved ones. The CLI reads notes while it computes a max unshield amount in [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts).
+A practical screen is three numbers from `balance` (approved, pending, and their sum), a list from `notes` for the asset the user picked, and `history` for the activity row. Offer ragequit on pending notes, and unshield on approved ones. With review status on, tell the user when a note is `'declined'` (ragequit is the way out) or `'poi_required'` (they can submit a proof of innocence instead). The CLI reads notes while it computes a max unshield amount in [`src/lib/unshield-flow.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/lib/unshield-flow.ts).

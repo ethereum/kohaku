@@ -20,6 +20,7 @@ Both return an object with `prepareShield`, `prepareUnshield`, `balance`, `notes
 | `broadcasterUrl` | yes | Relayer URL, or a record of relayer id to URL. A string becomes `{ default: url }`. |
 | `entrypoint` | yes | `{ address: bigint, deploymentBlock: bigint }`. Sync starts at `deploymentBlock`. |
 | `aspServiceFactory` | no | Builds the association-set client. The default reads the set from IPFS. |
+| `aspReviewServiceFactory` | no | Builds the review-status client. Off by default: deposits outside the set read as `'pending'`. See [Review status](#review-status). |
 | `ipfsUrl` | no | Gateway used by the default IPFS client. Defaults to `https://ipfs.filebase.io/ipfs/`. |
 | `paymasterConfig` | no | Per-chain ERC-4337 paymaster. Omit it to use the bundled mainnet and Sepolia map. |
 | `initialState` | no | `() => Promise<Record<string, PublicRootState>>`. Seeds storage on an empty wallet. |
@@ -116,6 +117,37 @@ createPPv1Plugin(host, {
 The CLI uses this client. Sepolia's URL is `https://dw.0xbow.io`.
 
 A custom association set implements `getAspTree(state): Promise<bigint[][]>`. Only the first array, the leaves, is used.
+
+### Review status
+
+The set only tells approved deposits apart. A deposit the ASP declined, or one waiting on a proof of innocence, looks the same as one still under review. Pass `aspReviewServiceFactory` to tell them apart:
+
+```ts
+import { OxBowAspReviewService } from '@kohaku-eth/privacy-pools'
+
+createPPv1Plugin(host, {
+  // ...
+  aspReviewServiceFactory: () => new OxBowAspReviewService({
+    network: host.network,
+    aspUrl: 'https://api.0xbow.io', // Sepolia: https://dw.0xbow.io
+  }),
+})
+```
+
+Each note then carries a `reviewStatus`, and each deposit in `history` an `aspStatus`:
+
+| Status | Meaning |
+| --- | --- |
+| `'approved'` | In the association set. |
+| `'pending'` | Not in the set, and not flagged. Still under review. |
+| `'declined'` | The ASP declined it. This is final in almost every case, though the ASP can reverse a false positive. Offer ragequit. |
+| `'poi_required'` | The ASP wants a proof of innocence before it approves the deposit. |
+
+The option is off by default because it calls 0xbow's API. The client downloads every declined and proof-of-innocence-required deposit of the chain, never a lookup of one deposit, so 0xbow learns that the host uses Privacy Pools but not which deposits are its own. It only calls during a sync, and only when the account holds an unapproved deposit with a balance.
+
+The client is not trusted either. The set always wins: a deposit in it reads `'approved'` whatever the feed says, so the feed can mislabel an unapproved deposit but never make one spendable. If the feed fails, the sync goes on with the last statuses it fetched. Each fetch replaces the previous list, so a decline the ASP reverses goes back to `'pending'`.
+
+A custom client implements `getFlaggedDeposits({ chainId }): Promise<{ precommitment, pool, status }[]>`, where `status` is `'declined'` or `'poi_required'`. Rows for pools of another entrypoint are ignored.
 
 ## Paymaster
 

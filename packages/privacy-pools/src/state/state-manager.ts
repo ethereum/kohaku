@@ -77,9 +77,10 @@ import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
+import { SyncAspReviewThunkParams } from "./thunks/syncAspReviewThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 
-export interface StoreFactoryParams extends SyncAspThunkParams {
+export interface StoreFactoryParams extends SyncAspThunkParams, SyncAspReviewThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
   provider?: EthereumProvider;
   network?: Network;
