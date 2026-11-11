@@ -5,6 +5,7 @@ import type { BundlerClient } from 'viem/account-abstraction';
 import {
   createPaymasterBundlerClient,
   describeError,
+  isAlreadyKnown,
   isBundlerRejection,
   isUserOperationKnown,
   sendSerializedUserOperation,
@@ -49,32 +50,35 @@ const waitForConfirmation = async (
   return { txHash };
 };
 
-const notAccepted = (sendError: unknown) => new PaymasterBroadcastError(
-  'not-accepted',
-  `Bundler did not accept the userOp: ${describeError(sendError)}`,
-);
-
-const unconfirmed = (sendError: unknown, userOpHash?: Hash) => new PaymasterBroadcastError(
-  'unconfirmed',
-  `Could not tell whether the bundler accepted ${userOpHash ? `userOp ${userOpHash}` : 'the userOp'}, it may still land: ${describeError(sendError)}`,
-  { userOpHash },
-);
-
 /**
- * Throws unless the bundler knows the userOp whose send request failed with
- * `sendError`. Some bundlers only know mined userOps, so a userOp they don't
- * know was only rejected if they answered the send with a JSON-RPC error.
+ * Returns the hash of the userOp whose send request failed with `sendError` if
+ * the bundler has it, and throws otherwise. Some bundlers, alto among them,
+ * only find mined userOps by hash, so a userOp they don't find was only
+ * rejected if they answered the send with a JSON-RPC error.
  */
-const assertKnownToBundler = async (
+const recoverFromSendError = async (
   bundlerClient: BundlerClient,
-  userOpHash: Hash,
+  userOpHash: Hash | undefined,
   sendError: unknown,
-): Promise<void> => {
-  const known = await isUserOperationKnown(bundlerClient, userOpHash).catch(() => false);
+): Promise<Hash> => {
+  if (userOpHash && (isAlreadyKnown(sendError) ||
+    await isUserOperationKnown(bundlerClient, userOpHash).catch(() => false))) {
+    return userOpHash;
+  }
 
-  if (known) return;
+  if (isBundlerRejection(sendError) && !isAlreadyKnown(sendError)) {
+    throw new PaymasterBroadcastError(
+      'not-accepted',
+      `Bundler did not accept the userOp: ${describeError(sendError)}`,
+      { userOpHash },
+    );
+  }
 
-  throw isBundlerRejection(sendError) ? notAccepted(sendError) : unconfirmed(sendError, userOpHash);
+  throw new PaymasterBroadcastError(
+    'unconfirmed',
+    `Could not tell whether the bundler accepted ${userOpHash ? `userOp ${userOpHash}` : 'the userOp'}, it may still land: ${describeError(sendError)}`,
+    { userOpHash },
+  );
 };
 
 /**
@@ -106,12 +110,11 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
     } catch (error) {
       // The bundler may have accepted the userOp and the response got lost,
       // e.g. a timeout.
-      const expectedHash = serializedUserOperationHash(userOperation, entryPointAddress);
-
-      if (!expectedHash) throw isBundlerRejection(error) ? notAccepted(error) : unconfirmed(error);
-
-      await assertKnownToBundler(bundlerClient, expectedHash, error);
-      userOpHash = expectedHash;
+      userOpHash = await recoverFromSendError(
+        bundlerClient,
+        serializedUserOperationHash(userOperation, entryPointAddress),
+        error,
+      );
     }
 
     return { userOpHash, wait: () => waitForConfirmation(bundlerClient, userOpHash) };

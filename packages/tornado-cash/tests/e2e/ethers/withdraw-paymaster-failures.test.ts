@@ -7,7 +7,7 @@ import { Wallet } from 'ethers';
 import { parseEther, type Hex } from 'viem';
 
 import { createTCBroadcaster, E_ADDRESS, PaymasterBroadcastError, TornadoCashProtocol } from '@kohaku-eth/tornado-cash';
-import { createPaymasterBundlerClient, serializedUserOperationHash } from '../../../src/paymaster/utils';
+import { serializedUserOperationHash } from '../../../src/paymaster/utils';
 import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, loadInitialState } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
@@ -141,7 +141,7 @@ describe('TornadoCash paymaster broadcast failures (real bundler, real prover)',
     return { operation, withdrawal };
   };
 
-  it('[paymaster] throws `unconfirmed` with the hash when the send response was lost', { timeout: 300_000 }, async () => {
+  it('[paymaster] throws `unconfirmed` with the hash when the send response was lost, and a rebroadcast resolves',{ timeout: 300_000 }, async () => {
     const { operation, withdrawal } = await prepareWithdrawal();
     const bob = TEST_ACCOUNTS.bob.address;
     const bobBefore = await pool.getBalance(bob);
@@ -159,13 +159,18 @@ describe('TornadoCash paymaster broadcast failures (real bundler, real prover)',
     // The bundler did accept it, with the hash computed from the signed userOp.
     expect(lossy.dropped).toEqual([expect.objectContaining({ result: userOpHash })]);
 
-    // It lands anyway.
-    const receipt = await createPaymasterBundlerClient(withdrawal.bundlerUrl)
-      .waitForUserOperationReceipt({ hash: userOpHash! });
+    // Broadcasting it again is safe: the bundler already has it ("Already
+    // known"), or has mined it, so this resolves with the same hash.
+    const [retry] = await createTCBroadcaster(host).broadcast(operation);
+
+    // eslint-disable-next-line no-restricted-syntax
+    expect(retry!.id).toBe(userOpHash);
+
+    const { txHash } = await retry!.wait();
 
     await pool.mine(1);
 
-    expect(receipt.success).toBe(true);
+    expect(txHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(await pool.getBalance(bob)).toBeGreaterThan(bobBefore);
     expect(await balance()).toBe(balanceBefore - NOTE);
   });

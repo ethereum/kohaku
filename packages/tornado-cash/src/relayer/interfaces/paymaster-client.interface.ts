@@ -66,7 +66,8 @@ export interface IPaymasterBroadcasterClient {
 
 /**
  * - `not-accepted`: the bundler answered the send request with an error and
- *   does not know the userOp.
+ *   does not have the userOp, so it will not land. A bundler answer that it
+ *   already has this userOp counts as accepted.
  * - `reverted`: the userOp was mined with `success: false`. Notes spent before
  *   the revert stay spent, and their funds may be held by the userOp sender.
  * - `unconfirmed`: the outcome is unknown, the userOp may still land. Thrown by

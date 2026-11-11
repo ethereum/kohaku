@@ -125,9 +125,19 @@ export const describeError = (error: unknown): string =>
     ? [error.shortMessage, error.details].filter(Boolean).join(' ')
     : 'Unknown error.';
 
+const bundlerRejection = (error: unknown): RpcRequestError | null =>
+  error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;
+
 /** Whether the bundler answered with a JSON-RPC error, as opposed to a transport failure. */
-export const isBundlerRejection = (error: unknown): boolean =>
-  error instanceof BaseError && error.walk((e) => e instanceof RpcRequestError) !== null;
+export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(error) !== null;
+
+/**
+ * Whether the bundler rejected the send because it already has this exact
+ * userOp, pending or being bundled. That is alto's answer to a resend; a
+ * different userOp with the same sender and nonce gets an AA25/AA10 error.
+ */
+export const isAlreadyKnown = (error: unknown): boolean =>
+  /already known/i.test(bundlerRejection(error)?.details ?? '');
 
 /**
  * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
