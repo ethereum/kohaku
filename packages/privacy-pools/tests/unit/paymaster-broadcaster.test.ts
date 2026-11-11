@@ -175,13 +175,13 @@ describe('PaymasterBroadcaster', () => {
     expectNoUserOp(error);
   });
 
-  it('throws `not-accepted` with the real reason but no userOp on an RPC error', async () => {
+  it('throws `not-accepted` with the real reason and the hash, but no userOp, on an RPC error', async () => {
     const { network } = makeNetwork(sendFails(AA23));
 
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
 
     expect(error.failure).toBe('not-accepted');
-    expect(error.userOpHash).toBeUndefined();
+    expect(error.userOpHash).toBe(USER_OP_HASH);
     expect(error.message).toContain('AA23 reverted');
     expectNoUserOp(error);
   });
@@ -217,10 +217,10 @@ describe('PaymasterBroadcaster', () => {
     expectNoUserOp(error);
   });
 
-  it('recovers when the send fails but the bundler knows the userOp', async () => {
+  it('recovers when the send response is lost but the bundler finds the userOp', async () => {
     const pending = { userOperation: {}, entryPoint: ADDRESS, blockNumber: null, blockHash: null, transactionHash: null };
     const { network, calls } = makeNetwork(sendFails(
-      () => ({ error: { code: -32602, message: 'Already known' } }),
+      () => { throw new Error('socket hang up'); },
       () => ({ result: pending }),
     ));
 
@@ -229,6 +229,27 @@ describe('PaymasterBroadcaster', () => {
     expect(userOpHash).toBe(USER_OP_HASH);
     expect(calls).toEqual(['eth_sendUserOperation', 'eth_getUserOperationByHash']);
     await expect(wait()).resolves.toEqual({ txHash: TX_HASH });
+  });
+
+  it('treats "Already known" as accepted, even if the bundler cannot find pending userOps', async () => {
+    const { network, calls } = makeNetwork(sendFails(() => ({ error: { code: -32602, message: 'Already known' } })));
+
+    const [{ userOpHash, wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
+
+    expect(userOpHash).toBe(USER_OP_HASH);
+    expect(calls).toEqual(['eth_sendUserOperation']);
+    await expect(wait()).resolves.toEqual({ txHash: TX_HASH });
+  });
+
+  it('throws `not-accepted` when a different userOp with the same sender and nonce is pending', async () => {
+    const { network } = makeNetwork(sendFails(() => ({
+      error: { code: -32602, message: 'AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed' },
+    })));
+
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.failure).toBe('not-accepted');
+    expect(error.userOpHash).toBe(USER_OP_HASH);
   });
 
   it('throws `unconfirmed` with the hash when the send fails and the lookup fails too', async () => {
@@ -267,6 +288,44 @@ describe('PaymasterBroadcaster', () => {
 
     expect(error.failure).toBe('not-accepted');
     expect(error.message).toContain('AA23 reverted');
+  });
+});
+
+describe('PaymasterBroadcaster with a payload prepared before it carried `userOpHash`', () => {
+  it('computes the hash from the signed userOp to recover a lost send response', async () => {
+    const { userOperation, userOpHash: signedHash } = await buildSignedUserOp({
+      signer: privateKeyToAccount(generatePrivateKey()),
+      chainId: 11155111,
+      paymasterAddress: ADDRESS,
+      paymasterData: '0x1234',
+      gas: {
+        callGasLimit: 0n,
+        verificationGasLimit: 500_000n,
+        preVerificationGas: 60_000n,
+        paymasterVerificationGasLimit: 900_000n,
+        paymasterPostOpGasLimit: 50_000n,
+      },
+      maxFeePerGas: 2_000_000_000n,
+      maxPriorityFeePerGas: 1_000_000n,
+    });
+    const legacy = { bundlerUrl: BUNDLER_URL, entryPointAddress: entryPoint08Address, userOperation } as unknown as IGenericPaymasterWithdrawalPayload;
+    const lookups: string[] = [];
+    const network = {
+      fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const request = JSON.parse(init?.body as string);
+
+        if (request.method === 'eth_sendUserOperation') throw new Error('socket hang up');
+
+        lookups.push(request.params[0]);
+
+        return new Response(JSON.stringify({ ...request, params: undefined, result: { userOperation: {}, blockNumber: null } }));
+      },
+    } as unknown as Network;
+
+    const [{ userOpHash }] = await new PaymasterBroadcaster({ network }).broadcast([legacy]);
+
+    expect(userOpHash).toBe(signedHash);
+    expect(lookups).toEqual([signedHash]);
   });
 });
 

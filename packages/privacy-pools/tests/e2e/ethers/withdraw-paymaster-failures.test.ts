@@ -9,7 +9,6 @@ import { E_ADDRESS, PrivacyPoolsPaymasterConfigs } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
 import { EthClient } from '../../../src/data/eth-client';
 import { PaymasterBroadcastError, PrivacyPoolsV1Protocol } from '../../../src/index';
-import { createPaymasterBundlerClient } from '../../../src/paymaster/utils';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
 import { addressToHex } from '../../../src/utils';
@@ -186,7 +185,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast failures (re
     return { host, protocol, approvedBalance };
   };
 
-  it('[paymaster] throws `unconfirmed` with the hash when the send response was lost', { timeout: 300_000 }, async () => {
+  it('[paymaster] throws `unconfirmed` with the hash when the send response was lost, and a rebroadcast resolves',{ timeout: 300_000 }, async () => {
     const nativeAsset = ERC20Asset(E_ADDRESS);
     const WITHDRAW_AMOUNT = parseEther('1');
     const { host, protocol, approvedBalance } = await depositApprovedNote(nativeAsset, parseEther('2'));
@@ -214,13 +213,17 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast failures (re
     // The bundler did accept it, with the hash computed at signing.
     expect(lossy.dropped).toEqual([expect.objectContaining({ result: op.withdrawal.userOpHash })]);
 
-    // It lands anyway.
-    const receipt = await createPaymasterBundlerClient(op.withdrawal.bundlerUrl)
-      .waitForUserOperationReceipt({ hash: error.userOpHash! });
+    // Broadcasting it again is safe: the bundler already has it ("Already
+    // known"), or has mined it, so this resolves with the same hash.
+    const retry = await new PrivacyPoolsBroadcaster({ host, broadcasterUrl: { default: 'http://unused' } }).broadcast(op);
+
+    expect(retry.requestId).toBe(op.withdrawal.userOpHash);
+
+    const { txHash } = await retry.wait();
 
     await pool.mine(1);
 
-    expect(receipt.success).toBe(true);
+    expect(txHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(await provider.getBalance(RECIPIENT)).toBeGreaterThan(0n);
     expect(await approvedBalance()).toBe(approvedBefore - WITHDRAW_AMOUNT);
   });

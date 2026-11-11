@@ -94,9 +94,19 @@ export async function sendSerializedUserOperation(
   }, { retryCount: 0 }) as Promise<Hash>;
 }
 
+const bundlerRejection = (error: unknown): RpcRequestError | null =>
+  error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;
+
 /** Whether the bundler answered with a JSON-RPC error, as opposed to a transport failure. */
-export const isBundlerRejection = (error: unknown): boolean =>
-  error instanceof BaseError && error.walk((e) => e instanceof RpcRequestError) !== null;
+export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(error) !== null;
+
+/**
+ * Whether the bundler rejected the send because it already has this exact
+ * userOp, pending or being bundled. That is alto's answer to a resend; a
+ * different userOp with the same sender and nonce gets an AA25/AA10 error.
+ */
+export const isAlreadyKnown = (error: unknown): boolean =>
+  /already known/i.test(bundlerRejection(error)?.details ?? '');
 
 /**
  * viem error messages embed the request body, which for the paymaster flow is
@@ -141,6 +151,38 @@ export async function estimateUserOperationGas(
     paymasterVerificationGasLimit: BigInt(result.paymasterVerificationGasLimit ?? 0),
     paymasterPostOpGasLimit: BigInt(result.paymasterPostOpGasLimit ?? 0),
   };
+}
+
+/**
+ * The EntryPoint v0.8 hash of a userOp built by `buildSignedUserOp`, which is
+ * what its sender signed. Covers payloads prepared before they carried
+ * `userOpHash`. The chain is the one the 7702 authorization was signed for;
+ * `undefined` without an authorization.
+ */
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
+  if (!op.eip7702Auth) return undefined;
+
+  const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
+
+  return hashTypedData(getUserOperationTypedData({
+    chainId: Number(op.eip7702Auth.chainId),
+    entryPointAddress: entryPoint,
+    userOperation: {
+      sender: op.sender,
+      nonce: BigInt(op.nonce),
+      callData: op.callData,
+      callGasLimit: BigInt(op.callGasLimit),
+      verificationGasLimit: BigInt(op.verificationGasLimit),
+      preVerificationGas: BigInt(op.preVerificationGas),
+      maxFeePerGas: BigInt(op.maxFeePerGas),
+      maxPriorityFeePerGas: BigInt(op.maxPriorityFeePerGas),
+      paymaster: op.paymaster,
+      paymasterVerificationGasLimit: optional(op.paymasterVerificationGasLimit),
+      paymasterPostOpGasLimit: optional(op.paymasterPostOpGasLimit),
+      paymasterData: op.paymasterData,
+      signature: op.signature,
+    },
+  }));
 }
 
 /**
