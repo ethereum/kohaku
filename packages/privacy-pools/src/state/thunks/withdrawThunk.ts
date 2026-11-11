@@ -1,3 +1,4 @@
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import { Prover, WithdrawPublicSignals } from "@fatsolutions/privacy-pools-core-circuits";
 import { createAsyncThunk } from '@reduxjs/toolkit';
 
@@ -16,6 +17,7 @@ export type WithdrawProveOutput = Omit<ProveOutput, 'mappedSignals'> & {
 };
 
 export interface WithdrawThunkParams {
+  merkleTreeBuilder?: MerkleTreeBuilder;
   getNextNote: (note: INote, withdrawAmount: bigint, chainId: bigint, entrypoint: Address) => Promise<{ note: INote; secrets: Secret; }>;
   proverFactory: () => ReturnType<typeof Prover>;
   asset: Address;
@@ -64,8 +66,8 @@ export const withdrawThunk = createAsyncThunk<
     // 4. Get Merkle proofs
     const existingNoteFull = { ...existingNote, ...existingSecrets };
     const [stateMerkleProof, aspMerkleProof] = await Promise.all([
-      stateMerkleProofSelector(state, poolInfo.address, existingNoteFull),
-      aspMerkleProofSelector(state, existingNote.label),
+      stateMerkleProofSelector(state, poolInfo.address, existingNoteFull, params.merkleTreeBuilder),
+      aspMerkleProofSelector(state, existingNote.label, params.merkleTreeBuilder),
     ]);
     const verifiedAspRoot = verifiedAspRootSelector(state);
 

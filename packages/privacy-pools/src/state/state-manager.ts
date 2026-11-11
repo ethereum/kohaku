@@ -354,6 +354,7 @@ export const storeStateManager = (
         withdrawThunk({
           getNextNote: store.selectors.getNextNote,
           proverFactory: params.proverFactory,
+          merkleTreeBuilder: params.merkleTreeBuilder,
           asset,
           amount: amount ?? 0n,
           recipient,
@@ -443,6 +444,7 @@ export const storeStateManager = (
         withdrawThunk({
           getNextNote: store.selectors.getNextNote,
           proverFactory: params.proverFactory,
+          merkleTreeBuilder: params.merkleTreeBuilder,
           asset,
           amount: grossAmount,
           recipient,
@@ -493,6 +495,7 @@ export const storeStateManager = (
           paymasterWithdrawThunk({
             getNextNote: store.selectors.getNextNote,
             proverFactory: params.proverFactory,
+            merkleTreeBuilder: params.merkleTreeBuilder,
             dataService: params.dataService,
             secretManager,
             asset,

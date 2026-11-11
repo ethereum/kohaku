@@ -200,3 +200,22 @@ createPPv1Plugin(host, {
 ```
 
 Turn these on while you are debugging state. Leave them off in a wallet. They walk the whole pool on every update.
+
+## Merkle tree builds
+
+Large trees use workers when available. In Chrome MV3 service workers, React Native, or when workers fail to start or load, the default builder falls back to the calling thread. That preserves sync and proof generation, but the initial build can block that thread.
+
+To control where the work runs, pass `merkleTreeBuilder` to `createPPv1Plugin` or `PrivacyPoolsV1Protocol`:
+
+```ts
+const pools = createPPv1Plugin(host, {
+  accountIndex: 0,
+  entrypoint,
+  broadcasterUrl,
+  merkleTreeBuilder: (leaves) => offscreen.createTree(leaves),
+})
+```
+
+Here `offscreen.createTree` is your bridge. It returns a local proxy implementing the exported `MerkleTree` interface: a `root: bigint` property, plus `indexOf(leaf)`, `generateProof(index)`, and `insert(leaf)` methods. Methods can return promises. After `insert` resolves, the proxy's `root` must reflect the updated remote tree. Keep the remote tree alive while its proxy is in use; the SDK caches it and extends it incrementally. The bridge handles transport serialization (including bigint values); the SDK does not create the offscreen document or messaging channel.
+
+The hook is used for ASP leaf validation, sync root checks, and withdrawal inclusion proofs. The SDK still checks roots against the chain. A custom builder's errors propagate so the wallet can reconnect its bridge and retry; only the default worker builder falls back automatically. Cache entries are separated by callback identity, so reuse a stable callback when reusing the same host.

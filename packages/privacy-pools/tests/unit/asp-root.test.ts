@@ -14,7 +14,7 @@ import { storeFactory } from '../../src/state/store';
 import { syncAspThunk } from '../../src/state/thunks/syncAspThunk';
 import { withdrawThunk } from '../../src/state/thunks/withdrawThunk';
 import { commitment } from '../../src/utils';
-import { computeMerkleTreeRoot, SNARK_SCALAR_FIELD } from '../../src/utils/proof.util';
+import { buildMerkleTree, type MerkleTreeBuilder, computeMerkleTreeRoot, SNARK_SCALAR_FIELD } from '../../src/utils/proof.util';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 const entrypointAddress = 900n as Address;
@@ -48,7 +48,11 @@ describe('syncAspThunk', () => {
   it('accepts a tree whose leaves rebuild the RootUpdated root', async () => {
     const store = setupStore();
 
-    await store.dispatch(syncAspThunk({ aspService: serving([realLeaves, [realRoot]]) })).unwrap();
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
+
+    await store.dispatch(syncAspThunk({ aspService: serving([realLeaves, [realRoot]]), merkleTreeBuilder })).unwrap();
+
+    expect(merkleTreeBuilder).toHaveBeenCalledWith(realLeaves);
 
     expect(aspSelector(store.getState())).toEqual({ leaves: realLeaves, aspTreeRoot: realRoot, blockNumber: 7n });
   });
@@ -100,9 +104,11 @@ describe('syncAspThunk', () => {
     store.dispatch(registerAspTree({ leaves: realLeaves, aspTreeRoot: realRoot, blockNumber: 7n }));
 
     const aspService = serving([[], []]);
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
 
-    await store.dispatch(syncAspThunk({ aspService })).unwrap();
+    await store.dispatch(syncAspThunk({ aspService, merkleTreeBuilder })).unwrap();
 
+    expect(merkleTreeBuilder).toHaveBeenCalledWith(realLeaves);
     expect(aspService.getAspTree).not.toHaveBeenCalled();
   });
 });
@@ -135,12 +141,13 @@ describe('withdrawThunk ASP root', () => {
     return store;
   };
 
-  const withdraw = (store: ReturnType<typeof setupStore>) => {
+  const withdraw = (store: ReturnType<typeof setupStore>, merkleTreeBuilder?: MerkleTreeBuilder) => {
     const prove = vi.fn(async () => ({ proof: {}, publicSignals: [], mappedSignals: {} }));
     const proverFactory = vi.fn(async () => ({ prove }));
     const action = store.dispatch(withdrawThunk({
       getNextNote: async () => ({ note, secrets: { ...secrets, nullifier: 9n, salt: 9n } }),
       proverFactory: proverFactory as never,
+      merkleTreeBuilder,
       asset,
       amount: 10n,
       recipient: 6n as Address,
@@ -175,9 +182,12 @@ describe('withdrawThunk ASP root', () => {
 
     store.dispatch(setVerifiedAspRoot(realRoot));
 
-    const { action, prove } = withdraw(store);
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
+    const { action, prove } = withdraw(store, merkleTreeBuilder);
 
     await action;
+
+    expect(merkleTreeBuilder.mock.calls.map(([leaves]) => leaves)).toEqual([[commitment(note)], realLeaves]);
 
     expect(verifiedAspRootSelector(store.getState())).toBe(realRoot);
     expect(prove).toHaveBeenCalledWith('withdraw', expect.objectContaining({ ASPRoot: realRoot, label: 20n }));
