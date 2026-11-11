@@ -158,17 +158,44 @@ export const transactionAt = (at: LogPosition, from: Address = KEYS[5] as Addres
 /** The filter object the event manager double hands out, compared by identity. */
 export const ACCOUNT_FILTER: FilterSpec = { address: [DESCRIPTOR.manager], topics: [] };
 
+/** The privilege filter object the event manager double hands out, compared by identity. */
+export const PRIVILEGE_FILTER: FilterSpec = { address: [ACCOUNT], topics: [] };
+
+/** A privilege value `isAuthority` would read as a key's. */
+export const PRIV_KEY: Hex = `0x${'00'.repeat(31)}01`;
+
+/** A nonzero privilege value `isAuthority` would not read as a key's, as a kit slot holds. */
+export const PRIV_SLOT: Hex = `0x${'9a'.repeat(32)}`;
+
+/** The privilege value of an address that holds none. */
+export const PRIV_NONE: Hex = `0x${'00'.repeat(32)}`;
+
+/** A `LogPrivilegeChanged` notification of the bound account unless another is named. */
+export const privilege = (addr: Address, priv: Hex, place: Place, account: Address = ACCOUNT): KitNotification => ({
+  kind: 'privilege-changed',
+  account,
+  addr,
+  priv,
+  at: positionAt(place),
+});
+
 /** How a double answers: a value, or a rejection with the given reason. */
 export type Outcome<T> = { readonly value: T } | { readonly rejects: unknown };
 
 /** What each double answers; every read is recorded in `reads` before it is answered. */
 export type World = {
   readonly notifications: Outcome<readonly KitNotification[]>;
-  /** Present: what `fetch` resolves to around the notifications, in place of a record that skipped nothing. */
+  /** Present: what `fetch` over the account filter resolves to around the notifications, in place of a record that skipped nothing. */
   readonly fetched?: (notifications: readonly KitNotification[]) => unknown;
+  /** What `fetch` answers over the privilege filter; no notification when absent. */
+  readonly privileges?: Outcome<readonly KitNotification[]>;
+  /** Present: what `fetch` over the privilege filter resolves to around its notifications, as `fetched` does for the account filter. */
+  readonly privilegesFetched?: (notifications: readonly KitNotification[]) => unknown;
   /** Lower-cased keys `isAuthority` confirms; a key in `rejects` rejects instead. */
   readonly authorities: ReadonlySet<string>;
   readonly authorityRejects?: ReadonlyMap<string, unknown>;
+  /** Lower-cased keys whose `isAuthority` resolves this value instead of a boolean. */
+  readonly authorityAnswers?: ReadonlyMap<string, unknown>;
   /** Lower-cased hash to the node's answer. */
   readonly transactions?: ReadonlyMap<string, Outcome<RawTransaction | undefined>>;
   readonly signer?: Outcome<Address | undefined>;
@@ -209,12 +236,15 @@ export const rig = (world: World, overrides: Partial<RemovedKeyInputs> = {}, cod
 
         return ACCOUNT_FILTER;
       },
+      privilegeFilter: () => PRIVILEGE_FILTER,
       fetch: async (filter, range) => {
         record({ kind: 'fetch', filter, range: { ...range } });
 
-        const notifications = await answer(world.notifications);
+        const privileged = filter === PRIVILEGE_FILTER;
+        const notifications = await answer(privileged ? (world.privileges ?? { value: [] }) : world.notifications);
+        const shape = privileged ? world.privilegesFetched : world.fetched;
 
-        return (world.fetched === undefined ? { notifications, skipped: [] } : world.fetched(notifications)) as FetchedNotifications;
+        return (shape === undefined ? { notifications, skipped: [] } : shape(notifications)) as FetchedNotifications;
       },
     },
     action: {
@@ -224,6 +254,8 @@ export const rig = (world: World, overrides: Partial<RemovedKeyInputs> = {}, cod
         const reason = world.authorityRejects?.get(candidate.toLowerCase());
 
         if (reason !== undefined) throw reason;
+
+        if (world.authorityAnswers?.has(candidate.toLowerCase()) === true) return world.authorityAnswers.get(candidate.toLowerCase()) as boolean;
 
         return world.authorities.has(candidate.toLowerCase());
       },

@@ -70,7 +70,7 @@ function elementOf(type: ts.Type, name: string): ts.Type {
 }
 
 /** The values RemovedKey takes when no address could be named, listed independently of src/. */
-const REMOVED_KEY_VALUES = ['no-source', 'not-a-key', 'unread'];
+const REMOVED_KEY_VALUES = ['no-source', 'not-a-key', 'unread', 'ambiguous'];
 
 /** SetupDescription's fields besides removedKey, listed independently of src/. */
 const SETUP_DESCRIPTION_FIELDS = [
@@ -153,7 +153,7 @@ describe('the setup description and the recovery state', () => {
     expectTypeOf<NonNullable<DescribedFallbackHandler['handler']>>().toEqualTypeOf<Address>();
   });
 
-  it('removedKey is an address or one of the three values saying why none was named, and is required', () => {
+  it('removedKey is an address or one of the four values saying why none was named, and is required', () => {
     const removedKey = field(typeOf('SetupDescription'), 'removedKey');
     const members = constituents(removedKey);
     const addressLike = members.filter((member) => !member.isStringLiteral());
@@ -167,21 +167,21 @@ describe('the setup description and the recovery state', () => {
     expect(mutuallyAssignable(removedKey, typeOf('RemovedKey'))).toBe(true);
   });
 
-  it('RemovedKey is exactly an address or the three values, as callers write it', () => {
-    expectTypeOf<RemovedKey>().toEqualTypeOf<Address | 'no-source' | 'not-a-key' | 'unread'>();
+  it('RemovedKey is exactly an address or the four values, as callers write it', () => {
+    expectTypeOf<RemovedKey>().toEqualTypeOf<Address | 'no-source' | 'not-a-key' | 'unread' | 'ambiguous'>();
     expectTypeOf<SetupDescription['removedKey']>().toEqualTypeOf<RemovedKey>();
     expectTypeOf<RecoveryState['removedKey']>().toEqualTypeOf<RemovedKey>();
   });
 
-  it('REMOVED_KEY_UNNAMED is the three values in order, once each, exported from the core entry', () => {
+  it('REMOVED_KEY_UNNAMED is the four values in order, once each, exported from the core entry', () => {
     expect(REMOVED_KEY_UNNAMED).toEqual(REMOVED_KEY_VALUES);
-    expect(new Set(REMOVED_KEY_UNNAMED).size).toBe(3);
+    expect(new Set(REMOVED_KEY_UNNAMED).size).toBe(4);
     expect(core.REMOVED_KEY_UNNAMED).toBe(REMOVED_KEY_UNNAMED);
   });
 
   it('REMOVED_KEY_UNNAMED and the non-address part of RemovedKey agree', () => {
     expectTypeOf<(typeof REMOVED_KEY_UNNAMED)[number]>().toEqualTypeOf<Exclude<RemovedKey, Address>>();
-    expectTypeOf(REMOVED_KEY_UNNAMED).toEqualTypeOf<readonly ['no-source', 'not-a-key', 'unread']>();
+    expectTypeOf(REMOVED_KEY_UNNAMED).toEqualTypeOf<readonly ['no-source', 'not-a-key', 'unread', 'ambiguous']>();
   });
 
   it('RecoveryState carries removedKey, required and of the same type as the description', () => {

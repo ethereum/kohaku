@@ -53,6 +53,8 @@ export const REMOVED_KEY_UNNAMED = [
   'not-a-key',
   /** A read the inference needs failed. */
   'unread',
+  /** More than one address `isAuthority` confirms could be the key a handover removes. */
+  'ambiguous',
 ] as const;
 
 export type RemovedKeyUnnamed = (typeof REMOVED_KEY_UNNAMED)[number];

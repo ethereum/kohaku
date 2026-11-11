@@ -1,13 +1,27 @@
+import { encodeAbiParameters } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { describeSetup, type RemovedKey, type SetupDescriptionContext, type SetupDraft } from '../../src/index';
+import {
+  AmbireActionCodec,
+  describeSetup,
+  SetupClient,
+  type KitNotification,
+  type RawTransaction,
+  type RemovedKey,
+  type SetupDescriptionContext,
+  type SetupDraft,
+} from '../../src/index';
 import {
   ACCOUNT,
   ACTION,
   ACTION_INFO,
   ALL_ACTIONS_FILTER,
   build,
+  committed,
   CONFIGURATION,
+  defaultRegistry,
+  defaultWorld,
   DESCRIPTOR,
+  doubles,
   DRAFT,
   HANDLER_READ_DATA,
   KEY_1,
@@ -19,6 +33,9 @@ import {
   METHOD_B,
   MODULE_ANSWERS,
   PIN,
+  position,
+  SENDER,
+  ZERO_WORD,
 } from './doubles';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -160,5 +177,46 @@ describe('describeSetup', () => {
     for (const call of seen.parts.filter((part) => part.part !== 'events')) {
       expect(call.args[call.args.length - 1], `${call.part}.${call.member}`).toEqual(PIN);
     }
+  });
+});
+
+describe('describeSetup: two keys a handover could remove', () => {
+  it("carries 'ambiguous' where the setup signer is confirmed beside the previous handover's key", async () => {
+    const commit = committed(1n, ZERO_WORD, '0x', position(300));
+    const bound: KitNotification[] = [
+      {
+        kind: 'attempt-started',
+        account: ACCOUNT,
+        action: ACTION,
+        attemptId: 2n,
+        setupNonce: 1n,
+        setupBody: '0x',
+        usedPlaces: [],
+        usedMethods: [],
+        payload: encodeAbiParameters([{ type: 'address' }, { type: 'address' }], [KEY_1, KEY_2]),
+        order: { token: ZERO_ADDRESS, amount: 0n, payee: ZERO_ADDRESS },
+        consumableAfter: 0,
+        at: position(200),
+      },
+      { kind: 'attempt-consumed', account: ACCOUNT, action: ACTION, attemptId: 2n, at: position(201) },
+      commit,
+    ];
+    const made = doubles({ ...defaultWorld(), bound, authority: (key) => key === KEY_1 || key === SENDER });
+    const transaction: RawTransaction = { hash: commit.at.transactionHash, from: SENDER, to: ACCOUNT, input: '0x', blockNumber: 300, blockHash: commit.at.blockHash };
+    const client = new SetupClient(
+      { ...made.provider, transaction: async () => transaction },
+      DESCRIPTOR,
+      ACCOUNT,
+      ACTION,
+      CONFIGURATION,
+      made.manager,
+      made.action,
+      { ...made.events, privilegeFilter: () => ({ address: [ACCOUNT], topics: [] }) },
+      defaultRegistry(),
+      new AmbireActionCodec([ACTION]),
+      { recoverSigner: async () => SENDER },
+    );
+
+    expect((await client.describeSetup(DRAFT)).removedKey).toBe('ambiguous');
   });
 });

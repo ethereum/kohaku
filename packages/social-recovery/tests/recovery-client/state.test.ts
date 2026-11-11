@@ -159,6 +159,36 @@ describe('recoveryState: the removed key', () => {
     ['unread where the fetch fails', { failures: new Map([['events.fetch', INJECTED]]) }, 'unread'],
     ['unread where the fetch skipped a log', { notifications: PREVIOUS, fetched: withSkipped(skippedAt(position(202), INJECTED)) }, 'unread'],
     ['unread where the event manager answers a bare array', { notifications: PREVIOUS, fetched: bareArray }, 'unread'],
+    [
+      'ambiguous where the setup signer is confirmed beside the handover\'s key',
+      {
+        notifications: [committedAt(150), ...PREVIOUS],
+        transactions: new Map([[transactionHash.toLowerCase(), RAW]]),
+        signer: { value: KEY_OTHER },
+        authorities: new Set([KEY_OLD.toLowerCase(), KEY_OTHER.toLowerCase()]),
+      },
+      'ambiguous',
+    ],
+    [
+      'the handover\'s key where the setup signer\'s transaction read fails',
+      { notifications: [committedAt(150), ...PREVIOUS], signer: { value: KEY_OTHER }, failures: new Map([['provider.transaction', INJECTED]]) },
+      KEY_OLD,
+    ],
+    [
+      'the handover\'s key where the signer recovery rejects',
+      { notifications: [committedAt(150), ...PREVIOUS], transactions: new Map([[transactionHash.toLowerCase(), RAW]]), signer: { value: KEY_OTHER }, failures: new Map([['signer.recoverSigner', INJECTED]]) },
+      KEY_OLD,
+    ],
+    [
+      'the handover\'s key where the setup signer\'s isAuthority answers no boolean',
+      {
+        notifications: [committedAt(150), ...PREVIOUS],
+        transactions: new Map([[transactionHash.toLowerCase(), RAW]]),
+        signer: { value: KEY_OTHER },
+        authorityAnswers: new Map([[KEY_OTHER.toLowerCase(), 'yes']]),
+      },
+      KEY_OLD,
+    ],
   ])('answers %s', async (_name, overrides, expected) => {
     const given = world(overrides);
     const record = await rig(given).client.recoveryState();
@@ -167,16 +197,19 @@ describe('recoveryState: the removed key', () => {
     expect(record.removedKey).toEqual(await referenceKey(given));
   });
 
-  it('reads the account history once from the deployment block to the pinned block', async () => {
+  it('reads the account history once, then the privilege writes beside the named key, from the deployment block to the pinned block', async () => {
     const built = rig(world({ notifications: PREVIOUS }));
 
     await built.client.recoveryState();
 
     const fetches = callsTo(built.seen, 'events', 'fetch');
 
-    expect(fetches).toHaveLength(1);
+    expect(fetches).toHaveLength(2);
     expect(fetches[0]?.args[0]).toBe(ACCOUNT_FILTER);
     expect(fetches[0]?.args[1]).toEqual({ from: DESCRIPTOR.deployedAt, to: HEADER.number });
+    expect(callsTo(built.seen, 'events', 'privilegeFilter')).toHaveLength(1);
+    expect(fetches[1]?.args[0]).not.toBe(ACCOUNT_FILTER);
+    expect(fetches[1]?.args[1]).toEqual({ from: DESCRIPTOR.deployedAt, to: HEADER.number });
     expect(callsTo(built.seen, 'action', 'isAuthority').every((one) => JSON.stringify(lastArg(one)) === JSON.stringify(pinnedOf(HEADER)))).toBe(true);
   });
 
@@ -256,7 +289,7 @@ describe('recoveryState: one pin for the state and the inference', () => {
 
     for (const one of authorities) expect(lastArg(one)).toEqual(pinned);
 
-    expect(callsTo(built.seen, 'events', 'fetch').map((one) => (one.args[1] as { to: number }).to)).toEqual([HEADER.number]);
+    expect(callsTo(built.seen, 'events', 'fetch').map((one) => (one.args[1] as { to: number }).to)).toEqual([HEADER.number, HEADER.number]);
   });
 
   it.each([
@@ -274,7 +307,7 @@ describe('recoveryState: one pin for the state and the inference', () => {
     const built = rig(world({ notifications: PREVIOUS, delays: new Map([['manager.stateOf', 20]]), failures: new Map([['manager.stateOf', INJECTED]]) }));
 
     await expect(built.client.recoveryState()).rejects.toBe(INJECTED);
-    expect(callsTo(built.seen, 'events', 'fetch')).toHaveLength(1);
+    expect(callsTo(built.seen, 'events', 'fetch')).toHaveLength(2);
   });
 
   it('reads the state without waiting for the inference', async () => {

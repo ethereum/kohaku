@@ -175,8 +175,8 @@ describe('describeSetup: removedKey is copied as the client computed it', () => 
     expect(describeSetup(DRAFT, { ...CONTEXT, removedKey }).removedKey).toBe(removedKey);
   });
 
-  it('covers the three unnamed values', () => {
-    expect([...REMOVED_KEY_UNNAMED].sort()).toEqual(['no-source', 'not-a-key', 'unread']);
+  it('covers the four unnamed values', () => {
+    expect([...REMOVED_KEY_UNNAMED].sort()).toEqual(['ambiguous', 'no-source', 'not-a-key', 'unread']);
   });
 });
 

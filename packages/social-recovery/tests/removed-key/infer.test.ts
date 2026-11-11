@@ -273,12 +273,21 @@ describe('step 1: the latest consumed attempt', () => {
     await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe(key(1));
   });
 
-  it('is beaten by nothing: step 2 is not read when step 1 confirms', async () => {
+  it('is read against step 2: the setup signer is read after step 1 confirms, and a denied signer leaves the key', async () => {
     const history = [...attempt(3, key(1), 200), committed({ block: 300 })];
-    const { inputs, reads } = rig(world(history, { authorities: keySet(key(1), key(2)), signer: { value: key(2) } }), {}, codec);
+    const { inputs, reads } = rig(world(history, { authorities: keySet(key(1)), signer: { value: key(2) } }), {}, codec);
 
     await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe(key(1));
-    expect(kinds(reads)).toEqual(['fetch', 'isAuthority']);
+    expect(kinds(reads).slice(0, 2)).toEqual(['fetch', 'isAuthority']);
+    expect(kinds(reads).slice(2).sort()).toEqual(['fetch', 'isAuthority', 'recoverSigner', 'transaction']);
+    expect(askedKeys(reads)).toEqual([key(1), key(2)].map((one) => one.toLowerCase()));
+  });
+
+  it('is beaten by a setup signer isAuthority confirms too: ambiguous', async () => {
+    const history = [...attempt(3, key(1), 200), committed({ block: 300 })];
+    const { inputs } = rig(world(history, { authorities: keySet(key(1), key(2)), signer: { value: key(2) } }), {}, codec);
+
+    await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe('ambiguous');
   });
 });
 
@@ -330,7 +339,7 @@ describe('step 2: the signer of the latest setup commit', () => {
     const { inputs, reads } = rig(world(history, { authorities: keySet(key(2)), signer: { value: key(2) } }), {}, codec);
 
     await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe(key(2));
-    expect(kinds(reads)).toEqual(['fetch', 'transaction', 'recoverSigner', 'isAuthority']);
+    expect(kinds(reads)).toEqual(['fetch', 'transaction', 'recoverSigner', 'isAuthority', 'fetch']);
   });
 
   it('a recovered signer that isAuthority denies: not-a-key', async () => {
@@ -552,7 +561,7 @@ describe('malformed answers resolve rather than reject', () => {
     const { inputs, reads } = rig(world([note], { authorities: keySet(key(2)), signer: { value: key(2) }, transactions }), {}, codec);
 
     await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe(key(2));
-    expect(kinds(reads)).toEqual(['fetch', 'transaction', 'recoverSigner', 'isAuthority']);
+    expect(kinds(reads)).toEqual(['fetch', 'transaction', 'recoverSigner', 'isAuthority', 'fetch']);
   });
 
   it('a third-party codec decoding to a new key that is not an address names nothing', async () => {

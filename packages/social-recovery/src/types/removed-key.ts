@@ -7,12 +7,13 @@ import type {
   IRecoveryActionInteractor,
   ISignerRecovery,
   KitNotification,
+  RemovedKey,
 } from '../interfaces';
 
 /** What `inferRemovedKey` reads to name the key a handover removes for one account and one action. */
 export type RemovedKeyInputs = {
   /** Bound to the same account and action. */
-  readonly events: Pick<IEventManager, 'accountFilter' | 'fetch'>;
+  readonly events: Pick<IEventManager, 'accountFilter' | 'fetch' | 'privilegeFilter'>;
   readonly action: Pick<IRecoveryActionInteractor, 'isAuthority'>;
   /** Must serve `actionAddress`. */
   readonly codec: IActionCodec;
@@ -33,6 +34,13 @@ export type CheckedRemovedKeyInputs = Omit<RemovedKeyInputs, 'supplied' | 'accou
   readonly actionAddress: Address;
 };
 
+/** The inferred key and, where it is `ambiguous`, every address `isAuthority` confirmed, the key the walk named first. */
+export type RemovedKeyReading = {
+  readonly key: RemovedKey;
+  /** Empty unless `key` is `ambiguous`. */
+  readonly candidates: readonly Address[];
+};
+
 /** One step's answer: a confirmed key, a named key `isAuthority` denied, a failed read, or nothing named. */
 export type RemovedKeyStepAnswer = Address | 'denied' | 'unread' | undefined;
 
@@ -41,3 +49,6 @@ export type RemovedKeyNotification = Extract<
   KitNotification,
   { readonly kind: 'setup-committed' | 'attempt-started' | 'attempt-consumed' }
 >;
+
+/** The account's own privilege write, a source of the addresses the inference reads beside the key it names. */
+export type RemovedKeyPrivilegeWrite = Extract<KitNotification, { readonly kind: 'privilege-changed' }>;

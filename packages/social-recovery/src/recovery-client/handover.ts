@@ -1,8 +1,8 @@
 import { RECOVERY_CLIENT_HANDOVER_REFUSED_MESSAGE } from '../constants';
 import { KitRefusalError } from '../client-core';
 import { assertBool, isRemovedKeyUnnamed } from '../formats/guards';
-import type { Address, Handover, PinnedBlock, RemovedKey } from '../interfaces';
-import { inferRemovedKey } from '../removed-key';
+import type { Address, FindingValues, Handover, PinnedBlock, RemovedKey } from '../interfaces';
+import { removedKeyReading } from '../removed-key/infer';
 import type { RecoveryClientParts, ResolvedRemovedKey } from '../types/recovery-client';
 import { addError, emptyFindings } from '../validation/common';
 import { handoverFindings } from '../validation/request-handover';
@@ -26,19 +26,20 @@ function resolvedKey(key: RemovedKey, supplied: Address | undefined): ResolvedRe
  * The handover with the key it removes named: the supplied one once the action confirms it is a key, else the one
  * `inferRemovedKey` names. Refuses with one `KitRefusalError` carrying every handover finding: a zero address, one address
  * on both sides, a removed key that is not a key or cannot be named, a new key that already holds a privilege, or a new key
- * nobody could use (the account, the manager, the action, its kit slot or the fallback-handler entry).
+ * nobody could use (the account, the manager, the action, its kit slot or the fallback-handler entry). An `ambiguous` key's
+ * finding lists as `candidates` every address `isAuthority` confirmed, the named key first, for the caller to supply one.
  * Every read is pinned to `block`. A rejection of the supplied key's `isAuthority` or of `holdsAnyPrivilege` rejects the init
- * with the same value, passed through by the inference; a failure inside the inference's own reads names nothing and becomes the `handover.removed-unknown` finding.
+ * with the same value, passed through by the inference; a failed read inside the inference before it names a key becomes the `handover.removed-unknown` finding.
  */
 export async function namedHandover(parts: RecoveryClientParts, handover: Handover, block: PinnedBlock): Promise<Required<Handover>> {
   const { newAuthority, removedAuthority: supplied } = handover;
   const inputs = inferenceInputs(parts, supplied);
-  const key = await inferRemovedKey(inputs, block);
+  const reading = await removedKeyReading(inputs, block);
   const holds: unknown = await parts.recoveryAction.holdsAnyPrivilege(newAuthority, block);
 
   assertBool(holds, 'holdsAnyPrivilege');
 
-  const { named, removedIsAuthority, unknown } = resolvedKey(key, supplied);
+  const { named, removedIsAuthority, unknown } = resolvedKey(reading.key, supplied);
   const findings = emptyFindings();
 
   handoverFindings(
@@ -53,7 +54,11 @@ export async function namedHandover(parts: RecoveryClientParts, handover: Handov
     findings,
   );
 
-  if (unknown !== undefined) addError(findings, 'handover.removed-unknown', 'request', { account: parts.account, removedKey: unknown });
+  if (unknown !== undefined) {
+    const listed: FindingValues = unknown === 'ambiguous' ? { candidates: reading.candidates } : {};
+
+    addError(findings, 'handover.removed-unknown', 'request', { account: parts.account, removedKey: unknown, ...listed });
+  }
 
   if (findings.errors.length > 0 || named === undefined) {
     throw new KitRefusalError(RECOVERY_CLIENT_HANDOVER_REFUSED_MESSAGE, { findings });
