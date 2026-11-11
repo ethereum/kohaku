@@ -2,6 +2,7 @@ import { encodeFunctionData } from 'viem';
 import { pinBlockHeader } from '../client-core';
 import { RECOVERY_ACTION_FALLBACK_HANDLER_SLOT, RECOVERY_ACTION_PRIVILEGES_ABI, RECOVERY_ACTION_READ_FROM } from '../constants';
 import { assertBytes, assertDependency, lowerHex, sameAddress } from '../formats/guards';
+import { decodedOnly } from '../formats/notifications';
 import {
   METHOD_TIERS,
   type ActionInfo,
@@ -116,13 +117,18 @@ export async function judgmentReads(
   return { methods: methodEntries, action: await withImplementation(parts, block, withEntry) };
 }
 
-/** The manager's setup notifications over the account with the action topic left open, from the deployment block to the pinned one. */
+/**
+ * The manager's setup notifications over the account with the action topic left open, from the deployment block to the pinned one;
+ * a skipped log rejects the read with what its decoder threw.
+ */
 export async function accountWideEvents(parts: SetupClientParts, block: PinnedBlock): Promise<readonly KitNotification[]> {
   const from = parts.descriptor.deployedAt;
 
   if (from > block.number) return [];
 
-  return await parts.events.fetch(parts.events.accountFilter({ allActions: true }), { from, to: block.number });
+  const read = await parts.events.fetch(parts.events.accountFilter({ allActions: true }), { from, to: block.number });
+
+  return decodedOnly(read);
 }
 
 /** Whether the account holds code at the block; an account not yet deployed answers none of the action's authority reads. */

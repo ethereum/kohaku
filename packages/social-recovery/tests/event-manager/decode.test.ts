@@ -17,6 +17,7 @@ import {
   eventLog,
   lower,
   makeReader,
+  MALFORMED_OWNED,
   MANAGER,
   METHOD_AADHAAR,
   METHOD_ECDSA,
@@ -326,6 +327,14 @@ describe('decodeLog: an owned log whose bytes do not fit the layout (throws)', (
 
   it('the same malformed log from an unowned address is still undefined', () => {
     expect(reader.decodeLog(rawLog(STRANGER, cleared.topics.slice(0, 2), cleared.data))).toBeUndefined();
+  });
+});
+
+describe('decodeLog: every owned log a fetch skips still throws here', () => {
+  const reader = makeReader();
+
+  it.each(MALFORMED_OWNED)('%s throws', (_label, make) => {
+    expect(() => reader.decodeLog(make({ blockNumber: 9, logIndex: 0 }))).toThrow();
   });
 });
 

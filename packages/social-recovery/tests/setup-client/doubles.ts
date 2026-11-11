@@ -13,6 +13,7 @@ import {
   type BlockTag,
   type ClientConfiguration,
   type DeploymentDescriptor,
+  type FetchedNotifications,
   type FilterSpec,
   type Hex,
   type IActionCodec,
@@ -367,6 +368,8 @@ export type World = {
   bound: Answer<readonly KitNotification[]>;
   /** What `fetch` answers over the filter with the action topic left open. */
   allActions: Answer<readonly KitNotification[]>;
+  /** What `fetch` resolves to around the notifications it answers. */
+  fetched: (notifications: readonly KitNotification[]) => unknown;
   /** What `call` answers for one simulation, by its index, and for the account's handler read, which is no simulation, at index -1. */
   simulate: (to: Address, data: Hex, from: Address, index: number) => Promise<Hex>;
   /** What `call` answers to the action's `MANAGER()`, which is no simulation. */
@@ -386,6 +389,7 @@ export const defaultWorld = (): World => ({
   modules: () => MODULE_ANSWERS,
   bound: [],
   allActions: [],
+  fetched: (notifications) => ({ notifications, skipped: [] }),
   simulate: async () => '0x',
   manager: addressWord(MANAGER),
   implementation: addressWord(DESCRIPTOR.servedImplementation),
@@ -605,7 +609,7 @@ export function doubles(world: World): Doubles {
       note('events', 'fetch', [filter, range]);
       seen.fetches.push({ filter, range });
 
-      return answer(filter === ALL_ACTIONS_FILTER ? world.allActions : world.bound);
+      return world.fetched(await answer(filter === ALL_ACTIONS_FILTER ? world.allActions : world.bound)) as FetchedNotifications;
     },
     decodeLog() {
       throw new Error('unexpected call to decodeLog');

@@ -29,6 +29,7 @@ import {
   referenceConfigurationCommitment,
   ZERO_WORD,
 } from './support';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const NONCE = 7n;
 const COMMITMENT = referenceConfigurationCommitment(CONFIGURATION, ACCOUNT, ACTION, NONCE);
@@ -132,6 +133,51 @@ describe('restoreConfiguration from a password: the read', () => {
     const double = eventsDouble({ rejects: failure });
 
     await expect(restoreConfiguration(double.events, ACCOUNT, ACTION, PASSWORD, STATE, BLOCK)).rejects.toBe(failure);
+  });
+});
+
+describe('restoreConfiguration from a password: a read that skipped a log', () => {
+  /** A restore whose fetch answers the stored setup's event, shaped by `fetched`. */
+  const restoreShaped = (fetched: (notifications: readonly KitNotification[]) => unknown) => {
+    const double = eventsDouble([committed(NONCE, COMMITMENT, SHORT_PAYLOAD, position(100))], fetched);
+
+    return restoreConfiguration(double.events, ACCOUNT, ACTION, PASSWORD, STATE, BLOCK);
+  };
+
+  it.each([
+    ['an Error', new Error('undecodable log')],
+    ['a string', 'undecodable log'],
+    ['a plain object', { reason: 'undecodable log' }],
+  ])('rejects with the skipped entry\'s error itself, %s, rather than selecting an event', async (_label, failure) => {
+    await expect(restoreShaped(withSkipped(skippedAt(position(150), failure)))).rejects.toBe(failure);
+  });
+
+  it('rejects with the first skipped entry\'s error where several were skipped', async () => {
+    const first = new Error('first in log order');
+    const later = new Error('later in log order');
+
+    await expect(restoreShaped(withSkipped(skippedAt(position(90), first), skippedAt(position(150), later)))).rejects.toBe(first);
+  });
+
+  it.each<[string, (notifications: readonly KitNotification[]) => unknown]>([
+    ['a bare array of notifications', bareArray],
+    ['a record without skipped', (notifications) => ({ notifications })],
+    ['a record whose skipped is not an array', (notifications) => ({ notifications, skipped: { length: 0 } })],
+    ['a record without notifications', () => ({ skipped: [] })],
+    ['null', () => null],
+  ])('rejects with a TypeError, never a refusal, where the event manager answers %s', async (_label, fetched) => {
+    const thrown = await restoreShaped(fetched).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(thrown).toBeInstanceOf(TypeError);
+  });
+
+  it('a record that skipped nothing restores as before', async () => {
+    const error = await refusal(restoreShaped((notifications) => ({ notifications, skipped: [] })));
+
+    expect(error.restoreCause).toStrictEqual(unopened(2));
   });
 });
 

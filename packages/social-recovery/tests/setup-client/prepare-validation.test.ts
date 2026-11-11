@@ -35,12 +35,14 @@ import {
   OTHER_ACTION,
   PIN,
   pinnedPartCalls,
+  position,
   referenceCommitment,
   type Seen,
   simulationCalls,
   transportFailure,
   withBackup,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000';
 const OTHER_MANAGER: Address = getAddress(`0x${'a9'.repeat(20)}`);
@@ -293,6 +295,35 @@ describe('a failed validation read', () => {
     const { thrown, seen } = await refusal(optionsFor(failure), CLEAN);
 
     expect(thrown).toBe(failure);
+    expect(members(seen)).not.toContain('action.armingCall');
+    expect(members(seen)).not.toContain('manager.prepareCommitSetup');
+    expect(simulationCalls(seen)).toEqual([]);
+  });
+});
+
+describe('a validation read that skipped a log', () => {
+  it('rejects the prepare with the skipped entry\'s error itself, as validateSetup does, building nothing', async () => {
+    const failure = new Error('undecodable log');
+    const options: BuildOptions = { world: { fetched: withSkipped(skippedAt(position(200), failure)) } };
+
+    await expect(build(options).client.validateSetup(CLEAN)).rejects.toBe(failure);
+
+    const { thrown, seen } = await refusal(options, CLEAN);
+
+    expect(thrown).toBe(failure);
+    expect(members(seen)).not.toContain('action.armingCall');
+    expect(members(seen)).not.toContain('manager.prepareCommitSetup');
+    expect(simulationCalls(seen)).toEqual([]);
+  });
+
+  it('rejects the prepare with a TypeError where the event manager answers a bare array, building nothing', async () => {
+    const options: BuildOptions = { world: { fetched: bareArray } };
+
+    await expect(build(options).client.validateSetup(CLEAN)).rejects.toThrow(TypeError);
+
+    const { thrown, seen } = await refusal(options, CLEAN);
+
+    expect(thrown).toBeInstanceOf(TypeError);
     expect(members(seen)).not.toContain('action.armingCall');
     expect(members(seen)).not.toContain('manager.prepareCommitSetup');
     expect(simulationCalls(seen)).toEqual([]);

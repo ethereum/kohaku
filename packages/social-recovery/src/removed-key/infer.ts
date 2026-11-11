@@ -1,11 +1,12 @@
 import type { KitNotification, PinnedBlock, RemovedKey } from '../interfaces';
 import type { CheckedRemovedKeyInputs, RemovedKeyInputs } from '../types/removed-key';
 import { checkedBlock } from '../formats/guards';
+import { decodedOnly } from '../formats/notifications';
 import { checkedInputs } from './check';
 import { isWellFormedAnswer } from './select';
 import { confirm, fromHandover, fromSetupSigner } from './steps';
 
-/** The bound account's and action's manager notifications from the deployment block to the pinned one; `unread` where the read fails. */
+/** The bound account's and action's manager notifications from the deployment block to the pinned one; `unread` where the read fails or skips a log. */
 async function readNotifications(
   inputs: CheckedRemovedKeyInputs,
   block: PinnedBlock,
@@ -13,10 +14,11 @@ async function readNotifications(
   if (inputs.descriptor.deployedAt > block.number) return [];
 
   try {
-    const notifications: unknown = await inputs.events.fetch(inputs.events.accountFilter(), {
+    const read: unknown = await inputs.events.fetch(inputs.events.accountFilter(), {
       from: inputs.descriptor.deployedAt,
       to: block.number,
     });
+    const notifications = decodedOnly(read);
 
     return isWellFormedAnswer(notifications) ? notifications : 'unread';
   } catch {

@@ -26,6 +26,7 @@ import {
   ZERO,
   type World,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const codec = new AmbireActionCodec([ACTION]);
 
@@ -497,6 +498,29 @@ describe('malformed answers resolve rather than reject', () => {
 
     await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe('unread');
     expect(kinds(reads)).toEqual(['fetch']);
+  });
+
+  it.each<[string, (notifications: readonly KitNotification[]) => unknown]>([
+    ['a record that skipped a log', withSkipped(skippedAt(positionAt({ block: 150 }), new Error('undecodable log')))],
+    ['a record that skipped a log whose error is not an Error', withSkipped(skippedAt(positionAt({ block: 150 }), 'undecodable log'))],
+    ['the bare array an older event manager returns', bareArray],
+    ['a record without skipped', (notifications) => ({ notifications })],
+    ['a record whose skipped is not an array', (notifications) => ({ notifications, skipped: { length: 0 } })],
+    ['a record whose skipped is null', (notifications) => ({ notifications, skipped: null })],
+    ['a record without notifications', () => ({ skipped: [] })],
+    ['null', () => null],
+  ])('fetch answering %s: unread, no authority read, though its notifications would name a confirmed key', async (_label, fetched) => {
+    const { inputs, reads } = rig({ ...world(attempt(3, key(1), 200), { authorities: keySet(key(1)) }), fetched }, {}, codec);
+
+    await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe('unread');
+    expect(kinds(reads)).toEqual(['fetch']);
+  });
+
+  it('fetch answering a record that skipped nothing names the key those notifications name', async () => {
+    const fetched = (notifications: readonly KitNotification[]) => ({ notifications, skipped: [] });
+    const { inputs } = rig({ ...world(attempt(3, key(1), 200), { authorities: keySet(key(1)) }), fetched }, {}, codec);
+
+    await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe(key(1));
   });
 
   describe.each(['blockNumber', 'logIndex'] as const)('a first SetupCommitted whose %s is malformed, a valid one after it', (member) => {

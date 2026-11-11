@@ -10,6 +10,7 @@ import {
 import { BackupUnopenedError, openBackup } from '../encryption';
 import { assertPassword } from '../encryption/cipher';
 import { assertBytes32, assertObject, assertUintBigint, assertUintNumber, checkedBlock, lowerHex, normalizeAddress } from '../formats/guards';
+import { decodedOnly } from '../formats/notifications';
 import type {
   ActionState,
   Address,
@@ -81,8 +82,8 @@ async function openCurrentBackup(
   block: PinnedBlock,
 ): Promise<Configuration> {
   const { account, action, setupCommitment, nonce } = authenticated;
-  const notifications = await events.fetch(events.accountFilter(), { from, to: block.number });
-  const latest = latestCommitted(notifications);
+  const read = await events.fetch(events.accountFilter(), { from, to: block.number });
+  const latest = latestCommitted(decodedOnly(read));
 
   if (
     latest === undefined ||

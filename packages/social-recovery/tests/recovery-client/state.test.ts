@@ -27,6 +27,7 @@ import {
 } from './doubles';
 import { payloadOf } from './encodings';
 import { membersOf } from './prepare-fixtures';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const position = (block: number, index = 0): LogPosition => ({
   blockNumber: block,
@@ -156,6 +157,8 @@ describe('recoveryState: the removed key', () => {
     ['no-source without the seam and without a handover', { notifications: [committedAt(150)] }, 'no-source'],
     ['not-a-key where isAuthority denies the named key', { notifications: PREVIOUS, authorities: new Set() }, 'not-a-key'],
     ['unread where the fetch fails', { failures: new Map([['events.fetch', INJECTED]]) }, 'unread'],
+    ['unread where the fetch skipped a log', { notifications: PREVIOUS, fetched: withSkipped(skippedAt(position(202), INJECTED)) }, 'unread'],
+    ['unread where the event manager answers a bare array', { notifications: PREVIOUS, fetched: bareArray }, 'unread'],
   ])('answers %s', async (_name, overrides, expected) => {
     const given = world(overrides);
     const record = await rig(given).client.recoveryState();

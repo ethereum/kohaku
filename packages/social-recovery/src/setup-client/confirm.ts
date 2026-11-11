@@ -2,6 +2,7 @@ import { decodeFunctionData } from 'viem';
 import { POLICY_MANAGER_WRITES_ABI, SETUP_CLIENT_COMMITMENT_UNMATCHED_MESSAGE, SETUP_CLIENT_OTHER_MANAGER_MESSAGE } from '../constants';
 import { configurationCommitment, KitRefusalError } from '../client-core';
 import { assertArray, assertBytes, assertObject, checkedBlock, lowerHex, normalizeAddress, sameAddress } from '../formats/guards';
+import { decodedOnly } from '../formats/notifications';
 import type { Hex, KitNotification, PinnedBlock, PreparedBatch, PreparedCall, SetupConfirmation, SetupDraft } from '../interfaces';
 import type { SetupCommitted } from '../types/client-core';
 import type { SetupClientParts } from '../types/setup-client';
@@ -110,7 +111,7 @@ export async function confirmAt(
   const { block } = await pinRead(parts);
   const range = { from: preparedBlock.number, to: block.number };
   const [notifications, isAuthorized] = await Promise.all([
-    range.from > range.to ? Promise.resolve([]) : parts.events.fetch(parts.events.accountFilter(), range),
+    range.from > range.to ? Promise.resolve([]) : parts.events.fetch(parts.events.accountFilter(), range).then(decodedOnly),
     authorizedAt(parts, block),
   ]);
   const atNonce = committedAt(parts, notifications, nonce);

@@ -46,6 +46,7 @@ import {
   revert,
   transportFailure,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 /** The context the client should hand the pure judgment, built from what the doubles answer. */
 function expectedContext(
@@ -259,6 +260,18 @@ describe('validateSetup', () => {
     const failure = transportFailure();
 
     await expect(build({ world: { allActions: { rejects: failure } } }).client.validateSetup(DRAFT)).rejects.toBe(failure);
+  });
+
+  it('rejects with the error of a log the account-wide read skipped, rather than judging the events it decoded', async () => {
+    const failure = new Error('undecodable log');
+    const managerEvents = [committed(1n, `0x${'01'.repeat(32)}`, '0x', position(200), OTHER_ACTION)];
+    const { client } = build({ world: { allActions: managerEvents, fetched: withSkipped(skippedAt(position(201), failure)) } });
+
+    await expect(client.validateSetup(DRAFT)).rejects.toBe(failure);
+  });
+
+  it('rejects with a TypeError where the event manager answers the account-wide read with a bare array', async () => {
+    await expect(build({ world: { fetched: bareArray } }).client.validateSetup(DRAFT)).rejects.toThrow(TypeError);
   });
 
   it('a registry of the shipped methods: a config its method cannot decode, or whose key is off the curve, is credential.config-malformed', async () => {

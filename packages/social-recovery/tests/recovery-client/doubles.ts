@@ -14,6 +14,7 @@ import {
   type ClientConfiguration,
   type Configuration,
   type DeploymentDescriptor,
+  type FetchedNotifications,
   type FilterSpec,
   type Handover,
   type Hex,
@@ -237,6 +238,8 @@ export type World = {
   readonly authorities: ReadonlySet<string>;
   readonly privileged: ReadonlySet<string>;
   readonly notifications: readonly KitNotification[];
+  /** Present: what `fetch` resolves to around `notifications`, in place of a record that skipped nothing. */
+  readonly fetched?: (notifications: readonly KitNotification[]) => unknown;
   readonly transactions: ReadonlyMap<string, RawTransaction | undefined>;
   /** Present: the client gets a signer recovery answering this. */
   readonly signer?: { readonly value: Address | undefined };
@@ -421,7 +424,9 @@ export function rig(given: World = world(), configuration: ClientConfiguration =
 
       return { address: [], topics: [] };
     },
-    fetch: async (filter: FilterSpec, range: BlockRange) => answer('events', 'fetch', [filter, { ...range }], () => given.notifications),
+    fetch: async (filter: FilterSpec, range: BlockRange) =>
+      answer('events', 'fetch', [filter, { ...range }], () =>
+        (given.fetched === undefined ? { notifications: given.notifications, skipped: [] } : given.fetched(given.notifications)) as FetchedNotifications),
     decodeLog(log) {
       seen.push({ part: 'events', member: 'decodeLog', args: [log] });
 

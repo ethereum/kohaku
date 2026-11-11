@@ -4,6 +4,7 @@ import type {
   Address,
   BlockRange,
   DeploymentDescriptor,
+  FetchedNotifications,
   FilterSpec,
   Handover,
   Hex,
@@ -163,6 +164,8 @@ export type Outcome<T> = { readonly value: T } | { readonly rejects: unknown };
 /** What each double answers; every read is recorded in `reads` before it is answered. */
 export type World = {
   readonly notifications: Outcome<readonly KitNotification[]>;
+  /** Present: what `fetch` resolves to around the notifications, in place of a record that skipped nothing. */
+  readonly fetched?: (notifications: readonly KitNotification[]) => unknown;
   /** Lower-cased keys `isAuthority` confirms; a key in `rejects` rejects instead. */
   readonly authorities: ReadonlySet<string>;
   readonly authorityRejects?: ReadonlyMap<string, unknown>;
@@ -209,7 +212,9 @@ export const rig = (world: World, overrides: Partial<RemovedKeyInputs> = {}, cod
       fetch: async (filter, range) => {
         record({ kind: 'fetch', filter, range: { ...range } });
 
-        return answer(world.notifications);
+        const notifications = await answer(world.notifications);
+
+        return (world.fetched === undefined ? { notifications, skipped: [] } : world.fetched(notifications)) as FetchedNotifications;
       },
     },
     action: {

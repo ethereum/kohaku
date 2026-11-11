@@ -536,6 +536,8 @@ describe('the other records with named fields', () => {
     ['SetupConfirmation', ['landed', 'cause', 'nonce', 'setupCommitment', 'isAuthorized', 'position'], 'the setup confirmation'],
     ['Assessment', ['filled', 'missing', 'clauses', 'ruleSatisfied', 'findings'], 'the assessment of a gathering'],
     ['BlockRange', ['from', 'to'], 'the block range of a fetch'],
+    ['FetchedNotifications', ['notifications', 'skipped'], 'what a fetch resolves to'],
+    ['SkippedLog', ['at', 'log', 'error'], 'an owned log a fetch could not decode'],
     ['ValidationResult', ['errors', 'warnings'], 'the validation result'],
     ['ValidityWindow', ['window'], 'the validity window'],
     [

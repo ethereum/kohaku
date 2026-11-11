@@ -18,6 +18,7 @@ import {
   type Hex,
   type IProvider,
   type IRecoveryMethod,
+  type LogPosition,
   type RawLog,
 } from '../../src/index';
 
@@ -240,3 +241,66 @@ export const lower = (value: unknown): unknown => {
 
 /** An address as the 32-byte topic an indexed address fills, lowercase. */
 export const addressTopic = (address: Address): Hex => `0x${address.slice(2).toLowerCase().padStart(64, '0')}`;
+
+/** The position a notification of the log carries: its hashes lower-cased, and `removed` false where the log omits it. */
+export const positionOfLog = (log: RawLog): LogPosition => ({
+  blockNumber: log.blockNumber,
+  blockHash: log.blockHash.toLowerCase() as Hex,
+  logIndex: log.logIndex,
+  transactionHash: log.transactionHash.toLowerCase() as Hex,
+  removed: log.removed ?? false,
+});
+
+/** What `decodeLog` throws on the log; fails the test where it does not throw. */
+export const thrownBy = (log: RawLog): unknown => {
+  try {
+    makeReader().decodeLog(log);
+  } catch (error: unknown) {
+    return error;
+  }
+
+  throw new Error('decodeLog did not throw on the log');
+};
+
+/** A well-formed `SetupCleared` from the manager at the place. */
+const clearedAt = (place: LogPlace): RawLog => eventLog(MANAGER, 'SetupCleared', { account: ACCOUNT, action: ACTION, nonce: 1n }, place);
+
+/** Owned logs whose bytes do not fit their event's layout, so `decodeLog` throws on each, by what is wrong with them. */
+export const MALFORMED_OWNED: readonly (readonly [string, (place: LogPlace) => RawLog])[] = [
+  [
+    'a manager event missing its action topic',
+    (place) => {
+      const log = clearedAt(place);
+
+      return { ...log, topics: log.topics.slice(0, 2) };
+    },
+  ],
+  [
+    'a manager event with an extra topic',
+    (place) => {
+      const log = clearedAt(place);
+
+      return { ...log, topics: [...log.topics, addressTopic(STRANGER)] };
+    },
+  ],
+  ['a manager event with truncated data', (place) => ({ ...clearedAt(place), data: '0x01' })],
+  ['a Paused with its account indexed, from a registered module', (place) => rawLog(REGISTERED_MODULE, [TOPIC0.Paused, addressTopic(STRANGER)], '0x', place)],
+  [
+    "the account's LogPrivilegeChanged with its value in a topic",
+    (place) => rawLog(ACCOUNT, [TOPIC0.LogPrivilegeChanged, addressTopic(ZERO), `0x${'7f'.repeat(32)}`], '0x', place),
+  ],
+  [
+    'an AttemptCancelled no manager path emits',
+    (place) =>
+      eventLog(
+        MANAGER,
+        'AttemptCancelled',
+        { account: ACCOUNT, action: ACTION, attemptId: 3n, canceller: STRANGER, vetoingMethod: ZERO, setupNonce: 2n, usedPlaces: [] },
+        place,
+      ),
+  ],
+  [
+    'an AdminRenounced whose previous admin sits in the data, from a shipped method',
+    (place) => rawLog(SHIPPED_EXTRA, [TOPIC0.AdminRenounced], addressTopic(STRANGER), place),
+  ],
+];
