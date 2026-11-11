@@ -90,6 +90,11 @@ describe('describeSetup refuses a malformed action read, naming the path', () =>
     ['an answered fallbackHandlerEntry of 31 bytes', { fallbackHandlerEntry: { answered: true, value: `0x${'ab'.repeat(31)}` } }, /context\.action\.fallbackHandlerEntry\.value/],
     ['an answered fallbackHandlerEntry of 33 bytes', { fallbackHandlerEntry: { answered: true, value: `0x${'ab'.repeat(33)}` } }, /context\.action\.fallbackHandlerEntry\.value/],
     ['an answered fallbackHandlerEntry that is not hex', { fallbackHandlerEntry: { answered: true, value: `0x${'zz'.repeat(32)}` } }, /context\.action\.fallbackHandlerEntry\.value/],
+    ['a string actionImplementation', { actionImplementation: '0x4000000000000000000000000000000000000001' }, /context\.action\.actionImplementation/],
+    ['a null actionImplementation', { actionImplementation: null }, /context\.action\.actionImplementation/],
+    ['an actionImplementation whose answered is a string', { actionImplementation: { answered: 'yes' } }, /context\.action\.actionImplementation\.answered/],
+    ['an answered actionImplementation without a value', { actionImplementation: { answered: true } }, /context\.action\.actionImplementation\.value/],
+    ['an answered actionImplementation whose value is no address', { actionImplementation: { answered: true, value: 'nope' } }, /context\.action\.actionImplementation\.value/],
   ])('throws a TypeError for %s', (_name, change, path) => {
     const context = { ...CONTEXT, action: { ...CONTEXT.action, ...change } } as unknown as typeof CONTEXT;
 
@@ -132,6 +137,9 @@ describe('describeSetup and validateSetup share one guard over the action reads'
     ['fallbackHandlerEntry', (action) => ({ ...action, fallbackHandlerEntry: 'handler' }), /^context\.action\.fallbackHandlerEntry /],
     ['fallbackHandlerEntry.answered', (action) => ({ ...action, fallbackHandlerEntry: { answered: 1 } }), /^context\.action\.fallbackHandlerEntry\.answered /],
     ['fallbackHandlerEntry.value', (action) => ({ ...action, fallbackHandlerEntry: { answered: true, value: `0x${'ab'.repeat(20)}` } }), /^context\.action\.fallbackHandlerEntry\.value /],
+    ['actionImplementation', (action) => ({ ...action, actionImplementation: 'implementation' }), /^context\.action\.actionImplementation /],
+    ['actionImplementation.answered', (action) => ({ ...action, actionImplementation: { answered: 1 } }), /^context\.action\.actionImplementation\.answered /],
+    ['actionImplementation.value', (action) => ({ ...action, actionImplementation: { answered: true, value: `0x${'ab'.repeat(32)}` } }), /^context\.action\.actionImplementation\.value /],
   ])('a malformed %s throws the same TypeError message from both', (_member, change, path) => {
     const described = thrownBy(() => describeSetup(DRAFT, { ...CONTEXT, action: change(CONTEXT.action) } as unknown as typeof CONTEXT));
     const validated = thrownBy(() =>

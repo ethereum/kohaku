@@ -6,8 +6,37 @@ import type { Findings, SetupEvent, SetupValidationContext } from '../types/vali
 import { addError, addWarning, assertActionReads, fallbackHandlerOf, normalizeAddresses } from './common';
 
 /**
- * The account's deployment, the action's fit and audit findings: `account.not-deployed` in place of `action.unsupported`
- * where the account holds no code, since the fit is then unjudgeable, and `action.unaudited`.
+ * A code-less account's fit: `account.not-deployed` where the configuration names no `accountImplementation`; else the named
+ * one judged against the action's answered `actionImplementation`, or the descriptor's `servedImplementation` where that is
+ * unanswered or unread, a mismatch being `action.unsupported` and a match the warning `account.deploy-pending`.
+ */
+function codeLessFindings(context: SetupValidationContext, findings: Findings, action: Address, account: Address): void {
+  const { accountImplementation } = context.configuration;
+  const declared = accountImplementation === undefined ? undefined : normalizeAddress(accountImplementation, 'context.configuration.accountImplementation');
+  const served = normalizeAddress(context.descriptor.servedImplementation, 'context.descriptor.servedImplementation');
+
+  if (declared === undefined) {
+    addError(findings, 'account.not-deployed', 'account', { account, servedImplementation: served });
+
+    return;
+  }
+
+  const read = context.action.actionImplementation;
+  const answer = read?.answered === true ? normalizeAddress(read.value, 'context.action.actionImplementation.value') : undefined;
+  const answered: FindingValues = answer === undefined ? {} : { actionImplementation: answer };
+  const fit: FindingValues = { accountImplementation: declared, servedImplementation: served, ...answered };
+
+  if (declared === (answer ?? served)) {
+    addWarning(findings, 'account.deploy-pending', 'account', { account, ...fit });
+  } else {
+    addError(findings, 'action.unsupported', 'action', { action, account, supportsAccount: context.action.supportsAccount, ...fit });
+  }
+}
+
+/**
+ * The account's deployment, the action's fit and audit findings: with code, `action.unsupported` where the action does not
+ * serve the account; without code, the fit of the implementation the configuration declares, else `account.not-deployed`;
+ * then `action.unaudited`.
  */
 export function actionFindings(context: SetupValidationContext, findings: Findings): void {
   assertActionReads(context.action, 'context.action');
@@ -17,18 +46,16 @@ export function actionFindings(context: SetupValidationContext, findings: Findin
   const { actionInfo, supportsAccount, accountHoldsCode } = context.action;
   const { accountImplementation } = context.configuration;
 
-  if (!accountHoldsCode || !supportsAccount) {
+  if (!accountHoldsCode) {
+    codeLessFindings(context, findings, action, account);
+  } else if (!supportsAccount) {
     const named: FindingValues =
       accountImplementation === undefined
         ? {}
         : { accountImplementation: normalizeAddress(accountImplementation, 'context.configuration.accountImplementation') };
     const served = normalizeAddress(context.descriptor.servedImplementation, 'context.descriptor.servedImplementation');
 
-    if (accountHoldsCode) {
-      addError(findings, 'action.unsupported', 'action', { action, account, supportsAccount, ...named, servedImplementation: served });
-    } else {
-      addError(findings, 'account.not-deployed', 'account', { account, servedImplementation: served, ...named });
-    }
+    addError(findings, 'action.unsupported', 'action', { action, account, supportsAccount, ...named, servedImplementation: served });
   }
 
   const auditedActions = normalizeAddresses(context.descriptor.auditedActions, 'context.descriptor.auditedActions');

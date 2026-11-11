@@ -92,6 +92,17 @@ export const RECOVERY_ACTION_MANAGER_ABI = [
   },
 ] as const satisfies readonly AbiFunctionItem[];
 
+/** The Ambire action's `AMBIRE_IMPLEMENTATION()`, the account implementation whose proxy it serves. */
+export const RECOVERY_ACTION_IMPLEMENTATION_ABI = [
+  {
+    type: 'function',
+    name: 'AMBIRE_IMPLEMENTATION',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '_implementation', type: 'address' }],
+  },
+] as const satisfies readonly AbiFunctionItem[];
+
 /** A boolean view's return data: one word holding 0 or 1. */
 export const RECOVERY_ACTION_BOOL_RETURN_ABI = [{ type: 'bool' }] as const;
 

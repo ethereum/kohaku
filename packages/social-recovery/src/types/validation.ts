@@ -60,7 +60,9 @@ export type ActionReads = {
   readonly actionInfo: ReadResult<ActionInfo>;
   readonly supportsAccount: boolean;
   /**
-   * Whether the account holds code at the block; without it the draft gets `account.not-deployed` and no fit finding.
+   * Whether the account holds code at the block. Without it, a configuration naming no `accountImplementation` gets
+   * `account.not-deployed`; one naming it is judged against `actionImplementation` where answered, else the descriptor's
+   * `servedImplementation`, a mismatch being `action.unsupported` and a match the warning `account.deploy-pending`.
    * Deploy the account first, or in the transaction that carries the commit; the manager's `commitSetup` refuses an account the action does not serve.
    */
   readonly accountHoldsCode: boolean;
@@ -71,6 +73,8 @@ export type ActionReads = {
   readonly manager: ReadResult<Address>;
   /** The account's word under its fallback-handler slot, absent where it was not read. */
   readonly fallbackHandlerEntry?: ReadResult<Hex>;
+  /** The action's `AMBIRE_IMPLEMENTATION()` answer at the block, absent where not read. */
+  readonly actionImplementation?: ReadResult<Address>;
 };
 
 /** The reads a setup client hands `validateSetup`, all pinned to one block. */

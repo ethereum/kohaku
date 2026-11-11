@@ -344,6 +344,9 @@ export const ACTION_INFO: ActionInfo = { name: 'AmbireRecoveryAction', version: 
 /** The action's `MANAGER()` selector, from the signature written out by hand. */
 export const MANAGER_SELECTOR: Hex = toFunctionSelector('MANAGER()');
 
+/** The action's `AMBIRE_IMPLEMENTATION()` selector, from the signature written out by hand. */
+export const IMPLEMENTATION_SELECTOR: Hex = toFunctionSelector('AMBIRE_IMPLEMENTATION()');
+
 /** One ABI word holding the address, as a clean `MANAGER()` return. */
 export const addressWord = (address: Address): Hex => encodeAbiParameters([{ type: 'address' }], [address]);
 
@@ -365,6 +368,8 @@ export type World = {
   simulate: (to: Address, data: Hex, from: Address, index: number) => Promise<Hex>;
   /** What `call` answers to the action's `MANAGER()`, which is no simulation. */
   manager: Answer<Hex>;
+  /** What `call` answers to the action's `AMBIRE_IMPLEMENTATION()`, which is no simulation. */
+  implementation: Answer<Hex>;
 };
 
 export const defaultWorld = (): World => ({
@@ -380,6 +385,7 @@ export const defaultWorld = (): World => ({
   allActions: [],
   simulate: async () => '0x',
   manager: addressWord(MANAGER),
+  implementation: addressWord(DESCRIPTOR.servedImplementation),
 });
 
 /** The filter the events double hands out for the bound action. */
@@ -470,6 +476,8 @@ export function doubles(world: World): Doubles {
       seen.calls.push({ to, data, from, block });
 
       if (data.slice(0, 10).toLowerCase() === MANAGER_SELECTOR) return answer(world.manager);
+
+      if (data.slice(0, 10).toLowerCase() === IMPLEMENTATION_SELECTOR) return answer(world.implementation);
 
       simulations += 1;
 

@@ -60,6 +60,15 @@ export function assertActionReads(action: ActionReads, path: string): void {
 
     if (entry.answered) assertBytes32(entry.value, `${path}.fallbackHandlerEntry.value`);
   }
+
+  const implementation = action.actionImplementation;
+
+  if (implementation !== undefined) {
+    assertObject(implementation, `${path}.actionImplementation`);
+    assertBool(implementation.answered, `${path}.actionImplementation.answered`);
+
+    if (implementation.answered) assertAddress(implementation.value, `${path}.actionImplementation.value`);
+  }
 }
 
 /** The fallback-handler word in lower case, beside the address the account delegatecalls, its low 20 bytes, where they are not zero. */

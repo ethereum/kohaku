@@ -14,6 +14,7 @@ import {
   type PinnedBlock,
   type ReadResult,
 } from '../interfaces';
+import { actionImplementationAt } from '../recovery-action/implementation-read';
 import { actionManagerAt } from '../recovery-action/manager-read';
 import { wordReturn } from '../recovery-action/returns';
 import type { PinnedHeader } from '../types/client-core';
@@ -110,7 +111,9 @@ export async function judgmentReads(
     actionReads(parts, block, deployed),
   ]);
 
-  return { methods: methodEntries, action: await withFallbackHandler(parts, block, action) };
+  const withEntry = await withFallbackHandler(parts, block, action);
+
+  return { methods: methodEntries, action: await withImplementation(parts, block, withEntry) };
 }
 
 /** The manager's setup notifications over the account with the action topic left open, from the deployment block to the pinned one. */
@@ -131,11 +134,16 @@ export async function holdsCode(parts: SetupClientParts, block: PinnedBlock): Pr
   return code.toLowerCase() !== '0x';
 }
 
-/** Whether the action is authorized on the account at the block; false without asking where the account holds no code. */
-export async function authorizedAt(parts: SetupClientParts, block: PinnedBlock): Promise<boolean> {
-  if (!(await holdsCode(parts, block))) return false;
+/** Whether the action is authorized on the account at the block, given whether the account holds code there; false without asking where it holds none. */
+export async function authorizedGiven(parts: SetupClientParts, deployed: Promise<boolean>, block: PinnedBlock): Promise<boolean> {
+  if (!(await deployed)) return false;
 
   return await parts.recoveryAction.isAuthorized(block);
+}
+
+/** Whether the action is authorized on the account at the block; false without asking where the account holds no code. */
+export async function authorizedAt(parts: SetupClientParts, block: PinnedBlock): Promise<boolean> {
+  return await authorizedGiven(parts, holdsCode(parts, block), block);
 }
 
 /** The account's word under its fallback-handler slot at the block; any rejection, a revert, an undecodable answer or a failed transport, reads as unanswered. */
@@ -156,4 +164,11 @@ async function withFallbackHandler(parts: SetupClientParts, block: PinnedBlock, 
   if (!(action.accountHoldsCode && action.supportsAccount && sameAddress(parts.action, parts.descriptor.action))) return action;
 
   return { ...action, fallbackHandlerEntry: await fallbackHandlerRead(parts, block) };
+}
+
+/** The action's reads with the implementation it serves, read from the action only where the account holds no code and the configuration names the implementation it is about to get. */
+async function withImplementation(parts: SetupClientParts, block: PinnedBlock, action: ActionReads): Promise<ActionReads> {
+  if (action.accountHoldsCode || parts.configuration.accountImplementation === undefined) return action;
+
+  return { ...action, actionImplementation: await actionImplementationAt(parts.provider, parts.action, block.number) };
 }

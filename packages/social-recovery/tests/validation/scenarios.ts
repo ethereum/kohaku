@@ -19,6 +19,7 @@ import {
   PASSKEY,
   REQUEST_CONTEXT,
   SALT,
+  SERVED_IMPLEMENTATION,
   SETUP_CONTEXT,
   STATE,
   T,
@@ -90,6 +91,11 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
       managerEvents: [committed(ACCOUNT, OTHER_ACTION, 10)],
     }],
     ['an undeployed account', DRAFT, { ...SETUP_CONTEXT, action: { ...SETUP_CONTEXT.action, accountHoldsCode: false } }],
+    ['an undeployed account declared to get the served implementation', DRAFT, {
+      ...SETUP_CONTEXT,
+      action: { ...SETUP_CONTEXT.action, accountHoldsCode: false, supportsAccount: false },
+      configuration: { ...CONFIGURATION, accountImplementation: SERVED_IMPLEMENTATION },
+    }],
     ['a wallet config its codec cannot decode', withClauses([{ threshold: 1, credentials: [{ method: ECDSA, config: `0x${'ab'.repeat(20)}` }, credential(PASSKEY, 2)] }]), {
       ...SETUP_CONTEXT,
       methods: SETUP_CONTEXT.methods.map((reads) => (reads.module === ECDSA ? { ...reads, codec: walletMethod().codec } : reads)),

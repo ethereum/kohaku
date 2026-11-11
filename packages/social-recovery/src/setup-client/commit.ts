@@ -8,7 +8,7 @@ import type { Configuration, Hex, PreparedBatch, PreparedCall, PrepareOptions, S
 import type { SetupClientParts } from '../types/setup-client';
 import { assertBackupFits, assertBackupPassword, assertOptions } from './check';
 import { checkedDraft, draftConfiguration, publicMetadataOf } from './draft';
-import { authorizedAt, pinRead } from './reads';
+import { authorizedGiven, holdsCode, pinRead } from './reads';
 
 /** A fresh random AES-GCM nonce, drawn for every seal. */
 function freshNonce(): Hex {
@@ -44,6 +44,9 @@ async function backupBytes(
 /**
  * The commit of the draft at one pinned block: the arming write and the commit as one atomic batch while the action is not
  * authorized, the commit alone once it is, simulated unless the options or the configuration say otherwise.
+ * Where the account holds no code yet the batch comes back unsimulated whatever the options say, since separate calls cannot
+ * model a deployment: it is the inner batch the integrator wraps in its own deployment of the account, and simulates as the
+ * transaction it composes.
  * It runs no setup validation: the integrator calls `validateSetup` on the draft first. Before any read it refuses with a
  * `RangeError` a body past its ABI widths, and with a `KitRefusalError` carrying `backup.too-wide` an encrypted backup too
  * wide to seal.
@@ -65,8 +68,10 @@ export async function prepareCommit(
 
   assertBackupFits(draft, configuration);
 
-  const { block } = await pinRead(parts);
-  const [state, authorized] = await Promise.all([parts.policyManager.stateOf(block), authorizedAt(parts, block)]);
+  const pinned = await pinRead(parts);
+  const { block } = pinned;
+  const deployed = holdsCode(parts, block);
+  const [state, authorized] = await Promise.all([parts.policyManager.stateOf(block), authorizedGiven(parts, deployed, block)]);
 
   assertObject(state, 'state');
   assertUintBigint(state.setupNonce, FORMATS_SETUP_NONCE_BITS, 'state.setupNonce');
@@ -87,6 +92,8 @@ export async function prepareCommit(
   );
   const prepared: PreparedCall | PreparedBatch =
     arming === undefined ? commit : { kind: 'batch', calls: [arming, commit], atomic: true, block };
+
+  if (!(await deployed)) return await simulatePrepared(parts.provider, prepared, parts.account, parts.configuration, { simulate: false });
 
   return await simulatePrepared(parts.provider, prepared, parts.account, parts.configuration, options);
 }
