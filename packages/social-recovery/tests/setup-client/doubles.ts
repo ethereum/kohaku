@@ -347,6 +347,9 @@ export const MANAGER_SELECTOR: Hex = toFunctionSelector('MANAGER()');
 /** The action's `AMBIRE_IMPLEMENTATION()` selector, from the signature written out by hand. */
 export const IMPLEMENTATION_SELECTOR: Hex = toFunctionSelector('AMBIRE_IMPLEMENTATION()');
 
+/** The account's `privileges(address)` selector, its handler read's, hashed by the tests' own Keccak. */
+export const HANDLER_SELECTOR = selectorOf('privileges(address)') as Hex;
+
 /** One ABI word holding the address, as a clean `MANAGER()` return. */
 export const addressWord = (address: Address): Hex => encodeAbiParameters([{ type: 'address' }], [address]);
 
@@ -364,7 +367,7 @@ export type World = {
   bound: Answer<readonly KitNotification[]>;
   /** What `fetch` answers over the filter with the action topic left open. */
   allActions: Answer<readonly KitNotification[]>;
-  /** What `call` answers for one simulation, by its index. */
+  /** What `call` answers for one simulation, by its index, and for the account's handler read, which is no simulation, at index -1. */
   simulate: (to: Address, data: Hex, from: Address, index: number) => Promise<Hex>;
   /** What `call` answers to the action's `MANAGER()`, which is no simulation. */
   manager: Answer<Hex>;
@@ -478,6 +481,8 @@ export function doubles(world: World): Doubles {
       if (data.slice(0, 10).toLowerCase() === MANAGER_SELECTOR) return answer(world.manager);
 
       if (data.slice(0, 10).toLowerCase() === IMPLEMENTATION_SELECTOR) return answer(world.implementation);
+
+      if (data.slice(0, 10).toLowerCase() === HANDLER_SELECTOR) return world.simulate(to, data, from, -1);
 
       simulations += 1;
 
@@ -673,6 +678,10 @@ export const lastArgument = (call: PartCall): unknown => call.args[call.args.len
 
 /** The members the client called on the parts, in order. */
 export const members = (seen: Seen): string[] => seen.parts.map((call) => `${call.part}.${call.member}`);
+
+/** The provider calls the doubles answered as simulations: neither the action's `MANAGER()` or `AMBIRE_IMPLEMENTATION()` nor the account's handler read. */
+export const simulationCalls = (seen: Seen): Seen['calls'] =>
+  seen.calls.filter((call) => ![MANAGER_SELECTOR, IMPLEMENTATION_SELECTOR, HANDLER_SELECTOR].includes(call.data.slice(0, 10).toLowerCase() as Hex));
 
 /** The members of the parts that read or prepare against a block; `fetch` takes a range instead. */
 export const pinnedPartCalls = (seen: Seen): PartCall[] => seen.parts.filter((call) => call.part !== 'events');

@@ -1,6 +1,6 @@
 import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
-import type { Address, Hex } from '../../src/index';
+import { KitRefusalError, SETUP_CLIENT_VALIDATION_REFUSED_MESSAGE, type Address, type Hex } from '../../src/index';
 import {
   ACTION,
   DRAFT,
@@ -84,12 +84,21 @@ describe("the setup client's MANAGER() read", () => {
     expect(mismatched).toEqual(paired);
   });
 
-  it('prepareCommitSetup over a mismatched pair still prepares, with no MANAGER() read and no validation', async () => {
+  it('prepareCommitSetup over a mismatched pair makes one MANAGER() read and refuses with the findings carrying action.manager-mismatch', async () => {
+    const draft = withBackup(DRAFT, 'empty');
+    const findings = await build({ world: { manager: addressWord(OTHER_MANAGER) } }).client.validateSetup(draft);
     const { client, seen } = build({ world: { manager: addressWord(OTHER_MANAGER) } });
+    const thrown = await client.prepareCommitSetup(draft).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
 
-    await expect(client.prepareCommitSetup(withBackup(DRAFT, 'empty'))).resolves.toBeDefined();
-    expect(managerCalls(seen)).toEqual([]);
-    expect(members(seen)).toContain('manager.prepareCommitSetup');
-    expect(members(seen)).not.toContain('action.actionInfo');
+    expect((thrown as object).constructor).toBe(KitRefusalError);
+    expect((thrown as KitRefusalError).message).toBe(SETUP_CLIENT_VALIDATION_REFUSED_MESSAGE);
+    expect((thrown as KitRefusalError).findings).toEqual(findings);
+    expect((thrown as KitRefusalError).findings?.errors).toEqual([MISMATCH]);
+    expect(managerCalls(seen)).toEqual([{ to: ACTION, data: MANAGER_SELECTOR, from: ZERO, block: PIN.number }]);
+    expect(members(seen)).not.toContain('manager.prepareCommitSetup');
+    expect(members(seen)).not.toContain('action.armingCall');
   });
 });

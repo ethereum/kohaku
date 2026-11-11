@@ -58,3 +58,16 @@ export const checkedDraftRecord = (draft: SetupDraft, credentials: readonly Plac
   ...draftConfiguration(draft, credentials),
   privacy: { publicMetadata: publicMetadataOf(draft), backup: draft.privacy.backup },
 });
+
+/** One credential's declared members, an absent label or salt left absent. */
+function credentialCopy({ method, config, label, salt }: Credential): Credential {
+  return { method, config, ...(label === undefined ? {} : { label }), ...(salt === undefined ? {} : { salt }) };
+}
+
+/** A plain copy of a checked draft's declared members, so a later change to the caller's draft, or a proxy behind it, reaches nothing. */
+export function draftSnapshot(draft: SetupDraft): SetupDraft {
+  const clauses = draft.clauses.map((clause): Clause => ({ threshold: clause.threshold, credentials: clause.credentials.map(credentialCopy) }));
+  const privacy = { publicMetadata: draft.privacy.publicMetadata, backup: draft.privacy.backup };
+
+  return { wait: draft.wait, clauses, ignoresPause: draft.ignoresPause, privacy };
+}

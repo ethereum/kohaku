@@ -9,6 +9,8 @@ import {
   type PreparedBatch,
   type PrepareOptions,
   type ValidationResult,
+  KitRefusalError,
+  SETUP_CLIENT_VALIDATION_REFUSED_MESSAGE,
 } from '../../src/index';
 import { selectorOf } from '../helpers/keccak';
 import {
@@ -264,5 +266,32 @@ describe('prepareCommitSetup on a code-less account', () => {
 
     expect(prepared.calls.map((call) => call.simulation)).toEqual([{ success: true }, { success: true }]);
     expect(seen.calls.filter((call) => call.from.toLowerCase() === ACCOUNT.toLowerCase())).toHaveLength(2);
+  });
+});
+
+describe('prepareCommitSetup validates a code-less account before it builds', () => {
+  it.each<[string, BuildOptions, string]>([
+    ['declares no implementation', { world: { code: '0x' } }, 'account.not-deployed'],
+    ['declares another implementation than the served one', declaredCodeLess({}, OTHER_IMPLEMENTATION), 'action.unsupported'],
+  ])('refuses an account that %s with %s, building nothing', async (_name, options, code) => {
+    const { client, seen } = build(options);
+    const findings = await build(options).client.validateSetup(EMPTY_DRAFT);
+    const thrown: unknown = await client.prepareCommitSetup(EMPTY_DRAFT).catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect((thrown as KitRefusalError).message).toBe(SETUP_CLIENT_VALIDATION_REFUSED_MESSAGE);
+    expect((thrown as KitRefusalError).findings).toEqual(findings);
+    expect(findings.errors.map((finding) => finding.code)).toEqual([code]);
+    expect(members(seen)).not.toContain('action.armingCall');
+    expect(members(seen)).not.toContain('manager.prepareCommitSetup');
+  });
+
+  it('prepares an account that declares the served implementation, its findings holding only warnings', async () => {
+    const options = declaredCodeLess();
+    const findings = await build(options).client.validateSetup(EMPTY_DRAFT);
+
+    expect(findings.errors).toEqual([]);
+    expect(findings.warnings.map((finding) => finding.code)).toContain('account.deploy-pending');
+    await expect(build(options).client.prepareCommitSetup(EMPTY_DRAFT)).resolves.toMatchObject({ kind: 'batch', atomic: true });
   });
 });
