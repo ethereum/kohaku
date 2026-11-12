@@ -37,19 +37,17 @@ export const aspLeavesSelector = createSelector(
 /**
  * MUST ONLY BE USED IN THUNKS
  */
-export const stateMerkleProofSelector = createSelector(
-  [
-    stateLeavesSelector,
-    (_state: RootState, poolAddress: bigint) => poolAddress,
-    (_state: RootState, _poolAddress: bigint, note: INote & Secret) => note,
-    (_state: RootState, _poolAddress: bigint, _note: INote & Secret, builder: MerkleTreeBuilder = buildMerkleTree) => builder,
-  ],
-  async (stateLeaves, poolAddress, note, builder): Promise<MerkleProof> => {
-    const tree = await getIncrementalTree('state', String(poolAddress), stateLeaves, undefined, builder);
+// Cache trees, not async selector results: a rejected build or RPC must be retried.
+export const stateMerkleProofSelector = async (
+  state: RootState,
+  poolAddress: bigint,
+  note: INote & Secret,
+  builder: MerkleTreeBuilder = buildMerkleTree,
+): Promise<MerkleProof> => {
+  const tree = await getIncrementalTree('state', String(poolAddress), stateLeavesSelector(state, poolAddress), undefined, builder);
 
-    return proofFromTree(tree, commitment(note));
-  }
-);
+  return proofFromTree(tree, commitment(note));
+};
 
 // The ASP tree is cached per entrypoint (see merkle-tree.cache) and checked
 // against the root syncAspThunk rebuilt from the same leaves.
@@ -63,25 +61,25 @@ const aspTree = (aspLeaves: bigint[], entrypointAddress: bigint, aspTreeRoot: bi
  *
  * MUST ONLY BE USED IN THUNKS
  */
-export const aspLeavesRootSelector = createSelector(
-  [aspLeavesSelector, entrypointInfoSelector, aspSelector,
-    (_state: RootState, builder: MerkleTreeBuilder = buildMerkleTree) => builder],
-  async (aspLeaves, { entrypointAddress }, { aspTreeRoot }, builder): Promise<bigint> =>
-    aspLeaves.length === 0 ? 0n : (await aspTree(aspLeaves, entrypointAddress, aspTreeRoot, builder)).root,
-);
+export const aspLeavesRootSelector = async (state: RootState, builder: MerkleTreeBuilder = buildMerkleTree): Promise<bigint> => {
+  const leaves = aspLeavesSelector(state);
+  const { entrypointAddress } = entrypointInfoSelector(state);
+  const { aspTreeRoot } = aspSelector(state);
+
+  return leaves.length === 0 ? 0n : (await aspTree(leaves, entrypointAddress, aspTreeRoot, builder)).root;
+};
 
 // ASP Merkle proof selector - parameterized by label.
 /**
  * MUST ONLY BE USED IN THUNKS
  */
-export const aspMerkleProofSelector = createSelector(
-  [
-    aspLeavesSelector,
-    entrypointInfoSelector,
-    aspSelector,
-    (_state: RootState, label: bigint) => label,
-    (_state: RootState, _label: bigint, builder: MerkleTreeBuilder = buildMerkleTree) => builder,
-  ],
-  async (aspLeaves, { entrypointAddress }, { aspTreeRoot }, label, builder): Promise<MerkleProof> =>
-    proofFromTree(await aspTree(aspLeaves, entrypointAddress, aspTreeRoot, builder), label),
-);
+export const aspMerkleProofSelector = async (
+  state: RootState,
+  label: bigint,
+  builder: MerkleTreeBuilder = buildMerkleTree,
+): Promise<MerkleProof> => {
+  const { entrypointAddress } = entrypointInfoSelector(state);
+  const { aspTreeRoot } = aspSelector(state);
+
+  return proofFromTree(await aspTree(aspLeavesSelector(state), entrypointAddress, aspTreeRoot, builder), label);
+};

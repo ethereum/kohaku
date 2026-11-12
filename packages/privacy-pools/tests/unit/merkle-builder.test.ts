@@ -3,6 +3,9 @@ import { PoseidonT3LeanIMT } from '@kohaku-eth/poseidon-lean-imt';
 import { PrivacyPoolsV1Protocol } from '../../src/plugin/base';
 import type { IStateManager } from '../../src/plugin/interfaces/protocol-params.interface';
 import { getIncrementalTree } from '../../src/state/selectors/merkle-tree.cache';
+import { aspLeavesRootSelector } from '../../src/state/selectors/merkle.selector';
+import { registerAspTree } from '../../src/state/slices/aspSlice';
+import { storeFactory } from '../../src/state/store';
 import { buildMerkleTree, PARALLEL_THRESHOLD, proofFromTree, type MerkleTree } from '../../src/utils/proof.util';
 import { createMockHost } from '../utils/mock-host';
 
@@ -78,12 +81,16 @@ describe('custom tree builder', () => {
   });
 
   it('retries a failed custom build instead of silently building in the caller', async () => {
+    const store = storeFactory({ logLevel: 'off', entrypointInfo: { chainId: 1n, entrypointAddress: 900n, deploymentBlock: 0n } });
+    const root = new PoseidonT3LeanIMT([10n, 20n]).root;
+
+    store.dispatch(registerAspTree({ leaves: [10n, 20n], aspTreeRoot: root, blockNumber: 1n }));
+
     const builder = vi.fn(async (values: bigint[]) => proxy(new PoseidonT3LeanIMT(values)))
       .mockRejectedValueOnce(new Error('offscreen document disconnected'));
 
-    await expect(getIncrementalTree('asp', 'retry', [10n, 20n], undefined, builder)).rejects.toThrow('disconnected');
-    expect((await getIncrementalTree('asp', 'retry', [10n, 20n], undefined, builder)).root)
-      .toBe(new PoseidonT3LeanIMT([10n, 20n]).root);
+    await expect(aspLeavesRootSelector(store.getState(), builder)).rejects.toThrow('disconnected');
+    expect(await aspLeavesRootSelector(store.getState(), builder)).toBe(root);
     expect(builder).toHaveBeenCalledTimes(2);
   });
 

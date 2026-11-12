@@ -99,21 +99,20 @@ export const poolCommitmentsSelector = createSelector(
   },
 );
 
-export const poolMerkleTreeRootSelector = createSelector(
-  [poolCommitmentsSelector, (_state: RootState, poolAddress: Address) => poolAddress,
-    (_state: RootState, _poolAddress: Address, builder: MerkleTreeBuilder = buildMerkleTree) => builder],
-  async (commitments, poolAddress, builder): Promise<bigint> => {
-    const leaves = Array.from(commitments);
+export const poolMerkleTreeRootSelector = async (
+  state: RootState,
+  poolAddress: Address,
+  builder: MerkleTreeBuilder = buildMerkleTree,
+): Promise<bigint> => {
+  const leaves = Array.from(poolCommitmentsSelector(state, poolAddress));
 
-    if (leaves.length === 0) {
-      return 0n;
-    }
+  if (leaves.length === 0) {
+    return 0n;
+  }
 
-    // Shares the per-pool cached tree with stateMerkleProofSelector, so verifying
-    // the root and generating proofs build the tree at most once.
-    return (await getIncrementalTree('state', String(poolAddress), leaves, undefined, builder)).root;
-  },
-);
+  // The tree cache shares builds and evicts failures, allowing later reads to retry.
+  return (await getIncrementalTree('state', String(poolAddress), leaves, undefined, builder)).root;
+};
 
 export const poolFromAssetSelector = createSelector(
   [poolsSelector, (state: RootState, assetAddress: Address) => assetAddress],
