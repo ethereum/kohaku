@@ -104,6 +104,56 @@ describe('explicit Privacy Pools deposit-index selection', () => {
     },
   );
 
+  it('preserves signer cancellation during shield preparation', async () => {
+    const { manager, derive } = setup();
+    const cancelled = new Error('Signer declined');
+
+    derive.mockRejectedValueOnce(cancelled);
+
+    await expect(manager.getDepositPayload({
+      asset: ETH,
+      amount: AMOUNT,
+      depositIndex: 17,
+    })).rejects.toBe(cancelled);
+
+    await expect(manager.getDepositPayload({
+      asset: ETH,
+      amount: AMOUNT,
+      depositIndex: 18,
+    })).resolves.toEqual(
+      buildDepositPayload(1018n, ETH, AMOUNT, ENTRYPOINT),
+    );
+  });
+
+  it('preserves signer cancellation during registration', async () => {
+    const { manager, derive } = setup();
+    const cancelled = new Error('Signer declined');
+
+    derive.mockRejectedValueOnce(cancelled);
+
+    await expect(manager.registerDepositIndex(17)).rejects.toBe(cancelled);
+
+    await expect(manager.getDepositPayload({
+      asset: ETH,
+      amount: AMOUNT,
+      depositIndex: 17,
+    })).resolves.toEqual(
+      buildDepositPayload(1017n, ETH, AMOUNT, ENTRYPOINT),
+    );
+  });
+
+  it('preserves RangeError for invalid explicit indices', async () => {
+    const { manager, derive } = setup();
+
+    await expect(manager.getDepositPayload({
+      asset: ETH,
+      amount: AMOUNT,
+      depositIndex: -1,
+    })).rejects.toBeInstanceOf(RangeError);
+
+    expect(derive).not.toHaveBeenCalled();
+  });
+
   it('prepareShield forwards an explicit index to the state manager', async () => {
     const stateManager = {
       sync: vi.fn(async () => {}),

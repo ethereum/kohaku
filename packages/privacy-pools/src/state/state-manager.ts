@@ -9,7 +9,7 @@ import { ISecretManager } from "../account/keys";
 import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
-import { Address, Precommitment } from "../interfaces/types.interface";
+import { Address } from "../interfaces/types.interface";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
@@ -52,12 +52,6 @@ import {
   poolFromAssetSelector,
 } from "./selectors/pools.selector";
 import {
-  entrypointInfoSelector,
-  depositsSelector,
-  userSecretsSelector,
-} from "./selectors/slices.selectors";
-import { buildDepositPayload } from "./selectors/deposits.selector";
-import {
   IBalanceType,
   SpecificAssetBalanceFn,
   specificAssetsBalanceSelector,
@@ -65,9 +59,9 @@ import {
 import { getNoteSelector } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
 import { setVerifiedAspRoot } from "./slices/aspVerificationSlice";
-import { addUserSecret } from "./slices/userSecretsSlice";
-import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
+import { registerDepositIndexThunk } from "./thunks/registerDepositIndexThunk";
 import { PublicRootState, RootState, storeFactory } from "./store";
+import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
@@ -327,58 +321,14 @@ export const storeStateManager = (
       }
 
       const chainInfo = await getChainInfo();
-      return serializeOperation(
-        getStoreKey(chainInfo),
-        async () => {
+
+      return serializeOperation(getStoreKey(chainInfo), async () => {
         const store = await getChainStore(chainInfo);
-        const state = store.getState();
-        const { chainId, entrypointAddress } = entrypointInfoSelector(state);
 
-        const secret = await secretManager.getDepositSecrets({
-          chainId,
-          entrypointAddress,
-          depositIndex,
-        });
-
-        const precommitment = secret.precommitment as Precommitment;
-
-        // Never register an unmatched private credential.
-        if (!depositsSelector(state).has(precommitment)) {
-          return false;
-        }
-
-        const known = userSecretsSelector(state);
-
-        for (const [key, record] of known) {
-          if (
-            record.depositIndex === depositIndex &&
-            key !== precommitment
-          ) {
-            throw new Error("Deposit index already registered");
-          }
-        }
-
-        const existing = known.get(precommitment);
-
-        if (existing && existing.depositIndex !== depositIndex) {
-          throw new Error("Credential index conflicts with existing record");
-        }
-
-        if (!existing) {
-          store.dispatch(addUserSecret({
-            depositIndex,
-            noteSecrets: [{ noteIndex: 0, ...secret }],
-          }));
-        }
-
-        // Recover withdrawal lineage using the existing SDK thunk.
-        unwrapResult(await store.dispatch(
-          discoverUserSecretsThunk({ secretManager })
-        ));
-
-        return true;
-        },
-      );
+        return store.dispatch(
+          registerDepositIndexThunk({ depositIndex, secretManager })
+        );
+      });
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -386,42 +336,20 @@ export const storeStateManager = (
 
       return specificAssetsBalanceSelector(assets, balanceType);
     },
-    getDepositPayload: async ({ asset, amount, depositIndex: requestedIndex }: IDepositOperationParams) => {
+    getDepositPayload: async (request: IDepositOperationParams) => {
+      if (request.depositIndex !== undefined &&
+        (!Number.isSafeInteger(request.depositIndex) || request.depositIndex < 0)) {
+        throw new RangeError("Invalid deposit index");
+      }
+
       const chainInfo = await getChainInfo();
 
       return serializeOperation(getStoreKey(chainInfo), async () => {
         const store = await getChainStore(chainInfo);
-        const state = store.getState();
-        const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-        const knownIndices = [...userSecretsSelector(state).values()]
-          .map((record) => record.depositIndex);
 
-        const automaticIndex = knownIndices.reduce(
-          (next, index) => Math.max(next, index + 1),
-          0,
+        return store.dispatch(
+          getDepositPayloadThunk({ ...request, secretManager })
         );
-
-        const depositIndex = requestedIndex ?? automaticIndex;
-
-        if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
-          throw new RangeError("Invalid deposit index");
-        }
-
-        if (knownIndices.includes(depositIndex)) {
-          throw new Error("Deposit index already registered");
-        }
-
-        const { precommitment } = await secretManager.getDepositSecrets({
-          entrypointAddress,
-          chainId,
-          depositIndex,
-        });
-
-        if (depositsSelector(state).has(precommitment)) {
-          throw new Error("Deposit credential already exists on-chain");
-        }
-
-        return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
       });
     },
     getShieldEstimate: async ({ asset, amount }: IDepositOperationParams): Promise<PPv1ShieldEstimate> => {

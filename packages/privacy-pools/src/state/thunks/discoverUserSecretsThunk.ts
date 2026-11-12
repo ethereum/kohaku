@@ -35,7 +35,8 @@ export const discoverUserSecretsThunk = createAsyncThunk<
       [...initialSecretsMap.values()].map(record => record.depositIndex)
     );
 
-    const starts = [0, ...[...knownIndexes].map(index => index + 1)];
+    const starts = [...new Set([0, ...[...knownIndexes].map(index => index + 1)])]
+      .filter(index => Number.isSafeInteger(index) && index >= 0 && !knownIndexes.has(index));
 
     for (const start of starts) {
       for (
