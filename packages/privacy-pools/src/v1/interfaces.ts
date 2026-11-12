@@ -26,6 +26,7 @@ export interface PPv1PluginParameters extends PPv1BroadcasterParameters, PPv1Bas
     ipfsUrl?: string;
     aspServiceFactory?: () => IAspService
     initialState?: PrivacyPoolsV1ProtocolParams['initialState']
+    chainStorage?: PrivacyPoolsV1ProtocolParams['chainStorage']
     paymasterConfig?: IChainsPaymastersConfig;
     devOptions?: PPv1DevOptions;
 };

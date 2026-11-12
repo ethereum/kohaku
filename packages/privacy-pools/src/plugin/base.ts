@@ -105,6 +105,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     {
       accountIndex = 0,
       initialState,
+      chainStorage,
       secretManager = SignatureSecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       entrypoint,
@@ -132,6 +133,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
     this.stateManager = stateManagerFactory({
       initialState,
+      chainStorage,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
       dataService,
