@@ -6,6 +6,12 @@ import { aspLeavesRootSelector } from '../selectors/merkle.selector';
 import { registerAspTree } from '../slices/aspSlice';
 import { RootState } from '../store';
 import { lastUpdateRootEventSelector } from '../selectors/slices.selectors';
+import { withTimeout } from '../utils/async.utils';
+
+// The sync waits for the tree, and a ragequit's sync queues behind a running one,
+// so a stalled service must not hold them. Longer than the review feed's: the
+// tree is one larger download.
+export const ASP_TREE_TIMEOUT_MS = 30_000;
 
 export interface SyncAspThunkParams {
   aspService: IAspService;
@@ -58,7 +64,8 @@ export const syncAspThunk = createAsyncThunk<void, SyncAspThunkParams, { state: 
       return;
     }
 
-    const leaves = await checkedLeaves(await aspService.getAspTree(state), lastUpdateRootEvent.root, merkleTreeBuilder);
+    const aspTree = await withTimeout(ASP_TREE_TIMEOUT_MS, 'ASP service', (signal) => aspService.getAspTree(state, signal));
+    const leaves = await checkedLeaves(aspTree, lastUpdateRootEvent.root, merkleTreeBuilder);
 
     dispatch(registerAspTree({
       leaves,

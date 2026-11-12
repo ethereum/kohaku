@@ -106,6 +106,17 @@ describe('OxBowAspReviewService', () => {
     await expect(service.getFlaggedDeposits({ chainId: CHAIN_ID })).rejects.toThrow('Unexpected response');
   });
 
+  it('passes the abort signal to every request', async () => {
+    const tracked = createTrackedMockFetch({ responses: new Map([['status=', page([])]]) });
+    const service = new OxBowAspReviewService({ network: { fetch: tracked.fetch } });
+    const { signal } = new AbortController();
+
+    await service.getFlaggedDeposits({ chainId: CHAIN_ID, signal });
+
+    expect(tracked.calls).toHaveLength(2);
+    expect(tracked.calls.every(({ init }) => init?.signal === signal)).toBe(true);
+  });
+
   it('throws on a network error', async () => {
     const service = new OxBowAspReviewService({ network: { fetch: createFailingFetch(new Error('offline')) } });
 

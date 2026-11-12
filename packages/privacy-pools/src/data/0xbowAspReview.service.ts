@@ -57,10 +57,12 @@ export class OxBowAspReviewService implements IAspReviewService {
     }
   }
 
-  private async getEventsPage(chainId: bigint, status: AspFlaggedStatus, page: number): Promise<OxBowEventsResponse> {
+  private async getEventsPage(
+    chainId: bigint, status: AspFlaggedStatus, page: number, signal?: AbortSignal,
+  ): Promise<OxBowEventsResponse> {
     const url = `${this.aspUrl}/global/public/events?action=deposit&status=${status}` +
       `&chainId=${getNumber(chainId)}&perPage=${PER_PAGE}&page=${page}`;
-    const response = await this.fetch(url, { method: "GET" });
+    const response = await this.fetch(url, { method: "GET", signal });
 
     if (!response.ok) {
       throw new Error(`ASP review feed returned ${response.status} for ${url}`);
@@ -75,13 +77,15 @@ export class OxBowAspReviewService implements IAspReviewService {
     return raw;
   }
 
-  private async getFlaggedByStatus(chainId: bigint, status: AspFlaggedStatus): Promise<IAspFlaggedDeposit[]> {
+  private async getFlaggedByStatus(
+    chainId: bigint, status: AspFlaggedStatus, signal?: AbortSignal,
+  ): Promise<IAspFlaggedDeposit[]> {
     const flagged: IAspFlaggedDeposit[] = [];
 
     // Pages start at 1. Rows come newest first, so a deposit flagged mid-scan shifts
     // the rest down and shows up twice; callers key by precommitment.
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const { total, events } = await this.getEventsPage(chainId, status, page);
+      const { total, events } = await this.getEventsPage(chainId, status, page, signal);
 
       for (const event of events) {
         if (event.reviewStatus !== status || BigInt(event.pool.chainId) !== chainId) continue;
@@ -99,8 +103,10 @@ export class OxBowAspReviewService implements IAspReviewService {
     return flagged;
   }
 
-  async getFlaggedDeposits({ chainId }: { chainId: bigint }): Promise<IAspFlaggedDeposit[]> {
-    const byStatus = await Promise.all(FLAGGED_STATUSES.map((status) => this.getFlaggedByStatus(chainId, status)));
+  async getFlaggedDeposits({ chainId, signal }: { chainId: bigint; signal?: AbortSignal }): Promise<IAspFlaggedDeposit[]> {
+    const byStatus = await Promise.all(
+      FLAGGED_STATUSES.map((status) => this.getFlaggedByStatus(chainId, status, signal)),
+    );
 
     return byStatus.flat();
   }
