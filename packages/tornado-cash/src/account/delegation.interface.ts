@@ -39,7 +39,7 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
  *   note without tailCalls may use marked best-effort fallback on mainnet/Sepolia;
  *   the requested recipient receives the payout/refund without sender custody.
  */
-export type DelegationConfig =
+export type DelegationConfig = (
   | { mode: 'deterministic'; path?: string }
   | {
     /**
@@ -49,8 +49,37 @@ export type DelegationConfig =
      */
     mode: 'random';
   }
-  | { mode: 'external'; signer: DelegatorAccount };
+  | { mode: 'external'; signer: DelegatorAccount }) & {
+    /** Compatible external v0.8 implementation; defaults to Simple7702. */
+    implementation?: `0x${string}`;
+    /** Optional assertion of the current EntryPoint nonce (key 0 when omitted). */
+    nonce?: bigint;
+    /** Allow used sender state. Defaults to true for external and wallet-path EOAs, false otherwise. */
+    allowUsed?: boolean;
+  } | SmartAccountDelegation;
 
 /** Plain-data representation sent to the worker; callbacks use a separate port. */
-export type WorkerDelegationConfig = Exclude<DelegationConfig, { mode: 'external' }> |
-  { mode: 'external'; address: DelegatorAccount['address'] };
+export type WorkerDelegationConfig = Exclude<DelegationConfig, { mode: 'external' | 'smart-account' }> |
+  { mode: 'external'; address: DelegatorAccount['address']; implementation?: `0x${string}`; nonce?: bigint; allowUsed?: boolean } |
+  Omit<SmartAccountDelegation, 'signer'> & { owner: `0x${string}` };
+
+/** EOA owner of a v0.8 account; no authorization capability is required. */
+export type TypedDataSigner = Pick<LocalAccount, 'address' | 'signTypedData'>;
+
+/** Restricted to the eth-infinitism v0.8 execute/executeBatch ABI and EIP-712
+ * owner signature. Custom 7702 implementations must preserve these semantics. */
+export type ExecutionAccountConfig =
+  | { kind: 'eip7702'; implementation?: `0x${string}` }
+  | { kind: 'simple-account'; address: `0x${string}`;
+      /** Omit for an already deployed account. Address must match factory.getAddress(owner, salt). */
+      factory?: { address: `0x${string}`; salt: bigint } };
+
+export type SmartAccountDelegation = {
+  mode: 'smart-account';
+  signer: TypedDataSigner;
+  account: Extract<ExecutionAccountConfig, { kind: 'simple-account' }>;
+  /** Optional assertion of EntryPoint getNonce(account, key); default reads key 0. */
+  nonce?: bigint;
+  /** Explicit opt-in to a deployed, delegated, funded or previously used sender. */
+  allowUsed?: boolean;
+};

@@ -16,7 +16,7 @@ export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signat
 export type { SecretManagerParams, ISecretManager } from './account/keys';
 export type { SignatureSecretManagerParams, EnvelopeSigner, NoteMessage, NoteEnvelope } from './account/signature-keys';
 export type { Commitment, Nullifier } from './account/types';
-export type { DelegatorAccount, DelegationConfig } from './interfaces/user-ops.interface';
+export type { DelegatorAccount, DelegationConfig, TypedDataSigner, ExecutionAccountConfig, SmartAccountDelegation } from './interfaces/user-ops.interface';
 export type {
   IPaymasterBroadcasterClient,
   PaymasterBroadcastFailure,

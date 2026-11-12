@@ -56,3 +56,18 @@ describe('scoped external signing over the actual host bridge', () => {
     expect(signTypedData).not.toHaveBeenCalled();
   });
 });
+
+it('limits smart accounts to typed-data signing with the selected sender, nonce and factory deployment', async () => {
+  const sender = '0x0000000000000000000000000000000000000099';
+  const factory = { address: paymasterAddress, salt: 7n };
+  const policy = externalSignerPolicy({ ...scope, smartAccount: true, sender, userOpNonce: 3n, factory });
+  expect(policy.signAuthorization).toBeUndefined();
+  const { simpleAccountFactoryData } = await import('../../src/account/execution-account');
+  const data = getUserOperationTypedData({ chainId: 1, entryPointAddress: entryPoint08Address,
+    userOperation: { sender, nonce: 3n, factory: factory.address, factoryData: simpleAccountFactoryData(account.address, factory),
+      callData: '0x', callGasLimit: 0n, verificationGasLimit: 100_000n, preVerificationGas: 100_000n,
+      maxFeePerGas: 2n, maxPriorityFeePerGas: 1n, paymaster: paymasterAddress, paymasterData: '0x', signature: '0x' } });
+  expect(() => policy.signTypedData!([data])).not.toThrow();
+  data.message.initCode = '0x';
+  expect(() => policy.signTypedData!([data])).toThrow('outside');
+});

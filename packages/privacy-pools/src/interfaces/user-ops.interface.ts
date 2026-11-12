@@ -31,10 +31,17 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
  *   are verified, authorization is cached per preparation, and bundler estimation
  *   must succeed. Note-secret discovery/proving is unchanged.
  */
-export type DelegationConfig =
+export type DelegationConfig = (
   | { mode: "deterministic"; path?: string }
   | { mode: "random" }
-  | { mode: "external"; signer: DelegatorAccount };
+  | { mode: "external"; signer: DelegatorAccount }) & {
+    /** Compatible external v0.8 implementation; defaults to Simple7702. */
+    implementation?: `0x${string}`;
+    /** Optional assertion of the current EntryPoint nonce (key 0 when omitted). */
+    nonce?: bigint;
+    /** Allow used sender state. Defaults to true for external and wallet-path EOAs, false otherwise. */
+    allowUsed?: boolean;
+  } | SmartAccountDelegation;
 
 export interface SerializedAuth {
   address: `0x${string}`;
@@ -65,6 +72,8 @@ export interface SerializedUserOperation {
   paymasterData?: `0x${string}`;
   signature: `0x${string}`;
   eip7702Auth?: SerializedAuth;
+  factory?: `0x${string}`;
+  factoryData?: `0x${string}`;
 }
 
 export interface UserOpGasLimits {
@@ -78,6 +87,7 @@ export interface UserOpGasLimits {
 export interface BuildSignedUserOpParams {
   /** The ephemeral account that becomes the userOp sender; signs the 7702 auth and the userOp hash. */
   signer: DelegatorAccount;
+  executionAccount?: ExecutionAccountConfig;
   chainId: number;
   paymasterAddress: `0x${string}`;
   paymasterData: `0x${string}`;
@@ -100,3 +110,24 @@ export interface BuildSignedUserOpParams {
    */
   tailCalls?: (sender: `0x${string}`) => Promise<TxData[]>;
 }
+
+/** EOA owner of a v0.8 account; no authorization capability is required. */
+export type TypedDataSigner = Pick<LocalAccount, 'address' | 'signTypedData'>;
+
+/** Restricted to the eth-infinitism v0.8 execute/executeBatch ABI and EIP-712
+ * owner signature. Custom 7702 implementations must preserve these semantics. */
+export type ExecutionAccountConfig =
+  | { kind: 'eip7702'; implementation?: `0x${string}` }
+  | { kind: 'simple-account'; address: `0x${string}`;
+      /** Omit for an already deployed account. Address must match factory.getAddress(owner, salt). */
+      factory?: { address: `0x${string}`; salt: bigint } };
+
+export type SmartAccountDelegation = {
+  mode: 'smart-account';
+  signer: TypedDataSigner;
+  account: Extract<ExecutionAccountConfig, { kind: 'simple-account' }>;
+  /** Optional assertion of EntryPoint getNonce(account, key); default reads key 0. */
+  nonce?: bigint;
+  /** Explicit opt-in to a deployed, delegated, funded or previously used sender. */
+  allowUsed?: boolean;
+};

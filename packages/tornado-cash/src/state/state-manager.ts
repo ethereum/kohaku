@@ -302,6 +302,7 @@ export const storeStateManager = async ({
               tailCalls: params.tailCalls,
               tailCallsGasEstimate: params.tailCallsGasEstimate,
               gasEstimationPolicy: params.gasEstimationPolicy,
+              executionGasRetry: params.executionGasRetry,
               maxGasLimits: params.maxGasLimits,
               bundlerPost: params.bundlerPost,
               provider,

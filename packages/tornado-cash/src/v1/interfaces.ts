@@ -48,7 +48,8 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     /**
      * Single notes without tail calls pay the recipient and gas refund directly,
-     * with zero execution gas. Default 'best-effort': on mainnet/Sepolia, these
+     * with zero execution gas, independently of the sender's account family.
+     * Default 'best-effort': on mainnet/Sepolia, these
      * direct withdrawals (including random/external senders), or execution-phase
      * withdrawals with a recoverable sender and no user tail calls, may return
      * marked fallback on bundler unavailability or the zero-execution estimator
@@ -65,6 +66,12 @@ export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
      * static callGasLimit.
      */
     tailCallsGasEstimate?: bigint;
+    /**
+     * Opt in to at most three extra probes for recognized execution out-of-gas
+     * errors. Requires a positive maxGasLimits.callGasLimit. Rebuilds the fee,
+     * proof and signature for each probe; defaults to false.
+     */
+    executionGasRetry?: boolean;
     /** Absolute gas ceilings after buffering. Execution gas is uncapped unless explicitly limited here. */
     maxGasLimits?: PaymasterGasLimits;
 }
