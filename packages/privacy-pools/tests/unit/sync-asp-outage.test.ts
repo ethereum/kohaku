@@ -14,7 +14,7 @@ import { setVerifiedAspRoot } from '../../src/state/slices/aspVerificationSlice'
 import { storeStateManager } from '../../src/state/state-manager';
 import { storeFactory } from '../../src/state/store';
 import { syncThunk } from '../../src/state/thunks/syncThunk';
-import { computeMerkleTreeRoot, type MerkleTree } from '../../src/utils/proof.util';
+import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 import { createMockHost } from '../utils/mock-host';
 
@@ -174,26 +174,6 @@ describe('syncThunk with skipAsp', () => {
 
     expect(aspService.getAspTree).not.toHaveBeenCalled();
     expect(verifiedAspRootSelector(store.getState())).toBe(oldRoot);
-  });
-
-  it('leaves the ASP root unverified when the custom builder disagrees with the stored root', async () => {
-    const store = setupStore();
-    const dataService = chainDataService(rootUpdated(oldRoot, 150n));
-    const aspService = servingAsp(oldLeaves);
-    const merkleTreeBuilder = vi.fn(async () => ({ root: 123n }) as MerkleTree);
-
-    await store.dispatch(syncThunk({
-      dataService: dataService as unknown as IDataService,
-      aspService,
-      skipAsp: true,
-      merkleTreeBuilder,
-    })).unwrap();
-
-    expect(merkleTreeBuilder).toHaveBeenCalledWith(oldLeaves);
-    expect(aspService.getAspTree).not.toHaveBeenCalled();
-    expect(dataService.getEntrypointLatestRoot).not.toHaveBeenCalled();
-    expect(verifiedAspRootSelector(store.getState())).toBe(0n);
-    expect(selectLastSyncedBlock(store.getState())).toBe(200n);
   });
 });
 

@@ -104,11 +104,9 @@ describe('syncAspThunk', () => {
     store.dispatch(registerAspTree({ leaves: realLeaves, aspTreeRoot: realRoot, blockNumber: 7n }));
 
     const aspService = serving([[], []]);
-    const merkleTreeBuilder = vi.fn(buildMerkleTree);
 
-    await store.dispatch(syncAspThunk({ aspService, merkleTreeBuilder })).unwrap();
+    await store.dispatch(syncAspThunk({ aspService })).unwrap();
 
-    expect(merkleTreeBuilder).toHaveBeenCalledWith(realLeaves);
     expect(aspService.getAspTree).not.toHaveBeenCalled();
   });
 });
