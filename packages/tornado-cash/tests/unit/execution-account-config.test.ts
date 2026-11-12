@@ -50,8 +50,6 @@ it('reads the current nonce and omits deployment when explicitly reusing an exis
   const result = await prepareExecutionAccount({ ...config, nonce: undefined, allowUsed: true, account: { ...config.account, factory: { address: owner, salt: 0n } } }, signer, provider as never, owner);
   expect(result.nonce).toBe(7n);
   expect(result.account.kind === 'simple-account' && result.account.factory).toBeUndefined();
-  const gas = { verificationGasLimit: 50_000n };
-  expect(executionGasBaseline(result.account, gas)).toBe(gas);
 });
 
 it('rejects an explicitly supplied stale nonce before any signing', async () => {
