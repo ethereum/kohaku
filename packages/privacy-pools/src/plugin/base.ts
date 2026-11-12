@@ -112,6 +112,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       relayersList = {},
       ipfsUrl,
       aspServiceFactory = () => new IPFSAspService({ network: host.network, ipfsUrl }),
+      aspReviewServiceFactory,
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = Prover,
       merkleTreeBuilder,
@@ -137,6 +138,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       chainStorage,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
+      aspReviewService: aspReviewServiceFactory?.(),
       dataService,
       relayerClient: this.relayerClient,
       relayersList: this.relayersList,
@@ -367,6 +369,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       recipient: BigInt(to),
       requestedNet,
       gasBumpBPS: options.exact?.gasBumpBPS ?? DEFAULT_EXACT_GAS_BUMP_BPS,
+      obfuscateAmounts: options.obfuscateAmounts ?? false,
     });
 
     // The recipient's net is fixed by the gross and embedded fee we chose, so it must
@@ -451,6 +454,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         maxGasLimits: options.maxGasLimits,
         batch: options.batch,
+        obfuscateAmounts: options.obfuscateAmounts ?? false,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });
 
@@ -463,6 +467,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       asset: assetAddress,
       amount,
       recipient: BigInt(to),
+      obfuscateAmounts: options?.obfuscateAmounts ?? false,
     });
 
     if (!result) throw new Error("We failed to create a withdrawalPayload");

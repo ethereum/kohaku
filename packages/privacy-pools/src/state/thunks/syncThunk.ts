@@ -7,6 +7,7 @@ import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
 import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { registerLastUpdateRootEvent } from '../slices/updateRootEventsSlice';
 import { isAspTreeCurrent, syncAspThunk, SyncAspThunkParams } from './syncAspThunk';
+import { syncAspReviewThunk, SyncAspReviewThunkParams } from './syncAspReviewThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
 import { entrypointInfoSelector, lastUpdateRootEventSelector } from '../selectors/slices.selectors';
@@ -16,7 +17,8 @@ export interface SyncThunkParams extends
   SyncEventsThunkParams,
   Omit<SyncPoolsThunkParams, 'poolsRegistered' | 'poolsWoundDown'>,
   SyncAssetsThunkParams,
-  SyncAspThunkParams {
+  SyncAspThunkParams,
+  SyncAspReviewThunkParams {
   dataService: IDataService;
   verify?: boolean;
   /** Leave the ASP service out of this sync, keeping the stored tree. */
@@ -79,6 +81,8 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       if (syncAspThunk.rejected.match(aspResult)) {
         console.warn(`ASP sync failed, keeping the last good tree: ${aspResult.error.message}`);
       }
+
+      unwrapResult(await dispatch(syncAspReviewThunk({ ...params })));
     }
 
     if (verify) {

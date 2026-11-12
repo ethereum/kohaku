@@ -1,14 +1,20 @@
 export * from './v1';
 export * from './v2';
+export { analyzePPv1Withdrawal, PPv1AmountObfuscationError } from './withdrawal/batch-plan';
+export type { PPv1WithdrawalAnalysis } from './withdrawal/batch-plan';
 // Main factory
 export { PrivacyPoolsV1Protocol, PPv1ExactOutputError, DEFAULT_EXACT_GAS_BUMP_BPS } from './plugin/base';
 export { IPFSAspService } from './data/ipfsAsp.service.js';
 export { OxBowAspService } from './data/0xbowAsp.service';
+export { OxBowAspReviewService } from './data/0xbowAspReview.service';
 export { DataService } from './data/data.service';
 export { PaymasterBroadcastError } from './relayer/interfaces/paymaster-client.interface';
 export { createSagaLogSource, createSagaDataService } from './data/saga-log-source';
 export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
 export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';
+export type { OxBowAspReviewServiceParams } from './data/0xbowAspReview.service';
+export type { AspFlaggedStatus, IAspFlaggedDeposit, IAspReviewService } from './data/asp.interface';
+export type { AspReviewStatus } from './interfaces/types.interface';
 export { SecretManager, PRIVACY_POOLS_KEYSTORE_PREFIX } from './account/keys';
 export { SignatureSecretManager, KeystoreEnvelopeSigner } from './account/signature-keys';
 

@@ -6,10 +6,10 @@ import { AccountId, ChainId, PrivateOperation, PublicOperation, Storage, Unshiel
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
-import { IAspService } from "../../data/asp.interface.js";
+import { IAspReviewService, IAspService } from "../../data/asp.interface.js";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
-import { Address, Label } from "../../interfaces/types.interface";
+import { Address, AspReviewStatus, Label } from "../../interfaces/types.interface";
 import { DelegationConfig } from "../../interfaces/user-ops.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
@@ -66,6 +66,13 @@ export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
  * {@link UnshieldOptions} API; relayer mode does not execute them yet but is expected to.
  */
 interface PPv1CommonUnshieldOptions extends UnshieldOptions {
+  /**
+   * Default false: allow full-note spends. True preserves the exact requested
+   * total, caps gross at 97% of approved balance, and retains at least 1% of every
+   * spent note (rounded up). Non-final notes retain a random 1–25% where feasible;
+   * the last supplies the remainder. No anonymity guarantee.
+   */
+  obfuscateAmounts?: boolean;
   /** Gas budget for the execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
   /**
@@ -220,6 +227,11 @@ export interface PrivacyPoolsV1ProtocolParams {
   relayerClientFactory: () => IRelayerClient;
   entrypoint: IEntrypoint;
   aspServiceFactory: () => IAspService;
+  /**
+   * Opt-in source of declined / proof-of-innocence-required deposits (see
+   * `OxBowAspReviewService`). Without it, deposits outside the ASP tree read as `pending`.
+   */
+  aspReviewServiceFactory?: () => IAspReviewService;
   proverFactory: () => ReturnType<typeof Prover>;
   relayersList: Record<string, string>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
@@ -255,6 +267,8 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
 export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
   amount?: bigint;
   recipient: Address;
+  /** Defaults to false. True enables amount obfuscation and its headroom limit. */
+  obfuscateAmounts?: boolean;
 }
 
 export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {
@@ -301,6 +315,8 @@ export interface IGetNotesParams extends IBaseOperationParams {
 export type INote = Pick<IDepositWithBalance,
   "label" | "precommitment" | "value" | "balance" | "assetAddress" | "approved" | "depositor" | "blockNumber"
 > & {
+  /** Set on every note the plugin returns; optional so hand-built notes keep compiling. */
+  reviewStatus?: IDepositWithBalance["reviewStatus"];
   // deposit index
   deposit: number;
   // withdraw index
@@ -340,7 +356,8 @@ export type PPv1HistoryEvent = {
       type: 'deposit';
       depositor: Address;
       label: Label;
-      aspStatus: 'pending' | 'approved';
+      /** `declined` and `poi_required` only appear with an `aspReviewServiceFactory`. */
+      aspStatus: AspReviewStatus;
     }
   | { type: 'withdrawal' }
   | {
