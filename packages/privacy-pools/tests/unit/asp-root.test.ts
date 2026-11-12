@@ -11,7 +11,7 @@ import { registerPools } from '../../src/state/slices/poolsSlice';
 import { registerLastUpdateRootEvent } from '../../src/state/slices/updateRootEventsSlice';
 import { addUserSecret } from '../../src/state/slices/userSecretsSlice';
 import { storeFactory } from '../../src/state/store';
-import { syncAspThunk } from '../../src/state/thunks/syncAspThunk';
+import { ASP_TREE_TIMEOUT_MS, syncAspThunk } from '../../src/state/thunks/syncAspThunk';
 import { withdrawThunk } from '../../src/state/thunks/withdrawThunk';
 import { commitment } from '../../src/utils';
 import { buildMerkleTree, type MerkleTreeBuilder, computeMerkleTreeRoot, SNARK_SCALAR_FIELD } from '../../src/utils/proof.util';
@@ -82,6 +82,35 @@ describe('syncAspThunk', () => {
     await expect(
       store.dispatch(syncAspThunk({ aspService: serving([aliased, [realRoot]]) })).unwrap(),
     ).rejects.toThrow('not a SNARK field element');
+  });
+
+  it('gives up on a service that never answers, keeping the stored tree', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const store = setupStore();
+      let signal: AbortSignal | undefined;
+      // Ignores the signal, like a custom service could.
+      const stalled: IAspService = {
+        getAspTree: (_state, s) => {
+          signal = s;
+
+          return new Promise(() => {});
+        },
+      };
+
+      store.dispatch(registerAspTree({ leaves: [10n], aspTreeRoot: 1n, blockNumber: 1n }));
+      const pending = store.dispatch(syncAspThunk({ aspService: stalled })).unwrap();
+      const settled = expect(pending).rejects.toThrow(/did not answer/);
+
+      await vi.advanceTimersByTimeAsync(ASP_TREE_TIMEOUT_MS);
+      await settled;
+
+      expect(signal?.aborted).toBe(true);
+      expect(aspSelector(store.getState()).leaves).toEqual([10n]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('refetches when stored leaves do not build the stored root', async () => {

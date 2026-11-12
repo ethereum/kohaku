@@ -5,7 +5,8 @@ import { RootState } from "../state";
 
 // TODO: This is a very basic limiting, non-exhaustive ASP interface; we can refactor later
 export interface IAspService {
-  getAspTree(state: RootState): Promise<bigint[][]>;
+  /** `signal` aborts once the sync stops waiting for the tree. */
+  getAspTree(state: RootState, signal?: AbortSignal): Promise<bigint[][]>;
 }
 
 export interface IAspServiceParams {
@@ -27,6 +28,9 @@ export interface IAspFlaggedDeposit {
  * tree, they never approve one.
  */
 export interface IAspReviewService {
-  /** Every flagged deposit of the chain, not only the user's, so the service can't learn which are ours. */
-  getFlaggedDeposits(params: { chainId: bigint }): Promise<IAspFlaggedDeposit[]>;
+  /**
+   * Every flagged deposit of the chain, not only the user's, so the service can't learn which are ours.
+   * `signal` aborts once the sync stops waiting for the answer.
+   */
+  getFlaggedDeposits(params: { chainId: bigint; signal?: AbortSignal }): Promise<IAspFlaggedDeposit[]>;
 }

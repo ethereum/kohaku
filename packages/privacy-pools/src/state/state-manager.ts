@@ -70,7 +70,7 @@ import {
   getStoreStorageKey,
   sharedChainEntries,
 } from "./chain-state";
-import { PublicRootState, RootState, storeFactory } from "./store";
+import { ChainRootState, PublicRootState, RootState, storeFactory } from "./store";
 import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
 import { createLoadCache, createSkipAspSyncQueue } from "./utils/async.utils";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
@@ -134,11 +134,35 @@ const initializeSelectors = <const T extends Store>({
   };
 };
 
+const NO_ASP_REVIEW: ChainRootState['aspReview'] = { flaggedTuples: [] };
+
+/**
+ * The chain state as an account without a review service sees it: no review
+ * labels, even those another account sharing the chain state fetched. Built once
+ * per chain state, so the account store keeps getting the same root back.
+ */
+const withoutAspReview = (getChainState: () => ChainRootState): (() => ChainRootState) => {
+  let chain: ChainRootState | undefined;
+  let view: ChainRootState | undefined;
+
+  return () => {
+    const next = getChainState();
+
+    if (next !== chain || !view) {
+      chain = next;
+      view = { ...next, aspReview: NO_ASP_REVIEW };
+    }
+
+    return view;
+  };
+};
+
 const storeByChainAndEntrypoint = ({
   secretManager,
+  aspReviewService,
   devOptions,
   getChainEntry,
-}: Pick<StoreFactoryParams, 'secretManager' | 'devOptions'> & {
+}: Pick<StoreFactoryParams, 'secretManager' | 'aspReviewService' | 'devOptions'> & {
   getChainEntry: (params: GetChainStoreParams) => Promise<ChainEntry>;
 }) => {
   type ChainStore = ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>;
@@ -156,7 +180,7 @@ const storeByChainAndEntrypoint = ({
     const store = storeFactory({
       entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
       devOptions,
-      getChainState: chainEntry.getState,
+      getChainState: aspReviewService ? chainEntry.getState : withoutAspReview(chainEntry.getState),
     });
     const storeWithSelectors = initializeSelectors({ store, secretManager });
 

@@ -10,7 +10,7 @@ import { registerEntrypointDeposits } from '../../src/state/slices/entrypointDep
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { addUserSecret } from '../../src/state/slices/userSecretsSlice';
 import { storeFactory } from '../../src/state/store';
-import { syncAspReviewThunk } from '../../src/state/thunks/syncAspReviewThunk';
+import { ASP_REVIEW_TIMEOUT_MS, syncAspReviewThunk } from '../../src/state/thunks/syncAspReviewThunk';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 const pool = 1000n as Address;
@@ -72,7 +72,10 @@ const statusOf = (store: ReturnType<typeof setupStore>) =>
   Object.fromEntries(allNotesSelector(store.getState()).map(({ precommitment, reviewStatus }) => [precommitment.toString(), reviewStatus]));
 
 describe('ASP review status', () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
   it('reads pending for every deposit outside the tree without a review service', async () => {
     const store = setupStore();
@@ -136,6 +139,40 @@ describe('ASP review status', () => {
 
     expect(result.meta.requestStatus).toBe('fulfilled');
     expect(statusOf(store)[2]).toBe('declined');
+  });
+
+  it('gives up on a feed that never answers, keeping the last statuses', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const store = setupStore();
+    let signal: AbortSignal | undefined;
+    // Ignores the signal, like a custom service could.
+    const stalled: IAspReviewService = {
+      getFlaggedDeposits: (params) => {
+        signal = params.signal;
+
+        return new Promise(() => {});
+      },
+    };
+
+    store.dispatch(setAspFlaggedDeposits([[2n, 'declined']]));
+    const pending = store.dispatch(syncAspReviewThunk({ aspReviewService: stalled }));
+
+    await vi.advanceTimersByTimeAsync(ASP_REVIEW_TIMEOUT_MS);
+    const result = await pending;
+
+    expect(result.meta.requestStatus).toBe('fulfilled');
+    expect(signal?.aborted).toBe(true);
+    expect(statusOf(store)[2]).toBe('declined');
+  });
+
+  it('leaves the shared list alone without a service', async () => {
+    const store = setupStore();
+
+    store.dispatch(setAspFlaggedDeposits([[2n, 'declined']]));
+    await store.dispatch(syncAspReviewThunk({}));
+
+    expect(store.getState().aspReview.flaggedTuples).toHaveLength(1);
   });
 
   it('asks the feed from the shared chain state, which holds no account notes', async () => {

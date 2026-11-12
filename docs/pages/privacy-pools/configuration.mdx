@@ -89,7 +89,7 @@ Note secrets are never stored. After a restart they are signed again, so the sig
 
 The association set decides which deposits are approved. Until a deposit is in the set, its balance is `'pending'` and the relayer withdrawal path will not spend it.
 
-The default client is `IPFSAspService`, which `fetch`es the tree from IPFS through `host.network`. Set `ipfsUrl` to point it at another gateway.
+The default client is `IPFSAspService`, which `fetch`es the tree from IPFS through `host.network`. Set `ipfsUrl` to point it at another gateway. A client that does not return the tree within 30 seconds is aborted through the `signal` passed to `getAspTree`, and the sync goes on with the last tree it accepted.
 
 The client is not trusted. The plugin keeps only the leaves it returns, rebuilds the root from them, and rejects the set if that root is not the one in the Entrypoint's `RootUpdated` event. Each sync checks the rebuilt root against the Entrypoint's `latestRoot()`, and a withdrawal is only proved against a root checked that way in the same session. A root does not commit to the number of leaves, so a dishonest gateway can still make approved deposits look pending. Confirm a pending status with a second source, such as `OxBowAspService`, before you offer ragequit.
 
@@ -145,7 +145,7 @@ Each note then carries a `reviewStatus`, and each deposit in `history` an `aspSt
 
 The option is off by default because it calls 0xbow's API. The client downloads every declined and proof-of-innocence-required deposit of the chain, never a lookup of one deposit, so 0xbow learns that the host uses Privacy Pools but not which deposits are its own. It calls once per sync of the chain state, whatever the accounts hold, since that state is shared by every account and the list is public.
 
-The client is not trusted either. The set always wins: a deposit in it reads `'approved'` whatever the feed says, so the feed can mislabel an unapproved deposit but never make one spendable. If the feed fails, the sync goes on with the last statuses it fetched. Each fetch replaces the previous list, so a decline the ASP reverses goes back to `'pending'`.
+The client is not trusted either. The set always wins: a deposit in it reads `'approved'` whatever the feed says, so the feed can mislabel an unapproved deposit but never make one spendable. If the feed fails, or does not answer within 10 seconds, the sync goes on with the last statuses it fetched. An account without `aspReviewServiceFactory` reads no statuses, not even ones fetched by another account sharing its `chainStorage`, so every deposit outside the set reads `'pending'` for it. Each fetch replaces the previous list, so a decline the ASP reverses goes back to `'pending'`.
 
 A custom client implements `getFlaggedDeposits({ chainId }): Promise<{ precommitment, pool, status }[]>`, where `status` is `'declined'` or `'poi_required'`. Rows for pools of another entrypoint are ignored.
 

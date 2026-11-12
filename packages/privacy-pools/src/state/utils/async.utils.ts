@@ -80,3 +80,33 @@ export const createSkipAspSyncQueue = () => {
     });
   };
 };
+
+/**
+ * Runs `run` for at most `ms`, then aborts its signal and rejects. Raced as well
+ * as signalled, so a run that ignores the signal cannot hold the caller either.
+ * The signal is also aborted once `run` settles, so a request still running in a
+ * run that failed early does not outlive it.
+ */
+export const withTimeout = async <T>(
+  ms: number,
+  label: string,
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> => {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} did not answer within ${ms}ms`);
+
+      controller.abort(error);
+      reject(error);
+    }, ms);
+  });
+
+  try {
+    return await Promise.race([run(controller.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+};
