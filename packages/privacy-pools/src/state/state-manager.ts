@@ -72,7 +72,7 @@ import {
 } from "./chain-state";
 import { PublicRootState, RootState, storeFactory } from "./store";
 import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
-import { createLoadCache, createSyncQueue } from "./utils/async.utils";
+import { createLoadCache, createSkipAspSyncQueue } from "./utils/async.utils";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
@@ -193,27 +193,27 @@ export const storeStateManager = (
     entrypoint: params.entrypoint,
   });
 
-  const runSync = async (chainInfo: GetChainStoreParams): Promise<void> => {
+  const runSync = async (chainInfo: GetChainStoreParams, skipAsp: boolean): Promise<void> => {
     const store = await getChainStore(chainInfo);
     const chainEntry = await getChainEntry(chainInfo);
 
-    await chainEntry.sync(params);
+    await chainEntry.sync({ ...params, skipAsp });
     unwrapResult(await store.dispatch(discoverUserSecretsThunk({ secretManager })));
   };
 
   // At most one sync per account at a time: interleaved syncs would derive and
   // append the same note secrets twice.
-  const syncQueues = new Map<StoreKey, ReturnType<typeof createSyncQueue>>();
+  const syncQueues = new Map<StoreKey, ReturnType<typeof createSkipAspSyncQueue>>();
 
   return {
-    sync: async (): Promise<void> => {
+    sync: async ({ skipAsp = false } = {}): Promise<void> => {
       const chainInfo = await getChainInfo();
       const storeKey = getStoreKey(chainInfo);
-      const enqueue = syncQueues.get(storeKey) ?? createSyncQueue();
+      const enqueue = syncQueues.get(storeKey) ?? createSkipAspSyncQueue();
 
       syncQueues.set(storeKey, enqueue);
 
-      return enqueue(() => runSync(chainInfo));
+      return enqueue(skipAsp, (runSkipAsp) => runSync(chainInfo, runSkipAsp));
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =

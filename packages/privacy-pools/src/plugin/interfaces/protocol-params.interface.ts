@@ -379,11 +379,18 @@ export type StateRagequitPayload = {
 export type StoreKey = `${string}-${string}`;
 export type StoreStorageKey = `privacy-pool-state-${StoreKey}`;
 
+export interface IStateSyncOptions {
+  /** Leave the ASP service out of this sync, keeping the stored tree (default: false). */
+  skipAsp?: boolean;
+}
+
 export interface IStateManager {
   /**
-   * Queries the chain and updates its state
+   * Queries the chain and updates its state. If the ASP service fails, the last
+   * good tree is kept and the sync still succeeds; withdrawals are refused until
+   * a sync gets the current tree.
    */
-  sync: () => Promise<void>;
+  sync: (options?: IStateSyncOptions) => Promise<void>;
   /**
    * Generates a deposit payload for the signer
    */

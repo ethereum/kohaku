@@ -279,10 +279,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
   }
 
+  /**
+   * Builds the transactions that exit the given notes. The contract does not
+   * consult the ASP for a ragequit, so neither does this: it works while the ASP
+   * service is down.
+   */
   async ragequit(
     labels: INote['label'][]
   ) {
-    await this.stateManager.sync();
+    await this.stateManager.sync({ skipAsp: true });
 
     const ragequitRawPayloads = await this.stateManager.getRagequitByLabelPayloads({
       labels,
