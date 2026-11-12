@@ -15,8 +15,8 @@
   "imports": {
     "#worker-loader": {
       "node": "./dist/worker-loader.node.js",
-      "browser": "./src/plugin/worker-loader.browser.ts",
-      "default": "./src/plugin/worker-loader.browser.ts"
+      "browser": "./dist/worker-loader.browser.js",
+      "default": "./dist/worker-loader.browser.js"
     },
     "#circuit-loader": {
       "default": "./dist/circuit-loader.js"
