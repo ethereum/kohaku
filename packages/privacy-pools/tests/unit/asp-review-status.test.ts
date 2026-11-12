@@ -166,13 +166,13 @@ describe('ASP review status', () => {
     expect(statusOf(store)[2]).toBe('declined');
   });
 
-  it('clears the statuses fetched before the service was removed', async () => {
+  it('leaves the shared list alone without a service', async () => {
     const store = setupStore();
 
-    store.dispatch(setAspFlaggedDeposits([[2n, 'declined'], [3n, 'poi_required']]));
+    store.dispatch(setAspFlaggedDeposits([[2n, 'declined']]));
     await store.dispatch(syncAspReviewThunk({}));
 
-    expect(statusOf(store)).toMatchObject({ 2: 'pending', 3: 'pending' });
+    expect(store.getState().aspReview.flaggedTuples).toHaveLength(1);
   });
 
   it('asks the feed from the shared chain state, which holds no account notes', async () => {

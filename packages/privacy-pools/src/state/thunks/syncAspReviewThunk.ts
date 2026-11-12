@@ -1,7 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 
 import { IAspReviewService } from '../../data/asp.interface.js';
-import { aspFlaggedDepositsSelector, entrypointInfoSelector, poolsSelector } from '../selectors/slices.selectors';
+import { entrypointInfoSelector, poolsSelector } from '../selectors/slices.selectors';
 import { setAspFlaggedDeposits } from '../slices/aspReviewSlice';
 import { RootState } from '../store';
 import { withTimeout } from '../utils/async.utils';
@@ -19,20 +19,15 @@ export interface SyncAspReviewThunkParams {
  * every account shares and which holds no account's notes, so it always asks
  * for the whole list. It never fails the sync: the review feed only adds detail
  * to `pending`, so on error or after ASP_REVIEW_TIMEOUT_MS the last list is kept.
- * Without a service the list is cleared, so labels fetched under an earlier
- * configuration don't stay forever.
+ * Without a service the list is left alone: accounts sharing the chain state may
+ * use one, and an account without one does not read it (see state-manager.ts).
  */
 export const syncAspReviewThunk = createAsyncThunk<void, SyncAspReviewThunkParams, { state: RootState }>(
   'sync/aspReview',
   async ({ aspReviewService }, { getState, dispatch }) => {
+    if (!aspReviewService) return;
+
     const state = getState();
-
-    if (!aspReviewService) {
-      if (aspFlaggedDepositsSelector(state).size > 0) dispatch(setAspFlaggedDeposits([]));
-
-      return;
-    }
-
     const { chainId } = entrypointInfoSelector(state);
     const pools = poolsSelector(state);
 
