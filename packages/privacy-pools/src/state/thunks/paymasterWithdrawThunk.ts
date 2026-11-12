@@ -253,7 +253,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       ...(tailCalls ? await tailCalls(sender) : (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
     ];
 
-    const baselineGas = executionGasBaseline(delegation, hasExecutionPhase
+    const baselineGas = executionGasBaseline(accountConfig, hasExecutionPhase
       ? reasonableGasUnitsForBatch(isERC20, directNotes.length, tailCalls != null, tailCallsGasEstimate)
       : { ...reasonableGasUnits(isERC20), callGasLimit: 0n });
 

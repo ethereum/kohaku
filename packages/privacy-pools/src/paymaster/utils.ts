@@ -1,4 +1,4 @@
-import { simpleAccountFactoryData } from '../account/execution-account';
+import { SIMPLE_7702_IMPLEMENTATION, simpleAccountFactoryData } from '../account/execution-account';
 import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
@@ -28,12 +28,7 @@ import {
   UserOpGasLimits,
 } from "../interfaces/user-ops.interface";
 
-/**
- * EntryPoint v0.8 canonical Simple7702Account implementation. The ephemeral
- * withdrawal sender is 7702-delegated to this contract, whose `validateUserOp`
- * checks an owner ECDSA signature over the userOp hash.
- */
-export const SIMPLE_7702_IMPLEMENTATION = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as const;
+export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
 
 export type GasPrice = {
   maxFeePerGas: bigint;

@@ -33,7 +33,6 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
   let gas = { ...baseline };
   let previousOperation: SerializedUserOperation | undefined;
   let executionRetries = 0;
-  let trimRetryBudget = false;
 
   for (let attempt = 0; attempt < MAX_ESTIMATION_ATTEMPTS; attempt++) {
     options.validateGas?.(gas, previousOperation);
@@ -59,7 +58,6 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
         options.validateGas?.(next, prepared.userOperation);
         gas = next;
         executionRetries++;
-        trimRetryBudget = true;
         // These failed probes do not consume the three successful refinement
         // rounds. Total extra probes are independently capped above.
         attempt--;
@@ -111,21 +109,6 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
         next[field] = buffered;
         changed = true;
       }
-    }
-
-    // A successful retry probe is not a new permanent floor. Tighten its
-    // execution budget to the estimate + 20% (at least the original baseline),
-    // then rebuild/requote/re-sign and successfully estimate that exact op.
-    if (trimRetryBudget) {
-      const buffered = (estimated.callGasLimit * 12n + 9n) / 10n;
-      const settled = buffered > baseline.callGasLimit ? buffered : baseline.callGasLimit;
-
-      if (settled < next.callGasLimit) {
-        next.callGasLimit = settled;
-        changed = true;
-      }
-
-      trimRetryBudget = false;
     }
 
     if (!changed) return { ...prepared, gasEstimation: { status: 'estimated' } };

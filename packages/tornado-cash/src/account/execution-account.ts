@@ -2,6 +2,9 @@ import type { EthereumProvider } from '@kohaku-eth/provider';
 import { encodeFunctionData, getAddress, zeroAddress } from 'viem';
 import type { DelegationConfig, DelegatorAccount, ExecutionAccountConfig } from './delegation.interface';
 
+/** Canonical Simple7702Account implementation for EntryPoint v0.8. */
+export const SIMPLE_7702_IMPLEMENTATION = '0xe6Cae83BdE06E4c305530e199D7217f42808555B' as const;
+
 /** A single normalization point: protocol proof/call builders only need sender,
  * nonce and the standard execution ABI, independently of the account family. */
 export function executionAccount(config?: DelegationConfig): ExecutionAccountConfig {
@@ -45,9 +48,9 @@ export function simpleAccountFactoryData(owner: `0x${string}`, factory: { salt: 
     functionName: 'createAccount', args: [owner, factory.salt] });
 }
 
-export function executionGasBaseline<T extends { verificationGasLimit: bigint }>(config: DelegationConfig | undefined, gas: T): T {
+export function executionGasBaseline<T extends { verificationGasLimit: bigint }>(account: ExecutionAccountConfig, gas: T): T {
   // Factory creation is charged to verificationGasLimit, before the withdrawal.
-  return config?.mode === 'smart-account' && config.account.factory ? { ...gas, verificationGasLimit: 500_000n } : gas;
+  return account.kind === 'simple-account' && account.factory ? { ...gas, verificationGasLimit: 500_000n } : gas;
 }
 
 const nonceAbi = [{ type: 'function', name: 'getNonce', stateMutability: 'view',
@@ -66,7 +69,7 @@ export async function readEntryPointNonce(provider: Pick<EthereumProvider, 'requ
   return nonce;
 }
 
-/** Reject a touched sender before proving or signing unless the caller opts in.
+/** Explicit EOA signers allow reuse by default; other senders require opt-in.
  * ERC20 balances and history that leaves no current state are not enumerated. */
 export async function prepareExecutionAccount(config: DelegationConfig | undefined, signer: DelegatorAccount,
   provider: Pick<EthereumProvider, 'request'> | undefined, entryPoint: `0x${string}`, knownNativeNonce?: bigint) {
@@ -85,8 +88,9 @@ export async function prepareExecutionAccount(config: DelegationConfig | undefin
   if (typeof code !== 'string' || !/^0x([0-9a-f]{2})*$/i.test(code) || typeof balance !== 'string' || !/^0x[0-9a-f]+$/i.test(balance) || typeof native !== 'string' || !/^0x[0-9a-f]+$/i.test(native)) throw new Error('Invalid execution account state response');
 
   const nativeNonce = BigInt(native);
+  const walletSender = config?.mode === 'external' || (config?.mode === 'deterministic' && !!config.path);
 
-  if (config?.allowUsed !== true && (code !== '0x' || BigInt(balance) !== 0n || nativeNonce !== 0n || nonce !== 0n)) {
+  if (!(config?.allowUsed ?? walletSender) && (code !== '0x' || BigInt(balance) !== 0n || nativeNonce !== 0n || nonce !== 0n)) {
     throw new Error('Execution account appears touched (code/delegation, nonce or ETH balance); explicitly set allowUsed: true to use it');
   }
 
@@ -98,6 +102,10 @@ export async function prepareExecutionAccount(config: DelegationConfig | undefin
   }
 
   if (code !== '0x' && !/^0xef0100[0-9a-f]{40}$/i.test(code)) throw new Error('EIP-7702 sender has incompatible existing account code');
+
+  if (code !== '0x' && config?.allowUsed !== true && code.toLowerCase() !== `0xef0100${(account.implementation ?? SIMPLE_7702_IMPLEMENTATION).slice(2).toLowerCase()}`) {
+    throw new Error('EIP-7702 sender delegates to a different implementation; explicitly set allowUsed: true to redelegate it');
+  }
 
   return { account, sender, nonce, authorizationNonce: nativeNonce };
 }

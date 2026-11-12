@@ -64,8 +64,8 @@ const options = {
 `maxGasLimits.callGasLimit`. At most three extra probes double the current
 execution budget without exceeding that ceiling. Every changed budget re-quotes
 the fee, re-proves the sponsoring note and requests a new signature. A successful
-larger probe is tightened to the estimate plus 20%, never below the original
-baseline, then rebuilt and successfully estimated again before return.
+larger probe remains the execution-gas floor even if the bundler reports a lower
+estimate. The final signed operation must still be successfully estimated.
 
 This can add proving time and wallet signature prompts. Higher fees reduce the
 funds available to custom calls. Funding, allowance, validation, contract-revert
@@ -122,7 +122,6 @@ const delegation: DelegationConfig = {
   mode: 'external',
   signer: eoaSigner, // signAuthorization and signTypedData
   implementation: compatibleImplementationAddress,
-  allowUsed: true, // if the EOA was already delegated, used or funded
   // nonce: entryPointNonce, // optional assertion of the current on-chain nonce
 };
 ```
@@ -147,12 +146,17 @@ The upstream repository includes audit reports; their scope applies to the
 reviewed revisions, not to arbitrary implementations or this SDK integration.
 
 
-Senders must appear untouched by default: no code/delegation, no native or
-key-0 EntryPoint nonce, and no ETH balance. Set `delegation.allowUsed: true` to
-explicitly opt into an existing smart account or a previously delegated/funded EOA.
+Note-derived/random senders and smart accounts must appear untouched by default:
+no code, native or key-0 EntryPoint nonce, or ETH balance. Set
+`delegation.allowUsed: true` to reuse these accounts. External and wallet-path
+EOAs allow prior transactions, ETH balances, and delegation to the selected
+implementation by default; `allowUsed: false` requires fresh state instead.
+Switching an existing delegation to another implementation requires `allowUsed: true`.
 State read failures stop preparation before proving/signing. The SDK always reads
 the current EntryPoint nonce and, for delegation, the sender's native authorization
 nonce. With an existing smart account, factory fields are omitted automatically,
 even when the caller keeps its factory configuration. This preflight checks current
 state; it does not enumerate ERC20 balances or detect past activity that leaves
-none of these signals. Reused senders require successful bundler simulation.
+none of these signals. Smart accounts, custom implementations, and explicit reuse
+opt-ins require successful simulation. Tornado direct single-note withdrawals
+with a standard external EOA retain their existing best-effort fallback policy.

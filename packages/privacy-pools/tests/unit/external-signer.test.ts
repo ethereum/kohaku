@@ -11,7 +11,7 @@ import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdraw
 import { storeFactory } from '../../src/state/store';
 
 const fixture = vi.hoisted(() => ({
-  count: 1, isERC20: false, nonce: 0,
+  count: 1, isERC20: false, nonce: 0, deployed: false,
   estimate: vi.fn(), proof: vi.fn(),
   deriveEphemeral: vi.fn(async () => `0x${'01'.repeat(32)}` as const),
   deriveDelegator: vi.fn(async () => `0x${'02'.repeat(32)}` as const),
@@ -52,7 +52,7 @@ async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<
   return store.dispatch(paymasterWithdrawThunk({
     dataService: { getTransactionCount: fixture.getTransactionCount, quoteWeiInToken: async (_paymaster: bigint, _asset: bigint, fee: bigint) => fee * 7n },
     provider: { request: async ({ method }: { method: string }) => {
-      if (method === 'eth_getCode') return delegation?.mode === 'smart-account' && !delegation.account.factory ? '0x6000' : '0x';
+      if (method === 'eth_getCode') return delegation?.mode === 'smart-account' && (fixture.deployed || !delegation.account.factory) ? '0x6000' : '0x';
       if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
       if (method === 'eth_call') return toHex(delegation?.nonce ?? 0n, { size: 32 });
       return method === 'eth_getBlockByNumber' ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n);
@@ -64,7 +64,7 @@ async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<
   } as never)).unwrap();
 }
 beforeEach(() => {
-  vi.clearAllMocks(); fixture.count = 1; fixture.isERC20 = false; fixture.nonce = 0;
+  vi.clearAllMocks(); fixture.count = 1; fixture.isERC20 = false; fixture.nonce = 0; fixture.deployed = false;
   fixture.getTransactionCount.mockImplementation(async () => fixture.nonce);
   fixture.estimate.mockReset();
   fixture.estimate.mockImplementation(async (op: SerializedUserOperation) => ({
@@ -95,7 +95,7 @@ describe('Privacy Pools external paymaster signing', () => {
   });
   it('uses the external EOA transaction nonce independently of EntryPoint nonce zero', async () => {
     fixture.nonce = 7;
-    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer });
+    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', signer });
     expect(fixture.getTransactionCount).toHaveBeenCalledExactlyOnceWith(account.address);
     expect(withdrawal!.userOperation.eip7702Auth!.nonce).toBe('0x7');
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
@@ -138,7 +138,7 @@ describe('Privacy Pools external paymaster signing', () => {
     await prepare();
     expect(fixture.deriveEphemeral).toHaveBeenCalledOnce(); expect(fixture.getTransactionCount).not.toHaveBeenCalled();
     fixture.nonce = 7;
-    const [wallet] = await prepare({ mode: 'deterministic', allowUsed: true, path: "m/44'/60'/0'/0/3" });
+    const [wallet] = await prepare({ mode: 'deterministic', path: "m/44'/60'/0'/0/3" });
     expect(fixture.deriveDelegator).toHaveBeenCalledWith({ path: "m/44'/60'/0'/0/3" });
     expect(wallet!.userOperation.eip7702Auth!.nonce).toBe('0x7');
   });
@@ -186,14 +186,16 @@ describe('external signer scope and returned signatures', () => {
 
 describe('Privacy Pools execution account routes', () => {
   const accountAddress = '0x0000000000000000000000000000000000000099';
-  it.each([false, true])('uses a separate account sender and typed-data-only owner (factory=%s)', async deploy => {
+  it.each([{ deploy: false, factory: false }, { deploy: false, factory: true }, { deploy: true, factory: true }])('uses a separate account sender and typed-data-only owner (deploy=$deploy, factory=$factory)', async ({ deploy, factory }) => {
+    fixture.deployed = !deploy;
     fixture.count = 2;
     const signTypedData = vi.fn(account.signTypedData);
     const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: { address: account.address, signTypedData }, nonce: deploy ? 0n : 3n,
-      account: { kind: 'simple-account', address: accountAddress, ...(deploy ? { factory: { address: adapter, salt: 7n } } : {}) } });
+      account: { kind: 'simple-account', address: accountAddress, ...(factory ? { factory: { address: adapter, salt: 7n } } : {}) } });
     const op = withdrawal!.userOperation;
     expect(op.sender).toBe(accountAddress); expect(op.nonce).toBe(deploy ? '0x0' : '0x3'); expect(op).not.toHaveProperty('eip7702Auth');
     expect(!!op.factory).toBe(deploy); expect(!!op.factoryData).toBe(deploy);
+    expect(BigInt(fixture.estimate.mock.calls[0]![0].verificationGasLimit)).toBe(deploy ? 500_000n : 50_000n);
     expect(signTypedData).toHaveBeenCalledTimes(2);
     expect(fixture.getTransactionCount).not.toHaveBeenCalled(); expect(fixture.deriveEphemeral).not.toHaveBeenCalled();
     const [{ adapterData }] = decodeAbiParameters(parseAbiParameters('(address adapter, bytes adapterData)'), op.paymasterData!);

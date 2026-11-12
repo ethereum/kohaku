@@ -39,7 +39,7 @@ export type DelegationConfig = (
     implementation?: `0x${string}`;
     /** Optional assertion of the current EntryPoint nonce (key 0 when omitted). */
     nonce?: bigint;
-    /** Required for code/delegation, native/EntryPoint nonce, or ETH balance. */
+    /** Allow used sender state. Defaults to true for external and wallet-path EOAs, false otherwise. */
     allowUsed?: boolean;
   } | SmartAccountDelegation;
 

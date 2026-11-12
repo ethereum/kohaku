@@ -221,7 +221,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const senderAddress = BigInt(executionSender(delegation, signer)) as Address;
 
   // Explicit wallet-path and external senders may have prior EOA transactions.
-  // All sender families are checked on-chain below; reuse requires allowUsed.
+  // Note-derived and random senders require allowUsed to reuse current state.
   // Native authorization and EntryPoint nonces are independent.
   const knownNativeNonce = delegation?.mode !== 'smart-account' && (delegation?.mode === 'external' || (delegation?.mode === 'deterministic' && delegation.path) || delegation?.nonce !== undefined || !!delegation?.implementation)
     ? BigInt(await dataService.getAccountNonce(senderAddress))
@@ -307,7 +307,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
   // Every refinement re-quotes the pool asset, re-proves the sponsoring
   // deposit and rebuilds forwarding calldata/signature before final estimation.
-  const baselineGas = executionGasBaseline(delegation, validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
+  const baselineGas = executionGasBaseline(accountConfig, validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,

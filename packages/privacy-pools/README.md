@@ -102,7 +102,6 @@ const delegation: DelegationConfig = {
   mode: 'external',
   signer: eoaSigner, // signAuthorization and signTypedData
   implementation: compatibleImplementationAddress,
-  allowUsed: true, // if the EOA was already delegated, used or funded
   // nonce: entryPointNonce, // optional assertion of the current on-chain nonce
 };
 ```
@@ -127,12 +126,16 @@ The upstream repository includes audit reports; their scope applies to the
 reviewed revisions, not to arbitrary implementations or this SDK integration.
 
 
-Senders must appear untouched by default: no code/delegation, no native or
-key-0 EntryPoint nonce, and no ETH balance. Set `delegation.allowUsed: true` to
-explicitly opt into an existing smart account or a previously delegated/funded EOA.
+Note-derived/random senders and smart accounts must appear untouched by default:
+no code, native or key-0 EntryPoint nonce, or ETH balance. Set
+`delegation.allowUsed: true` to reuse these accounts. External and wallet-path
+EOAs allow prior transactions, ETH balances, and delegation to the selected
+implementation by default; `allowUsed: false` requires fresh state instead.
+Switching an existing delegation to another implementation requires `allowUsed: true`.
 State read failures stop preparation before proving/signing. The SDK always reads
 the current EntryPoint nonce and, for delegation, the sender's native authorization
 nonce. With an existing smart account, factory fields are omitted automatically,
 even when the caller keeps its factory configuration. This preflight checks current
 state; it does not enumerate ERC20 balances or detect past activity that leaves
-none of these signals. Reused senders require successful bundler simulation.
+none of these signals. Smart accounts, custom implementations, external EOAs,
+and explicit reuse opt-ins require successful bundler simulation.

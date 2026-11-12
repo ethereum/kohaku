@@ -13,6 +13,7 @@ const fixture = vi.hoisted(() => ({
   chainId: 11155111n,
   kind: 'signature' as 'signature' | 'legacy',
   count: 1,
+  deployed: false,
   denomination: 10n ** 18n,
   maxFeePerGas: 2n,
   maxPriorityFeePerGas: 1n,
@@ -57,7 +58,7 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
     dataService: { getChainId: async () => fixture.chainId, quoteWeiInToken: fixture.quote, getAccountNonce: fixture.getAccountNonce },
     provider: { request: async ({ method }: { method: string }) => {
-      if (method === 'eth_getCode') return delegation?.mode === 'smart-account' && !delegation.account.factory ? '0x6000' : '0x';
+      if (method === 'eth_getCode') return delegation?.mode === 'smart-account' && (fixture.deployed || !delegation.account.factory) ? '0x6000' : '0x';
       if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
       if (method === 'eth_call') return toHex(delegation?.nonce ?? 0n, { size: 32 });
       if (method === 'eth_getBlockByNumber') return { baseFeePerGas: toHex(1_000_000_000_000n) };
@@ -85,6 +86,7 @@ async function prepare(delegation: DelegationConfig | null = { mode: 'random' },
     fixture.maxPriorityFeePerGas = 1n;
     fixture.denomination = 10n ** 18n;
     fixture.count = 2;
+    fixture.deployed = false;
     fixture.isERC20 = false;
     fixture.chainId = 11155111n;
     fixture.kind = 'signature';
@@ -109,7 +111,7 @@ describe('paymaster withdrawal preparation integration', () => {
   it.each(['random', 'deterministic', 'external'] as const)('keeps direct payout when bundler estimation is incompatible for a %s sender', async mode => {
     fixture.count = 1;
     fixture.isERC20 = true;
-    fixture.getAccountNonce.mockResolvedValue(0);
+    fixture.getAccountNonce.mockResolvedValue(mode === 'external' ? 5 : 0);
     const account = privateKeyToAccount(`0x${'09'.repeat(32)}`);
     const delegation: DelegationConfig = mode === 'external' ? { mode, signer: account as DelegatorAccount } : { mode };
 
@@ -249,7 +251,7 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(fixture.getAccountNonce).not.toHaveBeenCalled();
     expect(fixture.deriveSignature).toHaveBeenCalledWith({ nonce: 0n, chainId: 11155111n, poolAddress: 1n });
     const path = "m/44'/60'/0'/0/3";
-    const [walletDerived] = await prepare({ mode: 'deterministic', allowUsed: true, path });
+    const [walletDerived] = await prepare({ mode: 'deterministic', path });
 
     if (walletDerived!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
 
@@ -279,7 +281,7 @@ describe('paymaster withdrawal preparation integration', () => {
     const signer = { address: account.address, signAuthorization, signTypedData } as DelegatorAccount;
 
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
-    const [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer });
+    const [withdrawal] = await prepare({ mode: 'external', signer });
 
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
 
@@ -459,18 +461,20 @@ describe('paymaster withdrawal preparation integration', () => {
 describe('execution account routes', () => {
   const owner = privateKeyToAccount(`0x${'09'.repeat(32)}`);
   const accountAddress = '0x0000000000000000000000000000000000000099';
-  it.each([false, true])('collects a multi-note batch in a SimpleAccount (factory=%s) with typed-data signing only', async deploy => {
+  it.each([{ deploy: false, factory: false }, { deploy: false, factory: true }, { deploy: true, factory: true }])('collects a multi-note batch in a SimpleAccount (deploy=$deploy, factory=$factory)', async ({ deploy, factory }) => {
+    fixture.deployed = !deploy;
     fixture.count = 2;
     const signTypedData = vi.fn(owner.signTypedData);
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 1, false), preVerificationGas: 281_260n });
     const [withdrawal] = await prepare({ mode: 'smart-account', allowUsed: true, signer: { address: owner.address, signTypedData }, nonce: deploy ? 0n : 3n,
-      account: { kind: 'simple-account', address: accountAddress, ...(deploy ? { factory: { address: '0x0000000000000000000000000000000000000088' as const, salt: 7n } } : {}) },
+      account: { kind: 'simple-account', address: accountAddress, ...(factory ? { factory: { address: '0x0000000000000000000000000000000000000088' as const, salt: 7n } } : {}) },
     }, { recipient: BigInt(accountAddress) });
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
     const op = withdrawal!.userOperation;
     expect(op.sender).toBe(accountAddress); expect(op.nonce).toBe(deploy ? '0x0' : '0x3');
     expect(op).not.toHaveProperty('eip7702Auth');
     expect(!!op.factory).toBe(deploy); expect(!!op.factoryData).toBe(deploy);
+    expect(BigInt(fixture.estimate.mock.calls[0]![0].verificationGasLimit)).toBe(deploy ? 500_000n : 50_000n);
     const { SIMPLE_7702_EXECUTE_ABI } = await import('../../src/data/abis/account.abi');
     const decoded = decodeFunctionData({ abi: SIMPLE_7702_EXECUTE_ABI, data: op.callData });
     expect(decoded.functionName).toBe('execute'); // only the second withdrawal; no self-forward
@@ -585,7 +589,7 @@ describe('execution account routes', () => {
       tailCalls: async () => [{ to: owner.address, value: 0n, data: '0x' }], maxGasLimits: { callGasLimit: base.callGasLimit * 3n },
     });
     if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
-    expect(seen).toEqual([base.callGasLimit, base.callGasLimit * 2n, required * 12n / 10n]);
+    expect(seen).toEqual([base.callGasLimit, base.callGasLimit * 2n, base.callGasLimit * 2n]);
     expect(withdrawal!.gasEstimation!.status).toBe('estimated');
   });
 

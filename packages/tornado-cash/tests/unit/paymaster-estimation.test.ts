@@ -43,16 +43,16 @@ function rawOperation(op: SerializedUserOperation) {
 }
 
 describe('Tornado paymaster gas estimation', () => {
-  it('rebuilds at a higher execution probe, then tightens and re-estimates the exact signed fee', async () => {
-    const base = { ...reasonableGasUnits(false), callGasLimit: 300_000n };
+  it('retains a successful execution probe when the bundler reports a lower estimate', async () => {
+    const base = { ...reasonableGasUnits(false), callGasLimit: 600_000n };
     const build = builder(true);
     const estimate = vi.fn(async (op: SerializedUserOperation) => {
-      if (BigInt(op.callGasLimit) < 500_000n) throw new RpcRequestError({ url: 'unused', body: { paymaster }, error: { code: -32521, message: 'Execution out of gas' } });
-      return { ...base, callGasLimit: 450_000n };
+      if (BigInt(op.callGasLimit) < 1_300_000n) throw new RpcRequestError({ url: 'unused', body: { paymaster }, error: { code: -32521, message: 'Execution out of gas' } });
+      return { ...base, callGasLimit: 1_000_000n };
     });
-    const result = await buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 800_000n });
-    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 540_000n]);
-    expect(BigInt(result.userOperation.callGasLimit)).toBe(540_000n);
+    const result = await buildEstimatedTornadoUserOp(base, build, estimate, { executionGasRetryLimit: 8_000_000n });
+    expect(build.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([600_000n, 1_200_000n, 2_400_000n, 2_400_000n]);
+    expect(BigInt(result.userOperation.callGasLimit)).toBe(2_400_000n);
     expect(estimate).toHaveBeenLastCalledWith(result.userOperation);
     expect(BigInt(result.proof.args[4])).toBe(result.fee);
     expect(result.userOperation.signature).not.toBe((await build.mock.results[0]!.value).userOperation.signature);
