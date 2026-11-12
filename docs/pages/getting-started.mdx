@@ -198,9 +198,10 @@ const operation = await tornado.prepareUnshield(note, recipient, {
   mode: 'paymaster',
 })
 const receipts = await createTCBroadcaster(host).broadcast(operation)
+await Promise.all(receipts.map((receipt) => receipt.wait()))
 ```
 
-A multi-note unshield is consolidated into a single paymaster-sponsored ERC-4337 user operation: the first note covers sponsorship, and subsequent notes are withdrawn through tail calls in the same operation. The broadcaster submits it to the bundler and waits for its receipt. The receipt's `id` is the user operation hash. [Deposits and withdrawals](/tornado-cash/options) covers follow-up calls and the other deposit strategy.
+A multi-note unshield is consolidated into a single paymaster-sponsored ERC-4337 user operation: the first note covers sponsorship, and subsequent notes are withdrawn through tail calls in the same operation. The broadcaster resolves once the bundler accepts it, and `wait()` resolves once it is mined successfully. The receipt's `id` is the user operation hash. [Deposits and withdrawals](/tornado-cash/options) covers follow-up calls and the other deposit strategy.
 
 :::
 
