@@ -8,7 +8,7 @@ import { registerPoolLeaves } from '../../src/state/slices/poolLeavesSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { verifyRootsThunk } from '../../src/state/thunks/verifyRootsThunk';
-import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
+import { buildMerkleTree, computeMerkleTreeRoot } from '../../src/utils/proof.util';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 import {
   verifyAspRootOnChain,
@@ -81,11 +81,13 @@ describe('verifyRootsThunk', () => {
       ],
     }));
 
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, merkleTreeBuilder }),
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(merkleTreeBuilder.mock.calls.map(([leaves]) => leaves)).toEqual([[44n, 55n], [10n, 20n, 30n]]);
     // The root rebuilt from the leaves, not the stored (service-reported) 333n.
     expect(verifyAspRootOnChain).toHaveBeenCalledWith(
       dataService,

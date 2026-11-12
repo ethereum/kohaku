@@ -2,6 +2,7 @@ import { createSelector } from "@reduxjs/toolkit";
 
 import { IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
+import { buildMerkleTree, type MerkleTreeBuilder } from "../../utils/proof.util";
 import { getIncrementalTree } from "./merkle-tree.cache";
 import { RootState } from "../store";
 import { myEntrypointDepositsSelector } from "./deposits.selector";
@@ -98,20 +99,20 @@ export const poolCommitmentsSelector = createSelector(
   },
 );
 
-export const poolMerkleTreeRootSelector = createSelector(
-  [poolCommitmentsSelector, (_state: RootState, poolAddress: Address) => poolAddress],
-  async (commitments, poolAddress): Promise<bigint> => {
-    const leaves = Array.from(commitments);
+export const poolMerkleTreeRootSelector = async (
+  state: RootState,
+  poolAddress: Address,
+  builder: MerkleTreeBuilder = buildMerkleTree,
+): Promise<bigint> => {
+  const leaves = Array.from(poolCommitmentsSelector(state, poolAddress));
 
-    if (leaves.length === 0) {
-      return 0n;
-    }
+  if (leaves.length === 0) {
+    return 0n;
+  }
 
-    // Shares the per-pool cached tree with stateMerkleProofSelector, so verifying
-    // the root and generating proofs build the tree at most once.
-    return (await getIncrementalTree('state', String(poolAddress), leaves)).root;
-  },
-);
+  // The tree cache shares builds and evicts failures, allowing later reads to retry.
+  return (await getIncrementalTree('state', String(poolAddress), leaves, undefined, builder)).root;
+};
 
 export const poolFromAssetSelector = createSelector(
   [poolsSelector, (state: RootState, assetAddress: Address) => assetAddress],

@@ -1,7 +1,7 @@
 import { TxData } from "@kohaku-eth/provider";
 import { Address } from "ox/Address";
 import { Hex } from "ox/Hex";
-import { DelegatorAccount } from "../account/delegation.interface";
+import { DelegatorAccount, ExecutionAccountConfig } from "../account/delegation.interface";
 
 export interface SerializedAuth {
     address: Address;
@@ -33,6 +33,8 @@ export interface SerializedUserOperation {
   paymasterData?: `0x${string}`;
   signature: `0x${string}`;
   eip7702Auth?: SerializedAuth;
+  factory?: `0x${string}`;
+  factoryData?: `0x${string}`;
 }
 
 export interface UserOpGasLimits {
@@ -50,6 +52,7 @@ export interface BuildSignedTornadoUserOpParams {
    * (via `privateKeyToAccount`) or a host-supplied hardware/remote signer.
    */
   signer: DelegatorAccount;
+  executionAccount?: ExecutionAccountConfig;
   chainId: number;
   paymasterAddress: Address;
   paymasterData: Hex;
@@ -66,7 +69,9 @@ export interface BuildSignedTornadoUserOpParams {
    *  while the EntryPoint nonce remains 0. */
   authorizationNonce?: bigint;
 }
-/** Best effort applies only to standard, recoverable withdrawals without user tail calls. */
+/** Best effort permits marked fallback for direct single-note withdrawals
+ * (including random/external senders), or recoverable execution-phase withdrawals
+ * without user tail calls, on mainnet/Sepolia. Known invalidity still fails. */
 export type GasEstimationPolicy = 'required' | 'best-effort';
 
 /** Preparation quality; fallback is not a claim that simulation succeeded. */

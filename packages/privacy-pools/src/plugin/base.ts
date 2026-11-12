@@ -37,6 +37,7 @@ import {
   PPv1PublicOperation,
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
+  PPv1RelayerUnshieldOptions,
   PPv1ShieldEstimate,
   PPv1ViewOptions,
   PPv1UnshieldEstimate,
@@ -105,14 +106,17 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     {
       accountIndex = 0,
       initialState,
+      chainStorage,
       secretManager = SignatureSecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       entrypoint,
       relayersList = {},
       ipfsUrl,
       aspServiceFactory = () => new IPFSAspService({ network: host.network, ipfsUrl }),
+      aspReviewServiceFactory,
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = Prover,
+      merkleTreeBuilder,
       paymasterConfig = PrivacyPoolsPaymasterConfigs,
       dataService = new DataService({ provider: host.provider }),
       devOptions,
@@ -132,12 +136,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
     this.stateManager = stateManagerFactory({
       initialState,
+      chainStorage,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
+      aspReviewService: aspReviewServiceFactory?.(),
       dataService,
       relayerClient: this.relayerClient,
       relayersList: this.relayersList,
       proverFactory,
+      merkleTreeBuilder,
       storageToSyncTo: host.storage,
       entrypoint,
       paymasterConfig,
@@ -277,10 +284,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
   }
 
+  /**
+   * Builds the transactions that exit the given notes. The contract does not
+   * consult the ASP for a ragequit, so neither does this: it works while the ASP
+   * service is down.
+   */
   async ragequit(
     labels: INote['label'][]
   ) {
-    await this.stateManager.sync();
+    await this.stateManager.sync({ skipAsp: true });
 
     const ragequitRawPayloads = await this.stateManager.getRagequitByLabelPayloads({
       labels,
@@ -316,6 +328,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * payer/change address keeps the recipient at exactly `requestedNet`, while pointing it
    * at the recipient over-delivers (then `operation.exact.expectedNet` is a lower bound).
    */
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options: PPv1PaymasterUnshieldOptions): Promise<PPv1PaymasterPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>;
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     const warnings = await this.runDepositorCheck(assets, to, options);
 
@@ -391,6 +406,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       recipient: BigInt(to),
       requestedNet,
       gasBumpBPS: options.exact?.gasBumpBPS ?? DEFAULT_EXACT_GAS_BUMP_BPS,
+      obfuscateAmounts: options.obfuscateAmounts ?? false,
     });
 
     // The recipient's net is fixed by the gross and embedded fee we chose, so it must
@@ -475,6 +491,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         tailCallsGasEstimate: options.tailCallsGasEstimate,
         maxGasLimits: options.maxGasLimits,
         batch: options.batch,
+        obfuscateAmounts: options.obfuscateAmounts ?? false,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });
 
@@ -487,6 +504,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       asset: assetAddress,
       amount,
       recipient: BigInt(to),
+      obfuscateAmounts: options?.obfuscateAmounts ?? false,
     });
 
     if (!result) throw new Error("We failed to create a withdrawalPayload");

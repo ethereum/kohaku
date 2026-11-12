@@ -17,7 +17,7 @@ import { PublicRootState } from '../../state/store';
 import { IRelayerFeeConfig } from '../../state/slices/relayersSlice';
 import { IGenericPaymasterWithdrawalPayload } from '../../relayer/interfaces/paymaster-client.interface';
 import { Address } from '../../interfaces/types.interface';
-import type { DelegationConfig } from '../../account/delegation.interface';
+import type { DelegationConfig, WorkerDelegationConfig } from '../../account/delegation.interface';
 import type { ITornadoInstance } from '../../instances';
 
 export type { DelegationConfig, ImportNoteResult };
@@ -112,10 +112,11 @@ export interface IRelayerWithdrawParams extends IWithdrawBaseParams {
 }
 
 export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
-  /** Default best-effort: eligible standard withdrawals may return marked, unestimated fallback limits. */
+  /** Best effort allows marked fallback for direct single notes or eligible recoverable execution paths; required enforces successful bundler estimation. */
   gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;
+  /** Calls run after funding the sender, including one note; omit for direct single-note payout/refund. */
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   /**
    * Optional baseline for the execution-phase gas of user `tailCalls` (not
@@ -123,6 +124,12 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
    * still required and can increase this budget.
    */
   tailCallsGasEstimate?: bigint;
+  /**
+   * Opt in to at most three extra estimation probes for recognized execution
+   * out-of-gas failures. Requires a positive maxGasLimits.callGasLimit. Each
+   * probe rebuilds the fee, proof and signature; defaults to false.
+   */
+  executionGasRetry?: boolean;
   /** Optional absolute ceilings, including buffers; not a fee percentage. */
   maxGasLimits?: PaymasterGasLimits;
   /** Worker transport supplied by the host. */
@@ -130,6 +137,10 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
 }
 
 export type IWithdrawapOperationParams = IRelayerWithdrawParams | IPaymasterWithdrawParams;
+
+/** Signing functions must not be nested in a structured-cloned options object. */
+export type WorkerWithdrawParams = IRelayerWithdrawParams |
+  (Omit<IPaymasterWithdrawParams, 'delegation'> & { delegation?: WorkerDelegationConfig });
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
   assets?: Address[];

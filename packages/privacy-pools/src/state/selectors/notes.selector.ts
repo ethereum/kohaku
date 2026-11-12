@@ -11,7 +11,7 @@ import { myWithdrawalsSelector } from './withdrawals.selector';
 
 export interface NoteToSpend {
   note: INote;
-  /** How much of this note to withdraw (full balance, except a partial last note). */
+  /** Gross amount to withdraw from this note. */
   withdrawnValue: bigint;
 }
 
@@ -107,6 +107,7 @@ export const allNotesSelector = createSelector(
       balance: deposit.balance,
       assetAddress: deposit.assetAddress,
       approved: deposit.approved,
+      reviewStatus: deposit.reviewStatus,
       depositor: deposit.depositor,
       blockNumber: deposit.blockNumber,
       deposit: deposit.index,
@@ -191,6 +192,7 @@ export const unapprovedNotesSelector = createSelector(
         balance: deposit.balance,
         assetAddress: deposit.assetAddress,
         approved: deposit.approved,
+        reviewStatus: deposit.reviewStatus,
         depositor: deposit.depositor,
         blockNumber: deposit.blockNumber,
         deposit: deposit.index,

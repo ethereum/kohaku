@@ -1,4 +1,6 @@
 /* eslint-disable max-lines */
+import { executionAccount, executionSender, externalAccountSigner, requiresAccountSimulation, executionGasBaseline, prepareExecutionAccount } from '../../account/execution-account';
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import type { Network } from "@kohaku-eth/plugins";
 import type { EthereumProvider } from "@kohaku-eth/provider";
@@ -8,10 +10,11 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import { ISecretManager } from "../../account/keys";
+import { verifiedExternalDelegator } from '../../account/external-delegator';
 import { E_ADDRESS } from "../../config";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
-import { DelegationConfig, DelegatorAccount, UserOpGasLimits } from "../../interfaces/user-ops.interface";
+import { DelegationConfig, DelegatorAccount, SerializedUserOperation, UserOpGasLimits } from "../../interfaces/user-ops.interface";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
@@ -45,6 +48,7 @@ function assertValidDelegatorPath(path: string): void {
 export interface PaymasterWithdrawThunkParams {
   getNextNote: WithdrawThunkParams["getNextNote"];
   proverFactory: () => ReturnType<typeof Prover>;
+  merkleTreeBuilder?: MerkleTreeBuilder;
   dataService: IDataService;
   secretManager: ISecretManager;
   asset: Address;
@@ -67,6 +71,8 @@ export interface PaymasterWithdrawThunkParams {
    * execution phase and the consolidated balance is forwarded to `recipient`.
    */
   batch?: boolean;
+  /** Internal allocation, resolved once by the state manager before proof generation. */
+  notesToSpend?: NoteToSpend[];
   /**
    * Where the paymaster sends the gas-overcharge refund in postOp. Defaults to
    * `recipient`; set it to route the refund elsewhere (e.g. a payer/change address so
@@ -88,6 +94,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     {
       getNextNote,
       proverFactory,
+      merkleTreeBuilder,
       dataService,
       secretManager,
       asset,
@@ -98,6 +105,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       tailCalls,
       tailCallsGasEstimate,
       batch,
+      notesToSpend: plannedNotes,
       refundRecipient: refundRecipientOverride,
       maxGasLimits,
       provider,
@@ -121,9 +129,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       throw new Error(`No paymaster adapter configured for pool ${addressToHex(poolInfo.address)}`);
     }
 
-    // Select the note(s): a batch consolidates the minimal set of approved notes to
-    // reach `amount`; otherwise the single smallest-sufficient note.
-    const notesToSpend = batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount);
+    // Reuse the protected allocation, or fall back to legacy full-note selection.
+    const notesToSpend = plannedNotes ?? (batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount));
     const totalWithdrawn = notesToSpend.reduce((sum, n) => sum + n.withdrawnValue, 0n);
     // Largest note (first) is sponsored — it pays the fee; the rest run in the
     // execution phase. An execution phase exists when consolidating extra notes or
@@ -135,7 +142,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // Roots were already verified against chain by the sync() that the plugin runs
     // immediately before building this withdrawal (buildUnshield → sync → verifyRoots,
     // on the same unchanged state). Re-verifying here repeats 15 on-chain reads for no
-    // benefit, so it's intentionally omitted.
+    // benefit, so it's intentionally omitted. If that sync could not refresh the ASP
+    // tree, withdrawThunk refuses to prove.
 
     const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
     const [{ standard: price }, reference] = await Promise.all([
@@ -146,7 +154,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     assertGasPriceWithinBounds(price, reference);
     const { maxFeePerGas, maxPriorityFeePerGas } = price;
 
-    const signer = await resolveSigner({
+    executionAccount(delegation);
+    let signer = await resolveSigner({
       delegation,
       secretManager,
       chainId,
@@ -155,16 +164,28 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       withdrawIndex: sponsoring!.note.withdraw,
     });
 
-    // A wallet-path delegator can be a reused EOA with a nonzero transaction
+    // A wallet-path or external delegator can be a reused EOA with a nonzero transaction
     // count, which the 7702 authorization must bind to. Ephemeral/random senders
-    // are fresh single-use EOAs (nonce 0), so we skip the RPC and let the auth
-    // default to 0 — keeping that hot path RPC-free.
-    const authorizationNonce =
-      delegation?.mode === "deterministic" && delegation.path
+    // are normally fresh; the shared preflight below checks that assumption and
+    // reads the current EntryPoint/native nonces before signing.
+    const knownNativeNonce =
+      delegation?.mode !== "smart-account" && (delegation?.mode === "external" || (delegation?.mode === "deterministic" && delegation.path) || delegation?.nonce !== undefined || !!delegation?.implementation)
         ? BigInt(await dataService.getTransactionCount(signer.address))
         : undefined;
 
-    const payoutRecipient = hasExecutionPhase ? signer.address : addressToHex(recipient);
+    const preparedAccount = await prepareExecutionAccount(delegation, signer, provider, entryPointAddress, knownNativeNonce);
+    const { account: accountConfig, nonce: userOpNonce, authorizationNonce } = preparedAccount;
+
+    if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') {
+      signer = verifiedExternalDelegator(signer, { chainId: Number(chainId), nonce: authorizationNonce ?? 0n, entryPointAddress, paymasterAddress,
+        implementation: delegation.mode === 'external' ? delegation.implementation : undefined,
+        sender: executionSender(delegation, signer), userOpNonce, smartAccount: delegation.mode === 'smart-account',
+        factory: accountConfig.kind === 'simple-account' ? accountConfig.factory : undefined,
+      });
+    }
+
+    const sender = executionSender(delegation, signer);
+    const payoutRecipient = hasExecutionPhase ? sender : addressToHex(recipient);
 
     // Where the paymaster sends the gas-overcharge refund in postOp: the caller-supplied
     // `refundRecipient`, else the real recipient — so the user gets their gas money back
@@ -195,6 +216,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         withdrawThunk({
           getNextNote,
           proverFactory,
+          merkleTreeBuilder,
           asset,
           recipient,
           note: toSpend.note,
@@ -209,7 +231,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const directWithdrawCalls: TxData[] = [];
 
     for (const directNote of directNotes) {
-      const withdrawal: WithdrawalPayload = { processooor: signer.address, data: "0x" };
+      const withdrawal: WithdrawalPayload = { processooor: sender, data: "0x" };
       const proof = await proveNote(directNote, withdrawal);
 
       directWithdrawCalls.push({ to: poolHex, value: 0n, data: encodePoolWithdraw(withdrawal, proof) });
@@ -235,12 +257,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // caller's tail calls or the synthesized forward.
     const executionCalls = (fee: bigint) => async (): Promise<TxData[]> => [
       ...directWithdrawCalls,
-      ...(tailCalls ? await tailCalls(signer.address) : [forwardCall(fee)]),
+      ...(tailCalls ? await tailCalls(sender) : (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
     ];
 
-    const baselineGas = hasExecutionPhase
+    const baselineGas = executionGasBaseline(accountConfig, hasExecutionPhase
       ? reasonableGasUnitsForBatch(isERC20, directNotes.length, tailCalls != null, tailCallsGasEstimate)
-      : { ...reasonableGasUnits(isERC20), callGasLimit: 0n };
+      : { ...reasonableGasUnits(isERC20), callGasLimit: 0n });
 
     assertGasLimitsWithinBounds(baselineGas, baselineGas, undefined, maxGasLimits);
 
@@ -260,32 +282,47 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       };
       const proof = await proveNote(sponsoring!, withdrawal);
       const paymasterData = encodePaymasterData(adapterAddress, encodePrivacyPoolAdapterData(withdrawal, proof));
-      const userOperation = await buildSignedUserOp({
+      const { userOperation, userOpHash } = await buildSignedUserOp({
         signer,
+        executionAccount: accountConfig,
         chainId: Number(chainId),
         paymasterAddress,
         paymasterData,
         gas,
         maxFeePerGas,
         maxPriorityFeePerGas,
-        nonce: 0n,
+        nonce: userOpNonce,
         authorizationNonce,
         tailCalls: hasExecutionPhase ? executionCalls(fee) : undefined,
       });
 
       assertGasLimitsWithinBounds(gas, baselineGas, userOperation, maxGasLimits);
 
-      return { proof, userOperation, fee };
+      return { proof, userOperation, userOpHash, fee };
     };
 
-    let { proof, userOperation, fee } = await buildUserOp(baselineGas);
+    let { proof, userOperation, userOpHash, fee } = await buildUserOp(baselineGas);
 
-    // Refine gas against the bundler; re-prove once at the refined fee. Best-effort —
-    // on failure the safe baseline is kept.
-    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits);
+    // Existing derived-key modes retain best-effort refinement. External signers
+    // require successful estimation and validation of the final signed payload.
+    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits, requiresAccountSimulation(delegation));
 
     if (refinedGas !== baselineGas) {
-      ({ proof, userOperation, fee } = await buildUserOp(refinedGas));
+      ({ proof, userOperation, userOpHash, fee } = await buildUserOp(refinedGas));
+    }
+
+    if (requiresAccountSimulation(delegation)) {
+      const finalGas = await estimateUserOperationGas(bundlerClient, userOperation, entryPointAddress);
+
+      assertGasLimitsWithinBounds(finalGas, baselineGas, userOperation, maxGasLimits);
+      const fields = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
+
+      // Validation-only withdrawals have empty callData and must keep execution
+      // gas zero even when the bundler reports a nonzero search estimate.
+      if (finalGas.verificationGasLimit <= 0n || finalGas.preVerificationGas <= 0n || fields.some(field => finalGas[field] < 0n ||
+        ((field !== 'callGasLimit' || userOperation.callData !== '0x') && finalGas[field] > BigInt(userOperation[field]!)))) {
+        throw new Error('External Privacy Pools UserOperation gas requirements changed after signing. Prepare a new withdrawal.');
+      }
     }
 
     return [
@@ -300,6 +337,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         entryPointAddress,
         bundlerUrl,
         userOperation,
+        userOpHash,
       },
     ];
   },
@@ -340,6 +378,8 @@ async function resolveSigner({
   depositIndex: number;
   withdrawIndex: number;
 }): Promise<DelegatorAccount> {
+  if (delegation?.mode === "external" || delegation?.mode === "smart-account") return externalAccountSigner(delegation);
+
   if (delegation?.mode === "random") {
     return privateKeyToAccount(generatePrivateKey());
   }
@@ -357,16 +397,19 @@ async function resolveSigner({
 
 async function refineGasWithBundler(
   bundlerClient: ReturnType<typeof createPaymasterBundlerClient>,
-  provisionalUserOp: Awaited<ReturnType<typeof buildSignedUserOp>>,
+  provisionalUserOp: SerializedUserOperation,
   entryPointAddress: `0x${string}`,
   baselineGas: UserOpGasLimits,
   maxGasLimits?: PaymasterGasLimits,
+  requireEstimation = false,
 ): Promise<UserOpGasLimits> {
   let estimated: UserOpGasLimits;
 
   try {
     estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
-  } catch {
+  } catch (cause) {
+    if (requireEstimation) throw new Error('External Privacy Pools signing requires successful bundler gas estimation.', { cause });
+
     return baselineGas;
   }
 

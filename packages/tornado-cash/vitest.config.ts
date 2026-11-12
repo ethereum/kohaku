@@ -14,6 +14,7 @@ const E2E_SUITES = [
   { suiteName: 'withdraw-paymaster', include: ['tests/e2e/**/withdraw-paymaster.test.ts'], timeout: 600_000 },
   { suiteName: 'import-legacy-note', include: ['tests/e2e/**/import-legacy-note.test.ts'], timeout: 600_000 },
   { suiteName: 'withdraw-paymaster-single-deposit', include: ['tests/e2e/**/withdraw-paymaster-single-deposit.test.ts'], timeout: 600_000 },
+  { suiteName: 'withdraw-paymaster-failures', include: ['tests/e2e/**/withdraw-paymaster-failures.test.ts'], timeout: 600_000 },
   { suiteName: 'sync',            include: ['tests/sync.test.ts'],                        timeout: 1_200_000 },
 ];
 
