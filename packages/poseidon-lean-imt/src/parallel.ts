@@ -37,15 +37,15 @@ export async function defaultWorkerCount(): Promise<number> {
   return Math.min(os.availableParallelism(), MAX_DEFAULT_WORKERS);
 }
 
-async function startNodeWorkers(count: number, workerUrl?: string | URL): Promise<Channel[]> {
+async function startNodeWorkers(pool: Channel[], count: number, workerUrl?: string | URL): Promise<void> {
   const { Worker } = (await import(NODE_WORKER_THREADS_MODULE)) as NodeWorkerThreads;
   // Sources run in tests, dist everywhere else.
   const url = workerUrl ?? new URL(import.meta.url.endsWith(".ts") ? "./worker.ts" : "./worker.js", import.meta.url);
 
-  return Array.from({ length: count }, () => {
+  for (let i = 0; i < count; i++) {
     const worker = new Worker(url);
 
-    return {
+    pool.push({
       send: (nodes) => worker.postMessage(nodes),
       listen(onReply, onError) {
         const onMessage = (value: unknown) => onReply(value as Reply);
@@ -59,18 +59,18 @@ async function startNodeWorkers(count: number, workerUrl?: string | URL): Promis
         };
       },
       terminate: () => worker.terminate(),
-    };
-  });
+    });
+  }
 }
 
-function startBrowserWorkers(count: number, workerUrl?: string | URL): Channel[] {
-  return Array.from({ length: count }, () => {
+function startBrowserWorkers(pool: Channel[], count: number, workerUrl?: string | URL): void {
+  for (let i = 0; i < count; i++) {
     // The literal new Worker(new URL(...)) form is what bundlers detect and emit.
     const worker = workerUrl
       ? new Worker(workerUrl, { type: "module" })
       : new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 
-    return {
+    pool.push({
       send: (nodes) => worker.postMessage(nodes),
       listen(onReply, onError) {
         const onMessage = (event: MessageEvent) => onReply(event.data as Reply);
@@ -85,8 +85,8 @@ function startBrowserWorkers(count: number, workerUrl?: string | URL): Channel[]
         };
       },
       terminate: () => worker.terminate(),
-    };
-  });
+    });
+  }
 }
 
 // Parents of nodes, hashed on channel. One request at a time per worker, so the
@@ -118,9 +118,12 @@ export async function parallelLevels(leaves: bigint[], workers: number, workerUr
   const levels = [leaves.slice()];
   // The first level has the most parents, n/2 rounded down.
   const count = Math.min(workers, leaves.length >> 1);
-  const pool = isBrowser ? startBrowserWorkers(count, workerUrl) : await startNodeWorkers(count, workerUrl);
+  const pool: Channel[] = [];
 
   try {
+    if (isBrowser) startBrowserWorkers(pool, count, workerUrl);
+    else await startNodeWorkers(pool, count, workerUrl);
+
     while (levels[levels.length - 1].length > 1) {
       const prev = levels[levels.length - 1];
       const parents = Math.ceil(prev.length / 2);

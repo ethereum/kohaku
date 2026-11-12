@@ -34,3 +34,6 @@ export type {
 export { PrivacyPoolsV1_0xBow, E_ADDRESS } from './config.js';
 
 export type { PaymasterGasLimits } from './paymaster/gas-bounds';
+
+export { buildMerkleTree } from './utils/proof.util';
+export type { MerkleTree, MerkleTreeBuilder } from './utils/proof.util';

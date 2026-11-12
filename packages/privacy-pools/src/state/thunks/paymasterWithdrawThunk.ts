@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { executionAccount, executionSender, externalAccountSigner, requiresAccountSimulation, executionGasBaseline, prepareExecutionAccount } from '../../account/execution-account';
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import type { Network } from "@kohaku-eth/plugins";
 import type { EthereumProvider } from "@kohaku-eth/provider";
@@ -47,6 +48,7 @@ function assertValidDelegatorPath(path: string): void {
 export interface PaymasterWithdrawThunkParams {
   getNextNote: WithdrawThunkParams["getNextNote"];
   proverFactory: () => ReturnType<typeof Prover>;
+  merkleTreeBuilder?: MerkleTreeBuilder;
   dataService: IDataService;
   secretManager: ISecretManager;
   asset: Address;
@@ -92,6 +94,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     {
       getNextNote,
       proverFactory,
+      merkleTreeBuilder,
       dataService,
       secretManager,
       asset,
@@ -213,6 +216,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         withdrawThunk({
           getNextNote,
           proverFactory,
+          merkleTreeBuilder,
           asset,
           recipient,
           note: toSpend.note,

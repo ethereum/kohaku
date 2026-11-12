@@ -1,3 +1,4 @@
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
@@ -218,6 +219,8 @@ export interface PPv1DevOptions {
 }
 
 export interface PrivacyPoolsV1ProtocolParams {
+  /** Builds trees locally by default; may return a proxy to an offscreen tree. */
+  merkleTreeBuilder?: MerkleTreeBuilder;
   accountIndex?: number;
   secretManager: (params: SecretManagerParams) => ISecretManager;
   stateManager: (params: StoreFactoryParams) => IStateManager;

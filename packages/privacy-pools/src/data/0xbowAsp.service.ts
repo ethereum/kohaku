@@ -100,7 +100,9 @@ export class OxBowAspService implements IAspService {
 
     const [, { scope }] = somePool;
 
-    return this.getAspTreeOxBow({ chainId: BigInt(chainId), scope: BigInt(scope) });
+    // The sync thunk validates these leaves with the configured Merkle builder.
+    // Avoid an extra default/local build before an offscreen builder can run.
+    return [await this.getMtLeaves({ chainId: BigInt(chainId), scope: BigInt(scope) })];
   }
 
 }

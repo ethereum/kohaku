@@ -28,6 +28,7 @@ export interface PPv1PluginParameters extends PPv1BroadcasterParameters, PPv1Bas
     aspReviewServiceFactory?: () => IAspReviewService
     initialState?: PrivacyPoolsV1ProtocolParams['initialState']
     chainStorage?: PrivacyPoolsV1ProtocolParams['chainStorage']
+    merkleTreeBuilder?: PrivacyPoolsV1ProtocolParams['merkleTreeBuilder'];
     paymasterConfig?: IChainsPaymastersConfig;
     devOptions?: PPv1DevOptions;
 };

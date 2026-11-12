@@ -89,8 +89,8 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       // A tree behind the last RootUpdated cannot match latestRoot(). Its check is
       // left out, so the verified root stays unset and withdrawals are refused.
       const hasRootEvent = lastUpdateRootEventSelector(getState()) !== undefined;
-      const verifyAspRoot = !hasRootEvent || await isAspTreeCurrent(getState());
-      const verifyResult = await dispatch(verifyRootsThunk({ dataService, verifyAspRoot }));
+      const verifyAspRoot = !hasRootEvent || await isAspTreeCurrent(getState(), params.merkleTreeBuilder);
+      const verifyResult = await dispatch(verifyRootsThunk({ dataService, verifyAspRoot, merkleTreeBuilder: params.merkleTreeBuilder }));
 
       unwrapResult(verifyResult);
     }
