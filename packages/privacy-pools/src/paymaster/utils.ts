@@ -1,8 +1,11 @@
 import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
+  BaseError,
   encodeFunctionData,
+  hashTypedData,
   http,
+  RpcRequestError,
   toHex,
   type Address,
   type Hash,
@@ -75,7 +78,11 @@ export async function getUserOperationGasPrice(
   };
 }
 
-/** Sends an already-built, serialized (hex) userOp directly to the bundler. */
+/**
+ * Sends an already-built, serialized (hex) userOp directly to the bundler. Not
+ * retried: a retry of a userOp the bundler already got is rejected like an
+ * invalid one, which would hide that it was accepted.
+ */
 export async function sendSerializedUserOperation(
   client: BundlerClient,
   op: SerializedUserOperation,
@@ -84,24 +91,58 @@ export async function sendSerializedUserOperation(
   return client.request({
     method: "eth_sendUserOperation",
     params: [op, entryPoint],
-  }) as Promise<Hash>;
+  }, { retryCount: 0 }) as Promise<Hash>;
 }
+
+const bundlerRejection = (error: unknown): RpcRequestError | null =>
+  error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;
+
+/** Whether the bundler answered with a JSON-RPC error, as opposed to a transport failure. */
+export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(error) !== null;
+
+/**
+ * Whether the bundler rejected the send because it already has this exact
+ * userOp, pending or being bundled. That is alto's answer to a resend; a
+ * different userOp with the same sender and nonce gets an AA25/AA10 error.
+ */
+export const isAlreadyKnown = (error: unknown): boolean =>
+  /already known/i.test(bundlerRejection(error)?.details ?? '');
+
+/**
+ * viem error messages embed the request body, which for the paymaster flow is
+ * the signed userOp, and integrators forward errors to crash reporting. Only the
+ * short message and the server-provided details are kept, and the original
+ * error must never be attached as a `cause`.
+ */
+export const describeError = (error: unknown): string =>
+  error instanceof BaseError
+    ? [error.shortMessage, error.details].filter(Boolean).join(" ")
+    : "Unknown error.";
 
 /**
  * Bundler gas estimation (`eth_estimateUserOperationGas`) for an already-built,
  * serialized userOp. Best-effort: callers should fall back to static limits on
  * failure.
+ *
+ * @throws {Error} Whose message is safe to report: it never includes the userOp.
  */
 export async function estimateUserOperationGas(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
 ): Promise<UserOpGasLimits> {
-  const result = (await client.request({
-    method: "eth_estimateUserOperationGas",
-    params: [op, entryPoint],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any)) as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let result: any;
+
+  try {
+    result = await client.request({
+      method: "eth_estimateUserOperationGas",
+      params: [op, entryPoint],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+  } catch (error) {
+    throw new Error(`Bundler gas estimation failed: ${describeError(error)}`);
+  }
 
   return {
     callGasLimit: BigInt(result.callGasLimit),
@@ -110,6 +151,53 @@ export async function estimateUserOperationGas(
     paymasterVerificationGasLimit: BigInt(result.paymasterVerificationGasLimit ?? 0),
     paymasterPostOpGasLimit: BigInt(result.paymasterPostOpGasLimit ?? 0),
   };
+}
+
+/**
+ * The EntryPoint v0.8 hash of a userOp built by `buildSignedUserOp`, which is
+ * what its sender signed. Covers payloads prepared before they carried
+ * `userOpHash`. The chain is the one the 7702 authorization was signed for;
+ * `undefined` without an authorization.
+ */
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
+  if (!op.eip7702Auth) return undefined;
+
+  const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
+
+  return hashTypedData(getUserOperationTypedData({
+    chainId: Number(op.eip7702Auth.chainId),
+    entryPointAddress: entryPoint,
+    userOperation: {
+      sender: op.sender,
+      nonce: BigInt(op.nonce),
+      callData: op.callData,
+      callGasLimit: BigInt(op.callGasLimit),
+      verificationGasLimit: BigInt(op.verificationGasLimit),
+      preVerificationGas: BigInt(op.preVerificationGas),
+      maxFeePerGas: BigInt(op.maxFeePerGas),
+      maxPriorityFeePerGas: BigInt(op.maxPriorityFeePerGas),
+      paymaster: op.paymaster,
+      paymasterVerificationGasLimit: optional(op.paymasterVerificationGasLimit),
+      paymasterPostOpGasLimit: optional(op.paymasterPostOpGasLimit),
+      paymasterData: op.paymasterData,
+      signature: op.signature,
+    },
+  }));
+}
+
+/**
+ * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
+ * only know mined userOps, not pending ones. viem's
+ * `getUserOperation` is not used because it fails to format pending userOps,
+ * whose `blockNumber` is null.
+ */
+export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
+  const result = await client.request({
+    method: "eth_getUserOperationByHash",
+    params: [hash],
+  });
+
+  return result !== null;
 }
 
 /**
@@ -122,6 +210,7 @@ export async function estimateUserOperationGas(
  *
  * The sender is a fresh EOA (EntryPoint nonce 0) delegated to the Simple7702
  * implementation; the owner signs the userOp. No RPC access is required.
+ * Also returns the userOp hash, which is what the owner signs.
  */
 export async function buildSignedUserOp({
   signer,
@@ -134,7 +223,7 @@ export async function buildSignedUserOp({
   nonce = 0n,
   authorizationNonce,
   tailCalls,
-}: BuildSignedUserOpParams): Promise<SerializedUserOperation> {
+}: BuildSignedUserOpParams): Promise<{ userOperation: SerializedUserOperation; userOpHash: Hash }> {
   const owner = signer;
 
   const calls = tailCalls ? await tailCalls(owner.address) : [];
@@ -182,18 +271,20 @@ export async function buildSignedUserOp({
     paymasterData,
   };
 
-  const signature = await owner.signTypedData(
-    getUserOperationTypedData({
-      chainId,
-      entryPointAddress: entryPoint08Address,
-      // viem's type requires a `signature`, but the userOp typedData does not contain one.
-      userOperation: userOperation as unknown as Parameters<
-        typeof getUserOperationTypedData
-      >[0]["userOperation"],
-    }),
-  );
+  const typedData = getUserOperationTypedData({
+    chainId,
+    entryPointAddress: entryPoint08Address,
+    // viem's type requires a `signature`, but the userOp typedData does not contain one.
+    userOperation: userOperation as unknown as Parameters<
+      typeof getUserOperationTypedData
+    >[0]["userOperation"],
+  });
+  const signature = await owner.signTypedData(typedData);
 
-  return {
+  // From EntryPoint v0.8 on, the userOp hash is the EIP-712 hash of this typed data.
+  const userOpHash = hashTypedData(typedData);
+
+  const serialized: SerializedUserOperation = {
     sender: userOperation.sender,
     nonce: toHex(userOperation.nonce),
     callData: userOperation.callData,
@@ -209,6 +300,8 @@ export async function buildSignedUserOp({
     signature,
     eip7702Auth: serializeAuth(authorization),
   };
+
+  return { userOperation: serialized, userOpHash };
 }
 
 function serializeAuth(auth: SignedAuthorization): SerializedAuth {

@@ -37,6 +37,7 @@ import {
   PPv1PublicOperation,
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
+  PPv1RelayerUnshieldOptions,
   PPv1ShieldEstimate,
   PPv1ViewOptions,
   PPv1UnshieldEstimate,
@@ -315,6 +316,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * payer/change address keeps the recipient at exactly `requestedNet`, while pointing it
    * at the recipient over-delivers (then `operation.exact.expectedNet` is a lower bound).
    */
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options: PPv1PaymasterUnshieldOptions): Promise<PPv1PaymasterPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>;
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     if (options?.exact) {
       return this.prepareExactUnshield(assets, to, options);
