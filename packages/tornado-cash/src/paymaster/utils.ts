@@ -3,8 +3,11 @@ import { simpleAccountFactoryData } from '../account/execution-account';
 import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  BaseError,
   encodeFunctionData,
+  hashTypedData,
   http,
+  RpcRequestError,
   toHex,
   type Address,
   type Hash,
@@ -98,7 +101,9 @@ export async function getUserOperationGasPrice(
 /**
  * Sends an already-built, serialized (hex) userOp directly to the bundler.
  * viem's `sendUserOperation` rebuilds/re-signs from a structured op, but ours
- * is already finalized in the prepare phase, so we forward it verbatim.
+ * is already finalized in the prepare phase, so we forward it verbatim. Not
+ * retried: a retry of a userOp the bundler already got is rejected like an
+ * invalid one, which would hide that it was accepted.
  */
 export async function sendSerializedUserOperation(
   client: BundlerClient,
@@ -108,7 +113,79 @@ export async function sendSerializedUserOperation(
   return client.request({
     method: 'eth_sendUserOperation',
     params: [op, entryPoint],
-  }) as Promise<Hash>;
+  }, { retryCount: 0 }) as Promise<Hash>;
+}
+
+/**
+ * viem error messages embed the request body, which for the paymaster flow is
+ * the signed userOp, and integrators forward errors to crash reporting. Only the
+ * short message and the server-provided details are kept, and the original
+ * error must never be attached as a `cause`.
+ */
+export const describeError = (error: unknown): string =>
+  error instanceof BaseError
+    ? [error.shortMessage, error.details].filter(Boolean).join(' ')
+    : 'Unknown error.';
+
+const bundlerRejection = (error: unknown): RpcRequestError | null =>
+  error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;
+
+/** Whether the bundler answered with a JSON-RPC error, as opposed to a transport failure. */
+export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(error) !== null;
+
+/**
+ * Whether the bundler rejected the send because it already has this exact
+ * userOp, pending or being bundled. That is alto's answer to a resend; a
+ * different userOp with the same sender and nonce gets an AA25/AA10 error.
+ */
+export const isAlreadyKnown = (error: unknown): boolean =>
+  /already known/i.test(bundlerRejection(error)?.details ?? '');
+
+/**
+ * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
+ * only know mined userOps, not pending ones. viem's
+ * `getUserOperation` is not used because it fails to format pending userOps,
+ * whose `blockNumber` is null.
+ */
+export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
+  const result = await client.request({
+    method: 'eth_getUserOperationByHash',
+    params: [hash],
+  });
+
+  return result !== null;
+}
+
+/**
+ * The EntryPoint v0.8 hash of a userOp built by `buildSignedTornadoUserOp`,
+ * which is what its sender signed. Computed from the serialized userOp so it
+ * also covers payloads stored by older SDKs. The chain is the one the 7702
+ * authorization was signed for; `undefined` without an authorization.
+ */
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
+  if (!op.eip7702Auth) return undefined;
+
+  const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
+
+  return hashTypedData(getUserOperationTypedData({
+    chainId: Number(op.eip7702Auth.chainId),
+    entryPointAddress: entryPoint,
+    userOperation: {
+      sender: op.sender,
+      nonce: BigInt(op.nonce),
+      callData: op.callData,
+      callGasLimit: BigInt(op.callGasLimit),
+      verificationGasLimit: BigInt(op.verificationGasLimit),
+      preVerificationGas: BigInt(op.preVerificationGas),
+      maxFeePerGas: BigInt(op.maxFeePerGas),
+      maxPriorityFeePerGas: BigInt(op.maxPriorityFeePerGas),
+      paymaster: op.paymaster,
+      paymasterVerificationGasLimit: optional(op.paymasterVerificationGasLimit),
+      paymasterPostOpGasLimit: optional(op.paymasterPostOpGasLimit),
+      paymasterData: op.paymasterData,
+      signature: op.signature,
+    },
+  }));
 }
 
 

@@ -1,7 +1,7 @@
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { AccountId, ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
+import { AccountId, ChainId, PrivateOperation, PublicOperation, Storage, UnshieldOptions } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
@@ -220,6 +220,12 @@ export interface PrivacyPoolsV1ProtocolParams {
   proverFactory: () => ReturnType<typeof Prover>;
   relayersList: Record<string, string>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
+  /**
+   * Storage for the chain state, which is the same for every account. Give
+   * every account the same object to keep one copy, in memory and in storage.
+   * Only share it between accounts that use the same provider.
+   */
+  chainStorage?: Storage;
   ipfsUrl?: string;
   paymasterConfig?: IChainsPaymastersConfig;
   /**

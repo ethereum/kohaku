@@ -1,13 +1,12 @@
 import type { PaymasterGasLimits } from '../paymaster/gas-bounds';
 import type { GasEstimationPolicy } from '../interfaces/user-ops.interface';
-import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
 import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote, ImportNoteResult } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
 import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
 import { IRelayerFeeConfig } from "../state/slices/relayersSlice.js";
-import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface.js";
+import { IPaymasterBroadcasterClient, PaymasterBroadcastResult } from "../relayer/interfaces/paymaster-client.interface.js";
 export { DepositStrategy };
 export type { TCNote, ImportNoteResult };
 
@@ -16,7 +15,15 @@ export type TCBroadcasterParameters = {
     paymasterConfig?: IChainsPaymastersConfig;
     paymasterClientFactory?: () => IPaymasterBroadcasterClient
 };
-export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResponse[]>;
+/** `id` is the userOp hash, known as soon as the bundler accepts the userOp. */
+export interface TCPaymasterBroadcastResponse extends ITornadoWithdrawResponse, Pick<PaymasterBroadcastResult, 'wait'> {}
+
+export type TCBroadcaster = {
+    /** @throws {PaymasterBroadcastError} If the bundler did not accept a userOp. */
+    broadcast(operation: TCPrivateOperation<'paymaster'>): Promise<TCPaymasterBroadcastResponse[]>;
+    broadcast(operation: TCPrivateOperation<'relayer'>): Promise<ITornadoWithdrawResponse[]>;
+    broadcast(operation: TCPrivateOperation): Promise<(TCPaymasterBroadcastResponse | ITornadoWithdrawResponse)[]>;
+};
 interface TCBaseCredential {
     accountIndex: number;
 }

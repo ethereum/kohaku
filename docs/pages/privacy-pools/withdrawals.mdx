@@ -21,12 +21,23 @@ const operation = await pools.prepareUnshield(asset, recipient, {
   mode: 'paymaster',
 })
 
-const receipt = await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
+const broadcast = await createPPv1Broadcaster(host, { broadcasterUrl }).broadcast(operation)
+const { txHash } = await broadcast.wait()
 ```
 
 `broadcasterUrl` is a required constructor field, but paymaster broadcasting uses the bundler URL carried by the prepared operation.
 
-`receipt.requestId` is the user operation hash. `receipt.txHash` is the transaction that included it.
+`broadcast()` resolves as soon as the bundler accepts the user operation, and `broadcast.requestId` is its hash. `wait()` polls for the receipt and returns the `txHash` of the transaction that included it. Wallets that track the hash themselves can skip `wait()`, but must check the receipt's `success` field.
+
+If the send request fails, for example on a timeout, `broadcast()` asks the bundler whether it got the user operation anyway, using the hash computed when it was signed (`operation.withdrawal.userOpHash`). If it did, or if the bundler answers that it already has it (`Already known`, e.g. when the same operation is broadcast again), `broadcast()` resolves as usual. Some bundlers only know user operations once they are mined, so if the bundler does not know it and never answered the send, `broadcast()` throws `unconfirmed` with the hash instead of reporting a failure.
+
+Both calls throw a `PaymasterBroadcastError`, whose message is safe to report because it never includes the signed user operation. Its `failure` field says what happened:
+
+| `failure` | Thrown by | Meaning |
+| --- | --- | --- |
+| `not-accepted` | `broadcast()` | The bundler answered the send request with an error and does not have the user operation, so it will not land. `userOpHash` is set. A different operation from the same sender, for example an earlier attempt at this withdrawal, may still be pending. |
+| `reverted` | `wait()` | Mined with `success: false`. Notes spent before the revert stay spent, and their funds may be held by the sender. `txHash` is set. |
+| `unconfirmed` | `broadcast()`, `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. `userOpHash` is set. After `wait()`, call it again to keep checking. |
 
 The fee is the sponsored gas, priced into the pool asset (`fee` and `gasFeeWei` on the estimate). The broadcaster posts the user operation to the bundler. The user's public account does not need ETH for gas.
 

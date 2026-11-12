@@ -13,7 +13,7 @@ import { verifiedExternalDelegator } from '../../account/external-delegator';
 import { E_ADDRESS } from "../../config";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
-import { DelegationConfig, DelegatorAccount, UserOpGasLimits } from "../../interfaces/user-ops.interface";
+import { DelegationConfig, DelegatorAccount, SerializedUserOperation, UserOpGasLimits } from "../../interfaces/user-ops.interface";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
@@ -275,7 +275,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       };
       const proof = await proveNote(sponsoring!, withdrawal);
       const paymasterData = encodePaymasterData(adapterAddress, encodePrivacyPoolAdapterData(withdrawal, proof));
-      const userOperation = await buildSignedUserOp({
+      const { userOperation, userOpHash } = await buildSignedUserOp({
         signer,
         executionAccount: accountConfig,
         chainId: Number(chainId),
@@ -291,17 +291,17 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
       assertGasLimitsWithinBounds(gas, baselineGas, userOperation, maxGasLimits);
 
-      return { proof, userOperation, fee };
+      return { proof, userOperation, userOpHash, fee };
     };
 
-    let { proof, userOperation, fee } = await buildUserOp(baselineGas);
+    let { proof, userOperation, userOpHash, fee } = await buildUserOp(baselineGas);
 
     // Existing derived-key modes retain best-effort refinement. External signers
     // require successful estimation and validation of the final signed payload.
     const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits, requiresAccountSimulation(delegation));
 
     if (refinedGas !== baselineGas) {
-      ({ proof, userOperation, fee } = await buildUserOp(refinedGas));
+      ({ proof, userOperation, userOpHash, fee } = await buildUserOp(refinedGas));
     }
 
     if (requiresAccountSimulation(delegation)) {
@@ -330,6 +330,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         entryPointAddress,
         bundlerUrl,
         userOperation,
+        userOpHash,
       },
     ];
   },
@@ -389,7 +390,7 @@ async function resolveSigner({
 
 async function refineGasWithBundler(
   bundlerClient: ReturnType<typeof createPaymasterBundlerClient>,
-  provisionalUserOp: Awaited<ReturnType<typeof buildSignedUserOp>>,
+  provisionalUserOp: SerializedUserOperation,
   entryPointAddress: `0x${string}`,
   baselineGas: UserOpGasLimits,
   maxGasLimits?: PaymasterGasLimits,

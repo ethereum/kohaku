@@ -183,7 +183,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster batch (Level B — rea
     expect(recipientBefore).toBe(0n);
 
     // 4. Broadcast + mine.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. The consolidated forward paid the recipient (whole amount minus fee), and
