@@ -60,8 +60,8 @@ export const getNotesToSpendSelector = createSelector(
 );
 
 /**
- * Finds the smallest sufficient note for a withdrawal.
- * Returns undefined if no note has sufficient balance.
+ * Finds the smallest sufficient approved note for a withdrawal.
+ * Returns undefined if no approved note has sufficient balance.
  */
 export const getNoteSelector = createSelector(
   [
@@ -72,7 +72,8 @@ export const getNoteSelector = createSelector(
   ],
   (depositsMap, withdrawalsMap, assetAddress, minAmount): INote | undefined => {
     const eligibleDeposits = Array.from(depositsMap.values())
-      .filter(deposit => deposit.assetAddress === assetAddress && deposit.balance >= minAmount);
+      .filter(deposit => deposit.assetAddress === assetAddress && deposit.approved
+        && deposit.balance > 0n && deposit.balance >= minAmount);
 
     if (eligibleDeposits.length === 0) {
       return undefined;

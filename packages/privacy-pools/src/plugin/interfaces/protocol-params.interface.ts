@@ -73,6 +73,13 @@ interface PPv1CommonUnshieldOptions extends UnshieldOptions {
    * the last supplies the remainder. No anonymity guarantee.
    */
   obfuscateAmounts?: boolean;
+  /**
+   * Spend only the note with this label (from `notes()`), instead of the smallest
+   * sufficient approved note. Throws `PPv1NoteUnavailableError` if that note is
+   * missing, of another asset, unapproved, or below the gross amount (fees included in
+   * exact mode); no other note is tried. Cannot be combined with `batch: true`.
+   */
+  label?: bigint;
   /** Gas budget for the execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
   /**
@@ -269,6 +276,8 @@ export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams
   recipient: Address;
   /** Defaults to false. True enables amount obfuscation and its headroom limit. */
   obfuscateAmounts?: boolean;
+  /** Spend only the note with this label; throws instead of falling back to another note. */
+  label?: bigint;
 }
 
 export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {

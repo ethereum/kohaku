@@ -54,6 +54,19 @@ await pools.prepareUnshield(asset, recipient, {
 
 Point `refundRecipient` at a payer or change address when the recipient should see a clean amount.
 
+### Choosing the note
+
+By default a single-note withdrawal spends the smallest approved note that covers `amount`. Pass `label` (from `notes()`) to spend one specific note instead, in either mode:
+
+```ts
+await pools.prepareUnshield(asset, recipient, {
+  mode: 'paymaster',
+  label: note.label,
+})
+```
+
+The label stays the same across partial withdrawals, so a note listed before a sync still refers to the same note afterwards, with its current balance. If that note is missing, belongs to another asset, is not approved, or holds less than the gross amount, preparation throws `PPv1NoteUnavailableError` with `label`, `reason` (`'not-found'`, `'wrong-asset'`, `'not-approved'` or `'insufficient-balance'`), and the note's `balance` and the `required` gross when known. No other note is tried. With `exact`, `required` includes fees, so a note can hold the requested output and still be too small. `label` cannot be combined with `batch: true`. With `obfuscateAmounts`, the 97% ceiling and 1% change apply to the chosen note alone.
+
 ### Several notes, one user operation
 
 `batch: true` spends enough approved notes to reach `amount` inside one sponsored ERC-4337 user operation. The first selected note (the largest) covers paymaster sponsorship for the whole operation. Subsequent notes run as direct pool withdrawals in its execution phase (tail calls). Any user-supplied `tailCalls` run after those withdrawals in the same user operation; each note does not require its own user operation.
@@ -107,6 +120,7 @@ This pure helper does not sync, quote fees, sample randomness or generate proofs
 `needsObfuscation` reports whether the allocation with `obfuscateAmounts: false`
 would fully spend a note. Match the intended `batch` option: without it, selection
 uses the smallest sufficient note; with it, selection uses largest notes first.
+For a withdrawal with `label`, pass a snapshot holding only that note.
 Compare the gross amount to the ceiling separately, even when the flag is false.
 The ceiling covers all eligible notes and may require batching. For `exact`, include
 fees in the gross amount. Analysis reflects the supplied snapshot; preparation

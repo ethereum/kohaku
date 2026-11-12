@@ -60,7 +60,7 @@ import {
   SpecificAssetBalanceFn,
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
-import { getNoteSelector } from "./selectors/notes.selector";
+import { getNoteSelector, NoteToSpend } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
 import {
   ChainEntry,
@@ -80,6 +80,7 @@ import { SyncAspThunkParams } from "./thunks/syncAspThunk";
 import { SyncAspReviewThunkParams } from "./thunks/syncAspReviewThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { planObfuscatedBatchWithdrawal } from '../withdrawal/batch-plan';
+import { selectNoteByLabel } from '../withdrawal/note-label';
 
 export interface StoreFactoryParams extends SyncAspThunkParams, SyncAspReviewThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
@@ -197,13 +198,21 @@ export const storeStateManager = (
 
   const planWithdrawal = (
     store: Awaited<ReturnType<typeof getChainStore>>,
-    asset: Address, amount: bigint | undefined, batch = false, obfuscateAmounts = false,
-  ) => {
-    if (!obfuscateAmounts) return undefined;
+    asset: Address, amount: bigint | undefined,
+    { batch = false, obfuscateAmounts = false, label }: { batch?: boolean; obfuscateAmounts?: boolean; label?: bigint } = {},
+  ): NoteToSpend[] | undefined => {
+    if (label != null && batch) throw new Error('`label` spends a single note and cannot be combined with `batch: true`');
+
+    // A chosen note is the only candidate: it is never swapped for another one.
+    const candidates = label != null
+      ? [selectNoteByLabel(store.selectors.getAllNotes(), asset, label, amount)]
+      : undefined;
+
+    if (!obfuscateAmounts) return candidates?.map(note => ({ note, withdrawnValue: amount ?? note.balance }));
 
     if (amount == null) throw new Error('Protected withdrawals require an explicit amount');
 
-    const notes = planObfuscatedBatchWithdrawal(store.selectors.getAllNotes(), asset, amount);
+    const notes = planObfuscatedBatchWithdrawal(candidates ?? store.selectors.getAllNotes(), asset, amount);
 
     if (!batch && notes.length > 1) throw new Error('Protected withdrawal needs multiple notes: use paymaster mode with batch: true');
 
@@ -336,10 +345,11 @@ export const storeStateManager = (
       amount,
       recipient,
       obfuscateAmounts,
+      label,
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
-      const note = planWithdrawal(store, asset, amount, false, obfuscateAmounts)?.[0]?.note;
+      const note = planWithdrawal(store, asset, amount, { obfuscateAmounts, label })?.[0]?.note;
       const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
 
       const quoteResultAction = await store.dispatch(
@@ -403,6 +413,7 @@ export const storeStateManager = (
       requestedNet,
       gasBumpBPS,
       obfuscateAmounts,
+      label,
     }: IExactWithdrawalOperationParams): Promise<StateExactWithdrawalPayload> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -449,7 +460,7 @@ export const storeStateManager = (
         gasBumpBPS,
         maxRelayFeeBPS,
       });
-      const note = planWithdrawal(store, asset, grossAmount, false, obfuscateAmounts)?.[0]?.note;
+      const note = planWithdrawal(store, asset, grossAmount, { obfuscateAmounts, label })?.[0]?.note;
 
       const relayData = {
         recipient: addressToHex(recipient),
@@ -504,6 +515,7 @@ export const storeStateManager = (
       maxGasLimits,
       batch,
       obfuscateAmounts,
+      label,
       refundRecipient,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
@@ -516,7 +528,7 @@ export const storeStateManager = (
 
       // Plan outside Redux so the structured headroom error reaches the caller intact.
       // Resolve randomness once and reuse the allocation for every fee/proof refinement.
-      const notesToSpend = planWithdrawal(store, asset, amount, batch, obfuscateAmounts);
+      const notesToSpend = planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label });
 
       return unwrapResult(
         await store.dispatch(
