@@ -37,6 +37,35 @@ The plugin saves JSON under these keys, in `chainStorage` when it is set and oth
 
 Nothing is saved per account. States saved by earlier versions, under `privacy-pool-state-<chainId>-<entrypoint>`, and their history entries are no longer read: the chain is synced again, from the `initialState` snapshot if one is given. Snapshots and `dumpState()` keep the key without the version.
 
+## Amount obfuscation
+
+Fully spending several notes exposes their exact balances together, which can
+make the withdrawal easier to correlate with deposits.
+
+Set `obfuscateAmounts: true` on `prepareUnshield` in either relay mode to preserve
+the requested total and retain at least 1% on every spent note. It defaults to false.
+Non-final notes retain a cryptographically random 1–25%, constrained by the
+remaining amount; the final note supplies the exact remainder and may retain
+more. One partial note is used when sufficient. Multi-note withdrawals require
+`{ mode: 'paymaster', batch: true }`.
+
+With obfuscation enabled, the gross ceiling is 97% of the approved balance of the requested asset.
+Reserves round up to base units, which can lower the ceiling for tiny notes and
+make their allocation deterministic. Above the ceiling, `PPv1AmountObfuscationError`
+includes `requestedAmount` and `maxObfuscatedAmount`. The SDK never changes the
+requested total. When the option is omitted or false, full-note spends are allowed
+and this ceiling does not apply.
+
+For a pure check of a note snapshot, use
+`analyzePPv1Withdrawal(notes, assetAddress, grossAmount, { batch: true })`.
+It returns `needsObfuscation` for full-note spends without protection and
+`maxObfuscatedAmount` for the protected gross ceiling, without sampling a split.
+
+With `exact`, fees count toward the ceiling. Preparation samples once and reuses
+the allocation through fee refinement. Change is available after normal sync.
+Batch linkage, nearby deposit amounts, timing and later change withdrawals can
+still identify a sender; this option only removes exact full-balance matches.
+
 ## External paymaster signing
 
 Paymaster unshields accept `delegation: { mode: 'external', signer }`. The exported

@@ -11,7 +11,7 @@ import { myWithdrawalsSelector } from './withdrawals.selector';
 
 export interface NoteToSpend {
   note: INote;
-  /** How much of this note to withdraw (full balance, except a partial last note). */
+  /** Gross amount to withdraw from this note. */
   withdrawnValue: bigint;
 }
 
