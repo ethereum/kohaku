@@ -66,7 +66,7 @@ import {
   getStoreStorageKey,
   sharedChainEntries,
 } from "./chain-state";
-import { PublicRootState, RootState, storeFactory } from "./store";
+import { ChainRootState, PublicRootState, RootState, storeFactory } from "./store";
 import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { registerDepositIndexThunk } from "./thunks/registerDepositIndexThunk";
@@ -75,9 +75,11 @@ import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
+import { SyncAspReviewThunkParams } from "./thunks/syncAspReviewThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
+import { planObfuscatedBatchWithdrawal } from '../withdrawal/batch-plan';
 
-export interface StoreFactoryParams extends SyncAspThunkParams {
+export interface StoreFactoryParams extends SyncAspThunkParams, SyncAspReviewThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
   provider?: EthereumProvider;
   network?: Network;
@@ -130,11 +132,35 @@ const initializeSelectors = <const T extends Store>({
   };
 };
 
+const NO_ASP_REVIEW: ChainRootState['aspReview'] = { flaggedTuples: [] };
+
+/**
+ * The chain state as an account without a review service sees it: no review
+ * labels, even those another account sharing the chain state fetched. Built once
+ * per chain state, so the account store keeps getting the same root back.
+ */
+const withoutAspReview = (getChainState: () => ChainRootState): (() => ChainRootState) => {
+  let chain: ChainRootState | undefined;
+  let view: ChainRootState | undefined;
+
+  return () => {
+    const next = getChainState();
+
+    if (next !== chain || !view) {
+      chain = next;
+      view = { ...next, aspReview: NO_ASP_REVIEW };
+    }
+
+    return view;
+  };
+};
+
 const storeByChainAndEntrypoint = ({
   secretManager,
+  aspReviewService,
   devOptions,
   getChainEntry,
-}: Pick<StoreFactoryParams, 'secretManager' | 'devOptions'> & {
+}: Pick<StoreFactoryParams, 'secretManager' | 'aspReviewService' | 'devOptions'> & {
   getChainEntry: (params: GetChainStoreParams) => Promise<ChainEntry>;
 }) => {
   type ChainStore = ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>;
@@ -152,7 +178,7 @@ const storeByChainAndEntrypoint = ({
     const store = storeFactory({
       entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
       devOptions,
-      getChainState: chainEntry.getState,
+      getChainState: aspReviewService ? chainEntry.getState : withoutAspReview(chainEntry.getState),
     });
     const storeWithSelectors = initializeSelectors({ store, secretManager });
 
@@ -190,6 +216,21 @@ export const storeStateManager = (
     chainId: await params.dataService.getChainId(),
     entrypoint: params.entrypoint,
   });
+
+  const planWithdrawal = (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    asset: Address, amount: bigint | undefined, batch = false, obfuscateAmounts = false,
+  ) => {
+    if (!obfuscateAmounts) return undefined;
+
+    if (amount == null) throw new Error('Protected withdrawals require an explicit amount');
+
+    const notes = planObfuscatedBatchWithdrawal(store.selectors.getAllNotes(), asset, amount);
+
+    if (!batch && notes.length > 1) throw new Error('Protected withdrawal needs multiple notes: use paymaster mode with batch: true');
+
+    return notes;
+  };
 
   const runSync = async (chainInfo: GetChainStoreParams, skipAsp: boolean): Promise<void> => {
     const store = await getChainStore(chainInfo);
@@ -351,9 +392,11 @@ export const storeStateManager = (
       asset,
       amount,
       recipient,
+      obfuscateAmounts,
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
+      const note = planWithdrawal(store, asset, amount, false, obfuscateAmounts)?.[0]?.note;
       const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
 
       const quoteResultAction = await store.dispatch(
@@ -387,10 +430,12 @@ export const storeStateManager = (
         withdrawThunk({
           getNextNote: store.selectors.getNextNote,
           proverFactory: params.proverFactory,
+          merkleTreeBuilder: params.merkleTreeBuilder,
           asset,
           amount: amount ?? 0n,
           recipient,
           context,
+          note,
         }),
       );
 
@@ -414,6 +459,7 @@ export const storeStateManager = (
       recipient,
       requestedNet,
       gasBumpBPS,
+      obfuscateAmounts,
     }: IExactWithdrawalOperationParams): Promise<StateExactWithdrawalPayload> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -460,6 +506,7 @@ export const storeStateManager = (
         gasBumpBPS,
         maxRelayFeeBPS,
       });
+      const note = planWithdrawal(store, asset, grossAmount, false, obfuscateAmounts)?.[0]?.note;
 
       const relayData = {
         recipient: addressToHex(recipient),
@@ -476,10 +523,12 @@ export const storeStateManager = (
         withdrawThunk({
           getNextNote: store.selectors.getNextNote,
           proverFactory: params.proverFactory,
+          merkleTreeBuilder: params.merkleTreeBuilder,
           asset,
           amount: grossAmount,
           recipient,
           context,
+          note,
         }),
       );
 
@@ -511,6 +560,7 @@ export const storeStateManager = (
       tailCallsGasEstimate,
       maxGasLimits,
       batch,
+      obfuscateAmounts,
       refundRecipient,
     }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
@@ -521,11 +571,16 @@ export const storeStateManager = (
         throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
       }
 
+      // Plan outside Redux so the structured headroom error reaches the caller intact.
+      // Resolve randomness once and reuse the allocation for every fee/proof refinement.
+      const notesToSpend = planWithdrawal(store, asset, amount, batch, obfuscateAmounts);
+
       return unwrapResult(
         await store.dispatch(
           paymasterWithdrawThunk({
             getNextNote: store.selectors.getNextNote,
             proverFactory: params.proverFactory,
+            merkleTreeBuilder: params.merkleTreeBuilder,
             dataService: params.dataService,
             secretManager,
             asset,
@@ -539,6 +594,7 @@ export const storeStateManager = (
             provider: params.provider,
             network: params.network,
             batch,
+            notesToSpend,
             refundRecipient,
           }),
         ),

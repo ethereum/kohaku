@@ -9,6 +9,7 @@ import {
 
 import type { PPv1DevOptions } from "../plugin/interfaces/protocol-params.interface";
 import { aspReducer } from "./slices/aspSlice";
+import { aspReviewReducer } from "./slices/aspReviewSlice";
 import { aspVerificationReducer } from "./slices/aspVerificationSlice";
 import { assetsReducer } from "./slices/assetsSlice";
 import { depositsReducer } from "./slices/depositsSlice";
@@ -37,6 +38,7 @@ const reducers = {
   poolsLeaves: poolsLeavesReducer,
   entrypointInfo: entrypointInfoReducer,
   asp: aspReducer,
+  aspReview: aspReviewReducer,
   aspVerification: aspVerificationReducer,
   updateRootEvents: updateRootEventsReducer,
   sync: syncReducer,

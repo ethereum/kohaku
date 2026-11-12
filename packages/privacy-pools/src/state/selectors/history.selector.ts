@@ -39,7 +39,7 @@ export const myHistoryEventsSelector = createSelector(
         value: deposit.value,
         depositor: deposit.depositor,
         label: deposit.label,
-        aspStatus: deposit.approved ? 'approved' : 'pending',
+        aspStatus: deposit.reviewStatus,
       });
     }
 

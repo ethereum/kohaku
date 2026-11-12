@@ -1,7 +1,7 @@
 import { AccountId, AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
 import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PaymasterPrivateOperation, PPv1PaymasterUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1RelayerPrivateOperation, PPv1RelayerUnshieldOptions, PPv1ShieldEstimate, PPv1ShieldOptions, PPv1UnshieldEstimate, PPv1UnshieldOptions, PPv1ViewOptions, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
-import { IAspService } from "../data/asp.interface.js";
+import { IAspReviewService, IAspService } from "../data/asp.interface.js";
 import { PaymasterBroadcastResult } from "../relayer/interfaces/paymaster-client.interface.js";
 import { IBaseRelayResponse, ISuccessfullRelayResponse } from "../relayer/interfaces/relayer-client.interface.js";
 
@@ -25,8 +25,10 @@ export interface PPv1PluginParameters extends PPv1BroadcasterParameters, PPv1Bas
     entrypoint: IEntrypoint;
     ipfsUrl?: string;
     aspServiceFactory?: () => IAspService
+    aspReviewServiceFactory?: () => IAspReviewService
     initialState?: PrivacyPoolsV1ProtocolParams['initialState']
     chainStorage?: PrivacyPoolsV1ProtocolParams['chainStorage']
+    merkleTreeBuilder?: PrivacyPoolsV1ProtocolParams['merkleTreeBuilder'];
     paymasterConfig?: IChainsPaymastersConfig;
     devOptions?: PPv1DevOptions;
 };

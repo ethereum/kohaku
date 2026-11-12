@@ -2,6 +2,7 @@ import { selectEntityMap } from "../utils/selectors.utils";
 import { deserialize } from "../utils/serialize.utils";
 import { RootState } from "../store";
 import { AspState } from "../slices/aspSlice";
+import { AspFlaggedStatus } from "../../data/asp.interface";
 import { UpdateRootEventsState } from "../slices/updateRootEventsSlice";
 import { EntrypointInfoState } from "../slices/entrypointInfoSlice";
 import { UserSecretRecord } from "../slices/userSecretsSlice";
@@ -37,6 +38,11 @@ export const entrypointDepositSelector = selectEntityMap(
 export const aspSelector = createSelector(
   [(state: RootState) => state.asp],
   (asp) => deserialize(asp) as AspState,
+);
+
+export const aspFlaggedDepositsSelector = selectEntityMap(
+  (s) => s.aspReview.flaggedTuples,
+  (flagged) => deserialize(flagged, [undefined, true]) as [Precommitment, AspFlaggedStatus],
 );
 
 export const poolsLeavesSelector = createSelector(

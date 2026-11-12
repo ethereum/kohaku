@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Storage } from '@kohaku-eth/plugins';
 import type { ISecretManager } from '../../src/account/keys';
-import type { IAspService } from '../../src/data/asp.interface';
+import type { IAspReviewService, IAspService } from '../../src/data/asp.interface';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 import type { Address } from '../../src/interfaces/types.interface';
 import { PrivacyPoolsV1Protocol } from '../../src/plugin/base';
@@ -213,6 +213,24 @@ describe('shared chain state', () => {
 
     expect(dataService.getEntrypointEvents.mock.calls.map(([{ fromBlock }]) => fromBlock)).toEqual([200n]);
     expect(await myPrecommitments(b)).toEqual([ACCOUNT_B]);
+  });
+
+  it('shows review labels only to the accounts that asked for them', async () => {
+    const dataService = await setupDataService();
+    const shared = memoryStorage();
+    const aspReviewService: IAspReviewService = {
+      getFlaggedDeposits: async () => [ACCOUNT_A, ACCOUNT_B].map((precommitment) => ({ precommitment, pool, status: 'declined' as const })),
+    };
+    const optedIn = setupAccount(dataService, ACCOUNT_A, shared, { aspReviewService });
+    const optedOut = setupAccount(dataService, ACCOUNT_B, shared);
+    const reviewStatuses = async (account: IStateManager) =>
+      (await account.getNotes({})).map(({ reviewStatus }) => reviewStatus);
+
+    await optedIn.sync();
+    await optedOut.sync();
+
+    expect(await reviewStatuses(optedIn)).toEqual(['declined']);
+    expect(await reviewStatuses(optedOut)).toEqual(['pending']);
   });
 
   it('saves the chain state to the chain storage, and nothing per account', async () => {

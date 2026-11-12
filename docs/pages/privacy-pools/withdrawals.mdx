@@ -2,7 +2,7 @@
 
 `prepareUnshield(asset, recipient, options)` builds a private operation. `createPPv1Broadcaster` submits it. Use the ERC-4337 paymaster relay/broadcast path as the default integration path. Pass `mode: 'paymaster'` explicitly on both preparation and fee previews; omitting it selects the SDK's regular relayer mode.
 
-Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof. `prepareUnshield` estimates again when you are ready to submit, so a preview can go slightly stale.
+Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof or validate amount obfuscation. `prepareUnshield` estimates again when you are ready to submit, so a preview can go slightly stale.
 
 ```ts
 const preview = await pools.estimateUnshield(asset, recipient, {
@@ -65,7 +65,61 @@ await pools.prepareUnshield(asset, recipient, {
 })
 ```
 
-Leave it off to spend a single note. If one note cannot cover `amount`, the call throws.
+Leave it off to spend a single note. If one note cannot cover `amount` (including required change when obfuscation is enabled), the call throws.
+
+### Amount obfuscation
+
+Fully spending several notes exposes their exact balances together, making
+amount-based correlation with deposits easier. Set `obfuscateAmounts: true` on
+`prepareUnshield` to enable amount obfuscation in either relay mode. It defaults to false.
+
+The requested total is preserved. Only approved notes of the requested asset
+are used, largest first, and every selected note retains at least 1%. If one
+note can supply the amount while retaining 1%, it is used alone. That amount is
+fixed by the request, so no random split is needed. Otherwise, each non-final
+note retains a cryptographically random 1–25% where feasible. The final note
+supplies the remainder and can retain more than 25%, but never less than 1%.
+If the request equals the largest note's balance, at least two notes are needed;
+without another eligible note, preparation fails.
+
+The inclusive gross ceiling is the smaller of `floor(approvedBalance * 97 / 100)`
+and the total available after reserving 1% of each note, rounded up to base units.
+This applies even to single-note withdrawals. Above it, preparation throws
+`PPv1AmountObfuscationError` before proofs or signatures, with `requestedAmount`
+and `maxObfuscatedAmount` (both gross). With `exact`, fees count toward the ceiling.
+
+The SDK never adjusts the requested total. When the option is omitted or false,
+the ceiling does not apply and full-note spends are permitted. If protection requires multiple
+notes, preparation requires paymaster mode with `batch: true`; it otherwise throws.
+
+To analyze a note snapshot before preparation:
+
+```ts
+import { analyzePPv1Withdrawal } from '@kohaku-eth/privacy-pools'
+
+const { needsObfuscation, maxObfuscatedAmount } = analyzePPv1Withdrawal(
+  noteSnapshot, BigInt(asset.contract), grossAmount, { batch: true },
+)
+const exceedsProtectedCeiling = grossAmount > maxObfuscatedAmount
+```
+
+This pure helper does not sync, quote fees, sample randomness or generate proofs.
+`needsObfuscation` reports whether the allocation with `obfuscateAmounts: false`
+would fully spend a note. Match the intended `batch` option: without it, selection
+uses the smallest sufficient note; with it, selection uses largest notes first.
+Compare the gross amount to the ceiling separately, even when the flag is false.
+The ceiling covers all eligible notes and may require batching. For `exact`, include
+fees in the gross amount. Analysis reflects the supplied snapshot; preparation
+rechecks the current balance. Neither result is an anonymity guarantee.
+
+Near the ceiling, random ranges narrow to leave enough funds for subsequent notes.
+Integer rounding can make tiny allocations deterministic.
+
+The allocation is sampled once and retained through fee refinement. Change
+follows the existing note lineage and is recovered by normal sync. This removes
+exact full-balance matches, but the batch still links withdrawals. Nearby deposit
+amounts, timing, later change withdrawals and the aggregate total can still
+identify a sender. No anonymity-set improvement has been measured or guaranteed.
 
 ### Calls after the withdrawal
 

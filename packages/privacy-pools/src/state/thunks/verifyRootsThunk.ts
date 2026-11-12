@@ -1,3 +1,4 @@
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { IDataService } from '../../data/interfaces/data.service.interface.js';
 import {
@@ -15,15 +16,16 @@ export interface VerifyRootsThunkParams {
   dataService: IDataService;
   /** Pass false to check only the pools, leaving the verified ASP root unset. */
   verifyAspRoot?: boolean;
+  merkleTreeBuilder?: MerkleTreeBuilder;
 }
 
 export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, { state: RootState }>(
   'sync/verifyRoots',
-  async ({ dataService, verifyAspRoot = true }, { getState, dispatch }) => {
+  async ({ dataService, verifyAspRoot = true, merkleTreeBuilder }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     // Rebuilt from the synced leaves: the stored root is only what the service claimed.
-    const aspRoot = verifyAspRoot ? await aspLeavesRootSelector(state) : 0n;
+    const aspRoot = verifyAspRoot ? await aspLeavesRootSelector(state, merkleTreeBuilder) : 0n;
     const pools = poolsSelector(state);
     const poolsLeaves = poolsLeavesSelector(state);
 
@@ -37,7 +39,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
 
       if (!leavesMap || leavesMap.size === 0) continue;
 
-      const localRoot = await poolMerkleTreeRootSelector(state, poolAddress);
+      const localRoot = await poolMerkleTreeRootSelector(state, poolAddress, merkleTreeBuilder);
 
       stateRootChecks.push({ poolAddress, localRoot });
     }

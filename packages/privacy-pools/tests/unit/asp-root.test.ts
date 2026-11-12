@@ -11,10 +11,10 @@ import { registerPools } from '../../src/state/slices/poolsSlice';
 import { registerLastUpdateRootEvent } from '../../src/state/slices/updateRootEventsSlice';
 import { addUserSecret } from '../../src/state/slices/userSecretsSlice';
 import { storeFactory } from '../../src/state/store';
-import { syncAspThunk } from '../../src/state/thunks/syncAspThunk';
+import { ASP_TREE_TIMEOUT_MS, syncAspThunk } from '../../src/state/thunks/syncAspThunk';
 import { withdrawThunk } from '../../src/state/thunks/withdrawThunk';
 import { commitment } from '../../src/utils';
-import { computeMerkleTreeRoot, SNARK_SCALAR_FIELD } from '../../src/utils/proof.util';
+import { buildMerkleTree, type MerkleTreeBuilder, computeMerkleTreeRoot, SNARK_SCALAR_FIELD } from '../../src/utils/proof.util';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 const entrypointAddress = 900n as Address;
@@ -48,7 +48,11 @@ describe('syncAspThunk', () => {
   it('accepts a tree whose leaves rebuild the RootUpdated root', async () => {
     const store = setupStore();
 
-    await store.dispatch(syncAspThunk({ aspService: serving([realLeaves, [realRoot]]) })).unwrap();
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
+
+    await store.dispatch(syncAspThunk({ aspService: serving([realLeaves, [realRoot]]), merkleTreeBuilder })).unwrap();
+
+    expect(merkleTreeBuilder).toHaveBeenCalledWith(realLeaves);
 
     expect(aspSelector(store.getState())).toEqual({ leaves: realLeaves, aspTreeRoot: realRoot, blockNumber: 7n });
   });
@@ -78,6 +82,35 @@ describe('syncAspThunk', () => {
     await expect(
       store.dispatch(syncAspThunk({ aspService: serving([aliased, [realRoot]]) })).unwrap(),
     ).rejects.toThrow('not a SNARK field element');
+  });
+
+  it('gives up on a service that never answers, keeping the stored tree', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const store = setupStore();
+      let signal: AbortSignal | undefined;
+      // Ignores the signal, like a custom service could.
+      const stalled: IAspService = {
+        getAspTree: (_state, s) => {
+          signal = s;
+
+          return new Promise(() => {});
+        },
+      };
+
+      store.dispatch(registerAspTree({ leaves: [10n], aspTreeRoot: 1n, blockNumber: 1n }));
+      const pending = store.dispatch(syncAspThunk({ aspService: stalled })).unwrap();
+      const settled = expect(pending).rejects.toThrow(/did not answer/);
+
+      await vi.advanceTimersByTimeAsync(ASP_TREE_TIMEOUT_MS);
+      await settled;
+
+      expect(signal?.aborted).toBe(true);
+      expect(aspSelector(store.getState()).leaves).toEqual([10n]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('refetches when stored leaves do not build the stored root', async () => {
@@ -135,12 +168,13 @@ describe('withdrawThunk ASP root', () => {
     return store;
   };
 
-  const withdraw = (store: ReturnType<typeof setupStore>) => {
+  const withdraw = (store: ReturnType<typeof setupStore>, merkleTreeBuilder?: MerkleTreeBuilder) => {
     const prove = vi.fn(async () => ({ proof: {}, publicSignals: [], mappedSignals: {} }));
     const proverFactory = vi.fn(async () => ({ prove }));
     const action = store.dispatch(withdrawThunk({
       getNextNote: async () => ({ note, secrets: { ...secrets, nullifier: 9n, salt: 9n } }),
       proverFactory: proverFactory as never,
+      merkleTreeBuilder,
       asset,
       amount: 10n,
       recipient: 6n as Address,
@@ -175,9 +209,12 @@ describe('withdrawThunk ASP root', () => {
 
     store.dispatch(setVerifiedAspRoot(realRoot));
 
-    const { action, prove } = withdraw(store);
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
+    const { action, prove } = withdraw(store, merkleTreeBuilder);
 
     await action;
+
+    expect(merkleTreeBuilder.mock.calls.map(([leaves]) => leaves)).toEqual([[commitment(note)], realLeaves]);
 
     expect(verifiedAspRootSelector(store.getState())).toBe(realRoot);
     expect(prove).toHaveBeenCalledWith('withdraw', expect.objectContaining({ ASPRoot: realRoot, label: 20n }));

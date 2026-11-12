@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { executionAccount, executionSender, externalAccountSigner, requiresAccountSimulation, executionGasBaseline, prepareExecutionAccount } from '../../account/execution-account';
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import type { Network } from "@kohaku-eth/plugins";
 import type { EthereumProvider } from "@kohaku-eth/provider";
@@ -47,6 +48,7 @@ function assertValidDelegatorPath(path: string): void {
 export interface PaymasterWithdrawThunkParams {
   getNextNote: WithdrawThunkParams["getNextNote"];
   proverFactory: () => ReturnType<typeof Prover>;
+  merkleTreeBuilder?: MerkleTreeBuilder;
   dataService: IDataService;
   secretManager: ISecretManager;
   asset: Address;
@@ -69,6 +71,8 @@ export interface PaymasterWithdrawThunkParams {
    * execution phase and the consolidated balance is forwarded to `recipient`.
    */
   batch?: boolean;
+  /** Internal allocation, resolved once by the state manager before proof generation. */
+  notesToSpend?: NoteToSpend[];
   /**
    * Where the paymaster sends the gas-overcharge refund in postOp. Defaults to
    * `recipient`; set it to route the refund elsewhere (e.g. a payer/change address so
@@ -90,6 +94,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     {
       getNextNote,
       proverFactory,
+      merkleTreeBuilder,
       dataService,
       secretManager,
       asset,
@@ -100,6 +105,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       tailCalls,
       tailCallsGasEstimate,
       batch,
+      notesToSpend: plannedNotes,
       refundRecipient: refundRecipientOverride,
       maxGasLimits,
       provider,
@@ -123,9 +129,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       throw new Error(`No paymaster adapter configured for pool ${addressToHex(poolInfo.address)}`);
     }
 
-    // Select the note(s): a batch consolidates the minimal set of approved notes to
-    // reach `amount`; otherwise the single smallest-sufficient note.
-    const notesToSpend = batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount);
+    // Reuse the protected allocation, or fall back to legacy full-note selection.
+    const notesToSpend = plannedNotes ?? (batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount));
     const totalWithdrawn = notesToSpend.reduce((sum, n) => sum + n.withdrawnValue, 0n);
     // Largest note (first) is sponsored — it pays the fee; the rest run in the
     // execution phase. An execution phase exists when consolidating extra notes or
@@ -211,6 +216,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         withdrawThunk({
           getNextNote,
           proverFactory,
+          merkleTreeBuilder,
           asset,
           recipient,
           note: toSpend.note,
