@@ -67,7 +67,7 @@ function expectedCause(list: readonly Draft[]): RestoreCause {
     subject: 'restore',
     values: {
       payloadSize: (highest.payload.length - 2) / 2,
-      authenticated: { account: ACCOUNT, action: ACTION, setupCommitment: COMMITMENT, nonce: NONCE, payloadVersion: 1 },
+      authenticated: { account: ACCOUNT, action: ACTION, setupCommitment: COMMITMENT, nonce: NONCE, payloadVersion: 2 },
     },
   };
 }

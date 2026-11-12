@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   BACKUP_PADDING_SIZE,
   BACKUP_PAYLOAD_VERSION,
@@ -9,6 +9,7 @@ import {
   type Configuration,
   type Hex,
 } from '../../src/index';
+import { referenceAssociatedData, referenceSeal } from '../encryption/reference';
 import { realEvents, setupCommittedLog } from './event-manager';
 import {
   ACCOUNT,
@@ -44,13 +45,22 @@ let sealed: Hex;
 let sealedOther: Hex;
 let sealedUnderOtherNonce: Hex;
 let sealedUnderOtherCommitment: Hex;
+let sealedUnderOtherAccount: Hex;
+let sealedUnderOtherAction: Hex;
+
+/** `AUTHENTICATED` under the legacy payload version 1. */
+const LEGACY_AUTHENTICATED: BackupAuthenticated = { ...AUTHENTICATED, payloadVersion: 1 };
+/** A version-1 payload of `CONFIGURATION`, sealed by the node:crypto reference over a zero-length salt. */
+const LEGACY_SEALED = referenceSeal(CONFIGURATION, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, LEGACY_AUTHENTICATED);
 
 beforeAll(async () => {
-  [sealed, sealedOther, sealedUnderOtherNonce, sealedUnderOtherCommitment] = await Promise.all([
+  [sealed, sealedOther, sealedUnderOtherNonce, sealedUnderOtherCommitment, sealedUnderOtherAccount, sealedUnderOtherAction] = await Promise.all([
     sealBackup(CONFIGURATION, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, AUTHENTICATED),
     sealBackup(OTHER, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, AUTHENTICATED),
     sealBackup(CONFIGURATION, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, { ...AUTHENTICATED, nonce: NONCE - 1n }),
     sealBackup(CONFIGURATION, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, { ...AUTHENTICATED, setupCommitment: `0x${'cd'.repeat(32)}` }),
+    sealBackup(CONFIGURATION, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, { ...AUTHENTICATED, account: METHOD_A }),
+    sealBackup(CONFIGURATION, PASSWORD, SEAL_NONCE, BACKUP_PADDING_SIZE, { ...AUTHENTICATED, action: METHOD_A }),
   ]);
 }, SLOW);
 
@@ -96,6 +106,14 @@ describe('restoreConfiguration over a sealed backup', () => {
     expect(await causeOf(restoreFrom(sealedUnderOtherCommitment))).toStrictEqual(unopened);
   }, SLOW);
 
+  it('refuses backup-unopened for a payload sealed under another account', async () => {
+    expect(await causeOf(restoreFrom(sealedUnderOtherAccount))).toStrictEqual(unopened);
+  }, SLOW);
+
+  it('refuses backup-unopened for a payload sealed under another action', async () => {
+    expect(await causeOf(restoreFrom(sealedUnderOtherAction))).toStrictEqual(unopened);
+  }, SLOW);
+
   it('refuses commitment-mismatch when what opened does not recompute', async () => {
     expect(await causeOf(restoreFrom(sealedOther))).toStrictEqual({
       code: 'restore.commitment-mismatch',
@@ -111,5 +129,83 @@ describe('restoreConfiguration over a sealed backup', () => {
     await expect(
       restoreConfiguration(manager, ACCOUNT, ACTION, { password: PASSWORD }, actionState(COMMITMENT, NONCE, 1_000), pinned),
     ).resolves.toEqual(CONFIGURATION);
+  }, SLOW);
+});
+
+/** The PBKDF2 salt sizes `crypto.subtle.deriveKey` was handed, one per derivation. */
+const saltSizes = (deriveKey: { readonly mock: { readonly calls: readonly (readonly unknown[])[] } }): number[] =>
+  deriveKey.mock.calls.map(([algorithm]) => ((algorithm as Pbkdf2Params).salt as ArrayBufferView).byteLength);
+
+describe('restoreConfiguration tries version 2, then version 1', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens a version-2 payload with one derivation, salted with the version-2 associated data', async () => {
+    const deriveKey = vi.spyOn(globalThis.crypto.subtle, 'deriveKey');
+
+    await expect(restoreFrom(sealed)).resolves.toEqual(CONFIGURATION);
+    expect(saltSizes(deriveKey)).toEqual([160]);
+
+    const [algorithm] = deriveKey.mock.calls[0] ?? [];
+    const salt = (algorithm as Pbkdf2Params).salt as ArrayBufferView;
+
+    expect(Buffer.from(salt.buffer, salt.byteOffset, salt.byteLength).equals(referenceAssociatedData(AUTHENTICATED))).toBe(true);
+  }, SLOW);
+
+  it('opens a version-1 payload on the second attempt, deriving under the version-2 salt and then the empty one', async () => {
+    const deriveKey = vi.spyOn(globalThis.crypto.subtle, 'deriveKey');
+
+    await expect(restoreFrom(LEGACY_SEALED)).resolves.toEqual(CONFIGURATION);
+    expect(saltSizes(deriveKey)).toEqual([160, 0]);
+  }, SLOW);
+
+  it('opens a version-1 payload through a real EventManager reading the raw log', async () => {
+    const { manager } = realEvents([setupCommittedLog(NONCE, COMMITMENT, LEGACY_SEALED, { blockNumber: 1_000 })]);
+
+    await expect(
+      restoreConfiguration(manager, ACCOUNT, ACTION, { password: PASSWORD }, actionState(COMMITMENT, NONCE, 1_000), { number: 1_200, hash: BLOCK.hash }),
+    ).resolves.toEqual(CONFIGURATION);
+  }, SLOW);
+
+  it.each([
+    ['a version-2 payload', () => sealed],
+    ['a version-1 payload', () => LEGACY_SEALED],
+  ])('refuses %s under a wrong password after exactly two derivations, reporting the version-2 values', async (_, payload) => {
+    const deriveKey = vi.spyOn(globalThis.crypto.subtle, 'deriveKey');
+
+    expect(await causeOf(restoreFrom(payload(), 'wrong horse'))).toStrictEqual({
+      code: 'restore.backup-unopened',
+      subject: 'restore',
+      values: { payloadSize: 2501, authenticated: { ...AUTHENTICATED, payloadVersion: 2 } },
+    });
+    expect(saltSizes(deriveKey)).toEqual([160, 0]);
+  }, SLOW);
+
+  it.each([
+    ['2 bytes', '0x1234' as Hex, 2],
+    ['2500 bytes', `0x${'00'.repeat(2500)}` as Hex, 2500],
+    ['2502 bytes', `0x${'00'.repeat(2502)}` as Hex, 2502],
+  ])('refuses a payload of %s with no derivation, reporting the version-2 values', async (_, payload, payloadSize) => {
+    const importKey = vi.spyOn(globalThis.crypto.subtle, 'importKey');
+    const deriveKey = vi.spyOn(globalThis.crypto.subtle, 'deriveKey');
+
+    expect(await causeOf(restoreFrom(payload))).toStrictEqual({
+      code: 'restore.backup-unopened',
+      subject: 'restore',
+      values: { payloadSize, authenticated: { ...AUTHENTICATED, payloadVersion: 2 } },
+    });
+    expect(importKey).not.toHaveBeenCalled();
+    expect(deriveKey).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a TypeError', new TypeError('derivation refused')],
+    ['an Error', new Error('WebCrypto is unavailable')],
+  ])('propagates %s raised in the first attempt as itself and never runs the second', async (_, failure) => {
+    const deriveKey = vi.spyOn(globalThis.crypto.subtle, 'deriveKey').mockRejectedValueOnce(failure);
+
+    await expect(restoreFrom(sealed)).rejects.toBe(failure);
+    expect(deriveKey).toHaveBeenCalledTimes(1);
   }, SLOW);
 });

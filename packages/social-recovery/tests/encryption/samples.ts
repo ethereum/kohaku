@@ -39,6 +39,9 @@ export const AUTHENTICATED: BackupAuthenticated = {
   payloadVersion: BACKUP_PAYLOAD_VERSION,
 };
 
+/** `AUTHENTICATED` under the legacy payload version 1, whose payloads are opened but never sealed. */
+export const LEGACY_AUTHENTICATED: BackupAuthenticated = { ...AUTHENTICATED, payloadVersion: 1 };
+
 export const oneCredentialRule = (credential: Credential, wait = 86_400): Configuration => ({
   clauses: [{ threshold: 1, credentials: [credential] }],
   wait,

@@ -72,7 +72,7 @@ const unopened = (payloadSize: number, state: ActionState = STATE): RestoreCause
   subject: 'restore',
   values: {
     payloadSize,
-    authenticated: { account: ACCOUNT, action: ACTION, setupCommitment: state.setupCommitment, nonce: state.setupNonce, payloadVersion: 1 },
+    authenticated: { account: ACCOUNT, action: ACTION, setupCommitment: state.setupCommitment, nonce: state.setupNonce, payloadVersion: 2 },
   },
 });
 

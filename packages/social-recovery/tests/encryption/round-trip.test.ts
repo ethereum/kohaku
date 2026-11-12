@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'vitest';
 import {
+  BACKUP_LEGACY_PAYLOAD_VERSION,
   BACKUP_PADDING_SIZE,
   BACKUP_PAYLOAD_VERSION,
   BackupTooWideError,
+  BackupUnopenedError,
   openBackup,
   sealBackup,
   serializeConfiguration,
@@ -35,7 +37,7 @@ import {
   ZKPASSPORT_CONFIG_BLESSED,
   ZKPASSPORT_CONFIG_WORD,
 } from './samples';
-import { referenceKey, toHex } from './reference';
+import { referenceAssociatedData, referenceKey, toHex } from './reference';
 
 const TIMEOUT = 60_000;
 const PAYLOAD_SIZE = 12 + BACKUP_PADDING_SIZE + 16;
@@ -187,6 +189,7 @@ describe.concurrent('one fixed length', () => {
 
 type FixtureVector = {
   readonly 'id': string;
+  readonly openOnly?: boolean;
   readonly input: {
     readonly configuration: Configuration;
     readonly password: string;
@@ -197,6 +200,7 @@ type FixtureVector = {
   readonly expected: {
     readonly serialization: Hex;
     readonly serializationSize: number;
+    readonly associatedData?: Hex;
     readonly key?: Hex;
     readonly payload?: Hex;
     readonly payloadSize?: number;
@@ -208,8 +212,10 @@ type FixtureFile = {
   readonly format: string;
   readonly blessed: boolean;
   readonly derivation: string;
+  readonly legacyDerivation: string;
   readonly paddingSize: number;
   readonly payloadVersion: number;
+  readonly legacyPayloadVersion: number;
   readonly vectors: readonly FixtureVector[];
 };
 
@@ -219,20 +225,44 @@ const authenticatedOf = (vector: FixtureVector): BackupAuthenticated => ({
   ...vector.input.authenticated,
   nonce: BigInt(vector.input.authenticated.nonce),
 });
+const sealedRows = FIXTURE.vectors.filter((vector) => vector.openOnly !== true);
+const openOnlyRows = FIXTURE.vectors.filter((vector) => vector.openOnly === true);
 
 describe.concurrent('replays the unblessed backup-payload fixture byte for byte', () => {
   it('is marked unblessed and states the shipped numbers', ({ expect }) => {
     expect(FIXTURE.blessed).toBe(false);
-    expect(FIXTURE.derivation).toContain('PBKDF2-HMAC-SHA256(utf8(password), salt = zero-length byte string, 600000, 32)');
-    expect(FIXTURE.derivation).not.toContain('salt = AD');
+    expect(FIXTURE.derivation).toContain('PBKDF2-HMAC-SHA256(utf8(password), salt = AD, 600000, 32)');
+    expect(FIXTURE.derivation).toContain('salt = AD');
+    expect(FIXTURE.derivation).not.toContain('zero-length');
+    expect(FIXTURE.legacyDerivation).toContain('PBKDF2-HMAC-SHA256(utf8(password), salt = zero-length byte string, 600000, 32)');
     expect(FIXTURE.paddingSize).toBe(BACKUP_PADDING_SIZE);
     expect(FIXTURE.vectors.every((vector) => vector.input.paddingSize === BACKUP_PADDING_SIZE)).toBe(true);
-    expect(FIXTURE.vectors.some((vector) => vector.expected.serializationSize === BACKUP_PADDING_SIZE && vector.expected.payload !== undefined)).toBe(true);
+    expect(sealedRows.some((vector) => vector.expected.serializationSize === BACKUP_PADDING_SIZE && vector.expected.payload !== undefined)).toBe(true);
     expect(FIXTURE.payloadVersion).toBe(BACKUP_PAYLOAD_VERSION);
-    expect(FIXTURE.vectors.filter((vector) => vector.expected.payload !== undefined).length).toBeGreaterThan(0);
+    expect(FIXTURE.payloadVersion).toBe(2);
+    expect(FIXTURE.legacyPayloadVersion).toBe(BACKUP_LEGACY_PAYLOAD_VERSION);
+    expect(sealedRows.filter((vector) => vector.expected.payload !== undefined).length).toBeGreaterThan(0);
+    expect(sealedRows.every((vector) => vector.input.authenticated.payloadVersion === BACKUP_PAYLOAD_VERSION)).toBe(true);
   });
 
-  it.for(FIXTURE.vectors.map((vector) => [vector['id'], vector] as const))('%s', { timeout: TIMEOUT }, async ([, vector], { expect }) => {
+  it('keeps every sealed version-1 row as an open-only row of the same inputs', ({ expect }) => {
+    const sealedWithPayload = sealedRows.filter((vector) => vector.expected.payload !== undefined);
+
+    expect(openOnlyRows).toHaveLength(sealedWithPayload.length);
+    expect(openOnlyRows.map((vector) => vector['id'])).toEqual(sealedWithPayload.map((vector) => `v1-${vector['id']}`));
+
+    for (const [index, vector] of openOnlyRows.entries()) {
+      const counterpart = sealedWithPayload[index];
+
+      expect(vector.input.authenticated.payloadVersion).toBe(BACKUP_LEGACY_PAYLOAD_VERSION);
+      expect(vector.expected.payload).toBeDefined();
+      expect(vector.expected.refusal).toBeUndefined();
+      expect({ ...vector.input, authenticated: { ...vector.input.authenticated, payloadVersion: 2 } }).toEqual(counterpart?.input);
+      expect(vector.expected.payload).not.toBe(counterpart?.expected.payload);
+    }
+  });
+
+  it.for(sealedRows.map((vector) => [vector['id'], vector] as const))('%s', { timeout: TIMEOUT }, async ([, vector], { expect }) => {
     const { configuration, password, nonce, paddingSize } = vector.input;
     const authenticated = authenticatedOf(vector);
 
@@ -252,10 +282,30 @@ describe.concurrent('replays the unblessed backup-payload fixture byte for byte'
     }
 
     const payload = await sealBackup(configuration, password, nonce, paddingSize, authenticated);
+    const associatedData = referenceAssociatedData(authenticated);
 
     expect(payload).toBe(vector.expected.payload);
     expect(byteLength(payload)).toBe(vector.expected.payloadSize);
     expect(await openBackup(vector.expected.payload as Hex, password, authenticated)).toEqual(expectedOpened(configuration));
-    expect(vector.expected.key).toBe(toHex(referenceKey(password)));
+    expect(vector.expected.associatedData).toBe(toHex(associatedData));
+    expect(vector.expected.key).toBe(toHex(referenceKey(password, associatedData)));
+  });
+
+  it.for(openOnlyRows.map((vector) => [vector['id'], vector] as const))('%s', { timeout: TIMEOUT }, async ([, vector], { expect }) => {
+    const { configuration, password, nonce, paddingSize } = vector.input;
+    const authenticated = authenticatedOf(vector);
+    const sealing = await sealBackup(configuration, password, nonce, paddingSize, authenticated).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(serializeConfiguration(configuration)).toBe(vector.expected.serialization);
+    expect(sealing).toBeInstanceOf(RangeError);
+    expect(await openBackup(vector.expected.payload as Hex, password, authenticated)).toEqual(expectedOpened(configuration));
+    await expect(
+      openBackup(vector.expected.payload as Hex, password, { ...authenticated, payloadVersion: BACKUP_PAYLOAD_VERSION }),
+    ).rejects.toBeInstanceOf(BackupUnopenedError);
+    expect(vector.expected.associatedData).toBe(toHex(referenceAssociatedData(authenticated)));
+    expect(vector.expected.key).toBe(toHex(referenceKey(password, Buffer.alloc(0))));
   });
 });

@@ -1,5 +1,6 @@
 import {
   BACKUP_PAYLOAD_VERSION,
+  BACKUP_READ_PAYLOAD_VERSIONS,
   CLIENT_CORE_BACKUP_UNOPENED_MESSAGE,
   CLIENT_CORE_COMMITMENT_MISMATCH_MESSAGE,
   CLIENT_CORE_NO_BACKUP_MESSAGE,
@@ -73,7 +74,10 @@ function latestCommitted(notifications: readonly KitNotification[]): SetupCommit
   return latest;
 }
 
-/** Fetches the current setup's backup and opens it under the password and the setup it is bound to. */
+/**
+ * Fetches the current setup's backup and opens it under the password and the setup it is bound to, trying each version in
+ * `BACKUP_READ_PAYLOAD_VERSIONS` in order; only a payload that opens under none is refused, reporting `authenticated` as given.
+ */
 async function openCurrentBackup(
   events: IEventManager,
   password: string,
@@ -94,19 +98,25 @@ async function openCurrentBackup(
     throw noBackup(account, action, nonce);
   }
 
-  try {
-    return await openBackup(latest.privateMetadata, password, authenticated);
-  } catch (thrown) {
-    if (!(thrown instanceof BackupUnopenedError)) throw thrown;
+  let payloadSize = 0;
 
-    throw new KitRefusalError(CLIENT_CORE_BACKUP_UNOPENED_MESSAGE, {
-      restoreCause: {
-        code: 'restore.backup-unopened',
-        subject: 'restore',
-        values: { payloadSize: thrown.payloadSize, authenticated },
-      },
-    });
+  for (const payloadVersion of BACKUP_READ_PAYLOAD_VERSIONS) {
+    try {
+      return await openBackup(latest.privateMetadata, password, { ...authenticated, payloadVersion });
+    } catch (thrown) {
+      if (!(thrown instanceof BackupUnopenedError)) throw thrown;
+
+      payloadSize = thrown.payloadSize;
+    }
   }
+
+  throw new KitRefusalError(CLIENT_CORE_BACKUP_UNOPENED_MESSAGE, {
+    restoreCause: {
+      code: 'restore.backup-unopened',
+      subject: 'restore',
+      values: { payloadSize, authenticated },
+    },
+  });
 }
 
 /**
