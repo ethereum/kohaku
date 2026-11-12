@@ -14,7 +14,7 @@ import {
   TWO_CLAUSES_BODY,
 } from './support';
 
-const BOUNDS: RequestWindowBounds = { default: 86_400, floor: FLOOR };
+const BOUNDS: RequestWindowBounds = { default: 86_400, floor: FLOOR, ceiling: 259_200 };
 const NOW = PINNED_AT + 60;
 
 /** A record with replies filed at the given places, in the given order. */
@@ -170,5 +170,32 @@ describe('count findings (tester-authored boundary rows)', () => {
     const now = PINNED_AT + 5_000;
 
     expect(count(withReplies(record, [0, 1, 2]), now, BOUNDS).findings).toStrictEqual(count(record, now, BOUNDS).findings);
+  });
+});
+
+describe('count warns on a window wider than the ceiling', () => {
+  /** The record with its window ending the given number of seconds after its pinned block. */
+  const widened = (record: Gathering, width: number): Gathering =>
+    ({ ...record, request: { ...record.request, validUntil: String(PINNED_AT + width) } }) as Gathering;
+  const wide = (findings: readonly Finding[]) => findings.filter((f) => f.code === 'request.window-wide');
+
+  it.each([
+    ['an approval', approvalGathering()],
+    ['a cancellation', cancellationGathering()],
+  ] as const)('%s gathering raises request.window-wide one second over the ceiling and not at it', (_purpose, record) => {
+    expect(wide(count(widened(record, 259_201), NOW, BOUNDS).findings)).toStrictEqual([
+      { code: 'request.window-wide', subject: 'request', values: { window: 259_201, ceiling: 259_200 } },
+    ]);
+    expect(wide(count(widened(record, 259_200), NOW, BOUNDS).findings)).toStrictEqual([]);
+  });
+
+  it('reads the ceiling from the bounds it is handed', () => {
+    expect(wide(count(approvalGathering(), NOW, { ...BOUNDS, ceiling: 86_399 }).findings)).toStrictEqual([
+      { code: 'request.window-wide', subject: 'request', values: { window: 86_400, ceiling: 86_399 } },
+    ]);
+  });
+
+  it('throws naming bounds.ceiling for bounds without one', () => {
+    expect(() => count(approvalGathering(), NOW, { default: 86_400, floor: FLOOR } as RequestWindowBounds)).toThrow('bounds.ceiling');
   });
 });

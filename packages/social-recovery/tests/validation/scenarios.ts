@@ -114,12 +114,12 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
 
 const UINT48_TOP = 2 ** 48 - 1;
 
-/** An opening over a body the stored commitment does not match, firing every opening error at once. */
+/** An opening under a moved nonce over a body the stored commitment does not match, firing every opening error but `request.no-setup` at once. */
 export function everyOpeningError(): [AttemptRequest, RequestValidationContext] {
   const second = OPENING.proofs[1]!;
 
   return [
-    { ...OPENING, attemptId: 9n, setupNonce: 4n, proofs: [second, second, { ...second, place: 5 }] },
+    { ...OPENING, attemptId: 9n, setupNonce: 4n, setupBody: oracleBody({ ...BODY, wait: 172_801 }), proofs: [second, second, { ...second, place: 5 }] },
     {
       ...REQUEST_CONTEXT,
       state: WAITING_STATE,
@@ -144,13 +144,14 @@ export function requestScenarios(): readonly [string, AttemptRequest | CancelReq
 
   return [
     ['every opening error', ...everyOpeningError()],
+    ['an opening with no setup standing', OPENING, { ...REQUEST_CONTEXT, state: { ...STATE, setupCommitment: `0x${'00'.repeat(32)}` } }],
     ['a cancellation of nothing', unmatched, { ...REQUEST_CONTEXT, moment: T + 50_000 }],
     ['a stale cancellation', { ...CANCEL, attemptId: 5n }, {
       ...CANCEL_CONTEXT,
       state: { ...WAITING_STATE, attempt: { ...WAITING_STATE.attempt, setupNonce: 2n }, setupCommitment: oracleCommitment(ACCOUNT, ACTION, 3n, CANCEL.setupBody) },
     }],
     ['a cancellation read at a skewed moment', lateCancel, { ...CANCEL_CONTEXT, moment: T + 1_000 }],
-    ['every payment warning', { ...OPENING, validUntil: T + 300_000, order: { token: OTHER_TOKEN, amount: 5n, payee: ZERO } }, {
+    ['every payment warning and a wide window', { ...OPENING, validUntil: T + 300_000, order: { token: OTHER_TOKEN, amount: 5n, payee: ZERO } }, {
       ...REQUEST_CONTEXT,
       balance: 1n,
       implementedMethods: [],

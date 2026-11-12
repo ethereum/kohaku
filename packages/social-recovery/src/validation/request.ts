@@ -6,7 +6,7 @@ import { assertRequestContext, checkedRequest } from './request-parse';
 import { paymentFindings } from './request-payment';
 import { placeOrderFindings, ruleCountFindings, stoppedFindings, unservedFindings } from './request-proofs';
 import { stateFindings } from './request-state';
-import { submissionFindings } from './window';
+import { submissionFindings, wideWindowFindings } from './window';
 
 /**
  * Every error and warning an assembled request reaches against the reads its client made, all of them at once.
@@ -22,6 +22,7 @@ export function validateRequest(request: AttemptRequest | CancelRequest, context
 
   stateFindings(checked, context.state, findings);
   addAll(findings, submissionFindings(facts, context.moment));
+  addAll(findings, wideWindowFindings(facts, context.configuration.requestWindow, 'context.configuration.requestWindow'));
   ruleCountFindings(checked, findings);
   stoppedFindings(checked, context, findings);
   placeOrderFindings(checked, findings);

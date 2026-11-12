@@ -1,4 +1,4 @@
-import { encodeAbiParameters, getAddress } from 'viem';
+import { encodeAbiParameters, getAddress, keccak256 } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { KitRefusalError, type Address, type Handover, type KitNotification, type LogPosition } from '../../src/index';
 import { oracleKitSlot } from '../formats/request-support';
@@ -20,11 +20,13 @@ import {
   pinnedOf,
   rejectionOf,
   rig,
+  stateFor,
   world,
   ZERO,
   type World,
 } from './doubles';
-import { boundAttempt } from './prepare-fixtures';
+import { executeHandoverData, startAttemptData } from './encodings';
+import { boundAttempt, liveAttempt, membersOf } from './prepare-fixtures';
 
 const open = (overrides: Partial<World>, handover: Handover) => {
   const built = rig(world(overrides));
@@ -410,13 +412,40 @@ describe('the init refuses a new key nobody can sign for', () => {
 });
 
 describe('a payload installing a key nobody can sign for, past the init', () => {
-  it.each(RESERVED)('prepareStartAttempt prepares and simulates a payload whose new key is reserved as %s, with no handover read', async (_reserved, newAuthority) => {
+  it.each(RESERVED)('prepareStartAttempt refuses a payload whose new key is reserved as %s with the init\'s finding, before any read', async (reserved, newAuthority) => {
     const built = rig(world(), { ...CLIENT_CONFIGURATION, simulate: true });
-    const prepared = await built.client.prepareStartAttempt({ ...boundAttempt(), payload: payloadOf(newAuthority, KEY_OLD) }, HEADER.timestamp);
+    const thrown = await rejectionOf(built.client.prepareStartAttempt({ ...boundAttempt(), payload: payloadOf(newAuthority, KEY_OLD) }, HEADER.timestamp));
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect((thrown as KitRefusalError).message).toBe('the handover would not pass the action');
+    expect((thrown as KitRefusalError).findings).toEqual({
+      errors: [{ code: 'handover.new-reserved', subject: 'request', values: { newAuthority: getAddress(newAuthority), reserved } }],
+      warnings: [],
+    });
+    expect(Object.hasOwn(thrown as object, 'cause')).toBe(false);
+    expect((thrown as KitRefusalError).restoreCause).toBeUndefined();
+    expect(built.seen).toEqual([]);
+  });
+
+  it.each([
+    ['the kit slot of another action', oracleKitSlot(KEY_OTHER)],
+    ['an ordinary key', KEY_NEW],
+  ] as const)('prepareStartAttempt still prepares and simulates a payload whose new key is %s', async (_name, newAuthority) => {
+    const built = rig(world(), { ...CLIENT_CONFIGURATION, simulate: true });
+    const request = { ...boundAttempt(), payload: payloadOf(newAuthority, KEY_OLD) };
+    const prepared = await built.client.prepareStartAttempt(request, HEADER.timestamp);
 
     expect(prepared.simulation).toEqual({ success: true });
-    expect(callsTo(built.seen, 'provider', 'call')).toHaveLength(1);
-    expect(callsTo(built.seen, 'action', 'holdsAnyPrivilege')).toEqual([]);
-    expect(callsTo(built.seen, 'action', 'isAuthority')).toEqual([]);
+    expect(prepared.data.toLowerCase()).toBe(startAttemptData(request).toLowerCase());
+    expect(membersOf(built.seen)).toEqual(['provider.block', 'manager.prepareStartAttempt', 'provider.call']);
+  });
+
+  it.each(RESERVED)('prepareExecuteHandover still prepares a payload whose new key is reserved as %s', async (_reserved, newAuthority) => {
+    const payload = payloadOf(newAuthority, KEY_OLD);
+    const attempt = { ...liveAttempt(), payloadHash: keccak256(payload) };
+    const prepared = await rig(world({ state: stateFor(undefined, attempt) })).client.prepareExecuteHandover(attempt, payload);
+
+    expect(prepared.target.toLowerCase()).toBe(ACTION.toLowerCase());
+    expect(prepared.data.toLowerCase()).toBe(executeHandoverData(ACCOUNT, payload).toLowerCase());
   });
 });

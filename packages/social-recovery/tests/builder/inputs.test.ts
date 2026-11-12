@@ -46,7 +46,7 @@ describe('the exported defaults', () => {
     expect(BUILDER_DEFAULT_WAIT).toBe(172_800);
     expect(BUILDER_SHORT_WAIT).toBe(172_800);
     expect(BUILDER_MAX_WAIT).toBe(2_592_000);
-    expect(BUILDER_REQUEST_WINDOW).toEqual({ default: 86_400, floor: 3_600 });
+    expect(BUILDER_REQUEST_WINDOW).toEqual({ default: 86_400, floor: 3_600, ceiling: 259_200 });
     expect(BUILDER_CANCEL_WINDOW).toBe(43_200);
     expect(BUILDER_RULE_COST_BOUND).toBe(10_000_000);
     expect(BUILDER_BLOCK_TAGS).toEqual({ read: 'latest', watch: 'finalized' });
@@ -59,7 +59,7 @@ describe('the exported defaults', () => {
       defaultWait: 172_800,
       shortWait: 172_800,
       maxWait: 2_592_000,
-      requestWindow: { default: 86_400, floor: 3_600 },
+      requestWindow: { default: 86_400, floor: 3_600, ceiling: 259_200 },
       cancelWindow: 43_200,
       ruleCostBound: 10_000_000,
       candidateKeys: [],

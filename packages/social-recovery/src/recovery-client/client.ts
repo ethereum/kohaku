@@ -45,7 +45,7 @@ import { assertAttemptState, assertAttemptWaiting, assertNoAttemptWaiting, gathe
 import { sharedRequest } from './record';
 import { checkedParts } from './parts';
 import { recoveryRecord, removedKeyAt } from './state';
-import { assertPayloadDecodes, assertSubmission } from './submission';
+import { assertOpeningHandover, assertSubmission } from './submission';
 
 /**
  * The entry an integrator builds when a key is lost, bound to one chain, deployment, account and action.
@@ -184,7 +184,9 @@ export class RecoveryClient implements IRecoveryClient {
    * The manager's `startAttempt(request)` at one pinned block, sent by anyone and simulated unless the options or the
    * configuration say otherwise, from `options.from` or the zero address. It runs no request validation: the integrator
    * judges the request with `validateRequest` first. Throws a `TypeError` or `RangeError` before any read on a malformed
-   * argument or a request naming another account or action, and a `KitRefusalError` on a payload the codec does not decode.
+   * argument or a request naming another account or action, and a `KitRefusalError`, before any read, on a payload that does
+   * not decode, names the zero address or one key twice (`handover.malformed`), or installs a key nobody could use
+   * (`handover.new-reserved`); it reads nothing to judge the handover.
    */
   async prepareStartAttempt(request: AttemptRequest, now: Moment, options?: PrepareOptions): Promise<PreparedCall> {
     const { parts } = this;
@@ -192,7 +194,7 @@ export class RecoveryClient implements IRecoveryClient {
     assertPreparesServed(this.versionEscaped);
     assertSubmission(parts, request, true, now);
     assertOptions(options);
-    assertPayloadDecodes(parts, request.payload);
+    assertOpeningHandover(parts, request.payload);
 
     const { block } = await pinBlockHeader(parts.provider, parts.configuration.blockTags.read);
     const call = await parts.policyManager.prepareStartAttempt(request, block);

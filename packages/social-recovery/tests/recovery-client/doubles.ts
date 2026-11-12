@@ -83,7 +83,7 @@ export const CLIENT_CONFIGURATION: ClientConfiguration = {
   defaultWait: 86_400,
   shortWait: 3_600,
   maxWait: 2_592_000,
-  requestWindow: { default: 86_400, floor: 3_600 },
+  requestWindow: { default: 86_400, floor: 3_600, ceiling: 259_200 },
   cancelWindow: 7_200,
   ruleCostBound: 3_000_000,
   candidateKeys: [],

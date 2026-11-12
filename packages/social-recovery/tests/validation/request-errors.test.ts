@@ -123,8 +123,10 @@ describe('validateRequest errors', () => {
     ]);
   });
 
-  it('raises request.body-mismatch for a request under another nonce, and not for the stored body', () => {
-    expect(errorCodes({ ...OPENING, setupNonce: 4n })).toEqual(['request.body-mismatch']);
+  it('raises request.setup-nonce, not request.body-mismatch, for a request under another nonce over the stored body', () => {
+    expect(validateRequest({ ...OPENING, setupNonce: 4n }, REQUEST_CONTEXT).errors).toEqual([
+      { code: 'request.setup-nonce', subject: 'request', values: { setupNonce: 4n, expected: 3n } },
+    ]);
     expect(errorCodes()).toEqual([]);
   });
 
@@ -370,5 +372,96 @@ describe('validateRequest: a new key nobody can sign for', () => {
   ])('throws a TypeError naming context.handover.manager for %s on an opening, never a finding', (_label, handover) => {
     expect(() => validateRequest(OPENING, { ...REQUEST_CONTEXT, handover })).toThrow(TypeError);
     expect(() => validateRequest(OPENING, { ...REQUEST_CONTEXT, handover })).toThrow('context.handover.manager');
+  });
+});
+
+/** The commitment the manager holds for an account and action with no setup standing. */
+const NO_SETUP: Hex = `0x${'00'.repeat(32)}`;
+
+/** The stored state after a clear: no commitment, the nonce moved one past the requests', no attempt waiting. */
+const CLEARED = { ...STATE, setupCommitment: NO_SETUP, setupNonce: 4n, attempt: { ...STATE.attempt, state: 'Cancelled' as const } };
+
+/** A body other than the one the stored commitment holds. */
+const OTHER_BODY = oracleBody({ ...BODY, wait: 172_801 });
+
+describe('validateRequest: the setup a request stands on', () => {
+  it.each<[string, Request, RequestValidationContext]>([
+    ['an opening', OPENING, REQUEST_CONTEXT],
+    ['a cancellation', CANCEL, CANCEL_CONTEXT],
+  ])('raises request.setup-nonce alone on %s under a nonce other than the stored one, over the stored body', (_kind, request, context) => {
+    for (const setupNonce of [0n, 2n, 4n, 2n ** 64n - 1n]) {
+      expect(validateRequest({ ...request, setupNonce }, context).errors).toEqual([
+        { code: 'request.setup-nonce', subject: 'request', values: { setupNonce, expected: 3n } },
+      ]);
+    }
+  });
+
+  it('raises request.setup-nonce then request.body-mismatch, recomputed under the stored nonce, for a moved nonce over a changed body', () => {
+    expect(validateRequest({ ...OPENING, setupNonce: 4n, setupBody: OTHER_BODY }, REQUEST_CONTEXT).errors).toEqual([
+      { code: 'request.setup-nonce', subject: 'request', values: { setupNonce: 4n, expected: 3n } },
+      {
+        code: 'request.body-mismatch',
+        subject: 'request',
+        values: { recomputed: oracleCommitment(ACCOUNT, ACTION, 3n, OTHER_BODY), committed: STATE.setupCommitment },
+      },
+    ]);
+  });
+
+  it.each<[string, Hex]>([
+    ['the zero word', NO_SETUP],
+    ['the zero word with an upper-case prefix', `0X${'00'.repeat(32)}` as Hex],
+  ])('raises request.no-setup naming the account and action, and no request.body-mismatch, on an opening over %s', (_spelling, setupCommitment) => {
+    const context = { ...REQUEST_CONTEXT, state: { ...STATE, setupCommitment } };
+    const noSetup = { code: 'request.no-setup', subject: 'request', values: { account: ACCOUNT, action: ACTION } };
+
+    expect(validateRequest(OPENING, context).errors).toEqual([noSetup]);
+    expect(validateRequest({ ...OPENING, setupBody: OTHER_BODY }, context).errors).toEqual([noSetup]);
+  });
+
+  it('reports the account and action of request.no-setup checksummed, whatever their spelling in the request', () => {
+    const account: Address = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
+    const action: Address = '0xfedcbafedcbafedcbafedcbafedcbafedcbafedc';
+
+    expect(validateRequest({ ...OPENING, account, action }, { ...REQUEST_CONTEXT, state: { ...STATE, setupCommitment: NO_SETUP } }).errors).toEqual([
+      { code: 'request.no-setup', subject: 'request', values: { account: getAddress(account), action: getAddress(action) } },
+    ]);
+  });
+
+  it('raises request.no-setup then request.setup-nonce on an opening built before a clear', () => {
+    expect(validateRequest(OPENING, { ...REQUEST_CONTEXT, state: CLEARED }).errors).toEqual([
+      { code: 'request.no-setup', subject: 'request', values: { account: ACCOUNT, action: ACTION } },
+      { code: 'request.setup-nonce', subject: 'request', values: { setupNonce: 3n, expected: 4n } },
+    ]);
+  });
+
+  it('raises request.no-active-attempt and request.setup-nonce on a cancellation after a clear, and neither request.no-setup nor request.body-mismatch', () => {
+    expect(validateRequest(CANCEL, { ...CANCEL_CONTEXT, state: CLEARED }).errors).toEqual([
+      { code: 'request.no-active-attempt', subject: 'request', values: { action: ACTION, state: 'Cancelled' } },
+      { code: 'request.setup-nonce', subject: 'request', values: { setupNonce: 3n, expected: 4n } },
+    ]);
+  });
+
+  it('orders an opening\'s state errors as the manager checks them: no setup, a live attempt, the nonce, the id, then the body', () => {
+    const request = { ...OPENING, setupNonce: 4n, attemptId: 8n };
+
+    expect(errorCodes(request, { ...REQUEST_CONTEXT, state: { ...WAITING_STATE, setupCommitment: NO_SETUP } })).toEqual([
+      'request.no-setup',
+      'request.attempt-active',
+      'request.setup-nonce',
+      'request.attempt-id',
+    ]);
+    expect(errorCodes({ ...request, setupBody: OTHER_BODY }, { ...REQUEST_CONTEXT, state: WAITING_STATE })).toEqual([
+      'request.attempt-active',
+      'request.setup-nonce',
+      'request.attempt-id',
+      'request.body-mismatch',
+    ]);
+  });
+
+  it('orders a cancellation\'s state errors as the manager checks them: no live attempt, the nonce, the id, a moved attempt nonce', () => {
+    const stale = { ...CANCEL_CONTEXT, state: { ...WAITING_STATE, attempt: { ...WAITING_STATE.attempt, setupNonce: 2n } } };
+
+    expect(errorCodes({ ...CANCEL, setupNonce: 4n, attemptId: 5n }, stale)).toEqual(['request.setup-nonce', 'request.attempt-id', 'request.stale-attempt']);
+    expect(errorCodes({ ...CANCEL, setupNonce: 4n }, REQUEST_CONTEXT)).toEqual(['request.no-active-attempt', 'request.setup-nonce']);
   });
 });

@@ -100,8 +100,8 @@ describe('construction-time checks of the consumed fields', () => {
     ['configuration.tokens not an array', { ...CONFIGURATION, tokens: 'none' }],
     ['configuration.tokens holding a malformed address', { ...CONFIGURATION, tokens: ['0xzz'] }],
     ['configuration.requestWindow not an object', { ...CONFIGURATION, requestWindow: 3_600 }],
-    ['configuration.requestWindow.default negative', { ...CONFIGURATION, requestWindow: { default: -1, floor: 600 } }],
-    ['configuration.requestWindow.floor fractional', { ...CONFIGURATION, requestWindow: { default: 3_600, floor: 0.5 } }],
+    ['configuration.requestWindow.default negative', { ...CONFIGURATION, requestWindow: { default: -1, floor: 600, ceiling: 259_200 } }],
+    ['configuration.requestWindow.floor fractional', { ...CONFIGURATION, requestWindow: { default: 3_600, floor: 0.5, ceiling: 259_200 } }],
     ['configuration.cancelWindow a string', { ...CONFIGURATION, cancelWindow: '3600' }],
     ['configuration.logChunkSize negative', { ...CONFIGURATION, logChunkSize: -10 }],
     ['configuration.blockTags.watch not a named tag', { ...CONFIGURATION, blockTags: { read: 'latest', watch: 'pending' } }],
@@ -112,6 +112,18 @@ describe('construction-time checks of the consumed fields', () => {
     const { thrown, reads } = construct({ configuration });
 
     expect(thrown instanceof TypeError || thrown instanceof RangeError).toBe(true);
+    expect(reads).toBe(0);
+  });
+
+  it.each([
+    ['missing', { default: 3_600, floor: 600 }],
+    ['fractional', { default: 3_600, floor: 600, ceiling: 0.5 }],
+    ['negative', { default: 3_600, floor: 600, ceiling: -1 }],
+  ])('refuses configuration.requestWindow.ceiling %s at construction, naming it, with no provider read', (_name, requestWindow) => {
+    const { thrown, reads } = construct({ configuration: { ...CONFIGURATION, requestWindow } });
+
+    expect(thrown instanceof TypeError || thrown instanceof RangeError).toBe(true);
+    expect((thrown as Error).message).toContain('configuration.requestWindow.ceiling');
     expect(reads).toBe(0);
   });
 

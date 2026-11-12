@@ -8,7 +8,7 @@ import { membersOf } from './prepare-fixtures';
 const moment = fc.integer({ min: 0, max: 2 ** 40 });
 
 describe('the submission prepares over arbitrary requests, states and moments', () => {
-  it('prepareStartAttempt never judges the request and encodes the pinned startAttempt bytes', async () => {
+  it('prepareStartAttempt judges no more than the handover\'s keys and encodes the pinned startAttempt bytes', async () => {
     await runAsync(
       fc.asyncProperty(attemptRequest, attempt, header, moment, async (request, stored, pinned, now) => {
         const built = rig(world({ header: pinned, state: stateFor(undefined, stored) }), { ...CLIENT_CONFIGURATION, simulate: true });

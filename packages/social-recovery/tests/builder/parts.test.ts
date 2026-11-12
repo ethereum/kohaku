@@ -305,7 +305,7 @@ describe('the configuration', () => {
   });
 
   it('merges a partial configuration over the default member by member', async () => {
-    const partial = { tokens: [EXTRA_MODULE], requestWindow: { default: 7_200, floor: 600 }, blockTags: { read: 'finalized', watch: 'latest' } } as const;
+    const partial = { tokens: [EXTRA_MODULE], requestWindow: { default: 7_200, floor: 600, ceiling: 172_800 }, blockTags: { read: 'finalized', watch: 'latest' } } as const;
 
     await SocialRecoveryBuilder.from({ ...holder(), configuration: partial }).buildSetupClient();
 

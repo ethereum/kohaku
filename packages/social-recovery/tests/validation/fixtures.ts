@@ -40,12 +40,12 @@ export const SALT: Hex = '0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5
 /** A manager other than the descriptor's, as a mispaired action answers `MANAGER()`. */
 export const OTHER_MANAGER: Address = '0x8000000000000000000000000000000000000009';
 
-/** The shipped client numbers: 48 h default and short wait, 30 d maximum, a 24 h window with a 1 h floor, 12 h cancel, 10 M gas. */
+/** The shipped client numbers: 48 h default and short wait, 30 d maximum, a 24 h window with a 1 h floor and a 72 h ceiling, 12 h cancel, 10 M gas. */
 export const CONFIGURATION: ClientConfiguration = {
   defaultWait: 172_800,
   shortWait: 172_800,
   maxWait: 2_592_000,
-  requestWindow: { default: 86_400, floor: 3_600 },
+  requestWindow: { default: 86_400, floor: 3_600, ceiling: 259_200 },
   cancelWindow: 43_200,
   ruleCostBound: 10_000_000,
   candidateKeys: [],

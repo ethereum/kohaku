@@ -601,6 +601,19 @@ describe('the other records with named fields', () => {
     expect(fieldsOf(field(configuration, 'blockTags'))).toEqual(sorted(['read', 'watch']));
   });
 
+  it('the request window bounds carry a default, a floor and a ceiling, each a required number', () => {
+    const bounds = typeOf('RequestWindowBounds');
+
+    expect(fieldsOf(bounds)).toEqual(sorted(['default', 'floor', 'ceiling']));
+
+    for (const name of ['default', 'floor', 'ceiling']) {
+      expect(optional(bounds, name)).toBe(false);
+      expect(isNumber(field(bounds, name))).toBe(true);
+    }
+
+    expect(context.checker.isTypeAssignableTo(field(typeOf('ClientConfiguration'), 'requestWindow'), bounds)).toBe(true);
+  });
+
   it("ReplyFailure is kind reply-failure with its cause", () => {
     const failure = typeOf('ReplyFailure');
 
