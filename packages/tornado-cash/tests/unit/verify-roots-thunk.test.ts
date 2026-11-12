@@ -1,304 +1,152 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildTree } from '#merkle-tree';
+import { TornadoCashConfigs } from '../../src/config';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
+import type { IDepositEvent, IPool } from '../../src/data/interfaces/events.interface';
 import type { Address } from '../../src/interfaces/types.interface';
+import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { verifyRootsThunk } from '../../src/state/thunks/verifyRootsThunk';
-import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
-import {
-  verifyStateRootOnChain,
-} from '../../src/verification/root-verification.js';
+import { verifyStateRootOnChain } from '../../src/verification/root-verification';
 
-vi.mock('../../src/verification/root-verification.js', () => ({
-  verifyAspRootOnChain: vi.fn().mockResolvedValue(undefined),
-  verifyStateRootOnChain: vi.fn().mockResolvedValue(undefined),
+// Test the thunk's pool selection and root checks without starting hashing workers.
+vi.mock('#merkle-tree', () => ({ buildTree: vi.fn(), generateMerkleProof: vi.fn() }));
+vi.mock('../../src/verification/root-verification', () => ({ verifyStateRootOnChain: vi.fn() }));
+
+const poolAddress = 1000n as Address;
+const poolAddress2 = 2000n as Address;
+const dataService = {} as IDataService;
+const makeStore = () => storeFactory({ logLevel: 'off', protocolConfig: TornadoCashConfigs[1] });
+const pool = (address: Address): IPool => ({
+  address,
+  asset: 0n,
+  isERC20: false,
+  denomination: 10n ** 18n,
+  protocolFeePercentage: 0,
+  registeredBlock: 0n,
+  state: 1,
+  rootHistorySize: 100,
+});
+const deposits = (address: Address, leaves: bigint[]): IDepositEvent[] => leaves.map((commitment, leafIndex) => ({
+  pool: address,
+  commitment,
+  leafIndex,
+  timestamp: 0n,
+  blockNumber: BigInt(leafIndex + 1),
+  transactionHash: 0n,
 }));
+const treeWithRoot = (root: string) => ({ root } as Awaited<ReturnType<typeof buildTree>>);
 
 describe('verifyRootsThunk', () => {
-  const entrypointAddress = 900n as Address;
-  const poolAddress = 1000n as Address;
-
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    vi.mocked(buildTree).mockResolvedValue(treeWithRoot('999'));
+    vi.mocked(verifyStateRootOnChain).mockResolvedValue(undefined);
   });
 
-  it('verifies the ASP root and each pool root from the synced state', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+  it('verifies the root built from deposits in leaf-index order', async () => {
+    const store = makeStore();
 
-    store.dispatch(registerAspTree({
-      leaves: [44n, 55n],
-      aspTreeRoot: 333n,
-      blockNumber: 12n,
-    }));
+    store.dispatch(registerPools([pool(poolAddress)]));
+    store.dispatch(registerDeposits(deposits(poolAddress, [10n, 20n, 30n]).reverse()));
 
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
-
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [
-        {
-          index: 2n,
-          commitment: 30n,
-          root: 999n,
-          blockNumber: 3n,
-          transactionHash: 13n,
-        },
-        {
-          index: 0n,
-          commitment: 10n,
-          root: 999n,
-          blockNumber: 1n,
-          transactionHash: 11n,
-        },
-        {
-          index: 1n,
-          commitment: 20n,
-          root: 999n,
-          blockNumber: 2n,
-          transactionHash: 12n,
-        },
-      ],
-    }));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyAspRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      entrypointAddress,
-      333n,
-    );
-    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
+    expect(buildTree).toHaveBeenCalledExactlyOnceWith([10n, 20n, 30n]);
+    expect(verifyStateRootOnChain).toHaveBeenCalledExactlyOnceWith({
       dataService,
       poolAddress,
-      computeMerkleTreeRoot([10n, 20n, 30n]),
-    );
+      expectedRoot: 999n,
+    });
   });
 
-  it('skips verification when ASP root is zero and a pool has no leaves', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+  it('skips pools without deposits', async () => {
+    const store = makeStore();
 
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
+    store.dispatch(registerPools([pool(poolAddress)]));
 
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyAspRootOnChain).not.toHaveBeenCalled();
+    expect(buildTree).not.toHaveBeenCalled();
     expect(verifyStateRootOnChain).not.toHaveBeenCalled();
   });
 
-  it('rejects when ASP root verification fails', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+  it('checks only the requested registered pools', async () => {
+    const store = makeStore();
 
-    store.dispatch(registerAspTree({
-      leaves: [44n],
-      aspTreeRoot: 333n,
-      blockNumber: 12n,
+    store.dispatch(registerPools([pool(poolAddress), pool(poolAddress2)]));
+    store.dispatch(registerDeposits([
+      ...deposits(poolAddress, [10n]),
+      ...deposits(poolAddress2, [20n]),
+    ]));
+
+    const action = await store.dispatch(verifyRootsThunk({
+      dataService,
+      onlyThesePools: [poolAddress2, 3000n as Address],
     }));
 
-    vi.mocked(verifyAspRootOnChain).mockRejectedValueOnce(
-      new Error('ASP root verification failed'),
-    );
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
-
-    expect(action.meta.requestStatus).toBe('rejected');
-    expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(buildTree).toHaveBeenCalledExactlyOnceWith([20n]);
+    expect(verifyStateRootOnChain).toHaveBeenCalledExactlyOnceWith({
+      dataService,
+      poolAddress: poolAddress2,
+      expectedRoot: 999n,
+    });
   });
 
   it('rejects when pool state root verification fails', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+    const store = makeStore();
 
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
+    store.dispatch(registerPools([pool(poolAddress)]));
+    store.dispatch(registerDeposits(deposits(poolAddress, [10n])));
+    vi.mocked(verifyStateRootOnChain).mockRejectedValueOnce(new Error('State root verification failed'));
 
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [{
-        index: 0n,
-        commitment: 10n,
-        root: 999n,
-        blockNumber: 1n,
-        transactionHash: 11n,
-      }],
-    }));
-
-    vi.mocked(verifyStateRootOnChain).mockRejectedValueOnce(
-      new Error('State root verification failed'),
-    );
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
-
-    expect(action.meta.requestStatus).toBe('rejected');
+    await expect(store.dispatch(verifyRootsThunk({ dataService })).unwrap())
+      .rejects.toMatchObject({ message: 'State root verification failed' });
   });
 
-  it('verifies each pool independently when multiple pools have leaves', async () => {
-    const dataService = {} as IDataService;
-    const poolAddress2 = 2000n as Address;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+  it('verifies each pool independently when multiple pools have deposits', async () => {
+    const store = makeStore();
 
-    store.dispatch(registerPools([
-      {
-        address: poolAddress,
-        asset: 2000n as Address,
-        scope: 3000n,
-        registeredBlock: 0n,
-        woundDownAtBlock: null,
-      },
-      {
-        address: poolAddress2,
-        asset: 4000n as Address,
-        scope: 5000n,
-        registeredBlock: 0n,
-        woundDownAtBlock: null,
-      },
+    store.dispatch(registerPools([pool(poolAddress), pool(poolAddress2)]));
+    store.dispatch(registerDeposits([
+      ...deposits(poolAddress, [10n]),
+      ...deposits(poolAddress2, [20n]),
     ]));
+    vi.mocked(buildTree)
+      .mockResolvedValueOnce(treeWithRoot('999'))
+      .mockResolvedValueOnce(treeWithRoot('888'));
 
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [{
-        index: 0n,
-        commitment: 10n,
-        root: 999n,
-        blockNumber: 1n,
-        transactionHash: 11n,
-      }],
-    }));
-
-    store.dispatch(registerPoolLeaves({
-      poolAddress: poolAddress2,
-      leaves: [{
-        index: 0n,
-        commitment: 77n,
-        root: 888n,
-        blockNumber: 2n,
-        transactionHash: 22n,
-      }],
-    }));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(buildTree).toHaveBeenCalledTimes(2);
     expect(verifyStateRootOnChain).toHaveBeenCalledTimes(2);
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
+    expect(verifyStateRootOnChain).toHaveBeenNthCalledWith(1, {
       dataService,
       poolAddress,
-      computeMerkleTreeRoot([10n]),
-    );
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
+      expectedRoot: 999n,
+    });
+    expect(verifyStateRootOnChain).toHaveBeenNthCalledWith(2, {
       dataService,
-      poolAddress2,
-      computeMerkleTreeRoot([77n]),
-    );
+      poolAddress: poolAddress2,
+      expectedRoot: 888n,
+    });
   });
 
-  it('skips ASP but verifies pool when ASP root is zero and pool has leaves', async () => {
-    const dataService = {} as IDataService;
-    const store = storeFactory({
-      logLevel: 'off',
-      entrypointInfo: {
-        chainId: 1n,
-        entrypointAddress,
-        deploymentBlock: 0n,
-      },
-    });
+  it('skips verification when the requested pool list is empty', async () => {
+    const store = makeStore();
 
-    store.dispatch(registerPools([{
-      address: poolAddress,
-      asset: 2000n as Address,
-      scope: 3000n,
-      registeredBlock: 0n,
-      woundDownAtBlock: null,
-    }]));
+    store.dispatch(registerPools([pool(poolAddress)]));
+    store.dispatch(registerDeposits(deposits(poolAddress, [10n])));
 
-    store.dispatch(registerPoolLeaves({
-      poolAddress,
-      leaves: [{
-        index: 0n,
-        commitment: 10n,
-        root: 999n,
-        blockNumber: 1n,
-        transactionHash: 11n,
-      }],
-    }));
-
-    const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
-    );
+    const action = await store.dispatch(verifyRootsThunk({ dataService, onlyThesePools: [] }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
-    expect(verifyStateRootOnChain).toHaveBeenCalledWith(
-      dataService,
-      poolAddress,
-      computeMerkleTreeRoot([10n]),
-    );
+    expect(buildTree).not.toHaveBeenCalled();
+    expect(verifyStateRootOnChain).not.toHaveBeenCalled();
   });
 });
