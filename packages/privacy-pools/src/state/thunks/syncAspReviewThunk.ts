@@ -1,7 +1,6 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 
 import { IAspReviewService } from '../../data/asp.interface.js';
-import { myDepositsBalanceSelector } from '../selectors/balance.selector';
 import { entrypointInfoSelector, poolsSelector } from '../selectors/slices.selectors';
 import { setAspFlaggedDeposits } from '../slices/aspReviewSlice';
 import { RootState } from '../store';
@@ -11,9 +10,10 @@ export interface SyncAspReviewThunkParams {
 }
 
 /**
- * Refreshes which deposits the ASP flagged. It only asks when the user holds a
- * deposit outside the ASP tree, and never fails the sync: the review feed only
- * adds detail to `pending`, so on error the last list is kept.
+ * Refreshes which deposits the ASP flagged. It runs on the chain state, which
+ * every account shares and which holds no account's notes, so it always asks
+ * for the whole list. It never fails the sync: the review feed only adds detail
+ * to `pending`, so on error the last list is kept.
  */
 export const syncAspReviewThunk = createAsyncThunk<void, SyncAspReviewThunkParams, { state: RootState }>(
   'sync/aspReview',
@@ -21,11 +21,6 @@ export const syncAspReviewThunk = createAsyncThunk<void, SyncAspReviewThunkParam
     if (!aspReviewService) return;
 
     const state = getState();
-    const hasUnresolved = Array.from(myDepositsBalanceSelector(state).values())
-      .some((deposit) => !deposit.approved && deposit.balance > 0n);
-
-    if (!hasUnresolved) return;
-
     const { chainId } = entrypointInfoSelector(state);
     const pools = poolsSelector(state);
 

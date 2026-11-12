@@ -28,7 +28,7 @@ const depositA = deposit(1n);
 const depositB = deposit(2n);
 const depositC = deposit(3n);
 
-const setupStore = ({ approved = [depositA] }: { approved?: ReturnType<typeof deposit>[] } = {}) => {
+const setupStore = ({ approved = [depositA], withSecrets = true }: { approved?: ReturnType<typeof deposit>[]; withSecrets?: boolean } = {}) => {
   const store = storeFactory({
     logLevel: 'off',
     devOptions: TEST_STORE_DEV_OPTIONS,
@@ -42,10 +42,13 @@ const setupStore = ({ approved = [depositA] }: { approved?: ReturnType<typeof de
   store.dispatch(registerEntrypointDeposits(deposits.map(({ commitment, blockNumber, transactionHash }) => ({
     depositor, poolAddress: pool, commitment, blockNumber, transactionHash,
   }))));
-  deposits.forEach(({ precommitment }, depositIndex) => store.dispatch(addUserSecret({
-    depositIndex,
-    noteSecrets: [{ noteIndex: 0, nullifier: 0n, salt: 0n, precommitment, nullifierHash: precommitment + 500n }],
-  })));
+
+  if (withSecrets) {
+    deposits.forEach(({ precommitment }, depositIndex) => store.dispatch(addUserSecret({
+      depositIndex,
+      noteSecrets: [{ noteIndex: 0, nullifier: 0n, salt: 0n, precommitment, nullifierHash: precommitment + 500n }],
+    })));
+  }
 
   return store;
 };
@@ -135,12 +138,13 @@ describe('ASP review status', () => {
     expect(statusOf(store)[2]).toBe('declined');
   });
 
-  it('does not ask the feed when every deposit is approved', async () => {
-    const store = setupStore({ approved: [depositA, depositB, depositC] });
-    const service = reviewService([]);
+  it('asks the feed from the shared chain state, which holds no account notes', async () => {
+    const store = setupStore({ withSecrets: false });
+    const service = reviewService([{ pool, precommitment: depositB.precommitment, status: 'declined' }]);
 
     await store.dispatch(syncAspReviewThunk({ aspReviewService: service }));
 
-    expect(service.calls).toBe(0);
+    expect(service.calls).toBe(1);
+    expect(store.getState().aspReview.flaggedTuples).toHaveLength(1);
   });
 });
