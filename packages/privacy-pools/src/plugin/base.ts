@@ -370,6 +370,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       requestedNet,
       gasBumpBPS: options.exact?.gasBumpBPS ?? DEFAULT_EXACT_GAS_BUMP_BPS,
       obfuscateAmounts: options.obfuscateAmounts ?? false,
+      label: options.label,
     });
 
     // The recipient's net is fixed by the gross and embedded fee we chose, so it must
@@ -455,6 +456,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
         maxGasLimits: options.maxGasLimits,
         batch: options.batch,
         obfuscateAmounts: options.obfuscateAmounts ?? false,
+        label: options.label,
         refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       });
 
@@ -468,6 +470,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       amount,
       recipient: BigInt(to),
       obfuscateAmounts: options?.obfuscateAmounts ?? false,
+      label: options?.label,
     });
 
     if (!result) throw new Error("We failed to create a withdrawalPayload");
