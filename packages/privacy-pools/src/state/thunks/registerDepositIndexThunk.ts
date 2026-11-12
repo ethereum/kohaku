@@ -23,45 +23,50 @@ type RegisterDepositIndexThunk = ThunkAction<
   UnknownAction
 >;
 
+// Plain thunk preserves original errors; createAsyncThunk serializes rejections.
 export const registerDepositIndexThunk = (
   { depositIndex, secretManager }: RegisterDepositIndexParams,
 ): RegisterDepositIndexThunk => async (dispatch, getState) => {
-    const state = getState();
-    const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+  if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+    throw new RangeError('Invalid deposit index');
+  }
 
-    const secret = await secretManager.getDepositSecrets({
-      chainId,
-      entrypointAddress,
+  const state = getState();
+  const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+
+  const secret = await secretManager.getDepositSecrets({
+    chainId,
+    entrypointAddress,
+    depositIndex,
+  });
+  const precommitment = secret.precommitment as Precommitment;
+
+  if (!depositsSelector(state).has(precommitment)) {
+    return false;
+  }
+
+  const known = userSecretsSelector(state);
+
+  for (const [key, record] of known) {
+    if (record.depositIndex === depositIndex && key !== precommitment) {
+      throw new Error('Deposit index already registered');
+    }
+  }
+
+  const existing = known.get(precommitment);
+
+  if (existing && existing.depositIndex !== depositIndex) {
+    throw new Error('Credential index conflicts with existing record');
+  }
+
+  if (!existing) {
+    dispatch(addUserSecret({
       depositIndex,
-    });
-    const precommitment = secret.precommitment as Precommitment;
+      noteSecrets: [{ noteIndex: 0, ...secret }],
+    }));
+  }
 
-    if (!depositsSelector(state).has(precommitment)) {
-      return false;
-    }
+  unwrapResult(await dispatch(discoverUserSecretsThunk({ secretManager })));
 
-    const known = userSecretsSelector(state);
-
-    for (const [key, record] of known) {
-      if (record.depositIndex === depositIndex && key !== precommitment) {
-        throw new Error('Deposit index already registered');
-      }
-    }
-
-    const existing = known.get(precommitment);
-
-    if (existing && existing.depositIndex !== depositIndex) {
-      throw new Error('Credential index conflicts with existing record');
-    }
-
-    if (!existing) {
-      dispatch(addUserSecret({
-        depositIndex,
-        noteSecrets: [{ noteIndex: 0, ...secret }],
-      }));
-    }
-
-    unwrapResult(await dispatch(discoverUserSecretsThunk({ secretManager })));
-
-    return true;
+  return true;
 };

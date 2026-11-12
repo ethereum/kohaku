@@ -125,6 +125,17 @@ describe('explicit Privacy Pools deposit-index selection', () => {
     );
   });
 
+  it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid registration index %s before derivation',
+    async (index) => {
+      const { manager, derive } = setup();
+
+      await expect(manager.registerDepositIndex(index))
+        .rejects.toBeInstanceOf(RangeError);
+      expect(derive).not.toHaveBeenCalled();
+    },
+  );
+
   it('preserves signer cancellation during registration', async () => {
     const { manager, derive } = setup();
     const cancelled = new Error('Signer declined');
@@ -152,6 +163,47 @@ describe('explicit Privacy Pools deposit-index selection', () => {
     })).rejects.toBeInstanceOf(RangeError);
 
     expect(derive).not.toHaveBeenCalled();
+  });
+
+  it('syncs public events before registration by default', async () => {
+    const calls: string[] = [];
+    const stateManager = {
+      sync: vi.fn(async () => { calls.push('sync'); }),
+      registerDepositIndex: vi.fn(async () => {
+        calls.push('register');
+
+        return true;
+      }),
+    };
+    const plugin = new PrivacyPoolsV1Protocol(createMockHost(), {
+      entrypoint: { address: ENTRYPOINT, deploymentBlock: 8587019n },
+      dataService: {} as IDataService,
+      stateManager: () => stateManager as unknown as IStateManager,
+    });
+
+    await expect(plugin.registerDepositIndex(17)).resolves.toBe(true);
+    expect(calls).toEqual(['sync', 'register']);
+    expect(stateManager.sync).toHaveBeenCalledWith({ skipAsp: true });
+    expect(stateManager.registerDepositIndex).toHaveBeenCalledWith(17);
+
+    await plugin.registerDepositIndex(18, { sync: false });
+    expect(calls).toEqual(['sync', 'register', 'register']);
+  });
+
+  it('does not register when public synchronization fails', async () => {
+    const stateManager = {
+      sync: vi.fn(async () => { throw new Error('Sync failed'); }),
+      registerDepositIndex: vi.fn(async () => true),
+    };
+    const plugin = new PrivacyPoolsV1Protocol(createMockHost(), {
+      entrypoint: { address: ENTRYPOINT, deploymentBlock: 8587019n },
+      dataService: {} as IDataService,
+      stateManager: () => stateManager as unknown as IStateManager,
+    });
+
+    await expect(plugin.registerDepositIndex(17))
+      .rejects.toThrow('Sync failed');
+    expect(stateManager.registerDepositIndex).not.toHaveBeenCalled();
   });
 
   it('prepareShield forwards an explicit index to the state manager', async () => {

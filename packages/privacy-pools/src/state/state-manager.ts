@@ -273,10 +273,6 @@ export const storeStateManager = (
       );
     },
     registerDepositIndex: async (depositIndex: number): Promise<boolean> => {
-      if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
-        throw new RangeError("Invalid deposit index");
-      }
-
       const chainInfo = await getChainInfo();
 
       return serializeOperation(getStoreKey(chainInfo), async () => {
@@ -294,11 +290,6 @@ export const storeStateManager = (
       return specificAssetsBalanceSelector(assets, balanceType);
     },
     getDepositPayload: async (request: IDepositOperationParams) => {
-      if (request.depositIndex !== undefined &&
-        (!Number.isSafeInteger(request.depositIndex) || request.depositIndex < 0)) {
-        throw new RangeError("Invalid deposit index");
-      }
-
       const chainInfo = await getChainInfo();
 
       return serializeOperation(getStoreKey(chainInfo), async () => {

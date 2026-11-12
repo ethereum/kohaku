@@ -93,7 +93,7 @@ By default, `prepareShield` chooses the index above the highest recovered deposi
 await pools.prepareShield(deposit, { depositIndex: 17 })
 ```
 
-After a shield at an explicit index confirms, call `sync` so the plugin has its public events. Then call `registerDepositIndex(17)` when `sync` can't reach that index. `registerDepositIndex` reads only events that are already synced. It returns `false` when those events lack a deposit for that index, and on a match it also recovers the deposit's withdrawals.
+After a shield at an explicit index confirms, call `registerDepositIndex(17)`. By default, it first syncs public chain events (without refreshing the ASP tree), then attempts recovery. Pass `{ sync: false }` only when the events have already been synchronized. It returns `false` when those events lack a deposit for that index, and on a match it also recovers the deposit's withdrawals.
 
 Discovery follows consecutive deposits from index zero and from each registered index, and it doesn't search the gaps between them. A wallet must keep each sparse index in its private recovery metadata and register it again after a restart. Registration lasts only for the session, and `dumpState` excludes credentials and their indices.
 

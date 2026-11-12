@@ -16,44 +16,45 @@ type GetDepositPayloadThunk = ThunkAction<
   UnknownAction
 >;
 
+// Plain thunk preserves original errors; createAsyncThunk serializes rejections.
 export const getDepositPayloadThunk = (
   params: IDepositOperationParams & { secretManager: ISecretManager },
 ): GetDepositPayloadThunk => async (_dispatch, getState) => {
   const { asset, amount, depositIndex: requestedIndex, secretManager } = params;
 
-    const state = getState();
-    const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-    const knownIndices = [...userSecretsSelector(state).values()]
-      .map(record => record.depositIndex);
+  const state = getState();
+  const { chainId, entrypointAddress } = entrypointInfoSelector(state);
+  const knownIndices = [...userSecretsSelector(state).values()]
+    .map(record => record.depositIndex);
 
-    const automaticIndex = knownIndices.reduce(
-      (next, index) => Math.max(next, index + 1),
-      0,
-    );
-    const depositIndex = requestedIndex ?? automaticIndex;
+  const automaticIndex = knownIndices.reduce(
+    (next, index) => Math.max(next, index + 1),
+    0,
+  );
+  const depositIndex = requestedIndex ?? automaticIndex;
 
-    if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
-      throw new RangeError('Invalid deposit index');
-    }
+  if (!Number.isSafeInteger(depositIndex) || depositIndex < 0) {
+    throw new RangeError('Invalid deposit index');
+  }
 
-    if (knownIndices.includes(depositIndex)) {
-      throw new Error('Deposit index already registered');
-    }
+  if (knownIndices.includes(depositIndex)) {
+    throw new Error('Deposit index already registered');
+  }
 
-    const { precommitment } = await secretManager.getDepositSecrets({
-      entrypointAddress,
-      chainId,
-      depositIndex,
-    });
+  const { precommitment } = await secretManager.getDepositSecrets({
+    entrypointAddress,
+    chainId,
+    depositIndex,
+  });
 
-    if (depositsSelector(getState()).has(precommitment)) {
-      throw new Error('Deposit credential already exists on-chain');
-    }
+  if (depositsSelector(getState()).has(precommitment)) {
+    throw new Error('Deposit credential already exists on-chain');
+  }
 
-    return buildDepositPayload(
-      precommitment,
-      asset,
-      amount,
-      entrypointAddress,
-    );
+  return buildDepositPayload(
+    precommitment,
+    asset,
+    amount,
+    entrypointAddress,
+  );
 };

@@ -156,16 +156,21 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   instanceId = () => Promise.resolve("0x1" as const);
 
+  /** Register a known deposit index, syncing public events by default. */
+  async registerDepositIndex(
+    index: number,
+    { sync = true }: PPv1ViewOptions = {},
+  ): Promise<boolean> {
+    if (sync) await this.stateManager.sync({ skipAsp: true });
+
+    return this.stateManager.registerDepositIndex(index);
+  }
   /**
    * Only process supported assets or error out?
    * Returns the balances of the requested assets.
    * The assets retain the provided order. If an asset is not supported its balance will be 0
    * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
-  /** Register a known deposit index after synchronizing public events. */
-  async registerDepositIndex(index: number): Promise<boolean> {
-    return this.stateManager.registerDepositIndex(index);
-  }
 
   async balance(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1AssetBalance[]> {
     if (sync) await this.stateManager.sync();
