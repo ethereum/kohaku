@@ -177,7 +177,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bun
     expect(recipientBefore).toBe(0n);
 
     // 4. Broadcast + mine.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. The recipient received MORE than the exact/expected net — the paymaster's postOp

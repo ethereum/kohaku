@@ -1,4 +1,5 @@
 import { HttpRequestError, RpcRequestError, TimeoutError } from 'viem';
+import type { SerializedUserOperation } from '../interfaces/user-ops.interface';
 
 const RETRYABLE_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
 const RETRYABLE_NETWORK_CODES = new Set([
@@ -82,12 +83,24 @@ export async function estimateWithTransportRetry<T>(estimate: () => Promise<T>):
 }
 
 /** Classify availability failures separately from known-invalid operations. */
-export function estimationUnavailableReason(error: unknown): 'transport-unavailable' | 'bundler-internal' | undefined {
+export function estimationUnavailableReason(
+  error: unknown, operation?: Pick<SerializedUserOperation, 'callData' | 'callGasLimit'>,
+): 'transport-unavailable' | 'bundler-internal' | undefined {
   const chain = causeChain(error);
   const rpc = chain.filter((cause) => cause instanceof RpcRequestError ||
     (typeof cause.code === 'number' && cause.code < 0));
 
   if (rpc.length) {
+    // Some estimators replace callGasLimit=0 with a nonzero search ceiling.
+    // Only the exact CallGasLimitNonZero(uint256) revert with a NONZERO argument
+    // is incompatible with our known-empty operation. Other AA33 errors still fail.
+    if (operation?.callData === '0x' && BigInt(operation.callGasLimit) === 0n &&
+        chain.some(cause => [cause.details, cause.message, cause.data].some(value => {
+          const match = typeof value === 'string' && /\b0x54107e37([0-9a-f]{64})(?![0-9a-f])/i.exec(value);
+
+          return match && BigInt(`0x${match[1]}`) > 0n;
+        }))) return 'bundler-internal';
+
     // This specific opaque estimator failure has been observed on otherwise
     // executable batches. Never treat AAxx reverts or supplied revert data as it.
     const opaque = rpc.every((cause) => cause.code === -32603 && cause.data == null &&

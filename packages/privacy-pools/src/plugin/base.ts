@@ -37,6 +37,7 @@ import {
   PPv1PublicOperation,
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
+  PPv1RelayerUnshieldOptions,
   PPv1ShieldEstimate,
   PPv1ShieldOptions,
   PPv1ViewOptions,
@@ -105,6 +106,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     {
       accountIndex = 0,
       initialState,
+      chainStorage,
       secretManager = SignatureSecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       entrypoint,
@@ -132,6 +134,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
     this.stateManager = stateManagerFactory({
       initialState,
+      chainStorage,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
       dataService,
@@ -286,10 +289,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
   }
 
+  /**
+   * Builds the transactions that exit the given notes. The contract does not
+   * consult the ASP for a ragequit, so neither does this: it works while the ASP
+   * service is down.
+   */
   async ragequit(
     labels: INote['label'][]
   ) {
-    await this.stateManager.sync();
+    await this.stateManager.sync({ skipAsp: true });
 
     const ragequitRawPayloads = await this.stateManager.getRagequitByLabelPayloads({
       labels,
@@ -325,6 +333,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * payer/change address keeps the recipient at exactly `requestedNet`, while pointing it
    * at the recipient over-delivers (then `operation.exact.expectedNet` is a lower bound).
    */
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options: PPv1PaymasterUnshieldOptions): Promise<PPv1PaymasterPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>;
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     if (options?.exact) {
       return this.prepareExactUnshield(assets, to, options);

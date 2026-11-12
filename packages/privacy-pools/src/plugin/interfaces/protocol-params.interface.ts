@@ -1,7 +1,7 @@
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { AccountId, ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
+import { AccountId, ChainId, PrivateOperation, PublicOperation, Storage, UnshieldOptions } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
@@ -220,6 +220,12 @@ export interface PrivacyPoolsV1ProtocolParams {
   proverFactory: () => ReturnType<typeof Prover>;
   relayersList: Record<string, string>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
+  /**
+   * Storage for the chain state, which is the same for every account. Give
+   * every account the same object to keep one copy, in memory and in storage.
+   * Only share it between accounts that use the same provider.
+   */
+  chainStorage?: Storage;
   ipfsUrl?: string;
   paymasterConfig?: IChainsPaymastersConfig;
   /**
@@ -378,11 +384,18 @@ export type StateRagequitPayload = {
 export type StoreKey = `${string}-${string}`;
 export type StoreStorageKey = `privacy-pool-state-${StoreKey}`;
 
+export interface IStateSyncOptions {
+  /** Leave the ASP service out of this sync, keeping the stored tree (default: false). */
+  skipAsp?: boolean;
+}
+
 export interface IStateManager {
   /**
-   * Queries the chain and updates its state
+   * Queries the chain and updates its state. If the ASP service fails, the last
+   * good tree is kept and the sync still succeeds; withdrawals are refused until
+   * a sync gets the current tree.
    */
-  sync: () => Promise<void>;
+  sync: (options?: IStateSyncOptions) => Promise<void>;
   /** Register a known deposit derivation index in volatile state.
    * Public event history must already be synchronized.
    * Returns false when no matching deposit exists.

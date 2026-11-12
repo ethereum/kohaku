@@ -1,3 +1,4 @@
+import { executionAccount, executionSender, externalAccountSigner, requiresAccountSimulation, executionGasBaseline, prepareExecutionAccount } from '../../account/execution-account';
 /* eslint-disable max-lines */
 import { createAsyncThunk, unwrapResult } from "@reduxjs/toolkit";
 
@@ -11,7 +12,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { encodeFunctionData, erc20Abi } from "viem";
 
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
-import { computeMinimumViableFee, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
@@ -50,6 +51,7 @@ export interface PaymasterWithdrawThunkParams extends Omit<WithdrawalProofsThunk
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   tailCallsGasEstimate?: bigint;
   gasEstimationPolicy?: GasEstimationPolicy;
+  executionGasRetry?: boolean;
   maxGasLimits?: PaymasterGasLimits;
   provider?: EthereumProvider;
   bundlerPost?: BundlerPost;
@@ -71,6 +73,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   tailCalls,
   tailCallsGasEstimate,
   gasEstimationPolicy = 'best-effort',
+  executionGasRetry = false,
   maxGasLimits,
   provider,
   bundlerPost,
@@ -80,10 +83,26 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     throw new Error('Unknown Tornado gas estimation policy.');
   }
 
+  if (typeof executionGasRetry !== 'boolean') {
+    throw new Error('Tornado executionGasRetry must be a boolean.');
+  }
+
+  const executionGasRetryLimit = executionGasRetry ? maxGasLimits?.callGasLimit : undefined;
+
+  if (executionGasRetry && (typeof executionGasRetryLimit !== 'bigint' || executionGasRetryLimit <= 0n)) {
+    throw new Error('Tornado executionGasRetry requires a positive maxGasLimits.callGasLimit ceiling.');
+  }
+
   const state = getState();
   const { chainId: rawChainId } = instanceRegistryInfoSelector(state);
   const chainId = Number(rawChainId);
   const deposits = getWithdrawableDepositsSelector(state, assetAddress, amount);
+
+  // Without tail calls, one note pays and refunds the requested recipient
+  // directly. Explicit tail calls opt into sender-bound sponsorship and execution
+  // for either account family, even when spending only one note.
+  const validationOnly = deposits.length === 1 && tailCalls == null;
+
   const poolsToWithdrawFrom = [...new Set(deposits.map((d) => d.pool))];
 
   const pools = poolsSelector(state);
@@ -172,12 +191,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     );
   };
 
-  // The shared delegator that owns the consolidated userOp. All withdrawals land
-  // in this EOA and are then spent by the execution phase (tailCalls or the
-  // synthesized forward). Any postOp refund can remain on the sender, so it
-  // is recoverable by default; `random` opts out.
+  // The shared delegator owns the userOp. Execution-phase withdrawals land
+  // here before tailCalls or synthesized forwarding; postOp refunds can remain
+  // here too. It is recoverable by default; `random` opts out.
   const resolveBatchDelegator = async (): Promise<DelegatorAccount> => {
-    if (delegation?.mode === 'external') return delegation.signer;
+    if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') return externalAccountSigner(delegation);
+
     if (delegation?.mode === 'random') return privateKeyToAccount(generatePrivateKey());
     
     if (delegation?.mode === 'deterministic' && delegation.path) {
@@ -189,22 +208,33 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return ephemeralSigner(deposits[0]!);
   };
 
-  // Always withdraw to the 7702 sender before forwarding or running tail calls,
-  // including for one note. Bundlers replace callGasLimit with a nonzero search
-  // ceiling during estimation (e.g. 10M). A proof bound to a different recipient
-  // would trigger CallGasLimitNonZero even if the requested final limit is zero.
-  // The default sender is note-derived so any postOp refund remains recoverable.
+  // Preserve zero execution gas/calldata for direct single notes with either account
+  // family, including eligible fallback when a bundler substitutes a search limit.
+  // Fallback can still be rejected or miss a postOp refund. Gas/fee bounds
+  // remain enforced; simulation availability does not change payout custody.
+  const allowFallback = delegation?.allowUsed !== true && delegation?.mode !== 'smart-account' && !delegation?.implementation && (delegation?.nonce ?? 0n) === 0n && gasEstimationPolicy === 'best-effort' && tailCalls == null &&
+    (chainId === 1 || chainId === 11155111) &&
+    (validationOnly || (delegation?.mode !== 'random' && !requiresAccountSimulation(delegation)));
+
+  executionAccount(delegation);
   let signer = await resolveBatchDelegator();
-  const senderAddress = BigInt(signer.address) as Address;
+  const senderAddress = BigInt(executionSender(delegation, signer)) as Address;
+
   // Explicit wallet-path and external senders may have prior EOA transactions.
-  // All note-derived/random senders keep authorization nonce 0;
-  // every paymaster UserOperation still uses EntryPoint nonce 0 (single-use).
-  const authorizationNonce = delegation?.mode === 'external' || (delegation?.mode === 'deterministic' && delegation.path)
+  // Note-derived and random senders require allowUsed to reuse current state.
+  // Native authorization and EntryPoint nonces are independent.
+  const knownNativeNonce = delegation?.mode !== 'smart-account' && (delegation?.mode === 'external' || (delegation?.mode === 'deterministic' && delegation.path) || delegation?.nonce !== undefined || !!delegation?.implementation)
     ? BigInt(await dataService.getAccountNonce(senderAddress))
     : undefined;
 
-  if (delegation?.mode === 'external') {
-    signer = verifiedExternalDelegator(signer, chainId, authorizationNonce!);
+  const preparedAccount = await prepareExecutionAccount(delegation, signer, provider, entryPointAddress, knownNativeNonce);
+  const { account: accountConfig, nonce: userOpNonce, authorizationNonce } = preparedAccount;
+
+  if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') {
+    signer = verifiedExternalDelegator(signer, chainId, authorizationNonce ?? 0n, {
+      implementation: delegation.mode === 'external' ? delegation.implementation : undefined,
+      sender: executionSender(delegation, signer), userOpNonce, smartAccount: delegation.mode === 'smart-account',
+    });
   }
 
   const sponsoringDeposit = deposits[0]!;
@@ -238,6 +268,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const forwardCalls = (fee: bigint): TxData[] => {
     const amount = totalDenomination - fee;
   
+    if (BigInt(originalRecipient) === senderAddress) return [];
+
     if (poolInfo.isERC20) {
       const data = encodeFunctionData({
         abi: erc20Abi,
@@ -261,25 +293,26 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const buildOp = (gas: UserOpGasLimits, fee: bigint, paymasterData: `0x${string}`) =>
     buildSignedTornadoUserOp({
       signer,
+      executionAccount: accountConfig,
       chainId,
       paymasterAddress,
       paymasterData,
       gas,
       maxFeePerGas,
       maxPriorityFeePerGas,
-      tailCalls: composeTailCalls(fee),
-      nonce: 0n,
+      tailCalls: validationOnly ? undefined : composeTailCalls(fee),
+      nonce: userOpNonce,
       authorizationNonce,
     });
 
   // Every refinement re-quotes the pool asset, re-proves the sponsoring
   // deposit and rebuilds forwarding calldata/signature before final estimation.
-  const baselineGas = reasonableGasUnitsForBatch(
+  const baselineGas = executionGasBaseline(accountConfig, validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
     tailCalls != null,
     tailCallsGasEstimate,
-  );
+  ));
   const { sponsoringProof, userOperation, gasEstimation, fee } = await buildEstimatedTornadoUserOp(
     baselineGas,
     async (gas) => {
@@ -289,15 +322,18 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         throw new Error('Tornado paymaster fee would consume the sponsoring note. Use a larger note or wait for lower gas prices.');
       }
 
-      const sponsoringProof = await prove(sponsoringDeposit, senderAddress, relayerAddress, fee);
+      const sponsoringProof = await prove(sponsoringDeposit, validationOnly ? originalRecipient : senderAddress, relayerAddress, fee);
       const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
 
       return { sponsoringProof, userOperation, fee };
     },
     (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
-    { validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits),
-      allowFallback: gasEstimationPolicy === 'best-effort' && tailCalls == null &&
-        delegation?.mode !== 'random' && delegation?.mode !== 'external' && (chainId === 1 || chainId === 11155111) },
+    {
+      validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20),
+      allowFallback,
+      isERC20: poolInfo.isERC20,
+      executionGasRetryLimit,
+    },
   );
 
   return [{

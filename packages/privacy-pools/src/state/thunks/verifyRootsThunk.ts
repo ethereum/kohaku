@@ -13,15 +13,17 @@ import { Address } from '../../interfaces/types.interface.js';
 
 export interface VerifyRootsThunkParams {
   dataService: IDataService;
+  /** Pass false to check only the pools, leaving the verified ASP root unset. */
+  verifyAspRoot?: boolean;
 }
 
 export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, { state: RootState }>(
   'sync/verifyRoots',
-  async ({ dataService }, { getState, dispatch }) => {
+  async ({ dataService, verifyAspRoot = true }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
     // Rebuilt from the synced leaves: the stored root is only what the service claimed.
-    const aspRoot = await aspLeavesRootSelector(state);
+    const aspRoot = verifyAspRoot ? await aspLeavesRootSelector(state) : 0n;
     const pools = poolsSelector(state);
     const poolsLeaves = poolsLeavesSelector(state);
 

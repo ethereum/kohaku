@@ -39,19 +39,21 @@ const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint): Promise
   return leaves;
 };
 
+/**
+ * Whether the stored leaves are those of the last RootUpdated event.
+ * Stored leaves are re-checked too: a state saved by an older version, or a
+ * shared snapshot, may hold leaves that do not build the root stored with them.
+ */
+export const isAspTreeCurrent = async (state: RootState): Promise<boolean> =>
+  isAspRootUpToDateSelector(state) && await aspLeavesRootSelector(state) === lastUpdateRootEventSelector(state)?.root;
+
 export const syncAspThunk = createAsyncThunk<void, SyncAspThunkParams, { state: RootState }>(
   'sync/asp',
   async ({ aspService }, { getState, dispatch }) => {
     const state = getState();
     const lastUpdateRootEvent = lastUpdateRootEventSelector(state);
 
-    if (!lastUpdateRootEvent) {
-      return;
-    }
-
-    // Stored leaves are re-checked too: a state saved by an older version, or a
-    // shared snapshot, may hold leaves that do not build the root stored with them.
-    if (isAspRootUpToDateSelector(state) && await aspLeavesRootSelector(state) === lastUpdateRootEvent.root) {
+    if (!lastUpdateRootEvent || await isAspTreeCurrent(state)) {
       return;
     }
 

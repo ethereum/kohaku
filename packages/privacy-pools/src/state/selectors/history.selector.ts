@@ -5,18 +5,13 @@ import { RootState } from '../store';
 import { deserialize } from '../utils/serialize.utils';
 import { myDepositsSelector } from './deposits.selector';
 import { myRagequitsSelector } from './ragequits.selector';
-import { historyMetadataSelector, poolsSelector } from './slices.selectors';
+import { poolsSelector } from './slices.selectors';
 import { myWithdrawalsSelector } from './withdrawals.selector';
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
-/**
- * A history event before its timestamp is attached. `eventId` is the key into
- * the legacy history metadata.
- */
-export type HistoryEventWithoutTimestamp = DistributiveOmit<PPv1HistoryEvent, 'timestamp'> & {
-  eventId: bigint;
-};
+/** A history event before its timestamp is attached. */
+export type HistoryEventWithoutTimestamp = DistributiveOmit<PPv1HistoryEvent, 'timestamp'>;
 
 /**
  * Every deposit, withdrawal and ragequit of the account, in no particular order.
@@ -38,7 +33,6 @@ export const myHistoryEventsSelector = createSelector(
 
       events.push({
         type: 'deposit',
-        eventId: deposit.precommitment,
         ...logMeta(deposit),
         poolAddress: deposit.pool,
         assetAddress,
@@ -56,7 +50,6 @@ export const myHistoryEventsSelector = createSelector(
 
       events.push({
         type: 'withdrawal',
-        eventId: withdrawal.spentNullifier,
         ...logMeta(withdrawal),
         poolAddress: withdrawal.pool,
         assetAddress,
@@ -71,7 +64,6 @@ export const myHistoryEventsSelector = createSelector(
 
       events.push({
         type: 'ragequit',
-        eventId: ragequit.label,
         ...logMeta(ragequit),
         poolAddress: ragequit.pool,
         assetAddress,
@@ -86,7 +78,7 @@ export const myHistoryEventsSelector = createSelector(
 
 /** [blockNumber, timestamp] anchors, sorted by block. */
 export const timestampAnchorsSelector = createSelector(
-  [(state: RootState) => state.historyMetadata.timestampAnchors],
+  [(state: RootState) => state.timestamps.anchors],
   (anchors = []): [bigint, bigint][] =>
     (deserialize(anchors) as [bigint, bigint][]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
 );
@@ -120,18 +112,16 @@ export const interpolateTimestamp = (anchors: [bigint, bigint][], blockNumber: b
 
 /**
  * The account's history, newest first. Timestamps are interpolated from the
- * anchors; exact metadata fetched by older versions wins where present. Events
- * the anchors don't cover yet are left out.
+ * anchors. Events the anchors don't cover yet are left out.
  */
 export const myHistorySelector = createSelector(
-  [myHistoryEventsSelector, historyMetadataSelector, timestampAnchorsSelector],
-  (events, metadataMap, anchors): PPv1HistoryEvent[] =>
+  [myHistoryEventsSelector, timestampAnchorsSelector],
+  (events, anchors): PPv1HistoryEvent[] =>
     events
-      .flatMap(({ eventId, ...event }) => {
-        const metadata = metadataMap.get(eventId);
-        const timestamp = metadata?.timestamp ?? interpolateTimestamp(anchors, event.blockNumber);
+      .flatMap((event) => {
+        const timestamp = interpolateTimestamp(anchors, event.blockNumber);
 
-        return timestamp === undefined ? [] : [{ ...event, timestamp, ...metadata } as PPv1HistoryEvent];
+        return timestamp === undefined ? [] : [{ ...event, timestamp } as PPv1HistoryEvent];
       })
       .sort((a, b) =>
         a.blockNumber === b.blockNumber

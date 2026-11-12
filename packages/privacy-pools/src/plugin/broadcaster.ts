@@ -2,9 +2,13 @@ import { IRelayerClient, ISuccessfullRelayResponse } from "../relayer/interfaces
 import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
 import { PaymasterBroadcaster } from "../paymaster/paymaster-broadcaster";
-import { PPv1Broadcaster, PPv1BroadcasterParameters } from "../v1";
+import { PPv1Broadcaster, PPv1BroadcasterParameters, PPv1PaymasterBroadcastResponse } from "../v1";
 import { PPv1RelayerConstructorParams } from "./base";
-import { PPv1PaymasterPrivateOperation, PPv1PrivateOperation } from "./interfaces/protocol-params.interface";
+import {
+  PPv1PaymasterPrivateOperation,
+  PPv1PrivateOperation,
+  PPv1RelayerPrivateOperation,
+} from "./interfaces/protocol-params.interface";
 
 
 export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
@@ -27,7 +31,10 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
     return typeof params === "string" ? { default: params } : params;
   }
 
-  async broadcast(operation: PPv1PrivateOperation): Promise<ISuccessfullRelayResponse> {
+  broadcast(operation: PPv1PaymasterPrivateOperation): Promise<PPv1PaymasterBroadcastResponse>;
+  broadcast(operation: PPv1RelayerPrivateOperation): Promise<ISuccessfullRelayResponse>;
+  broadcast(operation: PPv1PrivateOperation): Promise<PPv1PaymasterBroadcastResponse | ISuccessfullRelayResponse>;
+  async broadcast(operation: PPv1PrivateOperation): Promise<PPv1PaymasterBroadcastResponse | ISuccessfullRelayResponse> {
     if (operation.mode === "paymaster") {
       return this.broadcastViaPaymaster(operation);
     }
@@ -62,19 +69,19 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
 
   private async broadcastViaPaymaster(
     operation: PPv1PaymasterPrivateOperation,
-  ): Promise<ISuccessfullRelayResponse> {
+  ): Promise<PPv1PaymasterBroadcastResponse> {
     const [result] = await this.paymasterBroadcaster.broadcast([operation.withdrawal]);
 
+    // Only reachable with a custom paymaster client that breaks its contract.
     if (!result) {
-      throw new Error("Paymaster withdrawal failed to broadcast.");
+      throw new Error("Paymaster client returned no result for the withdrawal.");
     }
 
-    // Normalize the userOp result into the relayer response shape callers expect.
     return {
       success: true,
       timestamp: Date.now(),
       requestId: result.userOpHash,
-      txHash: result.txHash,
+      wait: () => result.wait(),
     };
   }
 }
