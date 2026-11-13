@@ -1,5 +1,13 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.40
+
+### Patch Changes
+
+- 41eb489: Send relayer quote amounts as decimal strings and report HTTP failures before decoding quotes. Export `PPv1RelayerQuoteError` with per-relayer failures, including `fee-too-high`, `requiredFeeBPS`, and `maxRelayFeeBPS`, and preserve it through fee estimation and withdrawal preparation.
+- Updated dependencies [a1d50c3]
+  - @kohaku-eth/poseidon-lean-imt@0.0.1-alpha.2
+
 ## 0.1.0-alpha.39
 
 ### Minor Changes
