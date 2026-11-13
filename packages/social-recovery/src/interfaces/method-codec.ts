@@ -11,4 +11,9 @@ export interface IMethodCodec {
    * Called only on a config `decodeConfig` accepted. The layout stays `decodeConfig`'s, so a refused value still encodes and decodes.
    */
   outOfBounds?(config: Hex): readonly string[];
+  /**
+   * The first block timestamp, in seconds, at which the module refuses this proof under this config for its age; absent where the method's proofs do not age.
+   * Called only on bytes `decodeConfig` and `decodeProof` accept.
+   */
+  proofExpiry?(config: Hex, proof: Hex): bigint;
 }

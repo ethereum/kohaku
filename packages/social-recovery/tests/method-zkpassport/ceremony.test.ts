@@ -40,6 +40,7 @@ const REQUEST_ARGS = {
   scope: PARAMS.scope,
   mode: 'compressed-evm',
   devMode: false,
+  uniqueIdentifierType: 0,
 };
 
 const rejected: ReplyFailure = { kind: 'reply-failure', cause: 'material-rejected' };

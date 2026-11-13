@@ -22,6 +22,7 @@ import type { Fields, Hex } from '../interfaces';
 import type { ZkPassportConfig, ZkPassportProof } from '../types';
 import { isRecord } from './bindings';
 import { zkPassportConfigOutOfBounds } from './bounds';
+import { zkPassportProofExpiry } from './expiry';
 
 const exactly = (value: unknown, names: readonly string[], name: string): Fields => {
   if (!isRecord(value)) throw new TypeError(`${name} ${METHOD_ZKPASSPORT_RECORD_MESSAGE}`);
@@ -160,4 +161,5 @@ export const zkPassportCodec: IMethodCodec = {
     return { proofVerificationData: { vkeyHash, proof: proofBytes, publicInputs }, committedInputs };
   },
   outOfBounds: (config: Hex): string[] => zkPassportConfigOutOfBounds(decodeZkPassportConfig(config)),
+  proofExpiry: (config: Hex, proof: Hex): bigint => zkPassportProofExpiry(decodeZkPassportConfig(config), decodeZkPassportProof(proof)),
 };

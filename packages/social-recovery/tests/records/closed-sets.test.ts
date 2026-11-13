@@ -95,6 +95,7 @@ const REPLY_FAILURE = [
   { meaning: 'the device refused', spelling: 'device-refused' },
   { meaning: 'the device was unavailable', spelling: 'device-unavailable' },
   { meaning: 'the material was rejected as the wrong shape for this method', spelling: 'material-rejected' },
+  { meaning: "the material proves, but under an issuer key or version the method's module does not trust now", spelling: 'material-untrusted' },
   { meaning: 'no implementation serves the method the request names', spelling: 'method-unsupported' },
   { meaning: "the request's kind or version is one this build does not read", spelling: 'request-unsupported' },
 ] as const;
@@ -161,6 +162,7 @@ const REQUEST_ERRORS = [
   'request.method-stopped',
   'proof.places-unordered',
   'proof.place-out-of-range',
+  'proof.expired',
   'handover.removed-not-authority',
   'handover.new-holds-privilege',
   'handover.new-reserved',
@@ -178,6 +180,7 @@ const REQUEST_WARNINGS = [
   'request.window-short',
   'request.moment-skew',
   'cancel.window-late',
+  'proof.expiring',
   'payment.sponsor-sees',
 ];
 
@@ -224,13 +227,13 @@ describe('the fourteen notification shapes', () => {
   });
 });
 
-describe('the five ReplyFailure causes', () => {
-  it('derives five distinct meanings', () => {
-    expect(new Set(REPLY_FAILURE.map((entry) => entry.meaning)).size).toBe(5);
+describe('the six ReplyFailure causes', () => {
+  it('derives six distinct meanings', () => {
+    expect(new Set(REPLY_FAILURE.map((entry) => entry.meaning)).size).toBe(6);
   });
 
-  it('REPLY_FAILURE_CAUSES holds five causes, one per meaning', () => {
-    expect(REPLY_FAILURE_CAUSES).toHaveLength(5);
+  it('REPLY_FAILURE_CAUSES holds six causes, one per meaning', () => {
+    expect(REPLY_FAILURE_CAUSES).toHaveLength(6);
     expect(sorted(REPLY_FAILURE_CAUSES)).toEqual(sorted(REPLY_FAILURE.map((entry) => entry.spelling)));
   });
 
@@ -312,24 +315,24 @@ describe('the finding codes', () => {
   it.each([
     ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 14],
     ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 16],
-    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 18],
-    ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 9],
+    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 19],
+    ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 10],
   ] as const)('the %s tuple is the table, in its order', (_label, tuple, table, count) => {
     expect(table).toHaveLength(count);
     expect([...tuple]).toEqual(table);
   });
 
-  it("ValidationError's code is the setup and request errors together, thirty-two codes", () => {
+  it("ValidationError's code is the setup and request errors together, thirty-three codes", () => {
     const expected = sorted([...new Set([...SETUP_ERRORS, ...REQUEST_ERRORS])]);
 
-    expect(expected).toHaveLength(32);
+    expect(expected).toHaveLength(33);
     expect(literalsOf('ValidationError', 'code')).toEqual(expected);
   });
 
   it("ValidationWarning's code is the setup and request warnings together, method.unshipped once", () => {
     const expected = sorted([...new Set([...SETUP_WARNINGS, ...REQUEST_WARNINGS])]);
 
-    expect(expected).toHaveLength(24);
+    expect(expected).toHaveLength(25);
     expect(literalsOf('ValidationWarning', 'code')).toEqual(expected);
   });
 

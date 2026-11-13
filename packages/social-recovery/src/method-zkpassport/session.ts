@@ -1,4 +1,5 @@
 import {
+  METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE,
   METHOD_ZKPASSPORT_CUSTOM_DATA_KEY,
   METHOD_ZKPASSPORT_DISPLAY_MESSAGE,
   METHOD_ZKPASSPORT_DISPLAY_FIELDS,
@@ -9,6 +10,7 @@ import {
 import type { Input, Params } from '../interfaces';
 import type { ZkPassportRequest, ZkPassportRequestArgs, ZkPassportSession, ZkPassportStack } from '../types';
 import { isCanonicalDomain } from './domain';
+import { inputTrustedKeys, paramsTrustedKeys } from './trusted-keys';
 
 const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
@@ -28,8 +30,9 @@ const display = (source: { readonly [name: string]: unknown }): Pick<ZkPassportS
 };
 
 /**
- * The session the parameters name; `TypeError` on a missing domain or scope, a domain the stack would rewrite, or a shown text that is not a string.
- * The domain is never rewritten, so the stack, its verifier parameters and the committed config all carry the string given.
+ * The session the parameters name; `TypeError` on a missing domain or scope, a domain the stack would rewrite, a shown text that is not a string,
+ * or `trustedKeys` given that are not the module's words. The domain is never rewritten, so the stack, its verifier parameters and the committed
+ * config all carry the string given.
  */
 export const sessionFromParams = (params: Params | undefined): ZkPassportSession => {
   const p = params ?? {};
@@ -44,17 +47,18 @@ export const sessionFromParams = (params: Params | undefined): ZkPassportSession
     throw new TypeError(METHOD_ZKPASSPORT_DISPLAY_MESSAGE);
   }
 
-  return { domain: p['domain'], scope: p['scope'], ...display(p) };
+  return { domain: p['domain'], scope: p['scope'], ...display(p), ...paramsTrustedKeys(p['trustedKeys']) };
 };
 
-/** The session an input record carries, or undefined where it carries none or its domain is one the stack would rewrite. */
+/** The session an input record carries, or undefined where it carries none, its domain is one the stack would rewrite or its `trustedKeys` are malformed. */
 export const sessionFromInput = (input: Input): ZkPassportSession | undefined => {
   const domain = input['domain'];
   const scope = input['scope'];
+  const trusted = inputTrustedKeys(input['trustedKeys']);
 
-  if (!nonEmpty(domain) || !nonEmpty(scope) || !isCanonicalDomain(domain)) return undefined;
+  if (!nonEmpty(domain) || !nonEmpty(scope) || !isCanonicalDomain(domain) || trusted === undefined) return undefined;
 
-  return { domain, scope, ...display(input) };
+  return { domain, scope, ...display(input), ...trusted };
 };
 
 /** The session's request arguments, in `compressed-evm` mode under the method's dev mode. */
@@ -63,6 +67,7 @@ export const requestArgs = (session: ZkPassportSession, devMode: boolean): ZkPas
   scope: session.scope,
   mode: METHOD_ZKPASSPORT_REQUEST_MODE,
   devMode,
+  uniqueIdentifierType: METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE,
 });
 
 /**

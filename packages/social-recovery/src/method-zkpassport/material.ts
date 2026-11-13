@@ -1,4 +1,9 @@
-import { METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE, METHOD_ZKPASSPORT_MATERIAL_REJECTED, METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED } from '../constants';
+import {
+  METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE,
+  METHOD_ZKPASSPORT_MATERIAL_REJECTED,
+  METHOD_ZKPASSPORT_MATERIAL_UNTRUSTED,
+  METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED,
+} from '../constants';
 import { METHOD_ZKPASSPORT_DECIMAL_PATTERN } from '../constants/method-zkpassport-parse';
 import type { EnrollFailure, Hex, Material, ReplyFailure } from '../interfaces';
 import type {
@@ -18,8 +23,13 @@ import {
   proofFromFields,
 } from './codec';
 import { servable } from './domain';
+import { versionTrusted } from './trusted-keys';
 
-/** The stack's verifier parameters for the outer proof under the method's dev mode, with their proof part checked whole; `device-unavailable` where the stack does not load, `material-rejected` where it refuses the proof or answers a malformed one or the other mode. */
+/**
+ * The stack's verifier parameters for the outer proof under the method's dev mode, with their proof part checked whole; `device-unavailable` where the stack
+ * does not load, `material-rejected` where it refuses the proof or answers a malformed one or the other mode, and `material-untrusted` where the session
+ * carries `trustedKeys` and the parameters' version word is not their first.
+ */
 const checkedParameters = async (
   stack: ZkPassportStack,
   session: ZkPassportSession,
@@ -43,6 +53,8 @@ const checkedParameters = async (
     });
 
     if (params.serviceConfig.devMode !== devMode) return METHOD_ZKPASSPORT_MATERIAL_REJECTED;
+
+    if (!versionTrusted(session, params.version)) return METHOD_ZKPASSPORT_MATERIAL_UNTRUSTED;
 
     const { vkeyHash, proof, publicInputs } = params.proofVerificationData;
 

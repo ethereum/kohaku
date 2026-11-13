@@ -1,8 +1,9 @@
 /* eslint-disable max-lines */
 import { KitRefusalError, pinBlockHeader, simulatePrepared } from '../client-core';
-import { GATHERING_ORDER_REFUSAL_MESSAGES } from '../constants';
+import { GATHERING_ORDER_REFUSAL_MESSAGES, GATHERING_PROOF_EXPIRED_MESSAGE } from '../constants';
 import { assertBool, assertBytes, normalizeAddress } from '../formats/guards';
 import { count, fileReply, orderVerdict, requests, seed } from '../gathering';
+import { expiredChoices, filedExpiryFindings } from '../gathering/expiry';
 import type {
   AddResult,
   Address,
@@ -158,9 +159,16 @@ export class RecoveryClient implements IRecoveryClient {
     return fileReply(gathering, reply);
   }
 
-  /** The record's progress at `now`, its window judged against the configured request window. */
+  /**
+   * The record's progress at `now`, its window judged against the configured request window. After the window's findings come
+   * `proof.expired` for each filed proof whose expiry, as its registered method's codec states it, `now` has reached, then
+   * `proof.expiring` for each that expires after `now` and by the request's `validUntil`.
+   */
   assess(gathering: Gathering, now: Moment): Assessment {
-    return count(gathering, now, this.parts.configuration.requestWindow);
+    const counted = count(gathering, now, this.parts.configuration.requestWindow);
+    const expiry = filedExpiryFindings(gathering, this.parts.methods, now);
+
+    return { ...counted, findings: [...counted.findings, ...expiry.errors, ...expiry.warnings] };
   }
 
   /**
@@ -168,7 +176,8 @@ export class RecoveryClient implements IRecoveryClient {
    * given, taken as given, otherwise the preferred satisfying set. The places chosen are the request's proof places; the
    * record's other filed places are the ones left out. Throws a `KitRefusalError` with the findings where the window has
    * passed at `now`, the rule is unsatisfied or a filed or selected place lies past the rule's count, and a `RangeError` where
-   * the selection names a place no reply fills.
+   * the selection names a place no reply fills. Then throws a `KitRefusalError` with the chosen places' `proof.expired`
+   * findings alone where `now` has reached a chosen proof's expiry; the caller asks its approver again or selects other places.
    */
   complete(gathering: Gathering, selection: Selection | undefined, now: Moment): AttemptRequest | CancelRequest {
     const verdict = orderVerdict(gathering, selection, now);
@@ -176,6 +185,10 @@ export class RecoveryClient implements IRecoveryClient {
     if (verdict.outcome === 'refused') {
       throw new KitRefusalError(GATHERING_ORDER_REFUSAL_MESSAGES[verdict.reason], { findings: verdict.findings });
     }
+
+    const expired = expiredChoices(gathering, this.parts.methods, verdict.proofs, now);
+
+    if (expired.length > 0) throw new KitRefusalError(GATHERING_PROOF_EXPIRED_MESSAGE, { findings: { errors: expired, warnings: [] } });
 
     return requestOf(gathering, verdict.proofs);
   }

@@ -50,6 +50,7 @@ export const REQUEST_ERROR_CODES = [
   'request.method-stopped',
   'proof.places-unordered',
   'proof.place-out-of-range',
+  'proof.expired',
   'handover.removed-not-authority',
   'handover.new-holds-privilege',
   'handover.new-reserved',
@@ -68,6 +69,7 @@ export const REQUEST_WARNING_CODES = [
   'request.window-short',
   'request.moment-skew',
   'cancel.window-late',
+  'proof.expiring',
   'payment.sponsor-sees',
 ] as const;
 

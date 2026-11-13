@@ -14,7 +14,7 @@ import { everyOpeningError, requestScenarios, setupScenarios } from './scenarios
 const sorted = (codes: Iterable<string>): string[] => [...new Set(codes)].sort();
 
 /** The codes a gathering raises and neither validator does. */
-const GATHERING_ONLY: readonly string[] = ['handover.removed-unknown', 'request.window-short', 'cancel.window-late'];
+const GATHERING_ONLY: readonly string[] = ['handover.removed-unknown', 'request.window-short', 'cancel.window-late', 'proof.expired', 'proof.expiring'];
 
 const setupResults = (): ValidationResult[] => setupScenarios().map(([, draft, context]) => validateSetup(draft, context));
 
@@ -38,7 +38,7 @@ describe('the finding catalogue', () => {
     expect(sorted(results.flatMap((result) => result.warnings.map((finding) => finding.code)))).toEqual(sorted(SETUP_WARNING_CODES));
   });
 
-  it('validateRequest produces exactly the request codes but the three a gathering raises', () => {
+  it('validateRequest produces exactly the request codes but the five a gathering raises', () => {
     const results = requestResults();
 
     expect(sorted(results.flatMap((result) => result.errors.map((finding) => finding.code)))).toEqual(
@@ -59,7 +59,7 @@ describe('the finding catalogue', () => {
     expect(requestResults().flatMap((result) => result.errors.map((finding) => finding.code))).toContain('handover.new-reserved');
   });
 
-  it('the union of both equals the four tuples minus handover.removed-unknown, request.window-short and cancel.window-late', () => {
+  it('the union of both equals the four tuples minus the codes only a gathering raises', () => {
     const produced = sorted([...setupResults(), ...requestResults()].flatMap((result) => [...result.errors, ...result.warnings].map((finding) => finding.code)));
     const tuples = sorted([...SETUP_ERROR_CODES, ...SETUP_WARNING_CODES, ...REQUEST_ERROR_CODES, ...REQUEST_WARNING_CODES]);
 

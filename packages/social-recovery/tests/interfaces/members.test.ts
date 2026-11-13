@@ -89,6 +89,7 @@ const EXPECTED: Readonly<Record<string, Readonly<Record<string, MemberKind>>>> =
     encodeProof: 'method',
     decodeProof: 'method',
     outOfBounds: 'method',
+    proofExpiry: 'method',
   },
   IRecoveryMethod: {
     modules: 'method',
@@ -196,6 +197,17 @@ describe('IMethodCodec.outOfBounds', () => {
   it('takes one Hex config and returns a read-only list of field names', () => {
     expectTypeOf<NonNullable<IMethodCodec['outOfBounds']>>().parameters.toEqualTypeOf<[config: Hex]>();
     expectTypeOf<NonNullable<IMethodCodec['outOfBounds']>>().returns.toEqualTypeOf<readonly string[]>();
+  });
+});
+
+describe('IMethodCodec.proofExpiry', () => {
+  it('is optional, so a codec without it is still an IMethodCodec', () => {
+    expectTypeOf<Pick<IMethodCodec, 'encodeConfig' | 'decodeConfig' | 'encodeProof' | 'decodeProof' | 'outOfBounds'>>().toExtend<IMethodCodec>();
+  });
+
+  it('takes the Hex config and the Hex proof and returns a bigint', () => {
+    expectTypeOf<NonNullable<IMethodCodec['proofExpiry']>>().parameters.toEqualTypeOf<[config: Hex, proof: Hex]>();
+    expectTypeOf<NonNullable<IMethodCodec['proofExpiry']>>().returns.toEqualTypeOf<bigint>();
   });
 });
 
