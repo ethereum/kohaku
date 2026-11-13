@@ -165,6 +165,89 @@ describe('storeStateManager.sync', () => {
   });
 });
 
+describe('credential operation synchronization', () => {
+  it('waits for a running sync before registering', async () => {
+    const { manager, dataService } = setupManager();
+    const release = holdFirstHead(dataService, [200n]);
+
+    const syncing = manager.sync();
+
+    await vi.waitFor(() =>
+      expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1)
+    );
+
+    let completed = false;
+    const registration = manager.registerDepositIndex(17).then(value => {
+      completed = true;
+      return value;
+    });
+
+    await flush();
+    expect(completed).toBe(false);
+
+    release();
+    await syncing;
+
+    // The empty fixture has no deposit at index 17.
+    await expect(registration).resolves.toBe(false);
+  });
+
+  it.each(['registration', 'shield'] as const)('waits for %s derivation before starting sync', async (operation) => {
+    let release!: () => void;
+    let entered!: () => void;
+
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+
+    const started = new Promise<void>(resolve => {
+      entered = resolve;
+    });
+
+    const secretManager = {
+      getDepositSecrets: vi.fn(async () => {
+        entered();
+        await gate;
+        return {
+          nullifier: 1n,
+          salt: 2n,
+          precommitment: 999n,
+          nullifierHash: 5n,
+        };
+      }),
+    } as unknown as ISecretManager;
+
+    const dataService = emptyChainDataService();
+    const storage = asyncStorage();
+
+    const manager = storeStateManager({
+      dataService: dataService as unknown as IDataService,
+      secretManager,
+      aspService: {} as IAspService,
+      entrypoint,
+      storageToSyncTo: storage as unknown as Storage,
+      devOptions: TEST_STORE_DEV_OPTIONS,
+    } as never);
+
+    const deriving = operation === 'registration'
+      ? manager.registerDepositIndex(17)
+      : manager.getDepositPayload({ asset: BigInt(asset.contract) as Address, amount: 1n });
+    await started;
+
+    const syncing = manager.sync();
+    await flush();
+
+    expect(dataService.getBlockNumber).not.toHaveBeenCalled();
+
+    release();
+
+    await deriving;
+    await syncing;
+
+    expect(dataService.getBlockNumber).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('view options', () => {
   const setupPlugin = () => {
     const stateManager = {

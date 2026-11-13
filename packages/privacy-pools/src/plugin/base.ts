@@ -21,6 +21,7 @@ import { addressToHex, } from "../utils.js";
 import { encodeRagequitPayload, encodeWithdrawalPayload } from "../utils/encoding.utils.js";
 import { deductFeeBPS } from "../utils/fee.utils.js";
 import {
+  PPv1Address,
   PPv1AssetAmount,
   PPv1AssetBalance,
   PPv1BroadcasterParameters,
@@ -39,6 +40,7 @@ import {
   PPv1PaymasterUnshieldOptions,
   PPv1RelayerUnshieldOptions,
   PPv1ShieldEstimate,
+  PPv1ShieldOptions,
   PPv1ViewOptions,
   PPv1UnshieldEstimate,
   PPv1UnshieldOptions,
@@ -155,12 +157,22 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
   instanceId = () => Promise.resolve("0x1" as const);
 
+  /** Register a known deposit index, syncing public events by default. */
+  async registerDepositIndex(
+    index: number,
+    { sync = true }: PPv1ViewOptions = {},
+  ): Promise<boolean> {
+    if (sync) await this.stateManager.sync({ skipAsp: true });
+
+    return this.stateManager.registerDepositIndex(index);
+  }
   /**
    * Only process supported assets or error out?
    * Returns the balances of the requested assets.
    * The assets retain the provided order. If an asset is not supported its balance will be 0
    * @param options - See {@link PPv1ViewOptions} (syncs by default)
    */
+
   async balance(assets: ERC20AssetId[] = [], { sync = true }: PPv1ViewOptions = {}): Promise<PPv1AssetBalance[]> {
     if (sync) await this.stateManager.sync();
 
@@ -195,8 +207,23 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     }).flat();
   }
 
+  /**
+   * Prepares a shield. PPv1 ignores the legacy `to` address because
+   * deposits always target the caller's own account.
+   */
+  prepareShield(
+    assets: PPv1AssetAmount,
+    to?: PPv1Address,
+  ): Promise<PPv1PublicOperation>;
+
+  prepareShield(
+    assets: PPv1AssetAmount,
+    options: PPv1ShieldOptions,
+  ): Promise<PPv1PublicOperation>;
+
   async prepareShield(
     assets: PPv1AssetAmount,
+    toOrOptions?: PPv1Address | PPv1ShieldOptions,
   ): Promise<PPv1PublicOperation> {
     const { asset, amount } = assets;
 
@@ -205,6 +232,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     const tx = await this.stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
+      depositIndex: typeof toOrOptions === "object"
+        ? toOrOptions.depositIndex
+        : undefined,
     });
 
     return { txns: [tx] } as PPv1PublicOperation;

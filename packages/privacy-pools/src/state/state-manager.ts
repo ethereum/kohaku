@@ -52,10 +52,6 @@ import {
   poolFromAssetSelector,
 } from "./selectors/pools.selector";
 import {
-  entrypointInfoSelector,
-} from "./selectors/slices.selectors";
-import { buildDepositPayload, myDepositsCountSelector } from "./selectors/deposits.selector";
-import {
   IBalanceType,
   SpecificAssetBalanceFn,
   specificAssetsBalanceSelector,
@@ -72,6 +68,8 @@ import {
 } from "./chain-state";
 import { ChainRootState, PublicRootState, RootState, storeFactory } from "./store";
 import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
+import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
+import { registerDepositIndexThunk } from "./thunks/registerDepositIndexThunk";
 import { createLoadCache, createSkipAspSyncQueue } from "./utils/async.utils";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
@@ -251,6 +249,22 @@ export const storeStateManager = (
     unwrapResult(await store.dispatch(discoverUserSecretsThunk({ secretManager })));
   };
 
+  // Sync, registration and shield preparation share one queue per store, because
+  // they share a secret manager and read the state that the others change. Each
+  // tail resolves, so a failed or cancelled operation does not block the next one.
+  const operationTails = new Map<StoreKey, Promise<unknown>>();
+
+  const serializeOperation = <T>(
+    storeKey: StoreKey,
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    const result = (operationTails.get(storeKey) ?? Promise.resolve()).then(operation);
+
+    operationTails.set(storeKey, result.catch(() => undefined));
+
+    return result;
+  };
+
   // At most one sync per account at a time: interleaved syncs would derive and
   // append the same note secrets twice.
   const syncQueues = new Map<StoreKey, ReturnType<typeof createSkipAspSyncQueue>>();
@@ -263,7 +277,20 @@ export const storeStateManager = (
 
       syncQueues.set(storeKey, enqueue);
 
-      return enqueue(skipAsp, (runSkipAsp) => runSync(chainInfo, runSkipAsp));
+      return enqueue(skipAsp, (runSkipAsp) =>
+        serializeOperation(storeKey, () => runSync(chainInfo, runSkipAsp))
+      );
+    },
+    registerDepositIndex: async (depositIndex: number): Promise<boolean> => {
+      const chainInfo = await getChainInfo();
+
+      return serializeOperation(getStoreKey(chainInfo), async () => {
+        const store = await getChainStore(chainInfo);
+
+        return store.dispatch(
+          registerDepositIndexThunk({ depositIndex, secretManager })
+        );
+      });
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -271,19 +298,16 @@ export const storeStateManager = (
 
       return specificAssetsBalanceSelector(assets, balanceType);
     },
-    getDepositPayload: async ({ asset, amount }: IDepositOperationParams) => {
+    getDepositPayload: async (request: IDepositOperationParams) => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
-      const state = store.getState();
-      const { chainId, entrypointAddress } = entrypointInfoSelector(state);
-      const depositIndex = myDepositsCountSelector(state);
-      const { precommitment } = await secretManager.getDepositSecrets({
-        entrypointAddress,
-        chainId,
-        depositIndex,
-      });
 
-      return buildDepositPayload(precommitment, asset, amount, entrypointAddress);
+      return serializeOperation(getStoreKey(chainInfo), async () => {
+        const store = await getChainStore(chainInfo);
+
+        return store.dispatch(
+          getDepositPayloadThunk({ ...request, secretManager })
+        );
+      });
     },
     getShieldEstimate: async ({ asset, amount }: IDepositOperationParams): Promise<PPv1ShieldEstimate> => {
       const { vettingFeeBPS, minimumDepositAmount } =

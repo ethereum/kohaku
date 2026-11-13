@@ -264,7 +264,12 @@ interface IBaseOperationParams { }  // eslint-disable-line @typescript-eslint/no
 export interface IDepositOperationParams extends IBaseOperationParams {
   asset: Address;
   amount: bigint;
+  /** Explicit credential index; omitted preserves automatic allocation. */
+  depositIndex?: number;
 }
+
+/** Options for the plugin's prepareShield method. */
+export type PPv1ShieldOptions = Pick<IDepositOperationParams, 'depositIndex'>;
 
 export interface IGetBalancesOperationParams extends IBaseOperationParams {
   assets?: Address[];
@@ -420,6 +425,11 @@ export interface IStateManager {
    * a sync gets the current tree.
    */
   sync: (options?: IStateSyncOptions) => Promise<void>;
+  /** Register a known deposit derivation index in volatile state.
+   * Public event history must already be synchronized.
+   * Returns false when no matching deposit exists.
+   */
+  registerDepositIndex: (depositIndex: number) => Promise<boolean>;
   /**
    * Generates a deposit payload for the signer
    */
