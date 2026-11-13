@@ -115,7 +115,14 @@ function nextLevel(channel: Channel, nodes: bigint[]): Promise<bigint[]> {
 // results joined in order are the next level. Pairs never cross a range, and only
 // the last range can end without a right sibling, as in the whole level.
 export async function parallelLevels(leaves: bigint[], workers: number, workerUrl?: string | URL): Promise<bigint[][]> {
+  if (!Number.isInteger(workers) || workers < 1) {
+    throw new Error(`workers must be a positive integer, got ${workers}`);
+  }
+
   const levels = [leaves.slice()];
+
+  if (leaves.length < 2) return levels;
+
   // The first level has the most parents, n/2 rounded down.
   const count = Math.min(workers, leaves.length >> 1);
   const pool: Channel[] = [];
