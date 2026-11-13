@@ -387,10 +387,6 @@ export const storeStateManager = (
         }),
       );
 
-      if (quoteResultAction.meta.requestStatus === "rejected") {
-        throw new Error("Failed to get quote from relayers");
-      }
-
       // quoteThunk has checked that the relay data pays `recipient` within the quoted fee.
       const { quote, relayerId, relayData } = unwrapResult(quoteResultAction);
       const poolInfo = store.selectors.poolFromAssetSelector(asset);
@@ -451,10 +447,6 @@ export const storeStateManager = (
           recipient,
         }),
       );
-
-      if (quoteResultAction.meta.requestStatus === "rejected") {
-        throw new Error("Failed to get quote from relayers");
-      }
 
       const { quote, relayerId, relayData: quoted } = unwrapResult(quoteResultAction);
       const poolInfo = store.selectors.poolFromAssetSelector(asset);

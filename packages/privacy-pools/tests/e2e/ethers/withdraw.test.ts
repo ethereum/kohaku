@@ -4,7 +4,7 @@ import { AccountId } from '@kohaku-eth/plugins';
 
 import { E_ADDRESS } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
-import { PrivacyPoolsV1Protocol } from '../../../src/index';
+import { PPv1RelayerQuoteError, PrivacyPoolsV1Protocol } from '../../../src/index';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
@@ -464,12 +464,18 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     // 3. Try to withdraw - relayer should fail
     const recipientAccount = alice.address as AccountId;
 
-    await expect(
-      protocol.prepareUnshield(
-        { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
-        recipientAccount
-      )
-    ).rejects.toThrow('Failed to get quote from relayers');
+    const withdrawal = protocol.prepareUnshield(
+      { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
+      recipientAccount
+    );
+
+    await expect(withdrawal).rejects.toBeInstanceOf(PPv1RelayerQuoteError);
+    await expect(withdrawal).rejects.toMatchObject({
+      failures: [{
+        relayerId: 'failing-relayer', relayerUrl: 'http://failing.relayer',
+        reason: 'quote-failed', message: 'Mock relayer failed',
+      }],
+    });
 
   });
 
