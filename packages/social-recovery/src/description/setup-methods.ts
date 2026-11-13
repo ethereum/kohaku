@@ -1,5 +1,6 @@
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import { DESCRIPTION_PASSKEY_CONFIG_ABI } from '../constants';
+import { METHOD_AADHAAR_CONFIG_ABI } from '../constants/method-aadhaar';
 import type { Address, DescribedParties, Hex, MethodStanding, SetupDescription } from '../interfaces';
 import { decodeSigner, isGuardianAddress } from '../method-ecdsa/codec';
 import type { IdentityMethods, MethodDescriptionReads } from '../types/description';
@@ -96,6 +97,32 @@ export function passkeyDomains(credentials: readonly PlacedCredential[], passkey
   return credentials
     .filter(({ method }) => method === passkeyMethod)
     .map((credential) => ({ place: credential.place, relyingPartyIdHash: relyingPartyIdHashOf(credentials, credential) }));
+}
+
+/** The freshness window an Aadhaar config holds; throws a TypeError unless the config is exactly that layout. */
+function freshnessWindowOf(credentials: readonly PlacedCredential[], credential: PlacedCredential): bigint {
+  let window: bigint | undefined;
+
+  try {
+    const fields = decodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, credential.config);
+
+    window = encodeAbiParameters(METHOD_AADHAAR_CONFIG_ABI, fields) === credential.config ? fields[2] : undefined;
+  } catch {
+    window = undefined;
+  }
+
+  if (window === undefined) {
+    throw new TypeError(`${configName(credentials, credential)} must be the Aadhaar layout of nullifier, seed and freshness window`);
+  }
+
+  return window;
+}
+
+/** Per Aadhaar credential the freshness window its config holds. */
+export function aadhaarWindows(credentials: readonly PlacedCredential[], aadhaarMethod: Address): SetupDescription['aadhaarWindows'] {
+  return credentials
+    .filter(({ method }) => method === aadhaarMethod)
+    .map((credential) => ({ place: credential.place, freshnessWindow: freshnessWindowOf(credentials, credential) }));
 }
 
 /** Per method its stop and the pause holder its declared parties name, beside this setup's own choice. */

@@ -18,6 +18,7 @@ export * from './recovery-client';
 export * from './method-zkpassport';
 export * from './method-aadhaar';
 export * from './method-aadhaar-bucket';
+export * from './method-aadhaar-params';
 export * from './method-passkey';
 export * from './method-passkey-webauthn';
 export * from './methods-orchestrator';

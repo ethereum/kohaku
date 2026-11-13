@@ -112,6 +112,8 @@ export type SetupDescription = {
   readonly methodStanding: readonly MethodStanding[];
   /** Per passkey credential, the relying-party id hash its config holds. */
   readonly passkeyDomains: readonly { readonly place: number; readonly relyingPartyIdHash: Hex }[];
+  /** Per Aadhaar credential, the freshness window its config holds, in seconds, as held even where validation refuses it. */
+  readonly aadhaarWindows: readonly { readonly place: number; readonly freshnessWindow: bigint }[];
   /** Per configured candidate key, its `isAuthority` answer. */
   readonly candidateKeys: readonly { readonly key: Address; readonly isAuthority: boolean }[];
   /** The address a handover on this setup would remove. */

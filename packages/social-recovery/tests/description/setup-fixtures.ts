@@ -192,11 +192,14 @@ export const LABELLED_CONTEXT: SetupDescriptionContext = withMethod(ZKPASSPORT, 
 });
 
 /** A one-credential draft on the given method, and the fixtures' context reading only that method, with the declaration given. */
+/** An Aadhaar config in its layout: nullifier 22, seed 77 and a 4500-second freshness window, one word each. */
+const AADHAAR_CONFIG: Hex = `0x${[22, 77, 4500].map((n) => n.toString(16).padStart(64, '0')).join('')}`;
+
 export const declaring = (
   method: Address,
   trustedParties: MethodDescriptionReads['trustedParties'],
 ): { readonly draft: SetupDraft; readonly context: SetupDescriptionContext } => {
-  const config = method === ECDSA ? GUARDIAN.encoded : method === PASSKEY ? PASSKEY_CONFIG.encoded : word(4);
+  const config = method === ECDSA ? GUARDIAN.encoded : method === PASSKEY ? PASSKEY_CONFIG.encoded : method === AADHAAR ? AADHAAR_CONFIG : word(4);
 
   return {
     draft: { ...DRAFT, clauses: [{ threshold: 1, credentials: [{ method, config }] }] },

@@ -21,7 +21,7 @@ const ROWS: readonly (readonly [string, bigint, bigint, bigint, readonly string[
   ['a window one second under the hour', 22n, 77n, MIN_FRESHNESS_WINDOW - 1n, ['freshnessWindow']],
   ['a zero window', 22n, 77n, 0n, ['freshnessWindow']],
   ['a window of exactly one hour', 22n, 77n, MIN_FRESHNESS_WINDOW, []],
-  ['the 24-hour window enrollment writes', 22n, 77n, FRESHNESS_WINDOW, []],
+  ['the 75-minute window enrollment writes by default', 22n, 77n, FRESHNESS_WINDOW, []],
   ['the largest word as the window, the module having no maximum', 22n, 77n, WORD_MAX, []],
   ['a nullifier equal to the field', R, 77n, FRESHNESS_WINDOW, ['nullifier']],
   ['the largest word as the nullifier', WORD_MAX, 77n, FRESHNESS_WINDOW, ['nullifier']],

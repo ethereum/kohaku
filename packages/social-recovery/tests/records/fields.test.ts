@@ -82,6 +82,7 @@ const SETUP_DESCRIPTION_FIELDS = [
   'parties',
   'methodStanding',
   'passkeyDomains',
+  'aadhaarWindows',
   'candidateKeys',
   'privacy',
   'backup',
@@ -97,12 +98,18 @@ const SETUP_DESCRIPTION_FIELDS = [
 const DESCRIBED_ACTION_FIELDS = ['address', 'info', 'shipped', 'audited', 'supportsAccount'];
 
 describe('the setup description and the recovery state', () => {
-  it('derives fifteen fields besides removedKey', () => {
-    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(15);
+  it('derives sixteen fields besides removedKey', () => {
+    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(16);
   });
 
-  it('SetupDescription carries exactly the fifteen fields and removedKey', () => {
+  it('SetupDescription carries exactly the sixteen fields and removedKey', () => {
     expect(fieldsOf(typeOf('SetupDescription'))).toEqual(sorted([...SETUP_DESCRIPTION_FIELDS, 'removedKey']));
+  });
+
+  it('aadhaarWindows is required and lists a place and a bigint window per entry', () => {
+    expect(optional(typeOf('SetupDescription'), 'aadhaarWindows')).toBe(false);
+    expect(fieldsOf(elementOf(typeOf('SetupDescription'), 'aadhaarWindows'))).toEqual(['freshnessWindow', 'place']);
+    expectTypeOf<SetupDescription['aadhaarWindows']>().toEqualTypeOf<readonly { readonly place: number; readonly freshnessWindow: bigint }[]>();
   });
 
   it('action is required and is a DescribedAction', () => {

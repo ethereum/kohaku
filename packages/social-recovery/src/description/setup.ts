@@ -15,7 +15,7 @@ import type { PlacedCredential } from '../types/validation';
 import { assertActionReads, fallbackHandlerOf, normalizeAddresses } from '../validation/common';
 import { placedCredentials } from '../validation/setup-draft';
 import { readsByMethod } from '../validation/setup-methods';
-import { describedParties, distinctMethods, methodStanding, passkeyDomains, pauseOf } from './setup-methods';
+import { aadhaarWindows, describedParties, distinctMethods, methodStanding, passkeyDomains, pauseOf } from './setup-methods';
 
 /** Refuses a context whose records are not the shapes they declare. */
 function assertDescriptionContext(context: SetupDescriptionContext): void {
@@ -160,6 +160,7 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
     }),
     methodStanding: methodStanding(credentials, table, normalizeAddresses(descriptor.shippedMethods, 'context.descriptor.shippedMethods')),
     passkeyDomains: passkeyDomains(credentials, normalizeAddress(descriptor.methodPasskey, 'context.descriptor.methodPasskey')),
+    aadhaarWindows: aadhaarWindows(credentials, normalizeAddress(descriptor.methodAadhaar, 'context.descriptor.methodAadhaar')),
     candidateKeys: candidateKeysOf(context),
     removedKey: removedKeyOf(context.removedKey),
     privacy: { publicMetadata: draft.privacy.publicMetadata, backup: draft.privacy.backup },

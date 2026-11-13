@@ -23,7 +23,7 @@ const { codec } = anonAadhaarMethod({ stack: stackDouble().stack });
 const big = (values: readonly string[]): bigint[] => values.map((value) => BigInt(value));
 
 describe('the config layout constants', () => {
-  it('a config is 96 bytes, the written window 24 hours and the shortest accepted one hour', () => {
+  it('a config is 96 bytes, the default written window 75 minutes and the shortest accepted one hour', () => {
     expect(METHOD_AADHAAR_CONFIG_BYTES).toBe(96);
     expect(METHOD_AADHAAR_FRESHNESS_WINDOW).toBe(FRESHNESS_WINDOW);
     expect(METHOD_AADHAAR_MIN_FRESHNESS_WINDOW).toBe(MIN_FRESHNESS_WINDOW);
