@@ -27,8 +27,13 @@ describe('the removed-key surface', () => {
     expect(removedKeyFolder.inferRemovedKey).toBe(core.inferRemovedKey);
   });
 
-  it('REMOVED_KEY_UNNAMED is the three values in order', () => {
-    expect(core.REMOVED_KEY_UNNAMED).toEqual(['no-source', 'not-a-key', 'unread']);
+  it('the reading with its candidates stays internal', () => {
+    expect('removedKeyReading' in core).toBe(false);
+    expect('removedKeyReading' in removedKeyFolder).toBe(false);
+  });
+
+  it('REMOVED_KEY_UNNAMED is the four values in order', () => {
+    expect(core.REMOVED_KEY_UNNAMED).toEqual(['no-source', 'not-a-key', 'unread', 'ambiguous']);
   });
 
   it('inferRemovedKey has the ruled signature', () => {
@@ -38,7 +43,7 @@ describe('the removed-key surface', () => {
 
   it('RemovedKeyInputs carries exactly the ruled members', () => {
     expectTypeOf<RemovedKeyInputs>().toEqualTypeOf<{
-      readonly events: Pick<IEventManager, 'accountFilter' | 'fetch'>;
+      readonly events: Pick<IEventManager, 'accountFilter' | 'fetch' | 'privilegeFilter'>;
       readonly action: Pick<IRecoveryActionInteractor, 'isAuthority'>;
       readonly codec: IActionCodec;
       readonly provider: Pick<IProvider, 'transaction'>;
@@ -57,11 +62,12 @@ describe('the removed-key surface', () => {
     expect('RawTransaction' in core).toBe(false);
   });
 
-  it('the built core entry exports inferRemovedKey and the three unnamed values', async () => {
+  it('the built core entry exports inferRemovedKey and the four unnamed values', async () => {
     const built = (await import(join(PACKAGE_ROOT, 'dist', 'index.js'))) as Record<string, unknown>;
 
     expect(typeof built['inferRemovedKey']).toBe('function');
-    expect(built['REMOVED_KEY_UNNAMED']).toEqual(['no-source', 'not-a-key', 'unread']);
+    expect(built['REMOVED_KEY_UNNAMED']).toEqual(['no-source', 'not-a-key', 'unread', 'ambiguous']);
+    expect('removedKeyReading' in built).toBe(false);
   });
 
   it('IProvider has six members', () => {

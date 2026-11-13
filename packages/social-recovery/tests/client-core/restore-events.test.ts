@@ -58,7 +58,7 @@ describe('restoreConfiguration over a real EventManager and the vector logs', ()
       subject: 'restore',
       values: {
         payloadSize: 2,
-        authenticated: { account: ACCOUNT, action: ACTION, setupCommitment: ROW_COMMITMENT, nonce: ROW_NONCE, payloadVersion: 1 },
+        authenticated: { account: ACCOUNT, action: ACTION, setupCommitment: ROW_COMMITMENT, nonce: ROW_NONCE, payloadVersion: 2 },
       },
     });
   });

@@ -11,6 +11,9 @@ export const METHOD_ZKPASSPORT_CONFIG_LAYOUT = [
 /** The trusted-key word holding the version the module accepts, the word the peer's `params.version` equals. */
 export const METHOD_ZKPASSPORT_VERSION_KEY = 0;
 
+/** The number of trusted-key words the module holds, the length a session's `trustedKeys` must have. */
+export const METHOD_ZKPASSPORT_TRUSTED_KEY_COUNT = 8;
+
 /** The version word's parts, major, minor and patch, in that order. */
 export const METHOD_ZKPASSPORT_VERSION_PARTS = 3;
 
@@ -82,8 +85,29 @@ export const METHOD_ZKPASSPORT_SCOPED_NULLIFIER_FROM_END = 2;
 /** The fewest public inputs that hold both trailing values. */
 export const METHOD_ZKPASSPORT_MIN_PUBLIC_INPUTS = 3;
 
+/** The outer proof's public input holding the service scope, the hash of the domain the proof was requested for. */
+export const METHOD_ZKPASSPORT_SERVICE_SCOPE_INPUT = 3;
+
+/** The outer proof's public input holding the service subscope, the hash of the request's scope. */
+export const METHOD_ZKPASSPORT_SERVICE_SUBSCOPE_INPUT = 4;
+
+/** The outer proof's public input holding its date, in seconds, from which the module measures the config's validity period. */
+export const METHOD_ZKPASSPORT_PROOF_DATE_INPUT = 2;
+
+/** Thrown by the codec's `proofExpiry` on a proof with fewer public inputs than `METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS`. */
+export const METHOD_ZKPASSPORT_PROOF_DATE_MESSAGE = 'method-zkpassport: the proof holds too few public inputs to carry its date';
+
+/** The fewest public inputs that hold the five leading values and the three trailing ones. */
+export const METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS = 8;
+
+/** The leading bytes of a text's `sha256` that its scope hash keeps, read as a big-endian integer. */
+export const METHOD_ZKPASSPORT_SCOPE_HASH_BYTES = 31;
+
 /** The proof mode every request asks for. */
 export const METHOD_ZKPASSPORT_REQUEST_MODE = 'compressed-evm';
+
+/** The unique identifier type every request asks for, `NullifierType.NON_SALTED` of `@zkpassport/sdk`, the only one the module accepts. */
+export const METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE = 0 as const;
 
 /** Dev mode where the factory's options leave it unset: off. */
 export const METHOD_ZKPASSPORT_DEFAULT_DEV_MODE = false;
@@ -109,6 +133,12 @@ export const METHOD_ZKPASSPORT_MATERIAL_REJECTED: ReplyFailure = Object.freeze({
 /** The failure answered where the stack cannot be loaded. */
 export const METHOD_ZKPASSPORT_DEVICE_UNAVAILABLE: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'device-unavailable' });
 
+/** The failure a reply answers where the committed config's domain or scope is one no request can be made for. */
+export const METHOD_ZKPASSPORT_REQUEST_UNSUPPORTED: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'request-unsupported' });
+
+/** The failure an enrollment or reply answers where the session carries `trustedKeys` and the proof's version is not the one they accept. */
+export const METHOD_ZKPASSPORT_MATERIAL_UNTRUSTED: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'material-untrusted' });
+
 /** The names the codec's refusals give the two layouts. */
 export const METHOD_ZKPASSPORT_CONFIG_NAME = 'method-zkpassport config';
 export const METHOD_ZKPASSPORT_PROOF_NAME = 'method-zkpassport proof';
@@ -132,5 +162,23 @@ export const METHOD_ZKPASSPORT_DIGEST_WIDTH_MESSAGE = 'method-zkpassport: the di
 /** Thrown where the parameters lack a domain or a scope. */
 export const METHOD_ZKPASSPORT_SESSION_MESSAGE = 'method-zkpassport: params need a non-empty "domain" and "scope"';
 
+/** Thrown where the parameters' domain is one the zkPassport stack would rewrite. */
+export const METHOD_ZKPASSPORT_DOMAIN_MESSAGE = 'method-zkpassport: "domain" must be a host the zkPassport stack keeps as given: no surrounding space, scheme, port, path, query, fragment or capital letter';
+
 /** Thrown where a shown text is given but is not a string. */
 export const METHOD_ZKPASSPORT_DISPLAY_MESSAGE = 'method-zkpassport: "name", "logo" and "purpose" must be strings where given';
+
+/** Thrown where the parameters give `trustedKeys` that are not the module's trusted-key words with a version word first. */
+export const METHOD_ZKPASSPORT_TRUSTED_KEYS_MESSAGE = 'method-zkpassport: "trustedKeys" must be the module\'s 8 trusted-key words of 32 bytes each, the first a version word: major, minor and patch as three big-endian uint16 values and zero after them';
+
+/**
+ * The shortest validity period, in seconds, a config may carry. The root verifier accepts a proof only while its date plus
+ * the period lies after both that date and the block's time, so a period of zero refuses every proof.
+ */
+export const METHOD_ZKPASSPORT_MIN_VALIDITY = 1n;
+
+/**
+ * The longest validity period, in seconds, a config may carry: the largest safe integer, since the stack reports the period as a number.
+ * A longer period may still verify on chain until the date plus the period overflows the word and reverts; the SDK refuses it as unsupported.
+ */
+export const METHOD_ZKPASSPORT_MAX_VALIDITY = 9007199254740991n;

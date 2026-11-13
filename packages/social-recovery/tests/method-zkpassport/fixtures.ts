@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { encodeAbiParameters, parseAbiParameters } from 'viem';
@@ -62,11 +63,32 @@ const CALLBACKS = [
 /** A 32-byte word from a number, `0x` and 64 lowercase hex characters. */
 export const word = (value: bigint | number): Hex => `0x${BigInt(value).toString(16).padStart(64, '0')}`;
 
-/** The public inputs of an outer proof whose last three are the nullifier type, the scoped nullifier and a trailing word. */
-export const outerInputs = (identifier: bigint, nullifierType = 0n): string[] => [
+export const PARAMS = {
+  domain: 'recover.example',
+  scope: 'mast-social-recovery',
+  name: 'Recovery kit',
+  logo: 'https://recover.example/logo.png',
+  purpose: 'Approve a recovery',
+} as const;
+
+/** The word an outer proof carries for a service domain or scope: the first 31 bytes of the text's UTF-8 SHA-256 behind a zero byte, the zero word for the empty text. */
+export const scopeWord = (text: string): Hex =>
+  text === '' ? word(0) : `0x00${createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 62)}`;
+
+/** The five patterns `@zkpassport/sdk` 0.17.1's constructor removes from a domain, in its order, copied from its built module. */
+export const PEER_DOMAIN_STEPS: readonly RegExp[] = [/^https?:\/\//, /\/[^/]*$/, /:[0-9]+/, /\?.*$/, /#.*$/];
+
+/** The domain `new ZKPassport(domain)` stores, by the copied rule: trimmed, each pattern removed once, lower-cased. */
+export const peerDomain = (text: string): string =>
+  PEER_DOMAIN_STEPS.reduce((at, step) => at.replace(step, ''), text.trim()).toLowerCase();
+
+/** The public inputs of an outer proof: the service domain's and scope's words at 3 and 4, and last the nullifier type, the scoped nullifier and a trailing word. */
+export const outerInputs = (identifier: bigint, nullifierType = 0n, domain: string = PARAMS.domain, scope: string = PARAMS.scope): string[] => [
   word(0x21),
   word(0x22),
   word(0x23),
+  scopeWord(domain),
+  scopeWord(scope),
   word(nullifierType),
   word(identifier),
   word(0x24),
@@ -84,6 +106,12 @@ export const DEFAULT_OUTER: OuterMaterial = {
   committedInputs: '0xbeef',
   validityPeriodInSeconds: 604800,
 };
+
+/** The default outer material, made for the given domain and scope. */
+export const outerFor = (domain: string, scope: string, identifier = IDENTIFIER): OuterMaterial => ({
+  ...DEFAULT_OUTER,
+  publicInputs: outerInputs(identifier, 0n, domain, scope),
+});
 
 /** A stack double: `stack(domain)` stands for `new ZKPassport(domain)`, and every call is recorded. */
 export function stackDouble(options: StackDoubleOptions = {}): StackDouble {
@@ -303,14 +331,6 @@ export const encodeProof = (vkeyHash: Hex, proof: Hex, publicInputs: readonly He
     ],
     [{ vkeyHash, proof, publicInputs: [...publicInputs] }, committedInputs],
   );
-
-export const PARAMS = {
-  domain: 'recover.example',
-  scope: 'mast-social-recovery',
-  name: 'Recovery kit',
-  logo: 'https://recover.example/logo.png',
-  purpose: 'Approve a recovery',
-} as const;
 
 /** A member of a vector row's record, by path, typed at the call. */
 export function member(record: unknown, ...path: string[]): unknown {

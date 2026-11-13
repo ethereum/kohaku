@@ -25,16 +25,13 @@ function subtle(): SubtleCrypto {
   return crypto.subtle;
 }
 
-/**
- * Derives a non-extractable AES-256-GCM key from the password's UTF-8 bytes with PBKDF2 over an empty salt,
- * so the same password gives the same key for every account and setup.
- */
-export async function deriveKey(password: string): Promise<CryptoKey> {
+/** Derives a non-extractable AES-256-GCM key from the password's UTF-8 bytes with PBKDF2 over `salt`. */
+export async function deriveKey(password: string, salt: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
   const api = subtle();
   const material = await api.importKey('raw', new TextEncoder().encode(password), BACKUP_KDF, false, ['deriveKey']);
 
   return api.deriveKey(
-    { name: BACKUP_KDF, hash: BACKUP_KDF_HASH, salt: new Uint8Array(0), iterations: BACKUP_KDF_ITERATIONS },
+    { name: BACKUP_KDF, hash: BACKUP_KDF_HASH, salt, iterations: BACKUP_KDF_ITERATIONS },
     material,
     { name: BACKUP_CIPHER, length: BACKUP_KEY_BITS },
     false,

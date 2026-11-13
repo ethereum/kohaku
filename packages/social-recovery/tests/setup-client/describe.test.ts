@@ -1,25 +1,48 @@
+import { encodeAbiParameters } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { describeSetup, type RemovedKey, type SetupDescriptionContext, type SetupDraft } from '../../src/index';
 import {
+  AmbireActionCodec,
+  describeSetup,
+  SetupClient,
+  type KitNotification,
+  type RawTransaction,
+  type RemovedKey,
+  type SetupDescriptionContext,
+  type SetupDraft,
+} from '../../src/index';
+import {
+  ACCOUNT,
   ACTION,
   ACTION_INFO,
   ALL_ACTIONS_FILTER,
   build,
+  committed,
   CONFIGURATION,
+  defaultRegistry,
+  defaultWorld,
   DESCRIPTOR,
+  doubles,
   DRAFT,
+  HANDLER_READ_DATA,
   KEY_1,
   KEY_2,
+  MANAGER,
+  MANAGER_SELECTOR,
   members,
   METHOD_A,
   METHOD_B,
   MODULE_ANSWERS,
   PIN,
+  position,
+  SENDER,
+  ZERO_WORD,
 } from './doubles';
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 /** The provider and part calls one describeSetup made before the description named the action, in order. */
 const CALLS_BEFORE_ACTION = {
-  provider: ['block', 'code'],
+  provider: ['block', 'code', 'call'],
   parts: [
     'manager.moduleInfo',
     'manager.trustedParties',
@@ -44,7 +67,14 @@ const expectedContext = (draft: SetupDraft, authority: readonly boolean[], remov
     ...MODULE_ANSWERS,
     implemented: module === METHOD_A || module === METHOD_B,
   })),
-  action: { address: ACTION, actionInfo: { answered: true, value: ACTION_INFO }, supportsAccount: true, accountHoldsCode: true },
+  action: {
+    address: ACTION,
+    actionInfo: { answered: true, value: ACTION_INFO },
+    supportsAccount: true,
+    accountHoldsCode: true,
+    manager: { answered: true, value: MANAGER },
+    fallbackHandlerEntry: { answered: false },
+  },
   candidateKeys: [KEY_1, KEY_2].map((key, index) => ({ key, isAuthority: authority[index] ?? false })),
   removedKey,
 });
@@ -125,14 +155,17 @@ describe('describeSetup', () => {
     expect(description.action.address).toBe(ACTION);
   });
 
-  it('makes no new read: the provider and part calls are the ones made before the action was described', async () => {
+  it("makes one new read, the account's handler word: the part calls are the ones made before the action was described", async () => {
     const { client, seen } = build();
 
     await client.describeSetup(DRAFT);
 
-    expect(seen.provider).toEqual(CALLS_BEFORE_ACTION.provider);
+    expect(seen.provider).toEqual([...CALLS_BEFORE_ACTION.provider, 'call']);
     expect(members(seen)).toEqual(CALLS_BEFORE_ACTION.parts);
-    expect(seen.calls).toEqual([]);
+    expect(seen.calls.map((call) => ({ ...call, to: call.to.toLowerCase(), data: call.data.toLowerCase() }))).toEqual([
+      { to: ACTION.toLowerCase(), data: MANAGER_SELECTOR, from: ZERO_ADDRESS, block: PIN.number },
+      { to: ACCOUNT.toLowerCase(), data: HANDLER_READ_DATA, from: ZERO_ADDRESS, block: PIN.number },
+    ]);
     expect(seen.codes).toHaveLength(1);
   });
 
@@ -144,5 +177,46 @@ describe('describeSetup', () => {
     for (const call of seen.parts.filter((part) => part.part !== 'events')) {
       expect(call.args[call.args.length - 1], `${call.part}.${call.member}`).toEqual(PIN);
     }
+  });
+});
+
+describe('describeSetup: two keys a handover could remove', () => {
+  it("carries 'ambiguous' where the setup signer is confirmed beside the previous handover's key", async () => {
+    const commit = committed(1n, ZERO_WORD, '0x', position(300));
+    const bound: KitNotification[] = [
+      {
+        kind: 'attempt-started',
+        account: ACCOUNT,
+        action: ACTION,
+        attemptId: 2n,
+        setupNonce: 1n,
+        setupBody: '0x',
+        usedPlaces: [],
+        usedMethods: [],
+        payload: encodeAbiParameters([{ type: 'address' }, { type: 'address' }], [KEY_1, KEY_2]),
+        order: { token: ZERO_ADDRESS, amount: 0n, payee: ZERO_ADDRESS },
+        consumableAfter: 0,
+        at: position(200),
+      },
+      { kind: 'attempt-consumed', account: ACCOUNT, action: ACTION, attemptId: 2n, at: position(201) },
+      commit,
+    ];
+    const made = doubles({ ...defaultWorld(), bound, authority: (key) => key === KEY_1 || key === SENDER });
+    const transaction: RawTransaction = { hash: commit.at.transactionHash, from: SENDER, to: ACCOUNT, input: '0x', blockNumber: 300, blockHash: commit.at.blockHash };
+    const client = new SetupClient(
+      { ...made.provider, transaction: async () => transaction },
+      DESCRIPTOR,
+      ACCOUNT,
+      ACTION,
+      CONFIGURATION,
+      made.manager,
+      made.action,
+      { ...made.events, privilegeFilter: () => ({ address: [ACCOUNT], topics: [] }) },
+      defaultRegistry(),
+      new AmbireActionCodec([ACTION]),
+      { recoverSigner: async () => SENDER },
+    );
+
+    expect((await client.describeSetup(DRAFT)).removedKey).toBe('ambiguous');
   });
 });

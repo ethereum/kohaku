@@ -37,6 +37,7 @@ const requestArgs = (devMode: boolean) => ({
   scope: PARAMS.scope,
   mode: 'compressed-evm',
   devMode,
+  uniqueIdentifierType: 0,
 });
 
 const ENROLL_OUTER = stackProof('outer_evm_count_4');

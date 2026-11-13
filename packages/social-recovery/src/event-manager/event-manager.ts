@@ -5,12 +5,14 @@ import type {
   BlockRange,
   ClientConfiguration,
   DeploymentDescriptor,
+  FetchedNotifications,
   FilterSpec,
   Hex,
   IEventManager,
   IProvider,
   KitNotification,
   RawLog,
+  SkippedLog,
 } from '../interfaces';
 import { byPosition } from '../formats/notifications';
 import type { MethodRegistry } from '../types';
@@ -19,6 +21,7 @@ import { decodeManagerLog } from './decode-manager';
 import { decodeAccountLog, decodeMethodLog } from './decode-method';
 import { accountFilterSpec, methodFilterSpec, privilegeFilterSpec } from './filters';
 import { methodAddresses, sameAddress } from './ownership';
+import { positionOf } from './position';
 
 const checkAddress = (role: string, value: Address): Address => {
   if (!isAddress(value, { strict: false })) throw new TypeError(`The ${role} address ${value} is not an address.`);
@@ -36,6 +39,17 @@ const withLowerHex = (log: RawLog): RawLog => ({
   blockHash: lower(log.blockHash),
   transactionHash: lower(log.transactionHash),
 });
+
+/** The first notification one of the decoders, tried in order, reads from the log; nothing when none does. */
+const firstDecoded = (decoders: readonly (typeof decodeManagerLog)[], log: RawLog): KitNotification | undefined => {
+  for (const decode of decoders) {
+    const notification = decode(log);
+
+    if (notification !== undefined) return notification;
+  }
+
+  return undefined;
+};
 
 /**
  * The `IEventManager` bound to one account and one action, reading logs through the provider.
@@ -81,36 +95,46 @@ export class EventManager implements IEventManager {
   }
 
   /**
-   * The owned notifications in the range, read one chunk at a time and sorted by log position.
-   * A chunk the provider rejects rejects the whole read.
+   * The owned notifications in the range, read one chunk at a time, and every owned log whose decoder threw, with its position;
+   * both lists sorted by log position. A chunk the provider rejects, or answers with anything but logs, rejects the whole read.
    */
-  async fetch(filter: FilterSpec, range: BlockRange): Promise<readonly KitNotification[]> {
+  async fetch(filter: FilterSpec, range: BlockRange): Promise<FetchedNotifications> {
     const notifications: KitNotification[] = [];
+    const skipped: SkippedLog[] = [];
 
     for (const chunk of chunkRange(range, this.chunkWidth)) {
       const logs = await this.provider.logs(filter, chunk);
 
-      for (const log of logs) {
-        const notification = this.decodeLog(log);
+      for (const raw of logs) {
+        const log = withLowerHex(raw);
+        const decoders = this.decodersOf(log);
 
-        if (notification !== undefined) notifications.push(notification);
+        try {
+          const notification = firstDecoded(decoders, log);
+
+          if (notification !== undefined) notifications.push(notification);
+        } catch (error) {
+          skipped.push({ at: positionOf(log), log: raw, error });
+        }
       }
     }
 
-    return notifications.sort(byPosition);
+    return { notifications: notifications.sort(byPosition), skipped: skipped.sort(byPosition) };
   }
 
   /** The log's notification when an owned address emitted an owned event, nothing otherwise. */
   decodeLog(raw: RawLog): KitNotification | undefined {
     const log = withLowerHex(raw);
-    const fromManager = sameAddress(log.address, this.descriptor.manager) ? decodeManagerLog(log) : undefined;
 
-    if (fromManager !== undefined) return fromManager;
+    return firstDecoded(this.decodersOf(log), log);
+  }
 
-    const fromAccount = sameAddress(log.address, this.account) ? decodeAccountLog(log) : undefined;
-
-    if (fromAccount !== undefined) return fromAccount;
-
-    return this.ownedMethods.has(log.address.toLowerCase()) ? decodeMethodLog(log) : undefined;
+  /** The decoders of every owner of the lower-cased log's emitter: the manager's, then the account's, then the methods'. */
+  private decodersOf(log: RawLog): readonly (typeof decodeManagerLog)[] {
+    return [
+      ...(sameAddress(log.address, this.descriptor.manager) ? [decodeManagerLog] : []),
+      ...(sameAddress(log.address, this.account) ? [decodeAccountLog] : []),
+      ...(this.ownedMethods.has(log.address.toLowerCase()) ? [decodeMethodLog] : []),
+    ];
   }
 }

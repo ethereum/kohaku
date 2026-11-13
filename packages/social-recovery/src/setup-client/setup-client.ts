@@ -90,6 +90,7 @@ export class SetupClient implements ISetupClient {
     return await descriptionAt(this.parts, draft, credentials, await pinRead(this.parts));
   }
 
+  /** Refuses with a `KitRefusalError` carrying the findings `validateSetup` reports at its pinned block while they hold an error, before any call is built; warnings never block. */
   async prepareCommitSetup(draft: SetupDraft, password?: string, options?: PrepareOptions): Promise<PreparedCall | PreparedBatch> {
     assertPreparesServed(this.versionEscaped);
 

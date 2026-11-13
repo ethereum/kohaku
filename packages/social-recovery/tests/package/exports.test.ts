@@ -85,7 +85,7 @@ describe('package.json', () => {
     expect(manifest.publishConfig?.access).toBe('public');
     expect(manifest.license).toBe('MIT');
     expect(manifest.repository?.directory).toBe('packages/social-recovery');
-    expect(manifest.engines?.node).toBe('>=22');
+    expect(manifest.engines?.node).toBe('>=22.12');
   });
 
   it('runs the partner scripts: tsup build and watch, vitest run, eslint', () => {

@@ -17,6 +17,7 @@ import {
 import { assertBytes, assertObject } from '../formats/guards';
 import type { Fields, Hex, IMethodCodec } from '../interfaces';
 import type { AadhaarConfig, AadhaarNineWords, AadhaarPair, AadhaarProof } from '../types/method-aadhaar';
+import { aadhaarConfigOutOfBounds } from './bounds';
 import { entryAt, requireList, requirePair, requireWord, requireWords } from './words';
 
 /** Refuses a non-object with a `TypeError`, and names the first field the layout does not have. */
@@ -91,4 +92,10 @@ export function decodeProof(proof: Hex): AadhaarProof {
 }
 
 /** The method's codec; each encode refuses a field outside its layout, each decode bytes its encode would not reproduce. */
-export const aadhaarCodec: IMethodCodec = { encodeConfig, decodeConfig, encodeProof, decodeProof };
+export const aadhaarCodec: IMethodCodec = {
+  encodeConfig,
+  decodeConfig,
+  encodeProof,
+  decodeProof,
+  outOfBounds: (config: Hex): string[] => aadhaarConfigOutOfBounds(decodeConfig(config)),
+};

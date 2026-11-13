@@ -19,6 +19,7 @@ import type {
   ValidationError,
   ValidationWarning,
 } from '../interfaces';
+import type { VALIDATION_RESERVED_DESTINATIONS } from '../constants';
 import type { SetupBody } from './formats';
 
 /** A request window as the record carrying it states it, every value in seconds. */
@@ -43,8 +44,8 @@ export type MethodReads = {
   readonly implemented: boolean;
   /** The tier the serving implementation states, absent where no implementation places it. */
   readonly tier?: MethodTier;
-  /** The serving implementation's config decoder; absent where no registered implementation serves the module or its codec has no `decodeConfig`, and then no config is judged. */
-  readonly codec?: Pick<IMethodCodec, 'decodeConfig'>;
+  /** The serving implementation's config decoder and the bounds it declares; absent where no registered implementation serves the module or its codec has no `decodeConfig`, and then no config is judged. */
+  readonly codec?: Pick<IMethodCodec, 'decodeConfig' | 'outOfBounds'>;
 };
 
 /** One method's verification cost in gas, per place it fills. */
@@ -59,10 +60,21 @@ export type ActionReads = {
   readonly actionInfo: ReadResult<ActionInfo>;
   readonly supportsAccount: boolean;
   /**
-   * Whether the account holds code at the block; without it the draft gets `account.not-deployed` and no fit finding.
+   * Whether the account holds code at the block. Without it, a configuration naming no `accountImplementation` gets
+   * `account.not-deployed`; one naming it is judged against `actionImplementation` where answered, else the descriptor's
+   * `servedImplementation`, a mismatch being `action.unsupported` and a match the warning `account.deploy-pending`.
    * Deploy the account first, or in the transaction that carries the commit; the manager's `commitSetup` refuses an account the action does not serve.
    */
   readonly accountHoldsCode: boolean;
+  /**
+   * The action's `MANAGER()` answer at the block, unanswered where it reverts or does not decode; an answer other than the
+   * descriptor's manager is `action.manager-mismatch`, since the action spends only that manager's attempts.
+   */
+  readonly manager: ReadResult<Address>;
+  /** The account's word under its fallback-handler slot, absent where it was not read. */
+  readonly fallbackHandlerEntry?: ReadResult<Hex>;
+  /** The action's `AMBIRE_IMPLEMENTATION()` answer at the block, absent where not read. */
+  readonly actionImplementation?: ReadResult<Address>;
 };
 
 /** The reads a setup client hands `validateSetup`, all pinned to one block. */
@@ -89,7 +101,19 @@ export type HandoverReads = {
   readonly removedIsAuthority?: boolean;
   /** The action's `holdsAnyPrivilege` answer for the new key. */
   readonly newHoldsAnyPrivilege: boolean;
+  /** The policy manager the request is submitted to, the descriptor's `manager`. */
+  readonly manager: Address;
 };
+
+/** The addresses a handover is bound to, none of which its new key may be. */
+export type HandoverBinding = {
+  readonly account: Address;
+  readonly action: Address;
+  readonly manager: Address;
+};
+
+/** Which reserved address a handover's new key is. */
+export type ReservedDestination = (typeof VALIDATION_RESERVED_DESTINATIONS)[number];
 
 /** The reads a recovery client hands `validateRequest`, all pinned to one block. */
 export type RequestValidationContext = {

@@ -33,6 +33,12 @@ export type SetupDescriptionContext = {
   readonly removedKey: RemovedKey;
 };
 
+/** The deployment's identity methods, checksummed, whose trusted keys the setup description names. */
+export type IdentityMethods = {
+  readonly zkPassport: Address;
+  readonly aadhaar: Address;
+};
+
 /** A manager notification that opens an attempt. */
 export type OpeningNotification = Extract<KitNotification, { readonly kind: 'attempt-started' }>;
 

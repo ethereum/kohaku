@@ -1,4 +1,4 @@
-import { decodeFunctionData, encodeFunctionData, encodeFunctionResult, getAddress } from 'viem';
+import { decodeFunctionData, encodeAbiParameters, encodeFunctionData, encodeFunctionResult, getAddress, toFunctionSelector } from 'viem';
 import { vi } from 'vitest';
 import {
   POLICY_MANAGER_EIP712_DOMAIN_ABI,
@@ -77,11 +77,16 @@ export type DomainAnswer = {
 /** A failure the double produces in place of an answer. */
 export type Failure = { readonly reverts: Hex } | { readonly undecodable: Hex } | { readonly rejects: unknown };
 
-/** Everything the double answers: the provider's chain id and the manager's two views. */
+/** What an action answers to `MANAGER()`: a manager address, encoded as one clean word, or a failure. */
+export type ActionManagerAnswer = Address | Failure;
+
+/** Everything the double answers: the provider's chain id, the manager's two views and the bound action's `MANAGER()`. */
 export type ChainWorld = {
   readonly chainId: number | { readonly rejects: unknown };
   readonly domain: DomainAnswer | Failure;
   readonly version: string | Failure;
+  /** One answer for every action, or an answer per action address called. */
+  readonly actionManager: ActionManagerAnswer | ((action: Address) => ActionManagerAnswer);
 };
 
 /** The deployed manager's answers for a descriptor: what a matching `PolicyManager` returns. */
@@ -100,10 +105,17 @@ export const goodWorld = (descriptor: DeploymentDescriptor = DESCRIPTOR): ChainW
   chainId: descriptor.chainId,
   domain: goodDomain(descriptor),
   version: descriptor.managerVersion,
+  actionManager: getAddress(descriptor.manager),
 });
 
 export const DOMAIN_SELECTOR = encodeFunctionData({ abi: POLICY_MANAGER_EIP712_DOMAIN_ABI, functionName: 'eip712Domain' }).slice(0, 10);
 export const VERSION_SELECTOR = encodeFunctionData({ abi: POLICY_MANAGER_VERSION_ABI, functionName: 'version' }).slice(0, 10);
+
+/** The action's `MANAGER()` selector, from the signature written out by hand. */
+export const ACTION_MANAGER_SELECTOR = toFunctionSelector('MANAGER()');
+
+/** One ABI word holding the address, as a clean `MANAGER()` return. */
+export const addressWord = (address: Address): Hex => encodeAbiParameters([{ type: 'address' }], [address]);
 
 /** One `eth_call` asked of the double. */
 export type CallRecord = { readonly to: Address; readonly data: Hex; readonly from: Address; readonly block: BlockTag };
@@ -118,7 +130,7 @@ const fail = (failure: Failure): Hex => {
   throw failure.rejects;
 };
 
-/** A provider double with a chain-id knob, answering the manager's two views by selector and recording every read in order. */
+/** A provider double with a chain-id knob, answering the manager's two views and the action's `MANAGER()` by selector and recording every read in order. */
 export class ChainDouble implements IProvider {
   world: ChainWorld;
   readonly reads: string[] = [];
@@ -167,6 +179,17 @@ export class ChainDouble implements IProvider {
       return encodeFunctionResult({ abi: POLICY_MANAGER_VERSION_ABI, functionName: 'version', result: version });
     }
 
+    if (selector === ACTION_MANAGER_SELECTOR) {
+      this.reads.push('MANAGER');
+
+      const { actionManager } = this.world;
+      const manager = typeof actionManager === 'function' ? actionManager(getAddress(to)) : actionManager;
+
+      if (typeof manager !== 'string') return fail(manager);
+
+      return addressWord(manager);
+    }
+
     this.reads.push(`call ${selector}`);
 
     throw new Error(`unexpected call ${selector}`);
@@ -199,6 +222,11 @@ export class ChainDouble implements IProvider {
   /** How many manager calls the double answered or refused. */
   managerCalls(): number {
     return this.reads.filter((read) => read === 'eip712Domain' || read === 'version').length;
+  }
+
+  /** The calls made to the given selector's view, in order. */
+  callsTo(selector: Hex): CallRecord[] {
+    return this.calls.filter((call) => call.data.slice(0, 10).toLowerCase() === selector);
   }
 
   /** Whether a call to the manager decodes as the given view. */

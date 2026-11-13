@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src';
@@ -91,7 +91,10 @@ describe('the changesets', () => {
   const followUpsPath = join(REPO_ROOT, '.changeset', 'extension-follow-ups.md');
   const followUps = existsSync(followUpsPath) ? readFileSync(followUpsPath, 'utf8') : '';
   const artifacts = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifacts-config-validation.md'), 'utf8');
-  const changeset = `${own}\n${modes}\n${followUps}\n${artifacts}`;
+  const fixes = readdirSync(join(REPO_ROOT, '.changeset'))
+    .filter((name) => /^aadhaar-(abort-contract|artifact-checks|freshness-window|issuer-key-check)\.md$/.test(name))
+    .map((name) => readFileSync(join(REPO_ROOT, '.changeset', name), 'utf8'));
+  const changeset = [own, modes, followUps, artifacts, ...fixes].join('\n');
 
   it('the method\'s own and the test-mode one are each a patch for the package', () => {
     expect(own).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);

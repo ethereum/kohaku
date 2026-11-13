@@ -4,6 +4,8 @@ import { BUILDER_BODY_ENCODER_MESSAGE, KitRefusalError, SocialRecoveryBuilder, t
 import { escapedChecks } from '../../src/builder/sequence';
 import {
   ACCOUNT,
+  ACTION,
+  ACTION_MANAGER_SELECTOR,
   ChainDouble,
   DESCRIPTOR,
   MANAGER,
@@ -45,16 +47,17 @@ const ESCAPABLE: readonly (readonly [string, ChainWorld, string])[] = [
 ];
 
 describe('the construction sequence', () => {
-  it('reads the chain id once, then eip712Domain and version from the manager at the read tag, and nothing else', async () => {
+  it('reads the chain id once, then eip712Domain and version from the manager and MANAGER() from the action at the read tag, and nothing else', async () => {
     const provider = new ChainDouble();
 
     await SocialRecoveryBuilder.from(holder(provider)).buildSetupClient();
 
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version']);
-    expect(provider.calls.map((call) => getAddress(call.to))).toEqual([MANAGER, MANAGER]);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'MANAGER']);
+    expect(provider.calls.map((call) => getAddress(call.to))).toEqual([MANAGER, MANAGER, ACTION]);
     expect(ChainDouble.isView(provider.calls[0]!, 'eip712Domain')).toBe(true);
     expect(ChainDouble.isView(provider.calls[1]!, 'version')).toBe(true);
-    expect(provider.calls.map((call) => call.block)).toEqual(['latest', 'latest']);
+    expect(provider.calls[2]!.data).toBe(ACTION_MANAGER_SELECTOR);
+    expect(provider.calls.map((call) => call.block)).toEqual(['latest', 'latest', 'latest']);
   });
 
   it('reads at the configured read tag', async () => {
@@ -62,7 +65,7 @@ describe('the construction sequence', () => {
 
     await SocialRecoveryBuilder.from({ ...holder(provider), configuration: { blockTags: { read: 'finalized', watch: 'finalized' } } } as const).buildSetupClient();
 
-    expect(provider.calls.map((call) => call.block)).toEqual(['finalized', 'finalized']);
+    expect(provider.calls.map((call) => call.block)).toEqual(['finalized', 'finalized', 'finalized']);
   });
 
   it.each(WRONG)('refuses always when %s, reading nothing after the refusal', async (_name, world, reads) => {
@@ -170,6 +173,7 @@ describe('transport failures', () => {
     ['the chain id read', { ...goodWorld(), chainId: { rejects: failure } }],
     ['the eip712Domain read', { ...goodWorld(), domain: { rejects: failure } }],
     ['the version read', { ...goodWorld(), version: { rejects: failure } }],
+    ["the action's MANAGER() read", { ...goodWorld(), actionManager: { rejects: failure } }],
   ] as const)('propagate as themselves from %s', async (_name, world) => {
     expect((await refusalIn(world)).thrown).toBe(failure);
   });

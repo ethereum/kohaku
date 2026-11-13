@@ -69,8 +69,9 @@ function checkedRequestWindow(value: unknown, name: string): RequestWindowBounds
 
   assertSafeUint(bounds.default, `${name}.default`);
   assertSafeUint(bounds.floor, `${name}.floor`);
+  assertSafeUint(bounds.ceiling, `${name}.ceiling`);
 
-  return { default: bounds.default, floor: bounds.floor };
+  return { default: bounds.default, floor: bounds.floor, ceiling: bounds.ceiling };
 }
 
 /** The read and watch tags, each checked as a named block tag. */

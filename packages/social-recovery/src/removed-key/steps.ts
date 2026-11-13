@@ -47,12 +47,11 @@ export async function fromHandover(
   return confirm(newAuthority, inputs, block);
 }
 
-/** The signer the integrator recovers from the transaction of the latest setup commit, asked of `isAuthority`. */
-export async function fromSetupSigner(
+/** The signer the integrator recovers from the transaction of the latest setup commit; `unread` where a read fails or answers malformed. */
+export async function setupSigner(
   notifications: readonly KitNotification[],
   inputs: CheckedRemovedKeyInputs,
-  block: PinnedBlock,
-): Promise<RemovedKeyStepAnswer> {
+): Promise<Address | 'unread' | undefined> {
   const { signerRecovery } = inputs;
 
   if (signerRecovery === undefined) return undefined;
@@ -61,8 +60,6 @@ export async function fromSetupSigner(
   const commit = lastByPosition(commits);
 
   if (commit === undefined) return undefined;
-
-  let signer: Address;
 
   try {
     const transaction: RawTransaction | null | undefined = await inputs.provider.transaction(commit.at.transactionHash);
@@ -80,10 +77,21 @@ export async function fromSetupSigner(
 
     if (recovered === undefined) return undefined;
 
-    signer = normalizeAddress(recovered, 'recoverSigner');
+    return normalizeAddress(recovered, 'recoverSigner');
   } catch {
     return 'unread';
   }
+}
+
+/** The signer of the latest setup commit, asked of `isAuthority`. */
+export async function fromSetupSigner(
+  notifications: readonly KitNotification[],
+  inputs: CheckedRemovedKeyInputs,
+  block: PinnedBlock,
+): Promise<RemovedKeyStepAnswer> {
+  const signer = await setupSigner(notifications, inputs);
+
+  if (signer === undefined || signer === 'unread') return signer;
 
   return confirm(signer, inputs, block);
 }

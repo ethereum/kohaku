@@ -5,7 +5,7 @@ import { run, TIMEOUT } from '../formats/arbitraries';
 import { gatheringOf, ruleCase } from './arbitraries';
 import { FLOOR, PINNED_AT, ruleHolds } from './support';
 
-const BOUNDS = { default: 86_400, floor: FLOOR };
+const BOUNDS = { default: 86_400, floor: FLOOR, ceiling: 259_200 };
 
 describe('count', () => {
   it('agrees with an independent evaluation of the rule, clause by clause', () => {

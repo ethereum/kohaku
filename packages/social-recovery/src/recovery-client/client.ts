@@ -1,8 +1,9 @@
 /* eslint-disable max-lines */
 import { KitRefusalError, pinBlockHeader, simulatePrepared } from '../client-core';
-import { GATHERING_ORDER_REFUSAL_MESSAGES } from '../constants';
+import { GATHERING_ORDER_REFUSAL_MESSAGES, GATHERING_PROOF_EXPIRED_MESSAGE } from '../constants';
 import { assertBool, assertBytes, normalizeAddress } from '../formats/guards';
 import { count, fileReply, orderVerdict, requests, seed } from '../gathering';
+import { expiredChoices, filedExpiryFindings } from '../gathering/expiry';
 import type {
   AddResult,
   Address,
@@ -45,7 +46,7 @@ import { assertAttemptState, assertAttemptWaiting, assertNoAttemptWaiting, gathe
 import { sharedRequest } from './record';
 import { checkedParts } from './parts';
 import { recoveryRecord, removedKeyAt } from './state';
-import { assertPayloadDecodes, assertSubmission } from './submission';
+import { assertOpeningHandover, assertSubmission } from './submission';
 
 /**
  * The entry an integrator builds when a key is lost, bound to one chain, deployment, account and action.
@@ -95,8 +96,9 @@ export class RecoveryClient implements IRecoveryClient {
    * The approval gathering for a handover, its payload encoded through the codec and its deadline the pinned block's
    * timestamp plus the window. Throws a `TypeError` or `RangeError` before any read on a malformed handover, order, window,
    * password or a source that is not an object; a malformed configuration source is refused by the restore after the block
-   * pin and `stateOf`. Throws a `KitRefusalError` while an attempt is waiting, on a restore cause or on a handover the action
-   * would refuse.
+   * pin and `stateOf`. Throws a `KitRefusalError` while an attempt is waiting, on a restore cause, on a handover the action
+   * would refuse, or on a new key nobody could use (the account, the manager, the action, its kit slot or the
+   * fallback-handler entry), before any approver request exists.
    */
   async initRecoveryGathering(
     source: ConfigurationSource,
@@ -157,9 +159,16 @@ export class RecoveryClient implements IRecoveryClient {
     return fileReply(gathering, reply);
   }
 
-  /** The record's progress at `now`, its window judged against the configured request window. */
+  /**
+   * The record's progress at `now`, its window judged against the configured request window. After the window's findings come
+   * `proof.expired` for each filed proof whose expiry, as its registered method's codec states it, `now` has reached, then
+   * `proof.expiring` for each that expires after `now` and by the request's `validUntil`.
+   */
   assess(gathering: Gathering, now: Moment): Assessment {
-    return count(gathering, now, this.parts.configuration.requestWindow);
+    const counted = count(gathering, now, this.parts.configuration.requestWindow);
+    const expiry = filedExpiryFindings(gathering, this.parts.methods, now);
+
+    return { ...counted, findings: [...counted.findings, ...expiry.errors, ...expiry.warnings] };
   }
 
   /**
@@ -167,7 +176,8 @@ export class RecoveryClient implements IRecoveryClient {
    * given, taken as given, otherwise the preferred satisfying set. The places chosen are the request's proof places; the
    * record's other filed places are the ones left out. Throws a `KitRefusalError` with the findings where the window has
    * passed at `now`, the rule is unsatisfied or a filed or selected place lies past the rule's count, and a `RangeError` where
-   * the selection names a place no reply fills.
+   * the selection names a place no reply fills. Then throws a `KitRefusalError` with the chosen places' `proof.expired`
+   * findings alone where `now` has reached a chosen proof's expiry; the caller asks its approver again or selects other places.
    */
   complete(gathering: Gathering, selection: Selection | undefined, now: Moment): AttemptRequest | CancelRequest {
     const verdict = orderVerdict(gathering, selection, now);
@@ -176,6 +186,10 @@ export class RecoveryClient implements IRecoveryClient {
       throw new KitRefusalError(GATHERING_ORDER_REFUSAL_MESSAGES[verdict.reason], { findings: verdict.findings });
     }
 
+    const expired = expiredChoices(gathering, this.parts.methods, verdict.proofs, now);
+
+    if (expired.length > 0) throw new KitRefusalError(GATHERING_PROOF_EXPIRED_MESSAGE, { findings: { errors: expired, warnings: [] } });
+
     return requestOf(gathering, verdict.proofs);
   }
 
@@ -183,7 +197,9 @@ export class RecoveryClient implements IRecoveryClient {
    * The manager's `startAttempt(request)` at one pinned block, sent by anyone and simulated unless the options or the
    * configuration say otherwise, from `options.from` or the zero address. It runs no request validation: the integrator
    * judges the request with `validateRequest` first. Throws a `TypeError` or `RangeError` before any read on a malformed
-   * argument or a request naming another account or action, and a `KitRefusalError` on a payload the codec does not decode.
+   * argument or a request naming another account or action, and a `KitRefusalError`, before any read, on a payload that does
+   * not decode, names the zero address or one key twice (`handover.malformed`), or installs a key nobody could use
+   * (`handover.new-reserved`); it reads nothing to judge the handover.
    */
   async prepareStartAttempt(request: AttemptRequest, now: Moment, options?: PrepareOptions): Promise<PreparedCall> {
     const { parts } = this;
@@ -191,7 +207,7 @@ export class RecoveryClient implements IRecoveryClient {
     assertPreparesServed(this.versionEscaped);
     assertSubmission(parts, request, true, now);
     assertOptions(options);
-    assertPayloadDecodes(parts, request.payload);
+    assertOpeningHandover(parts, request.payload);
 
     const { block } = await pinBlockHeader(parts.provider, parts.configuration.blockTags.read);
     const call = await parts.policyManager.prepareStartAttempt(request, block);

@@ -17,7 +17,7 @@ import {
 } from './support';
 
 const NOW = PINNED_AT + 60;
-const BOUNDS = deepFreeze({ default: 86_400, floor: FLOOR });
+const BOUNDS = deepFreeze({ default: 86_400, floor: FLOOR, ceiling: 259_200 });
 
 /** A deep-frozen gathering with replies at places 0..2, a snapshot of it, and one more reply to file. */
 function frozenCase(make: typeof approvalGathering | typeof cancellationGathering) {

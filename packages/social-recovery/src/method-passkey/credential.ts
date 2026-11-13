@@ -54,7 +54,7 @@ const es256Key = (coseBytes: Uint8Array): Hex | undefined => {
 };
 
 /** The point where it lies on P-256, or undefined. */
-const onCurve = (x: bigint, y: bigint): { x: bigint; y: bigint } | undefined => {
+export const onCurve = (x: bigint, y: bigint): { x: bigint; y: bigint } | undefined => {
   try {
     P256.noble.ProjectivePoint.fromAffine({ x, y }).assertValidity();
 

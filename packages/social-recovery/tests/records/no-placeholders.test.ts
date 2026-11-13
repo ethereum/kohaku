@@ -29,6 +29,9 @@ const PT017_NAMES = [
 
 const RENAMED: Readonly<Record<string, string>> = { Request: 'ApproverRequest', Notification: 'KitNotification' };
 
+/** The paths that reach a skipped log's `error`, the one closed field typed unknown: it carries whatever a log's decoder threw. */
+const THROWN_VALUE_PATHS = ['FetchedNotifications.skipped[].error: unknown', 'SkippedLog.error: unknown'];
+
 const currentName = (name: string): string => RENAMED[name] ?? name;
 
 let context: RecordContext;
@@ -271,12 +274,12 @@ describe('every record type the core entry exports', () => {
     expect(branded).toEqual([]);
   });
 
-  it('reaches no any anywhere inside it, and unknown only as the value of an open index signature', () => {
+  it('reaches no any anywhere inside it, and unknown only as the value of an open index signature or the value a skipped log\'s decoder threw', () => {
     const vague = exportedAliases().flatMap(([name, symbol]) =>
       vaguePaths(context.checker, context.checker.getDeclaredTypeOfSymbol(symbol), name),
     );
 
-    expect(vague).toEqual([]);
+    expect(vague).toEqual(THROWN_VALUE_PATHS);
   });
 });
 

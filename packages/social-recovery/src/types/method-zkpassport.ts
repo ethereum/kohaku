@@ -1,4 +1,4 @@
-import type { METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, METHOD_ZKPASSPORT_REQUEST_MODE } from '../constants';
+import type { METHOD_ZKPASSPORT_CUSTOM_DATA_KEY, METHOD_ZKPASSPORT_REQUEST_MODE, METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE } from '../constants';
 import type { Hex } from '../interfaces';
 
 /** The config record: the committed identifier and the service its proofs are scoped to. */
@@ -29,6 +29,11 @@ export type ZkPassportSession = {
   readonly name?: string;
   readonly logo?: string;
   readonly purpose?: string;
+  /**
+   * The module's `trustedKeys` as the integrator read them from `trustedParties`, lower-cased; where given, a proof of another version than
+   * `trustedKeys[METHOD_ZKPASSPORT_VERSION_KEY]` is refused as `material-untrusted`.
+   */
+  readonly trustedKeys?: readonly Hex[];
 };
 
 /** One proof as the stack's `ProofResult` carries it; only the members this method reads. */
@@ -46,6 +51,7 @@ export type ZkPassportRequestArgs = {
   readonly scope: string;
   readonly mode: typeof METHOD_ZKPASSPORT_REQUEST_MODE;
   readonly devMode: boolean;
+  readonly uniqueIdentifierType: typeof METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE;
 };
 
 /** The request result the page renders and listens on. */
@@ -77,8 +83,8 @@ export type ZkPassportQueryBuilder = {
 /** The verifier parameters as the stack returns them (its `SolidityVerifierParameters`). */
 export type ZkPassportVerifierParameters = {
   /**
-   * The version word, the encoding `zkPassportVersionWord` returns; compare it with `trustedKeys[METHOD_ZKPASSPORT_VERSION_KEY]`
-   * by value (`BigInt` equality), since the module's `verify` routes every proof by that word.
+   * The version word, the encoding `zkPassportVersionWord` returns; the method compares it with `trustedKeys[METHOD_ZKPASSPORT_VERSION_KEY]`
+   * by value (`BigInt` equality) where the session carries `trustedKeys`, since the module's `verify` routes every proof by that word.
    */
   readonly version: string;
   readonly proofVerificationData: {

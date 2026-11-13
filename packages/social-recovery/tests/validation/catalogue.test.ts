@@ -14,7 +14,7 @@ import { everyOpeningError, requestScenarios, setupScenarios } from './scenarios
 const sorted = (codes: Iterable<string>): string[] => [...new Set(codes)].sort();
 
 /** The codes a gathering raises and neither validator does. */
-const GATHERING_ONLY: readonly string[] = ['handover.removed-unknown', 'request.window-short', 'cancel.window-late'];
+const GATHERING_ONLY: readonly string[] = ['handover.removed-unknown', 'request.window-short', 'cancel.window-late', 'proof.expired', 'proof.expiring'];
 
 const setupResults = (): ValidationResult[] => setupScenarios().map(([, draft, context]) => validateSetup(draft, context));
 
@@ -38,7 +38,7 @@ describe('the finding catalogue', () => {
     expect(sorted(results.flatMap((result) => result.warnings.map((finding) => finding.code)))).toEqual(sorted(SETUP_WARNING_CODES));
   });
 
-  it('validateRequest produces exactly the request codes but the three a gathering raises', () => {
+  it('validateRequest produces exactly the request codes but the five a gathering raises', () => {
     const results = requestResults();
 
     expect(sorted(results.flatMap((result) => result.errors.map((finding) => finding.code)))).toEqual(
@@ -51,10 +51,15 @@ describe('the finding catalogue', () => {
       'payment.sponsor-sees',
       'payment.token-unknown',
       'request.moment-skew',
+      'request.window-wide',
     ]);
   });
 
-  it('the union of both equals the four tuples minus handover.removed-unknown, request.window-short and cancel.window-late', () => {
+  it('validateRequest itself produces handover.new-reserved, so a gathering is not its only source', () => {
+    expect(requestResults().flatMap((result) => result.errors.map((finding) => finding.code))).toContain('handover.new-reserved');
+  });
+
+  it('the union of both equals the four tuples minus the codes only a gathering raises', () => {
     const produced = sorted([...setupResults(), ...requestResults()].flatMap((result) => [...result.errors, ...result.warnings].map((finding) => finding.code)));
     const tuples = sorted([...SETUP_ERROR_CODES, ...SETUP_WARNING_CODES, ...REQUEST_ERROR_CODES, ...REQUEST_WARNING_CODES]);
 
@@ -88,6 +93,7 @@ describe('the finding catalogue', () => {
     const [[, wide, wideContext], [, empty, emptyContext]] = setupScenarios() as [[string, typeof DRAFT, typeof SETUP_CONTEXT], [string, typeof DRAFT, typeof SETUP_CONTEXT]];
 
     expect(sorted(validateSetup(wide, wideContext).errors.map((finding) => finding.code))).toEqual([
+      'action.manager-mismatch',
       'action.unsupported',
       'backup.too-wide',
       'clause.empty',
@@ -98,6 +104,7 @@ describe('the finding catalogue', () => {
       'wait.field-width',
     ]);
     expect(sorted(validateSetup(empty, emptyContext).errors.map((finding) => finding.code))).toEqual([
+      'action.manager-mismatch',
       'action.unsupported',
       'rule.empty',
       'wait.above-maximum',
@@ -111,6 +118,7 @@ describe('the finding catalogue', () => {
     expect(sorted(validateRequest(request, context).errors.map((finding) => finding.code))).toEqual([
       'handover.malformed',
       'handover.new-holds-privilege',
+      'handover.new-reserved',
       'handover.removed-not-authority',
       'handover.same-authority',
       'proof.place-out-of-range',
@@ -121,6 +129,7 @@ describe('the finding catalogue', () => {
       'request.expired',
       'request.method-stopped',
       'request.rule-unsatisfied',
+      'request.setup-nonce',
     ]);
   });
 

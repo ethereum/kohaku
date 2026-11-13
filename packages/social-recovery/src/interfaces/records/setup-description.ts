@@ -22,9 +22,44 @@ export type FailureDomain = {
   readonly methods: readonly { readonly method: Address; readonly count: number }[];
 };
 
+/** A shipped identity method's trusted keys by name, decoded from its own declaration in the method's order. */
+export type NamedTrustedKeys =
+  | {
+      readonly kind: 'method-zkpassport';
+      /** Word 0, the accepted zkPassport version as `major.minor.patch`. */
+      readonly version: string;
+      /** Word 1, the root verifier. */
+      readonly rootVerifier: Address;
+      /** Word 2, the reviewed sub-verifier for that version. */
+      readonly subVerifier: Address;
+      /** Word 3, the verifier helper the root verifier must return for a proof to pass. */
+      readonly verifierHelper: Address;
+      /** Word 4, the root registry. */
+      readonly rootRegistry: Address;
+      /** Word 5, the root verifier's admin as last reviewed. */
+      readonly rootAdmin: Address;
+      /** Word 6, the root verifier's guardian as last reviewed, the zero address where the root had none. */
+      readonly rootGuardian: Address;
+      /** Word 7, the sub-verifier's admin as last reviewed. */
+      readonly subVerifierAdmin: Address;
+    }
+  | {
+      readonly kind: 'method-aadhaar';
+      /** The one word, the issuer's public-key hash. */
+      readonly issuerKeyHash: Hex;
+    };
+
 /** Per method its self-attested declaration read at this moment, per wallet guardian the address. */
 export type DescribedParties = {
-  readonly methods: readonly { readonly method: Address; readonly parties: ReadResult<Parties> }[];
+  readonly methods: readonly {
+    readonly method: Address;
+    readonly parties: ReadResult<Parties>;
+    /**
+     * The declaration's trusted keys by name, addresses checksummed and the hash in lower case. Absent unless the method is the
+     * deployment's zkPassport or Aadhaar method and the read was answered with words that method's own acceptance rule passes.
+     */
+    readonly namedKeys?: NamedTrustedKeys;
+  }[];
   readonly walletGuardians: readonly { readonly place: number; readonly address: Address }[];
 };
 
@@ -59,6 +94,14 @@ export type DescribedAction = {
   readonly supportsAccount?: boolean;
 };
 
+/** The account's word under its fallback-handler slot. */
+export type DescribedFallbackHandler = {
+  /** The full word in lower case; all zero means no handler is installed. */
+  readonly entry: Hex;
+  /** The address the account delegatecalls, the word's low 20 bytes checksummed; absent where they are zero. */
+  readonly handler?: Address;
+};
+
 /** The disclosure the SDK owes a holder about a setup before it is committed. */
 export type SetupDescription = {
   readonly rule: { readonly clauses: readonly DescribedClause[] };
@@ -69,6 +112,8 @@ export type SetupDescription = {
   readonly methodStanding: readonly MethodStanding[];
   /** Per passkey credential, the relying-party id hash its config holds. */
   readonly passkeyDomains: readonly { readonly place: number; readonly relyingPartyIdHash: Hex }[];
+  /** Per Aadhaar credential, the freshness window its config holds, in seconds, as held even where validation refuses it. */
+  readonly aadhaarWindows: readonly { readonly place: number; readonly freshnessWindow: bigint }[];
   /** Per configured candidate key, its `isAuthority` answer. */
   readonly candidateKeys: readonly { readonly key: Address; readonly isAuthority: boolean }[];
   /** The address a handover on this setup would remove. */
@@ -92,4 +137,9 @@ export type SetupDescription = {
       readonly pauseHolder: ReadResult<Address>;
     }[];
   };
+  /**
+   * Code the account keeps under its fallback-handler slot, which a recovery leaves in place.
+   * Absent where not read: the account holds no code, the action does not serve it, or the action is not the deployment's.
+   */
+  readonly fallbackHandler?: ReadResult<DescribedFallbackHandler>;
 };

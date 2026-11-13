@@ -24,7 +24,7 @@ import {
 const DIGEST: Hex = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac040c339';
 const PARAMS = { nullifierSeed: 77n, issuerCertificate: CERTIFICATE };
 
-/** The latest clock the pre-prover read lets through for a QR signed at `SIGNED_AT` under the 24-hour window. */
+/** The latest clock the pre-prover read lets through for a QR signed at `SIGNED_AT` under the default 75-minute window. */
 const LAST_LET_THROUGH = SIGNED_AT + FRESHNESS_WINDOW + METHOD_AADHAAR_SIGNED_AT_SLACK;
 
 type Read = bigint | undefined | 'throw';

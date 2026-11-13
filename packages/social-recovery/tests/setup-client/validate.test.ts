@@ -33,6 +33,7 @@ import {
   doubles,
   DRAFT,
   HEADER,
+  MANAGER,
   members,
   METHOD_A,
   METHOD_B,
@@ -45,6 +46,7 @@ import {
   revert,
   transportFailure,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 /** The context the client should hand the pure judgment, built from what the doubles answer. */
 function expectedContext(
@@ -72,6 +74,7 @@ function expectedContext(
       actionInfo: overrides.actionInfo ?? { answered: true, value: ACTION_INFO },
       supportsAccount: true,
       accountHoldsCode: overrides.accountHoldsCode ?? true,
+      manager: { answered: true, value: MANAGER },
     },
     managerEvents: overrides.managerEvents ?? [],
     costs: [],
@@ -259,7 +262,19 @@ describe('validateSetup', () => {
     await expect(build({ world: { allActions: { rejects: failure } } }).client.validateSetup(DRAFT)).rejects.toBe(failure);
   });
 
-  it('a registry of the shipped methods: a config its method cannot decode is credential.config-malformed', async () => {
+  it('rejects with the error of a log the account-wide read skipped, rather than judging the events it decoded', async () => {
+    const failure = new Error('undecodable log');
+    const managerEvents = [committed(1n, `0x${'01'.repeat(32)}`, '0x', position(200), OTHER_ACTION)];
+    const { client } = build({ world: { allActions: managerEvents, fetched: withSkipped(skippedAt(position(201), failure)) } });
+
+    await expect(client.validateSetup(DRAFT)).rejects.toBe(failure);
+  });
+
+  it('rejects with a TypeError where the event manager answers the account-wide read with a bare array', async () => {
+    await expect(build({ world: { fetched: bareArray } }).client.validateSetup(DRAFT)).rejects.toThrow(TypeError);
+  });
+
+  it('a registry of the shipped methods: a config its method cannot decode, or whose key is off the curve, is credential.config-malformed', async () => {
     const registry: MethodRegistry = new Map<Address, IRecoveryMethod>([
       [METHOD_A, walletMethod()],
       [METHOD_B, passkeyMethod()],
@@ -275,8 +290,9 @@ describe('validateSetup', () => {
     const result = await build({ methods: registry }).client.validateSetup(draft);
 
     expect(result.errors.filter((finding) => finding.code === 'credential.config-malformed')).toEqual([
-      { code: 'credential.config-malformed', subject: 'credential', values: { place: 1, module: METHOD_B, bytes: 32 } },
-      { code: 'credential.config-malformed', subject: 'credential', values: { place: 2, module: METHOD_A, bytes: 20 } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 1, module: METHOD_B, bytes: 32, reason: 'layout' } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 2, module: METHOD_A, bytes: 20, reason: 'layout' } },
+      { code: 'credential.config-malformed', subject: 'credential', values: { place: 3, module: METHOD_B, bytes: 96, reason: 'bound', fields: ['x', 'y'] } },
     ]);
     expect(result).toEqual(validateSetup(draft, expectedContext(draft, { registry })));
   });

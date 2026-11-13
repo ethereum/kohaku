@@ -1,9 +1,13 @@
+import { encodeFunctionData } from 'viem';
 import { pinBlockHeader } from '../client-core';
-import { assertBytes, assertDependency, sameAddress } from '../formats/guards';
+import { RECOVERY_ACTION_FALLBACK_HANDLER_SLOT, RECOVERY_ACTION_PRIVILEGES_ABI, RECOVERY_ACTION_READ_FROM } from '../constants';
+import { assertBytes, assertDependency, lowerHex, sameAddress } from '../formats/guards';
+import { decodedOnly } from '../formats/notifications';
 import {
   METHOD_TIERS,
   type ActionInfo,
   type Address,
+  type Hex,
   type IMethodCodec,
   type IRecoveryMethod,
   type KitNotification,
@@ -11,6 +15,9 @@ import {
   type PinnedBlock,
   type ReadResult,
 } from '../interfaces';
+import { actionImplementationAt } from '../recovery-action/implementation-read';
+import { actionManagerAt } from '../recovery-action/manager-read';
+import { wordReturn } from '../recovery-action/returns';
 import type { PinnedHeader } from '../types/client-core';
 import type { JudgmentReads, SetupClientParts } from '../types/setup-client';
 import type { ActionReads, MethodReads } from '../types/validation';
@@ -77,15 +84,20 @@ async function actionInfoRead(parts: SetupClientParts, block: PinnedBlock): Prom
   }
 }
 
+/** The action's `MANAGER()` at the block; a revert or undecodable answer reads as unanswered, a failed transport propagates. */
+const managerRead = (parts: SetupClientParts, block: PinnedBlock): Promise<ReadResult<Address>> =>
+  actionManagerAt(parts.provider, parts.action, block.number);
+
 /** The action contract's reads at the block, beside the account's code read the caller made once. */
 async function actionReads(parts: SetupClientParts, block: PinnedBlock, deployed: Promise<boolean>): Promise<ActionReads> {
-  const [actionInfo, supportsAccount, accountHoldsCode] = await Promise.all([
+  const [actionInfo, supportsAccount, accountHoldsCode, manager] = await Promise.all([
     actionInfoRead(parts, block),
     parts.recoveryAction.supportsAccount(block),
     deployed,
+    managerRead(parts, block),
   ]);
 
-  return { address: parts.action, actionInfo, supportsAccount, accountHoldsCode };
+  return { address: parts.action, actionInfo, supportsAccount, accountHoldsCode, manager };
 }
 
 /** Each distinct method's reads, once per method, and the action's reads, all at the block; `deployed` is the account's one code read. */
@@ -100,16 +112,23 @@ export async function judgmentReads(
     actionReads(parts, block, deployed),
   ]);
 
-  return { methods: methodEntries, action };
+  const withEntry = await withFallbackHandler(parts, block, action);
+
+  return { methods: methodEntries, action: await withImplementation(parts, block, withEntry) };
 }
 
-/** The manager's setup notifications over the account with the action topic left open, from the deployment block to the pinned one. */
+/**
+ * The manager's setup notifications over the account with the action topic left open, from the deployment block to the pinned one;
+ * a skipped log rejects the read with what its decoder threw.
+ */
 export async function accountWideEvents(parts: SetupClientParts, block: PinnedBlock): Promise<readonly KitNotification[]> {
   const from = parts.descriptor.deployedAt;
 
   if (from > block.number) return [];
 
-  return await parts.events.fetch(parts.events.accountFilter({ allActions: true }), { from, to: block.number });
+  const read = await parts.events.fetch(parts.events.accountFilter({ allActions: true }), { from, to: block.number });
+
+  return decodedOnly(read);
 }
 
 /** Whether the account holds code at the block; an account not yet deployed answers none of the action's authority reads. */
@@ -121,9 +140,41 @@ export async function holdsCode(parts: SetupClientParts, block: PinnedBlock): Pr
   return code.toLowerCase() !== '0x';
 }
 
-/** Whether the action is authorized on the account at the block; false without asking where the account holds no code. */
-export async function authorizedAt(parts: SetupClientParts, block: PinnedBlock): Promise<boolean> {
-  if (!(await holdsCode(parts, block))) return false;
+/** Whether the action is authorized on the account at the block, given whether the account holds code there; false without asking where it holds none. */
+export async function authorizedGiven(parts: SetupClientParts, deployed: Promise<boolean>, block: PinnedBlock): Promise<boolean> {
+  if (!(await deployed)) return false;
 
   return await parts.recoveryAction.isAuthorized(block);
+}
+
+/** Whether the action is authorized on the account at the block; false without asking where the account holds no code. */
+export async function authorizedAt(parts: SetupClientParts, block: PinnedBlock): Promise<boolean> {
+  return await authorizedGiven(parts, holdsCode(parts, block), block);
+}
+
+/** The account's word under its fallback-handler slot at the block; any rejection, a revert, an undecodable answer or a failed transport, reads as unanswered. */
+async function fallbackHandlerRead(parts: SetupClientParts, block: PinnedBlock): Promise<ReadResult<Hex>> {
+  const data = encodeFunctionData({ abi: RECOVERY_ACTION_PRIVILEGES_ABI, functionName: 'privileges', args: [RECOVERY_ACTION_FALLBACK_HANDLER_SLOT] });
+
+  try {
+    const returned = await parts.provider.call(parts.account, data, RECOVERY_ACTION_READ_FROM, block.number);
+
+    return { answered: true, value: lowerHex(wordReturn(returned, 'privileges')) };
+  } catch {
+    return { answered: false };
+  }
+}
+
+/** The action's reads with the account's fallback-handler entry, read only where the account holds code the deployment's own action serves. */
+async function withFallbackHandler(parts: SetupClientParts, block: PinnedBlock, action: ActionReads): Promise<ActionReads> {
+  if (!(action.accountHoldsCode && action.supportsAccount && sameAddress(parts.action, parts.descriptor.action))) return action;
+
+  return { ...action, fallbackHandlerEntry: await fallbackHandlerRead(parts, block) };
+}
+
+/** The action's reads with the implementation it serves, read from the action only where the account holds no code and the configuration names the implementation it is about to get. */
+async function withImplementation(parts: SetupClientParts, block: PinnedBlock, action: ActionReads): Promise<ActionReads> {
+  if (action.accountHoldsCode || parts.configuration.accountImplementation === undefined) return action;
+
+  return { ...action, actionImplementation: await actionImplementationAt(parts.provider, parts.action, block.number) };
 }

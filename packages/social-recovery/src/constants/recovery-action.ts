@@ -1,5 +1,5 @@
 import { toFunctionSelector } from 'viem';
-import type { AbiFunctionItem, Hex } from '../interfaces/records';
+import type { AbiFunctionItem, Address, Hex } from '../interfaces/records';
 import { FORMATS_ZERO_ADDRESS } from './formats';
 
 /** The ERC-165 id of the policy-action interface. */
@@ -81,6 +81,28 @@ export const RECOVERY_ACTION_VIEWS_ABI = [
   },
 ] as const satisfies readonly AbiFunctionItem[];
 
+/** The recovery action's `MANAGER()`, the manager whose attempts it spends. */
+export const RECOVERY_ACTION_MANAGER_ABI = [
+  {
+    type: 'function',
+    name: 'MANAGER',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '_manager', type: 'address' }],
+  },
+] as const satisfies readonly AbiFunctionItem[];
+
+/** The Ambire action's `AMBIRE_IMPLEMENTATION()`, the account implementation whose proxy it serves. */
+export const RECOVERY_ACTION_IMPLEMENTATION_ABI = [
+  {
+    type: 'function',
+    name: 'AMBIRE_IMPLEMENTATION',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '_implementation', type: 'address' }],
+  },
+] as const satisfies readonly AbiFunctionItem[];
+
 /** A boolean view's return data: one word holding 0 or 1. */
 export const RECOVERY_ACTION_BOOL_RETURN_ABI = [{ type: 'bool' }] as const;
 
@@ -104,3 +126,23 @@ export const RECOVERY_ACTION_ZERO_ADDRESS = FORMATS_ZERO_ADDRESS;
 
 /** The address the action's views are read from. */
 export const RECOVERY_ACTION_READ_FROM = FORMATS_ZERO_ADDRESS;
+
+/**
+ * The address under which the pinned account implementation keeps its fallback handler in `privileges`.
+ * The account delegatecalls that handler on any selector it does not know, and asks it about any interface id it does not know.
+ */
+export const RECOVERY_ACTION_FALLBACK_HANDLER_SLOT: Address = '0x0000000000000000000000000000000000006969';
+
+/** The account's privilege read, `privileges(address addr) returns (bytes32 privilege)`. */
+export const RECOVERY_ACTION_PRIVILEGES_ABI = [
+  {
+    type: 'function',
+    name: 'privileges',
+    stateMutability: 'view',
+    inputs: [{ name: 'addr', type: 'address' }],
+    outputs: [{ name: 'privilege', type: 'bytes32' }],
+  },
+] as const satisfies readonly AbiFunctionItem[];
+
+/** A word view's return data: one bytes32. */
+export const RECOVERY_ACTION_WORD_RETURN_ABI = [{ type: 'bytes32' }] as const;

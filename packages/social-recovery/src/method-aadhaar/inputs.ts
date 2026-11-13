@@ -5,13 +5,21 @@ import {
   METHOD_AADHAAR_CERTIFICATE_INPUT,
   METHOD_AADHAAR_CERTIFICATE_MESSAGE,
   METHOD_AADHAAR_CERTIFICATE_PARAM,
+  METHOD_AADHAAR_FRESHNESS_WINDOW,
+  METHOD_AADHAAR_MIN_FRESHNESS_WINDOW,
   METHOD_AADHAAR_SEED_PARAM,
   METHOD_AADHAAR_SEED_RANGE_MESSAGE,
   METHOD_AADHAAR_SEED_TYPE_MESSAGE,
   METHOD_AADHAAR_SIGNAL_CALLS,
   METHOD_AADHAAR_SIGNAL_FLAG,
   METHOD_AADHAAR_SNARK_SCALAR_FIELD,
+  METHOD_AADHAAR_WORD_BITS,
 } from '../constants/method-aadhaar';
+import {
+  METHOD_AADHAAR_WINDOW_PARAM,
+  METHOD_AADHAAR_WINDOW_RANGE_MESSAGE,
+  METHOD_AADHAAR_WINDOW_TYPE_MESSAGE,
+} from '../constants/method-aadhaar-params';
 import type { Input, Material, Params } from '../interfaces';
 import type {
   AadhaarArgsOptions,
@@ -26,13 +34,20 @@ export const isRecord = (value: unknown): value is { readonly [name: string]: un
   typeof value === 'object' && value !== null;
 
 /** A safe integer as a bigint; any other value unchanged. */
-const seedOf = (value: unknown): unknown => (typeof value === 'number' && Number.isSafeInteger(value) ? BigInt(value) : value);
+const bigintOf = (value: unknown): unknown => (typeof value === 'number' && Number.isSafeInteger(value) ? BigInt(value) : value);
 
 /** Whether a seed enters the circuit unreduced. */
 const inField = (seed: bigint): boolean => seed >= 0n && seed < METHOD_AADHAAR_SNARK_SCALAR_FIELD;
 
+/** Whether a freshness window is at least the minimum and fits a `uint256`. */
+const fitsWindow = (window: bigint): boolean =>
+  window >= METHOD_AADHAAR_MIN_FRESHNESS_WINDOW && window < 1n << BigInt(METHOD_AADHAAR_WORD_BITS);
+
+/** Whether a value is a bigint that fits a `uint256`. */
+const isWord = (value: unknown): value is bigint => typeof value === 'bigint' && value >= 0n && value < 1n << BigInt(METHOD_AADHAAR_WORD_BITS);
+
 function readSeed(value: unknown): bigint | undefined {
-  const seed = seedOf(value);
+  const seed = bigintOf(value);
 
   return typeof seed === 'bigint' && inField(seed) ? seed : undefined;
 }
@@ -45,7 +60,7 @@ const readCertificate = (value: unknown): string | undefined =>
  * not an integer or an empty certificate, a `RangeError` for a seed outside the circuit's field.
  */
 export function readParams(params: Params | undefined): AadhaarParams {
-  const seed = seedOf(params?.[METHOD_AADHAAR_SEED_PARAM]);
+  const seed = bigintOf(params?.[METHOD_AADHAAR_SEED_PARAM]);
   const certificateFile = readCertificate(params?.[METHOD_AADHAAR_CERTIFICATE_PARAM]);
 
   if (typeof seed !== 'bigint') throw new TypeError(`${METHOD_AADHAAR_SEED_PARAM} ${METHOD_AADHAAR_SEED_TYPE_MESSAGE}`);
@@ -59,14 +74,44 @@ export function readParams(params: Params | undefined): AadhaarParams {
   return { nullifierSeed: seed, certificateFile };
 }
 
-/** The seed and the certificate off an input this method returned, or `undefined`. */
+/** The seed, the certificate and any trusted key off an input this method returned, or `undefined` where one is malformed. */
 export function readInput(input: Input | undefined): AadhaarParams | undefined {
   if (!isRecord(input)) return undefined;
 
   const nullifierSeed = readSeed(input[METHOD_AADHAAR_SEED_PARAM]);
   const certificateFile = readCertificate(input[METHOD_AADHAAR_CERTIFICATE_INPUT]);
+  const { trustedKey } = input;
 
-  return nullifierSeed === undefined || certificateFile === undefined ? undefined : { nullifierSeed, certificateFile };
+  if (nullifierSeed === undefined || certificateFile === undefined) return undefined;
+
+  if (trustedKey === undefined) return { nullifierSeed, certificateFile };
+
+  return isWord(trustedKey) ? { nullifierSeed, certificateFile, trustedKey } : undefined;
+}
+
+/**
+ * The holder's freshness window from the enrollment parameters, `METHOD_AADHAAR_FRESHNESS_WINDOW` where they name none: a `TypeError`
+ * for a value that is not a bigint or a safe integer, a `RangeError` for one under the minimum or outside a `uint256`.
+ */
+export function readWindow(params: Params | undefined): bigint {
+  const window = bigintOf(params?.[METHOD_AADHAAR_WINDOW_PARAM]);
+
+  if (window === undefined) return METHOD_AADHAAR_FRESHNESS_WINDOW;
+
+  if (typeof window !== 'bigint') throw new TypeError(`${METHOD_AADHAAR_WINDOW_PARAM} ${METHOD_AADHAAR_WINDOW_TYPE_MESSAGE}`);
+
+  if (!fitsWindow(window)) throw new RangeError(`${METHOD_AADHAAR_WINDOW_PARAM} ${METHOD_AADHAAR_WINDOW_RANGE_MESSAGE}`);
+
+  return window;
+}
+
+/** The window off an enrollment input, the default where it carries none, or `undefined` for one that is not a bigint `readWindow` admits. */
+export function readInputWindow(input: Input | undefined): bigint | undefined {
+  const window = isRecord(input) ? input[METHOD_AADHAAR_WINDOW_PARAM] : undefined;
+
+  if (window === undefined) return METHOD_AADHAAR_FRESHNESS_WINDOW;
+
+  return typeof window === 'bigint' && fitsWindow(window) ? window : undefined;
 }
 
 /** Whether a value carries the signal members this module uses; a throwing getter means it does not. */

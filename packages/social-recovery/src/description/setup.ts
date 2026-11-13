@@ -12,10 +12,10 @@ import {
 } from '../interfaces';
 import type { CandidateKeyAuthority, MethodDescriptionReads, SetupDescriptionContext } from '../types/description';
 import type { PlacedCredential } from '../types/validation';
-import { assertActionReads, normalizeAddresses } from '../validation/common';
+import { assertActionReads, fallbackHandlerOf, normalizeAddresses } from '../validation/common';
 import { placedCredentials } from '../validation/setup-draft';
 import { readsByMethod } from '../validation/setup-methods';
-import { describedParties, distinctMethods, methodStanding, passkeyDomains, pauseOf } from './setup-methods';
+import { aadhaarWindows, describedParties, distinctMethods, methodStanding, passkeyDomains, pauseOf } from './setup-methods';
 
 /** Refuses a context whose records are not the shapes they declare. */
 function assertDescriptionContext(context: SetupDescriptionContext): void {
@@ -123,6 +123,15 @@ function actionOf(context: SetupDescriptionContext): DescribedAction {
   };
 }
 
+/** The account's fallback-handler entry as read, with the address it names; absent where the client did not read it. */
+function fallbackHandlerField(context: SetupDescriptionContext): Pick<SetupDescription, 'fallbackHandler'> {
+  const read = context.action.fallbackHandlerEntry;
+
+  if (read === undefined) return {};
+
+  return { fallbackHandler: read.answered ? { answered: true, value: fallbackHandlerOf(read.value) } : { answered: false } };
+}
+
 /**
  * The full configuration a holder reads before committing, with every party it trusts, from the draft and the reads its client made.
  * Throws a TypeError or RangeError on a malformed argument.
@@ -145,9 +154,13 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
     rule: { clauses: ruleOf(draft, credentials, table) },
     wait: { committed: draft.wait, clientDefault: context.configuration.defaultWait },
     failureDomains: failureDomainsOf(draft, credentials),
-    parties: describedParties(credentials, table, normalizeAddress(descriptor.methodEcdsa, 'context.descriptor.methodEcdsa')),
+    parties: describedParties(credentials, table, normalizeAddress(descriptor.methodEcdsa, 'context.descriptor.methodEcdsa'), {
+      zkPassport: normalizeAddress(descriptor.methodZkpassport, 'context.descriptor.methodZkpassport'),
+      aadhaar: normalizeAddress(descriptor.methodAadhaar, 'context.descriptor.methodAadhaar'),
+    }),
     methodStanding: methodStanding(credentials, table, normalizeAddresses(descriptor.shippedMethods, 'context.descriptor.shippedMethods')),
     passkeyDomains: passkeyDomains(credentials, normalizeAddress(descriptor.methodPasskey, 'context.descriptor.methodPasskey')),
+    aadhaarWindows: aadhaarWindows(credentials, normalizeAddress(descriptor.methodAadhaar, 'context.descriptor.methodAadhaar')),
     candidateKeys: candidateKeysOf(context),
     removedKey: removedKeyOf(context.removedKey),
     privacy: { publicMetadata: draft.privacy.publicMetadata, backup: draft.privacy.backup },
@@ -157,5 +170,6 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
     upgrade: action.shipped ? { upgradeableInPlace: false } : {},
     action,
     pause: pauseOf(credentials, table, draft.ignoresPause),
+    ...fallbackHandlerField(context),
   };
 }

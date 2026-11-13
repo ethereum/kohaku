@@ -11,8 +11,8 @@ export const BUILDER_SHORT_WAIT = 172800;
 /** The largest wait the SDK accepts: 30 days, in seconds. */
 export const BUILDER_MAX_WAIT = 2592000;
 
-/** A request window of 24 hours by default, warning below 1 hour, in seconds. */
-export const BUILDER_REQUEST_WINDOW: RequestWindowBounds = Object.freeze({ default: 86400, floor: 3600 });
+/** A request window of 24 hours by default, warning below 1 hour and above 72 hours, in seconds. */
+export const BUILDER_REQUEST_WINDOW: RequestWindowBounds = Object.freeze({ default: 86400, floor: 3600, ceiling: 259200 });
 
 /** The cancel gathering's own duration: 12 hours, in seconds. */
 export const BUILDER_CANCEL_WINDOW = 43200;

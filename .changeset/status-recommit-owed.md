@@ -1,0 +1,7 @@
+---
+"@kohaku-eth/social-recovery": patch
+---
+
+`describeStatus` now says when a recovery left its setup standing. `StatusDescription` gains the required last member `recommitOwed`, true exactly when the recovery record's attempt is `Consumed` and its `setupNonce` equals the record's own `setupNonce`: the attempt was consumed under the setup that still stands, which the recovery left live and armed as it was, so the same credentials can open another attempt against the new key until the holder commits a new setup. It is computed from `recoveryState` alone, with no read, and ignores `armed`, which the description already carries; `RecoveryState`, `SetupState`, `recoveryState()`, `setupState()` and `describeSetup` are unchanged. Its limits: any setup write moves the nonce and turns it false, a re-commit of the same rule among them although that rule's credentials could still recover; and a later attempt under the same nonce replaces the consumed one on the record, a waiting one showing as `attempt` and a cancelled one turning the fact false. New constant: `DESCRIPTION_CONSUMED_ATTEMPT_STATE` (`'Consumed'`).
+
+Compatibility: the member is additive on a returned record; a `StatusDescription` built by hand (an integrator's double) gains the required member `recommitOwed`. `describeStatus` now refuses with a `TypeError` a `recoveryState.setupNonce` or `recoveryState.attempt.setupNonce` that is not a bigint.

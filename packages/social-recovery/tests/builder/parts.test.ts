@@ -305,7 +305,7 @@ describe('the configuration', () => {
   });
 
   it('merges a partial configuration over the default member by member', async () => {
-    const partial = { tokens: [EXTRA_MODULE], requestWindow: { default: 7_200, floor: 600 }, blockTags: { read: 'finalized', watch: 'latest' } } as const;
+    const partial = { tokens: [EXTRA_MODULE], requestWindow: { default: 7_200, floor: 600, ceiling: 172_800 }, blockTags: { read: 'finalized', watch: 'latest' } } as const;
 
     await SocialRecoveryBuilder.from({ ...holder(), configuration: partial }).buildSetupClient();
 
@@ -336,7 +336,7 @@ describe('the parts the integrator supplies', () => {
     expect(of('PolicyManager')).toHaveLength(0);
     expect(setupArgs().policyManager).toBe(manager);
     expect(recoveryArgs().policyManager).toBe(manager);
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'MANAGER']);
     expect(callsOf(manager, 'eip712Domain')).toHaveLength(0);
   });
 

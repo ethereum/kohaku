@@ -26,7 +26,7 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "build": "echo Building @kohaku-eth/social-recovery && tsup --config tsup.config.ts",

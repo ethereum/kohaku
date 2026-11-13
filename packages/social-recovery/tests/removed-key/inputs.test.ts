@@ -88,6 +88,15 @@ describe('inputs refused before any read: a TypeError for a wrong type, a RangeE
     expect(reads).toEqual([]);
   });
 
+  it.each([['absent', 'absent'], ['undefined', undefined], ['null', null], ['not callable', 'privilegeFilter']])('events whose privilegeFilter is %s', async (_label, value) => {
+    const { inputs, reads, filterOptions } = ready();
+    const events = { accountFilter: inputs.events.accountFilter, fetch: inputs.events.fetch, ...(value === 'absent' ? {} : { privilegeFilter: value }) };
+
+    await refuses({ ...inputs, events });
+    expect(reads).toEqual([]);
+    expect(filterOptions).toEqual([]);
+  });
+
 });
 
 describe('inputs accepted', () => {

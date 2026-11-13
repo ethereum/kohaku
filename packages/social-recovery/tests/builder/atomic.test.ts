@@ -4,7 +4,7 @@ import { ChainDouble, EXTRA_MODULE, GatedDouble, MAINNET, failureOf, goodWorld, 
 
 type Builder = ReturnType<typeof SocialRecoveryBuilder.from<ReturnType<typeof holder>>>;
 
-const MANAGER_READS = ['chainId', 'eip712Domain', 'version'];
+const MANAGER_READS = ['chainId', 'eip712Domain', 'version', 'MANAGER'];
 
 /** The message of the TypeError a setter throws, failing the test when it does not throw one. */
 function setterRefusal(set: () => unknown): string {

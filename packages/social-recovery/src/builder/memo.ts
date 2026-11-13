@@ -24,6 +24,7 @@ async function constructedSession(
     readTag: holder.configuration.blockTags.read,
     versionEscape: settings.versionEscape,
     reading: settings.reading,
+    action: settings.action?.address,
   });
 
   return assembledSession(holder, descriptor, reading, registries() ?? builtRegistries(descriptor, settings), settings);

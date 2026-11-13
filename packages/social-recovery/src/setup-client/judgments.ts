@@ -16,8 +16,8 @@ export async function validationAt(
   draft: SetupDraft,
   credentials: readonly PlacedCredential[],
   pinned: PinnedHeader,
+  deployed: Promise<boolean> = holdsCode(parts, pinned.block),
 ): Promise<ValidationResult> {
-  const deployed = holdsCode(parts, pinned.block);
   const [reads, managerEvents] = await Promise.all([
     judgmentReads(parts, distinctMethods(credentials), pinned.block, deployed),
     accountWideEvents(parts, pinned.block),

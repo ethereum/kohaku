@@ -119,6 +119,15 @@ describe('method-ecdsa-config.json replay', () => {
 
     expect(await walletMethod().verify(ctx, proof)).toBe('rejected');
   });
+
+  it.each([
+    ['test-signer', []],
+    ['zero-address', ['signer']],
+  ] as const)('row %s: outOfBounds answers %j, the row still encoding and decoding as above', (name, fields) => {
+    const row = rows.find((candidate) => rowName(candidate) === name);
+
+    expect(codec.outOfBounds?.(expectedOf(row)['encoded'] as Hex)).toEqual(fields);
+  });
 });
 
 describe('method-ecdsa-proof.json replay', () => {
