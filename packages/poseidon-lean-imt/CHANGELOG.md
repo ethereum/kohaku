@@ -1,5 +1,11 @@
 # @kohaku-eth/poseidon-lean-imt
 
+## 0.0.1-alpha.1
+
+### Patch Changes
+
+- 27cf0a7: Build Privacy Pools Merkle trees in the calling thread when workers are unavailable or fail, including Chrome MV3 service workers and React Native. Add an optional `merkleTreeBuilder` callback with async tree methods for offscreen/worker bridges, and clean up workers when a pool only partially starts.
+
 ## 0.0.1-alpha.0
 
 ### Patch Changes

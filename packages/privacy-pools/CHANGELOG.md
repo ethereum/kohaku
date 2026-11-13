@@ -1,5 +1,32 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.39
+
+### Minor Changes
+
+- 7241ff4: Support compatible caller-selected EIP-7702 implementations and external typed-data-only owners of SimpleAccount v0.8 accounts, including factory deployment. Preserve sponsored withdrawal proof formats and paymasters, pin signing scopes, and avoid redundant forwarding when withdrawing a batch into its execution account.
+- a83c847: fix: report paymaster withdrawal outcomes correctly. Paymaster `broadcast()` now resolves once the bundler accepts the userOp, and the returned `wait()` checks the receipt's `success`. Failures throw a `PaymasterBroadcastError` without the signed userOp. Custom `IPaymasterBroadcasterClient`s must return `wait()` instead of `txHash`, and reject instead of omitting failed withdrawals. `prepareUnshield` with `mode: 'paymaster'` now returns `PPv1PaymasterPrivateOperation`, so its broadcast result has `wait()` without narrowing.
+
+### Patch Changes
+
+- 0cd0a32: Keep working while the ASP service is down: `ragequit` no longer calls it, and a sync keeps the last good association set instead of failing. Withdrawals are refused until a sync gets the current set.
+- 7241ff4: Preserve reuse of explicitly selected external and wallet-path EOAs without requiring `allowUsed: true`, including existing delegation to the selected implementation. Freshness checks remain the default for note-derived/random senders and smart accounts; explicit `allowUsed: false` also enforces them for wallet EOAs.
+
+  Budget factory deployment gas only when the prepared account still needs deployment. For Tornado execution-gas retries, retain a successful probe's gas budget instead of trimming back to an estimate that can fail again.
+
+- a83c847: fix: keep the signed userOp out of bundler gas estimation errors. Preparing a paymaster withdrawal could throw viem's error, whose message includes the request body, which is the signed userOp. The error now has only the bundler's reason.
+- a83c847: fix: don't report a paymaster withdrawal as not sent when only the send response was lost. When `eth_sendUserOperation` fails, the broadcaster asks the bundler whether it knows the userOp, and treats an `Already known` answer as accepted. It reports `not-accepted`, with the hash, only if the bundler answered the send with another error. If the send got no answer, e.g. a timeout, it reports `unconfirmed` with the hash, because some bundlers only know mined userOps. The send is no longer retried. Paymaster withdrawal payloads now carry the `userOpHash` computed at signing; for payloads prepared before that, the broadcaster computes it from the signed userOp.
+- 27cf0a7: Build Privacy Pools Merkle trees in the calling thread when workers are unavailable or fail, including Chrome MV3 service workers and React Native. Add an optional `merkleTreeBuilder` callback with async tree methods for offscreen/worker bridges, and clean up workers when a pool only partially starts.
+- 9dd8f65: feat: expose each deposit's ASP review status (`pending`, `approved`, `declined`, `poi_required`) on notes and history, read from an opt-in `aspReviewServiceFactory` (`OxBowAspReviewService`)
+- a83ec56: fix: time out the ASP tree (30 seconds) and the ASP review feed (10 seconds) so a stalled service cannot block syncs (including a ragequit's), and stop showing cached review statuses to accounts without `aspReviewServiceFactory`
+- a2177fd: feat: let accounts share one copy of the chain state through `chainStorage`, and export the storage key builders. The plugin no longer saves anything per account: history timestamps are shared with the chain state, and exact metadata saved by older versions is no longer used. States saved by earlier versions are dropped and synced again.
+- d884f3e: `prepareUnshield` accepts `label` in relayer and paymaster mode to spend one specific note. If that note is missing, belongs to another asset, is not approved, or does not cover the gross amount (fees included with `exact`), preparation throws the new exported `PPv1NoteUnavailableError` (`label`, `reason`, `balance`, `required`) instead of picking another note. `label` cannot be combined with `batch: true`; with `obfuscateAmounts`, the ceiling and change apply to the chosen note alone.
+
+  Automatic single-note selection now skips unapproved and empty notes. Before, it could pick an unapproved note smaller than an approved one and fail later while proving.
+
+- Updated dependencies [27cf0a7]
+  - @kohaku-eth/poseidon-lean-imt@0.0.1-alpha.1
+
 ## 0.1.0-alpha.38
 
 ### Patch Changes
