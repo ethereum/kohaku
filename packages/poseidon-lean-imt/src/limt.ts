@@ -27,26 +27,25 @@ export class PoseidonT3LeanIMT {
     if (leaves.length > 0) this.insertMany(leaves);
   }
 
+  /** Copies trusted levels from parallelLevels without hashing or verifying them. */
+  static fromLevels(levels: bigint[][]): PoseidonT3LeanIMT {
+    const tree = new PoseidonT3LeanIMT();
+
+    tree.levels = levels.map((level) => level.slice());
+    tree.levels[0].forEach((leaf, i) => {
+      if (!tree.positions.has(leaf)) tree.positions.set(leaf, i);
+    });
+
+    return tree;
+  }
+
   // Same tree as new LeanIMT(leaves), hashed level by level on workers. Workers
   // always start (at most one per parent), even when the tree is too small to
   // gain from them.
   static async fromLeavesParallel(leaves: bigint[], options: ParallelOptions = {}): Promise<PoseidonT3LeanIMT> {
     const workers = options.workers ?? (await defaultWorkerCount());
 
-    if (!Number.isInteger(workers) || workers < 1) {
-      throw new Error(`workers must be a positive integer, got ${workers}`);
-    }
-
-    const tree = new PoseidonT3LeanIMT();
-
-    if (leaves.length === 0) return tree;
-
-    tree.levels = await parallelLevels(leaves, workers, options.workerUrl);
-    tree.levels[0].forEach((leaf, i) => {
-      if (!tree.positions.has(leaf)) tree.positions.set(leaf, i);
-    });
-
-    return tree;
+    return PoseidonT3LeanIMT.fromLevels(await parallelLevels(leaves, workers, options.workerUrl));
   }
 
   // undefined on an empty tree.
