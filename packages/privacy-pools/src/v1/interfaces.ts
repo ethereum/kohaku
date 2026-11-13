@@ -70,7 +70,8 @@ export type PPv1Credentials = PPv1NativeCredential | PPv1MnemonicCretendial;
 type PPv1InstanceFactory<Credential extends PPv1Credentials> = Omit<PPv1PluginInstance<Credential>, 'balance' | 'notes' | 'prepareShield' | 'prepareUnshield'> & {
     balance(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1AssetBalance[]>,
     notes(assets?: ERC20AssetId[], includeSpent?: boolean, options?: PPv1ViewOptions): Promise<INote[]>,
-    prepareShield(asset: PPv1AssetAmount, options?: PPv1Address | PPv1ShieldOptions): Promise<PPv1PublicOperation>,
+    prepareShield(asset: PPv1AssetAmount, to?: PPv1Address): Promise<PPv1PublicOperation>,
+    prepareShield(asset: PPv1AssetAmount, options: PPv1ShieldOptions): Promise<PPv1PublicOperation>,
     prepareUnshield(asset: PPv1AssetAmount, to: AccountId, options: PPv1PaymasterUnshieldOptions): Promise<PPv1PaymasterPrivateOperation>,
     prepareUnshield(asset: PPv1AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>,
     prepareUnshield(asset: PPv1AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>,

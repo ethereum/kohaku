@@ -21,6 +21,7 @@ import { addressToHex, } from "../utils.js";
 import { encodeRagequitPayload, encodeWithdrawalPayload } from "../utils/encoding.utils.js";
 import { deductFeeBPS } from "../utils/fee.utils.js";
 import {
+  PPv1Address,
   PPv1AssetAmount,
   PPv1AssetBalance,
   PPv1BroadcasterParameters,
@@ -206,9 +207,23 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     }).flat();
   }
 
+  /**
+   * Prepares a shield. PPv1 ignores the legacy `to` address because
+   * deposits always target the caller's own account.
+   */
+  prepareShield(
+    assets: PPv1AssetAmount,
+    to?: PPv1Address,
+  ): Promise<PPv1PublicOperation>;
+
+  prepareShield(
+    assets: PPv1AssetAmount,
+    options: PPv1ShieldOptions,
+  ): Promise<PPv1PublicOperation>;
+
   async prepareShield(
     assets: PPv1AssetAmount,
-    options?: string | PPv1ShieldOptions,
+    toOrOptions?: PPv1Address | PPv1ShieldOptions,
   ): Promise<PPv1PublicOperation> {
     const { asset, amount } = assets;
 
@@ -217,9 +232,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     const tx = await this.stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
-      depositIndex: typeof options === "string"
-        ? undefined
-        : options?.depositIndex,
+      depositIndex: typeof toOrOptions === "object"
+        ? toOrOptions.depositIndex
+        : undefined,
     });
 
     return { txns: [tx] } as PPv1PublicOperation;
