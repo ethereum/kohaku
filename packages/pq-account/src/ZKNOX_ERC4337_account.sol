@@ -34,38 +34,27 @@ contract ZKNOX_ERC4337_account is BaseAccount {
         return _entryPoint;
     }
 
-    /// @notice Verify hybrid signature (pre- and post-quantum)
-    /// @param preQPubKey is a pre-quantum public key
-    /// @param postQPubKey is a post-quantum public key
-    /// @param preQLogicContractAddress the logic of the pre-quantum verification
-    /// @param postQLogicContractAddress the logic of the post-quantum verification
+    /// @notice Verify a hybrid (pre- and post-quantum) signature against this account's keys
+    /// @dev Always uses the keys and verifier contracts stored at construction, so callers
+    ///      cannot substitute their own verifiers.
     /// @param digest The data that was signed
     /// @param preQuantumSig the pre-quantum signature: [r, s, v] for k1, [r, s] for r1
     /// @param postQuantumSig the post-quantum signature (depending on the scheme)
     /// @return true if both signatures are valid
-    function isValid(
-        bytes memory preQPubKey,
-        bytes memory postQPubKey,
-        address preQLogicContractAddress,
-        address postQLogicContractAddress,
-        bytes32 digest,
-        bytes memory preQuantumSig,
-        bytes memory postQuantumSig
-    ) public view returns (bool) {
-        // Validate digest length
-        if (digest.length > 32) {
-            return false;
-        }
-
+    function _isValid(bytes32 digest, bytes memory preQuantumSig, bytes memory postQuantumSig)
+        internal
+        view
+        returns (bool)
+    {
         // Verify pre-quantum signature
-        ISigVerifier preQuantumCore = ISigVerifier(preQLogicContractAddress);
-        if (preQuantumCore.verify(preQPubKey, digest, preQuantumSig) != preQuantumCore.verify.selector) {
+        ISigVerifier preQuantumCore = ISigVerifier(preQuantumLogicContractAddress);
+        if (preQuantumCore.verify(preQuantumPubKey, digest, preQuantumSig) != preQuantumCore.verify.selector) {
             return false;
         }
 
         // Verify post-quantum signature
-        ISigVerifier postQuantumCore = ISigVerifier(postQLogicContractAddress);
-        if (postQuantumCore.verify(postQPubKey, digest, postQuantumSig) != postQuantumCore.verify.selector) {
+        ISigVerifier postQuantumCore = ISigVerifier(postQuantumLogicContractAddress);
+        if (postQuantumCore.verify(postQuantumPubKey, digest, postQuantumSig) != postQuantumCore.verify.selector) {
             return false;
         }
         return true;
@@ -79,15 +68,7 @@ contract ZKNOX_ERC4337_account is BaseAccount {
         returns (uint256 validationData)
     {
         (bytes memory preQuantumSig, bytes memory postQuantumSig) = abi.decode(userOp.signature, (bytes, bytes));
-        bool result = isValid(
-            preQuantumPubKey,
-            postQuantumPubKey,
-            preQuantumLogicContractAddress,
-            postQuantumLogicContractAddress,
-            userOpHash,
-            preQuantumSig,
-            postQuantumSig
-        );
+        bool result = _isValid(userOpHash, preQuantumSig, postQuantumSig);
         if (!result) {
             return SIG_VALIDATION_FAILED;
         }
