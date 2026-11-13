@@ -154,7 +154,10 @@ export function describeSetup(draft: SetupDraft, context: SetupDescriptionContex
     rule: { clauses: ruleOf(draft, credentials, table) },
     wait: { committed: draft.wait, clientDefault: context.configuration.defaultWait },
     failureDomains: failureDomainsOf(draft, credentials),
-    parties: describedParties(credentials, table, normalizeAddress(descriptor.methodEcdsa, 'context.descriptor.methodEcdsa')),
+    parties: describedParties(credentials, table, normalizeAddress(descriptor.methodEcdsa, 'context.descriptor.methodEcdsa'), {
+      zkPassport: normalizeAddress(descriptor.methodZkpassport, 'context.descriptor.methodZkpassport'),
+      aadhaar: normalizeAddress(descriptor.methodAadhaar, 'context.descriptor.methodAadhaar'),
+    }),
     methodStanding: methodStanding(credentials, table, normalizeAddresses(descriptor.shippedMethods, 'context.descriptor.shippedMethods')),
     passkeyDomains: passkeyDomains(credentials, normalizeAddress(descriptor.methodPasskey, 'context.descriptor.methodPasskey')),
     candidateKeys: candidateKeysOf(context),

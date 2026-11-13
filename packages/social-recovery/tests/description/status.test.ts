@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ATTEMPT_STATES, describeStatus, type KitNotification } from '../../src/index';
+import { ATTEMPT_STATES, DESCRIPTION_CONSUMED_ATTEMPT_STATE, describeStatus, type KitNotification, type SetupState } from '../../src/index';
 import {
   at,
   BLOCK_TIME,
   COMMITMENT,
+  CONSUMED,
   HASH_ONE,
   HASH_TWO,
   HOLDER,
@@ -13,6 +14,7 @@ import {
   METHOD_C,
   paused,
   PAYLOAD,
+  RECOVERED_STATE,
   RECOVERY_STATE,
   OTHER_ACCOUNT,
   OTHER_ACTION,
@@ -201,5 +203,62 @@ describe('describeStatus: stops from the notifications alone', () => {
     ];
 
     expect(describeStatus(SETUP_STATE, RECOVERY_STATE, latest, SCOPE).stops.find((entry) => entry.method === METHOD_A)?.latest).toBeUndefined();
+  });
+});
+
+describe('describeStatus: whether the recovery left the setup standing, so a re-commit is owed', () => {
+  it('is true for an attempt consumed under the setup nonce still standing, the attempt still shown as consumed', () => {
+    const description = describeStatus(SETUP_STATE, RECOVERED_STATE, [], SCOPE);
+
+    expect(description.recommitOwed).toBe(true);
+    expect(description.attempt?.state).toBe('Consumed');
+  });
+
+  it.each(ATTEMPT_STATES.map((state) => [state, state === 'Consumed'] as const))('a %s attempt at equal nonces gives %s', (state, owed) => {
+    const recovery = { ...RECOVERY_STATE, attempt: { ...WAITING, state } };
+
+    expect(describeStatus(SETUP_STATE, recovery, [], SCOPE).recommitOwed).toBe(owed);
+  });
+
+  it.each<[string, bigint, bigint, boolean]>([
+    ['a setup write moved the nonce on since: re-committed or cleared', 3n, 4n, false],
+    ['the record carries a nonce below the attempt\'s', 4n, 3n, false],
+    ['both nonces are zero', 0n, 0n, true],
+    ['both nonces are the largest uint64', 2n ** 64n - 1n, 2n ** 64n - 1n, true],
+  ])('a consumed attempt where %s', (_name, attemptNonce, setupNonce, owed) => {
+    const recovery = { ...RECOVERY_STATE, attempt: { ...CONSUMED, setupNonce: attemptNonce }, setupNonce };
+
+    expect(describeStatus(SETUP_STATE, recovery, [], SCOPE).recommitOwed).toBe(owed);
+  });
+
+  it('owes none on the existing fixtures, a waiting attempt and no attempt', () => {
+    expect(describeStatus(SETUP_STATE, RECOVERY_STATE, [], SCOPE).recommitOwed).toBe(false);
+    expect(describeStatus(SETUP_STATE, IDLE_STATE, [], SCOPE).recommitOwed).toBe(false);
+  });
+
+  it.each<[string, SetupState]>([
+    ['an unarmed setup', { ...SETUP_STATE, isAuthorized: false }],
+    ['no setup', { ...SETUP_STATE, hasSetup: false }],
+    ['no active attempt', { ...SETUP_STATE, attemptActive: false }],
+    ['another setup nonce', { ...SETUP_STATE, setupNonce: 4n }],
+    ['another block hash', { ...SETUP_STATE, block: { ...SETUP_STATE.block, hash: HASH_TWO } }],
+  ])('the setup record does not decide it: %s', (_name, setup) => {
+    expect(describeStatus(setup, RECOVERED_STATE, [], SCOPE).recommitOwed).toBe(true);
+    expect(describeStatus(setup, RECOVERY_STATE, [], SCOPE).recommitOwed).toBe(false);
+    expect(describeStatus(setup, { ...RECOVERED_STATE, setupNonce: 4n }, [], SCOPE).recommitOwed).toBe(false);
+  });
+
+  it('neither the notifications nor the recovery record\'s block decide it', () => {
+    const latest = [started(5n, [0n, 2n], PAYLOAD, at(96)), paused(METHOD_A, at(97))];
+    const moved = { ...RECOVERED_STATE, block: { ...RECOVERED_STATE.block, hash: HASH_TWO } };
+
+    expect(describeStatus(SETUP_STATE, RECOVERED_STATE, latest, SCOPE).recommitOwed).toBe(true);
+    expect(describeStatus(SETUP_STATE, moved, [], SCOPE).recommitOwed).toBe(true);
+    expect(describeStatus(SETUP_STATE, RECOVERY_STATE, latest, SCOPE).recommitOwed).toBe(false);
+  });
+
+  it('the consumed state it compares with is the manager\'s Consumed', () => {
+    expect(DESCRIPTION_CONSUMED_ATTEMPT_STATE).toBe('Consumed');
+    expect(ATTEMPT_STATES).toContain(DESCRIPTION_CONSUMED_ATTEMPT_STATE);
   });
 });

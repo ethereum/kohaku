@@ -11,6 +11,8 @@ import {
   type Ctx,
   type DescribedAction,
   type DescribedFallbackHandler,
+  type DescribedParties,
+  type NamedTrustedKeys,
   type ConfigurationSource,
   type GatheringPlace,
   type Hex,
@@ -211,6 +213,69 @@ describe('the setup description and the recovery state', () => {
       sorted(['isAuthorized', 'hasSetup', 'setupCommitment', 'setupNonce', 'setupCommittedAtBlock', 'attemptActive', 'block']),
     );
     expect(fieldsOf(field(setupState, 'block'))).toEqual(sorted(['number', 'timestamp', 'hash']));
+  });
+});
+
+/** The zkPassport method's trusted-key names in word order, listed independently of src/. */
+const ZKPASSPORT_KEY_NAMES = ['version', 'rootVerifier', 'subVerifier', 'verifierHelper', 'rootRegistry', 'rootAdmin', 'rootGuardian', 'subVerifierAdmin'];
+
+describe('the described parties and the named trusted keys', () => {
+  it('a described method entry carries exactly method, parties and an optional namedKeys', () => {
+    const entry = elementOf(typeOf('DescribedParties'), 'methods');
+
+    expect(fieldsOf(entry)).toEqual(sorted(['method', 'parties', 'namedKeys']));
+    expect(fieldsOf(entry).filter((name) => optional(entry, name))).toEqual(['namedKeys']);
+    expect(mutuallyAssignable(field(entry, 'method'), typeOf('Address'))).toBe(true);
+    expect(mutuallyAssignable(field(entry, 'namedKeys'), typeOf('NamedTrustedKeys'))).toBe(true);
+    expectTypeOf<DescribedParties['methods'][number]['parties']>().toEqualTypeOf<ReadResult<core.Parties>>();
+    expectTypeOf<NonNullable<DescribedParties['methods'][number]['namedKeys']>>().toEqualTypeOf<NamedTrustedKeys>();
+  });
+
+  it('the described parties keep exactly methods and walletGuardians', () => {
+    expect(fieldsOf(typeOf('DescribedParties'))).toEqual(sorted(['methods', 'walletGuardians']));
+  });
+
+  it('NamedTrustedKeys has exactly two members, kinds method-zkpassport and method-aadhaar', () => {
+    expect(constituents(typeOf('NamedTrustedKeys'))).toHaveLength(2);
+    expect(kindsOf(context.checker, typeOf('NamedTrustedKeys'))).toEqual(['method-aadhaar', 'method-zkpassport']);
+  });
+
+  it('the zkPassport member carries kind and the eight names, all required, the version a string and the seven others addresses', () => {
+    const member = memberWith(typeOf('NamedTrustedKeys'), 'kind', 'method-zkpassport');
+
+    expect(fieldsOf(member)).toEqual(sorted(['kind', ...ZKPASSPORT_KEY_NAMES]));
+    expect(fieldsOf(member).filter((name) => optional(member, name))).toEqual([]);
+    expect(isString(field(member, 'version'))).toBe(true);
+
+    for (const name of ZKPASSPORT_KEY_NAMES.slice(1)) expect(mutuallyAssignable(field(member, name), typeOf('Address')), name).toBe(true);
+
+    expectTypeOf<Extract<NamedTrustedKeys, { readonly kind: 'method-zkpassport' }>>().toEqualTypeOf<{
+      readonly kind: 'method-zkpassport';
+      readonly version: string;
+      readonly rootVerifier: Address;
+      readonly subVerifier: Address;
+      readonly verifierHelper: Address;
+      readonly rootRegistry: Address;
+      readonly rootAdmin: Address;
+      readonly rootGuardian: Address;
+      readonly subVerifierAdmin: Address;
+    }>();
+  });
+
+  it('the Aadhaar member carries exactly kind and a required issuerKeyHash word', () => {
+    const member = memberWith(typeOf('NamedTrustedKeys'), 'kind', 'method-aadhaar');
+
+    expect(fieldsOf(member)).toEqual(['issuerKeyHash', 'kind']);
+    expect(optional(member, 'issuerKeyHash')).toBe(false);
+    expect(mutuallyAssignable(field(member, 'issuerKeyHash'), typeOf('Hex'))).toBe(true);
+    expectTypeOf<Extract<NamedTrustedKeys, { readonly kind: 'method-aadhaar' }>>().toEqualTypeOf<{
+      readonly kind: 'method-aadhaar';
+      readonly issuerKeyHash: Hex;
+    }>();
+  });
+
+  it('SetupDescription.parties is a DescribedParties', () => {
+    expectTypeOf<SetupDescription['parties']>().toEqualTypeOf<DescribedParties>();
   });
 });
 
@@ -889,5 +954,25 @@ void configuration;
     expect(members).toHaveLength(2);
     expect(members.filter((member) => mutuallyAssignable(member, typeOf('Configuration')))).toHaveLength(1);
     expect(members.filter((member) => fieldsOf(member).join() === 'password')).toHaveLength(1);
+  });
+});
+
+describe('the status description', () => {
+  it('StatusDescription carries exactly block, an optional attempt, armed, setup, stops and a required recommitOwed', () => {
+    const status = typeOf('StatusDescription');
+
+    expect(fieldsOf(status)).toEqual(sorted(['block', 'attempt', 'armed', 'setup', 'stops', 'recommitOwed']));
+    expect(fieldsOf(status).filter((name) => optional(status, name))).toEqual(['attempt']);
+  });
+
+  it('recommitOwed is a boolean', () => {
+    expect(hasFlag(field(typeOf('StatusDescription'), 'recommitOwed'), ts.TypeFlags.Boolean)).toBe(true);
+    expectTypeOf<core.StatusDescription['recommitOwed']>().toEqualTypeOf<boolean>();
+  });
+
+  it('StatusAttempt keeps its members and carries no setup nonce', () => {
+    expect(fieldsOf(typeOf('StatusAttempt'))).toEqual(
+      sorted(['state', 'attemptId', 'consumableAfter', 'blockTimestamp', 'usedMethods', 'usedPlaces', 'ignoresPause', 'payload', 'order']),
+    );
   });
 });

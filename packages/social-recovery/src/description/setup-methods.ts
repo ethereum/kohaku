@@ -2,8 +2,9 @@ import { decodeAbiParameters, encodeAbiParameters } from 'viem';
 import { DESCRIPTION_PASSKEY_CONFIG_ABI } from '../constants';
 import type { Address, DescribedParties, Hex, MethodStanding, SetupDescription } from '../interfaces';
 import { decodeSigner, isGuardianAddress } from '../method-ecdsa/codec';
-import type { MethodDescriptionReads } from '../types/description';
+import type { IdentityMethods, MethodDescriptionReads } from '../types/description';
 import type { PlacedCredential } from '../types/validation';
+import { namedKeysOf } from './named-keys';
 
 /** Each method the credentials name, once, in the order of its first place. */
 export const distinctMethods = (credentials: readonly PlacedCredential[]): Address[] => [
@@ -47,21 +48,24 @@ function relyingPartyIdHashOf(credentials: readonly PlacedCredential[], credenti
   throw new TypeError(`${configName(credentials, credential)} must be the passkey layout of x, y and the relying-party id hash`);
 }
 
-/** Per method its declared parties, per wallet guardian the address its config holds. */
+/** Per method its declared parties and, for an identity method, their trusted keys by name; per wallet guardian the address its config holds. */
 export function describedParties(
   credentials: readonly PlacedCredential[],
   table: ReadonlyMap<Address, MethodDescriptionReads>,
   walletMethod: Address,
+  identity: IdentityMethods,
 ): DescribedParties {
   const walletGuardians = credentials
     .filter(({ method }) => method === walletMethod)
     .map((credential) => ({ place: credential.place, address: guardianOf(credentials, credential) }));
 
   return {
-    methods: distinctMethods(credentials).map((method) => ({
-      method,
-      parties: (table.get(method) as MethodDescriptionReads).trustedParties,
-    })),
+    methods: distinctMethods(credentials).map((method) => {
+      const parties = (table.get(method) as MethodDescriptionReads).trustedParties;
+      const named = namedKeysOf(method, parties, identity);
+
+      return { method, parties, ...(named === undefined ? {} : { namedKeys: named }) };
+    }),
     walletGuardians,
   };
 }

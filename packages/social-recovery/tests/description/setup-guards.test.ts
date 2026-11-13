@@ -152,3 +152,28 @@ describe('describeSetup and validateSetup share one guard over the action reads'
     expect((validated as Error).message).toBe((described as Error).message);
   });
 });
+
+describe('describeSetup refuses a malformed identity-method address in the descriptor, naming it', () => {
+  it.each<[string, 'methodZkpassport' | 'methodAadhaar', unknown]>([
+    ['a word for the zkPassport method', 'methodZkpassport', 'nope'],
+    ['a short zkPassport method', 'methodZkpassport', '0x3000'],
+    ['a missing zkPassport method', 'methodZkpassport', undefined],
+    ['a word for the Aadhaar method', 'methodAadhaar', 'nope'],
+    ['a 32-byte Aadhaar method', 'methodAadhaar', `0x${'30'.repeat(32)}`],
+    ['a missing Aadhaar method', 'methodAadhaar', undefined],
+  ])('throws a TypeError for %s, even where the draft names no such credential', (_name, member, value) => {
+    const context = { ...CONTEXT, descriptor: { ...DESCRIPTOR, [member]: value } } as unknown as typeof CONTEXT;
+    const draft = { ...DRAFT, clauses: DRAFT.clauses.slice(0, 1) };
+
+    expect(() => describeSetup(DRAFT, context)).toThrow(TypeError);
+    expect(() => describeSetup(DRAFT, context)).toThrow(new RegExp(`context\\.descriptor\\.${member}`));
+    expect(() => describeSetup(draft, context)).toThrow(new RegExp(`context\\.descriptor\\.${member}`));
+  });
+
+  it.each(['methodZkpassport', 'methodAadhaar'] as const)('accepts %s in lower case', (member) => {
+    const lettered = '0xabcdef0123456789abcdef0123456789abcdef03';
+    const context = { ...CONTEXT, descriptor: { ...DESCRIPTOR, [member]: lettered } };
+
+    expect(() => describeSetup(DRAFT, context)).not.toThrow();
+  });
+});

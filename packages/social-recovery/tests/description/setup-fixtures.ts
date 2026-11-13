@@ -173,3 +173,33 @@ export const byMethod = <Entry extends { readonly method: Address }>(entries: re
 /** JSON with bigints as decimal strings, for searching a whole description. */
 export const serialize = (value: unknown): string =>
   JSON.stringify(value, (_key, inner: unknown) => (typeof inner === 'bigint' ? inner.toString() : inner));
+
+/** A trusted-key word holding an address in its low 20 bytes. */
+export const addressWord = (address: Address): Hex => `0x${'0'.repeat(24)}${address.slice(2).toLowerCase()}`;
+
+/** The zkPassport version word of 0.21.1: three two-byte parts, then zeros. */
+export const VERSION_WORD: Hex = `0x000000150001${'0'.repeat(52)}`;
+
+/** Seven addresses with letters, so each checksum differs from its lower-case spelling, for words 1 to 7 in order. */
+export const ZKPASSPORT_ROLES: readonly Address[] = [1, 2, 3, 4, 5, 6, 7].map((n) => getAddress(`0xabcdef0123456789abcdef0123456789abcd000${n}`));
+
+/** A zkPassport declaration the method's own rule accepts: the version word, then the seven address words. */
+export const ZKPASSPORT_WORDS: readonly Hex[] = [VERSION_WORD, ...ZKPASSPORT_ROLES.map(addressWord)];
+
+/** The fixtures' context with the zkPassport method declaring the eight accepted words. */
+export const LABELLED_CONTEXT: SetupDescriptionContext = withMethod(ZKPASSPORT, {
+  trustedParties: { answered: true, value: { ...ZKPASSPORT_PARTIES, trustedKeys: ZKPASSPORT_WORDS } },
+});
+
+/** A one-credential draft on the given method, and the fixtures' context reading only that method, with the declaration given. */
+export const declaring = (
+  method: Address,
+  trustedParties: MethodDescriptionReads['trustedParties'],
+): { readonly draft: SetupDraft; readonly context: SetupDescriptionContext } => {
+  const config = method === ECDSA ? GUARDIAN.encoded : method === PASSKEY ? PASSKEY_CONFIG.encoded : word(4);
+
+  return {
+    draft: { ...DRAFT, clauses: [{ threshold: 1, credentials: [{ method, config }] }] },
+    context: { ...CONTEXT, methods: [reads(method, 'declaring-method', { trustedParties })] },
+  };
+};
