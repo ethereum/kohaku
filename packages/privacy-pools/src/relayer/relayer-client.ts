@@ -19,6 +19,26 @@ export interface IRelayerClientParams {
 
 export class RelayerError extends Error {}
 
+function quoteErrorMessage(body: string): string {
+  try {
+    const parsed: unknown = JSON.parse(body);
+
+    if (typeof parsed === 'string') return parsed;
+
+    if (parsed && typeof parsed === 'object') {
+      const { error, message } = parsed as { error?: unknown; message?: unknown };
+
+      if (typeof error === 'string') return error;
+
+      if (typeof message === 'string') return message;
+
+      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
+    }
+  } catch { /* Non-JSON error responses are reported as text. */ }
+
+  return body;
+}
+
 export class RelayerClient implements IRelayerClient {
   private fetch: Network["fetch"];
 
@@ -43,10 +63,17 @@ export class RelayerClient implements IRelayerClient {
             asset: addressToHex(asset),
             recipient: addressToHex(recipient),
             chainId: toHex(chainId),
-            amount: toHex(amount),
+            amount: amount.toString(10),
             ...body,
         })
-    })
+    });
+
+    if (!quoteRequest.ok) {
+      const body = await quoteRequest.text().catch(() => '');
+      const reason = quoteErrorMessage(body).trim().slice(0, 512);
+
+      throw new RelayerError(`Quote request failed (HTTP ${quoteRequest.status})${reason ? `: ${reason}` : ''}`);
+    }
 
     return quoteRequest.json();
   }

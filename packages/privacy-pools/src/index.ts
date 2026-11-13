@@ -4,6 +4,8 @@ export { analyzePPv1Withdrawal, PPv1AmountObfuscationError } from './withdrawal/
 export type { PPv1WithdrawalAnalysis } from './withdrawal/batch-plan';
 export { PPv1NoteUnavailableError } from './withdrawal/note-label';
 export type { PPv1NoteUnavailableReason } from './withdrawal/note-label';
+export { PPv1RelayerQuoteError } from './relayer/quote-error';
+export type { PPv1RelayerQuoteFailure } from './relayer/quote-error';
 // Main factory
 export { PrivacyPoolsV1Protocol, PPv1ExactOutputError, DEFAULT_EXACT_GAS_BUMP_BPS } from './plugin/base';
 export { IPFSAspService } from './data/ipfsAsp.service.js';
