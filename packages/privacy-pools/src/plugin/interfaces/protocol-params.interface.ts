@@ -17,6 +17,7 @@ import { PublicRootState } from "../../state/store";
 import { SpecificAssetBalanceFn } from "../../state/selectors/balance.selector";
 import { StoreFactoryParams } from "../../state/state-manager";
 import { WithdrawProveOutput } from "../../state/thunks/withdrawThunk";
+import type { PPv1DepositorCheckOptions, PPv1UnshieldWarning } from "../depositor-check";
 
 /** Withdrawal via a relayer that fronts gas (the default path). */
 export interface PPv1RelayerPrivateOperation extends PrivateOperation {
@@ -36,6 +37,8 @@ export interface PPv1RelayerPrivateOperation extends PrivateOperation {
   };
   /** Present only for exact-output unshields (`options.exact`): the resolved gross/net/fee. */
   exact?: PPv1ExactUnshieldResult;
+  /** Non-fatal findings from `prepareUnshield`, e.g. the depositor check could not run. */
+  warnings?: PPv1UnshieldWarning[];
 }
 
 /** Withdrawal sponsored by a paymaster via an ERC-4337 userOp. */
@@ -44,6 +47,8 @@ export interface PPv1PaymasterPrivateOperation extends PrivateOperation {
   withdrawal: IGenericPaymasterWithdrawalPayload;
   /** Present only for exact-output unshields (`options.exact`): the resolved gross/net/fee. */
   exact?: PPv1ExactUnshieldResult;
+  /** Non-fatal findings from `prepareUnshield`, e.g. the depositor check could not run. */
+  warnings?: PPv1UnshieldWarning[];
 }
 
 export type PPv1PrivateOperation =
@@ -94,6 +99,12 @@ interface PPv1CommonUnshieldOptions extends UnshieldOptions {
    * a lower bound).
    */
   exact?: PPv1ExactUnshieldOptions;
+  /**
+   * Guards against withdrawing to the address that deposited, which links both ends of
+   * the withdrawal. Defaults to `{ mode: 'warn' }`: `prepareUnshield` throws a
+   * `PPv1DepositorCheckError` unless `confirmed` is true. `block` always throws.
+   */
+  depositorCheck?: PPv1DepositorCheckOptions;
 }
 
 /** Relayer-mode withdrawal options. */

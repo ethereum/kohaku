@@ -19,6 +19,7 @@ function setup() {
   // Stands in for the paymaster thunk: derives the delegator the way it does.
   const stateManager = {
     sync: vi.fn(async () => {}),
+    getNotes: vi.fn(async () => []),
     getPaymasterWithdrawalPayloads: vi.fn(async ({ delegation }: IPaymasterWithdrawapOperationParams) => [
       { delegatorKey: await manager.deriveDelegatorSigner({ path: (delegation as { path: string }).path }) },
     ]),
