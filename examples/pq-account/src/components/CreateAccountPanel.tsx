@@ -1,4 +1,6 @@
 import { Field, useForm } from "@tanstack/react-form";
+import { ethers } from "ethers";
+import { ml_dsa44 } from "@noble/post-quantum/ml-dsa.js";
 import { useState } from "react";
 import { type Address, formatEther, isAddress } from "viem";
 import { useBalance, useConnection } from "wagmi";
@@ -91,6 +93,19 @@ export const CreateAccountPanel = () => {
     form.handleSubmit();
   };
 
+  const handleGenerateKeys = () => {
+    const preQuantumSeed = ethers.Wallet.createRandom().privateKey;
+    const postQuantumSeed = ethers.hexlify(ethers.randomBytes(32));
+    ml_dsa44.keygen(ethers.getBytes(postQuantumSeed)); // validate derivation works
+    form.setFieldValue("preQuantumSeed", preQuantumSeed);
+    form.setFieldValue("postQuantumSeed", postQuantumSeed);
+    updateSession({ preQuantumSeed, postQuantumSeed });
+    log("🔑 Keys generated successfully.");
+    log("   Pre-quantum (ECDSA):   " + preQuantumSeed);
+    log("   Post-quantum (ML-DSA): " + postQuantumSeed);
+    log("⚠️  Save both seeds in a password manager before deploying.");
+  };
+
   const handleFundAccount = () => {
     if (!deployedAddress) {
       log("Error: No account address! Deploy an account first.");
@@ -149,6 +164,15 @@ export const CreateAccountPanel = () => {
             Generate deterministic keypairs from seeds
           </p>
         </div>
+
+        <Button
+          className="mb-4"
+          variant="secondary"
+          fullWidth
+          onClick={handleGenerateKeys}
+        >
+          Generate New Keys
+        </Button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
