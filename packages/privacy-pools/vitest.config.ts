@@ -17,6 +17,7 @@ const E2E_SUITES = [
   { suiteName: 'withdraw-paymaster-broadcast', include: ['tests/e2e/**/withdraw-paymaster-broadcast.test.ts'], timeout: 600_000 },
   { suiteName: 'withdraw-paymaster-tailcalls', include: ['tests/e2e/**/withdraw-paymaster-tailcalls.test.ts'], timeout: 600_000 },
   { suiteName: 'withdraw-paymaster-batch', include: ['tests/e2e/**/withdraw-paymaster-batch.test.ts'], timeout: 600_000 },
+  { suiteName: 'withdraw-paymaster-failures', include: ['tests/e2e/**/withdraw-paymaster-failures.test.ts'], timeout: 600_000 },
   { suiteName: 'ragequit',        include: ['tests/e2e/**/ragequit.test.ts'],             timeout: 600_000 },
   { suiteName: 'sync',            include: ['tests/sync.test.ts'],                        timeout: 1_200_000 },
   { suiteName: 'asp-integration', include: ['tests/e2e/asp-services.test.ts'],            timeout: 60_000 },

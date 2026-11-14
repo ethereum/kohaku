@@ -6,6 +6,7 @@ import type { Address } from '../../src/interfaces/types.interface';
 import { myDepositsWithAssetSelector } from '../../src/state/selectors/balance.selector';
 import { selectLastSyncedBlock } from '../../src/state/selectors/last-synced-block.selector';
 import { storeFactory } from '../../src/state/store';
+import { discoverUserSecretsThunk } from '../../src/state/thunks/discoverUserSecretsThunk';
 import { syncThunk } from '../../src/state/thunks/syncThunk';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
@@ -82,13 +83,14 @@ const setupStore = () => storeFactory({
   entrypointInfo: { chainId: 1n, entrypointAddress: entrypoint, deploymentBlock: 100n },
 });
 
-const sync = (store: ReturnType<typeof setupStore>, dataService: ReturnType<typeof advancingChainDataService>) =>
-  store.dispatch(syncThunk({
+const sync = async (store: ReturnType<typeof setupStore>, dataService: ReturnType<typeof advancingChainDataService>) => {
+  await store.dispatch(syncThunk({
     dataService: dataService as unknown as IDataService,
-    secretManager,
     aspService: {} as IAspService,
     verify: false,
   })).unwrap();
+  await store.dispatch(discoverUserSecretsThunk({ secretManager })).unwrap();
+};
 
 describe('syncThunk head', () => {
   it('scans the entrypoint and every pool up to one head and saves that head', async () => {

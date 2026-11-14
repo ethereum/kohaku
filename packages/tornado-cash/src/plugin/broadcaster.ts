@@ -2,11 +2,11 @@ import { Host } from "@kohaku-eth/plugins";
 import type { Chain } from 'viem';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
-import { TCBroadcaster, TCBroadcasterParameters } from "../v1";
+import { TCBroadcaster, TCBroadcasterParameters, TCPaymasterBroadcastResponse } from "../v1";
 import { IPaymasterConfig, IRelayerWithdrawalPayload, TCPrivateOperation } from "./interfaces/protocol-params.interface";
 import { addressToHex } from "../utils";
-import { PaymasterBroadcaster, PaymasterBroadcastResult } from "../paymaster/paymaster-broadcaster";
-import { IPaymasterBroadcasterClient, IPaymasterWithdrawalPayload } from "../relayer/interfaces/paymaster-client.interface";
+import { PaymasterBroadcaster } from "../paymaster/paymaster-broadcaster";
+import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface";
 
 export interface TCRelayerConstructorParams extends TCBroadcasterParameters {
   host: Host;
@@ -14,8 +14,6 @@ export interface TCRelayerConstructorParams extends TCBroadcasterParameters {
   chain?: Chain;
   rpcUrl?: string;
 }
-
-export type TCBroadcastResult = ITornadoWithdrawResponse[] | PaymasterBroadcastResult[];
 
 export class TornadoCashBroadcaster implements TCBroadcaster {
   private relayerClient: IRelayerClient;
@@ -33,25 +31,21 @@ export class TornadoCashBroadcaster implements TCBroadcaster {
     this.paymasterBroadcaster = paymasterClientFactory();
   }
 
+  broadcast(operation: TCPrivateOperation<'paymaster'>): Promise<TCPaymasterBroadcastResponse[]>;
+  broadcast(operation: TCPrivateOperation<'relayer'>): Promise<ITornadoWithdrawResponse[]>;
+  broadcast(operation: TCPrivateOperation): Promise<(TCPaymasterBroadcastResponse | ITornadoWithdrawResponse)[]>;
   async broadcast({
     withdrawals
-  }: TCPrivateOperation): Promise<ITornadoWithdrawResponse[]> {
+  }: TCPrivateOperation): Promise<(TCPaymasterBroadcastResponse | ITornadoWithdrawResponse)[]> {
     const relayerWithdrawals = withdrawals.filter((w) => w.mode === 'relayer');
-    const paymasterWithdrawals = withdrawals.filter((w) => w.mode === 'paymaster') as IPaymasterWithdrawalPayload[];
+    const paymasterWithdrawals = withdrawals.filter((w) => w.mode === 'paymaster');
 
     const [relayerResults, paymasterResults] = await Promise.all([
       this.broadcastViaRelayer(relayerWithdrawals),
-      paymasterWithdrawals.length > 0
-        ? this.broadcastViaPaymaster(paymasterWithdrawals)
-        : Promise.resolve([]),
+      this.broadcastViaPaymaster(paymasterWithdrawals),
     ]);
 
-    // Normalize paymaster results into the same shape as relayer responses
-    const normalizedPaymasterResults: ITornadoWithdrawResponse[] = paymasterResults.map(
-      ({ userOpHash }) => ({ id: userOpHash }),
-    );
-
-    return [...relayerResults, ...normalizedPaymasterResults];
+    return [...relayerResults, ...paymasterResults];
   }
 
   private async broadcastViaRelayer(
@@ -84,8 +78,17 @@ export class TornadoCashBroadcaster implements TCBroadcaster {
   }
 
   private async broadcastViaPaymaster(
-    withdrawals: IPaymasterWithdrawalPayload[],
-  ): Promise<PaymasterBroadcastResult[]> {
-    return this.paymasterBroadcaster.broadcast(withdrawals);
+    withdrawals: IGenericPaymasterWithdrawalPayload[],
+  ): Promise<TCPaymasterBroadcastResponse[]> {
+    if (withdrawals.length === 0) return [];
+
+    const results = await this.paymasterBroadcaster.broadcast(withdrawals);
+
+    // Only reachable with a custom paymaster client that breaks its contract.
+    if (results.length !== withdrawals.length) {
+      throw new Error('Paymaster client did not return one result per withdrawal.');
+    }
+
+    return results.map(({ userOpHash, wait }) => ({ id: userOpHash, wait: () => wait() }));
   }
 }

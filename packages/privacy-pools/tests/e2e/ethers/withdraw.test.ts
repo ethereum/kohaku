@@ -4,7 +4,7 @@ import { AccountId } from '@kohaku-eth/plugins';
 
 import { E_ADDRESS } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
-import { PrivacyPoolsV1Protocol } from '../../../src/index';
+import { PPv1RelayerQuoteError, PrivacyPoolsV1Protocol } from '../../../src/index';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
@@ -451,15 +451,31 @@ describe('PrivacyPools v1 Unshield E2E', () => {
     });
     await pool.mine(1);
 
-    // 2. Try to withdraw - relayer should fail
+    // 2. Approve the note so this is a valid withdrawal apart from the relayer failure.
+    const [note] = await protocol.notes([nativeAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(pool.rpcUrl,
+      "0x" + ENTRYPOINT_ADDRESS.toString(16),
+      "0x" + POSTMAN_ADDRESS.toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID }
+    );
+
+    // 3. Try to withdraw - relayer should fail
     const recipientAccount = alice.address as AccountId;
 
-    await expect(
-      protocol.prepareUnshield(
-        { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
-        recipientAccount
-      )
-    ).rejects.toThrow('Failed to get quote from relayers');
+    const withdrawal = protocol.prepareUnshield(
+      { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
+      recipientAccount
+    );
+
+    await expect(withdrawal).rejects.toBeInstanceOf(PPv1RelayerQuoteError);
+    await expect(withdrawal).rejects.toMatchObject({
+      failures: [{
+        relayerId: 'failing-relayer', relayerUrl: 'http://failing.relayer',
+        reason: 'quote-failed', message: 'Mock relayer failed',
+      }],
+    });
 
   });
 

@@ -5,6 +5,7 @@ import { lastUpdateRootEventSelector } from "../state/selectors/slices.selectors
 
 export type IPFSGetTreeParams = {
   ipfsCID: string;
+  signal?: AbortSignal;
 };
 
 export interface IPFSAspServiceParams extends IAspServiceParams {
@@ -23,9 +24,9 @@ export class IPFSAspService implements IAspService {
     }
   }
 
-  async getAspTreeIPFS({ ipfsCID }: IPFSGetTreeParams): Promise<bigint[][]> {
+  async getAspTreeIPFS({ ipfsCID, signal }: IPFSGetTreeParams): Promise<bigint[][]> {
     const url = `${this.providerUrl}${ipfsCID}`;
-    const response = await this.fetch(url);
+    const response = await this.fetch(url, { signal });
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -39,14 +40,14 @@ export class IPFSAspService implements IAspService {
     return tree.map((level) => level.map(BigInt));
   }
 
-  async getAspTree(state: RootState): Promise<bigint[][]> {
+  async getAspTree(state: RootState, signal?: AbortSignal): Promise<bigint[][]> {
     const lastUpdateRootEvent = lastUpdateRootEventSelector(state);
 
     if (!lastUpdateRootEvent) {
       throw new Error("No update root events");
     }
 
-    return this.getAspTreeIPFS({ ipfsCID: lastUpdateRootEvent.ipfsCID });
+    return this.getAspTreeIPFS({ ipfsCID: lastUpdateRootEvent.ipfsCID, signal });
   }
 
 }

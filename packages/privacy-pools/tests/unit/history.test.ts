@@ -9,9 +9,9 @@ import { registerRagequits } from '../../src/state/slices/ragequitsSlice';
 import { setLastSyncedBlock } from '../../src/state/slices/syncSlice';
 import { addUserSecret } from '../../src/state/slices/userSecretsSlice';
 import { registerWithdrawals } from '../../src/state/slices/withdrawalsSlice';
-import { RootState, storeFactory } from '../../src/state/store';
+import { selectLastSyncedBlock } from '../../src/state/selectors/last-synced-block.selector';
+import { storeFactory } from '../../src/state/store';
 import { syncHistoryTimestampsThunk } from '../../src/state/thunks/syncHistoryTimestampsThunk';
-import { serialize } from '../../src/state/utils/serialize.utils';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 const pool = 1000n as Address;
@@ -49,12 +49,11 @@ const ragequitB = {
   blockNumber: 199_009n, transactionHash: 0n,
 };
 
-const setupStore = ({ withUserEvents = true, initialState }: { withUserEvents?: boolean; initialState?: Partial<RootState> } = {}) => {
+const setupStore = ({ withUserEvents = true }: { withUserEvents?: boolean } = {}) => {
   const store = storeFactory({
     logLevel: 'off',
     devOptions: TEST_STORE_DEV_OPTIONS,
     entrypointInfo: { chainId: 1n, entrypointAddress: 900n as Address, deploymentBlock },
-    initialState: initialState as RootState | undefined,
   });
 
   store.dispatch(registerPools([{ address: pool, asset, scope: 1n, registeredBlock: deploymentBlock, woundDownAtBlock: null }]));
@@ -85,7 +84,10 @@ const mockDataService = () => ({
 });
 
 const sync = (store: ReturnType<typeof setupStore>, dataService: ReturnType<typeof mockDataService>) =>
-  store.dispatch(syncHistoryTimestampsThunk({ dataService: dataService as unknown as IDataService })).unwrap();
+  store.dispatch(syncHistoryTimestampsThunk({
+    dataService: dataService as unknown as IDataService,
+    head: selectLastSyncedBlock(store.getState()),
+  })).unwrap();
 
 const requestedBlocks = (dataService: ReturnType<typeof mockDataService>) =>
   dataService.getBlockTimestamp.mock.calls.map(([blockNumber]) => blockNumber).sort((a, b) => Number(a - b));
@@ -144,21 +146,8 @@ describe('history', () => {
     await sync(store, dataService);
 
     expect(requestedBlocks(dataService)).toEqual([229_376n, 240_000n]);
-    expect(store.getState().historyMetadata.timestampAnchors?.map(([blockNumber]) => BigInt(blockNumber)))
+    expect(store.getState().timestamps.anchors.map(([blockNumber]) => BigInt(blockNumber)))
       .not.toContain(head);
-  });
-
-  it('prefers exact metadata fetched by older versions', async () => {
-    const legacy = { transactionHash: 0xd9n, logIndex: 4, timestamp: 42n };
-    const store = setupStore({
-      initialState: {
-        historyMetadata: { metadataTuples: serialize([[ragequitB.label, legacy]]), timestampAnchors: [] },
-      } as unknown as Partial<RootState>,
-    });
-
-    await sync(store, mockDataService());
-
-    expect(myHistorySelector(store.getState())[0]).toMatchObject({ type: 'ragequit', ...legacy });
   });
 });
 

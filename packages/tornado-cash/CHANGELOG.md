@@ -1,3 +1,28 @@
+## 0.1.0-alpha.37
+
+### Minor Changes
+
+- 7241ff4: Support compatible caller-selected EIP-7702 implementations and external typed-data-only owners of SimpleAccount v0.8 accounts, including factory deployment. Preserve sponsored withdrawal proof formats and paymasters, pin signing scopes, and avoid redundant forwarding when withdrawing a batch into its execution account.
+- 7241ff4: Always pay single-note withdrawal proceeds and gas refunds directly to the requested recipient when no tail calls are supplied, for every supported account family, keeping execution calldata empty and execution gas zero. Explicit tail calls retain sender-bound sponsorship and execution for both single-note and batch withdrawals, with compatible EIP-7702 implementations or smart accounts.
+
+  Add explicit `executionGasRetry` opt-in for bounded recovery from recognized execution-gas shortages with a required positive `maxGasLimits.callGasLimit` ceiling. A ceiling alone no longer enables retries. Each retry rebuilds the fee, proof and signature and re-estimates the final signed operation.
+
+- 2347aad: fix!: report paymaster withdrawal outcomes correctly. Paymaster `broadcast()` used to drop failed withdrawals with only a `console.warn` and never checked the receipt's `success`, so a reverted user operation looked successful. It now resolves as soon as the bundler accepts the user operation, and each result has a `wait()` that resolves with the `txHash` once it is mined successfully. Both throw a `PaymasterBroadcastError` (`not-accepted`, `reverted` or `unconfirmed`), whose message never includes the signed user operation. If the send request fails but the bundler already has the user operation, `broadcast()` resolves as usual. An `Already known` answer to the send counts as accepted. Otherwise it reports `not-accepted`, with the hash, only if the bundler answered the send with an error, and `unconfirmed` with the hash if the send got no answer, because some bundlers only know mined user operations.
+
+  Callers that relied on `broadcast()` waiting for the receipt must now call `wait()`. Custom `paymasterClientFactory` clients must return `wait()` too.
+
+### Patch Changes
+
+- 7241ff4: Preserve reuse of explicitly selected external and wallet-path EOAs without requiring `allowUsed: true`, including existing delegation to the selected implementation. Freshness checks remain the default for note-derived/random senders and smart accounts; explicit `allowUsed: false` also enforces them for wallet EOAs.
+
+  Budget factory deployment gas only when the prepared account still needs deployment. For Tornado execution-gas retries, retain a successful probe's gas budget instead of trimming back to an estimate that can fail again.
+
+## 0.1.0-alpha.36
+
+### Patch Changes
+
+- f9db950: fix: single-note withdrawal delegation
+
 ## 0.1.0-alpha.35
 
 ### Patch Changes

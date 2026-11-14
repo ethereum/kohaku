@@ -1,6 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { isHex } from 'viem';
 import { IQuoteResponse, IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
+import { PPv1RelayerQuoteError, type PPv1RelayerQuoteFailure } from '../../relayer/quote-error';
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { decodeRelayData, encodeRelayData } from '../../utils/encoding.utils';
@@ -24,6 +25,12 @@ export interface QuoteThunkParams {
   extraGas?: boolean;
   /** The pool's on-chain `maxRelayFeeBPS`; quotes embedding a higher fee are dropped. */
   maxRelayFeeBPS?: bigint;
+}
+
+class RelayFeeTooHighError extends Error {
+  constructor(readonly requiredFeeBPS: bigint, readonly maxRelayFeeBPS: bigint) {
+    super(`withdrawalData fee ${requiredFeeBPS} bps exceeds the pool's maxRelayFeeBPS ${maxRelayFeeBPS}`);
+  }
 }
 
 /**
@@ -58,7 +65,7 @@ export const validateWithdrawalData = (
   }
 
   if (maxRelayFeeBPS !== undefined && relayData.relayFeeBps > maxRelayFeeBPS) {
-    throw new Error(`withdrawalData fee ${relayData.relayFeeBps} bps exceeds the pool's maxRelayFeeBPS ${maxRelayFeeBPS}`);
+    throw new RelayFeeTooHighError(relayData.relayFeeBps, maxRelayFeeBPS);
   }
 
   return relayData;
@@ -67,20 +74,20 @@ export const validateWithdrawalData = (
 export const quoteThunk = createAsyncThunk<
   QuoteResult,
   QuoteThunkParams,
-  { state: RootState }
+  { state: RootState; rejectValue: PPv1RelayerQuoteError }
 >(
   'quote/getBestQuote',
-  async (params, { getState }) => {
+  async (params, { getState, rejectWithValue }) => {
     const { chainId } = entrypointInfoSelector(getState());
     const { relayerClient, relayers, asset, amount, recipient, extraGas, maxRelayFeeBPS } = params;
 
     if (relayers.size === 0) {
-      throw new Error('No relayers configured');
+      return rejectWithValue(new PPv1RelayerQuoteError([]));
     }
 
     // Query all relayers in parallel
     const quotePromises = Array.from(relayers.entries()).map(
-      async ([relayerId, relayerUrl]): Promise<QuoteResult | null> => {
+      async ([relayerId, relayerUrl]): Promise<QuoteResult | PPv1RelayerQuoteFailure> => {
         try {
           const quote = await relayerClient.getQuote({
             relayerUrl,
@@ -95,19 +102,31 @@ export const quoteThunk = createAsyncThunk<
 
           return { quote, relayerId, relayerUrl, relayData };
         } catch (error) {
-          // Log but don't fail - other relayers might succeed
-          console.warn(`Relayer ${relayerId} failed to quote:`, error);
+          const message = typeof error === 'string' ? error :
+            error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+              ? error.message : 'Unknown relayer error';
+          const failure: PPv1RelayerQuoteFailure = {
+            relayerId, relayerUrl, message,
+            ...(error instanceof RelayFeeTooHighError
+              ? { reason: 'fee-too-high', requiredFeeBPS: error.requiredFeeBPS, maxRelayFeeBPS: error.maxRelayFeeBPS }
+              : { reason: 'quote-failed' }),
+          };
 
-          return null;
+          console.warn(`Relayer ${relayerId} failed to quote:`, message);
+
+          return failure;
         }
       }
     );
 
     const results = await Promise.all(quotePromises);
-    const validQuotes = results.filter((r): r is QuoteResult => r !== null);
+    const validQuotes = results.filter((r): r is QuoteResult => 'quote' in r);
 
     if (validQuotes.length === 0) {
-      throw new Error('All relayers failed to provide a quote');
+      const failures = results.filter((r): r is PPv1RelayerQuoteFailure => 'reason' in r);
+
+      // Keep the Error instance and its fields intact through Redux's unwrap().
+      return rejectWithValue(new PPv1RelayerQuoteError(failures));
     }
 
     // Rank by the fee that will be charged on-chain, not the relayer's self-reported feeBPS.

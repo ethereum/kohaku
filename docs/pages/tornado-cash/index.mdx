@@ -78,7 +78,10 @@ const operation = await tornado.prepareUnshield(note, recipient, {
   mode: 'paymaster',
 })
 const receipts = await createTCBroadcaster(host).broadcast(operation)
+await Promise.all(receipts.map((receipt) => receipt.wait()))
 ```
+
+`broadcast()` resolves once the bundler accepts the user operation, and `wait()` resolves once it is mined successfully. [Deposits and withdrawals](/tornado-cash/options) lists the errors both can throw.
 
 A multi-note unshield is consolidated into one ERC-4337 user operation. The first note covers paymaster sponsorship for the whole operation; subsequent notes are withdrawn through direct pool calls in its execution phase (tail calls). Additional user-supplied `tailCalls` run after those withdrawals in the same user operation.
 

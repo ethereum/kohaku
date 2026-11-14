@@ -107,16 +107,21 @@ export const workerApi = {
     return getStateManager().importNotes(params);
   },
 
-  async getWithdrawalPayloads(params: WorkerWithdrawParams, tailCalls?: IPaymasterWithdrawParams['tailCalls'], bundlerPost?: IPaymasterWithdrawParams['bundlerPost'], externalSigner?: Omit<DelegatorAccount, 'address'>): Promise<IWithdrawalPayload[]> {
+  async getWithdrawalPayloads(params: WorkerWithdrawParams, tailCalls?: IPaymasterWithdrawParams['tailCalls'], bundlerPost?: IPaymasterWithdrawParams['bundlerPost'], externalSigner?: Pick<DelegatorAccount, 'signTypedData'> & Partial<Pick<DelegatorAccount, 'signAuthorization'>>): Promise<IWithdrawalPayload[]> {
     const delegation = params.mode === 'paymaster' ? params.delegation : undefined;
-    if (delegation?.mode === 'external' && !externalSigner) throw new Error('External delegation requires host signing callbacks.');
+
+    if ((delegation?.mode === 'external' || delegation?.mode === 'smart-account') && !externalSigner) throw new Error('External delegation requires host signing callbacks.');
+
     const fullParams: IWithdrawapOperationParams = params.mode === 'paymaster'
       ? { ...params, tailCalls, bundlerPost, delegation: delegation?.mode === 'external' ? {
-        mode: 'external', signer: {
+        ...delegation, mode: 'external', signer: {
           address: delegation.address,
-          signAuthorization: async (authorization) => externalSigner!.signAuthorization(authorization),
+          signAuthorization: async (authorization) => externalSigner!.signAuthorization!(authorization),
           signTypedData: async (typedData) => externalSigner!.signTypedData(typedData),
         },
+      } : delegation?.mode === 'smart-account' ? {
+        mode: 'smart-account', account: delegation.account, nonce: delegation.nonce, allowUsed: delegation.allowUsed,
+        signer: { address: delegation.owner, signTypedData: async (typedData) => externalSigner!.signTypedData(typedData) },
       } : delegation }
       : params;
 

@@ -1,14 +1,15 @@
+import type { MerkleTreeBuilder } from "../../utils/proof.util";
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { CommitmentPublicSignals, Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { AccountId, ChainId, PrivateOperation, PublicOperation, UnshieldOptions } from '@kohaku-eth/plugins';
+import { AccountId, ChainId, PrivateOperation, PublicOperation, Storage, UnshieldOptions } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
-import { IAspService } from "../../data/asp.interface.js";
+import { IAspReviewService, IAspService } from "../../data/asp.interface.js";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositWithBalance } from "../../data/interfaces/events.interface";
-import { Address, Label } from "../../interfaces/types.interface";
+import { Address, AspReviewStatus, Label } from "../../interfaces/types.interface";
 import { DelegationConfig } from "../../interfaces/user-ops.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { IQuoteResponse, IRelayData, IRelayerClient, WithdrawalPayload } from '../../relayer/interfaces/relayer-client.interface';
@@ -65,6 +66,20 @@ export type IChainsPaymastersConfig = Record<number, IPaymasterConfig>;
  * {@link UnshieldOptions} API; relayer mode does not execute them yet but is expected to.
  */
 interface PPv1CommonUnshieldOptions extends UnshieldOptions {
+  /**
+   * Default false: allow full-note spends. True preserves the exact requested
+   * total, caps gross at 97% of approved balance, and retains at least 1% of every
+   * spent note (rounded up). Non-final notes retain a random 1–25% where feasible;
+   * the last supplies the remainder. No anonymity guarantee.
+   */
+  obfuscateAmounts?: boolean;
+  /**
+   * Spend only the note with this label (from `notes()`), instead of the smallest
+   * sufficient approved note. Throws `PPv1NoteUnavailableError` if that note is
+   * missing, of another asset, unapproved, or below the gross amount (fees included in
+   * exact mode); no other note is tried. Cannot be combined with `batch: true`.
+   */
+  label?: bigint;
   /** Gas budget for the execution phase when `tailCalls` are supplied. */
   tailCallsGasEstimate?: bigint;
   /**
@@ -211,15 +226,28 @@ export interface PPv1DevOptions {
 }
 
 export interface PrivacyPoolsV1ProtocolParams {
+  /** Builds trees locally by default; may return a proxy to an offscreen tree. */
+  merkleTreeBuilder?: MerkleTreeBuilder;
   accountIndex?: number;
   secretManager: (params: SecretManagerParams) => ISecretManager;
   stateManager: (params: StoreFactoryParams) => IStateManager;
   relayerClientFactory: () => IRelayerClient;
   entrypoint: IEntrypoint;
   aspServiceFactory: () => IAspService;
+  /**
+   * Opt-in source of declined / proof-of-innocence-required deposits (see
+   * `OxBowAspReviewService`). Without it, deposits outside the ASP tree read as `pending`.
+   */
+  aspReviewServiceFactory?: () => IAspReviewService;
   proverFactory: () => ReturnType<typeof Prover>;
   relayersList: Record<string, string>;
   initialState?: () => Promise<Record<string, PublicRootState>>;
+  /**
+   * Storage for the chain state, which is the same for every account. Give
+   * every account the same object to keep one copy, in memory and in storage.
+   * Only share it between accounts that use the same provider.
+   */
+  chainStorage?: Storage;
   ipfsUrl?: string;
   paymasterConfig?: IChainsPaymastersConfig;
   /**
@@ -246,6 +274,10 @@ export interface IGetBalancesOperationParams extends IBaseOperationParams {
 export interface IWithdrawapOperationParams extends Omit<IDepositOperationParams, 'amount'> {
   amount?: bigint;
   recipient: Address;
+  /** Defaults to false. True enables amount obfuscation and its headroom limit. */
+  obfuscateAmounts?: boolean;
+  /** Spend only the note with this label; throws instead of falling back to another note. */
+  label?: bigint;
 }
 
 export interface IPaymasterWithdrawapOperationParams extends IWithdrawapOperationParams {
@@ -292,6 +324,8 @@ export interface IGetNotesParams extends IBaseOperationParams {
 export type INote = Pick<IDepositWithBalance,
   "label" | "precommitment" | "value" | "balance" | "assetAddress" | "approved" | "depositor" | "blockNumber"
 > & {
+  /** Set on every note the plugin returns; optional so hand-built notes keep compiling. */
+  reviewStatus?: IDepositWithBalance["reviewStatus"];
   // deposit index
   deposit: number;
   // withdraw index
@@ -331,7 +365,8 @@ export type PPv1HistoryEvent = {
       type: 'deposit';
       depositor: Address;
       label: Label;
-      aspStatus: 'pending' | 'approved';
+      /** `declined` and `poi_required` only appear with an `aspReviewServiceFactory`. */
+      aspStatus: AspReviewStatus;
     }
   | { type: 'withdrawal' }
   | {
@@ -373,11 +408,18 @@ export type StateRagequitPayload = {
 export type StoreKey = `${string}-${string}`;
 export type StoreStorageKey = `privacy-pool-state-${StoreKey}`;
 
+export interface IStateSyncOptions {
+  /** Leave the ASP service out of this sync, keeping the stored tree (default: false). */
+  skipAsp?: boolean;
+}
+
 export interface IStateManager {
   /**
-   * Queries the chain and updates its state
+   * Queries the chain and updates its state. If the ASP service fails, the last
+   * good tree is kept and the sync still succeeds; withdrawals are refused until
+   * a sync gets the current tree.
    */
-  sync: () => Promise<void>;
+  sync: (options?: IStateSyncOptions) => Promise<void>;
   /**
    * Generates a deposit payload for the signer
    */

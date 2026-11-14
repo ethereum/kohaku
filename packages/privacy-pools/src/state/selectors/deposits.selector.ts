@@ -7,11 +7,15 @@ import { IEntrypointDepositEvent, IIndexedDepositEvent } from '../../data/interf
 import { Address, Precommitment } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { aspLeavesSelector } from './asp.selector';
-import { depositsSelector, entrypointDepositSelector, userSecretsSelector } from './slices.selectors';
+import { aspFlaggedDepositsSelector, depositsSelector, entrypointDepositSelector, userSecretsSelector } from './slices.selectors';
 
+/**
+ * The verified ASP tree decides approval; the review feed is untrusted and only
+ * labels deposits the tree leaves out.
+ */
 export const myDepositsSelector = createSelector(
-  [userSecretsSelector, depositsSelector, aspLeavesSelector],
-  (userSecretsMap, depositsMap, approvedLabels): Map<Precommitment, IIndexedDepositEvent> => {
+  [userSecretsSelector, depositsSelector, aspLeavesSelector, aspFlaggedDepositsSelector],
+  (userSecretsMap, depositsMap, approvedLabels, flaggedDeposits): Map<Precommitment, IIndexedDepositEvent> => {
     const result = new Map<Precommitment, IIndexedDepositEvent>();
 
     for (const [precommitment, record] of userSecretsMap) {
@@ -19,9 +23,12 @@ export const myDepositsSelector = createSelector(
 
       if (!deposit) continue;
 
+      const approved = approvedLabels.has(deposit.label);
+
       result.set(precommitment, {
         ...deposit,
-        approved: approvedLabels.has(deposit.label),
+        approved,
+        reviewStatus: approved ? 'approved' : flaggedDeposits.get(precommitment) ?? 'pending',
         index: record.depositIndex,
       });
     }

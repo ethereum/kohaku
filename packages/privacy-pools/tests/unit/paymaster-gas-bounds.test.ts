@@ -127,6 +127,9 @@ const setup = (bundler: ReturnType<typeof mockBundler>, noteValue = ONE_ETH, rec
     tailCalls: overrides.tailCalls,
     tailCallsGasEstimate: overrides.tailCallsGasEstimate,
     provider: { request: async ({ method }: { method: string }) => {
+      if (method === 'eth_getCode') return '0x';
+      if (method === 'eth_call') return toHex(0n, { size: 32 });
+      if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
       if (method === 'eth_feeHistory' && recentTips) return feeHistory(recentTips, FEE_REFERENCE.baseFeePerGas);
 
       return method === 'eth_getBlockByNumber'
