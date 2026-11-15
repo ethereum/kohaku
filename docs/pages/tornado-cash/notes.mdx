@@ -14,6 +14,8 @@ const includingSpent = await tornado.notes([], true)
 
 `sync` runs automatically at the start of `notes`, `balance`, `prepareShield`, and `prepareUnshield`. Call it yourself when a screen wants fresh data before the user picks an amount.
 
+If the events of any pool cannot be fetched, the sync fails with a `TornadoPoolSyncError` naming those pools, and so do the calls that run it. Pools that did sync keep their progress, and the failed ones keep their previous starting point, so the next sync retries the same range and no event is skipped. Show the error instead of a zero balance. A common cause is an RPC that rejects wide `eth_getLogs` ranges; see [Provider](/provider).
+
 The asset filter uses the same ERC-20 id as shield, including the ETH sentinel. An empty list returns every asset. `includeSpent` defaults to `false`, which hides notes whose `balance` is zero.
 
 ## Fields
