@@ -1,16 +1,19 @@
 import { raw, RawProviderOptions } from '../raw';
 import type { EthereumProvider } from '../provider';
-import type { Config, default as Colibri } from '@corpus-core/colibri-stateless';
+import type { Config, default as Colibri, ProofStrategy } from '@corpus-core/colibri-stateless';
 import { Provider } from 'ox/Provider';
 
 export type ColibriConfig = Partial<Config>;
 
 type ColibriConstructor = new (config?: ColibriConfig) => Colibri;
 
-async function importColibri(): Promise<ColibriConstructor> {
-    const mod = (await import('@corpus-core/colibri-stateless')) as unknown as {
-        default?: ColibriConstructor;
-    };
+type ColibriModule = {
+    default?: ColibriConstructor;
+    Strategy?: { VerifiedOnly?: ProofStrategy };
+};
+
+async function importColibri(): Promise<{ Colibri: ColibriConstructor; verifiedOnly?: ProofStrategy }> {
+    const mod = (await import('@corpus-core/colibri-stateless')) as unknown as ColibriModule;
 
     if (!mod.default) {
         throw new Error(
@@ -19,19 +22,26 @@ async function importColibri(): Promise<ColibriConstructor> {
         );
     }
 
-    return mod.default;
+    return { Colibri: mod.default, verifiedOnly: mod.Strategy?.VerifiedOnly };
 }
 
 /**
   * Passed through to `new Colibri(...)`.
   * See Colibri-Stateless JS/TS docs for supported fields.
   * `options` configures Kohaku receipt waiting and is not passed to Colibri.
+  *
+  * Fails closed by default: unless `config.proofStrategy` is set, requests use
+  * Colibri's `Strategy.VerifiedOnly`, so a response that cannot be proven is an
+  * error. Colibri's own default (`WarningWithFallback`) returns the unverified
+  * RPC answer with only a warning when verification fails. Pass another
+  * strategy explicitly to opt out.
   */
 export const colibri = async (config: ColibriConfig, options: RawProviderOptions = {}): Promise<EthereumProvider<Colibri>> => {
-    const createColibri = await importColibri();
+    const { Colibri: createColibri, verifiedOnly } = await importColibri();
     const client = new createColibri({
         verifyTransactions: config.fallback_provider ? true : false,
         zk_proof: true,
+        ...(verifiedOnly ? { proofStrategy: verifiedOnly } : {}),
         ...config,
     });
 
