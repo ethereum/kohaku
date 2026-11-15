@@ -221,7 +221,12 @@ describe('syncEventsThunk pool verification', () => {
     const { params, scans, dataService } = services(chain, chainFrom(chain));
 
     dataService.getPoolStateRoot.mockRejectedValue(new Error('rpc down'));
-    unwrapResult(await store.dispatch(syncEventsThunk(params)));
+
+    const action = await store.dispatch(syncEventsThunk(params));
+
+    // The pool is not dropped silently: the sync fails and names it (F-27).
+    expect(action.meta.requestStatus).toBe('rejected');
+    expect((action as { error: { name?: string } }).error.name).toBe('TornadoPoolSyncError');
 
     expect(scans).toHaveLength(1);
     expect(poolsSelector(store.getState()).get(POOL)).toMatchObject({ lastSyncedBlock: 500n, finalizedBlock: 500n });
