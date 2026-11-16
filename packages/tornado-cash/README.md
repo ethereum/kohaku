@@ -35,13 +35,13 @@ account even after forwarding. Use an account you can recover.
 
 ## Random paymaster delegation
 
-> **`delegation: { mode: 'random' }` is safe ONLY for a single-note withdrawal without `tailCalls`. It is UNSAFE for ALL multi-note withdrawals and ANY withdrawal with `tailCalls`.**
+> **`delegation: { mode: 'random' }` is safe ONLY for a single-note withdrawal without `tailCalls`. Multi-note withdrawals and ANY `tailCalls` are unsafe and rejected by default.**
 
 The safe single-note path uses `callGasLimit = 0` and pays both the withdrawal and its unused gas-fee refund directly to the requested recipient. Neither is routed through the throwaway sender. The SDK tries bundler estimation first. On mainnet/Sepolia, the default `gasEstimationPolicy: 'best-effort'` can return marked fallback gas if estimation is unavailable or the estimator substitutes incompatible nonzero execution gas. No host-RPC simulation or state overrides are required. Use `'required'` to require successful bundler estimation. Fallback is not a guarantee of bundler acceptance or a gas refund; review its fee before submission.
 
 Multi-note withdrawals and withdrawals with `tailCalls` pay the sender before execution. An execution failure can permanently strand the sponsoring note's proceeds; a later gas refund can also be inaccessible even when forwarding succeeds. The random key is discarded, so successful estimation does not make these paths safe. Use a securely recoverable deterministic or external signer instead.
 
-A single UserOperation can spend multiple notes. Omit `tailCalls` entirely for the safe single-note path; even an empty callback selects execution. The SDK does not reject unsafe random delegation automatically, so integrators must enforce this restriction. See [delegation options](../../docs/pages/tornado-cash/options.mdx#delegation).
+A single UserOperation can spend multiple notes. Omit `tailCalls` entirely for the safe single-note path; even an empty callback selects execution. The SDK checks the selected note count and supplied `tailCalls` before generating a random key or proof. To deliberately bypass the rejection, set `delegation: { mode: 'random', allowUnsafeRandomExecution: true }`; this accepts the risk of permanently inaccessible principal or refunds. Prefer a recoverable sender. See [delegation options](../../docs/pages/tornado-cash/options.mdx#delegation).
 
 ## Execution gas recovery
 

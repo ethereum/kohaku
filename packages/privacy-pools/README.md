@@ -77,12 +77,12 @@ without giving the SDK the delegator's private key.
 This works with single-note, `batch`, tail-call and exact-output unshields.
 Returned signatures are checked against the selected EOA; authorization is cached
 during one preparation. External mode requires successful bundler estimation of
-the final signed payload. Existing deterministic/random modes retain their
-current behavior.
+the final signed payload. Deterministic mode remains the recoverable default;
+random mode has the execution-path guard described below.
 
 ## Random paymaster delegation
 
-`delegation: { mode: 'random' }` discards the sender's private key. Do not use it in production unless you deliberately accept that funds left on this sender can never be recovered. A single-note withdrawal without `tailCalls` pays the recipient during validation. With `batch` or `tailCalls`, the withdrawal pays the sender first; failed, empty, or incomplete execution can permanently strand the net payout. Prefer the default deterministic delegation.
+`delegation: { mode: 'random' }` discards the sender's private key. A single-note withdrawal without `tailCalls` pays the recipient during validation and remains available without an extra flag. If the selected withdrawal spends multiple notes or supplies `tailCalls` (even an empty callback), the SDK rejects random delegation before generating a key or proof. Those paths pay the sender first; failed, empty, or incomplete execution can permanently strand the net payout. `delegation: { mode: 'random', allowUnsafeRandomExecution: true }` explicitly accepts this risk. Prefer the default recoverable deterministic delegation for execution paths.
 
 
 ## Execution accounts for sponsored withdrawals

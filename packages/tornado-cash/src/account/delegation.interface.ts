@@ -26,13 +26,14 @@ export type DelegatorAccount = Pick<LocalAccount, 'address' | 'signTypedData'> &
  * - `random`: SAFE ONLY FOR A SINGLE-NOTE WITHDRAWAL WITH NO `tailCalls`.
  *   That direct-payout path uses `callGasLimit = 0` and sends both the withdrawal
  *   and its gas refund to the requested recipient, never to the throwaway sender.
- *   UNSAFE FOR ALL MULTI-NOTE WITHDRAWALS AND ANY WITHDRAWAL WITH `tailCalls`,
+ *   REJECTED by default for all multi-note withdrawals and any withdrawal with `tailCalls`,
  *   even a callback returning no calls. Those paths pay the sender in validation;
  *   an execution failure can strand the principal, and the later postOp refund
  *   can remain there even after successful forwarding. The random private key
  *   is discarded, so these funds are permanently inaccessible. Successful gas
- *   estimation does NOT make random delegation safe for those paths. Use a
- *   securely recoverable deterministic or external signer instead.
+ *   estimation does NOT make random delegation safe for those paths. The
+ *   `allowUnsafeRandomExecution: true` override explicitly accepts this risk;
+ *   use a securely recoverable deterministic or external signer instead.
  * - `external`: an explicitly selected host signer. Its key stays on the host;
  *   only scoped signing requests and verified signatures cross the worker bridge.
  *   Execution-phase withdrawals require successful estimation. A direct single
@@ -44,10 +45,12 @@ export type DelegationConfig = (
   | {
     /**
      * SAFE ONLY for exactly one note with `tailCalls` omitted.
-     * NEVER use for multi-note withdrawals or any `tailCalls`: the discarded
-     * sender key makes stranded principal and gas refunds permanently inaccessible.
+     * Multi-note withdrawals and any `tailCalls` are rejected unless
+     * `allowUnsafeRandomExecution: true` explicitly accepts the risk that the
+     * discarded key makes stranded principal and refunds inaccessible.
      */
     mode: 'random';
+    allowUnsafeRandomExecution?: true;
   }
   | { mode: 'external'; signer: DelegatorAccount }) & {
     /** Compatible external v0.8 implementation; defaults to Simple7702. */
