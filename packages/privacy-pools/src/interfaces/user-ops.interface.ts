@@ -23,9 +23,10 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
  * - `random`: an expert-only, throwaway EOA. Its private key is discarded and
  *   cannot be recovered. A single-note withdrawal without `tailCalls` pays the
  *   recipient during validation, but `batch` or `tailCalls` pays this sender
- *   first. Failed, empty, or incomplete execution can leave the net withdrawal
- *   permanently inaccessible. Do not use in production unless you deliberately
- *   accept that risk and know exactly why this mode is needed.
+ *   first. Those execution paths are rejected unless
+ *   `allowUnsafeRandomExecution: true` explicitly accepts the risk that failed,
+ *   empty, or incomplete execution can permanently strand the net withdrawal.
+ *   Prefer a recoverable sender for production execution paths.
  * - `external`: a host-held EOA implementing the two signing callbacks below.
  *   The SDK never asks the SecretManager for its private key. Returned signatures
  *   are verified, authorization is cached per preparation, and bundler estimation
@@ -33,7 +34,11 @@ export type DelegatorAccount = Pick<LocalAccount, "address" | "signTypedData"> &
  */
 export type DelegationConfig = (
   | { mode: "deterministic"; path?: string }
-  | { mode: "random" }
+  | {
+    mode: "random";
+    /** Explicitly accept inaccessible principal/refunds on execution paths. */
+    allowUnsafeRandomExecution?: true;
+  }
   | { mode: "external"; signer: DelegatorAccount }) & {
     /** Compatible external v0.8 implementation; defaults to Simple7702. */
     implementation?: `0x${string}`;

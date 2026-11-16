@@ -52,7 +52,7 @@ vi.mock('../../src/paymaster/utils', async (importOriginal) => ({
   estimateUserOperationGas: (_client: unknown, op: SerializedUserOperation) => fixture.estimate(op),
 }));
 
-async function prepare(delegation: DelegationConfig | null = { mode: 'random' }, overrides: Record<string, unknown> = {}) {
+async function prepare(delegation: DelegationConfig | null = null, overrides: Record<string, unknown> = {}) {
   const store = storeFactory({ logLevel: 'off' });
 
   return unwrapResult(await store.dispatch(paymasterWithdrawThunk({
@@ -263,6 +263,7 @@ describe('paymaster withdrawal preparation integration', () => {
   });
 
   it('keeps a random sender at EOA and EntryPoint nonce zero without querying the account', async () => {
+    fixture.count = 1;
     fixture.estimate.mockResolvedValue({ ...reasonableGasUnitsForBatch(false, 0, false), preVerificationGas: 281_260n });
     const [withdrawal] = await prepare({ mode: 'random' });
 
@@ -271,6 +272,29 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
     expect(withdrawal!.userOperation.eip7702Auth?.nonce).toBe('0x0');
     expect(fixture.getAccountNonce).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('rejects random execution before proving (multiple notes=%s)', async multipleNotes => {
+    fixture.count = multipleNotes ? 2 : 1;
+    const tailCalls = multipleNotes ? undefined : vi.fn(async () => []);
+
+    await expect(prepare({ mode: 'random' }, { tailCalls })).rejects.toThrow('allowUnsafeRandomExecution: true');
+    expect(fixture.fees).toHaveLength(0);
+    expect(fixture.estimate).not.toHaveBeenCalled();
+
+    if (tailCalls) expect(tailCalls).not.toHaveBeenCalled();
+  });
+
+  it('allows explicitly opted-in random execution with an empty tail-call callback', async () => {
+    fixture.count = 1;
+    fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(false, 0, true));
+    const tailCalls = vi.fn(async () => []);
+    const [withdrawal] = await prepare({ mode: 'random', allowUnsafeRandomExecution: true }, { tailCalls });
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster withdrawal');
+
+    expect(tailCalls).toHaveBeenCalledWith(withdrawal!.userOperation.sender);
+    expect(fixture.proofRecipients.every(recipient => recipient === BigInt(withdrawal!.userOperation.sender))).toBe(true);
   });
 
   it('requests external signatures, caches authorization across gas refinements and never derives a key', async () => {
@@ -368,7 +392,7 @@ describe('paymaster withdrawal preparation integration', () => {
     fixture.isERC20 = false;
     fixture.estimate.mockRejectedValue(new RpcRequestError({ url: 'https://bundler.invalid', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } }));
     await expect(prepare(null, { gasEstimationPolicy: 'required' })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
-    await expect(prepare({ mode: 'random' })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
+    await expect(prepare({ mode: 'random', allowUnsafeRandomExecution: true })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
     await expect(prepare(null, { tailCalls: async () => [], tailCallsGasEstimate: 0n })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
   });
 
