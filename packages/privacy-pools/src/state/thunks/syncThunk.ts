@@ -124,7 +124,16 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       // left out, so the verified root stays unset and withdrawals are refused.
       const hasRootEvent = lastUpdateRootEventSelector(getState()) !== undefined;
       const verifyAspRoot = !hasRootEvent || await isAspTreeCurrent(getState(), params.merkleTreeBuilder);
-      const verifyResult = await dispatch(verifyRootsThunk({ dataService, verifyAspRoot, merkleTreeBuilder: params.merkleTreeBuilder }));
+      // An RPC behind our sync point scanned nothing and cannot serve the pool
+      // roots there either. The sync point does not move, so the pools are checked
+      // by the first sync that scans past it.
+      const verifyResult = await dispatch(verifyRootsThunk({
+        dataService,
+        blockNumber: toBlock,
+        verifyAspRoot,
+        verifyPoolRoots: toBlock > fromBlock,
+        merkleTreeBuilder: params.merkleTreeBuilder,
+      }));
 
       unwrapResult(verifyResult);
     }
