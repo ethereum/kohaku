@@ -20,10 +20,12 @@ import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeRefe
 import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
 import {
   buildSignedUserOp,
+  buildSimulationUserOp,
   createPaymasterBundlerClient,
   estimateUserOperationGas,
   getUserOperationGasPrice,
 } from "../../paymaster/utils";
+import { verifierOverrides, type StateOverrides } from "../../paymaster/simulation";
 import { IPaymasterConfig } from "../../plugin/interfaces/protocol-params.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { WithdrawalPayload } from "../../relayer/interfaces/relayer-client.interface";
@@ -202,10 +204,12 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     // the wei gas cost for native pools, priced into the token via the paymaster's own
     // oracle for ERC20. `feePaid >= paymaster.quoteWeiInToken(maxCost)` holds by
     // construction (same oracle, gas bounded at maxCost).
+    // Quotes are memoized so the final build commits to the fee its gas was simulated with.
+    const quotes = new Map<bigint, Promise<bigint>>();
     const feeFor = async (ethFee: bigint): Promise<bigint> => {
-      const fee = isERC20
-        ? await dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee)
-        : ethFee;
+      if (isERC20 && !quotes.has(ethFee)) quotes.set(ethFee, dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee));
+
+      const fee = isERC20 ? await quotes.get(ethFee)! : ethFee;
 
       if (fee > sponsoring!.withdrawnValue) {
         throw new Error("Withdrawal amount too small to cover the sponsored gas fee");
@@ -215,7 +219,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     };
 
     // Prove one note against the current root, bound to `withdrawal` via its context.
-    const proveNote = (toSpend: NoteToSpend, withdrawal: WithdrawalPayload): Promise<WithdrawProveOutput> =>
+    // `simulation` returns a dummy proof for gas estimation (see withdrawThunk).
+    const proveNote = (toSpend: NoteToSpend, withdrawal: WithdrawalPayload, simulation = false): Promise<WithdrawProveOutput> =>
       dispatch(
         withdrawThunk({
           getNextNote,
@@ -226,20 +231,30 @@ export const paymasterWithdrawThunk = createAsyncThunk<
           note: toSpend.note,
           amount: toSpend.withdrawnValue,
           context: BigInt(calculateContext(withdrawal, poolInfo.scope)),
+          simulation,
         }),
       ).then(unwrapResult);
 
-    // Extra notes: direct pool.withdraw calls (processooor = sender, no fee), each
-    // paying the sender. Proved once — only the sponsoring note's fee changes.
+    // Estimation simulates dummy proofs, which only these verifier overrides accept.
     const poolHex = addressToHex(poolInfo.address);
-    const directWithdrawCalls: TxData[] = [];
+    const stateOverrides: StateOverrides = await verifierOverrides(provider!, [poolHex]);
 
-    for (const directNote of directNotes) {
-      const withdrawal: WithdrawalPayload = { processooor: sender, data: "0x" };
-      const proof = await proveNote(directNote, withdrawal);
+    // Extra notes: direct pool.withdraw calls (processooor = sender, no fee), each
+    // paying the sender. A real proof here could be submitted on its own, so
+    // estimation uses dummy-proof calls and the real ones are proved once at the end.
+    const directWithdrawCalls = async (simulation: boolean): Promise<TxData[]> => {
+      const calls: TxData[] = [];
 
-      directWithdrawCalls.push({ to: poolHex, value: 0n, data: encodePoolWithdraw(withdrawal, proof) });
-    }
+      for (const directNote of directNotes) {
+        const withdrawal: WithdrawalPayload = { processooor: sender, data: "0x" };
+        const proof = await proveNote(directNote, withdrawal, simulation);
+
+        calls.push({ to: poolHex, value: 0n, data: encodePoolWithdraw(withdrawal, proof) });
+      }
+
+      return calls;
+    };
+    const simulatedDirectCalls = await directWithdrawCalls(true);
 
     // Forward the consolidated balance (minus fee) to the recipient when the caller
     // supplied no tail calls.
@@ -259,8 +274,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
     // callData order: direct withdraws first (they fund the sender), then the
     // caller's tail calls or the synthesized forward.
-    const executionCalls = (fee: bigint) => async (): Promise<TxData[]> => [
-      ...directWithdrawCalls,
+    const executionCalls = (fee: bigint, directCalls: TxData[]) => async (): Promise<TxData[]> => [
+      ...directCalls,
       ...(tailCalls ? await tailCalls(sender) : (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
     ];
 
@@ -270,7 +285,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
     assertGasLimitsWithinBounds(baselineGas, baselineGas, undefined, maxGasLimits);
 
-    const buildUserOp = async (gas: UserOpGasLimits) => {
+    // `simulation` builds the estimation payload: dummy proofs and signatures that
+    // the bundler cannot submit. Only the final build proves and signs.
+    const buildUserOp = async (gas: UserOpGasLimits, simulation: boolean) => {
       const fee = await feeFor(computeMinimumViableFee(gas, maxFeePerGas));
       const withdrawal: WithdrawalPayload = {
         processooor: adapterAddress,
@@ -284,9 +301,11 @@ export const paymasterWithdrawThunk = createAsyncThunk<
           refundRecipient,
         }),
       };
-      const proof = await proveNote(sponsoring!, withdrawal);
+      const proof = await proveNote(sponsoring!, withdrawal, simulation);
       const paymasterData = encodePaymasterData(adapterAddress, encodePrivacyPoolAdapterData(withdrawal, proof));
-      const { userOperation, userOpHash } = await buildSignedUserOp({
+      // Batched notes are proved for real only in the final build.
+      const directCalls = simulation ? simulatedDirectCalls : await directWithdrawCalls(false);
+      const params = {
         signer,
         executionAccount: accountConfig,
         chainId: Number(chainId),
@@ -297,37 +316,38 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         maxPriorityFeePerGas,
         nonce: userOpNonce,
         authorizationNonce,
-        tailCalls: hasExecutionPhase ? executionCalls(fee) : undefined,
-      });
+        tailCalls: hasExecutionPhase ? executionCalls(fee, directCalls) : undefined,
+      };
+      const { userOperation, userOpHash } = simulation
+        ? { userOperation: await buildSimulationUserOp(params), userOpHash: undefined }
+        : await buildSignedUserOp(params);
 
       assertGasLimitsWithinBounds(gas, baselineGas, userOperation, maxGasLimits);
 
       return { proof, userOperation, userOpHash, fee };
     };
 
-    let { proof, userOperation, userOpHash, fee } = await buildUserOp(baselineGas);
-
     // Existing derived-key modes retain best-effort refinement. External signers
-    // require successful estimation and validation of the final signed payload.
-    const refinedGas = await refineGasWithBundler(bundlerClient, userOperation, entryPointAddress, baselineGas, maxGasLimits, requiresAccountSimulation(delegation));
-
-    if (refinedGas !== baselineGas) {
-      ({ proof, userOperation, userOpHash, fee } = await buildUserOp(refinedGas));
-    }
+    // require successful estimation at the final limits.
+    const provisional = await buildUserOp(baselineGas, true);
+    const refinedGas = await refineGasWithBundler(bundlerClient, provisional.userOperation, entryPointAddress, stateOverrides, baselineGas, maxGasLimits, requiresAccountSimulation(delegation));
 
     if (requiresAccountSimulation(delegation)) {
-      const finalGas = await estimateUserOperationGas(bundlerClient, userOperation, entryPointAddress);
+      const simulated = refinedGas === baselineGas ? provisional.userOperation : (await buildUserOp(refinedGas, true)).userOperation;
+      const finalGas = await estimateUserOperationGas(bundlerClient, simulated, entryPointAddress, stateOverrides);
 
-      assertGasLimitsWithinBounds(finalGas, baselineGas, userOperation, maxGasLimits);
+      assertGasLimitsWithinBounds(finalGas, baselineGas, simulated, maxGasLimits);
       const fields = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
 
       // Validation-only withdrawals have empty callData and must keep execution
       // gas zero even when the bundler reports a nonzero search estimate.
       if (finalGas.verificationGasLimit <= 0n || finalGas.preVerificationGas <= 0n || fields.some(field => finalGas[field] < 0n ||
-        ((field !== 'callGasLimit' || userOperation.callData !== '0x') && finalGas[field] > BigInt(userOperation[field]!)))) {
-        throw new Error('External Privacy Pools UserOperation gas requirements changed after signing. Prepare a new withdrawal.');
+        ((field !== 'callGasLimit' || simulated.callData !== '0x') && finalGas[field] > BigInt(simulated[field]!)))) {
+        throw new Error('External Privacy Pools UserOperation gas requirements changed after refinement. Prepare a new withdrawal.');
       }
     }
+
+    const { proof, userOperation, userOpHash, fee } = await buildUserOp(refinedGas, false);
 
     return [
       {
@@ -403,6 +423,7 @@ async function refineGasWithBundler(
   bundlerClient: ReturnType<typeof createPaymasterBundlerClient>,
   provisionalUserOp: SerializedUserOperation,
   entryPointAddress: `0x${string}`,
+  stateOverrides: StateOverrides,
   baselineGas: UserOpGasLimits,
   maxGasLimits?: PaymasterGasLimits,
   requireEstimation = false,
@@ -410,7 +431,7 @@ async function refineGasWithBundler(
   let estimated: UserOpGasLimits;
 
   try {
-    estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress);
+    estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress, stateOverrides);
   } catch (cause) {
     if (requireEstimation) throw new Error('External Privacy Pools signing requires successful bundler gas estimation.', { cause });
 

@@ -76,9 +76,23 @@ without giving the SDK the delegator's private key.
 
 This works with single-note, `batch`, tail-call and exact-output unshields.
 Returned signatures are checked against the selected EOA; authorization is cached
-during one preparation. External mode requires successful bundler estimation of
-the final signed payload. Deterministic mode remains the recoverable default;
+during one preparation. External mode requires successful bundler estimation at
+the final gas limits. Deterministic mode remains the recoverable default;
 random mode has the execution-path guard described below.
+
+## Gas estimation never exposes an executable operation
+
+Bundler gas estimation receives only simulation payloads: a dummy account
+signature and EIP-7702 authorization, and dummy proofs with random nullifier
+and commitment hashes for the sponsoring note and any batched `withdraw`
+calls. They cannot be
+submitted. The SDK passes `eth_estimateUserOperationGas` state overrides that
+move the pool's withdrawal verifier code to a shadow address and make the original
+address run it and return `true`, so verification still costs real gas (about
+3k more). Once the limits converge, the SDK proves each note and requests one
+signature locally. The signed operation reaches the bundler only through
+`broadcast`. The bundler still learns the recipient, fee, sender and gas limits
+during estimation. The configured bundler must support state overrides.
 
 ## Random paymaster delegation
 
@@ -113,7 +127,7 @@ value. It must match the chain; otherwise preparation stops. When omitted, the
 SDK reads the current key-0 EntryPoint nonce. This is separate from the owner's
 native transaction nonce. No owner private key,
 `signAuthorization`, `signMessage`, or owner transaction is requested for this route.
-Gas refinement can request more than one typed-data signature; review each payload.
+Gas refinement does not prompt the owner; one typed-data signature is requested for the final operation.
 
 For first-use deployment, include
 `account.factory: { address: simpleAccountFactoryAddress, salt }` and use the
