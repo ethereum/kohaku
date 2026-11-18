@@ -43,25 +43,41 @@ const relayerRegistered = (blockNumber: bigint): IRelayerRegisteredEvent => ({
 
 // A fake DataService: the chain path (getPoolEvents) tags events at the block it
 // was asked to start from, so tests can prove which range came from the chain.
-// The pool holds code from `deployedAt` onwards.
-const makeDataService = (deployedAt = 500n) => {
-  const getPoolEvents = vi.fn(async ({ fromBlock }: { fromBlock: bigint }) => ({
-    Deposited: [deposit(fromBlock)],
-    Withdrawn: [withdrawal(fromBlock)],
-    fromBlock,
-    toBlock: HEAD,
-  }));
+// The pool holds code from `deployedAt` onwards. Chain fetches without an
+// explicit `toBlock` stop at `rpcHead` (a node lagging behind the initial
+// `HEAD`), and an empty range reports `fromBlock - 1`, like EthClient.getLogs.
+const chainRange = (fromBlock: bigint, toBlock: bigint | undefined, rpcHead: bigint) => {
+  const end = toBlock ?? rpcHead;
+
+  return { empty: fromBlock > end, fromBlock, toBlock: fromBlock > end ? fromBlock - 1n : end };
+};
+
+const makeDataService = (deployedAt = 500n, rpcHead = HEAD) => {
+  const getPoolEvents = vi.fn(async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock?: bigint }) => {
+    const range = chainRange(fromBlock, toBlock, rpcHead);
+
+    return {
+      Deposited: range.empty ? [] : [deposit(fromBlock)],
+      Withdrawn: range.empty ? [] : [withdrawal(fromBlock)],
+      fromBlock,
+      toBlock: range.toBlock,
+    };
+  });
 
   const parsePoolEvents = vi.fn((events: ExternalRawEvent[]) => ({
     Deposited: events.map((e) => deposit(BigInt(e.blockNumber))),
     Withdrawn: [] as IRawWithdrawalEvent[],
   }));
 
-  const getRelayerRegistryEvents = vi.fn(async ({ fromBlock }: { fromBlock: bigint }) => ({
-    RelayerRegistered: [relayerRegistered(fromBlock)],
-    fromBlock,
-    toBlock: HEAD,
-  }));
+  const getRelayerRegistryEvents = vi.fn(async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock?: bigint }) => {
+    const range = chainRange(fromBlock, toBlock, rpcHead);
+
+    return {
+      RelayerRegistered: range.empty ? [] : [relayerRegistered(fromBlock)],
+      fromBlock,
+      toBlock: range.toBlock,
+    };
+  });
 
   const parseRelayerRegistryEvents = vi.fn((events: ExternalRawEvent[]) => ({
     RelayerRegistered: events.map((e) => relayerRegistered(BigInt(e.blockNumber))),
@@ -91,7 +107,7 @@ const makeDataService = (deployedAt = 500n) => {
 const makeProvider = (
   coverage: bigint | null,
   events: ExternalRawEvent[] = [],
-  firstBlock: bigint | null = null,
+  firstBlock: bigint | null = 0n,
 ) => {
   const getEvents = vi.fn(async () => events);
 
@@ -205,6 +221,81 @@ describe('SyncService.getPoolEvents', () => {
       expect.objectContaining({ fromBlock: 100n }),
     );
   });
+
+  it("backfills from the chain the blocks before the provider's first covered block", async () => {
+    const dataService = makeDataService();
+    // Pool deployed at 500, provider data only for [700, 900].
+    const provider = makeProvider(900n, [rawAt(750n)], 700n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const result = await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 500n });
+
+    expect(provider.getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: toHex(700n), toBlock: toHex(900n) }),
+    );
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 500n, toBlock: 699n }),
+    );
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 901n }),
+    );
+    expect(result.Deposited.map((d) => d.blockNumber)).toEqual([500n, 750n, 901n]);
+    expect(result.toBlock).toBe(HEAD);
+  });
+
+  it('falls back to the chain when the first covered block is unavailable', async () => {
+    const dataService = makeDataService();
+    const provider = makeProvider(900n, [rawAt(750n)], null);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n });
+
+    expect(provider.getEvents).not.toHaveBeenCalled();
+    expect(dataService.getPoolEvents).toHaveBeenCalledTimes(1);
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 100n }),
+    );
+  });
+
+  it('falls back to the chain when the provider coverage is empty', async () => {
+    const dataService = makeDataService();
+    // First covered block past the last covered one: nothing to stream.
+    const provider = makeProvider(900n, [], 950n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n });
+
+    expect(provider.getEvents).not.toHaveBeenCalled();
+    expect(dataService.getPoolEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the tail's cursor, not the initial head, when the tail node lags", async () => {
+    // Initial head 1000, provider coverage 900, tail node only at 850.
+    const dataService = makeDataService(500n, 850n);
+    const provider = makeProvider(900n, [rawAt(200n)]);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const result = await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n });
+
+    expect(result.Deposited.map((d) => d.blockNumber)).toEqual([200n]);
+    expect(result.toBlock).toBe(900n);
+  });
 });
 
 describe('SyncService.getRelayerRegistryEvents', () => {
@@ -260,6 +351,29 @@ describe('SyncService.getRelayerRegistryEvents', () => {
       expect.objectContaining({ fromBlock: 100n }),
     );
     expect(result.RelayerRegistered.map((r) => r.blockNumber)).toEqual([100n]);
+  });
+
+  it("backfills before the provider's coverage and reports the lagging tail's cursor", async () => {
+    // Provider data only for [700, 900]; tail node only at 850.
+    const dataService = makeDataService(500n, 850n);
+    const provider = makeProvider(900n, [rawAt(750n)], 700n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const result = await service.getRelayerRegistryEvents({
+      chainId: CHAIN_ID,
+      address: REGISTRY,
+      fromBlock: 500n,
+    });
+
+    expect(dataService.getRelayerRegistryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 500n, toBlock: 699n }),
+    );
+    expect(result.RelayerRegistered.map((r) => r.blockNumber)).toEqual([500n, 750n]);
+    expect(result.toBlock).toBe(900n);
   });
 });
 

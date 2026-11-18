@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EthereumProvider } from '@kohaku-eth/provider';
+import { DataService } from '../../src/data/data.service';
 import { EthClient } from '../../src/data/eth-client';
 import type { Address } from '../../src/interfaces/types.interface';
 
@@ -68,5 +69,23 @@ describe('EthClient.getLogs', () => {
 
     expect(provider.getLogs).toHaveBeenCalledTimes(1);
     expect(result.toBlock).toBe(HEAD);
+  });
+});
+
+describe('DataService.getPoolEvents', () => {
+  it('honours an explicit toBlock of 0 instead of scanning to the head', async () => {
+    const provider = makeProvider(() => '0x');
+    const dataService = new DataService({ provider });
+
+    const result = await dataService.getPoolEvents({
+      events: ['Deposited', 'Withdrawn'],
+      address: POOL,
+      fromBlock: 0n,
+      toBlock: 0n,
+    });
+
+    expect(provider.getBlockNumber).not.toHaveBeenCalled();
+    expect(provider.getLogs).toHaveBeenCalledWith(expect.objectContaining({ fromBlock: 0n, toBlock: 0n }));
+    expect(result.toBlock).toBe(0n);
   });
 });

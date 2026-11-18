@@ -106,7 +106,7 @@ export class DataService implements IDataService {
     const { logs, toBlock: resultingToBlock, fromBlock: resultingFromBlock } = await this.ethClient.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
-      ...(toBlock ? { toBlock } : {}),
+      ...(toBlock !== undefined ? { toBlock } : {}),
     });
     const allEvents = events instanceof Array ? events : [events];
 

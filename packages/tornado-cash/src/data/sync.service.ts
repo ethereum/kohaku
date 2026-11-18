@@ -32,72 +32,30 @@ export class SyncService implements ISyncService {
     this.minExternalSyncBlocksAmount = minExternalSyncBlocksAmount;
   }
 
-  async getPoolEvents({
-    chainId,
-    address,
-    fromBlock,
-  }: IGetEventsParams): Promise<IGetPoolEventsResult> {
-    const head = await this.dataService.getBlockNumber();
-
-    const external = await this.maybeFetchExternalRaw({ chainId, address, fromBlock, head });
-
-    if (!external) {
-      // Chain-only: below the threshold, no provider, or no external coverage.
-      const { Deposited, Withdrawn, toBlock } = await this.dataService.getPoolEvents({
-        events: ["Deposited", "Withdrawn"],
-        address,
-        fromBlock,
-      });
-
-      return { Deposited, Withdrawn, toBlock };
-    }
-
-    const { Deposited, Withdrawn } = this.dataService.parsePoolEvents(external.rawEvents);
-
-    // The chain takes over from the block right after the provider's coverage.
-    const tail = await this.dataService.getPoolEvents({
-      events: ["Deposited", "Withdrawn"],
-      address,
-      fromBlock: external.coverage + 1n,
-    });
+  async getPoolEvents({ address, ...params }: IGetEventsParams): Promise<IGetPoolEventsResult> {
+    const { segments, toBlock } = await this.fetchSegments(
+      { address, ...params },
+      (range) => this.dataService.getPoolEvents({ events: ["Deposited", "Withdrawn"], address, ...range }),
+      (rawEvents) => this.dataService.parsePoolEvents(rawEvents),
+    );
 
     return {
-      Deposited: [...Deposited, ...tail.Deposited],
-      Withdrawn: [...Withdrawn, ...tail.Withdrawn],
-      toBlock: head,
+      Deposited: segments.flatMap((segment) => segment.Deposited),
+      Withdrawn: segments.flatMap((segment) => segment.Withdrawn),
+      toBlock,
     };
   }
 
-  async getRelayerRegistryEvents({
-    chainId,
-    address,
-    fromBlock,
-  }: IGetEventsParams): Promise<IGetRelayerRegistryEventsResult> {
-    const head = await this.dataService.getBlockNumber();
-
-    const external = await this.maybeFetchExternalRaw({ chainId, address, fromBlock, head });
-
-    if (!external) {
-      const { RelayerRegistered, toBlock } = await this.dataService.getRelayerRegistryEvents({
-        events: "RelayerRegistered",
-        address,
-        fromBlock,
-      });
-
-      return { RelayerRegistered, toBlock };
-    }
-
-    const { RelayerRegistered } = this.dataService.parseRelayerRegistryEvents(external.rawEvents);
-
-    const tail = await this.dataService.getRelayerRegistryEvents({
-      events: "RelayerRegistered",
-      address,
-      fromBlock: external.coverage + 1n,
-    });
+  async getRelayerRegistryEvents({ address, ...params }: IGetEventsParams): Promise<IGetRelayerRegistryEventsResult> {
+    const { segments, toBlock } = await this.fetchSegments(
+      { address, ...params },
+      (range) => this.dataService.getRelayerRegistryEvents({ events: "RelayerRegistered", address, ...range }),
+      (rawEvents) => this.dataService.parseRelayerRegistryEvents(rawEvents),
+    );
 
     return {
-      RelayerRegistered: [...RelayerRegistered, ...tail.RelayerRegistered],
-      toBlock: head,
+      RelayerRegistered: segments.flatMap((segment) => segment.RelayerRegistered),
+      toBlock,
     };
   }
 
@@ -148,10 +106,50 @@ export class SyncService implements ISyncService {
   }
 
   /**
+   * Fetches events from `fromBlock` as ascending segments: chain-only, or a
+   * chain backfill before the provider's first covered block, the provider's
+   * events, and the chain tail after its coverage. `toBlock` is the last chain
+   * segment's own cursor, since the initial head may be past what a lagging
+   * node actually scanned.
+   */
+  private async fetchSegments<T>(
+    params: IGetEventsParams,
+    fetchChain: (range: { fromBlock: bigint; toBlock?: bigint }) => Promise<T & { toBlock: bigint }>,
+    parseExternal: (rawEvents: ExternalRawEvent[]) => T,
+  ): Promise<{ segments: T[]; toBlock: bigint }> {
+    const head = await this.dataService.getBlockNumber();
+    const external = await this.maybeFetchExternalRaw({ ...params, head });
+
+    if (!external) {
+      // Chain-only: below the threshold, no provider, or no external coverage.
+      const chain = await fetchChain({ fromBlock: params.fromBlock });
+
+      return { segments: [chain], toBlock: chain.toBlock };
+    }
+
+    const segments: T[] = [];
+
+    if (external.firstCovered > params.fromBlock) {
+      segments.push(await fetchChain({ fromBlock: params.fromBlock, toBlock: external.firstCovered - 1n }));
+    }
+
+    segments.push(parseExternal(external.rawEvents));
+
+    // The chain takes over from the block right after the provider's coverage.
+    const tail = await fetchChain({ fromBlock: external.coverage + 1n });
+
+    segments.push(tail);
+
+    return { segments, toBlock: tail.toBlock };
+  }
+
+  /**
    * Decides whether to use the external provider and, if so, streams its raw
-   * events for `[fromBlock, coverage]`. Event-agnostic: callers parse the raw
-   * events with the appropriate DataService method. Returns `null` to signal a
-   * chain-only fetch (below threshold, no provider, or no coverage).
+   * events for `[max(fromBlock, firstCovered), coverage]`. Event-agnostic:
+   * callers parse the raw events with the appropriate DataService method, and
+   * backfill `[fromBlock, firstCovered - 1]` from the chain when the provider's
+   * data starts later. Returns `null` to signal a chain-only fetch (below
+   * threshold, no provider, or no coverage).
    */
   private async maybeFetchExternalRaw({
     chainId: rawChainId,
@@ -159,7 +157,7 @@ export class SyncService implements ISyncService {
     fromBlock,
     head,
   }: IGetEventsParams & { head: bigint }): Promise<
-    { rawEvents: ExternalRawEvent[]; coverage: bigint } | null
+    { rawEvents: ExternalRawEvent[]; firstCovered: bigint; coverage: bigint } | null
   > {
     const provider = this.externalSyncProvider;
     const min = this.minExternalSyncBlocksAmount;
@@ -171,28 +169,32 @@ export class SyncService implements ISyncService {
     const chainId = toHex(rawChainId);
     const hexAddress = toHex(address, { size: 20 });
 
+    let firstCovered: bigint;
     let coverage: bigint;
 
     try {
-      coverage = BigInt(await provider.lastCoveredBlock({ chainId, address: hexAddress }));
+      [firstCovered, coverage] = await Promise.all([
+        provider.firstCoveredBlock({ chainId, address: hexAddress }).then(BigInt),
+        provider.lastCoveredBlock({ chainId, address: hexAddress }).then(BigInt),
+      ]);
     } catch {
       // Provider has no data for this pool (or failed) — fall back to chain-only.
       return null;
     }
 
-    if (coverage <= fromBlock) {
+    const toBlock = coverage < head ? coverage : head;
+
+    if (coverage <= fromBlock || firstCovered > toBlock) {
       return null;
     }
-
-    const toBlock = coverage < head ? coverage : head;
 
     const rawEvents = await provider.getEvents({
       chainId,
       address: hexAddress,
-      fromBlock: toHex(fromBlock),
+      fromBlock: toHex(firstCovered > fromBlock ? firstCovered : fromBlock),
       toBlock: toHex(toBlock),
     });
 
-    return { rawEvents, coverage: toBlock };
+    return { rawEvents, firstCovered, coverage: toBlock };
   }
 }
