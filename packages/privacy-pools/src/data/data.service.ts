@@ -171,6 +171,20 @@ export class DataService implements IDataService {
     return this.ethClient.getBlockNumber();
   }
 
+  async getFinalizedBlockNumber(): Promise<bigint> {
+    const block = await this.ethClient.request({
+      method: "eth_getBlockByNumber",
+      params: ["finalized", false],
+    }) as { number?: string } | null;
+
+    // No fallback to a fixed depth: a guess too shallow would let a reorg back in.
+    if (!block?.number) {
+      throw new Error("Failed to fetch the finalized block");
+    }
+
+    return BigInt(block.number);
+  }
+
   async getChainId() {
 
     const chainIdHex = await this.ethClient.request({

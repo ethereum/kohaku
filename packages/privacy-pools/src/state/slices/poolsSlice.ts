@@ -4,6 +4,7 @@ import { IPool } from '../../data/interfaces/events.interface';
 import { Address } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
 import { serialize } from '../utils/serialize.utils';
+import { pruneAfterBlock } from './syncSlice';
 
 export interface PoolsState {
   poolsTuples: [Address, IPool][];
@@ -30,6 +31,18 @@ export const poolsSlice = createSlice({
 
       return { poolsTuples: Array.from(newPools) };
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(pruneAfterBlock, ({ poolsTuples }, { payload: block }) => ({
+      poolsTuples: poolsTuples
+        .filter(([, { registeredBlock }]) => BigInt(registeredBlock) <= block)
+        .map(([address, pool]) => [address, {
+          ...pool,
+          woundDownAtBlock: pool.woundDownAtBlock !== null && BigInt(pool.woundDownAtBlock) > block
+            ? null
+            : pool.woundDownAtBlock,
+        }]),
+    }));
   },
 });
 

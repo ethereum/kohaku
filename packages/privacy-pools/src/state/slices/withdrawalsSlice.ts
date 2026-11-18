@@ -3,7 +3,9 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { IWithdrawalEvent } from '../../data/interfaces/events.interface';
 import { Nullifier } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
+import { keepUpToBlock } from '../utils/prune.utils';
 import { serialize } from '../utils/serialize.utils';
+import { pruneAfterBlock } from './syncSlice';
 
 export interface WithdrawalsState {
   withdrawalsTuples: [Nullifier, IWithdrawalEvent][];
@@ -30,6 +32,11 @@ export const withdrawalsSlice = createSlice({
 
       return { withdrawalsTuples: Array.from(newWithdrawals) };
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(pruneAfterBlock, ({ withdrawalsTuples }, { payload: block }) => ({
+      withdrawalsTuples: keepUpToBlock(withdrawalsTuples, block),
+    }));
   },
 });
 

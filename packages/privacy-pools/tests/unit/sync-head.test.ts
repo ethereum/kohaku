@@ -47,7 +47,8 @@ const poolEvents: Record<string, ChainEvent[]> = {
  */
 const advancingChainDataService = (heads: bigint[]) => {
   let call = 0;
-  const head = () => heads[Math.min(call++, heads.length - 1)]!;
+  let current = 0n;
+  const head = () => (current = heads[Math.min(call++, heads.length - 1)]!);
   const scan = (source: Record<string, ChainEvent[]>) =>
     vi.fn(async ({ events, fromBlock, toBlock }: { events: string[]; fromBlock: bigint; toBlock?: bigint }) => {
       const to = toBlock ?? head();
@@ -62,6 +63,8 @@ const advancingChainDataService = (heads: bigint[]) => {
 
   return {
     getBlockNumber: vi.fn(async () => head()),
+    // Everything up to the head is final here: reorgs are covered by sync-reorg.test.ts.
+    getFinalizedBlockNumber: vi.fn(async () => current),
     getEntrypointEvents: scan(entrypointEvents),
     getPoolEvents: scan(poolEvents),
     getAsset: vi.fn(async (address: Address) => ({ address, name: 'T', symbol: 'T', decimals: 18 })),

@@ -5,7 +5,7 @@ import {
   IWithdrawalEvent,
   IRagequitEvent,
 } from "../../data/interfaces/events.interface";
-import { selectLastSyncedBlock } from "../selectors/last-synced-block.selector";
+import { selectSyncCursor } from "../selectors/last-synced-block.selector";
 import { registerDeposits } from "../slices/depositsSlice";
 import { registerRagequits } from "../slices/ragequitsSlice";
 import { registerWithdrawals } from "../slices/withdrawalsSlice";
@@ -29,11 +29,11 @@ export const syncEventsThunk = createAsyncThunk<
 >("sync/events", async ({ dataService, toBlock }, { getState, dispatch }) => {
   const state = getState();
   const myPools = poolsSelector(state);
-  const lastSyncedBlock = selectLastSyncedBlock(state);
+  const lastSyncedBlock = selectSyncCursor(state);
 
   // Fetch deposits, withdrawals, and ragequits from all pools in parallel. A failed
-  // scan fails the sync: the head becomes the sync point, so a skipped pool's events
-  // would never be fetched again.
+  // scan fails the sync: the finalized block becomes the sync point, so a skipped
+  // pool's finalized events would never be fetched again.
   const results = await Promise.all(
     Array.from(myPools.values()).map(async (pool) => {
       const events = await dataService.getPoolEvents({
