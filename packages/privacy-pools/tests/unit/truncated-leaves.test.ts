@@ -67,6 +67,7 @@ const chainDataService = async ({ dropLeaves = [] as bigint[], heads = [HEAD] } 
 
   return {
     getBlockNumber: vi.fn(async () => heads[Math.min(headCall++, heads.length - 1)]!),
+    getFinalizedBlockNumber: vi.fn(async () => HEAD),
     getEntrypointEvents: scan(entrypointEvents, () => false),
     // A source that silently leaves out some leaf-bearing events.
     getPoolEvents: scan(poolEvents, (name, e) => name === 'LeafInserted' && dropLeaves.includes(e.index as bigint)),
