@@ -11,7 +11,6 @@ import { EthClient } from '../../../src/data/eth-client';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
-import { addressToHex } from '../../../src/utils';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance, type AnvilPool } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
@@ -19,14 +18,13 @@ import { createMockHost } from '../../utils/mock-host';
 import { createSagaLogSource } from '../../utils/saga-log-source';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import {
-  approveERC20,
   fundAccountWithERC20,
   getProtocolWithState,
   MOCK_IPFS_CID,
   pushNewAspRoot,
-  sendTxAndWait,
   setupMockAspForTest,
   setupWallet,
+  sendTxnsAndWait,
 } from '../../utils/test-helpers';
 
 const EXECUTOR_PK = '0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5' as Hex;
@@ -127,11 +125,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bun
 
     // 1. Fund + approve + deposit USDC.
     await fundAccountWithERC20(pool.rpcUrl, USDC, alice.address, DEPOSIT_AMOUNT);
-    expect((await approveERC20(alice, USDC, addressToHex(ENTRYPOINT_ADDRESS), DEPOSIT_AMOUNT))?.status).toBe(1);
+    const { txns } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
 
-    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
-
-    expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
+    expect((await sendTxnsAndWait(alice, txns))?.status).toBe(1);
     await pool.mine(1);
 
     // 2. Approve the note via the mock ASP.

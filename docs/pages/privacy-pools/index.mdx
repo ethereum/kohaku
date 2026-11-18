@@ -71,7 +71,7 @@ for (const tx of txns) {
 }
 ```
 
-`txns` is a list of `{ to, data, value }`. Send them from the user's public account, in order. The value on an ETH deposit is the amount. An ERC-20 deposit is an approval plus the pool call, so there can be more than one transaction. Wait for the receipts, then call `balance` again.
+`txns` is a list of `{ to, data, value }`. Send them from the user's public account, in order. The value on an ETH deposit is the amount. An ERC-20 deposit is an approval of exactly the deposited amount for the Entrypoint, then the deposit. For tokens that reject changing one nonzero allowance to another, such as USDT, the plan first resets the allowance to zero, so it has three transactions. Wait for the receipts, then call `balance` again.
 
 `estimateShield` quotes the vetting fee before you build the transactions. It reads the entrypoint's current asset config and skips the proof.
 

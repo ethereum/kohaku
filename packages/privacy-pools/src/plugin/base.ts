@@ -202,12 +202,12 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
     await this.stateManager.sync();
 
-    const tx = await this.stateManager.getDepositPayload({
+    const txns = await this.stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
     });
 
-    return { txns: [tx] } as PPv1PublicOperation;
+    return { txns } as PPv1PublicOperation;
   }
 
   /**

@@ -9,7 +9,7 @@ import { defineAnvil, type AnvilInstance } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
 import { createMockHost } from '../../utils/mock-host';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { approveERC20, assetVettingFee, deductVettingFees, getProtocolWithState, sendTxAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
+import { assetVettingFee, deductVettingFees, getProtocolWithState, sendTxAndWait, sendTxnsAndWait, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 
 describe('PrivacyPools v1 E2E Flow', () => {
   let anvil: AnvilInstance;
@@ -185,12 +185,15 @@ describe('PrivacyPools v1 E2E Flow', () => {
       { asset: erc20Asset, amount: 100000000n } // 100 USDC
     );
 
-    expect(txns).toHaveLength(1);
-    const [tx] = txns;
+    // The approval of the deposited amount, then the deposit.
+    expect(txns).toHaveLength(2);
+    const [approval, tx] = txns;
 
-    expect(tx.to?.toLowerCase()).toBe(ENTRYPOINT_ADDRESS_HEX.toLowerCase());
-    expect(tx.value).toBe(0n); // ERC20 has no ETH value
-    expect(tx.data).toMatch(/^0x/);
+    expect(approval!.to.toLowerCase()).toBe(erc20Address.toLowerCase());
+    expect(approval!.value).toBe(0n);
+    expect(tx!.to.toLowerCase()).toBe(ENTRYPOINT_ADDRESS_HEX.toLowerCase());
+    expect(tx!.value).toBe(0n); // ERC20 has no ETH value
+    expect(tx!.data).toMatch(/^0x/);
   });
 
   it('[prepareShield] executes successful ERC20 deposit on forked mainnet', { timeout: 60_000 }, async () => {
@@ -220,24 +223,19 @@ describe('PrivacyPools v1 E2E Flow', () => {
     // 2. Setup: Transfer ERC20 from whale to Alice
     await transferERC20FromWhale(pool.rpcUrl, erc20Address, erc20WhaleAddress, alice.address, DEPOSIT_AMOUNT);
 
-    // 3. Approve entrypoint to spend ERC20
-    const appReceipt = await approveERC20(alice, erc20Address, ENTRYPOINT_ADDRESS_HEX, DEPOSIT_AMOUNT);
-
-    expect(appReceipt).toBeTruthy();
-    expect(appReceipt?.status).toBe(1); // Success
-
-    // 4. Prepare and execute deposit
+    // 3. Prepare and send the plan as returned: the approval, then the deposit
     const { txns } = await protocol.prepareShield(
       { asset: erc20Asset, amount: DEPOSIT_AMOUNT }
     );
 
-    const [tx] = txns;
-    const receipt = await sendTxAndWait(alice, tx);
+    expect(txns.map(({ to }) => to.toLowerCase())).toEqual([erc20Address.toLowerCase(), ENTRYPOINT_ADDRESS_HEX.toLowerCase()]);
+
+    const receipt = await sendTxnsAndWait(alice, txns);
 
     expect(receipt).toBeTruthy();
     expect(receipt?.status).toBe(1); // Success
 
-    // 5. Verify state after deposit
+    // 4. Verify state after deposit
     const postDepositBalance = await protocol.balance([erc20Asset]);
 
     const DEPOSIT_AMOUNT_AFTER_EP_FEE = deductVettingFees(DEPOSIT_AMOUNT, vettingFeesErc20);
