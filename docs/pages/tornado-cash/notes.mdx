@@ -60,4 +60,6 @@ Pass one string or an array. The call syncs first. Imported notes show up with `
 
 After a successful import, `balance` and `prepareUnshield` treat the note like any other unspent note.
 
+Imported secrets persist in private `host.storage`, outside the keystore's derivation scheme. Give each wallet/account its own storage namespace if its imports must remain separate. Keep the original note string as a backup; `dumpState()` excludes it.
+
 The CLI command that calls this is [`src/commands/import-tornado-note.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/commands/import-tornado-note.ts), via `plugin.importNotes` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).
