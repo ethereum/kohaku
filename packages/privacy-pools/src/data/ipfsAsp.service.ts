@@ -2,6 +2,7 @@ import { Network } from "@kohaku-eth/plugins";
 import { IAspService, IAspServiceParams } from "./asp.interface";
 import { RootState } from "../state";
 import { lastUpdateRootEventSelector } from "../state/selectors/slices.selectors";
+import { MAX_ASP_LEAVES, parseAspLeaves, readAspJson } from "./asp.utils";
 
 export type IPFSGetTreeParams = {
   ipfsCID: string;
@@ -29,15 +30,23 @@ export class IPFSAspService implements IAspService {
     const response = await this.fetch(url, { signal });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
+      await response.body?.cancel();
+
       throw new Error(
-        `IPFS gateway returned ${response.status} for ${url}${body ? `: ${body.slice(0, 200)}` : ""}`,
+        `IPFS gateway returned ${response.status} for ${url}`,
       );
     }
 
-    const tree: string[][] = await response.json();
+    const tree = await readAspJson(response);
 
-    return tree.map((level) => level.map(BigInt));
+    if (
+      !Array.isArray(tree) || tree.length > 33 ||
+      tree.reduce((count, level) => count + (Array.isArray(level) ? level.length : Infinity), 0) > 2 * MAX_ASP_LEAVES + 33
+    ) {
+      throw new Error('ASP tree exceeds client limits or contains invalid levels');
+    }
+
+    return tree.map(parseAspLeaves);
   }
 
   async getAspTree(state: RootState, signal?: AbortSignal): Promise<bigint[][]> {

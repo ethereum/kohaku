@@ -91,6 +91,8 @@ The association set decides which deposits are approved. Until a deposit is in t
 
 The default client is `IPFSAspService`, which `fetch`es the tree from IPFS through `host.network`. Set `ipfsUrl` to point it at another gateway. A client that does not return the tree within 30 seconds is aborted through the `signal` passed to `getAspTree`, and the sync goes on with the last tree it accepted.
 
+ASP clients limit responses to 16 MiB, trees to 100,000 leaves, and numeric strings to 78 characters. IPFS trees may have at most 33 levels. Streaming responses stop at the byte limit; hosts without response streams are checked after reading the text. These are client safety limits, not protocol capacity.
+
 The client is not trusted. The plugin keeps only the leaves it returns, rebuilds the root from them, and rejects the set if that root is not the one in the Entrypoint's `RootUpdated` event. Each sync checks the rebuilt root against the Entrypoint's `latestRoot()`, and a withdrawal is only proved against a root checked that way in the same session. A root does not commit to the number of leaves, so a dishonest gateway can still make approved deposits look pending. Confirm a pending status with a second source, such as `OxBowAspService`, before you offer ragequit.
 
 0xbow publishes the set over HTTP. Pass `OxBowAspService`:

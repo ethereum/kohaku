@@ -3,6 +3,7 @@ import { getNumber } from "ethers";
 import { computeMerkleTreeRoot } from "../utils/proof.util.js";
 import { IAspService, IAspServiceParams } from "./asp.interface.js";
 import { RootState } from "../state/store.js";
+import { parseAspLeaves, readAspJson } from "./asp.utils.js";
 
 export type MtLeavesResponse = {
   aspLeaves: string[];
@@ -11,19 +12,9 @@ export type MtLeavesResponse = {
 
 
 function isMtLeaves(x: unknown): x is MtLeavesResponse {
-  const _x = x as MtLeavesResponse;
+  const value = x as Partial<MtLeavesResponse> | null;
 
-  if ((_x.aspLeaves !== undefined) && (_x.stateTreeLeaves !== undefined)) {
-    if (
-      (_x.aspLeaves.every(leaf => leaf.toUpperCase !== undefined)) &&
-      (_x.stateTreeLeaves.every(leaf => leaf.toUpperCase !== undefined))
-    ) {
-      return true;
-    }
-    else { return false; }
-  }
-
-  return false;
+  return Array.isArray(value?.aspLeaves) && Array.isArray(value?.stateTreeLeaves);
 }
 
 
@@ -63,7 +54,7 @@ export class OxBowAspService implements IAspService {
         headers,
         signal,
       })
-        .then(x => x.json())
+        .then(readAspJson)
         .catch(e => {
           console.error(e);
           throw new Error(`Can't obtain Association Set from ${this.aspUrl}`);
@@ -71,9 +62,9 @@ export class OxBowAspService implements IAspService {
     );
 
     if (isMtLeaves(raw)) {
-      return raw.aspLeaves.map(BigInt);
+      return parseAspLeaves(raw.aspLeaves);
     } else {
-      throw new Error(`Unexpected response \`${raw}\` from ${this.aspUrl} for ${route}`);
+      throw new Error(`Unexpected response from ${this.aspUrl} for ${route}`);
     }
 
   }

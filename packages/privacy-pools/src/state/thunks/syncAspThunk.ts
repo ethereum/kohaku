@@ -1,5 +1,6 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { IAspService } from '../../data/asp.interface.js';
+import { MAX_ASP_LEAVES } from '../../data/asp.utils.js';
 import { computeMerkleTreeRoot, type MerkleTreeBuilder, SNARK_SCALAR_FIELD } from '../../utils/proof.util';
 import { isAspRootUpToDateSelector } from '../selectors/asp.selector';
 import { aspLeavesRootSelector } from '../selectors/merkle.selector';
@@ -27,6 +28,8 @@ export interface SyncAspThunkParams {
  */
 const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint, builder?: MerkleTreeBuilder): Promise<bigint[]> => {
   const leaves = aspTree.at(0) ?? [];
+
+  if (leaves.length > MAX_ASP_LEAVES) throw new Error('ASP tree exceeds client leaf limit');
 
   // Poseidon reduces its inputs, so `label + p` would build the same root while
   // no longer matching the label.
