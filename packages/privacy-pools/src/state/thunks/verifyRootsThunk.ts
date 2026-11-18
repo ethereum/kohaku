@@ -14,6 +14,8 @@ import { Address } from '../../interfaces/types.interface.js';
 
 export interface VerifyRootsThunkParams {
   dataService: IDataService;
+  /** The block the pool leaves are synced up to; pool roots are read at it. */
+  blockNumber: bigint;
   /** Pass false to check only the pools, leaving the verified ASP root unset. */
   verifyAspRoot?: boolean;
   merkleTreeBuilder?: MerkleTreeBuilder;
@@ -21,8 +23,12 @@ export interface VerifyRootsThunkParams {
 
 export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, { state: RootState }>(
   'sync/verifyRoots',
-  async ({ dataService, verifyAspRoot = true, merkleTreeBuilder }, { getState, dispatch }) => {
+  async ({ dataService, blockNumber, verifyAspRoot = true, merkleTreeBuilder }, { getState, dispatch }) => {
     const state = getState();
+
+    // Proofs may only use an ASP root this session matched to the chain, so the
+    // previous one is dropped until the check below passes again.
+    dispatch(setVerifiedAspRoot(0n));
     const { entrypointAddress } = entrypointInfoSelector(state);
     // Rebuilt from the synced leaves: the stored root is only what the service claimed.
     const aspRoot = verifyAspRoot ? await aspLeavesRootSelector(state, merkleTreeBuilder) : 0n;
@@ -39,15 +45,22 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
 
       if (!leavesMap || leavesMap.size === 0) continue;
 
+      // LeafInserted indices are 1-based and gapless on-chain. A hole means the
+      // source dropped events, which the root check would only report as a mismatch.
+      for (let index = 1n; index <= BigInt(leavesMap.size); index++) {
+        if (!leavesMap.has(index)) {
+          throw new Error(
+            `Pool ${poolAddress} leaves are not contiguous: leaf ${index} is missing ` +
+            `(${leavesMap.size} leaves stored)`
+          );
+        }
+      }
+
       const localRoot = await poolMerkleTreeRootSelector(state, poolAddress, merkleTreeBuilder);
 
       stateRootChecks.push({ poolAddress, localRoot });
     }
 
-
-    // Proofs may only use an ASP root this session matched to the chain, so the
-    // previous one is dropped until the check below passes again.
-    dispatch(setVerifiedAspRoot(0n));
 
     // The Entrypoint ASP check and every pool state-root check are independent
     // reads — run them concurrently instead of awaiting one at a time.
@@ -57,7 +70,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
           .then(() => { dispatch(setVerifiedAspRoot(aspRoot)); })]
         : []),
       ...stateRootChecks.map(({ poolAddress, localRoot }) =>
-        verifyStateRootOnChain(dataService, poolAddress, localRoot)),
+        verifyStateRootOnChain(dataService, poolAddress, localRoot, blockNumber)),
     ]);
   }
 );

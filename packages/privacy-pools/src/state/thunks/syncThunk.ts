@@ -90,7 +90,15 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       // left out, so the verified root stays unset and withdrawals are refused.
       const hasRootEvent = lastUpdateRootEventSelector(getState()) !== undefined;
       const verifyAspRoot = !hasRootEvent || await isAspTreeCurrent(getState(), params.merkleTreeBuilder);
-      const verifyResult = await dispatch(verifyRootsThunk({ dataService, verifyAspRoot, merkleTreeBuilder: params.merkleTreeBuilder }));
+      // The leaves now cover up to the head, or up to the sync point when an RPC
+      // behind it scanned nothing.
+      const syncedBlock = toBlock > fromBlock ? toBlock : fromBlock;
+      const verifyResult = await dispatch(verifyRootsThunk({
+        dataService,
+        blockNumber: syncedBlock,
+        verifyAspRoot,
+        merkleTreeBuilder: params.merkleTreeBuilder,
+      }));
 
       unwrapResult(verifyResult);
     }

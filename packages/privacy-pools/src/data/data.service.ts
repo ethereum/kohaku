@@ -190,8 +190,8 @@ export class DataService implements IDataService {
     return Number(BigInt(nonceHex));
   }
 
-  async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
-    return this.ethClient.makeContractRequest(poolAddress, "pool", "currentRoot");
+  async getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', poolAddress, "pool", "currentRoot");
   }
 
   async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {

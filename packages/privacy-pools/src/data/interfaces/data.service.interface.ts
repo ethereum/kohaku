@@ -83,7 +83,8 @@ export interface IDataService {
    * authorization for a reused wallet-path delegator (see `paymasterWithdrawThunk`). */
   getTransactionCount(address: `0x${string}`): Promise<number>;
 
-  getPoolStateRoot(poolAddress: Address): Promise<bigint>;
+  /** The Pool's currentRoot(), at `blockNumber` when given (latest otherwise). */
+  getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint>;
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
   getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint>;
   getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint>;
