@@ -59,13 +59,13 @@ export const myEntrypointDepositsSelector = createSelector(
   },
 );
 
-export const buildDepositPayload = (precommitment: bigint, asset: Address, amount: bigint, entrypointAddress: Address): TxData => {
+export const buildDepositPayload = (precommitment: bigint, asset: Address, amount: bigint, entrypointAddress: Address): TxData[] => {
   const assetHex = addressToHex(asset);
   const entrypointHex = addressToHex(entrypointAddress);
   const isNative = assetHex.toLowerCase() === E_ADDRESS;
 
   if (isNative) {
-    return prepareNativeShield({ precommitment, amount, entrypointAddress: entrypointHex });
+    return [prepareNativeShield({ precommitment, amount, entrypointAddress: entrypointHex })];
   } else {
     return prepareErc20Shield({ precommitment, amount, tokenAddress: assetHex, entrypointAddress: entrypointHex });
   }

@@ -13,7 +13,6 @@ import { EthClient } from '../../../src/data/eth-client';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
-import { addressToHex } from '../../../src/utils';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance, type AnvilPool } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
@@ -21,12 +20,12 @@ import { createMockHost } from '../../utils/mock-host';
 import { createSagaLogSource } from '../../utils/saga-log-source';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import {
-  approveERC20,
   fundAccountWithERC20,
   getProtocolWithState,
   MOCK_IPFS_CID,
   pushNewAspRoot,
   sendTxAndWait,
+  sendTxnsAndWait,
   setupMockAspForTest,
   setupWallet,
 } from '../../utils/test-helpers';
@@ -227,11 +226,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
 
     // 1. Fund + approve + deposit USDC.
     await fundAccountWithERC20(pool.rpcUrl, USDC, alice.address, DEPOSIT_AMOUNT);
-    expect((await approveERC20(alice, USDC, addressToHex(ENTRYPOINT_ADDRESS), DEPOSIT_AMOUNT))?.status).toBe(1);
+    const { txns } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
 
-    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
-
-    expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
+    expect((await sendTxnsAndWait(alice, txns))?.status).toBe(1);
     await pool.mine(1);
 
     // 2. Approve the note via the mock ASP.
@@ -324,11 +321,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster tail calls (real bundl
 
     // 1. Fund + approve + deposit USDT.
     await fundAccountWithERC20(pool.rpcUrl, USDT, alice.address, DEPOSIT_AMOUNT, USDT_BALANCE_SLOT);
-    expect((await approveERC20(alice, USDT, addressToHex(ENTRYPOINT_ADDRESS), DEPOSIT_AMOUNT))?.status).toBe(1);
+    const { txns } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
 
-    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
-
-    expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
+    expect((await sendTxnsAndWait(alice, txns))?.status).toBe(1);
     await pool.mine(1);
 
     // 2. Approve the note via the mock ASP.

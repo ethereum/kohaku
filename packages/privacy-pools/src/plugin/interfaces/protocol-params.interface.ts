@@ -421,9 +421,10 @@ export interface IStateManager {
    */
   sync: (options?: IStateSyncOptions) => Promise<void>;
   /**
-   * Generates a deposit payload for the signer
+   * Generates a deposit payload for the signer.
+   * The shield plan, in order: an ERC-20 deposit is preceded by its approval.
    */
-  getDepositPayload: (params: IDepositOperationParams) => Promise<TxData>;
+  getDepositPayload: (params: IDepositOperationParams) => Promise<TxData[]>;
   /**
    * Computes the vetting fee for a deposit from the Entrypoint's current asset config
    */

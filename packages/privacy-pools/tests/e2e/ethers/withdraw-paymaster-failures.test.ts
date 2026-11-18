@@ -11,7 +11,6 @@ import { EthClient } from '../../../src/data/eth-client';
 import { PaymasterBroadcastError, PrivacyPoolsV1Protocol } from '../../../src/index';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
-import { addressToHex } from '../../../src/utils';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance, type AnvilPool } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
@@ -19,7 +18,6 @@ import { createMockHost } from '../../utils/mock-host';
 import { createSagaLogSource } from '../../utils/saga-log-source';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import {
-  approveERC20,
   fundAccountWithERC20,
   getProtocolWithState,
   MOCK_IPFS_CID,
@@ -158,12 +156,11 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast failures (re
 
     if (erc20) {
       await fundAccountWithERC20(pool.rpcUrl, erc20.token, alice.address, amount, erc20.balanceSlot);
-      expect((await approveERC20(alice, erc20.token, addressToHex(ENTRYPOINT_ADDRESS), amount))?.status).toBe(1);
     }
 
     const { txns } = await protocol.prepareShield({ asset, amount });
 
-    // An ERC20 deposit may be preceded by an allowance tx; the deposit is last.
+    // An ERC20 deposit is preceded by its approval; the deposit is last.
     for (const tx of txns) {
       expect((await sendTxAndWait(alice, tx))?.status).toBe(1);
     }
