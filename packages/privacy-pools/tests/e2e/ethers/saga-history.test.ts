@@ -57,7 +57,8 @@ const requestedBlocks = (calls: ProviderCall[]) =>
   calls.flatMap(({ method, args }) => {
     const { method: rpcMethod, params } = (args[0] ?? {}) as { method?: string; params?: unknown[] };
 
-    if (method !== 'request' || rpcMethod !== 'eth_getBlockByNumber' || params?.[0] === 'latest') return [];
+    // Block tags (the sync's finalized lookup) name no block of the user's.
+    if (method !== 'request' || rpcMethod !== 'eth_getBlockByNumber' || !String(params?.[0]).startsWith('0x')) return [];
 
     return [BigInt(params![0] as string)];
   });

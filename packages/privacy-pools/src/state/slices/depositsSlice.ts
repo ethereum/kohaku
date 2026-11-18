@@ -3,7 +3,9 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { IPoolDepositEvent } from '../../data/interfaces/events.interface';
 import { Precommitment } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
+import { keepUpToBlock } from '../utils/prune.utils';
 import { serialize } from '../utils/serialize.utils';
+import { pruneAfterBlock } from './syncSlice';
 
 export interface DepositsState {
   depositsTuples: [Precommitment, IPoolDepositEvent][];
@@ -30,6 +32,11 @@ export const depositsSlice = createSlice({
 
       return { depositsTuples: Array.from(newDeposits) };
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(pruneAfterBlock, ({ depositsTuples }, { payload: block }) => ({
+      depositsTuples: keepUpToBlock(depositsTuples, block),
+    }));
   },
 });
 

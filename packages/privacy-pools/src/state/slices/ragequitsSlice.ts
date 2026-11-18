@@ -3,7 +3,9 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { IRagequitEvent } from '../../data/interfaces/events.interface';
 import { Label } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
+import { keepUpToBlock } from '../utils/prune.utils';
 import { serialize } from '../utils/serialize.utils';
+import { pruneAfterBlock } from './syncSlice';
 
 export interface RagequitsState {
   ragequitsTuples: [Label, IRagequitEvent][];
@@ -30,6 +32,11 @@ export const ragequitsSlice = createSlice({
 
       return { ragequitsTuples: Array.from(newRagequits) };
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(pruneAfterBlock, ({ ragequitsTuples }, { payload: block }) => ({
+      ragequitsTuples: keepUpToBlock(ragequitsTuples, block),
+    }));
   },
 });
 
