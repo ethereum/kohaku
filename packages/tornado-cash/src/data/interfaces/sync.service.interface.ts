@@ -61,8 +61,9 @@ export interface ISyncService {
 
   /**
    * Resolves a pool's scan-start block. Uses the external provider's first
-   * covered block when available (an O(1) lookup), else falls back to the
-   * on-chain deployment-block binary search.
+   * covered block when it is verified on-chain as a lower bound (the pool has
+   * no code in the block before it), else falls back to the on-chain
+   * deployment-block binary search.
    */
   getPoolDeploymentBlock(params: { chainId: bigint; address: Address }): Promise<bigint>;
 }

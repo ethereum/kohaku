@@ -106,7 +106,7 @@ export class DataService implements IDataService {
     const { logs, toBlock: resultingToBlock, fromBlock: resultingFromBlock } = await this.ethClient.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
-      ...(toBlock ? { toBlock } : {}),
+      ...(toBlock !== undefined ? { toBlock } : {}),
     });
     const allEvents = events instanceof Array ? events : [events];
 
@@ -281,6 +281,10 @@ export class DataService implements IDataService {
 
   async getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint> {
     return this.ethClient.getDeploymentBlock(address, fromBlock);
+  }
+
+  async isContractDeployedAt(address: Address, block: bigint): Promise<boolean> {
+    return this.ethClient.hasCodeAt(address, block);
   }
 
   async getPoolStateRoot(poolAddress: Address): Promise<bigint> {

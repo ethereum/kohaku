@@ -47,6 +47,12 @@ export class EthClient {
         const fromBlock = params.fromBlock;
         const toBlock = params.toBlock ?? await this.provider.getBlockNumber();
 
+        // An empty range scanned nothing: report the cursor as just below
+        // `fromBlock` so callers never advance past blocks they did not read.
+        if (fromBlock > toBlock) {
+            return { logs: [], fromBlock, toBlock: fromBlock - 1n };
+        }
+
         const logs: TxLog[] = [];
 
         for (let start = fromBlock; start <= toBlock; start += maxQuerySize) {
@@ -76,22 +82,45 @@ export class EthClient {
         return this.provider.getBlockNumber();
     }
 
+    /**
+     * Whether `address` holds code at `block`. Throws on a response that is not
+     * hex-encoded bytecode, so malformed RPC output is never read as "deployed".
+     */
+    async hasCodeAt(address: Address, block: bigint): Promise<boolean> {
+        const code = await this.request({
+            method: 'eth_getCode',
+            params: [toHex(address, { size: 20 }), toHex(block)],
+        });
+
+        if (typeof code !== 'string' || !/^0x(?:[0-9a-fA-F]{2})*$/.test(code)) {
+            throw new Error(`Malformed eth_getCode response for ${toHex(address, { size: 20 })} at block ${block}`);
+        }
+
+        return code !== '0x';
+    }
+
     async getDeploymentBlock(address: Address, fromBlock: bigint = 0n): Promise<bigint> {
         let low = fromBlock;
         let high = await this.getBlockNumber();
 
+        if (low > high) {
+            throw new Error(`Deployment search start ${low} is past the chain head ${high}`);
+        }
+
         while (low < high) {
             const mid = (low + high) / 2n;
-            const code = await this.request({
-                method: 'eth_getCode',
-                params: [toHex(address, { size: 20 }), toHex(mid)],
-            }) as string;
 
-            if (code === '0x') {
-                low = mid + 1n;
-            } else {
+            if (await this.hasCodeAt(address, mid)) {
                 high = mid;
+            } else {
+                low = mid + 1n;
             }
+        }
+
+        // The search converges on the head when no probe found code; confirm the
+        // result really is deployed rather than persisting the head as a boundary.
+        if (!(await this.hasCodeAt(address, low))) {
+            throw new Error(`No code for ${toHex(address, { size: 20 })} at or before block ${low}`);
         }
 
         return low;
