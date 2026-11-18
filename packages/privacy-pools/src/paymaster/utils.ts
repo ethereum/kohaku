@@ -158,20 +158,25 @@ export async function estimateUserOperationGas(
 /**
  * The EntryPoint v0.8 hash of a userOp built by `buildSignedUserOp`, which is
  * what its sender signed. Covers payloads prepared before they carried
- * `userOpHash`. The chain is the one the 7702 authorization was signed for;
- * `undefined` without an authorization.
+ * `userOpHash`. The chain is the one the 7702 authorization was signed for,
+ * else `chainId`; `undefined` without either.
  */
-export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
-  if (!op.eip7702Auth) return undefined;
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address, chainId?: number): Hash | undefined {
+  const chain = op.eip7702Auth ? Number(op.eip7702Auth.chainId) : chainId;
+
+  if (chain === undefined) return undefined;
 
   const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
 
   return hashTypedData(getUserOperationTypedData({
-    chainId: Number(op.eip7702Auth.chainId),
+    chainId: chain,
     entryPointAddress: entryPoint,
     userOperation: {
       sender: op.sender,
       nonce: BigInt(op.nonce),
+      // A SimpleAccount deployment is part of what its owner signed.
+      factory: op.factory,
+      factoryData: op.factoryData,
       callData: op.callData,
       callGasLimit: BigInt(op.callGasLimit),
       verificationGasLimit: BigInt(op.verificationGasLimit),

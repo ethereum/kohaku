@@ -444,3 +444,21 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     expect(error.message).not.toContain(withdrawal.userOperation.signature.slice(2));
   });
 });
+
+describe('PaymasterBroadcaster for a sender without a 7702 authorization', () => {
+  it('hashes the userOp with an explicit chain id', () => {
+    const userOperation = { ...withdrawal.userOperation, eip7702Auth: undefined };
+
+    expect(serializedUserOperationHash(userOperation, entryPoint08Address, CHAIN_ID)).toBe(USER_OP_HASH);
+  });
+
+  it('recovers a lost send response with the stored hash', async () => {
+    const smartAccount = { ...withdrawal, userOperation: { ...withdrawal.userOperation, eip7702Auth: undefined }, userOpHash: USER_OP_HASH };
+    const found = { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: entryPoint08Address };
+    const { network, calls } = makeNetwork(sendFails(() => { throw new Error('socket hang up'); }, () => ({ result: found })));
+    const [{ userOpHash }] = await new PaymasterBroadcaster({ network }).broadcast([smartAccount]);
+
+    expect(userOpHash).toBe(USER_OP_HASH);
+    expect(calls).toEqual(['eth_sendUserOperation', 'eth_getUserOperationByHash']);
+  });
+});

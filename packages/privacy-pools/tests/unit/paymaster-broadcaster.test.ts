@@ -5,7 +5,7 @@ import { entryPoint08Address, getUserOperationHash } from 'viem/account-abstract
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PaymasterBroadcaster } from '../../src/paymaster/paymaster-broadcaster';
-import { buildSignedUserOp, createPaymasterBundlerClient, estimateUserOperationGas } from '../../src/paymaster/utils';
+import { buildSignedUserOp, createPaymasterBundlerClient, estimateUserOperationGas, serializedUserOperationHash } from '../../src/paymaster/utils';
 import { PrivacyPoolsBroadcaster } from '../../src/plugin/broadcaster';
 import {
   IGenericPaymasterWithdrawalPayload,
@@ -495,5 +495,27 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
 
     expect(error.failure).toBe('reverted');
     expect(error.message).not.toContain(SIGNATURE.slice(2));
+  });
+});
+
+describe('PaymasterBroadcaster for a SimpleAccount sender', () => {
+  it.each([false, true])('hashes the userOp with an explicit chain id, matching the signed hash (deploys=%s)', async (deploys) => {
+    const owner = privateKeyToAccount(generatePrivateKey());
+    const factory = { address: `0x${'88'.repeat(20)}` as const, salt: 7n };
+    const { userOperation, userOpHash } = await buildSignedUserOp({
+      signer: owner,
+      executionAccount: { kind: 'simple-account', address: ADDRESS, ...(deploys ? { factory } : {}) },
+      chainId: 11155111,
+      paymasterAddress: ADDRESS,
+      paymasterData: '0x1234',
+      gas: { callGasLimit: 0n, verificationGasLimit: 500_000n, preVerificationGas: 60_000n, paymasterVerificationGasLimit: 900_000n, paymasterPostOpGasLimit: 50_000n },
+      maxFeePerGas: 2_000_000_000n,
+      maxPriorityFeePerGas: 1_000_000n,
+    });
+
+    expect(userOperation.eip7702Auth).toBeUndefined();
+    expect(!!userOperation.factory).toBe(deploys);
+    expect(serializedUserOperationHash(userOperation, entryPoint08Address)).toBeUndefined();
+    expect(serializedUserOperationHash(userOperation, entryPoint08Address, 11155111)).toBe(userOpHash);
   });
 });

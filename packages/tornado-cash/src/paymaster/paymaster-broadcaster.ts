@@ -113,11 +113,13 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
   }
 
   static async broadcastOne(
-    { bundlerUrl, entryPointAddress, userOperation }: IGenericPaymasterWithdrawalPayload,
+    { bundlerUrl, entryPointAddress, userOperation, userOpHash: signedHash }: IGenericPaymasterWithdrawalPayload,
     network?: Network,
   ): Promise<PaymasterBroadcastResult> {
     const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
-    const expectedHash = serializedUserOperationHash(userOperation, entryPointAddress);
+    // Payloads prepared by older SDK versions lack the hash; it can then only be
+    // computed for a 7702 sender, whose authorization carries the chain.
+    const expectedHash = signedHash ?? serializedUserOperationHash(userOperation, entryPointAddress);
     let userOpHash: Hash;
 
     try {
