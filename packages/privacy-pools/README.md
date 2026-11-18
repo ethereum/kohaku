@@ -94,6 +94,16 @@ signature locally. The signed operation reaches the bundler only through
 `broadcast`. The bundler still learns the recipient, fee, sender and gas limits
 during estimation. The configured bundler must support state overrides.
 
+## Execution-phase gas is always estimated
+
+Tail calls and batched notes run after the sponsoring payout reaches the
+sender, so an execution phase that runs out of gas leaves the funds there.
+Withdrawals with an execution phase therefore require successful bundler
+estimation with a positive `callGasLimit`, and a second estimate at the
+refined limits; they never fall back to baseline gas. `tailCallsGasEstimate`
+must be a positive bigint. Only a single-note withdrawal without `tailCalls`,
+whose execution gas is zero, keeps the baseline when estimation is unavailable.
+
 ## Random paymaster delegation
 
 `delegation: { mode: 'random' }` discards the sender's private key. A single-note withdrawal without `tailCalls` pays the recipient during validation and remains available without an extra flag. If the selected withdrawal spends multiple notes or supplies `tailCalls` (even an empty callback), the SDK rejects random delegation before generating a key or proof. Those paths pay the sender first; failed, empty, or incomplete execution can permanently strand the net payout. `delegation: { mode: 'random', allowUnsafeRandomExecution: true }` explicitly accepts this risk. Prefer the default recoverable deterministic delegation for execution paths.

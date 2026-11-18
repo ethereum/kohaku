@@ -26,6 +26,7 @@ import {
   getUserOperationGasPrice,
 } from "../../paymaster/utils";
 import { verifierOverrides, type StateOverrides } from "../../paymaster/simulation";
+import { resolveTailCalls } from "../../paymaster/tail-calls";
 import { IPaymasterConfig } from "../../plugin/interfaces/protocol-params.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { WithdrawalPayload } from "../../relayer/interfaces/relayer-client.interface";
@@ -272,11 +273,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return { to: addressToHex(recipient), value: amountOut, data: "0x" };
     };
 
+    // The caller's tail calls, resolved once: every build signs or estimates
+    // these same calls.
+    const resolvedTailCalls = tailCalls ? await resolveTailCalls(tailCalls, sender) : undefined;
+
     // callData order: direct withdraws first (they fund the sender), then the
     // caller's tail calls or the synthesized forward.
     const executionCalls = (fee: bigint, directCalls: TxData[]) => async (): Promise<TxData[]> => [
       ...directCalls,
-      ...(tailCalls ? await tailCalls(sender) : (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
+      ...(resolvedTailCalls ?? (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
     ];
 
     const baselineGas = executionGasBaseline(accountConfig, hasExecutionPhase
@@ -327,23 +332,38 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return { proof, userOperation, userOpHash, fee };
     };
 
-    // Existing derived-key modes retain best-effort refinement. External signers
-    // require successful estimation at the final limits.
-    const provisional = await buildUserOp(baselineGas, true);
-    const refinedGas = await refineGasWithBundler(bundlerClient, provisional.userOperation, entryPointAddress, stateOverrides, baselineGas, maxGasLimits, requiresAccountSimulation(delegation));
+    // What makes bundler gas estimation mandatory, named in its errors. External
+    // signers, and withdrawals that run calls after the payout reaches the
+    // sender, require successful estimation at the final limits. Undefined
+    // (derived keys and nothing runs after the payout) allows the baseline fallback.
+    let estimationRequiredBy: string | undefined;
 
-    if (requiresAccountSimulation(delegation)) {
+    if (requiresAccountSimulation(delegation)) estimationRequiredBy = 'External Privacy Pools signing';
+    else if (hasExecutionPhase) estimationRequiredBy = 'A Privacy Pools withdrawal that runs calls after the payout';
+
+    const provisional = await buildUserOp(baselineGas, true);
+    const refinedGas = await refineGasWithBundler(
+      bundlerClient, provisional.userOperation, entryPointAddress, stateOverrides, baselineGas, maxGasLimits, estimationRequiredBy,
+    );
+
+    if (estimationRequiredBy) {
       const simulated = refinedGas === baselineGas ? provisional.userOperation : (await buildUserOp(refinedGas, true)).userOperation;
       const finalGas = await estimateUserOperationGas(bundlerClient, simulated, entryPointAddress, stateOverrides);
 
       assertGasLimitsWithinBounds(finalGas, baselineGas, simulated, maxGasLimits);
       const fields = ['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
 
-      // Validation-only withdrawals have empty callData and must keep execution
-      // gas zero even when the bundler reports a nonzero search estimate.
-      if (finalGas.verificationGasLimit <= 0n || finalGas.preVerificationGas <= 0n || fields.some(field => finalGas[field] < 0n ||
-        ((field !== 'callGasLimit' || simulated.callData !== '0x') && finalGas[field] > BigInt(simulated[field]!)))) {
-        throw new Error('External Privacy Pools UserOperation gas requirements changed after refinement. Prepare a new withdrawal.');
+      const hasCalls = simulated.callData !== '0x';
+      // The refined limits the final estimate must fit. Validation-only withdrawals
+      // keep execution gas zero even when the bundler reports a search estimate.
+      const refinedGasFields = fields.filter(field => field !== 'callGasLimit' || hasCalls);
+
+      const estimateMissingGas = finalGas.verificationGasLimit <= 0n || finalGas.preVerificationGas <= 0n || (hasCalls && finalGas.callGasLimit <= 0n);
+      const estimateHasNegativeGas = fields.some(field => finalGas[field] < 0n);
+      const estimateExceedsRefinedGas = refinedGasFields.some(field => finalGas[field] > BigInt(simulated[field]!));
+
+      if (estimateMissingGas || estimateHasNegativeGas || estimateExceedsRefinedGas) {
+        throw new Error('Privacy Pools UserOperation gas requirements changed after refinement. Prepare a new withdrawal.');
       }
     }
 
@@ -426,22 +446,32 @@ async function refineGasWithBundler(
   stateOverrides: StateOverrides,
   baselineGas: UserOpGasLimits,
   maxGasLimits?: PaymasterGasLimits,
-  requireEstimation = false,
+  /** What makes bundler gas estimation mandatory, named in its errors; undefined allows the baseline fallback. */
+  estimationRequiredBy?: string,
 ): Promise<UserOpGasLimits> {
   let estimated: UserOpGasLimits;
 
   try {
     estimated = await estimateUserOperationGas(bundlerClient, provisionalUserOp, entryPointAddress, stateOverrides);
   } catch (cause) {
-    if (requireEstimation) throw new Error('External Privacy Pools signing requires successful bundler gas estimation.', { cause });
+    if (estimationRequiredBy) throw new Error(`${estimationRequiredBy} requires successful bundler gas estimation.`, { cause });
 
     return baselineGas;
+  }
+
+  // Calls signed with an unverified execution budget can fail after the payout
+  // reaches the sender, leaving the funds there.
+  const hasCalls = provisionalUserOp.callData !== '0x';
+
+  if (hasCalls && estimationRequiredBy && estimated.callGasLimit <= 0n) {
+    throw new Error(`${estimationRequiredBy} requires a positive bundler callGasLimit estimate.`);
   }
 
   const buffer = (x: bigint) => (x * 12n + 9n) / 10n;
   const orBaseline = (e: bigint, b: bigint) => (e > 0n ? buffer(e) : b);
   const refined: UserOpGasLimits = {
-    // Only a withdrawal with no execution phase must retain a zero limit.
+    // Only a withdrawal with no execution phase must retain a zero limit
+    // (`tailCallsGas` rejects a zero tail budget).
     callGasLimit: baselineGas.callGasLimit === 0n ? 0n : orBaseline(estimated.callGasLimit, baselineGas.callGasLimit),
     verificationGasLimit: orBaseline(estimated.verificationGasLimit, baselineGas.verificationGasLimit),
     preVerificationGas: orBaseline(estimated.preVerificationGas, baselineGas.preVerificationGas),
