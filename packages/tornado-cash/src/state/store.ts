@@ -3,7 +3,6 @@ import {
   configureStore,
   Middleware,
   PayloadAction,
-  ReducersMapObject
 } from "@reduxjs/toolkit";
 
 import { assetsReducer } from "./slices/assetsSlice";
@@ -35,8 +34,9 @@ const reducers = {
 } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;
-/** HD and signature secrets are re-derived on sync, so they stay out of snapshots. */
-export type PublicRootState = Omit<RootState, 'userSecrets' | 'signatureSecrets'>;
+/** Private storage retains imported notes; derived secrets are recreated on sync. */
+export type PersistedRootState = Omit<RootState, 'userSecrets' | 'signatureSecrets'>;
+export type PublicRootState = Omit<PersistedRootState, 'legacySecrets'>;
 
 type LogLevel = 'error' | 'verbose' | 'off';
 
@@ -73,11 +73,9 @@ const loggerFactory: (logLevel: LogLevel) => Middleware<object, RootState> = (lo
   return result;
 };
 
-type StoreShape = typeof reducers extends ReducersMapObject<infer StateType> ? StateType : never;
-
 interface StoreFactoryParams {
   protocolConfig: ProtocolConfigState;
-  initialState?: Omit<StoreShape, 'userSecrets' | 'signatureSecrets'>;
+  initialState?: PublicRootState | PersistedRootState;
   logLevel?: 'verbose' | 'error' | 'off';
 }
 

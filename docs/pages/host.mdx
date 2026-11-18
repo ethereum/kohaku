@@ -55,9 +55,11 @@ function memoryStorage(): Storage {
 
 Plugins write their sync state here: Merkle trees, scanned blocks, and note indexes. Some of that is sensitive. Encrypt it at rest, and keep the key out of the same file. Give each plugin its own store. The key prefixes differ (`privacy-pool-state-…` and `tornado-cash-state-…`), so a shared map works, but a dedicated store lets you wipe one protocol without touching the other.
 
-`MemoryStorage` from `@kohaku-eth/plugins` is the in-memory version of the snippet above. Use it in tests. The CLI encrypts a JSON file per plugin in [`src/host/storage.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/storage.ts).
+Keep private storage isolated per wallet and per account whose imported notes must stay separate. Tornado persists imported bearer-note secrets here; `accountIndex` selects derivation paths and does not namespace storage. Sharing the same storage namespace also shares those imported notes.
 
-Losing the store does not lose the notes. The next `sync` rediscovers them from the chain and the keystore. It does cost a full scan, so keep the store if you can.
+`MemoryStorage` from `@kohaku-eth/plugins` is the in-memory version of the snippet above. Use it in tests. The CLI encrypts a JSON file per wallet and plugin in [`src/host/storage.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/storage.ts).
+
+After losing the store, `sync` rediscovers keystore-derived notes from the chain. Imported Tornado notes must be re-imported from their original note strings, so keep those backups.
 
 ## `keystore`
 

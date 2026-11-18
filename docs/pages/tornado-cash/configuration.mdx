@@ -163,7 +163,7 @@ createTCPlugin(host, {
 
 The worker never holds your host objects. It gets a bridge to each one that allows only the calls it makes, listed on [the host page](/host#what-plugin-code-can-reach). If you wrap the worker yourself, keep that boundary.
 
-`initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use it to ship a checkpoint so the first open does not start at the registry's deployment block. The snapshot is a cache. The keystore still decides which notes belong to the user.
+`initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use it to ship a checkpoint so the first open does not start at the registry's deployment block. Secret slices in this public checkpoint are ignored; the keystore decides which derived notes belong to the user. Imported notes are restored only from private `host.storage` or added through `importNotes`.
 
 ## Paymaster map
 
