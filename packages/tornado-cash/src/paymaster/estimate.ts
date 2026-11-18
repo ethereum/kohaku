@@ -12,13 +12,17 @@ const MAX_EXECUTION_GAS_RETRIES = 3;
 
 /**
  * Gas limits affect both the account signature and the fee committed in the
- * sponsoring withdrawal proof. Rebuild them together, then estimate that exact
- * signed payload. Unestimated fallback requires explicit eligibility from the
- * caller, is limited to availability failures or a known estimator incompatibility,
- * and is marked in the result.
+ * sponsoring withdrawal proof. Each round estimates a `simulate` payload at the
+ * candidate limits: the same shape and fee, but with dummy proofs and
+ * signatures the bundler cannot submit. Only the converged limits are `build`
+ * into the real proven and signed payload, which is never sent for estimation.
+ * Unestimated fallback requires explicit eligibility from the caller, is
+ * limited to availability failures or a known estimator incompatibility, and is
+ * marked in the result.
  */
 export async function buildEstimatedTornadoUserOp<T extends { userOperation: SerializedUserOperation }>(
   baseline: UserOpGasLimits,
+  simulate: (gas: UserOpGasLimits) => Promise<SerializedUserOperation>,
   build: (gas: UserOpGasLimits) => Promise<T>,
   estimate: (op: SerializedUserOperation) => Promise<UserOpGasLimits>,
   options: {
@@ -36,14 +40,14 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
 
   for (let attempt = 0; attempt < MAX_ESTIMATION_ATTEMPTS; attempt++) {
     options.validateGas?.(gas, previousOperation);
-    const prepared = await build(gas);
+    const operation = await simulate(gas);
 
-    options.validateGas?.(gas, prepared.userOperation);
-    previousOperation = prepared.userOperation;
+    options.validateGas?.(gas, operation);
+    previousOperation = operation;
     let estimated: UserOpGasLimits;
 
     try {
-      estimated = await estimateWithTransportRetry(() => estimate(prepared.userOperation));
+      estimated = await estimateWithTransportRetry(() => estimate(operation));
     } catch (cause) {
       const details = cause instanceof Error && 'details' in cause && typeof cause.details === 'string'
         ? cause.details : cause instanceof Error ? cause.message.split('\n')[0] : String(cause);
@@ -51,11 +55,11 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       const ceiling = options.executionGasRetryLimit;
 
       if (ceiling !== undefined && executionRetries < MAX_EXECUTION_GAS_RETRIES && gas.callGasLimit > 0n &&
-          prepared.userOperation.callData !== '0x' && gas.callGasLimit < ceiling && isExecutionOutOfGas(cause)) {
+          operation.callData !== '0x' && gas.callGasLimit < ceiling && isExecutionOutOfGas(cause)) {
         const doubled = gas.callGasLimit * 2n;
         const next = { ...gas, callGasLimit: doubled < ceiling ? doubled : ceiling };
 
-        options.validateGas?.(next, prepared.userOperation);
+        options.validateGas?.(next, operation);
         gas = next;
         executionRetries++;
         // These failed probes do not consume the three successful refinement
@@ -64,16 +68,16 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
         continue;
       }
 
-      const reason = estimationUnavailableReason(cause, prepared.userOperation);
+      const reason = estimationUnavailableReason(cause, operation);
 
       // Once execution failed, require a successful estimate of the replacement.
       // An unavailable estimator must not bypass the recovery path's final check.
       if (options.allowFallback && executionRetries === 0 && reason) {
-        // Rebuild at the fallback fee before returning anything. Never patch
-        // gas on the old signed operation or reuse its fee-bearing proof.
-        const fallbackGas = tornadoFallbackGas(gas, prepared.userOperation, options.isERC20 ?? false);
+        // Build at the fallback fee before returning anything. Never patch gas
+        // on an already built operation or reuse its fee-bearing proof.
+        const fallbackGas = tornadoFallbackGas(gas, operation, options.isERC20 ?? false);
 
-        options.validateGas?.(fallbackGas, prepared.userOperation);
+        options.validateGas?.(fallbackGas, operation);
         const fallback = await build(fallbackGas);
 
         options.validateGas?.(fallbackGas, fallback.userOperation);
@@ -99,7 +103,7 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
     for (const field of GAS_FIELDS) {
       // Direct single-note withdrawals execute entirely in paymaster validation.
       // A nonzero execution limit would violate their recipient != sender rule.
-      if (field === 'callGasLimit' && prepared.userOperation.callData === '0x') continue;
+      if (field === 'callGasLimit' && operation.callData === '0x') continue;
 
       // Keep the baseline floor and add 20% headroom to each estimate. Limits
       // only increase, avoiding fee/proof oscillation between iterations.
@@ -111,11 +115,17 @@ export async function buildEstimatedTornadoUserOp<T extends { userOperation: Ser
       }
     }
 
-    if (!changed) return { ...prepared, gasEstimation: { status: 'estimated' } };
+    if (!changed) {
+      const prepared = await build(gas);
+
+      options.validateGas?.(gas, prepared.userOperation);
+
+      return { ...prepared, gasEstimation: { status: 'estimated' } };
+    }
 
     // Reject inflated limits outside the availability catch: never downgrade a
     // bounds violation into fallback or prove/sign an operation at those limits.
-    options.validateGas?.(next, prepared.userOperation);
+    options.validateGas?.(next, operation);
     gas = next;
   }
 

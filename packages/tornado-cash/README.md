@@ -33,11 +33,24 @@ or an automatic forward to the requested destination. Tornado gas refunds go to
 the sponsoring proof's recipient, so batch refunds remain in the execution
 account even after forwarding. Use an account you can recover.
 
+## Gas estimation never exposes an executable operation
+
+Bundler gas estimation receives only simulation payloads: a dummy account
+signature and EIP-7702 authorization, and dummy proofs with random nullifier
+hashes for the sponsoring note and any batched `withdraw` calls. They cannot be
+submitted. The SDK passes `eth_estimateUserOperationGas` state overrides that
+move each pool's verifier code to a shadow address and make the original
+address run it and return `true`, so verification still costs real gas (about
+3k more). Once the limits converge, the SDK proves each note and requests one
+signature locally. The signed operation reaches the bundler only through
+`broadcast`. The bundler still learns the recipient, fee, sender and gas limits
+during estimation. The configured bundler must support state overrides.
+
 ## Random paymaster delegation
 
 > **`delegation: { mode: 'random' }` is safe ONLY for a single-note withdrawal without `tailCalls`. Multi-note withdrawals and ANY `tailCalls` are unsafe and rejected by default.**
 
-The safe single-note path uses `callGasLimit = 0` and pays both the withdrawal and its unused gas-fee refund directly to the requested recipient. Neither is routed through the throwaway sender. The SDK tries bundler estimation first. On mainnet/Sepolia, the default `gasEstimationPolicy: 'best-effort'` can return marked fallback gas if estimation is unavailable or the estimator substitutes incompatible nonzero execution gas. No host-RPC simulation or state overrides are required. Use `'required'` to require successful bundler estimation. Fallback is not a guarantee of bundler acceptance or a gas refund; review its fee before submission.
+The safe single-note path uses `callGasLimit = 0` and pays both the withdrawal and its unused gas-fee refund directly to the requested recipient. Neither is routed through the throwaway sender. The SDK tries bundler estimation first. On mainnet/Sepolia, the default `gasEstimationPolicy: 'best-effort'` can return marked fallback gas if estimation is unavailable or the estimator substitutes incompatible nonzero execution gas. No host-RPC simulation is required. Use `'required'` to require successful bundler estimation. Fallback is not a guarantee of bundler acceptance or a gas refund; review its fee before submission.
 
 Multi-note withdrawals and withdrawals with `tailCalls` pay the sender before execution. An execution failure can permanently strand the sponsoring note's proceeds; a later gas refund can also be inaccessible even when forwarding succeeds. The random key is discarded, so successful estimation does not make these paths safe. Use a securely recoverable deterministic or external signer instead.
 
@@ -63,16 +76,17 @@ const options = {
 `executionGasRetry` defaults to `false`; `true` requires a positive
 `maxGasLimits.callGasLimit`. At most three extra probes double the current
 execution budget without exceeding that ceiling. Every changed budget re-quotes
-the fee, re-proves the sponsoring note and requests a new signature. A successful
-larger probe remains the execution-gas floor even if the bundler reports a lower
-estimate. The final signed operation must still be successfully estimated.
+the fee and rebuilds the simulation payload. A successful larger probe remains
+the execution-gas floor even if the bundler reports a lower estimate. The final
+limits must still be successfully estimated before the operation is proven and
+signed once.
 
-This can add proving time and wallet signature prompts. Higher fees reduce the
+Higher fees reduce the
 funds available to custom calls. Funding, allowance, validation, contract-revert
 and unknown errors do not trigger larger budgets. Single-note operations without
 tail calls keep zero execution gas even when retry is enabled. These estimation
-retries do not call `eth_sendUserOperation`, but the bundler receives signed
-candidates and could submit them. `tailCallsGasEstimate` remains an optional initial
+retries do not call `eth_sendUserOperation`, and the candidates the bundler
+receives cannot be submitted. `tailCallsGasEstimate` remains an optional initial
 execution estimate, independently of the retry policy and absolute ceiling.
 
 
@@ -104,7 +118,7 @@ value. It must match the chain; otherwise preparation stops. When omitted, the
 SDK reads the current key-0 EntryPoint nonce. This is separate from the owner's
 native transaction nonce. No owner private key,
 `signAuthorization`, `signMessage`, or owner transaction is requested for this route.
-Gas refinement can request more than one typed-data signature; review each payload.
+Gas refinement does not prompt the owner; one typed-data signature is requested for the final operation.
 
 For first-use deployment, include
 `account.factory: { address: simpleAccountFactoryAddress, salt }` and use the

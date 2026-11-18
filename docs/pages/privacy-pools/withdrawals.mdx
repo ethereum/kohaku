@@ -137,7 +137,7 @@ identify a sender. No anonymity-set improvement has been measured or guaranteed.
 
 ### Calls after the withdrawal
 
-`tailCalls` receives the sender address and returns extra transactions that run in the same user operation. `tailCallsGasEstimate` is the gas budget for that execution phase.
+`tailCalls` receives the sender address and returns extra transactions that run in the same user operation. `tailCallsGasEstimate` is the gas budget for that execution phase. The SDK calls it once per preparation, after resolving the sender, and reuses that list for every estimate and the signed operation, so the signed calls are the ones that were estimated. It must resolve to an array of `{ to, value, data }` calls with a valid address, a non-negative bigint `value`, and hex `data`; anything else stops preparation before estimation or proving. Return the exact calls to execute, rather than calls that depend on when the callback runs.
 
 ```ts
 await pools.prepareUnshield(asset, recipient, {
@@ -155,6 +155,8 @@ await pools.prepareUnshield(asset, recipient, {
 
 `estimateUnshield` needs the same `tailCalls` (or at least their presence) and the same gas estimate, or the preview will miss the execution phase.
 
+`tailCallsGasEstimate` must be a positive bigint. Tail calls and batched notes run after the payout reaches the sender, so `prepareUnshield` signs them only after the bundler successfully estimates a positive `callGasLimit` and confirms the refined limits with a second estimate. If estimation fails, preparation throws instead of signing a baseline guess. A single-note withdrawal without `tailCalls` has no execution phase and still uses baseline gas when estimation is unavailable.
+
 ### Bundler gas bounds
 
 The bundler's gas price is checked independently against the host provider. The SDK requests `eth_feeHistory` for the latest ten blocks at the gas-weighted 90th percentile, then takes the highest per-block tip sample so short spikes are not averaged away. The tip ceiling is `min(20 gwei, max(2 gwei, 3 × sampled tip))`; the total-price ceiling remains three times the latest mined block's base fee plus that tip allowance. The 20 gwei ceiling applies to the tip, not the base fee or total price. Errors include both requested prices and ceilings in wei.
@@ -167,7 +169,7 @@ There is no default execution-gas ceiling: without an explicit `callGasLimit` ce
 
 There is no percentage-of-withdrawal fee cap. Spending most of a small sponsoring withdrawal on gas is permitted, provided it covers the fee. Bundler estimation and broadcasting use `host.network.fetch`, including receipt polling, so hosts with URL allowlists must permit their configured bundler. The host provider supplies the fee-market reference independently of any custom data service; custom `IDataService` implementations need no new methods. Custom low-level state managers must forward the provider/network supplied by the plugin when using the built-in paymaster helpers.
 
-Preparation sends a signed operation with a valid proof to the bundler for estimation before broadcasting, so the bundler could submit that provisional operation. Show the proof-bound fee and do not treat preparation as a dry run.
+Preparation never sends an executable operation to the bundler. Gas estimation uses a simulation payload with a dummy signature, a dummy EIP-7702 authorization, and dummy proofs with random nullifier and commitment hashes. It is paired with `eth_estimateUserOperationGas` state overrides that move the pool's withdrawal verifier code to a shadow address and make the original address run it and return `true`, so verification still costs real gas. After the gas limits converge, the SDK proves each note and requests one signature locally. The signed operation reaches the bundler only through `broadcast`. The bundler still learns the recipient, fee, sender and gas limits during estimation, and it must support state overrides. Show the proof-bound fee before broadcasting.
 
 ### Who signs the user operation
 

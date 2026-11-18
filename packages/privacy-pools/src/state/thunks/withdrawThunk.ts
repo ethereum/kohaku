@@ -10,6 +10,7 @@ import { existingNoteSecretsSelector, getNoteSelector } from '../selectors/notes
 import { poolFromAssetSelector } from "../selectors/pools.selector";
 import { entrypointInfoSelector, verifiedAspRootSelector } from '../selectors/slices.selectors';
 import { RootState } from '../store';
+import { dummyWithdrawProof } from '../../paymaster/simulation';
 
 export type ProveOutput = Awaited<ReturnType<Awaited<ReturnType<typeof Prover>>['prove']>>;
 export type WithdrawProveOutput = Omit<ProveOutput, 'mappedSignals'> & {
@@ -26,6 +27,12 @@ export interface WithdrawThunkParams {
   context: bigint;
   /** Prove this specific note instead of auto-selecting the smallest sufficient one (batch withdrawals). */
   note?: INote;
+  /**
+   * Gas-estimation stand-in: the real roots and bound fields with random
+   * nullifier/commitment hashes and a dummy proof that only an overridden
+   * verifier accepts. No change note is derived and the prover is not run.
+   */
+  simulation?: boolean;
 }
 
 export const withdrawThunk = createAsyncThunk<
@@ -49,21 +56,13 @@ export const withdrawThunk = createAsyncThunk<
     // 2. Get existing note's secrets from the slice
     const existingSecrets = existingNoteSecretsSelector(state, existingNote);
 
-    // 3. Get change note with its secrets (derives index N+1, not yet in slice)
-    const { secrets: changeSecrets } = await params.getNextNote(
-      existingNote,
-      params.amount,
-      chainId,
-      entrypointAddress,
-    );
-
     const poolInfo = poolFromAssetSelector(state, params.asset);
 
     if (!poolInfo) {
       throw new Error(`No pool found for asset ${params.asset}`);
     }
 
-    // 4. Get Merkle proofs
+    // 3. Get Merkle proofs
     const existingNoteFull = { ...existingNote, ...existingSecrets };
     const [stateMerkleProof, aspMerkleProof] = await Promise.all([
       stateMerkleProofSelector(state, poolInfo.address, existingNoteFull, params.merkleTreeBuilder),
@@ -80,7 +79,25 @@ export const withdrawThunk = createAsyncThunk<
       );
     }
 
-    // 5. Generate ZK proof
+    if (params.simulation) {
+      return dummyWithdrawProof({
+        withdrawnValue: params.amount,
+        stateRoot: stateMerkleProof.root,
+        stateTreeDepth: 32n,
+        ASPRoot: aspMerkleProof.root,
+        ASPTreeDepth: 32n,
+        context: params.context,
+      });
+    }
+
+    const { secrets: changeSecrets } = await params.getNextNote(
+      existingNote,
+      params.amount,
+      chainId,
+      entrypointAddress,
+    );
+
+    // 4. Generate ZK proof
     const prover = await params.proverFactory();
 
     return prover.prove("withdraw", {
