@@ -16,6 +16,7 @@ import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
 import { buildSignedTornadoUserOp, buildSimulationTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
 import { verifierOverrides } from "../../paymaster/simulation";
+import { resolveTailCalls } from "../../paymaster/tail-calls";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
@@ -305,11 +306,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return [createTx(addressToHex(originalRecipient), '0x', amount)];
   };
 
+  // The caller's tail calls, resolved once: every build signs or estimates
+  // these same calls.
+  const resolvedTailCalls = tailCalls ? await resolveTailCalls(tailCalls, executionSender(delegation, signer)) : undefined;
+
   // callData order: direct withdraws first (they fund the sender), then either
   // the caller's tailCalls or the synthesized forward to the recipient.
-  const composeTailCalls = (fee: bigint, directCalls: TxData[]) => async (addr: AccountId): Promise<TxData[]> => [
+  const composeTailCalls = (fee: bigint, directCalls: TxData[]) => async (): Promise<TxData[]> => [
     ...directCalls,
-    ...(tailCalls ? await tailCalls(addr) : forwardCalls(fee)),
+    ...(resolvedTailCalls ?? forwardCalls(fee)),
   ];
 
   // `simulation` builds the estimation payload: dummy proofs and signatures that

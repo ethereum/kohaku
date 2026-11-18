@@ -531,6 +531,45 @@ describe('paymaster withdrawal preparation integration', () => {
     expect(withdrawal!.fee).toBe(BigInt(withdrawal!.proof.args[4]));
   });
 
+  it('resolves tail calls once, so the signed calls are the estimated ones', async () => {
+    fixture.count = 1;
+    const targets = ['0x00000000000000000000000000000000000000a1', '0x00000000000000000000000000000000000000a2'] as const;
+    const first = { to: targets[0] as string, value: 0n, data: '0xabcdef01' };
+    // A callback that would answer differently on every call.
+    const tailCalls = vi.fn().mockResolvedValueOnce([first]).mockResolvedValue([{ to: targets[1], value: 0n, data: '0xabcdef01' }]);
+
+    // Mutating the returned call after estimation must not change the signed one either.
+    fixture.estimate.mockImplementation(async () => {
+      first.to = targets[1];
+
+      return reasonableGasUnitsForBatch(false, 0, true);
+    });
+    const [withdrawal] = await prepare(null, { tailCalls });
+
+    if (withdrawal!.mode !== 'paymaster') throw new Error('Expected paymaster');
+
+    expect(tailCalls).toHaveBeenCalledOnce();
+    expect(tailCalls).toHaveBeenCalledWith(withdrawal!.userOperation.sender);
+
+    for (const [op] of fixture.estimate.mock.calls as [SerializedUserOperation][]) expect(op.callData).toBe(withdrawal!.userOperation.callData);
+
+    expect(withdrawal!.userOperation.callData).toContain(targets[0].slice(2));
+  });
+
+  it.each([
+    ['a non-array', {}],
+    ['an invalid address', [{ to: '0x1234', value: 0n, data: '0x' }]],
+    ['a non-bigint value', [{ to: '0x0000000000000000000000000000000000000003', value: 1, data: '0x' }]],
+    ['a negative value', [{ to: '0x0000000000000000000000000000000000000003', value: -1n, data: '0x' }]],
+    ['odd-length data', [{ to: '0x0000000000000000000000000000000000000003', value: 0n, data: '0x123' }]],
+  ])('rejects tail calls resolving to %s before estimating or proving', async (_case, calls) => {
+    fixture.count = 1;
+    await expect(prepare(null, { tailCalls: async () => calls })).rejects.toThrow('tailCalls must resolve to an array');
+    expect(fixture.estimate).not.toHaveBeenCalled();
+    expect(fixture.simulatedFees).toHaveLength(0);
+    expect(fixture.fees).toHaveLength(0);
+  });
+
   it('allows most of a 0.01 ETH sponsoring note to pay gas', async () => {
     fixture.denomination = 10n ** 16n;
     fixture.maxFeePerGas = 5_000_000_000n;

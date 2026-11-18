@@ -26,6 +26,7 @@ import {
   getUserOperationGasPrice,
 } from "../../paymaster/utils";
 import { verifierOverrides, type StateOverrides } from "../../paymaster/simulation";
+import { resolveTailCalls } from "../../paymaster/tail-calls";
 import { IPaymasterConfig } from "../../plugin/interfaces/protocol-params.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { WithdrawalPayload } from "../../relayer/interfaces/relayer-client.interface";
@@ -272,11 +273,15 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       return { to: addressToHex(recipient), value: amountOut, data: "0x" };
     };
 
+    // The caller's tail calls, resolved once: every build signs or estimates
+    // these same calls.
+    const resolvedTailCalls = tailCalls ? await resolveTailCalls(tailCalls, sender) : undefined;
+
     // callData order: direct withdraws first (they fund the sender), then the
     // caller's tail calls or the synthesized forward.
     const executionCalls = (fee: bigint, directCalls: TxData[]) => async (): Promise<TxData[]> => [
       ...directCalls,
-      ...(tailCalls ? await tailCalls(sender) : (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
+      ...(resolvedTailCalls ?? (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
     ];
 
     const baselineGas = executionGasBaseline(accountConfig, hasExecutionPhase

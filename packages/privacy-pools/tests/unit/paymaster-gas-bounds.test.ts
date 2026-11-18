@@ -333,6 +333,47 @@ describe('paymaster bundler safety', () => {
     expect(proveCalls.real).toBe(0);
   });
 
+  it('resolves tail calls once, so the signed calls are the estimated ones', async () => {
+    const targets = ['0x00000000000000000000000000000000000000a1', '0x00000000000000000000000000000000000000a2'] as const;
+    const first = { to: targets[0] as `0x${string}`, value: 0n, data: '0xabcdef01' as `0x${string}` };
+    // A callback that would answer differently on every call.
+    const changingTailCalls = vi.fn().mockResolvedValueOnce([first]).mockResolvedValue([{ to: targets[1], value: 0n, data: '0xabcdef01' }]);
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 400_000n }) });
+    const fetchEstimate = bundler.network.fetch;
+
+    // Mutating the returned call after estimation must not change the signed one either.
+    bundler.network.fetch = async (input, init) => {
+      if (String(init?.body).includes('eth_estimateUserOperationGas')) first.to = targets[1];
+
+      return fetchEstimate(input, init);
+    };
+
+    const [w] = await setup(bundler).withdraw({ tailCalls: changingTailCalls });
+    const estimated = sentUserOps(bundler);
+
+    expect(changingTailCalls).toHaveBeenCalledOnce();
+    expect(changingTailCalls).toHaveBeenCalledWith(w!.userOperation.sender);
+    expect(estimated).toHaveLength(2);
+
+    for (const op of estimated) expect(op.callData).toBe(w!.userOperation.callData);
+
+    expect(w!.userOperation.callData).toContain(targets[0].slice(2));
+  });
+
+  it.each([
+    ['a non-array', {}],
+    ['an invalid address', [{ to: '0x1234', value: 0n, data: '0x' }]],
+    ['a non-bigint value', [{ to: '0x000000000000000000000000000000000000beef', value: 1, data: '0x' }]],
+    ['a negative value', [{ to: '0x000000000000000000000000000000000000beef', value: -1n, data: '0x' }]],
+    ['odd-length data', [{ to: '0x000000000000000000000000000000000000beef', value: 0n, data: '0x123' }]],
+  ])('rejects tail calls resolving to %s before estimating or proving', async (_case, calls) => {
+    const bundler = mockBundler({ estimate: estimate() });
+
+    await expect(setup(bundler).withdraw({ tailCalls: async () => calls as never })).rejects.toThrow('tailCalls must resolve to an array');
+    expect(proveCalls.count).toBe(0);
+    expect(sentUserOps(bundler)).toHaveLength(0);
+  });
+
   it.each([0n, -1n])('rejects a tailCallsGasEstimate of %s before estimating or proving', async tailCallsGasEstimate => {
     const bundler = mockBundler({ estimate: estimate() });
 

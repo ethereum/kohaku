@@ -137,7 +137,7 @@ identify a sender. No anonymity-set improvement has been measured or guaranteed.
 
 ### Calls after the withdrawal
 
-`tailCalls` receives the sender address and returns extra transactions that run in the same user operation. `tailCallsGasEstimate` is the gas budget for that execution phase.
+`tailCalls` receives the sender address and returns extra transactions that run in the same user operation. `tailCallsGasEstimate` is the gas budget for that execution phase. The SDK calls it once per preparation, after resolving the sender, and reuses that list for every estimate and the signed operation, so the signed calls are the ones that were estimated. It must resolve to an array of `{ to, value, data }` calls with a valid address, a non-negative bigint `value`, and hex `data`; anything else stops preparation before estimation or proving. Return the exact calls to execute, rather than calls that depend on when the callback runs.
 
 ```ts
 await pools.prepareUnshield(asset, recipient, {
