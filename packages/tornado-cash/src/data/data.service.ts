@@ -283,6 +283,10 @@ export class DataService implements IDataService {
     return this.ethClient.getDeploymentBlock(address, fromBlock);
   }
 
+  async isContractDeployedAt(address: Address, block: bigint): Promise<boolean> {
+    return this.ethClient.hasCodeAt(address, block);
+  }
+
   async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
     return this.ethClient.makeContractRequest(poolAddress, "pool", "getLastRoot").then(hexToBigInt);
   }

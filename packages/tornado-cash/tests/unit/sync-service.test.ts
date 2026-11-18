@@ -43,7 +43,8 @@ const relayerRegistered = (blockNumber: bigint): IRelayerRegisteredEvent => ({
 
 // A fake DataService: the chain path (getPoolEvents) tags events at the block it
 // was asked to start from, so tests can prove which range came from the chain.
-const makeDataService = () => {
+// The pool holds code from `deployedAt` onwards.
+const makeDataService = (deployedAt = 500n) => {
   const getPoolEvents = vi.fn(async ({ fromBlock }: { fromBlock: bigint }) => ({
     Deposited: [deposit(fromBlock)],
     Withdrawn: [withdrawal(fromBlock)],
@@ -67,6 +68,7 @@ const makeDataService = () => {
   }));
 
   const getContractDeploymentBlock = vi.fn(async () => 42n);
+  const isContractDeployedAt = vi.fn(async (_address: Address, block: bigint) => block >= deployedAt);
 
   return {
     getBlockNumber: vi.fn(async () => HEAD),
@@ -75,12 +77,14 @@ const makeDataService = () => {
     getRelayerRegistryEvents,
     parseRelayerRegistryEvents,
     getContractDeploymentBlock,
+    isContractDeployedAt,
   } as unknown as IDataService & {
     getPoolEvents: typeof getPoolEvents;
     parsePoolEvents: typeof parsePoolEvents;
     getRelayerRegistryEvents: typeof getRelayerRegistryEvents;
     parseRelayerRegistryEvents: typeof parseRelayerRegistryEvents;
     getContractDeploymentBlock: typeof getContractDeploymentBlock;
+    isContractDeployedAt: typeof isContractDeployedAt;
   };
 };
 
@@ -260,9 +264,9 @@ describe('SyncService.getRelayerRegistryEvents', () => {
 });
 
 describe('SyncService.getPoolDeploymentBlock', () => {
-  it("uses the provider's first covered block, skipping the on-chain search", async () => {
-    const dataService = makeDataService();
-    const provider = makeProvider(600n, [], 12345n);
+  it("uses the provider's first covered block once verified as a lower bound", async () => {
+    const dataService = makeDataService(500n);
+    const provider = makeProvider(600n, [], 500n);
     const service = new SyncService({
       dataService,
       externalSyncProvider: provider,
@@ -271,11 +275,56 @@ describe('SyncService.getPoolDeploymentBlock', () => {
 
     const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
 
-    expect(block).toBe(12345n);
+    expect(block).toBe(500n);
     expect(provider.firstCoveredBlock).toHaveBeenCalledWith(
       expect.objectContaining({ chainId: toHex(CHAIN_ID) }),
     );
+    expect(dataService.isContractDeployedAt).toHaveBeenCalledWith(POOL, 499n);
     expect(dataService.getContractDeploymentBlock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a conservative hint below the deployment block', async () => {
+    const dataService = makeDataService(500n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: makeProvider(600n, [], 300n),
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(300n);
+    expect(dataService.getContractDeploymentBlock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a hint past the deployment block and falls back to the on-chain search', async () => {
+    const dataService = makeDataService(500n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: makeProvider(600n, [], 700n),
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(42n);
+    expect(dataService.isContractDeployedAt).toHaveBeenCalledWith(POOL, 699n);
+    expect(dataService.getContractDeploymentBlock).toHaveBeenCalledWith(POOL);
+  });
+
+  it('rejects a hint past the chain head and falls back to the on-chain search', async () => {
+    const dataService = makeDataService(500n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: makeProvider(600n, [], HEAD + 1n),
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(42n);
+    expect(dataService.isContractDeployedAt).not.toHaveBeenCalled();
+    expect(dataService.getContractDeploymentBlock).toHaveBeenCalledWith(POOL);
   });
 
   it('falls back to the on-chain deployment block when the provider has no coverage', async () => {

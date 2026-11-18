@@ -111,10 +111,12 @@ export class SyncService implements ISyncService {
     const provider = this.externalSyncProvider;
 
     if (provider) {
+      let hint: bigint | undefined;
+
       try {
         // The provider's first covered block ≈ the pool's registration block, at
         // O(1) — much cheaper than the on-chain deployment-block binary search.
-        return BigInt(
+        hint = BigInt(
           await provider.firstCoveredBlock({
             chainId: toHex(chainId),
             address: toHex(address, { size: 20 }),
@@ -123,9 +125,26 @@ export class SyncService implements ISyncService {
       } catch {
         // Provider has no data for this pool — fall through to on-chain discovery.
       }
+
+      if (hint !== undefined && await this.isScanLowerBound(address, hint)) {
+        return hint;
+      }
     }
 
     return this.dataService.getContractDeploymentBlock(address);
+  }
+
+  /**
+   * The scan start is persisted and never revisited, so a provider hint is only
+   * trusted when it cannot skip history: it is not past the head, and the pool
+   * had no code in the block before it (so no events can precede it).
+   */
+  private async isScanLowerBound(address: Address, block: bigint): Promise<boolean> {
+    if (block < 0n || block > await this.dataService.getBlockNumber()) {
+      return false;
+    }
+
+    return block === 0n || !(await this.dataService.isContractDeployedAt(address, block - 1n));
   }
 
   /**
