@@ -14,6 +14,7 @@ const entrypoint = { address: 900n as Address, deploymentBlock: 100n };
 const emptyChain = () => ({
   getChainId: vi.fn(async () => 1n),
   getBlockNumber: vi.fn(async () => 200n),
+  getFinalizedBlockNumber: vi.fn(async () => 200n),
   getEntrypointEvents: vi.fn(async ({ events }: { events: string[] }) => Object.fromEntries(events.map((name) => [name, []]))),
   getBlockTimestamp: vi.fn(async (block: bigint) => block * 12n),
 });

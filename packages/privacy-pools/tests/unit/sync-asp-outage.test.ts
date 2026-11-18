@@ -33,6 +33,7 @@ const rootUpdated = (root: bigint, blockNumber: bigint): IRootUpdatedEvent => ({
 const chainDataService = (event: IRootUpdatedEvent) => ({
   getChainId: vi.fn(async () => 1n),
   getBlockNumber: vi.fn(async () => 200n),
+  getFinalizedBlockNumber: vi.fn(async () => 200n),
   getEntrypointEvents: vi.fn(async ({ events, fromBlock, toBlock }: { events: string[]; fromBlock: bigint; toBlock: bigint }) => ({
     ...Object.fromEntries(events.map((name) => [name, []])),
     RootUpdated: [event],
