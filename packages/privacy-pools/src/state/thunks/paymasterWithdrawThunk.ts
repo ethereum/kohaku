@@ -139,6 +139,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     const [sponsoring, ...directNotes] = notesToSpend;
     const hasExecutionPhase = directNotes.length > 0 || tailCalls != null;
 
+    if (delegation?.mode === "random" && notesToSpend.length > 0 && hasExecutionPhase && delegation.allowUnsafeRandomExecution !== true) {
+      throw new Error("Random Privacy Pools sender may permanently strand funds with multiple notes or tailCalls; set delegation.allowUnsafeRandomExecution: true to accept this risk.");
+    }
+
     // Roots were already verified against chain by the sync() that the plugin runs
     // immediately before building this withdrawal (buildUnshield → sync → verifyRoots,
     // on the same unchanged state). Re-verifying here repeats 15 on-chain reads for no

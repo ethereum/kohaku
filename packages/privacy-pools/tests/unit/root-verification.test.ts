@@ -68,128 +68,61 @@ describe('root verification', () => {
   });
 
   describe('verifyStateRootOnChain', () => {
-    it('rejects an empty expected root before making any RPC calls', async () => {
+    const syncedBlock = 120n;
+
+    it('accepts an empty tree only when the pool is empty at the synced block', async () => {
       const dataService = {
-        getPoolStateRoot: vi.fn(),
-        getPoolCurrentRootIndex: vi.fn(),
-        getPoolHistoricalRoot: vi.fn(),
+        getPoolStateRoot: vi.fn().mockResolvedValueOnce(0n).mockResolvedValueOnce(555n),
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 0n),
-      ).rejects.toThrow('State root verification called with empty root (0n)');
+        verifyStateRootOnChain(dataService, poolAddress, 0n, syncedBlock),
+      ).resolves.toBeUndefined();
+      await expect(
+        verifyStateRootOnChain(dataService, poolAddress, 0n, syncedBlock),
+      ).rejects.toThrow('State root verification failed');
 
-      expect(dataService.getPoolStateRoot).not.toHaveBeenCalled();
-      expect(dataService.getPoolCurrentRootIndex).not.toHaveBeenCalled();
-      expect(dataService.getPoolHistoricalRoot).not.toHaveBeenCalled();
+      expect(dataService.getPoolStateRoot).toHaveBeenCalledWith(poolAddress, syncedBlock);
     });
 
-    it('returns immediately when the current on-chain root matches', async () => {
+    it('accepts the current root read at the synced block', async () => {
       const dataService = {
         getPoolStateRoot: vi.fn().mockResolvedValue(555n),
-        getPoolCurrentRootIndex: vi.fn(),
-        getPoolHistoricalRoot: vi.fn(),
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 555n),
+        verifyStateRootOnChain(dataService, poolAddress, 555n, syncedBlock),
       ).resolves.toBeUndefined();
 
-      expect(dataService.getPoolStateRoot).toHaveBeenCalledWith(poolAddress);
-      expect(dataService.getPoolCurrentRootIndex).not.toHaveBeenCalled();
-      expect(dataService.getPoolHistoricalRoot).not.toHaveBeenCalled();
+      expect(dataService.getPoolStateRoot).toHaveBeenCalledWith(poolAddress, syncedBlock);
     });
 
-    it('finds a historical root using the contract ring-buffer indices', async () => {
-      const expectedRoot = 777n;
-      const requestedIndices: number[] = [];
+    it('rejects a root that is only in the recent history', async () => {
+      // A tree missing its newest leaves has an older, still-known root.
       const dataService = {
         getPoolStateRoot: vi.fn().mockResolvedValue(111n),
         getPoolCurrentRootIndex: vi.fn().mockResolvedValue(40),
-        getPoolHistoricalRoot: vi.fn().mockImplementation(async (_pool: Address, index: number) => {
-          requestedIndices.push(index);
-
-          return index === 39 ? expectedRoot : 0n;
-        }),
+        getPoolHistoricalRoot: vi.fn().mockResolvedValue(777n),
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, expectedRoot),
-      ).resolves.toBeUndefined();
-
-      expect(requestedIndices).toEqual([39]);
-    });
-
-    it('wraps around the history buffer when the current index is zero', async () => {
-      const expectedRoot = 888n;
-      const requestedIndices: number[] = [];
-      const dataService = {
-        getPoolStateRoot: vi.fn().mockResolvedValue(111n),
-        getPoolCurrentRootIndex: vi.fn().mockResolvedValue(0),
-        getPoolHistoricalRoot: vi.fn().mockImplementation(async (_pool: Address, index: number) => {
-          requestedIndices.push(index);
-
-          return index === 63 ? expectedRoot : 0n;
-        }),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyStateRootOnChain(dataService, poolAddress, expectedRoot),
-      ).resolves.toBeUndefined();
-
-      expect(requestedIndices).toEqual([63]);
-    });
-
-    it('finds the root at the very last slot before exhaustion', async () => {
-      const expectedRoot = 444n;
-      const requestedIndices: number[] = [];
-      const dataService = {
-        getPoolStateRoot: vi.fn().mockResolvedValue(111n),
-        getPoolCurrentRootIndex: vi.fn().mockResolvedValue(10),
-        getPoolHistoricalRoot: vi.fn().mockImplementation(async (_pool: Address, index: number) => {
-          requestedIndices.push(index);
-
-          return index === 11 ? expectedRoot : 0n;
-        }),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyStateRootOnChain(dataService, poolAddress, expectedRoot),
-      ).resolves.toBeUndefined();
-
-      expect(requestedIndices).toHaveLength(63);
-      expect(requestedIndices[requestedIndices.length - 1]).toBe(11);
-    });
-
-    it('throws when the root is not present in the recent on-chain history', async () => {
-      const dataService = {
-        getPoolStateRoot: vi.fn().mockResolvedValue(111n),
-        getPoolCurrentRootIndex: vi.fn().mockResolvedValue(5),
-        getPoolHistoricalRoot: vi.fn().mockResolvedValue(0n),
-      } as unknown as IDataService;
-
-      await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 999n),
+        verifyStateRootOnChain(dataService, poolAddress, 777n, syncedBlock),
       ).rejects.toThrow(
-        'State root verification failed: root not found in Pool recent history',
+        'State root verification failed: root does not match Pool currentRoot at the synced block',
       );
 
-      expect(dataService.getPoolHistoricalRoot).toHaveBeenCalledTimes(63);
+      expect(dataService.getPoolCurrentRootIndex).not.toHaveBeenCalled();
+      expect(dataService.getPoolHistoricalRoot).not.toHaveBeenCalled();
     });
 
     it('propagates RPC errors from getPoolStateRoot', async () => {
       const dataService = {
         getPoolStateRoot: vi.fn().mockRejectedValue(new Error('connection refused')),
-        getPoolCurrentRootIndex: vi.fn(),
-        getPoolHistoricalRoot: vi.fn(),
       } as unknown as IDataService;
 
       await expect(
-        verifyStateRootOnChain(dataService, poolAddress, 123n),
+        verifyStateRootOnChain(dataService, poolAddress, 123n, syncedBlock),
       ).rejects.toThrow('connection refused');
-
-      expect(dataService.getPoolCurrentRootIndex).not.toHaveBeenCalled();
-      expect(dataService.getPoolHistoricalRoot).not.toHaveBeenCalled();
     });
   });
 });

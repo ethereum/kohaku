@@ -74,6 +74,36 @@ beforeEach(() => {
   }));
 });
 
+describe('Privacy Pools random sender guard', () => {
+  it('keeps the single-note direct payout available', async () => {
+    const [withdrawal] = await prepare({ mode: 'random' });
+
+    expect(withdrawal!.userOperation.callData).toBe('0x');
+    expect(withdrawal!.userOperation.callGasLimit).toBe('0x0');
+    expect(fixture.proof).toHaveBeenCalled();
+  });
+
+  it.each([false, true])('rejects random execution before proving (multiple notes=%s)', async multipleNotes => {
+    fixture.count = multipleNotes ? 2 : 1;
+    const tailCalls = multipleNotes ? undefined : vi.fn(async () => [] as []);
+
+    await expect(prepare({ mode: 'random' }, tailCalls)).rejects.toThrow('allowUnsafeRandomExecution: true');
+    expect(fixture.proof).not.toHaveBeenCalled();
+    expect(fixture.estimate).not.toHaveBeenCalled();
+
+    if (tailCalls) expect(tailCalls).not.toHaveBeenCalled();
+  });
+
+  it('allows explicitly opted-in random execution with an empty tail-call callback', async () => {
+    const tailCalls = vi.fn(async () => [] as []);
+    const [withdrawal] = await prepare({ mode: 'random', allowUnsafeRandomExecution: true }, tailCalls);
+
+    expect(tailCalls).toHaveBeenCalledWith(withdrawal!.userOperation.sender);
+    expect(fixture.proof).toHaveBeenCalled();
+    expect(withdrawal!.userOperation.callGasLimit).not.toBe('0x0');
+  });
+});
+
 describe('Privacy Pools external paymaster signing', () => {
   it.each([false, true])('keeps planned partial amounts through proof refinement and forwarding, ERC20=%s', async isERC20 => {
     fixture.count = 2; fixture.isERC20 = isERC20;

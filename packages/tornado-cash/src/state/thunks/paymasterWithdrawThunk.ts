@@ -103,6 +103,10 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // for either account family, even when spending only one note.
   const validationOnly = deposits.length === 1 && tailCalls == null;
 
+  if (delegation?.mode === 'random' && deposits.length > 0 && !validationOnly && delegation.allowUnsafeRandomExecution !== true) {
+    throw new Error('Random Tornado sender may permanently strand funds with multiple notes or tailCalls; set delegation.allowUnsafeRandomExecution: true to accept this risk.');
+  }
+
   const poolsToWithdrawFrom = [...new Set(deposits.map((d) => d.pool))];
 
   const pools = poolsSelector(state);

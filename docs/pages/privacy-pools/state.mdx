@@ -12,6 +12,12 @@ A sync reads the chain head once, scans the entrypoint and every pool up to that
 
 The association set is the exception. If the ASP service is down, or serves a tree that does not match the on-chain root, the sync still succeeds and logs a warning. The last good set stays, so `approved` and the `'pending'` balance can be out of date (and every deposit reads as pending if no set was ever fetched). `prepareUnshield` throws until a sync gets the current set, because the entrypoint only accepts proofs against its latest root. Each sync tries again.
 
+### Clean resync for an old saved state
+
+States saved before finalized-block tracking get a one-time 7,200-block rewind. If an old wallet still shows a ragequit that no longer exists on chain, it may have been orphaned farther behind the saved head. For this suspected case, remove only that chain and entrypoint's `privacy-pool-state-v2-<chainId>-<entrypointAddress>` key from the backing store: `chainStorage` if configured, otherwise `host.storage`. Keep the keystore and other plugin keys.
+
+Restart the app, or create a fresh storage object and plugin, to discard the cached state in memory. Disable `initialState` for this recovery, then call `sync()` with a current chain data source. This scans from the entrypoint's deployment block and may take time. This recovery is opt-in, not a required migration.
+
 ## Notes
 
 ```ts

@@ -28,6 +28,7 @@ const noteSecret = (noteIndex: number) => ({
 const emptyChainDataService = () => ({
   getChainId: vi.fn(async () => 1n),
   getBlockNumber: vi.fn(async () => 200n),
+  getFinalizedBlockNumber: vi.fn(async () => 200n),
   getEntrypointEvents: vi.fn(async ({ events, fromBlock, toBlock }: { events: string[]; fromBlock: bigint; toBlock: bigint }) => ({
     ...Object.fromEntries(events.map((name) => [name, []])),
     fromBlock,
