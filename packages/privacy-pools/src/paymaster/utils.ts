@@ -27,7 +27,7 @@ import {
   SerializedUserOperation,
   UserOpGasLimits,
 } from "../interfaces/user-ops.interface";
-import { isSameUserOperation, parseSendResult } from "./bundler-replies";
+import { isSameUserOperation, parseSendResult, redact } from "./bundler-replies";
 import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from "./simulation";
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
@@ -117,7 +117,7 @@ export const isAlreadyKnown = (error: unknown): boolean =>
  */
 export const describeError = (error: unknown): string =>
   error instanceof BaseError
-    ? [error.shortMessage, error.details].filter(Boolean).join(" ")
+    ? redact([error.shortMessage, error.details].filter(Boolean).join(" "))
     : "Unknown error.";
 
 /**

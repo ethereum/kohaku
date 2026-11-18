@@ -11,7 +11,7 @@ import {
   sendSerializedUserOperation,
   serializedUserOperationHash,
 } from './utils';
-import { isReceiptFor } from './bundler-replies';
+import { isReceiptFor, redact } from './bundler-replies';
 import type { SerializedUserOperation } from '../interfaces/user-ops.interface';
 import {
   IGenericPaymasterWithdrawalPayload,
@@ -50,7 +50,7 @@ const waitForConfirmation = async (
   const txHash = userOpReceipt.receipt.transactionHash;
 
   if (!userOpReceipt.success) {
-    const reason = userOpReceipt.reason ? `: ${userOpReceipt.reason}` : '';
+    const reason = userOpReceipt.reason ? `: ${redact(String(userOpReceipt.reason))}` : '';
 
     throw new PaymasterBroadcastError(
       'reverted',

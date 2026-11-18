@@ -423,4 +423,24 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
 
     expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('not-accepted');
   });
+
+  it('redacts and bounds bundler text that echoes the signed userOp', async () => {
+    const echo = `invalid userOp ${JSON.stringify(withdrawal.userOperation)} ${'x'.repeat(1_000)}`;
+    const { network } = makeNetwork(sendFails(() => ({ error: { code: -32602, message: echo } })));
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.message).not.toContain(withdrawal.userOperation.signature.slice(2));
+    expect(error.message).toContain('0x…');
+    expect(error.message.length).toBeLessThan(500);
+    expectNoUserOp(error);
+  });
+
+  it('redacts a revert reason that echoes the signed userOp', async () => {
+    const { network } = makeNetwork(accepted(() => ({ result: makeReceipt(false, `reverted: ${withdrawal.userOperation.signature}`) })));
+    const [{ wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
+    const error = await catchError(wait());
+
+    expect(error.failure).toBe('reverted');
+    expect(error.message).not.toContain(withdrawal.userOperation.signature.slice(2));
+  });
 });

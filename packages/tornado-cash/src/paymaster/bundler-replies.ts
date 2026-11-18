@@ -54,3 +54,16 @@ export function isReceiptFor(receipt: unknown, userOpHash: Hash): receipt is Che
   return typeof success === 'boolean' && isHash(hash) && sameHex(hash, userOpHash) &&
     typeof transaction === 'object' && transaction !== null && isHash(transaction.transactionHash);
 }
+
+const MAX_PUBLIC_TEXT = 300;
+
+/**
+ * Bundler-provided text for messages documented as safe to report. A bundler
+ * can echo the signed userOp in an error, so hex runs longer than a 32-byte
+ * hash (signatures, proofs, calldata) are elided and the text is bounded.
+ */
+export function redact(text: string): string {
+  const elided = text.replace(/(?:0x)?[0-9a-f]{65,}/gi, '0x…');
+
+  return elided.length > MAX_PUBLIC_TEXT ? `${elided.slice(0, MAX_PUBLIC_TEXT)}…` : elided;
+}
