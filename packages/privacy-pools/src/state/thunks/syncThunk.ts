@@ -13,6 +13,23 @@ import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
 import { entrypointInfoSelector, lastUpdateRootEventSelector } from '../selectors/slices.selectors';
 import { verifyRootsThunk } from './verifyRootsThunk';
 
+/**
+ * How far below its saved head a state saved before the finalized cursor existed
+ * is rescanned, once: about a day of mainnet blocks, far past any finality delay
+ * seen, so whatever that head had not finalized yet is scanned again.
+ */
+export const LEGACY_REWIND_BLOCKS = 7200n;
+
+// The saved head was never checked against finality: rewind below it, and never
+// past what the chain has finalized now.
+const legacySyncCursor = (state: RootState, finalizedBlock: bigint): bigint => {
+  const { deploymentBlock } = entrypointInfoSelector(state);
+  const rewound = BigInt(state.sync.lastSyncedBlock) - LEGACY_REWIND_BLOCKS;
+  const cursor = rewound < finalizedBlock ? rewound : finalizedBlock;
+
+  return cursor > deploymentBlock ? cursor : deploymentBlock;
+};
+
 export interface SyncThunkParams extends
   SyncEventsThunkParams,
   Omit<SyncPoolsThunkParams, 'poolsRegistered' | 'poolsWoundDown'>,
@@ -34,7 +51,6 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
   async ({ dataService, verify = true, skipAsp = false, ...params }, { getState, dispatch }) => {
     const state = getState();
     const { entrypointAddress } = entrypointInfoSelector(state);
-    const fromBlock = selectSyncCursor(state);
     // One head for the whole sync: the entrypoint and pool scans all stop at it, so
     // no block can fall between two scans.
     const [toBlock, chainFinalizedBlock] = await Promise.all([
@@ -43,6 +59,9 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     ]);
     // A load-balanced RPC can answer from a node ahead of the head.
     const finalizedBlock = chainFinalizedBlock < toBlock ? chainFinalizedBlock : toBlock;
+    const fromBlock = state.sync.finalizedBlock === undefined
+      ? legacySyncCursor(state, finalizedBlock)
+      : selectSyncCursor(state);
 
     // Blocks after the last finalized one may have been reorged away since they
     // were scanned, or come from a sync that failed: drop them and scan them again.
@@ -84,7 +103,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       dispatch(registerLastFinalizedUpdateRootEvent(lastFinalizedRootUpdated));
     }
 
-    unwrapResult(await dispatch(syncEventsThunk({ dataService, toBlock, ...params })));
+    unwrapResult(await dispatch(syncEventsThunk({ dataService, fromBlock, toBlock, ...params })));
 
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 

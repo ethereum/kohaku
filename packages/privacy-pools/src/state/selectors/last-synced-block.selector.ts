@@ -15,12 +15,13 @@ export const selectLastSyncedBlock = createSelector(
 
 /**
  * Where the next sync starts: the last block seen finalized. Not the head, nor
- * the latest stored event, which a reorg may have taken off the chain.
+ * the latest stored event, which a reorg may have taken off the chain. A state
+ * saved without a finalized block is rewound by syncThunk instead.
  */
 export const selectSyncCursor = createSelector(
   [
     entrypointInfoSelector,
-    (state: RootState) => BigInt(state.sync.finalizedBlock ?? state.sync.lastSyncedBlock),
+    (state: RootState) => BigInt(state.sync.finalizedBlock ?? 0),
   ],
   ({ deploymentBlock }, finalizedBlock): bigint => max(finalizedBlock, deploymentBlock),
 );

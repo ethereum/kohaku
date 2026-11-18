@@ -9,7 +9,7 @@ export interface SyncState {
   /**
    * The last block the last sync saw finalized. Everything after it may still be
    * reorged away, so each sync drops it and scans it again (see syncThunk).
-   * Absent in states saved before it existed: lastSyncedBlock stands in for it.
+   * Absent in states saved before it existed, which syncThunk rewinds once.
    */
   finalizedBlock?: bigint;
 }

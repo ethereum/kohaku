@@ -5,7 +5,6 @@ import {
   IWithdrawalEvent,
   IRagequitEvent,
 } from "../../data/interfaces/events.interface";
-import { selectSyncCursor } from "../selectors/last-synced-block.selector";
 import { registerDeposits } from "../slices/depositsSlice";
 import { registerRagequits } from "../slices/ragequitsSlice";
 import { registerWithdrawals } from "../slices/withdrawalsSlice";
@@ -18,6 +17,8 @@ export interface SyncEventsThunkParams {
 }
 
 interface SyncEventsParams extends SyncEventsThunkParams {
+  /** The sync's cursor: everything after it was pruned and is scanned again. */
+  fromBlock: bigint;
   /** The sync's head; every pool is scanned up to it (see syncThunk). */
   toBlock: bigint;
 }
@@ -26,10 +27,9 @@ export const syncEventsThunk = createAsyncThunk<
   void,
   SyncEventsParams,
   { state: RootState; }
->("sync/events", async ({ dataService, toBlock }, { getState, dispatch }) => {
+>("sync/events", async ({ dataService, fromBlock, toBlock }, { getState, dispatch }) => {
   const state = getState();
   const myPools = poolsSelector(state);
-  const lastSyncedBlock = selectSyncCursor(state);
 
   // Fetch deposits, withdrawals, and ragequits from all pools in parallel. A failed
   // scan fails the sync: the finalized block becomes the sync point, so a skipped
@@ -38,8 +38,7 @@ export const syncEventsThunk = createAsyncThunk<
     Array.from(myPools.values()).map(async (pool) => {
       const events = await dataService.getPoolEvents({
         events: ["PoolDeposited", "Withdrawn", "Ragequit", "LeafInserted"],
-        fromBlock:
-          lastSyncedBlock === 0n ? pool.registeredBlock : lastSyncedBlock,
+        fromBlock: fromBlock === 0n ? pool.registeredBlock : fromBlock,
         toBlock,
         address: pool.address,
       });

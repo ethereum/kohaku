@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-import { IPool } from '../../data/interfaces/events.interface';
+import { IPool, IPoolWindDownEvent } from '../../data/interfaces/events.interface';
 import { Address } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
 import { serialize } from '../utils/serialize.utils';
@@ -31,6 +31,21 @@ export const poolsSlice = createSlice({
 
       return { poolsTuples: Array.from(newPools) };
     },
+    /** Marks known pools wound down, whichever sync registered them. */
+    registerPoolWindDowns: ({ poolsTuples }, { payload: windDowns }: PayloadAction<IPoolWindDownEvent[]>) => {
+      const newPools = new Map(poolsTuples);
+
+      windDowns.forEach(({ pool, blockNumber }) => {
+        const key = serialize(pool);
+        const known = newPools.get(key);
+
+        if (known) {
+          newPools.set(key, { ...known, woundDownAtBlock: serialize(blockNumber) });
+        }
+      });
+
+      return { poolsTuples: Array.from(newPools) };
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(pruneAfterBlock, ({ poolsTuples }, { payload: block }) => ({
@@ -46,5 +61,5 @@ export const poolsSlice = createSlice({
   },
 });
 
-export const { registerPools } = poolsSlice.actions;
+export const { registerPools, registerPoolWindDowns } = poolsSlice.actions;
 export const poolsReducer = poolsSlice.reducer;

@@ -213,6 +213,69 @@ describe('syncThunk reorgs', () => {
     expect(fromBlocks).toEqual([100n, 104n]);
   });
 
+  it('rewinds a state saved before the finalized cursor existed, once', async () => {
+    const chain = baseChain();
+    const dataService = chainDataService(chain);
+
+    chain.pool.Ragequit = [
+      { ragequitter: user, commitment: 11n, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
+    ];
+    chain.finalized = 110n;
+    await sync(setupStore(), dataService);
+
+    // What an older version saved: the ragequit, and its head with no finalized block.
+    const saved = setupStore();
+
+    await sync(saved, dataService);
+    const store = storeFactory({
+      logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
+      entrypointInfo: { chainId: 1n, entrypointAddress: entrypoint, deploymentBlock: 100n },
+      initialState: { ...saved.getState(), sync: { lastSyncedBlock: saved.getState().sync.lastSyncedBlock } },
+    });
+
+    chain.pool.Ragequit = [];
+    chain.head = 112n;
+    chain.finalized = 106n;
+    await sync(store, dataService);
+
+    expect(ragequitsSelector(store.getState()).size).toBe(0);
+    expect(myBalance(store)).toBe(100n);
+    expect(BigInt(store.getState().sync.finalizedBlock!)).toBe(106n);
+  });
+
+  it('keeps a wind-down that is still on the chain', async () => {
+    const chain = baseChain();
+    const store = setupStore();
+    const dataService = chainDataService(chain);
+
+    chain.entrypoint.PoolWindDown = [{ pool, blockNumber: 108n, transactionHash: 0n }];
+    await sync(store, dataService);
+    expect(poolsSelector(store.getState()).get(pool)?.woundDownAtBlock).toBe(108n);
+
+    chain.head = 112n;
+    chain.finalized = 106n;
+    await sync(store, dataService);
+
+    expect(poolsSelector(store.getState()).get(pool)?.woundDownAtBlock).toBe(108n);
+  });
+
+  it('records a wind-down of a pool registered in an earlier sync', async () => {
+    const chain = baseChain();
+    const store = setupStore();
+    const dataService = chainDataService(chain);
+
+    chain.finalized = 110n;
+    await sync(store, dataService);
+
+    chain.entrypoint.PoolWindDown = [{ pool, blockNumber: 115n, transactionHash: 0n }];
+    chain.head = 120n;
+    chain.finalized = 120n;
+    await sync(store, dataService);
+
+    expect(poolsSelector(store.getState()).get(pool)?.woundDownAtBlock).toBe(115n);
+  });
+
   it('never commits a finalized block past the scanned head', async () => {
     const chain = baseChain();
     const store = setupStore();
