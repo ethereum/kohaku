@@ -6,6 +6,7 @@ import { E_ADDRESS } from '../../src/config';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 import type { Address } from '../../src/interfaces/types.interface';
 import { reasonableGasUnits } from '../../src/paymaster/fee';
+import { DUMMY_SIGNATURE, verifierForwarder } from '../../src/paymaster/simulation';
 import type { PaymasterGasLimits } from '../../src/paymaster/gas-bounds';
 import { storeStateManager } from '../../src/state/state-manager';
 import { registerAspTree } from '../../src/state/slices/aspSlice';
@@ -18,14 +19,17 @@ import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdraw
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 // Proving is stubbed: these tests are about what reaches the bundler, not the proof.
-const { proveCalls } = vi.hoisted(() => ({ proveCalls: { count: 0 } }));
+// `count` is every proof, `real` excludes gas-estimation stand-ins.
+const { proveCalls } = vi.hoisted(() => ({ proveCalls: { count: 0, real: 0 } }));
 
 vi.mock('../../src/state/thunks/withdrawThunk', async () => {
   const { createAsyncThunk } = await import('@reduxjs/toolkit');
 
   return {
-    withdrawThunk: createAsyncThunk('withdraw/generateProof', async () => {
+    withdrawThunk: createAsyncThunk('withdraw/generateProof', async ({ simulation }: { simulation?: boolean }) => {
       proveCalls.count += 1;
+
+      if (!simulation) proveCalls.real += 1;
 
       return {
         proof: { pi_a: ['1', '2', '1'], pi_b: [['1', '2'], ['3', '4'], ['1', '0']], pi_c: ['1', '2', '1'] },
@@ -50,6 +54,9 @@ const PAYMASTER = '0x000000000000000000000000000000000000fee1';
 const ENTRY_POINT = '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108';
 const BUNDLER_URL = 'https://bundler.test/rpc';
 const EPHEMERAL_KEY = `0x${'11'.repeat(32)}` as const;
+const VERIFIER = '0x00000000000000000000000000000000000000ce';
+const VERIFIER_CODE = '0x60006000fd';
+const WITHDRAWAL_VERIFIER_SELECTOR = '0x8735eb2b';
 // The chain's fee market as the host provider reports it.
 const FEE_REFERENCE = { baseFeePerGas: 10n * GWEI, maxPriorityFeePerGas: 1n * GWEI };
 const HONEST_PRICE = { maxFeePerGas: 13n * GWEI, maxPriorityFeePerGas: 1n * GWEI };
@@ -126,10 +133,13 @@ const setup = (bundler: ReturnType<typeof mockBundler>, noteValue = ONE_ETH, rec
     maxGasLimits: overrides.maxGasLimits,
     tailCalls: overrides.tailCalls,
     tailCallsGasEstimate: overrides.tailCallsGasEstimate,
-    provider: { request: async ({ method }: { method: string }) => {
-      if (method === 'eth_getCode') return '0x';
-      if (method === 'eth_call') return toHex(0n, { size: 32 });
+    provider: { request: async ({ method, params }: { method: string; params: [{ data?: string } | string] }) => {
+      if (method === 'eth_getCode') return params[0] === VERIFIER ? VERIFIER_CODE : '0x';
+
+      if (method === 'eth_call') return toHex((params[0] as { data?: string }).data === WITHDRAWAL_VERIFIER_SELECTOR ? BigInt(VERIFIER) : 0n, { size: 32 });
+
       if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
+
       if (method === 'eth_feeHistory' && recentTips) return feeHistory(recentTips, FEE_REFERENCE.baseFeePerGas);
 
       return method === 'eth_getBlockByNumber'
@@ -167,7 +177,29 @@ const estimate = (overrides: Partial<Record<keyof ReturnType<typeof reasonableGa
   Object.fromEntries(Object.entries({ ...reasonableGasUnits(false), ...overrides }).map(([k, v]) => [k, toHex(v)]));
 
 describe('paymaster bundler safety', () => {
-  beforeEach(() => { proveCalls.count = 0; });
+  beforeEach(() => { proveCalls.count = 0; proveCalls.real = 0; });
+
+  it('estimates a dummy-signed simulation under verifier overrides and proves/signs only the final operation', async () => {
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 400_000n }) });
+    const [w] = await setup(bundler).withdraw({ tailCalls });
+    const estimates = bundler.requests.filter(({ method }) => method === 'eth_estimateUserOperationGas');
+
+    expect(estimates).toHaveLength(1);
+
+    for (const { params: [op, entryPoint, overrides] } of estimates) {
+      expect((op as { signature: string }).signature).toBe(DUMMY_SIGNATURE);
+      expect((op as { eip7702Auth: { r: string } }).eip7702Auth.r).not.toBe(w!.userOperation.eip7702Auth!.r);
+      expect(entryPoint).toBe(ENTRY_POINT);
+
+      const shadow = Object.keys(overrides as object).find(address => address !== VERIFIER)! as `0x${string}`;
+
+      expect(overrides).toEqual({ [shadow]: { code: VERIFIER_CODE }, [VERIFIER]: { code: verifierForwarder(shadow) } });
+    }
+
+    expect(w!.userOperation.signature).not.toBe(DUMMY_SIGNATURE);
+    expect(proveCalls.real).toBe(1);
+    expect(bundler.requests.some(({ method }) => method === 'eth_sendUserOperation')).toBe(false);
+  });
   afterEach(() => { vi.unstubAllGlobals(); });
 
   it('rejects gas prices above the host market before proving', async () => {
@@ -248,6 +280,7 @@ describe('paymaster bundler safety', () => {
 
     await expect(setup(bundler).withdraw()).rejects.toThrow(field);
     expect(proveCalls.count).toBe(1);
+    expect(proveCalls.real).toBe(0);
   });
 
   it('honors explicit gas ceilings after buffering', async () => {
@@ -255,6 +288,7 @@ describe('paymaster bundler safety', () => {
 
     await expect(setup(bundler).withdraw({ tailCalls, maxGasLimits: { callGasLimit: 500_000n } })).rejects.toThrow('callGasLimit');
     expect(proveCalls.count).toBe(1);
+    expect(proveCalls.real).toBe(0);
   });
 
   it('keeps a caller-provided heavy-tail baseline if estimation is unavailable', async () => {

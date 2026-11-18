@@ -22,6 +22,7 @@ import {
 } from 'viem/account-abstraction';
 import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
 import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
+import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from './simulation';
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
 
@@ -190,11 +191,11 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
 }
 
 /**
- * Bundler gas estimation (`eth_estimateUserOperationGas`) for an already-built,
- * serialized userOp. Used to size a consolidated batch userOp — whose execution
- * phase runs N-1 extra `pool.withdraw` calls — tightly instead of guessing. The
- * op must carry a valid `paymasterData`/`eip7702Auth` so the bundler can
- * simulate the paymaster's validation and the delegated execution.
+ * Bundler gas estimation (`eth_estimateUserOperationGas`) for a simulation
+ * userOp (`buildSimulationTornadoUserOp`). Used to size a consolidated batch
+ * userOp — whose execution phase runs N-1 extra `pool.withdraw` calls — tightly
+ * instead of guessing. Never pass a signed userOp or real proofs: the bundler
+ * could submit them. `stateOverrides` make the dummy proofs verify.
  *
  * Not on viem's bundler action surface for our serialized shape, so we issue the
  * raw request and parse the returned limits ourselves. Preparation must stop on
@@ -204,10 +205,11 @@ export async function estimateUserOperationGas(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  stateOverrides?: StateOverrides,
 ): Promise<UserOpGasLimits> {
   const result = (await client.request({
     method: 'eth_estimateUserOperationGas',
-    params: [op, entryPoint],
+    params: stateOverrides ? [op, entryPoint, stateOverrides] : [op, entryPoint],
   } as never)) as unknown as Record<'callGasLimit' | 'verificationGasLimit' | 'preVerificationGas', Hex> & Partial<Record<'paymasterVerificationGasLimit' | 'paymasterPostOpGasLimit', Hex>>;
 
   return {
@@ -228,7 +230,19 @@ export async function estimateUserOperationGas(
  * prior transactions. The caller supplies that EOA's authorization nonce; this
  * helper performs no RPC reads.
  */
-export async function buildSignedTornadoUserOp({
+export const buildSignedTornadoUserOp = (params: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> =>
+  assembleTornadoUserOp(params, false);
+
+/**
+ * The same userOp as `buildSignedTornadoUserOp`, for bundler gas estimation
+ * only: it carries a dummy signature and 7702 authorization and never calls the
+ * signer, so the bundler cannot submit it. Pair it with a dummy-proof
+ * `paymasterData` (see `./simulation`).
+ */
+export const buildSimulationTornadoUserOp = (params: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> =>
+  assembleTornadoUserOp(params, true);
+
+async function assembleTornadoUserOp({
   signer,
   executionAccount,
   chainId,
@@ -240,7 +254,7 @@ export async function buildSignedTornadoUserOp({
   tailCalls = async () => [],
   nonce = 0n,
   authorizationNonce,
-}: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
+}: BuildSignedTornadoUserOpParams, simulation: boolean): Promise<SerializedUserOperation> {
 
   const owner = signer;
 
@@ -270,11 +284,10 @@ export async function buildSignedTornadoUserOp({
 
   if (executionAccount?.kind !== 'simple-account' && (nativeNonce < 0n || nativeNonce > BigInt(Number.MAX_SAFE_INTEGER))) throw new Error('Authorization nonce exceeds the safe integer range');
 
-  const authorization = executionAccount?.kind === 'simple-account' ? undefined : await owner.signAuthorization({
-    address: executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION,
-    chainId,
-    nonce: Number(authorizationNonce ?? nonce),
-  });
+  const delegate = executionAccount?.kind === 'simple-account' ? undefined : executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION;
+  const authorization = !delegate ? undefined
+    : simulation ? dummyAuthorization(delegate, chainId, nativeNonce)
+    : serializeAuth(await owner.signAuthorization({ address: delegate, chainId, nonce: Number(nativeNonce) }));
   const deployment = executionAccount?.kind === 'simple-account' && executionAccount.factory
     ? { factory: executionAccount.factory.address, factoryData: simpleAccountFactoryData(owner.address, executionAccount.factory) } : {};
 
@@ -297,7 +310,7 @@ export async function buildSignedTornadoUserOp({
 
   // No client/transport needed: the Simple7702 sender is the owner EOA itself,
   // so signing is a purely local EIP-712 sign over the userOp hash.
-  const signature = await owner.signTypedData(
+  const signature = simulation ? DUMMY_SIGNATURE : await owner.signTypedData(
     getUserOperationTypedData({
       chainId,
       entryPointAddress: entryPoint08Address,
@@ -321,7 +334,7 @@ export async function buildSignedTornadoUserOp({
     paymasterData: userOperation.paymasterData,
     signature,
     ...deployment,
-    ...(authorization ? { eip7702Auth: serializeAuth(authorization) } : {}),
+    ...(authorization ? { eip7702Auth: authorization } : {}),
   };
 }
 

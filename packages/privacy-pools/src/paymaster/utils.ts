@@ -27,6 +27,7 @@ import {
   SerializedUserOperation,
   UserOpGasLimits,
 } from "../interfaces/user-ops.interface";
+import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from "./simulation";
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
 
@@ -116,9 +117,9 @@ export const describeError = (error: unknown): string =>
     : "Unknown error.";
 
 /**
- * Bundler gas estimation (`eth_estimateUserOperationGas`) for an already-built,
- * serialized userOp. Best-effort: callers should fall back to static limits on
- * failure.
+ * Bundler gas estimation (`eth_estimateUserOperationGas`) for a simulation
+ * userOp (`buildSimulationUserOp`). Never pass a signed userOp or real proofs:
+ * the bundler could submit them. `stateOverrides` make the dummy proofs verify.
  *
  * @throws {Error} Whose message is safe to report: it never includes the userOp.
  */
@@ -126,6 +127,7 @@ export async function estimateUserOperationGas(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  stateOverrides?: StateOverrides,
 ): Promise<UserOpGasLimits> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let result: any;
@@ -133,7 +135,7 @@ export async function estimateUserOperationGas(
   try {
     result = await client.request({
       method: "eth_estimateUserOperationGas",
-      params: [op, entryPoint],
+      params: stateOverrides ? [op, entryPoint, stateOverrides] : [op, entryPoint],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
   } catch (error) {
@@ -208,7 +210,19 @@ export async function isUserOperationKnown(client: BundlerClient, hash: Hash): P
  * implementation; the owner signs the userOp. No RPC access is required.
  * Also returns the userOp hash, which is what the owner signs.
  */
-export async function buildSignedUserOp({
+export const buildSignedUserOp = (params: BuildSignedUserOpParams): Promise<{ userOperation: SerializedUserOperation; userOpHash: Hash }> =>
+  assembleUserOp(params, false);
+
+/**
+ * The same userOp as `buildSignedUserOp`, for bundler gas estimation only: it
+ * carries a dummy signature and 7702 authorization and never calls the signer,
+ * so the bundler cannot submit it. Pair it with a dummy-proof `paymasterData`
+ * (see `./simulation`).
+ */
+export const buildSimulationUserOp = async (params: BuildSignedUserOpParams): Promise<SerializedUserOperation> =>
+  (await assembleUserOp(params, true)).userOperation;
+
+async function assembleUserOp({
   signer,
   executionAccount,
   chainId,
@@ -220,7 +234,7 @@ export async function buildSignedUserOp({
   nonce = 0n,
   authorizationNonce,
   tailCalls,
-}: BuildSignedUserOpParams): Promise<{ userOperation: SerializedUserOperation; userOpHash: Hash }> {
+}: BuildSignedUserOpParams, simulation: boolean): Promise<{ userOperation: SerializedUserOperation; userOpHash: Hash }> {
   const owner = signer;
 
   const calls = tailCalls ? await tailCalls(executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address) : [];
@@ -251,11 +265,10 @@ export async function buildSignedUserOp({
 
   if (executionAccount?.kind !== 'simple-account' && (nativeNonce < 0n || nativeNonce > BigInt(Number.MAX_SAFE_INTEGER))) throw new Error('Authorization nonce exceeds the safe integer range');
 
-  const authorization = executionAccount?.kind === 'simple-account' ? undefined : await owner.signAuthorization({
-    address: executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION,
-    chainId,
-    nonce: Number(authorizationNonce ?? nonce),
-  });
+  const delegate = executionAccount?.kind === 'simple-account' ? undefined : executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION;
+  const authorization = !delegate ? undefined
+    : simulation ? dummyAuthorization(delegate, chainId, nativeNonce)
+    : serializeAuth(await owner.signAuthorization({ address: delegate, chainId, nonce: Number(nativeNonce) }));
   const deployment = executionAccount?.kind === 'simple-account' && executionAccount.factory
     ? { factory: executionAccount.factory.address, factoryData: simpleAccountFactoryData(owner.address, executionAccount.factory) } : {};
 
@@ -284,7 +297,7 @@ export async function buildSignedUserOp({
       typeof getUserOperationTypedData
     >[0]["userOperation"],
   });
-  const signature = await owner.signTypedData(typedData);
+  const signature = simulation ? DUMMY_SIGNATURE : await owner.signTypedData(typedData);
 
   // From EntryPoint v0.8 on, the userOp hash is the EIP-712 hash of this typed data.
   const userOpHash = hashTypedData(typedData);
@@ -304,7 +317,7 @@ export async function buildSignedUserOp({
     paymasterData: userOperation.paymasterData,
     signature,
     ...deployment,
-    ...(authorization ? { eip7702Auth: serializeAuth(authorization) } : {}),
+    ...(authorization ? { eip7702Auth: authorization } : {}),
   };
 
   return { userOperation: serialized, userOpHash };

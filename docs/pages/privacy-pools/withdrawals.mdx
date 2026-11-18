@@ -167,7 +167,7 @@ There is no default execution-gas ceiling: without an explicit `callGasLimit` ce
 
 There is no percentage-of-withdrawal fee cap. Spending most of a small sponsoring withdrawal on gas is permitted, provided it covers the fee. Bundler estimation and broadcasting use `host.network.fetch`, including receipt polling, so hosts with URL allowlists must permit their configured bundler. The host provider supplies the fee-market reference independently of any custom data service; custom `IDataService` implementations need no new methods. Custom low-level state managers must forward the provider/network supplied by the plugin when using the built-in paymaster helpers.
 
-Preparation sends a signed operation with a valid proof to the bundler for estimation before broadcasting, so the bundler could submit that provisional operation. Show the proof-bound fee and do not treat preparation as a dry run.
+Preparation never sends an executable operation to the bundler. Gas estimation uses a simulation payload with a dummy signature, a dummy EIP-7702 authorization, and dummy proofs with random nullifier and commitment hashes. It is paired with `eth_estimateUserOperationGas` state overrides that move the pool's withdrawal verifier code to a shadow address and make the original address run it and return `true`, so verification still costs real gas. After the gas limits converge, the SDK proves each note and requests one signature locally. The signed operation reaches the bundler only through `broadcast`. The bundler still learns the recipient, fee, sender and gas limits during estimation, and it must support state overrides. Show the proof-bound fee before broadcasting.
 
 ### Who signs the user operation
 
