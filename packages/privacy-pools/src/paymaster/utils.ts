@@ -107,7 +107,7 @@ export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(
  * different userOp with the same sender and nonce gets an AA25/AA10 error.
  */
 export const isAlreadyKnown = (error: unknown): boolean =>
-  /already known/i.test(bundlerRejection(error)?.details ?? '');
+  /^already known\.?$/i.test(bundlerRejection(error)?.details?.trim() ?? '');
 
 /**
  * viem error messages embed the request body, which for the paymaster flow is

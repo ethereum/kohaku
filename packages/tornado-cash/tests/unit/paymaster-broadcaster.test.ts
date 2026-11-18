@@ -417,4 +417,10 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     expect(error.failure).toBe('unconfirmed');
     expect(error.message).toContain('malformed receipt');
   });
+
+  it.each(['UserOperation not already known', 'nonce already known', 'Already known to be invalid'])('does not read "%s" as accepted', async (message) => {
+    const { network } = makeNetwork(sendFails(() => ({ error: { code: -32602, message } })));
+
+    expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('not-accepted');
+  });
 });
