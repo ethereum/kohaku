@@ -3,7 +3,9 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { IEntrypointDepositEvent } from '../../data/interfaces/events.interface';
 import { Commitment } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
+import { keepUpToBlock } from '../utils/prune.utils';
 import { serialize } from '../utils/serialize.utils';
+import { pruneAfterBlock } from './syncSlice';
 
 export interface EntrypointDepositsState {
   entrypointDepositsTuples: [Commitment, IEntrypointDepositEvent][];
@@ -30,6 +32,11 @@ export const entrypointDepositsSlice = createSlice({
 
       return { entrypointDepositsTuples: Array.from(newDeposits) };
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(pruneAfterBlock, ({ entrypointDepositsTuples }, { payload: block }) => ({
+      entrypointDepositsTuples: keepUpToBlock(entrypointDepositsTuples, block),
+    }));
   },
 });
 

@@ -82,6 +82,7 @@ const setupDataService = async ({ aspRoot, late = false }: { aspRoot?: bigint; l
   return {
     getChainId: vi.fn(async () => 1n),
     getBlockNumber: vi.fn(async () => 200n),
+    getFinalizedBlockNumber: vi.fn(async () => 200n),
     getEntrypointEvents: scan(withLate(entrypointEvents, lateEntrypointEvents)),
     getPoolEvents: scan(withLate(poolEvents, latePoolEvents)),
     getAsset: vi.fn(async (address: Address) => ({ address, name: 'T', symbol: 'T', decimals: 18 })),

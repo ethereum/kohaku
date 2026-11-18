@@ -1,6 +1,6 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { IPool, IPoolRegisteredEvent, IPoolWindDownEvent } from '../../data/interfaces/events.interface';
-import { registerPools } from '../slices/poolsSlice';
+import { registerPools, registerPoolWindDowns } from '../slices/poolsSlice';
 import { RootState } from '../store';
 
 export interface SyncPoolsThunkParams {
@@ -34,5 +34,8 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     });
 
     dispatch(registerPools(pools));
+    // Also for pools registered before this scan, whose wind-down the rescan of
+    // the unfinalized blocks would otherwise drop.
+    dispatch(registerPoolWindDowns(poolsWoundDown));
   }
 );
