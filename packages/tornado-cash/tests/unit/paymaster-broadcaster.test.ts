@@ -242,7 +242,7 @@ describe('PaymasterBroadcaster', () => {
   });
 
   it('recovers when the send response is lost but the bundler finds the userOp', async () => {
-    const pending = { userOperation: {}, entryPoint: ADDRESS, blockNumber: null, blockHash: null, transactionHash: null };
+    const pending = { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: entryPoint08Address, blockNumber: null, blockHash: null, transactionHash: null };
     const { network, calls } = makeNetwork(sendFails(
       () => { throw new Error('socket hang up'); },
       () => ({ result: pending }),
@@ -291,8 +291,8 @@ describe('PaymasterBroadcaster', () => {
   });
 
   it('returns one result per withdrawal, in order', async () => {
-    const OTHER_HASH = `0x${'cc'.repeat(32)}` as const;
-    const other = { ...withdrawal, bundlerUrl: 'http://other.bundler' };
+    const other = { ...withdrawal, bundlerUrl: 'http://other.bundler', userOperation: { ...withdrawal.userOperation, nonce: '0x1' } };
+    const OTHER_HASH = serializedUserOperationHash(other.userOperation, entryPoint08Address)!;
     const { network } = makeNetwork((_method, url) => ({
       result: url.startsWith('http://other.bundler') ? OTHER_HASH : USER_OP_HASH,
     }));
@@ -374,5 +374,47 @@ describe('serializedUserOperationHash', () => {
     const userOperation = { ...withdrawal.userOperation, eip7702Auth: undefined };
 
     expect(serializedUserOperationHash(userOperation, entryPoint08Address)).toBeUndefined();
+  });
+});
+
+describe('PaymasterBroadcaster with untrusted bundler replies', () => {
+  const OTHER = `0x${'cc'.repeat(32)}` as const;
+  const lookups = (result: unknown) => sendFails(() => { throw new Error('socket hang up'); }, () => ({ result }));
+
+  it.each([
+    ['a non-hash', true],
+    ['an object', {}],
+    ['a different userOp hash', OTHER],
+  ])('does not report a send answered with %s as accepted', async (_case, result) => {
+    const { network } = makeNetwork((method) => method === 'eth_sendUserOperation' ? { result } : { result: null });
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.failure).toBe('unconfirmed');
+    expect(error.userOpHash).toBe(USER_OP_HASH);
+  });
+
+  it.each([
+    ['a non-object', true],
+    ['an empty object', {}],
+    ['another sender', { userOperation: { sender: `0x${'99'.repeat(20)}`, nonce: '0x0' }, entryPoint: entryPoint08Address }],
+    ['another nonce', { userOperation: { sender: signer.address, nonce: '0x1' }, entryPoint: entryPoint08Address }],
+    ['another EntryPoint', { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: `0x${'99'.repeat(20)}` }],
+  ])('does not treat a lookup answered with %s as the userOp', async (_case, result) => {
+    const { network } = makeNetwork(lookups(result));
+
+    expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('unconfirmed');
+  });
+
+  it.each([
+    ['a string success', { ...makeReceipt(true), success: 'false' }],
+    ['another userOp', { ...makeReceipt(true), userOpHash: OTHER }],
+    ['no transaction hash', { ...makeReceipt(true), receipt: {} }],
+  ])('does not confirm a receipt with %s', async (_case, receipt) => {
+    const { network } = makeNetwork(accepted(() => ({ result: receipt })));
+    const [{ wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
+    const error = await catchError(wait());
+
+    expect(error.failure).toBe('unconfirmed');
+    expect(error.message).toContain('malformed receipt');
   });
 });

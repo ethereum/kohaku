@@ -22,6 +22,7 @@ import {
 } from 'viem/account-abstraction';
 import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
 import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
+import { isSameUserOperation, parseSendResult } from './bundler-replies';
 import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from './simulation';
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
@@ -124,11 +125,14 @@ export async function sendSerializedUserOperation(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  expectedHash?: Hash,
 ): Promise<Hash> {
-  return client.request({
+  const result: unknown = await client.request({
     method: 'eth_sendUserOperation',
     params: [op, entryPoint],
-  }, { retryCount: 0 }) as Promise<Hash>;
+  }, { retryCount: 0 });
+
+  return parseSendResult(result, expectedHash);
 }
 
 /**
@@ -162,13 +166,18 @@ export const isAlreadyKnown = (error: unknown): boolean =>
  * `getUserOperation` is not used because it fails to format pending userOps,
  * whose `blockNumber` is null.
  */
-export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
-  const result = await client.request({
+export async function isUserOperationKnown(
+  client: BundlerClient,
+  hash: Hash,
+  op: Pick<SerializedUserOperation, 'sender' | 'nonce'>,
+  entryPoint: Address,
+): Promise<boolean> {
+  const result: unknown = await client.request({
     method: 'eth_getUserOperationByHash',
     params: [hash],
   });
 
-  return result !== null;
+  return isSameUserOperation(result, op, entryPoint);
 }
 
 /**
