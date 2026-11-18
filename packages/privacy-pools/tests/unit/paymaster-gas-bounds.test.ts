@@ -184,7 +184,8 @@ describe('paymaster bundler safety', () => {
     const [w] = await setup(bundler).withdraw({ tailCalls });
     const estimates = bundler.requests.filter(({ method }) => method === 'eth_estimateUserOperationGas');
 
-    expect(estimates).toHaveLength(1);
+    // Refinement, then the check of the refined limits that tail calls require.
+    expect(estimates).toHaveLength(2);
 
     for (const { params: [op, entryPoint, overrides] } of estimates) {
       expect((op as { signature: string }).signature).toBe(DUMMY_SIGNATURE);
@@ -256,7 +257,7 @@ describe('paymaster bundler safety', () => {
   });
 
   it('allows most of a 0.01 ETH note to sponsor the operation', async () => {
-    const bundler = mockBundler({ price: { maxFeePerGas: 3n * GWEI, maxPriorityFeePerGas: GWEI } });
+    const bundler = mockBundler({ price: { maxFeePerGas: 3n * GWEI, maxPriorityFeePerGas: GWEI }, estimate: estimate() });
     const note = ONE_ETH / 100n;
     const [w] = await setup(bundler, note).withdraw({ tailCalls });
 
@@ -291,10 +292,53 @@ describe('paymaster bundler safety', () => {
     expect(proveCalls.real).toBe(0);
   });
 
-  it('keeps a caller-provided heavy-tail baseline if estimation is unavailable', async () => {
-    const [w] = await setup(mockBundler()).withdraw({ tailCalls, tailCallsGasEstimate: 2_000_000n });
+  it('keeps the best-effort baseline for a validation-only withdrawal if estimation is unavailable', async () => {
+    const [w] = await setup(mockBundler()).withdraw();
 
-    expect(BigInt(w!.userOperation.callGasLimit)).toBe(2_000_000n);
+    expect(w!.userOperation).toMatchObject({ callData: '0x', callGasLimit: '0x0' });
+    expect(proveCalls.real).toBe(1);
+  });
+
+  it('refuses to sign tail calls with an unverified budget if estimation is unavailable', async () => {
+    await expect(setup(mockBundler()).withdraw({ tailCalls, tailCallsGasEstimate: 2_000_000n }))
+      .rejects.toThrow('runs calls after the payout requires successful bundler gas estimation');
+    expect(proveCalls.real).toBe(0);
+  });
+
+  it('refuses to sign tail calls when the bundler estimates no execution gas', async () => {
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 0n }) });
+
+    await expect(setup(bundler).withdraw({ tailCalls })).rejects.toThrow('positive bundler callGasLimit');
+    expect(proveCalls.real).toBe(0);
+  });
+
+  it('refuses tail calls when the refined limits no longer cover the final estimate', async () => {
+    let estimates = 0;
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 400_000n }) });
+    const globalFetch = bundler.globalFetch;
+
+    // The second estimate (of the refined operation) needs more than the buffered limit.
+    bundler.network.fetch = async (input, init) => {
+      if (String(init?.body).includes('eth_estimateUserOperationGas') && ++estimates === 2) {
+        // Echo the request envelope (jsonrpc, id) with the result.
+        const request = JSON.parse(String(init?.body));
+
+        return new Response(JSON.stringify({ ...request, result: estimate({ callGasLimit: 600_000n }) }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      return globalFetch(input, init);
+    };
+
+    await expect(setup(bundler).withdraw({ tailCalls })).rejects.toThrow('gas requirements changed after refinement');
+    expect(proveCalls.real).toBe(0);
+  });
+
+  it.each([0n, -1n])('rejects a tailCallsGasEstimate of %s before estimating or proving', async tailCallsGasEstimate => {
+    const bundler = mockBundler({ estimate: estimate() });
+
+    await expect(setup(bundler).withdraw({ tailCalls, tailCallsGasEstimate })).rejects.toThrow('tailCallsGasEstimate must be a positive bigint');
+    expect(proveCalls.count).toBe(0);
+    expect(sentUserOps(bundler)).toHaveLength(0);
   });
 
   it('applies price checks to estimates with a custom data service, with no percentage cap', async () => {
@@ -311,5 +355,19 @@ describe('paymaster bundler safety', () => {
     expect(result.mode).toBe('paymaster');
     expect(result.fee).toBeGreaterThan(ONE_ETH / 200n);
     expect(bundler.requests.every(r => r.via === 'network')).toBe(true);
+  });
+
+  it('rejects a zero tailCallsGasEstimate when quoting', async () => {
+    const bundler = mockBundler();
+    const manager = storeStateManager({
+      dataService: { getChainId: async () => 1n },
+      secretManager: {}, entrypoint: { address: 900n },
+      paymasterConfig: { 1: { bundlerUrl: BUNDLER_URL, paymasterAddress: PAYMASTER } },
+      provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber' ? { baseFeePerGas: toHex(10n * GWEI) } : toHex(GWEI) },
+      network: bundler.network,
+    } as never);
+
+    await expect(manager.getUnshieldEstimate({ asset: BigInt(E_ADDRESS) as Address, amount: ONE_ETH, recipient: 0xbeefn as Address, mode: 'paymaster', hasTailCalls: true, tailCallsGasEstimate: 0n }))
+      .rejects.toThrow('tailCallsGasEstimate must be a positive bigint');
   });
 });

@@ -155,6 +155,8 @@ await pools.prepareUnshield(asset, recipient, {
 
 `estimateUnshield` needs the same `tailCalls` (or at least their presence) and the same gas estimate, or the preview will miss the execution phase.
 
+`tailCallsGasEstimate` must be a positive bigint. Tail calls and batched notes run after the payout reaches the sender, so `prepareUnshield` signs them only after the bundler successfully estimates a positive `callGasLimit` and confirms the refined limits with a second estimate. If estimation fails, preparation throws instead of signing a baseline guess. A single-note withdrawal without `tailCalls` has no execution phase and still uses baseline gas when estimation is unavailable.
+
 ### Bundler gas bounds
 
 The bundler's gas price is checked independently against the host provider. The SDK requests `eth_feeHistory` for the latest ten blocks at the gas-weighted 90th percentile, then takes the highest per-block tip sample so short spikes are not averaged away. The tip ceiling is `min(20 gwei, max(2 gwei, 3 × sampled tip))`; the total-price ceiling remains three times the latest mined block's base fee plus that tip allowance. The 20 gwei ceiling applies to the tip, not the base fee or total price. Errors include both requested prices and ceilings in wei.

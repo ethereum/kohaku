@@ -35,7 +35,7 @@ import {
   StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
-import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
+import { computeMinimumViableFee, reasonableGasUnits, tailCallsGas } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
 import { encodeRelayData } from "../utils/encoding.utils";
@@ -322,7 +322,7 @@ export const storeStateManager = (
         // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
         const gas = {
           ...reasonableGasUnits(isERC20),
-          callGasLimit: hasTailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : 0n,
+          callGasLimit: hasTailCalls ? tailCallsGas(tailCallsGasEstimate) : 0n,
         };
 
         assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);

@@ -271,18 +271,23 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast failures (re
     );
     const rpc = createPublicClient({ transport: http(pool.rpcUrl) });
 
-    // The withdrawal pays the sender during validation. USDT has no fallback,
-    // so this tail call reverts the execution phase afterwards.
+    // The withdrawal pays the sender during validation. Preparation refuses tail
+    // calls that fail estimation, so the target has no code (the call succeeds)
+    // until after preparation, when it becomes code that always reverts: the
+    // execution phase reverts only on chain.
+    const tailTarget = '0x00000000000000000000000000000000000bad00';
     const op = await protocol.prepareUnshield(
       { asset: usdtAsset, amount: WITHDRAW_AMOUNT },
       RECIPIENT as AccountId,
       {
         mode: 'paymaster',
-        tailCalls: async () => [{ to: USDT, value: 0n, data: '0xdeadbeef' }],
+        tailCalls: async () => [{ to: tailTarget, value: 0n, data: '0xdeadbeef' }],
       },
     );
 
     if (op.mode !== 'paymaster') throw new Error('expected paymaster operation');
+
+    await (await pool.getProvider()).send('anvil_setCode', [tailTarget, '0x60006000fd']);
 
     const broadcaster = new PrivacyPoolsBroadcaster({ host, broadcasterUrl: { default: 'http://unused' } });
     const approvedBefore = await approvedBalance();
