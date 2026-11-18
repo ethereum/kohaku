@@ -79,11 +79,14 @@ export interface IDataService {
   getChainId(): Promise<ChainId>;
   /** Latest block number. A sync resolves it once and scans every contract up to it. */
   getBlockNumber(): Promise<bigint>;
+  /** Last finalized block: sync state from blocks after it is dropped and rescanned. */
+  getFinalizedBlockNumber(): Promise<bigint>;
   /** EOA transaction count (native nonce) for an address — used to bind a 7702
    * authorization for a reused wallet-path delegator (see `paymasterWithdrawThunk`). */
   getTransactionCount(address: `0x${string}`): Promise<number>;
 
-  getPoolStateRoot(poolAddress: Address): Promise<bigint>;
+  /** The Pool's currentRoot(), at `blockNumber` when given (latest otherwise). */
+  getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint>;
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
   getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint>;
   getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint>;

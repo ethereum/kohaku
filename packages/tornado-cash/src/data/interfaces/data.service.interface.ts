@@ -100,6 +100,8 @@ export interface IDataService {
   getGasPrice(): Promise<bigint>;
 
   getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint>;
+  /** Whether `address` holds code at `block`; throws on a malformed RPC response. */
+  isContractDeployedAt(address: Address, block: bigint): Promise<boolean>;
   getPoolStateRoot(poolAddress: Address): Promise<bigint>;
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
   isPoolRootValid(poolAddress: Address, root: bigint): Promise<boolean>;

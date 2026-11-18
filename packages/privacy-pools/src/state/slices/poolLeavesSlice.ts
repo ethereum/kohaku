@@ -3,7 +3,9 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ILeafInsertedEvent } from '../../data/interfaces/events.interface';
 import { Address } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
+import { keepUpToBlock } from '../utils/prune.utils';
 import { deserialize, serialize } from '../utils/serialize.utils';
+import { pruneAfterBlock } from './syncSlice';
 
 export interface PoolLeavesState {
   poolLeavesTuples: [Address, [bigint, ILeafInsertedEvent][]][];
@@ -49,6 +51,12 @@ export const poolLeavesSlice = createSlice({
         ),
       });
     },
+  },
+  extraReducers: (builder) => {
+    // Leaves are appended in block order, so this only ever cuts a pool's tail.
+    builder.addCase(pruneAfterBlock, ({ poolLeavesTuples }, { payload: block }) => ({
+      poolLeavesTuples: poolLeavesTuples.map(([pool, leavesTuples]) => [pool, keepUpToBlock(leavesTuples, block)]),
+    }));
   },
 });
 

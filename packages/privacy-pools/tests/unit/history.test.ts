@@ -6,7 +6,7 @@ import { registerAspTree } from '../../src/state/slices/aspSlice';
 import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { registerRagequits } from '../../src/state/slices/ragequitsSlice';
-import { setLastSyncedBlock } from '../../src/state/slices/syncSlice';
+import { setSyncedBlocks } from '../../src/state/slices/syncSlice';
 import { addUserSecret } from '../../src/state/slices/userSecretsSlice';
 import { registerWithdrawals } from '../../src/state/slices/withdrawalsSlice';
 import { selectLastSyncedBlock } from '../../src/state/selectors/last-synced-block.selector';
@@ -61,7 +61,7 @@ const setupStore = ({ withUserEvents = true }: { withUserEvents?: boolean } = {}
   store.dispatch(registerDeposits([depositA, depositB]));
   store.dispatch(registerWithdrawals([withdrawalA]));
   store.dispatch(registerRagequits([ragequitB]));
-  store.dispatch(setLastSyncedBlock(head));
+  store.dispatch(setSyncedBlocks({ head, finalized: head }));
 
   if (withUserEvents) {
     // Deposit A was withdrawn from once (spending the note with nullifierHash 111).
@@ -139,7 +139,7 @@ describe('history', () => {
     const store = setupStore();
 
     await sync(store, mockDataService());
-    store.dispatch(setLastSyncedBlock(240_000n));
+    store.dispatch(setSyncedBlocks({ head: 240_000n, finalized: 240_000n }));
 
     const dataService = mockDataService();
 
