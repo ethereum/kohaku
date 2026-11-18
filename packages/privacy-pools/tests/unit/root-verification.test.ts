@@ -70,16 +70,19 @@ describe('root verification', () => {
   describe('verifyStateRootOnChain', () => {
     const syncedBlock = 120n;
 
-    it('rejects an empty expected root before making any RPC calls', async () => {
+    it('accepts an empty tree only when the pool is empty at the synced block', async () => {
       const dataService = {
-        getPoolStateRoot: vi.fn(),
+        getPoolStateRoot: vi.fn().mockResolvedValueOnce(0n).mockResolvedValueOnce(555n),
       } as unknown as IDataService;
 
       await expect(
         verifyStateRootOnChain(dataService, poolAddress, 0n, syncedBlock),
-      ).rejects.toThrow('State root verification called with empty root (0n)');
+      ).resolves.toBeUndefined();
+      await expect(
+        verifyStateRootOnChain(dataService, poolAddress, 0n, syncedBlock),
+      ).rejects.toThrow('State root verification failed');
 
-      expect(dataService.getPoolStateRoot).not.toHaveBeenCalled();
+      expect(dataService.getPoolStateRoot).toHaveBeenCalledWith(poolAddress, syncedBlock);
     });
 
     it('accepts the current root read at the synced block', async () => {

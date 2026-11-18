@@ -44,7 +44,8 @@ const LATEST = 130n;
  * LATEST. Pool root reads mirror the Pool's ring buffer: currentRoot() and every
  * root it held before, at the requested block (latest when none is given).
  */
-const chainDataService = async ({ dropLeaves = [] as bigint[] } = {}) => {
+const chainDataService = async ({ dropLeaves = [] as bigint[], heads = [HEAD] } = {}) => {
+  let headCall = 0;
   const leavesAt = (block: bigint) => poolEvents.LeafInserted!
     .filter((e) => e.blockNumber <= block)
     .map((e) => e.commitment as bigint);
@@ -65,7 +66,7 @@ const chainDataService = async ({ dropLeaves = [] as bigint[] } = {}) => {
     }));
 
   return {
-    getBlockNumber: vi.fn(async () => HEAD),
+    getBlockNumber: vi.fn(async () => heads[Math.min(headCall++, heads.length - 1)]!),
     getEntrypointEvents: scan(entrypointEvents, () => false),
     // A source that silently leaves out some leaf-bearing events.
     getPoolEvents: scan(poolEvents, (name, e) => name === 'LeafInserted' && dropLeaves.includes(e.index as bigint)),
@@ -108,12 +109,36 @@ describe('pool state-root verification', () => {
     expect(store.getState().sync.lastSyncedBlock).toBe('0');
   });
 
+  it('fails the sync and keeps the sync point when every leaf is dropped', async () => {
+    const store = setupStore();
+    // No leaves stored at all: the pool must still be read, as an empty tree.
+    const dataService = await chainDataService({ dropLeaves: [1n, 2n, 3n] });
+
+    await expect(sync(store, dataService)).rejects.toThrow('State root verification failed');
+    expect(dataService.getPoolStateRoot).toHaveBeenCalledWith(pool, HEAD);
+    expect(store.getState().sync.lastSyncedBlock).toBe('0');
+  });
+
   it('accepts a complete tree when the pool has moved past the sync head', async () => {
     const store = setupStore();
     const dataService = await chainDataService();
 
     await sync(store, dataService);
 
+    expect(selectLastSyncedBlock(store.getState())).toBe(HEAD);
+  });
+
+  it('keeps the sync point without reading pool roots when the RPC is behind it', async () => {
+    const store = setupStore();
+    // The second sync's RPC reports a head below the first sync's.
+    const dataService = await chainDataService({ heads: [HEAD, HEAD - 10n] });
+
+    await sync(store, dataService);
+    dataService.getPoolStateRoot.mockClear();
+
+    await sync(store, dataService);
+
+    expect(dataService.getPoolStateRoot).not.toHaveBeenCalled();
     expect(selectLastSyncedBlock(store.getState())).toBe(HEAD);
   });
 });

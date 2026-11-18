@@ -40,6 +40,9 @@ export async function verifyAspRootOnChain(
  * is missing its newest leaves still has a root in the recent history, so
  * accepting one would let a truncated leaf stream pass and the sync point move
  * past the leaves it left out.
+ *
+ * An empty tree (0n) is checked too: an empty Pool's currentRoot() is 0, so a
+ * stream that dropped every leaf still fails.
  */
 export async function verifyStateRootOnChain(
   dataService: IDataService,
@@ -47,12 +50,6 @@ export async function verifyStateRootOnChain(
   expectedRoot: bigint,
   blockNumber: bigint,
 ): Promise<void> {
-  if (expectedRoot === 0n) {
-    throw new Error(
-      'State root verification called with empty root (0n) — caller must filter empty trees'
-    );
-  }
-
   const onchainRoot = await dataService.getPoolStateRoot(poolAddress, blockNumber);
 
   if (onchainRoot === expectedRoot) {

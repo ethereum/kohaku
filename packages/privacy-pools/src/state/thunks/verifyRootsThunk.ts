@@ -18,12 +18,14 @@ export interface VerifyRootsThunkParams {
   blockNumber: bigint;
   /** Pass false to check only the pools, leaving the verified ASP root unset. */
   verifyAspRoot?: boolean;
+  /** Pass false to check only the ASP root, when no pool leaves were synced. */
+  verifyPoolRoots?: boolean;
   merkleTreeBuilder?: MerkleTreeBuilder;
 }
 
 export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, { state: RootState }>(
   'sync/verifyRoots',
-  async ({ dataService, blockNumber, verifyAspRoot = true, merkleTreeBuilder }, { getState, dispatch }) => {
+  async ({ dataService, blockNumber, verifyAspRoot = true, verifyPoolRoots = true, merkleTreeBuilder }, { getState, dispatch }) => {
     const state = getState();
 
     // Proofs may only use an ASP root this session matched to the chain, so the
@@ -32,18 +34,17 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
     const { entrypointAddress } = entrypointInfoSelector(state);
     // Rebuilt from the synced leaves: the stored root is only what the service claimed.
     const aspRoot = verifyAspRoot ? await aspLeavesRootSelector(state, merkleTreeBuilder) : 0n;
-    const pools = poolsSelector(state);
+    const pools = verifyPoolRoots ? poolsSelector(state) : new Map();
     const poolsLeaves = poolsLeavesSelector(state);
 
 
-    // Compute every leaf-bearing pool's local root (CPU-bound), collecting the
-    // on-chain checks to run together afterwards.
+    // Compute every pool's local root (CPU-bound), collecting the on-chain checks
+    // to run together afterwards. A pool with no stored leaves is checked as an
+    // empty tree, so a stream that dropped all of them cannot pass unread.
     const stateRootChecks: Array<{ poolAddress: Address; localRoot: bigint }> = [];
 
     for (const [poolAddress] of pools) {
-      const leavesMap = poolsLeaves.get(poolAddress);
-
-      if (!leavesMap || leavesMap.size === 0) continue;
+      const leavesMap = poolsLeaves.get(poolAddress) ?? new Map();
 
       // LeafInserted indices are 1-based and gapless on-chain. A hole means the
       // source dropped events, which the root check would only report as a mismatch.
@@ -56,7 +57,10 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
         }
       }
 
-      const localRoot = await poolMerkleTreeRootSelector(state, poolAddress, merkleTreeBuilder);
+      // An empty LeanIMT's root is 0, which is what an empty Pool's currentRoot() returns.
+      const localRoot = leavesMap.size === 0
+        ? 0n
+        : await poolMerkleTreeRootSelector(state, poolAddress, merkleTreeBuilder);
 
       stateRootChecks.push({ poolAddress, localRoot });
     }

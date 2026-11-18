@@ -105,7 +105,7 @@ describe('verifyRootsThunk', () => {
     );
   });
 
-  it('skips verification when ASP root is zero and a pool has no leaves', async () => {
+  it('checks a pool with no leaves as an empty tree when the ASP root is zero', async () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
@@ -131,7 +131,43 @@ describe('verifyRootsThunk', () => {
 
     expect(action.meta.requestStatus).toBe('fulfilled');
     expect(verifyAspRootOnChain).not.toHaveBeenCalled();
+    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
+    expect(verifyStateRootOnChain).toHaveBeenCalledWith(dataService, poolAddress, 0n, blockNumber);
+  });
+
+  it('checks only the ASP root when pool roots are left out', async () => {
+    const dataService = {} as IDataService;
+    const store = storeFactory({
+      logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
+      entrypointInfo: {
+        chainId: 1n,
+        entrypointAddress,
+        deploymentBlock: 0n,
+      },
+    });
+
+    store.dispatch(registerAspTree({
+      leaves: [44n, 55n],
+      aspTreeRoot: 333n,
+      blockNumber: 12n,
+    }));
+
+    store.dispatch(registerPools([{
+      address: poolAddress,
+      asset: 2000n as Address,
+      scope: 3000n,
+      registeredBlock: 0n,
+      woundDownAtBlock: null,
+    }]));
+
+    const action = await store.dispatch(
+      verifyRootsThunk({ dataService, blockNumber, verifyPoolRoots: false }),
+    );
+
+    expect(action.meta.requestStatus).toBe('fulfilled');
     expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect(verifiedAspRootSelector(store.getState())).toBe(await computeMerkleTreeRoot([44n, 55n]));
   });
 
   it('rejects when ASP root verification fails', async () => {
