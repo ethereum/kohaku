@@ -23,7 +23,7 @@ import {
   SpecificAssetBalanceFn,
 } from "./selectors/balance.selector";
 import { allNotesSelector } from "./selectors/notes.selector";
-import { PersistedRootState, PublicRootState, RootState, storeFactory } from "./store";
+import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
 import { syncRelayersThunk } from "./thunks/syncRelayersThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
@@ -73,13 +73,6 @@ const getStoreStorageKey = (
   params: GetChainStoreParams,
 ): StoreStorageKey => `tornado-cash-state-${getStoreKey(params)}`;
 
-const publicStateOnly = (state: PublicRootState & Partial<RootState>): PublicRootState => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { userSecrets, legacySecrets, signatureSecrets, ...publicState } = state;
-
-  return publicState;
-};
-
 const initializeSelectors = <const T extends Store>(store: T) => ({
   ...store,
   selectors: {
@@ -87,7 +80,12 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
       Promise.resolve(specificAssetsBalanceSelector(store.getState(), assets as Address[]))) as unknown as SpecificAssetBalanceFn<true>,
     getAllNotes: () => allNotesSelector(store.getState()),
   },
-  getPublicState: () => publicStateOnly(store.getState()),
+  getPublicState: () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { userSecrets, legacySecrets, signatureSecrets, ...publicState } = store.getState();
+
+    return publicState;
+  },
   getPrivateState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { userSecrets, signatureSecrets, ...publicState } = store.getState();
@@ -133,7 +131,7 @@ const storeByChainAndEntrypoint = ({
       if (!storeWithSelectors) {
         const storageKey = getStoreStorageKey(getChainStoreParams);
         const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : undefined;
-        const storedState: PersistedRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+        const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
         const snapshotInitialState = storedState || !resolveInitialState
           ? undefined
           : (await resolveInitialState())[storageKey];
@@ -142,9 +140,6 @@ const storeByChainAndEntrypoint = ({
         if (!initialState && getChainStoreParams.chainId === ETH_SEPOLIA_CHAIN_ID) {
           initialState = await import('./initial-states/state.11155111.minimal.json').then((a) => a["tornado-cash-state-11155111-447664927873626138772898946646079239273904189887"] as never);
         }
-
-        // Checkpoints are shareable; only private host storage may restore imported notes.
-        if (!storedState && initialState) initialState = publicStateOnly(initialState);
 
         const store = storeFactory({
           protocolConfig,
