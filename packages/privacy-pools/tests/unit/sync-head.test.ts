@@ -1,3 +1,4 @@
+import { poseidon } from 'maci-crypto/build/ts/hashing.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ISecretManager } from '../../src/account/keys';
 import type { IAspService } from '../../src/data/asp.interface';
@@ -15,6 +16,9 @@ const pool = 1000n as Address;
 const asset = 2000n as Address;
 const user = 3000n as Address;
 const myPrecommitment = 77n;
+// Commitments as the pool computes them: poseidon(value, label, precommitment).
+const myCommitment = poseidon([100n, 10n, myPrecommitment]);
+const otherCommitment = poseidon([50n, 20n, 88n]);
 
 type ChainEvent = { blockNumber: bigint; transactionHash: bigint } & Record<string, unknown>;
 
@@ -24,18 +28,18 @@ const entrypointEvents: Record<string, ChainEvent[]> = {
   PoolWindDown: [],
   RootUpdated: [],
   EntrypointDeposited: [
-    { depositor: user, poolAddress: pool, commitment: 11n, blockNumber: 105n, transactionHash: 0n },
-    { depositor: user, poolAddress: pool, commitment: 22n, blockNumber: 108n, transactionHash: 0n },
+    { depositor: user, poolAddress: pool, commitment: myCommitment, blockNumber: 105n, transactionHash: 0n },
+    { depositor: user, poolAddress: pool, commitment: otherCommitment, blockNumber: 108n, transactionHash: 0n },
   ],
 };
 const poolEvents: Record<string, ChainEvent[]> = {
   PoolDeposited: [
-    { depositor: user, commitment: 11n, label: 10n, value: 100n, precommitment: myPrecommitment, blockNumber: 105n, transactionHash: 0n },
-    { depositor: user, commitment: 22n, label: 20n, value: 50n, precommitment: 88n, blockNumber: 108n, transactionHash: 0n },
+    { depositor: user, commitment: myCommitment, label: 10n, value: 100n, precommitment: myPrecommitment, blockNumber: 105n, transactionHash: 0n },
+    { depositor: user, commitment: otherCommitment, label: 20n, value: 50n, precommitment: 88n, blockNumber: 108n, transactionHash: 0n },
   ],
   LeafInserted: [
-    { index: 1n, commitment: 11n, root: 1n, blockNumber: 105n, transactionHash: 0n },
-    { index: 2n, commitment: 22n, root: 2n, blockNumber: 108n, transactionHash: 0n },
+    { index: 1n, commitment: myCommitment, root: 1n, blockNumber: 105n, transactionHash: 0n },
+    { index: 2n, commitment: otherCommitment, root: 2n, blockNumber: 108n, transactionHash: 0n },
   ],
   Withdrawn: [],
   Ragequit: [],

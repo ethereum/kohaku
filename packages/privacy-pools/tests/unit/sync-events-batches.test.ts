@@ -1,3 +1,4 @@
+import { poseidon } from 'maci-crypto/build/ts/hashing.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { IAspService } from '../../src/data/asp.interface';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
@@ -26,7 +27,7 @@ const setupStore = () => {
   return store;
 };
 const poolEvents = (address: Address) => {
-  const common = { blockNumber: 8n, transactionHash: 0n, commitment: address, value: 100n };
+  const common = { blockNumber: 8n, transactionHash: 0n, commitment: poseidon([100n, address, address]), value: 100n };
 
   return {
     PoolDeposited: [{ ...common, depositor: 1n, label: address, precommitment: address }],
