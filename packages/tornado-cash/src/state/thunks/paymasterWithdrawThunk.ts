@@ -14,7 +14,7 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
-import { buildSignedTornadoUserOp, buildSimulationTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, buildSimulationTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, serializedUserOperationHash, type BundlerPost } from "../../paymaster/utils";
 import { verifierOverrides } from "../../paymaster/simulation";
 import { resolveTailCalls } from "../../paymaster/tail-calls";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
@@ -377,6 +377,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     entryPointAddress,
     bundlerUrl,
     userOperation,
+    // Kept so a lost send reply can be recovered by hash for any sender: a
+    // smart-account userOp carries no 7702 authorization to read the chain from.
+    userOpHash: serializedUserOperationHash(userOperation, entryPointAddress, chainId),
     gasEstimation,
     fee,
     withdrawnValue: totalDenomination,

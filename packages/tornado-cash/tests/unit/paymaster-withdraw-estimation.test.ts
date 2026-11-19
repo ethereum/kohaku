@@ -1,7 +1,7 @@
 import { unwrapResult } from '@reduxjs/toolkit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
-import { RpcRequestError, toHex, decodeFunctionData, decodeAbiParameters, parseAbiParameters, recoverTypedDataAddress } from 'viem';
+import { RpcRequestError, toHex, decodeFunctionData, decodeAbiParameters, hashTypedData, parseAbiParameters, recoverTypedDataAddress } from 'viem';
 import type { SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
 import { reasonableGasUnitsForBatch } from '../../src/paymaster/fee';
 import { storeFactory } from '../../src/state/store';
@@ -629,6 +629,8 @@ describe('execution account routes', () => {
 
     for (const [data] of signTypedData.mock.calls) expect(await recoverTypedDataAddress({ ...data, signature: await owner.signTypedData(data) } as never)).toBe(owner.address);
     expect(fixture.getAccountNonce).not.toHaveBeenCalled(); expect(fixture.deriveSignature).not.toHaveBeenCalled();
+    // No 7702 authorization carries the chain, so the payload keeps the signed hash for send recovery.
+    expect(withdrawal!.userOpHash).toBe(hashTypedData(signTypedData.mock.calls.at(-1)![0] as never));
   });
   const singleNoteAccounts: { name: string; delegation: DelegationConfig | null }[] = [
     { name: 'note-derived', delegation: null },

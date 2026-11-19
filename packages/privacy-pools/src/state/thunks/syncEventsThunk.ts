@@ -1,10 +1,14 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
+import { poseidon } from "maci-crypto/build/ts/hashing.js";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import {
+  ILeafInsertedEvent,
+  IRawPoolDepositEvent,
   IPoolDepositEvent,
   IWithdrawalEvent,
   IRagequitEvent,
 } from "../../data/interfaces/events.interface";
+import { Address } from "../../interfaces/types.interface";
 import { registerDeposits } from "../slices/depositsSlice";
 import { registerRagequits } from "../slices/ragequitsSlice";
 import { registerWithdrawals } from "../slices/withdrawalsSlice";
@@ -13,6 +17,25 @@ import { poolsSelector } from "../selectors/slices.selectors";
 import { registerPoolLeaves } from "../slices/poolLeavesSlice";
 
 const POOL_SYNC_BATCH_SIZE = 4;
+
+/**
+ * A deposit's leaf is inserted in the same transaction, so it comes in the same
+ * scan. Only the leaves are root-checked: a deposit must hash to one of them, or
+ * its value, label and precommitment are only what the source claimed.
+ */
+const assertDepositsBound = (deposits: IRawPoolDepositEvent[], leaves: ILeafInsertedEvent[], pool: Address) => {
+  const leafCommitments = new Set(leaves.map(({ commitment }) => commitment));
+
+  for (const { commitment, value, label, precommitment } of deposits) {
+    if (poseidon([value, label, precommitment]) !== commitment) {
+      throw new Error(`Pool ${pool} deposit ${commitment} does not match its value, label and precommitment`);
+    }
+
+    if (!leafCommitments.has(commitment)) {
+      throw new Error(`Pool ${pool} deposit ${commitment} has no inserted leaf`);
+    }
+  }
+};
 
 export interface SyncEventsThunkParams {
   dataService: IDataService;
@@ -39,7 +62,10 @@ export const syncEventsThunk = createAsyncThunk<
       pools.slice(start, start + POOL_SYNC_BATCH_SIZE).map(async (pool) => {
         const events = await dataService.getPoolEvents({
           events: ["PoolDeposited", "Withdrawn", "Ragequit", "LeafInserted"],
-          fromBlock: fromBlock === 0n ? pool.registeredBlock : fromBlock,
+          // Not the pool's registeredBlock: that is the data source's word, and a
+          // later one would skip the pool's first events for good. The cursor is
+          // never below the entrypoint's deployment, so no pool event precedes it.
+          fromBlock,
           toBlock,
           address: pool.address,
         });
@@ -50,6 +76,11 @@ export const syncEventsThunk = createAsyncThunk<
     const allDeposits: IPoolDepositEvent[] = [];
     const allWithdrawals: IWithdrawalEvent[] = [];
     const allRagequits: IRagequitEvent[] = [];
+
+    // Checked before this batch registers anything, so a bad one registers none of it.
+    for (const { PoolDeposited, LeafInserted, pool } of results) {
+      assertDepositsBound(PoolDeposited, LeafInserted, pool);
+    }
 
     for (const { PoolDeposited, Withdrawn, Ragequit, LeafInserted, pool } of results) {
       for (const event of PoolDeposited) allDeposits.push({ ...event, pool });

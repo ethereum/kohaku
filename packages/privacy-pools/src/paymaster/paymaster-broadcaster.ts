@@ -1,5 +1,5 @@
 import type { Network } from '@kohaku-eth/plugins';
-import type { Hash } from "viem";
+import type { Address, Hash } from "viem";
 import type { BundlerClient } from "viem/account-abstraction";
 import {
   createPaymasterBundlerClient,
@@ -10,6 +10,8 @@ import {
   sendSerializedUserOperation,
   serializedUserOperationHash,
 } from "./utils";
+import { aaCode, isReceiptFor } from "./bundler-replies";
+import type { SerializedUserOperation } from "../interfaces/user-ops.interface";
 import {
   IGenericPaymasterWithdrawalPayload,
   IPaymasterBroadcasterClient,
@@ -22,7 +24,7 @@ const waitForConfirmation = async (
   bundlerClient: BundlerClient,
   userOpHash: Hash,
 ): Promise<PaymasterConfirmation> => {
-  let userOpReceipt: Awaited<ReturnType<BundlerClient["waitForUserOperationReceipt"]>>;
+  let userOpReceipt: unknown;
 
   try {
     userOpReceipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
@@ -34,10 +36,23 @@ const waitForConfirmation = async (
     );
   }
 
+  // The receipt is untrusted JSON: anything but a well-formed receipt for this
+  // userOp is unknown, never success.
+  if (!isReceiptFor(userOpReceipt, userOpHash)) {
+    throw new PaymasterBroadcastError(
+      "unconfirmed",
+      `Bundler returned a malformed receipt for userOp ${userOpHash}, it may still land.`,
+      { userOpHash },
+    );
+  }
+
   const txHash = userOpReceipt.receipt.transactionHash;
 
   if (!userOpReceipt.success) {
-    const reason = userOpReceipt.reason ? `: ${userOpReceipt.reason}` : "";
+    // Only an `AAxx` code from the reason: the rest is bundler text, and a
+    // non-string reason is never stringified.
+    const code = aaCode(userOpReceipt.reason);
+    const reason = code ? ` (${code})` : "";
 
     throw new PaymasterBroadcastError(
       "reverted",
@@ -59,9 +74,11 @@ const recoverFromSendError = async (
   bundlerClient: BundlerClient,
   userOpHash: Hash | undefined,
   sendError: unknown,
+  op: SerializedUserOperation,
+  entryPoint: Address,
 ): Promise<Hash> => {
   if (userOpHash && (isAlreadyKnown(sendError) ||
-    await isUserOperationKnown(bundlerClient, userOpHash).catch(() => false))) {
+    await isUserOperationKnown(bundlerClient, userOpHash, op, entryPoint).catch(() => false))) {
     return userOpHash;
   }
 
@@ -99,18 +116,16 @@ export class PaymasterBroadcaster implements IPaymasterBroadcasterClient {
     network?: Network,
   ): Promise<PaymasterBroadcastResult> {
     const bundlerClient = createPaymasterBundlerClient(bundlerUrl, network);
+    // Payloads prepared by older SDK versions lack the hash.
+    const expectedHash = signedHash ?? serializedUserOperationHash(userOperation, entryPointAddress);
     let userOpHash: Hash;
 
     try {
-      userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress);
+      userOpHash = await sendSerializedUserOperation(bundlerClient, userOperation, entryPointAddress, expectedHash);
     } catch (error) {
       // The bundler may have accepted the userOp and the response got lost,
-      // e.g. a timeout. Payloads prepared by older SDK versions lack the hash.
-      userOpHash = await recoverFromSendError(
-        bundlerClient,
-        signedHash ?? serializedUserOperationHash(userOperation, entryPointAddress),
-        error,
-      );
+      // e.g. a timeout.
+      userOpHash = await recoverFromSendError(bundlerClient, expectedHash, error, userOperation, entryPointAddress);
     }
 
     return { userOpHash, wait: () => waitForConfirmation(bundlerClient, userOpHash) };

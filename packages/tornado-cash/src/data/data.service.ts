@@ -287,8 +287,12 @@ export class DataService implements IDataService {
     return this.ethClient.hasCodeAt(address, block);
   }
 
-  async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
-    return this.ethClient.makeContractRequest(poolAddress, "pool", "getLastRoot").then(hexToBigInt);
+  async getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', poolAddress, "pool", "getLastRoot").then(hexToBigInt);
+  }
+
+  async getPoolNextIndex(poolAddress: Address, blockNumber: bigint): Promise<number> {
+    return this.ethClient.makeContractRequestAt(blockNumber, poolAddress, "pool", "nextIndex");
   }
 
   async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {

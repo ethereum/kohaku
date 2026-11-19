@@ -2,6 +2,7 @@ import { Network } from "@kohaku-eth/plugins";
 import { getNumber } from "ethers";
 
 import { AspFlaggedStatus, IAspFlaggedDeposit, IAspReviewService, IAspServiceParams } from "./asp.interface.js";
+import { readAspJson } from "./asp.utils.js";
 
 const FLAGGED_STATUSES: readonly AspFlaggedStatus[] = ['declined', 'poi_required'];
 // The API's maximum.
@@ -21,7 +22,7 @@ export type OxBowEventsResponse = {
   events: OxBowReviewEvent[];
 };
 
-const isDecimal = (x: unknown): x is string => typeof x === 'string' && /^\d+$/.test(x);
+const isDecimal = (x: unknown): x is string => typeof x === 'string' && x.length <= 78 && /^\d+$/.test(x);
 const isHexAddress = (x: unknown): x is string => typeof x === 'string' && /^0x[0-9a-fA-F]{40}$/.test(x);
 
 function isEventsResponse(x: unknown): x is OxBowEventsResponse {
@@ -29,6 +30,7 @@ function isEventsResponse(x: unknown): x is OxBowEventsResponse {
 
   return typeof _x?.total === 'number' &&
     Array.isArray(_x.events) &&
+    _x.events.length <= PER_PAGE &&
     _x.events.every((e) =>
       isDecimal(e?.precommitmentHash) &&
       typeof e.reviewStatus === 'string' &&
@@ -68,7 +70,7 @@ export class OxBowAspReviewService implements IAspReviewService {
       throw new Error(`ASP review feed returned ${response.status} for ${url}`);
     }
 
-    const raw: unknown = await response.json();
+    const raw = await readAspJson(response);
 
     if (!isEventsResponse(raw)) {
       throw new Error(`Unexpected response from ${url}`);
