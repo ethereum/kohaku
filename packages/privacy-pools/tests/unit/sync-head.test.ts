@@ -141,18 +141,19 @@ describe('syncThunk head', () => {
     expect(myDepositsWithAssetSelector(store.getState()).has(myPrecommitment)).toBe(true);
   });
 
-  it('leaves the state alone on a head behind the sync point and resumes once past it', async () => {
+  // Saved head 110, finalized 104: the deposits at 105 and 108 are the unfinalized
+  // tail. A lagging head below the sync point, at it, or between it and the saved
+  // head cannot scan that tail again, so pruning it would lose the deposit at 108.
+  it.each([103n, 104n, 106n])('leaves the state alone on a lagging head %i and resumes once past it', async (laggingHead) => {
     const store = setupStore();
-    const dataService = advancingChainDataService([110n, 103n, 120n]);
+    const dataService = advancingChainDataService([110n, laggingHead, 120n]);
 
-    // Finalized at 104: the deposits at 105 and 108 are the unfinalized tail.
     dataService.getFinalizedBlockNumber.mockResolvedValueOnce(104n);
     await sync(store, dataService);
 
     const before = store.getState();
     const scans = dataService.getEntrypointEvents.mock.calls.length;
 
-    // A lagging node whose head (103) is below the sync point (104).
     await sync(store, dataService);
 
     expect(dataService.getEntrypointEvents.mock.calls.length).toBe(scans);

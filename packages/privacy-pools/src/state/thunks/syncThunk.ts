@@ -1,6 +1,6 @@
 import { createAsyncThunk, unwrapResult } from '@reduxjs/toolkit';
 import { IDataService } from '../../data/interfaces/data.service.interface';
-import { selectSyncCursor } from '../selectors/last-synced-block.selector';
+import { selectLastSyncedBlock, selectSyncCursor } from '../selectors/last-synced-block.selector';
 import { RootState } from '../store';
 import { registerEntrypointDeposits } from '../slices/entrypointDepositsSlice';
 import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
@@ -63,10 +63,11 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       ? legacySyncCursor(state, finalizedBlock)
       : selectSyncCursor(state);
 
-    // An RPC behind our sync point (a lagging or forked node) cannot serve the range
-    // [fromBlock, toBlock]. Leave the state as it is, unfinalized tail included, and
-    // let the first sync on a head past the sync point pick up from there.
-    if (toBlock < fromBlock) return;
+    // An RPC behind the head we last scanned (a lagging or forked node) would have
+    // the prune below drop blocks it cannot scan again, or cannot serve the range
+    // [fromBlock, toBlock] at all. Leave the state as it is, unfinalized tail
+    // included, and let the first sync on a head at or past it pick up from there.
+    if (toBlock < selectLastSyncedBlock(state)) return;
 
     // Blocks after the last finalized one may have been reorged away since they
     // were scanned, or come from a sync that failed: drop them and scan them again.
