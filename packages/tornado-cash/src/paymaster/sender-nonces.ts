@@ -39,7 +39,8 @@ const staleNonceError = (staleNonce: StaleSenderNonce, rejection: PaymasterBroad
  * a `not-accepted` error with `staleNonce` set instead. Another operation may have
  * spent the same notes, so callers must confirm earlier outcomes and sync before
  * preparing again. Checked only after a refusal: a rebroadcast of a withdrawal that already landed also finds the
- * nonce moved, and must keep resolving. A failed read keeps the original error.
+ * nonce moved, and must keep resolving. A failed read, or a reading at or below
+ * the signed nonce (a lagging provider), keeps the original error.
  */
 export async function rethrowWithStaleNonces(provider: Provider, withdrawal: IGenericPaymasterWithdrawalPayload, error: unknown): Promise<never> {
   if (!(error instanceof PaymasterBroadcastError) || error.failure !== 'not-accepted') throw error;
@@ -50,11 +51,13 @@ export async function rethrowWithStaleNonces(provider: Provider, withdrawal: IGe
 
   const { nonce, eip7702Auth } = withdrawal.userOperation;
 
-  if (current.entryPoint !== BigInt(nonce)) {
+  // Only a nonce past the signed one proves it moved: a lower reading is a lagging
+  // provider, and the refusal had another cause.
+  if (current.entryPoint > BigInt(nonce)) {
     throw staleNonceError({ kind: 'entry-point', signed: BigInt(nonce), current: current.entryPoint }, error);
   }
 
-  if (eip7702Auth && current.authorization !== BigInt(eip7702Auth.nonce)) {
+  if (eip7702Auth && current.authorization! > BigInt(eip7702Auth.nonce)) {
     throw staleNonceError({ kind: 'authorization', signed: BigInt(eip7702Auth.nonce), current: current.authorization! }, error);
   }
 

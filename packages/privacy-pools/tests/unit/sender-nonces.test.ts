@@ -65,6 +65,16 @@ describe('rethrowWithStaleNonces', () => {
     expect((error as Error).message).toContain('signed 7, now 8');
   });
 
+  it.each([
+    ['EntryPoint', () => chain(SIGNED_NONCE - 1n, 7n)],
+    ['transaction', () => chain(SIGNED_NONCE, 6n)],
+  ])('keeps the refusal when a lagging provider reports the %s nonce below the signed one', async (_name, provider) => {
+    const error = refusal();
+
+    expect(await thrown(rethrowWithStaleNonces(provider(), withdrawal(7n), error))).toBe(error);
+    expect(error.staleNonce).toBeUndefined();
+  });
+
   it('does not read the transaction count of a sender without an authorization', async () => {
     const provider = chain(SIGNED_NONCE, 99n);
 
