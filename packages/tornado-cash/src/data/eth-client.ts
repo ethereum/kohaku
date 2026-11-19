@@ -6,6 +6,24 @@ import { instanceRegistryAbi } from "./abis/instance-registry.abi";
 import { paymasterAbi } from "./abis/paymaster.abi";
 import { poolAbi } from "./abis/pool.abi";
 
+function logPageTooLarge(logs: TxLog[]): boolean {
+    if (logs.length > 10_000) return true;
+
+    let chars = 0;
+
+    for (const log of logs) {
+        if (log.topics.length > 4) return true;
+
+        chars += log.data.length + log.address.length + (log.transactionHash?.length ?? 0);
+
+        for (const topic of log.topics) chars += topic.length;
+
+        if (chars > 4 * 1024 * 1024) return true;
+    }
+
+    return false;
+}
+
 export interface GetLogsParams {
     address: string;
     fromBlock: bigint;
@@ -44,6 +62,8 @@ export class EthClient {
         maxQuerySize = 5000n,
         ...params
     }: GetLogsParams): Promise<IGetLogsResult> {
+        if (maxQuerySize <= 0n) throw new Error('maxQuerySize must be positive');
+
         const fromBlock = params.fromBlock;
         const toBlock = params.toBlock ?? await this.provider.getBlockNumber();
 
@@ -54,17 +74,28 @@ export class EthClient {
         }
 
         const logs: TxLog[] = [];
+        let pageSize = maxQuerySize;
 
-        for (let start = fromBlock; start <= toBlock; start += maxQuerySize) {
-            const rawEnd = start + maxQuerySize;
+        for (let start = fromBlock; start <= toBlock;) {
+            const rawEnd = start + pageSize - 1n;
             const end = rawEnd < toBlock ? rawEnd : toBlock;
             const result = await this.provider.getLogs({
                 address: params.address as `0x${string}`,
                 fromBlock: start,
                 toBlock: end,
-            })
+            });
+
+            // Retry dense pages over fewer blocks; never truncate event history.
+            if (logPageTooLarge(result)) {
+                if (start === end) throw new Error(`RPC log page exceeds limits for ${params.address} at block ${start}`);
+
+                pageSize = (end - start + 1n) / 2n;
+                continue;
+            }
 
             logs.push(...result);
+            start = end + 1n;
+            pageSize = pageSize * 2n < maxQuerySize ? pageSize * 2n : maxQuerySize;
         }
 
         return {
