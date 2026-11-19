@@ -12,6 +12,45 @@ import {
 } from "./interfaces/relayer-client.interface";
 import { toHex } from "viem";
 import { addressToHex } from "../utils";
+import { withTimeout } from "../state/utils/async.utils";
+
+const MAX_RESPONSE_BYTES = 64 * 1024;
+
+async function readResponse(response: Response, signal: AbortSignal): Promise<string> {
+  if (Number(response.headers.get('content-length')) > MAX_RESPONSE_BYTES) {
+    void response.body?.cancel().catch(() => {});
+    throw new RelayerError('Relayer response exceeds 64 KiB');
+  }
+
+  const reader = response.body?.getReader();
+
+  if (!reader) return '';
+
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  const decoder = new TextDecoder();
+  let size = 0;
+  let body = '';
+
+  signal.addEventListener('abort', cancel, { once: true });
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) return body + decoder.decode();
+
+      size += value.byteLength;
+
+      if (size > MAX_RESPONSE_BYTES) throw new RelayerError('Relayer response exceeds 64 KiB');
+
+      body += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    cancel();
+    reader.releaseLock();
+  }
+}
 
 export interface IRelayerClientParams {
   network: Network;
@@ -46,6 +85,27 @@ export class RelayerClient implements IRelayerClient {
     this.fetch = fetch;
   }
 
+  private request<T>(url: string | URL, init: RequestInit, label: string, timeoutMs = 30_000): Promise<T> {
+    return withTimeout(timeoutMs, label, async signal => {
+      const response = await this.fetch(url, { ...init, signal });
+
+      if (signal.aborted) {
+        void response.body?.cancel().catch(() => {});
+        throw signal.reason;
+      }
+
+      const body = await readResponse(response, signal);
+
+      if (!response.ok) {
+        const reason = quoteErrorMessage(body).trim().slice(0, 512);
+
+        throw new RelayerError(`${label} failed (HTTP ${response.status})${reason ? `: ${reason}` : ''}`);
+      }
+
+      return JSON.parse(body) as T;
+    });
+  }
+
   async getQuote({
     asset,
     recipient,
@@ -54,7 +114,7 @@ export class RelayerClient implements IRelayerClient {
     relayerUrl,
     ...body
   }: IQuoteRequest): Promise<IQuoteResponse> {
-    const quoteRequest = await this.fetch(`${relayerUrl}/quote`, {
+    return this.request(`${relayerUrl}/quote`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -66,18 +126,10 @@ export class RelayerClient implements IRelayerClient {
             amount: amount.toString(10),
             ...body,
         })
-    });
-
-    if (!quoteRequest.ok) {
-      const body = await quoteRequest.text().catch(() => '');
-      const reason = quoteErrorMessage(body).trim().slice(0, 512);
-
-      throw new RelayerError(`Quote request failed (HTTP ${quoteRequest.status})${reason ? `: ${reason}` : ''}`);
-    }
-
-    return quoteRequest.json();
+    }, 'Quote request');
   }
 
+  /** Acknowledgement only: a timeout does not mean the withdrawal was not submitted. */
   async relay({
     chainId,
     scope,
@@ -89,18 +141,21 @@ export class RelayerClient implements IRelayerClient {
         chainId: toHex(chainId),
         scope: toHex(scope),
     }
-    const relayRequest = await this.fetch(`${relayerUrl}/request`, {
+    const response = await this.request<IRelayResponse>(`${relayerUrl}/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(relayBody),
-    });
+    }, 'Relay request', 180_000);
 
-    const response = (await relayRequest.json()) as IRelayResponse;
-
-    if (!response.success) {
+    if (response?.success === false && typeof response.error === 'string') {
         throw new RelayerError(response.error);
+    }
+
+    if (response?.success !== true || typeof response.requestId !== 'string' || !response.requestId.trim() ||
+        !Number.isFinite(response.timestamp) || typeof response.txHash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(response.txHash)) {
+      throw new RelayerError('Invalid relayer acknowledgement');
     }
 
     return response;
@@ -112,8 +167,6 @@ export class RelayerClient implements IRelayerClient {
     feesUrl.searchParams.append('assetAddress', toHex(assetAddress));
     feesUrl.searchParams.append('chainId', chainId.toString(10));
 
-    const feesResponse = await this.fetch(feesUrl);
-
-    return feesResponse.json();
+    return this.request(feesUrl, {}, 'Fee request');
   }
 }
