@@ -69,14 +69,23 @@ export function isSameUserOperation(result: unknown, op: ComparableUserOperation
 /** A userOp receipt whose fields the broadcaster relies on are well formed. */
 export type CheckedUserOperationReceipt = { success: boolean; reason?: unknown; receipt: { transactionHash: Hash } };
 
-/** Whether `receipt` is a well-formed receipt for `userOpHash`, with a boolean `success`. */
+/**
+ * Whether `receipt` is a well-formed receipt for `userOpHash`, with a boolean
+ * `success`. A userOp can revert inside a successful bundle transaction, but
+ * one that succeeded cannot have landed in a reverted transaction, so such a
+ * contradictory receipt is rejected.
+ */
 export function isReceiptFor(receipt: unknown, userOpHash: Hash): receipt is CheckedUserOperationReceipt {
   if (typeof receipt !== 'object' || receipt === null) return false;
 
-  const { success, userOpHash: hash, receipt: transaction } = receipt as { success?: unknown; userOpHash?: unknown; receipt?: { transactionHash?: unknown } };
+  const { success, userOpHash: hash, receipt: transaction } = receipt as { success?: unknown; userOpHash?: unknown; receipt?: { transactionHash?: unknown; status?: unknown } };
 
-  return typeof success === 'boolean' && isHash(hash) && sameHex(hash, userOpHash) &&
-    typeof transaction === 'object' && transaction !== null && isHash(transaction.transactionHash);
+  if (typeof success !== 'boolean' || !isHash(hash) || !sameHex(hash, userOpHash)) return false;
+
+  if (typeof transaction !== 'object' || transaction === null || !isHash(transaction.transactionHash)) return false;
+
+  // viem formats the transaction status as 'success' or 'reverted'.
+  return !success || transaction.status === 'success' || transaction.status === '0x1';
 }
 
 const MAX_PUBLIC_TEXT = 300;

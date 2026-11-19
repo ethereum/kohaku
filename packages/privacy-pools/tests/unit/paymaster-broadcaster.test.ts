@@ -468,17 +468,27 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('unconfirmed');
   });
 
+  // Built lazily: the fixture userOp hash is only known once the suite runs.
   it.each([
-    ['a string success', { ...makeReceipt(true), success: 'false' }],
-    ['another userOp', { ...makeReceipt(true), userOpHash: OTHER }],
-    ['no transaction hash', { ...makeReceipt(true), receipt: {} }],
+    ['a string success', () => ({ ...makeReceipt(true), success: 'false' })],
+    ['another userOp', () => ({ ...makeReceipt(true), userOpHash: OTHER })],
+    ['no transaction hash', () => ({ ...makeReceipt(true), receipt: {} })],
+    ['success in a reverted transaction', () => ({ ...makeReceipt(true), receipt: { ...makeReceipt(true).receipt, status: '0x0' } })],
+    ['success without a transaction status', () => ({ ...makeReceipt(true), receipt: { ...makeReceipt(true).receipt, status: undefined } })],
   ])('does not confirm a receipt with %s', async (_case, receipt) => {
-    const { network } = makeNetwork(accepted(() => ({ result: receipt })));
+    const { network } = makeNetwork(accepted(() => ({ result: receipt() })));
     const [{ wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
     const error = await catchError(wait());
 
     expect(error.failure).toBe('unconfirmed');
     expect(error.message).toContain('malformed receipt');
+  });
+
+  it('still reports a userOp that reverted inside a successful transaction as reverted', async () => {
+    const { network } = makeNetwork(accepted(() => ({ result: makeReceipt(false) })));
+    const [{ wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
+
+    expect((await catchError(wait())).failure).toBe('reverted');
   });
 
   it.each(['UserOperation not already known', 'nonce already known', 'Already known to be invalid'])('does not read "%s" as accepted', async (message) => {
