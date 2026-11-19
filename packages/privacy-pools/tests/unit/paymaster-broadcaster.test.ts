@@ -483,6 +483,8 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     ['no transaction hash', () => ({ ...makeReceipt(true), receipt: {} })],
     ['success in a reverted transaction', () => ({ ...makeReceipt(true), receipt: { ...makeReceipt(true).receipt, status: '0x0' } })],
     ['success without a transaction status', () => ({ ...makeReceipt(true), receipt: { ...makeReceipt(true).receipt, status: undefined } })],
+    ['a revert in a reverted transaction', () => ({ ...makeReceipt(false), receipt: { ...makeReceipt(false).receipt, status: '0x0' } })],
+    ['a revert without a transaction status', () => ({ ...makeReceipt(false), receipt: { ...makeReceipt(false).receipt, status: undefined } })],
   ])('does not confirm a receipt with %s', async (_case, receipt) => {
     const { network } = makeNetwork(accepted(() => ({ result: receipt() })));
     const [{ wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);

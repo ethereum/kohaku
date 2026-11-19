@@ -83,9 +83,10 @@ export const aaCode = (text: unknown): string | undefined =>
 
 /**
  * Whether `receipt` is a well-formed receipt for `userOpHash`, with a boolean
- * `success`. A userOp can revert inside a successful bundle transaction, but
- * one that succeeded cannot have landed in a reverted transaction, so such a
- * contradictory receipt is rejected.
+ * `success`, in a successful bundle transaction. A userOp's outcome, success
+ * or revert, is recorded by the EntryPoint inside a bundle transaction that
+ * succeeds; a reverted bundle transaction or one without a status records
+ * neither, so such a contradictory receipt is rejected.
  */
 export function isReceiptFor(receipt: unknown, userOpHash: Hash): receipt is CheckedUserOperationReceipt {
   if (typeof receipt !== 'object' || receipt === null) return false;
@@ -97,5 +98,5 @@ export function isReceiptFor(receipt: unknown, userOpHash: Hash): receipt is Che
   if (typeof transaction !== 'object' || transaction === null || !isHash(transaction.transactionHash)) return false;
 
   // viem formats the transaction status as 'success' or 'reverted'.
-  return !success || transaction.status === 'success' || transaction.status === '0x1';
+  return transaction.status === 'success' || transaction.status === '0x1';
 }
