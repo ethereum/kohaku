@@ -23,23 +23,47 @@ export function parseSendResult(result: unknown, expected?: Hash): Hash {
   return expected ?? result;
 }
 
-/**
- * Whether an `eth_getUserOperationByHash` result is this userOp: an object for
- * the same EntryPoint, sender and nonce, which identify one userOp on chain.
- */
-export function isSameUserOperation(result: unknown, op: { sender: string; nonce: string }, entryPoint: Address): boolean {
-  if (typeof result !== 'object' || result === null) return false;
+// Fields covered by the userOp hash, as `eth_getUserOperationByHash` returns
+// them, plus the signature. Quantities compare by value, data by bytes.
+const QUANTITY_FIELDS = ['nonce', 'callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'maxFeePerGas',
+  'maxPriorityFeePerGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
+const DATA_FIELDS = ['sender', 'factory', 'factoryData', 'callData', 'paymaster', 'paymasterData', 'signature'] as const;
 
-  const { userOperation, entryPoint: resultEntryPoint } = result as { userOperation?: { sender?: unknown; nonce?: unknown }; entryPoint?: unknown };
-  const nonce = userOperation?.nonce;
+/** The signed fields of a serialized userOp; absent optional fields are not compared. */
+export type ComparableUserOperation = { sender: string; nonce: string; signature: string } &
+  Partial<Record<(typeof QUANTITY_FIELDS)[number] | (typeof DATA_FIELDS)[number], string>>;
+
+const sameQuantity = (value: unknown, expected: string): boolean => {
+  if (typeof value !== 'string' && typeof value !== 'bigint') return false;
 
   try {
-    return typeof resultEntryPoint === 'string' && sameHex(resultEntryPoint, entryPoint) &&
-      typeof userOperation?.sender === 'string' && sameHex(userOperation.sender, op.sender) &&
-      (typeof nonce === 'string' || typeof nonce === 'bigint') && BigInt(nonce) === BigInt(op.nonce);
+    return BigInt(value) === BigInt(expected);
   } catch {
     return false;
   }
+};
+
+/**
+ * Whether an `eth_getUserOperationByHash` result is this userOp: for the same
+ * EntryPoint, with every signed field of `op` and its signature. Sender and
+ * nonce alone would also match a different userOp pending with that nonce.
+ */
+export function isSameUserOperation(result: unknown, op: ComparableUserOperation, entryPoint: Address): boolean {
+  if (typeof result !== 'object' || result === null) return false;
+
+  const { userOperation, entryPoint: resultEntryPoint } = result as { userOperation?: Record<string, unknown>; entryPoint?: unknown };
+
+  if (typeof resultEntryPoint !== 'string' || !sameHex(resultEntryPoint, entryPoint)) return false;
+
+  if (typeof userOperation !== 'object' || userOperation === null) return false;
+
+  return QUANTITY_FIELDS.every((field) => op[field] === undefined || sameQuantity(userOperation[field], op[field])) &&
+    DATA_FIELDS.every((field) => {
+      const expected = op[field];
+      const value = userOperation[field];
+
+      return expected === undefined || (typeof value === 'string' && sameHex(value, expected));
+    });
 }
 
 /** A userOp receipt whose fields the broadcaster relies on are well formed. */

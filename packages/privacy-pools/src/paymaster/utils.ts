@@ -201,7 +201,7 @@ export function serializedUserOperationHash(op: SerializedUserOperation, entryPo
 export async function isUserOperationKnown(
   client: BundlerClient,
   hash: Hash,
-  op: Pick<SerializedUserOperation, "sender" | "nonce">,
+  op: SerializedUserOperation,
   entryPoint: Address,
 ): Promise<boolean> {
   const result: unknown = await client.request({

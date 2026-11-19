@@ -242,7 +242,7 @@ describe('PaymasterBroadcaster', () => {
   });
 
   it('recovers when the send response is lost but the bundler finds the userOp', async () => {
-    const pending = { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: entryPoint08Address, blockNumber: null, blockHash: null, transactionHash: null };
+    const pending = { userOperation: withdrawal.userOperation, entryPoint: entryPoint08Address, blockNumber: null, blockHash: null, transactionHash: null };
     const { network, calls } = makeNetwork(sendFails(
       () => { throw new Error('socket hang up'); },
       () => ({ result: pending }),
@@ -399,8 +399,18 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     ['another sender', { userOperation: { sender: `0x${'99'.repeat(20)}`, nonce: '0x0' }, entryPoint: entryPoint08Address }],
     ['another nonce', { userOperation: { sender: signer.address, nonce: '0x1' }, entryPoint: entryPoint08Address }],
     ['another EntryPoint', { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: `0x${'99'.repeat(20)}` }],
+    ['no operation body', { entryPoint: entryPoint08Address }],
+    ['only the same sender and nonce', { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: entryPoint08Address }],
   ])('does not treat a lookup answered with %s as the userOp', async (_case, result) => {
     const { network } = makeNetwork(lookups(result));
+
+    expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('unconfirmed');
+  });
+
+  it.each(['callData', 'maxFeePerGas', 'signature'] as const)('does not treat another userOp with the same sender and nonce (different %s) as this one', async (field) => {
+    const op = withdrawal.userOperation as unknown as Record<string, string>;
+    const different = { ...op, [field]: field === 'maxFeePerGas' ? `0x${(BigInt(op.maxFeePerGas ?? '0x1') + 1n).toString(16)}` : `0x${'ab'.repeat(65)}` };
+    const { network } = makeNetwork(lookups({ userOperation: different, entryPoint: entryPoint08Address }));
 
     expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('unconfirmed');
   });
@@ -454,7 +464,7 @@ describe('PaymasterBroadcaster for a sender without a 7702 authorization', () =>
 
   it('recovers a lost send response with the stored hash', async () => {
     const smartAccount = { ...withdrawal, userOperation: { ...withdrawal.userOperation, eip7702Auth: undefined }, userOpHash: USER_OP_HASH };
-    const found = { userOperation: { sender: signer.address, nonce: '0x0' }, entryPoint: entryPoint08Address };
+    const found = { userOperation: smartAccount.userOperation, entryPoint: entryPoint08Address };
     const { network, calls } = makeNetwork(sendFails(() => { throw new Error('socket hang up'); }, () => ({ result: found })));
     const [{ userOpHash }] = await new PaymasterBroadcaster({ network }).broadcast([smartAccount]);
 
