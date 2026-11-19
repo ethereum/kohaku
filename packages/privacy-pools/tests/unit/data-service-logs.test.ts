@@ -22,8 +22,8 @@ const depositLog = (extra: Partial<TxLog>): TxLog => ({
   ...extra,
 });
 
-const poolDeposits = (log: TxLog) =>
-  new DataService({ provider: {} as EthereumProvider, getLogs: async () => [log] })
+const poolDeposits = (...logs: TxLog[]) =>
+  new DataService({ provider: {} as EthereumProvider, getLogs: async () => logs })
     .getPoolEvents({ events: ['PoolDeposited'], address: BigInt(POOL) as Address, fromBlock: 100n, toBlock: 200n })
     .then(({ PoolDeposited }) => PoolDeposited);
 
@@ -38,5 +38,17 @@ describe('DataService logs', () => {
     expect(await poolDeposits(depositLog({ logIndex: 7 }))).toEqual([
       expect.objectContaining({ precommitment: 1n, transactionHash: 0n }),
     ]);
+  });
+
+  it('drops logs the source returns outside the requested range', async () => {
+    const deposits = await poolDeposits(
+      depositLog({ blockNumber: 99n }),
+      depositLog({ blockNumber: 100n }),
+      depositLog({ blockNumber: 200n }),
+      depositLog({ blockNumber: 201n }),
+      depositLog({ blockNumber: 999_999_999n }),
+    );
+
+    expect(deposits.map(({ blockNumber }) => blockNumber)).toEqual([100n, 200n]);
   });
 });
