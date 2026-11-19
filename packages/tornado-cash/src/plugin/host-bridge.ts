@@ -36,17 +36,24 @@ const thrown = (id: unknown, message: string) => ({
 
 // The message comlink may see, rebuilt from checked fields only, or why it was refused.
 function admit({ id, type, path, argumentList = [] }: Incoming, { methods, call }: Policy): Incoming | string {
+  if (typeof type !== 'string' || type.length > 128) return 'Malformed call type';
+
   if (type === 'RELEASE') return { id, type };
 
   if (type !== 'APPLY') return `${String(type)} is not allowed on host objects`;
 
   if (!Array.isArray(path) || !Array.isArray(argumentList)) return 'Malformed call';
 
+  if (path.length > 2 || path.some(segment => typeof segment !== 'string' || segment.length > 128)) return 'Malformed host call path';
+
+  // storage.set and bundlerPost are the largest current host calls.
+  if (argumentList.length > 2) return 'Host calls accept at most two arguments';
+
   const check = path.length === 0
     ? call
     : path.length === 1 && typeof path[0] === 'string' ? methods.get(path[0]) : undefined;
 
-  if (!check) return `${path.map(String).join('.') || '()'} is not exposed to the worker`;
+  if (!check) return `${path.join('.') || '()'} is not exposed to the worker`;
 
   if (!argumentList.every((arg: WireArg) => arg?.type === 'RAW')) return 'Arguments must be plain data';
 
@@ -65,7 +72,7 @@ function bridgeEndpoint(port: MessagePort, policy: Policy): Endpoint {
   let deliver: ((event: { data: Incoming }) => void) | undefined;
 
   const onMessage = ({ data }: MessageEvent) => {
-    if (!data || typeof data !== 'object') return;
+    if (!data || typeof data !== 'object' || typeof data.id !== 'string' || data.id.length > 128) return;
 
     const admitted = admit(data, policy);
 
