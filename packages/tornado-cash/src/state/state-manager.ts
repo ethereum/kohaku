@@ -37,6 +37,7 @@ import { ProtocolConfigState } from "./slices/protocolConfigSlice";
 import { removePools } from "./slices/poolsSlice";
 import { poolsSelector } from "./selectors/slices.selectors";
 import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from "../instances";
+import { createLoadCache, createSerialQueue, createSyncQueue } from "./utils/async.utils";
 
 const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
@@ -114,58 +115,59 @@ const storeByChainAndEntrypoint = ({
       }
     : undefined;
 
-  const chainStoreMap = new Map<
-    StoreKey,
-    ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>
-  >();
+  type ChainStore = ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>;
+
+  const chainStoreMap = new Map<StoreKey, ChainStore>();
+  // Calls that race a chain's first load share it: two stores for one chain
+  // would each take writes the other never sees, and both would be persisted.
+  const loadStore = createLoadCache<ChainStore>();
+
+  const loadChainStore = async (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
+    const {
+      protocolConfig,
+      relayerConfig
+    } = getChainStoreParams;
+    const storageKey = getStoreStorageKey(getChainStoreParams);
+    const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : undefined;
+    const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+    const snapshotInitialState = storedState || !resolveInitialState
+      ? undefined
+      : (await resolveInitialState())[storageKey];
+    let initialState: PublicRootState | undefined = storedState || snapshotInitialState;
+
+    if (!initialState && getChainStoreParams.chainId === ETH_SEPOLIA_CHAIN_ID) {
+      initialState = await import('./initial-states/state.11155111.minimal.json').then((a) => a["tornado-cash-state-11155111-447664927873626138772898946646079239273904189887"] as never);
+    }
+
+    const store = storeFactory({
+      protocolConfig,
+      initialState,
+    });
+
+    store.dispatch(setRelayerFeeConfig(relayerConfig));
+
+    // Pools saved by an older version (or a poisoned RPC) may not be
+    // catalog instances; drop them so nothing downstream can use them.
+    const catalog = instanceCatalog(getChainStoreParams.chainId, instances);
+
+    if (catalog) {
+      const outsideCatalog = [...poolsSelector(store.getState()).values()]
+        .filter((pool) => !catalogInstanceFor(catalog, pool))
+        .map((pool) => pool.address);
+
+      if (outsideCatalog.length > 0) store.dispatch(removePools(outsideCatalog));
+    }
+
+    const storeWithSelectors = initializeSelectors(store);
+
+    chainStoreMap.set(getStoreKey(getChainStoreParams), storeWithSelectors);
+
+    return storeWithSelectors;
+  };
 
   return {
-    getChainStore: async (getChainStoreParams: GetChainStoreParams) => {
-      const {
-        protocolConfig,
-        relayerConfig
-      } = getChainStoreParams;
-      const computedChainKey = getStoreKey(getChainStoreParams);
-      let storeWithSelectors = chainStoreMap.get(computedChainKey);
-
-      if (!storeWithSelectors) {
-        const storageKey = getStoreStorageKey(getChainStoreParams);
-        const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : undefined;
-        const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
-        const snapshotInitialState = storedState || !resolveInitialState
-          ? undefined
-          : (await resolveInitialState())[storageKey];
-        let initialState: PublicRootState | undefined = storedState || snapshotInitialState;
-
-        if (!initialState && getChainStoreParams.chainId === ETH_SEPOLIA_CHAIN_ID) {
-          initialState = await import('./initial-states/state.11155111.minimal.json').then((a) => a["tornado-cash-state-11155111-447664927873626138772898946646079239273904189887"] as never);
-        }
-
-        const store = storeFactory({
-          protocolConfig,
-          initialState,
-        });
-
-        store.dispatch(setRelayerFeeConfig(relayerConfig));
-
-        // Pools saved by an older version (or a poisoned RPC) may not be
-        // catalog instances; drop them so nothing downstream can use them.
-        const catalog = instanceCatalog(getChainStoreParams.chainId, instances);
-
-        if (catalog) {
-          const outsideCatalog = [...poolsSelector(store.getState()).values()]
-            .filter((pool) => !catalogInstanceFor(catalog, pool))
-            .map((pool) => pool.address);
-
-          if (outsideCatalog.length > 0) store.dispatch(removePools(outsideCatalog));
-        }
-
-        storeWithSelectors = initializeSelectors(store);
-        chainStoreMap.set(computedChainKey, storeWithSelectors);
-      }
-
-      return storeWithSelectors;
-    },
+    getChainStore: (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> =>
+      loadStore(getStoreKey(getChainStoreParams), () => loadChainStore(getChainStoreParams)),
     getAllStores: (): ReturnType<IStateManager['dumpState']> => {
       return Array.from(chainStoreMap).reduce(
         (completeState, [chainKey, state]) => {
@@ -226,25 +228,49 @@ export const storeStateManager = async ({
     }
   };
 
+  // Writes to a chain's state run one at a time, each persisting before the next
+  // starts: overlapping writes would each start from a stale cursor, and their
+  // saves could land out of order, the older snapshot last.
+  const writeQueues = new Map<StoreKey, ReturnType<typeof createSerialQueue>>();
+  const enqueueWrite = <T>(
+    chainInfo: GetChainStoreParams,
+    run: (store: Awaited<ReturnType<typeof getChainStore>>) => Promise<T>,
+  ): Promise<T> => {
+    const storeKey = getStoreKey(chainInfo);
+    const enqueue = writeQueues.get(storeKey) ?? createSerialQueue();
+
+    writeQueues.set(storeKey, enqueue);
+
+    return enqueue(async () => run(await getChainStore(chainInfo)));
+  };
+
+  // Syncs called while one runs share a single follow-up instead of each queueing one.
+  const syncQueues = new Map<StoreKey, ReturnType<typeof createSyncQueue>>();
+
   return {
     sync: async (): Promise<void> => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
+      const storeKey = getStoreKey(chainInfo);
+      const enqueue = syncQueues.get(storeKey) ?? createSyncQueue();
 
-      unwrapResult(
-        await store.dispatch(
-          syncThunk({
-            dataService,
-            syncService,
-            relayerClient,
-            secretManager,
-            instances,
-            ...store.selectors,
-          }),
-        ),
-      );
+      syncQueues.set(storeKey, enqueue);
 
-      await persistStateIfAvailable(chainInfo, store);
+      return enqueue(() => enqueueWrite(chainInfo, async (store) => {
+        unwrapResult(
+          await store.dispatch(
+            syncThunk({
+              dataService,
+              syncService,
+              relayerClient,
+              secretManager,
+              instances,
+              ...store.selectors,
+            }),
+          ),
+        );
+
+        await persistStateIfAvailable(chainInfo, store);
+      }));
     },
     getBalances: async (assets) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -313,8 +339,10 @@ export const storeStateManager = async ({
 
       // ENS/TORN-staked relayers are only needed for traditional withdrawals.
       // Balances, shields and paymaster withdrawals must not depend on them.
-      unwrapResult(await store.dispatch(syncRelayersThunk({ dataService, syncService })));
-      await persistStateIfAvailable(chainInfo, store);
+      await enqueueWrite(chainInfo, async () => {
+        unwrapResult(await store.dispatch(syncRelayersThunk({ dataService, syncService })));
+        await persistStateIfAvailable(chainInfo, store);
+      });
 
       return unwrapResult(
         await store.dispatch(
@@ -335,15 +363,16 @@ export const storeStateManager = async ({
     },
     importNotes: async ({ notes }) => {
       const chainInfo = await getChainInfo();
-      const store = await getChainStore(chainInfo);
 
-      const result = unwrapResult(
-        await store.dispatch(importLegacyNotesThunk({ notes })),
-      );
+      return enqueueWrite(chainInfo, async (store) => {
+        const result = unwrapResult(
+          await store.dispatch(importLegacyNotesThunk({ notes })),
+        );
 
-      await persistStateIfAvailable(chainInfo, store);
+        await persistStateIfAvailable(chainInfo, store);
 
-      return result;
+        return result;
+      });
     },
     dumpState: () => getAllStores(),
   };
