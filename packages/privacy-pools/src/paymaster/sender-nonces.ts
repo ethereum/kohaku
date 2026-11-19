@@ -28,15 +28,17 @@ const NONCE_NAMES: Record<StaleSenderNonce['kind'], string> = {
 };
 
 const staleNonceError = (staleNonce: StaleSenderNonce, rejection: PaymasterBroadcastError) => new PaymasterBroadcastError('not-accepted',
-  `The sender's ${NONCE_NAMES[staleNonce.kind]} nonce changed since this withdrawal was prepared (signed ${staleNonce.signed}, now ${staleNonce.current}); prepare it again.`,
+  `The sender's ${NONCE_NAMES[staleNonce.kind]} nonce moved past the one this withdrawal was signed for (signed ${staleNonce.signed}, now ${staleNonce.current}), so it cannot land as signed. ` +
+  'Another operation from the sender may have spent its notes: confirm the outcome of earlier operations and sync before preparing another withdrawal.',
   { userOpHash: rejection.userOpHash, staleNonce });
 
 /**
  * Rethrows a broadcast error. When the bundler refused the withdrawal because
  * the sender's nonces moved after it was prepared (another transaction from the
  * sender, or another withdrawal of the same sender that landed first), throws
- * a `not-accepted` error with `staleNonce` set, saying to prepare it again instead. Checked only after
- * a refusal: a rebroadcast of a withdrawal that already landed also finds the
+ * a `not-accepted` error with `staleNonce` set instead. Another operation may have
+ * spent the same notes, so callers must confirm earlier outcomes and sync before
+ * preparing again. Checked only after a refusal: a rebroadcast of a withdrawal that already landed also finds the
  * nonce moved, and must keep resolving. A failed read keeps the original error.
  */
 export async function rethrowWithStaleNonces(provider: Provider, withdrawal: IGenericPaymasterWithdrawalPayload, error: unknown): Promise<never> {

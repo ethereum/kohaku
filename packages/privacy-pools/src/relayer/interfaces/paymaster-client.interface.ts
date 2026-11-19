@@ -72,7 +72,9 @@ export type PaymasterBroadcastFailure = "not-accepted" | "reverted" | "unconfirm
 /**
  * A sender nonce that moved after the withdrawal was prepared: its EntryPoint
  * nonce, or the transaction count its EIP-7702 authorization was signed for.
- * Prepare the withdrawal again.
+ * The withdrawal cannot land as signed; another operation from the sender may
+ * have spent its notes, so confirm earlier outcomes and sync before preparing
+ * another withdrawal.
  */
 export interface StaleSenderNonce {
   kind: "entry-point" | "authorization";

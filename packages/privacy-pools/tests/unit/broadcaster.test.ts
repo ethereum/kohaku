@@ -87,13 +87,13 @@ describe('PrivacyPoolsBroadcaster paymaster nonce check', () => {
     paymasterClientFactory: () => ({ broadcast }) as never,
   });
 
-  it('says to prepare again when the bundler refuses a withdrawal whose sender nonce moved', async () => {
+  it('reports staleNonce when the bundler refuses a withdrawal whose sender nonce moved', async () => {
     const broadcaster = makeBroadcaster(async () => { throw new PaymasterBroadcastError('not-accepted', 'Bundler error -32602.'); });
     const error = await broadcaster.broadcast({ mode: 'paymaster', withdrawal } as never).catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(PaymasterBroadcastError);
     expect(error).toMatchObject({ staleNonce: { kind: 'entry-point', signed: 0n, current: 1n } });
-    expect((error as Error).message).toContain('prepare it again');
+    expect((error as Error).message).toContain('sync before preparing another withdrawal');
   });
 
   it('still resolves a rebroadcast of a withdrawal that landed, which moved the nonce', async () => {

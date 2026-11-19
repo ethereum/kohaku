@@ -49,16 +49,16 @@ describe('rethrowWithStaleNonces', () => {
     expect(call.data.endsWith(toHex(KEY, { size: 32 }).slice(2))).toBe(true);
   });
 
-  it('says to prepare again when the EntryPoint nonce moved, keeping the userOp hash', async () => {
+  it('reports a forward-moved EntryPoint nonce, keeping the userOp hash', async () => {
     const error = await thrown(rethrowWithStaleNonces(chain(SIGNED_NONCE + 1n, 7n), withdrawal(7n), refusal()));
 
     expect(error).toBeInstanceOf(PaymasterBroadcastError);
     expect(error).toMatchObject({ failure: 'not-accepted', userOpHash: USER_OP_HASH, staleNonce: { kind: 'entry-point', signed: SIGNED_NONCE, current: SIGNED_NONCE + 1n } });
-    expect((error as Error).message).toContain('EntryPoint nonce changed');
-    expect((error as Error).message).toContain('prepare it again');
+    expect((error as Error).message).toContain('EntryPoint nonce moved past');
+    expect((error as Error).message).toContain('sync before preparing another withdrawal');
   });
 
-  it('says to prepare again when the EIP-7702 authorization nonce moved', async () => {
+  it('reports a forward-moved EIP-7702 authorization nonce', async () => {
     const error = await thrown(rethrowWithStaleNonces(chain(SIGNED_NONCE, 8n), withdrawal(7n), refusal()));
 
     expect(error).toMatchObject({ failure: 'not-accepted', staleNonce: { kind: 'authorization', signed: 7n, current: 8n } });

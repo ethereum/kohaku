@@ -180,7 +180,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast (real bundle
     expect(approvedAfter).toBe(approvedBefore - WITHDRAW_AMOUNT);
   });
 
-  it('[paymaster] says to prepare again when the bundler refuses a withdrawal whose sender nonce moved', { timeout: 300_000 }, async () => {
+  it('[paymaster] reports staleNonce when the bundler refuses a withdrawal whose sender nonce moved', { timeout: 300_000 }, async () => {
     const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
     const usdcAsset = ERC20Asset(USDC);
     const DEPOSIT_AMOUNT = parseUnits('300', 6);
@@ -236,9 +236,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast (real bundle
 
     expect(error).toBeInstanceOf(PaymasterBroadcastError);
     expect(error).toMatchObject({ failure: 'not-accepted', staleNonce: { kind: 'authorization', signed: 0n, current: 1n } });
-    expect((error as Error).message).toContain('prepare it again');
+    expect((error as Error).message).toContain('sync before preparing another withdrawal');
 
-    // The note is unspent, so preparing again lands.
+    // Here the earlier outcome is known: only a plain transaction moved the nonce, so the note is unspent and preparing again lands.
     const approvedBalance = async () => unwrapBalance(await protocol.balance([usdcAsset]), usdcAsset).approved?.amount ?? 0n;
     const approvedBefore = await approvedBalance();
 
