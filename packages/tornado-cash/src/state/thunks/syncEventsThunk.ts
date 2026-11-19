@@ -154,10 +154,13 @@ export const syncEventsThunk = createAsyncThunk<
   // Start from the current global block so a run that syncs no pools never
   // regresses the value used for registry-level (relayer) syncing.
   let maxBlock = selectLastSyncedBlock(state);
+  const verificationErrors: PoolVerificationError[] = [];
 
   results.forEach((result) => {
     if (result.status === "rejected") {
       console.warn('Failed to sync pool events', result.reason);
+
+      if (result.reason instanceof PoolVerificationError) verificationErrors.push(result.reason);
 
       return;
     }
@@ -178,6 +181,12 @@ export const syncEventsThunk = createAsyncThunk<
       maxBlock = toBlock;
     }
   });
+
+  // Keep verified pools' progress, but do not report the sync as complete when
+  // another pool still fails verification after the chain replay.
+  if (verificationErrors.length > 0) {
+    throw new Error(verificationErrors.map(({ message }) => message).join('; '));
+  }
 
   // Return the highest block synced across all pools
   return maxBlock;

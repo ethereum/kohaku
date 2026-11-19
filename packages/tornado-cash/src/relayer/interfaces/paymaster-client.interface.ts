@@ -33,6 +33,12 @@ export interface IGenericPaymasterWithdrawalPayload {
   fee?: bigint;
   /** Total note denominations spent by the operation, before the fee. */
   withdrawnValue?: bigint;
+  /**
+   * Hash of `userOperation`, computed when it was signed. Absent in payloads
+   * prepared by older SDK versions; the broadcaster then computes it, which is
+   * only possible for a 7702 sender.
+   */
+  userOpHash?: Hash;
 }
 
 export interface PaymasterConfirmation {

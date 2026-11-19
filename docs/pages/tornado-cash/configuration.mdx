@@ -176,6 +176,8 @@ createTCPlugin(host, {
 
 The worker never holds your host objects. It gets a bridge to each one that allows only the calls it makes, listed on [the host page](/host#what-plugin-code-can-reach). If you wrap the worker yourself, keep that boundary.
 
+The bridge rejects calls with more than two top-level arguments before validating or copying them. Message IDs, operation names and path segments are limited to 128 characters; paths longer than two segments are rejected before formatting an error. Only direct allowlisted calls remain callable. These guards bound envelope processing after delivery; structured cloning, repeated messages and nested argument data still require the host's normal worker and per-method controls.
+
 `initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use a `dumpState()` snapshot as a sync checkpoint so the first open does not start at the registry's deployment block. `dumpState()` excludes note secrets, so this checkpoint is not a backup of imported notes. Keep imported notes in private `host.storage` and retain their original note strings for recovery.
 
 ### Saved state and recovery

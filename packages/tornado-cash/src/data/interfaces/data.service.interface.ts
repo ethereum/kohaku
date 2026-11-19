@@ -104,9 +104,11 @@ export interface IDataService {
   getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint>;
   /** Whether `address` holds code at `block`; throws on a malformed RPC response. */
   isContractDeployedAt(address: Address, block: bigint): Promise<boolean>;
-  /** The pool's current root, read at `blockNumber` when given. */
+  /** The Pool's getLastRoot(), at `blockNumber` when given (latest otherwise). */
   getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint>;
-  /** How many leaves the pool's tree holds at `blockNumber` (its `nextIndex`). */
+  /** The Pool's nextIndex() (its leaf count) at `blockNumber`. */
+  getPoolNextIndex(poolAddress: Address, blockNumber: bigint): Promise<number>;
+  /** Alias for `getPoolNextIndex`. */
   getPoolLeafCount(poolAddress: Address, blockNumber: bigint): Promise<number>;
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
   isPoolRootValid(poolAddress: Address, root: bigint): Promise<boolean>;

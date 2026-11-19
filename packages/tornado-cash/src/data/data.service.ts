@@ -305,8 +305,12 @@ export class DataService implements IDataService {
     return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', poolAddress, "pool", "getLastRoot").then(hexToBigInt);
   }
 
-  async getPoolLeafCount(poolAddress: Address, blockNumber: bigint): Promise<number> {
+  async getPoolNextIndex(poolAddress: Address, blockNumber: bigint): Promise<number> {
     return this.ethClient.makeContractRequestAt(blockNumber, poolAddress, "pool", "nextIndex");
+  }
+
+  getPoolLeafCount(poolAddress: Address, blockNumber: bigint): Promise<number> {
+    return this.getPoolNextIndex(poolAddress, blockNumber);
   }
 
   async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {

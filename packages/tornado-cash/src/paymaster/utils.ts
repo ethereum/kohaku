@@ -4,10 +4,12 @@ import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   BaseError,
+  HttpRequestError,
   encodeFunctionData,
   hashTypedData,
   http,
   RpcRequestError,
+  TimeoutError,
   toHex,
   type Address,
   type Hash,
@@ -22,6 +24,7 @@ import {
 } from 'viem/account-abstraction';
 import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
 import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
+import { aaCode, BundlerReplyError, isSameUserOperation, parseSendResult } from './bundler-replies';
 import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from './simulation';
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
@@ -58,7 +61,26 @@ export const bundlerPostVia = (network: Network): BundlerPost => async (url, bod
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
   });
 
-  return { status: response.status, body: await response.text() };
+  // Match viem's 10 MiB limit before copying the response across the host bridge.
+  const maxBytes = 10 * 1024 * 1024;
+  let bytes = 0;
+  const stream = response.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      bytes += chunk.byteLength;
+
+      if (bytes > maxBytes) throw new Error('Bundler response exceeds 10 MiB');
+
+      controller.enqueue(chunk);
+    },
+  }));
+  // Hosts without streaming responses can only be checked after reading the text.
+  const text = await (stream ? new Response(stream) : response).text();
+
+  if (text.length > maxBytes || (!stream && new TextEncoder().encode(text).byteLength > maxBytes)) {
+    throw new Error('Bundler response exceeds 10 MiB');
+  }
+
+  return { status: response.status, body: text };
 };
 
 export const networkFromBundlerPost = (post: BundlerPost): Network => ({
@@ -105,23 +127,44 @@ export async function sendSerializedUserOperation(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  expectedHash?: Hash,
 ): Promise<Hash> {
-  return client.request({
+  const result: unknown = await client.request({
     method: 'eth_sendUserOperation',
     params: [op, entryPoint],
-  }, { retryCount: 0 }) as Promise<Hash>;
+  }, { retryCount: 0 });
+
+  return parseSendResult(result, expectedHash);
 }
 
 /**
- * viem error messages embed the request body, which for the paymaster flow is
- * the signed userOp, and integrators forward errors to crash reporting. Only the
- * short message and the server-provided details are kept, and the original
- * error must never be attached as a `cause`.
+ * A description of a failed bundler request that is safe to report. viem
+ * messages embed the request body (the signed userOp), and bundler text can
+ * echo it in any form, split or encoded, so none of either is included: only
+ * the kind of failure, the JSON-RPC code and an ERC-4337 `AAxx` code. The
+ * original error must never be attached as a `cause`.
  */
-export const describeError = (error: unknown): string =>
-  error instanceof BaseError
-    ? [error.shortMessage, error.details].filter(Boolean).join(' ')
-    : 'Unknown error.';
+export const describeError = (error: unknown): string => {
+  if (error instanceof BundlerReplyError) return error.message;
+
+  if (!(error instanceof BaseError)) return 'Unknown error.';
+
+  const rejection = bundlerRejection(error);
+
+  if (rejection) {
+    // The JSON-RPC code is bundler-provided too: only an integer is reported.
+    const rpcCode = Number.isSafeInteger(rejection.code) ? ` ${rejection.code}` : '';
+    const code = aaCode(rejection.details);
+
+    return `Bundler error${rpcCode}${code ? ` (${code})` : ''}.`;
+  }
+
+  if (error.walk((cause) => cause instanceof TimeoutError)) return 'Request timed out.';
+
+  const http = error.walk((cause) => cause instanceof HttpRequestError) as HttpRequestError | null;
+
+  return http?.status ? `HTTP request failed with status ${http.status}.` : 'HTTP request failed.';
+};
 
 const bundlerRejection = (error: unknown): RpcRequestError | null =>
   error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;
@@ -134,8 +177,12 @@ export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(
  * userOp, pending or being bundled. That is alto's answer to a resend; a
  * different userOp with the same sender and nonce gets an AA25/AA10 error.
  */
-export const isAlreadyKnown = (error: unknown): boolean =>
-  /already known/i.test(bundlerRejection(error)?.details ?? '');
+export const isAlreadyKnown = (error: unknown): boolean => {
+  // Bundler-provided, so not necessarily a string.
+  const details: unknown = bundlerRejection(error)?.details;
+
+  return typeof details === 'string' && /^already known\.?$/i.test(details.trim());
+};
 
 /**
  * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
@@ -143,32 +190,42 @@ export const isAlreadyKnown = (error: unknown): boolean =>
  * `getUserOperation` is not used because it fails to format pending userOps,
  * whose `blockNumber` is null.
  */
-export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
-  const result = await client.request({
+export async function isUserOperationKnown(
+  client: BundlerClient,
+  hash: Hash,
+  op: SerializedUserOperation,
+  entryPoint: Address,
+): Promise<boolean> {
+  const result: unknown = await client.request({
     method: 'eth_getUserOperationByHash',
     params: [hash],
   });
 
-  return result !== null;
+  return isSameUserOperation(result, op, entryPoint);
 }
 
 /**
  * The EntryPoint v0.8 hash of a userOp built by `buildSignedTornadoUserOp`,
  * which is what its sender signed. Computed from the serialized userOp so it
  * also covers payloads stored by older SDKs. The chain is the one the 7702
- * authorization was signed for; `undefined` without an authorization.
+ * authorization was signed for, else `chainId`; `undefined` without either.
  */
-export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
-  if (!op.eip7702Auth) return undefined;
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address, chainId?: number): Hash | undefined {
+  const chain = op.eip7702Auth ? Number(op.eip7702Auth.chainId) : chainId;
+
+  if (chain === undefined) return undefined;
 
   const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
 
   return hashTypedData(getUserOperationTypedData({
-    chainId: Number(op.eip7702Auth.chainId),
+    chainId: chain,
     entryPointAddress: entryPoint,
     userOperation: {
       sender: op.sender,
       nonce: BigInt(op.nonce),
+      // A SimpleAccount deployment is part of what its owner signed.
+      factory: op.factory,
+      factoryData: op.factoryData,
       callData: op.callData,
       callGasLimit: BigInt(op.callGasLimit),
       verificationGasLimit: BigInt(op.verificationGasLimit),

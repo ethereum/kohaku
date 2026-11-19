@@ -126,7 +126,7 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
     expect(BigInt(withdrawal.userOperation.verificationGasLimit)).toBe(150_000n);
     expect(BigInt(withdrawal.userOperation.paymasterVerificationGasLimit!)).toBe(650_000n);
 
-    let restoreRootIndex: (() => Promise<unknown>) | undefined;
+    let restoreRootIndex = async () => {};
 
     if (recipientKind === 'fresh') {
       // Exercise the oldest retained root without mining extra deposits.
@@ -154,12 +154,14 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
       // The rewound index leaves getLastRoot() behind nextIndex(), which sync
       // rejects as a pool the chain could not produce. A withdrawal does not
       // touch the slot, so the original value is restored once it is mined.
-      restoreRootIndex = () => provider.send('anvil_setStorageAt', [data.instance, slot, toHex(packed, { size: 32 })]);
+      restoreRootIndex = async () => {
+        await provider.send('anvil_setStorageAt', [data.instance, slot, toHex(packed, { size: 32 })]);
+      };
     }
 
     await Promise.all((await broadcaster.broadcast(unshieldOp)).map((r) => r.wait()));
+    await restoreRootIndex();
     await pool.mine(1);
-    await restoreRootIndex?.();
 
     const [{ amount: postTCBalance }] = await protocol.balance([nativeAsset]);
     const postWithdrawalBalance = await pool.getBalance(bob);

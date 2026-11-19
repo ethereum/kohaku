@@ -1,3 +1,4 @@
+import { poseidon } from 'maci-crypto/build/ts/hashing.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ISecretManager } from '../../src/account/keys';
 import type { IAspService } from '../../src/data/asp.interface';
@@ -23,6 +24,8 @@ const asset = 2000n as Address;
 const user = 3000n as Address;
 const myPrecommitment = 77n;
 const myLabel = 10n;
+// As the pool computes it: poseidon(value, label, precommitment).
+const myCommitment = poseidon([100n, myLabel, myPrecommitment]);
 
 type ChainEvent = { blockNumber: bigint; transactionHash: bigint } & Record<string, unknown>;
 
@@ -42,15 +45,15 @@ const baseChain = (): Chain => ({
     PoolWindDown: [],
     RootUpdated: [],
     EntrypointDeposited: [
-      { depositor: user, poolAddress: pool, commitment: 11n, blockNumber: 105n, transactionHash: 0n },
+      { depositor: user, poolAddress: pool, commitment: myCommitment, blockNumber: 105n, transactionHash: 0n },
     ],
   },
   pool: {
     PoolDeposited: [
-      { depositor: user, commitment: 11n, label: myLabel, value: 100n, precommitment: myPrecommitment, blockNumber: 105n, transactionHash: 0n },
+      { depositor: user, commitment: myCommitment, label: myLabel, value: 100n, precommitment: myPrecommitment, blockNumber: 105n, transactionHash: 0n },
     ],
     LeafInserted: [
-      { index: 0n, commitment: 11n, root: 1n, blockNumber: 105n, transactionHash: 0n },
+      { index: 0n, commitment: myCommitment, root: 1n, blockNumber: 105n, transactionHash: 0n },
     ],
     Withdrawn: [],
     Ragequit: [],
@@ -115,7 +118,7 @@ describe('syncThunk reorgs', () => {
     const dataService = chainDataService(chain);
 
     chain.pool.Ragequit = [
-      { ragequitter: user, commitment: 11n, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
+      { ragequitter: user, commitment: myCommitment, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
     ];
     await sync(store, dataService);
     expect(myBalance(store)).toBe(0n);
@@ -186,7 +189,7 @@ describe('syncThunk reorgs', () => {
     const dataService = chainDataService(chain);
 
     chain.pool.Ragequit = [
-      { ragequitter: user, commitment: 11n, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
+      { ragequitter: user, commitment: myCommitment, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
     ];
     dataService.getAsset.mockRejectedValueOnce(new Error('rpc down'));
     await expect(sync(store, dataService)).rejects.toThrow('rpc down');
@@ -218,7 +221,7 @@ describe('syncThunk reorgs', () => {
     const dataService = chainDataService(chain);
 
     chain.pool.Ragequit = [
-      { ragequitter: user, commitment: 11n, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
+      { ragequitter: user, commitment: myCommitment, label: myLabel, value: 100n, blockNumber: 108n, transactionHash: 0n },
     ];
     chain.finalized = 110n;
     await sync(setupStore(), dataService);

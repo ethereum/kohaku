@@ -112,3 +112,29 @@ export function planObfuscatedBatchWithdrawal(
 
   return selected;
 }
+
+/** Raises an undersized sponsor slice without changing the gross or spending its reserved change. */
+export function fundObfuscatedBatchSponsor(selected: NoteToSpend[], fee: bigint): void {
+  const sponsor = selected[0]!;
+
+  if (fee <= sponsor.withdrawnValue) return;
+
+  const total = selected.reduce((sum, entry) => sum + entry.withdrawnValue, 0n);
+  const capacity = min(total, sponsor.note.balance - changeFor(sponsor.note.balance, 100n));
+
+  if (fee > capacity) throw new Error('Withdrawal amount too small to cover the sponsored gas fee while retaining required change');
+
+  const withdrawnValue = fee + randomUpTo(capacity - fee);
+  let increase = withdrawnValue - sponsor.withdrawnValue;
+
+  // Keep the sponsor randomized; take the difference from the last slices first.
+  for (let index = selected.length - 1; index > 0 && increase > 0n; index--) {
+    const entry = selected[index]!;
+    const moved = min(entry.withdrawnValue, increase);
+
+    entry.withdrawnValue -= moved;
+    increase -= moved;
+  }
+
+  sponsor.withdrawnValue = withdrawnValue;
+}

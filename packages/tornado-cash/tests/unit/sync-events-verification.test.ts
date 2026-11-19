@@ -156,10 +156,12 @@ describe('syncEventsThunk pool verification', () => {
     // The source drops the newest deposit on every scan, chain-only or not.
     const { params, scans } = services(chain, () => ({ Deposited: [chain[0]!] }));
 
-    unwrapResult(await store.dispatch(syncEventsThunk(params)));
-
     // The chain scan from the cursor, then a replay from deployment; no retry
     // without the provider, which served neither.
+    const action = await store.dispatch(syncEventsThunk(params));
+
+    expect(action.meta.requestStatus).toBe('rejected');
+    expect(action.error?.message).toMatch(/holds 2 leaves/);
     expect(scans.map(({ fromBlock, chainOnly }) => [fromBlock, chainOnly])).toEqual([[500n, false], [DEPLOYED, true]]);
     expect(storedCommitments(store)).toEqual([1n]);
     expect(poolsSelector(store.getState()).get(POOL)).toMatchObject({ lastSyncedBlock: 500n, finalizedBlock: 500n });

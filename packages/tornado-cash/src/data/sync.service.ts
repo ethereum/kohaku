@@ -111,9 +111,8 @@ export class SyncService implements ISyncService {
   /**
    * Fetches events from `fromBlock` as ascending segments: chain-only, or a
    * chain backfill before the provider's first covered block, the provider's
-   * events, and the chain tail after its coverage. `toBlock` is the last chain
-   * segment's own cursor, since the initial head may be past what a lagging
-   * node actually scanned.
+   * events, and the chain tail after its coverage. Chain queries use the same
+   * captured head so a later head read cannot advance the scan's cursor.
    */
   private async fetchSegments<T>(
     params: IGetPoolEventsParams,
@@ -125,7 +124,7 @@ export class SyncService implements ISyncService {
 
     if (!external) {
       // Chain-only: asked for, below the threshold, no provider, or no external coverage.
-      const chain = await fetchChain({ fromBlock: params.fromBlock });
+      const chain = await fetchChain({ fromBlock: params.fromBlock, toBlock: head });
 
       return { segments: [chain], toBlock: chain.toBlock, external: false };
     }
@@ -139,7 +138,7 @@ export class SyncService implements ISyncService {
     segments.push(parseExternal(external.rawEvents));
 
     // The chain takes over from the block right after the provider's coverage.
-    const tail = await fetchChain({ fromBlock: external.coverage + 1n });
+    const tail = await fetchChain({ fromBlock: external.coverage + 1n, toBlock: head });
 
     segments.push(tail);
 

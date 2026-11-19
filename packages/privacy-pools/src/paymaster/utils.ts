@@ -3,10 +3,12 @@ import type { Network } from '@kohaku-eth/plugins';
 /* eslint-disable max-lines */
 import {
   BaseError,
+  HttpRequestError,
   encodeFunctionData,
   hashTypedData,
   http,
   RpcRequestError,
+  TimeoutError,
   toHex,
   type Address,
   type Hash,
@@ -27,6 +29,7 @@ import {
   SerializedUserOperation,
   UserOpGasLimits,
 } from "../interfaces/user-ops.interface";
+import { aaCode, BundlerReplyError, isSameUserOperation, parseSendResult } from "./bundler-replies";
 import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from "./simulation";
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
@@ -84,11 +87,14 @@ export async function sendSerializedUserOperation(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  expectedHash?: Hash,
 ): Promise<Hash> {
-  return client.request({
+  const result: unknown = await client.request({
     method: "eth_sendUserOperation",
     params: [op, entryPoint],
-  }, { retryCount: 0 }) as Promise<Hash>;
+  }, { retryCount: 0 });
+
+  return parseSendResult(result, expectedHash);
 }
 
 const bundlerRejection = (error: unknown): RpcRequestError | null =>
@@ -102,19 +108,41 @@ export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(
  * userOp, pending or being bundled. That is alto's answer to a resend; a
  * different userOp with the same sender and nonce gets an AA25/AA10 error.
  */
-export const isAlreadyKnown = (error: unknown): boolean =>
-  /already known/i.test(bundlerRejection(error)?.details ?? '');
+export const isAlreadyKnown = (error: unknown): boolean => {
+  // Bundler-provided, so not necessarily a string.
+  const details: unknown = bundlerRejection(error)?.details;
+
+  return typeof details === 'string' && /^already known\.?$/i.test(details.trim());
+};
 
 /**
- * viem error messages embed the request body, which for the paymaster flow is
- * the signed userOp, and integrators forward errors to crash reporting. Only the
- * short message and the server-provided details are kept, and the original
- * error must never be attached as a `cause`.
+ * A description of a failed bundler request that is safe to report. viem
+ * messages embed the request body (the signed userOp), and bundler text can
+ * echo it in any form, split or encoded, so none of either is included: only
+ * the kind of failure, the JSON-RPC code and an ERC-4337 `AAxx` code. The
+ * original error must never be attached as a `cause`.
  */
-export const describeError = (error: unknown): string =>
-  error instanceof BaseError
-    ? [error.shortMessage, error.details].filter(Boolean).join(" ")
-    : "Unknown error.";
+export const describeError = (error: unknown): string => {
+  if (error instanceof BundlerReplyError) return error.message;
+
+  if (!(error instanceof BaseError)) return "Unknown error.";
+
+  const rejection = bundlerRejection(error);
+
+  if (rejection) {
+    // The JSON-RPC code is bundler-provided too: only an integer is reported.
+    const rpcCode = Number.isSafeInteger(rejection.code) ? ` ${rejection.code}` : "";
+    const code = aaCode(rejection.details);
+
+    return `Bundler error${rpcCode}${code ? ` (${code})` : ""}.`;
+  }
+
+  if (error.walk((cause) => cause instanceof TimeoutError)) return "Request timed out.";
+
+  const http = error.walk((cause) => cause instanceof HttpRequestError) as HttpRequestError | null;
+
+  return http?.status ? `HTTP request failed with status ${http.status}.` : "HTTP request failed.";
+};
 
 /**
  * Bundler gas estimation (`eth_estimateUserOperationGas`) for a simulation
@@ -154,20 +182,25 @@ export async function estimateUserOperationGas(
 /**
  * The EntryPoint v0.8 hash of a userOp built by `buildSignedUserOp`, which is
  * what its sender signed. Covers payloads prepared before they carried
- * `userOpHash`. The chain is the one the 7702 authorization was signed for;
- * `undefined` without an authorization.
+ * `userOpHash`. The chain is the one the 7702 authorization was signed for,
+ * else `chainId`; `undefined` without either.
  */
-export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address): Hash | undefined {
-  if (!op.eip7702Auth) return undefined;
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address, chainId?: number): Hash | undefined {
+  const chain = op.eip7702Auth ? Number(op.eip7702Auth.chainId) : chainId;
+
+  if (chain === undefined) return undefined;
 
   const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
 
   return hashTypedData(getUserOperationTypedData({
-    chainId: Number(op.eip7702Auth.chainId),
+    chainId: chain,
     entryPointAddress: entryPoint,
     userOperation: {
       sender: op.sender,
       nonce: BigInt(op.nonce),
+      // A SimpleAccount deployment is part of what its owner signed.
+      factory: op.factory,
+      factoryData: op.factoryData,
       callData: op.callData,
       callGasLimit: BigInt(op.callGasLimit),
       verificationGasLimit: BigInt(op.verificationGasLimit),
@@ -189,13 +222,18 @@ export function serializedUserOperationHash(op: SerializedUserOperation, entryPo
  * `getUserOperation` is not used because it fails to format pending userOps,
  * whose `blockNumber` is null.
  */
-export async function isUserOperationKnown(client: BundlerClient, hash: Hash): Promise<boolean> {
-  const result = await client.request({
+export async function isUserOperationKnown(
+  client: BundlerClient,
+  hash: Hash,
+  op: SerializedUserOperation,
+  entryPoint: Address,
+): Promise<boolean> {
+  const result: unknown = await client.request({
     method: "eth_getUserOperationByHash",
     params: [hash],
   });
 
-  return result !== null;
+  return isSameUserOperation(result, op, entryPoint);
 }
 
 /**
