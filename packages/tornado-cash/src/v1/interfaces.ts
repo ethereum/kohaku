@@ -19,7 +19,16 @@ export type TCBroadcasterParameters = {
 export interface TCPaymasterBroadcastResponse extends ITornadoWithdrawResponse, Pick<PaymasterBroadcastResult, 'wait'> {}
 
 export type TCBroadcaster = {
-    /** @throws {PaymasterBroadcastError} If the bundler did not accept a userOp. */
+    /**
+     * Resolves with one response per withdrawal, in input order.
+     * @throws {PaymasterBroadcastError} If the bundler did not accept a userOp
+     * (a paymaster operation has one withdrawal; any single-withdrawal operation
+     * throws its own error, if it is an `Error`).
+     * @throws {TornadoBroadcastError} If some of several withdrawals failed to
+     * broadcast, or a single one failed with a non-Error. Its `results` hold
+     * every withdrawal's outcome, in input order, including the responses of
+     * those that were sent.
+     */
     broadcast(operation: TCPrivateOperation<'paymaster'>): Promise<TCPaymasterBroadcastResponse[]>;
     broadcast(operation: TCPrivateOperation<'relayer'>): Promise<ITornadoWithdrawResponse[]>;
     broadcast(operation: TCPrivateOperation): Promise<(TCPaymasterBroadcastResponse | ITornadoWithdrawResponse)[]>;

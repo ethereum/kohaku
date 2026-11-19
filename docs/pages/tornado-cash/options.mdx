@@ -26,6 +26,10 @@ ERC-20 shields emit an approval of the denomination and a deposit for each note.
 
 The CLI always passes `MinFee`, in `prepareProtocolShield` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).
 
+## Broadcast results
+
+`broadcast(operation)` resolves with one response per withdrawal, in the operation's order. A relayer-mode unshield spends one note per withdrawal, so an operation can carry several. Each one is sent on its own; if any fails, `broadcast()` rejects with a `TornadoBroadcastError` after trying the rest. Its `results` has one entry per withdrawal, in order: `{ status: 'fulfilled', value }` for those that were sent, and `{ status: 'rejected', reason }` for those that were not, whose notes stay unspent and can be withdrawn again. An operation with a single withdrawal, which includes every paymaster operation, throws that withdrawal's own error instead (a custom client that throws something other than an `Error` gets a `TornadoBroadcastError`).
+
 ## ERC-4337 paymaster withdrawal
 
 Use the paymaster relay/broadcast path by passing `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
