@@ -184,9 +184,11 @@ The host must keep stored state and initial snapshots trustworthy. Loading valid
 their structure, scalar types and deposit indices, and each sync checks a pool's
 deposits against its on-chain root before moving its cursor (see
 [What a sync verifies](#what-a-sync-verifies)). A pool cursor before its saved
-registration block or beyond the current chain head restarts from an independently
-checked deployment boundary. Pools saved before finalized-block tracking are rewound
-7,200 blocks once. Other valid cursors keep their normal incremental sync.
+registration block or beyond the current chain head replays from an independently
+checked deployment boundary. A scan that stops before a saved event leaves that
+pool unchanged for a later retry.
+Pools saved before finalized-block tracking are rewound 7,200 blocks once.
+Other valid cursors keep their normal incremental sync.
 
 Malformed state is rejected with a recovery error; the SDK does not erase or
 overwrite it. Restore a valid private backup, or opt into a clean resync: back up

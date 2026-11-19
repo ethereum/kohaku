@@ -225,6 +225,39 @@ describe('syncEventsThunk pool verification', () => {
     expect(poolsSelector(store.getState()).get(POOL)).toMatchObject({ lastSyncedBlock: 500n, finalizedBlock: 500n });
   });
 
+  it('keeps saved events when a lagging scan stops before the saved head', async () => {
+    const saved = deposit(0, 950n);
+    const store = storeWith({ lastSyncedBlock: HEAD, finalizedBlock: FINALIZED });
+
+    store.dispatch(registerDeposits([{ ...saved, pool: POOL }]));
+
+    const { params, syncService, dataService } = services([saved], () => ({ Deposited: [] }));
+
+    syncService.getPoolEvents.mockResolvedValue({ Deposited: [], Withdrawn: [], toBlock: 940n, external: false });
+    unwrapResult(await store.dispatch(syncEventsThunk(params)));
+
+    expect(storedCommitments(store)).toEqual([saved.commitment]);
+    expect(poolsSelector(store.getState()).get(POOL)).toMatchObject({ lastSyncedBlock: HEAD, finalizedBlock: FINALIZED });
+    expect(dataService.getPoolLeafCount).not.toHaveBeenCalled();
+  });
+
+  it('does not erase a legacy deposit during replay against a lagging RPC', async () => {
+    const saved = deposit(0, HEAD);
+    const store = storeWith({ lastSyncedBlock: HEAD });
+
+    store.dispatch(registerDeposits([{ ...saved, pool: POOL }]));
+
+    const { params, syncService, dataService } = services([saved], () => ({ Deposited: [] }));
+
+    dataService.getBlockNumber.mockResolvedValue(HEAD - 1n);
+    syncService.getPoolEvents.mockResolvedValue({ Deposited: [], Withdrawn: [], toBlock: HEAD - 1n, external: false });
+    unwrapResult(await store.dispatch(syncEventsThunk(params)));
+
+    expect(storedCommitments(store)).toEqual([saved.commitment]);
+    expect(poolsSelector(store.getState()).get(POOL)?.lastSyncedBlock).toBe(HEAD);
+    expect(dataService.getPoolLeafCount).not.toHaveBeenCalled();
+  });
+
   it('extends the saved frontier and saves it at the finalized block', async () => {
     const chain = [deposit(0, 100n), deposit(1, 850n), deposit(2, 950n)];
     const kept = chain.slice(0, 1);

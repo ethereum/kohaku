@@ -45,7 +45,7 @@ describe('verifyRootsThunk', () => {
     vi.mocked(verifyStateRootOnChain).mockResolvedValue(undefined);
   });
 
-  it('checks the root the last sync verified without rebuilding the tree', async () => {
+  it('rebuilds the root even when the pool has a cached verified root', async () => {
     const store = makeStore();
 
     store.dispatch(registerPools([{ ...pool(poolAddress), verifiedRoot: 555n }]));
@@ -54,8 +54,8 @@ describe('verifyRootsThunk', () => {
     const action = await store.dispatch(verifyRootsThunk({ dataService }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(buildTree).not.toHaveBeenCalled();
-    expect(verifyStateRootOnChain).toHaveBeenCalledExactlyOnceWith({ dataService, poolAddress, expectedRoot: 555n });
+    expect(buildTree).toHaveBeenCalledExactlyOnceWith([10n, 20n]);
+    expect(verifyStateRootOnChain).toHaveBeenCalledExactlyOnceWith({ dataService, poolAddress, expectedRoot: 999n });
   });
 
   it('verifies the root built from deposits in leaf-index order', async () => {

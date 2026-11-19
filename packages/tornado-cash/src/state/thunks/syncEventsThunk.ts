@@ -2,7 +2,7 @@ import { createAsyncThunk } from "@reduxjs/toolkit";
 import { ISyncService } from "../../data/interfaces/sync.service.interface";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositEvent, IPool } from "../../data/interfaces/events.interface";
-import { Commitment } from "../../interfaces/types.interface";
+import { Address, Commitment } from "../../interfaces/types.interface";
 import { addressToHex } from "../../utils";
 import { PoolVerificationError, verifyPoolLeavesAt } from "../../verification/root-verification";
 import { registerDeposits } from "../slices/depositsSlice";
@@ -14,6 +14,7 @@ import {
   activePoolsSelector,
   depositsSelector,
   instanceRegistryInfoSelector,
+  withdrawalsSelector,
 } from "../selectors/slices.selectors";
 import { selectLastSyncedBlock } from "../selectors/last-synced-block.selector";
 
@@ -53,6 +54,18 @@ export const syncEventsThunk = createAsyncThunk<
   const state = getState();
   const myPools = activePoolsSelector(state);
   const storedDeposits = depositsSelector(state);
+  const latestStoredBlock = new Map<Address, bigint>();
+
+  for (const [address, deposits] of storedDeposits) {
+    for (const { blockNumber } of deposits.values()) {
+      latestStoredBlock.set(address, max(latestStoredBlock.get(address) ?? 0n, blockNumber));
+    }
+  }
+
+  for (const { pool, blockNumber } of withdrawalsSelector(state).values()) {
+    latestStoredBlock.set(pool, max(latestStoredBlock.get(pool) ?? 0n, blockNumber));
+  }
+
   const { chainId } = instanceRegistryInfoSelector(state);
   const [head, chainFinalizedBlock] = myPools.size > 0
     ? await Promise.all([dataService.getBlockNumber(), dataService.getFinalizedBlockNumber()])
@@ -62,6 +75,12 @@ export const syncEventsThunk = createAsyncThunk<
 
   const scanPool = async (pool: IPool, { fromBlock, chainOnly, reset }: PoolScan) => {
     const events = await syncService.getPoolEvents({ chainId, address: pool.address, fromBlock, chainOnly });
+
+    // Never replace saved events with a scan that has not reached their blocks.
+    if (events.toBlock < fromBlock || events.toBlock < (latestStoredBlock.get(pool.address) ?? 0n)) {
+      throw new Error('Pool log scan is behind the saved cursor');
+    }
+
     const stored = storedDeposits.get(pool.address) ?? new Map<Commitment, IDepositEvent>();
     // The tree after this sync: what is kept below `fromBlock`, plus the rescan.
     const deposits = new Map(reset ? [] : [...stored].filter(([, { blockNumber }]) => blockNumber < fromBlock));
