@@ -58,6 +58,8 @@ for (const result of results) {
 
 Pass one string or an array. The call syncs first. Imported notes show up with `depositIndex: -1`. Spending them uses the nullifier inside the note string, so the host keystore is not required for that secret. The paymaster sender for an imported note is derived from the nullifier as well.
 
+Each import accepts at most 1,000 notes, and each note string at most 1,024 characters before trimming. Split larger imports into separate calls. Preimages must contain exactly 124 hex characters; malformed notes are rejected before decoding, and parser errors do not include the private note text.
+
 After a successful import, `balance` and `prepareUnshield` treat the note like any other unspent note.
 
 Imported secrets persist in private `host.storage`, outside the keystore's derivation scheme. Give each wallet/account its own storage namespace if its imports must remain separate. Keep the original note string as a backup; `dumpState()` excludes it.

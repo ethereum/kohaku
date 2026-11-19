@@ -22,6 +22,8 @@ The enum name is `MaxAnonimitySet`. More notes means more deposit transactions, 
 
 A remainder that does not fill a pool is not deposited. 0.15 ETH with a 0.1 ETH minimum becomes a single 0.1 ETH note under `MaxAnonimitySet`, and the same under `MinFee` when 0.1 is the only pool that fits. Sum the transaction values and show that sum in the confirmation.
 
+A single shield preparation is limited to 1,000 notes before secret derivation starts. Split larger requests into smaller preparations.
+
 ERC-20 shields emit an approval of the denomination and a deposit for each note. For tokens that reject changing one nonzero allowance to another, such as USDT, each approval is preceded by a reset to zero. The user's public account needs the token and enough ETH for gas.
 
 The CLI always passes `MinFee`, in `prepareProtocolShield` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).
@@ -54,6 +56,8 @@ const confirmations = await Promise.all(receipts.map((receipt) => receipt.wait()
 ```
 
 The paymaster sponsors gas. The user's public account does not pay the withdrawal. The broadcaster submits the prepared ERC-4337 user operation to the bundler. `receipts[n].id` is a user operation hash, not a separate receipt for each note.
+
+The worker's bundler bridge rejects response bodies above 10 MiB while reading them, matching viem's response limit before copying the body to the worker. Hosts that provide only a materialized text response can be checked only after that read.
 
 `broadcast()` resolves as soon as the bundler accepts the user operation. `wait()` polls for its receipt and returns the `txHash` of the transaction that included it. Wallets that track the hash themselves can skip `wait()`, but must check the receipt's `success` field.
 
