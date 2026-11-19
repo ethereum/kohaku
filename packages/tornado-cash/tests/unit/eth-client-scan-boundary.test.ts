@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EthereumProvider } from '@kohaku-eth/provider';
+import type { EthereumProvider, TxLog } from '@kohaku-eth/provider';
 import { DataService } from '../../src/data/data.service';
 import { EthClient } from '../../src/data/eth-client';
 import type { Address } from '../../src/interfaces/types.interface';
@@ -50,6 +50,32 @@ describe('EthClient.getDeploymentBlock', () => {
 });
 
 describe('EthClient.getLogs', () => {
+  it('splits dense pages and returns every log once with the complete cursor', async () => {
+    const logs: TxLog[] = Array.from({ length: 10_002 }, (_, index) => ({
+      address: '0xaa', blockNumber: index < 5_001 ? 0n : 1n, logIndex: index, data: '0x', topics: [],
+    }));
+    const getLogs = vi.fn(async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock: bigint }) =>
+      logs.filter(log => log.blockNumber >= fromBlock && log.blockNumber <= toBlock));
+    const client = new EthClient({ getLogs } as unknown as EthereumProvider);
+
+    const result = await client.getLogs({ address: '0xaa', fromBlock: 0n, toBlock: 3n });
+
+    expect(getLogs.mock.calls.map(([range]) => [range.fromBlock, range.toBlock])).toEqual([[0n, 3n], [0n, 1n], [0n, 0n], [1n, 2n], [3n, 3n]]);
+    expect(result).toEqual({ logs, fromBlock: 0n, toBlock: 3n });
+  });
+
+  it('rejects a single block exceeding the log count or payload budget', async () => {
+    const log: TxLog = { address: '0xaa', blockNumber: 0n, data: '0x', topics: [] };
+
+    for (const logs of [Array<TxLog>(10_001).fill(log), [{ ...log, data: '0x' + '00'.repeat(2 * 1024 * 1024) }]]) {
+      const getLogs = vi.fn(async () => logs);
+      const client = new EthClient({ getLogs } as unknown as EthereumProvider);
+
+      await expect(client.getLogs({ address: '0xaa', fromBlock: 0n, toBlock: 0n })).rejects.toThrow('RPC log page exceeds limits');
+      expect(getLogs).toHaveBeenCalledOnce();
+    }
+  });
+
   it('does not advance the cursor over an empty range', async () => {
     const provider = makeProvider(() => '0x');
     const client = new EthClient(provider);
