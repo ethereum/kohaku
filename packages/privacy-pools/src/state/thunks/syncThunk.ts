@@ -63,6 +63,11 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       ? legacySyncCursor(state, finalizedBlock)
       : selectSyncCursor(state);
 
+    // An RPC behind our sync point (a lagging or forked node) cannot serve the range
+    // [fromBlock, toBlock]. Leave the state as it is, unfinalized tail included, and
+    // let the first sync on a head past the sync point pick up from there.
+    if (toBlock < fromBlock) return;
+
     // Blocks after the last finalized one may have been reorged away since they
     // were scanned, or come from a sync that failed: drop them and scan them again.
     dispatch(pruneAfterBlock(fromBlock));
@@ -124,9 +129,8 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       // left out, so the verified root stays unset and withdrawals are refused.
       const hasRootEvent = lastUpdateRootEventSelector(getState()) !== undefined;
       const verifyAspRoot = !hasRootEvent || await isAspTreeCurrent(getState(), params.merkleTreeBuilder);
-      // An RPC behind our sync point scanned nothing and cannot serve the pool
-      // roots there either. The sync point does not move, so the pools are checked
-      // by the first sync that scans past it.
+      // A head at our sync point scanned nothing past it. The sync point does not
+      // move, so the pools are checked by the first sync that scans past it.
       const verifyResult = await dispatch(verifyRootsThunk({
         dataService,
         blockNumber: toBlock,
@@ -138,7 +142,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       unwrapResult(verifyResult);
     }
 
-    // An RPC behind our sync point scans nothing; keep the point where it is.
+    // A head at our sync point scans nothing past it; keep the point where it is.
     if (toBlock > fromBlock) {
       dispatch(setSyncedBlocks({
         head: toBlock,

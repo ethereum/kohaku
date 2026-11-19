@@ -39,7 +39,10 @@ export const syncEventsThunk = createAsyncThunk<
       pools.slice(start, start + POOL_SYNC_BATCH_SIZE).map(async (pool) => {
         const events = await dataService.getPoolEvents({
           events: ["PoolDeposited", "Withdrawn", "Ragequit", "LeafInserted"],
-          fromBlock: fromBlock === 0n ? pool.registeredBlock : fromBlock,
+          // Not the pool's registeredBlock: that is the data source's word, and a
+          // later one would skip the pool's first events for good. The cursor is
+          // never below the entrypoint's deployment, so no pool event precedes it.
+          fromBlock,
           toBlock,
           address: pool.address,
         });
