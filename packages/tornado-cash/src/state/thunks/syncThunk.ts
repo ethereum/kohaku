@@ -19,12 +19,13 @@ export interface SyncThunkParams extends
   syncService: ISyncService;
   relayerClient: IRelayerClient;
   secretManager: ISecretManager;
+  signatureGapLimit?: number;
   verify?: boolean;
 }
 
 export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
-  async ({ dataService, syncService, secretManager, instances, verify = false, ...params }, { dispatch }) => {
+  async ({ dataService, syncService, secretManager, signatureGapLimit, instances, verify = false, ...params }, { dispatch }) => {
 
     unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
@@ -38,7 +39,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
 
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
-    unwrapResult(await dispatch(discoverUserEventsThunk({ secretManager })));
+    unwrapResult(await dispatch(discoverUserEventsThunk({ secretManager, gapLimit: signatureGapLimit })));
 
     if (verify) {
       const verifyResult = await dispatch(verifyRootsThunk({ dataService }));
