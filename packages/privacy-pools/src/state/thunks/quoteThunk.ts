@@ -45,8 +45,9 @@ export const validateWithdrawalData = (
 ): ReturnType<typeof decodeRelayData> => {
   const withdrawalData = quote.feeCommitment?.withdrawalData;
 
-  if (typeof withdrawalData !== 'string' || !isHex(withdrawalData, { strict: true })) {
-    throw new Error('withdrawalData is not hex');
+  // RelayData is three static ABI words (96 bytes).
+  if (typeof withdrawalData !== 'string' || withdrawalData.length !== 194 || !isHex(withdrawalData, { strict: true })) {
+    throw new Error('withdrawalData is not a canonical RelayData hex encoding');
   }
 
   const relayData = decodeRelayData(withdrawalData);
