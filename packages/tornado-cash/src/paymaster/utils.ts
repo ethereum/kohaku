@@ -177,8 +177,12 @@ export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(
  * userOp, pending or being bundled. That is alto's answer to a resend; a
  * different userOp with the same sender and nonce gets an AA25/AA10 error.
  */
-export const isAlreadyKnown = (error: unknown): boolean =>
-  /^already known\.?$/i.test(bundlerRejection(error)?.details?.trim() ?? '');
+export const isAlreadyKnown = (error: unknown): boolean => {
+  // Bundler-provided, so not necessarily a string.
+  const details: unknown = bundlerRejection(error)?.details;
+
+  return typeof details === 'string' && /^already known\.?$/i.test(details.trim());
+};
 
 /**
  * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
