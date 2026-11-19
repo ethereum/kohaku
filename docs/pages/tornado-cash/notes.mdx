@@ -34,6 +34,8 @@ The asset filter uses the same ERC-20 id as shield, including the ETH sentinel. 
 
 A wallet that offers "withdraw 0.3 ETH" should select a set of `amount`s that sum to 0.3 ETH. `prepareUnshield` does that selection itself when you pass the total. Use `notes` to explain the fee and the number of proofs, which grows with the number of notes.
 
+Selection prefers larger notes and tries other combinations if that first choice cannot match the requested gross total exactly. For example, 0.12 ETH can use four 0.03 ETH notes even when a 0.1 ETH note is available. Relayer or paymaster fees are deducted from that gross total.
+
 ## Import a legacy note
 
 Notes created outside this SDK are a string the Tornado tools exported. `importNotes` parses each string, checks it against deposits synced on the current chain, and stores the secret so `balance` can see it.
