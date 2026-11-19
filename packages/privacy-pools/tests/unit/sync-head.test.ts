@@ -56,6 +56,10 @@ const advancingChainDataService = (heads: bigint[]) => {
   const scan = (source: Record<string, ChainEvent[]>) =>
     vi.fn(async ({ events, fromBlock, toBlock }: { events: string[]; fromBlock: bigint; toBlock?: bigint }) => {
       const to = toBlock ?? head();
+
+      // As geth and most providers do.
+      if (fromBlock > to) throw new Error(`invalid block range ${fromBlock}-${to}`);
+
       const inRange = (e: ChainEvent) => e.blockNumber >= fromBlock && e.blockNumber <= to;
 
       return {
@@ -84,10 +88,10 @@ const secretManager = {
   }),
 } as unknown as ISecretManager;
 
-const setupStore = () => storeFactory({
+const setupStore = (deploymentBlock = 100n) => storeFactory({
   logLevel: 'off',
   devOptions: TEST_STORE_DEV_OPTIONS,
-  entrypointInfo: { chainId: 1n, entrypointAddress: entrypoint, deploymentBlock: 100n },
+  entrypointInfo: { chainId: 1n, entrypointAddress: entrypoint, deploymentBlock },
 });
 
 const sync = async (store: ReturnType<typeof setupStore>, dataService: ReturnType<typeof advancingChainDataService>) => {
@@ -138,6 +142,55 @@ describe('syncThunk head', () => {
 
     await sync(store, dataService);
 
+    expect(myDepositsWithAssetSelector(store.getState()).has(myPrecommitment)).toBe(true);
+  });
+
+  // Saved head 110, finalized 104: the deposits at 105 and 108 are the unfinalized
+  // tail. A lagging head below the sync point, at it, or between it and the saved
+  // head cannot scan that tail again, so pruning it would lose the deposit at 108.
+  it.each([103n, 104n, 106n])('leaves the state alone on a lagging head %i and resumes once past it', async (laggingHead) => {
+    const store = setupStore();
+    const dataService = advancingChainDataService([110n, laggingHead, 120n]);
+
+    dataService.getFinalizedBlockNumber.mockResolvedValueOnce(104n);
+    await sync(store, dataService);
+
+    const before = store.getState();
+    const scans = dataService.getEntrypointEvents.mock.calls.length;
+
+    await sync(store, dataService);
+
+    expect(dataService.getEntrypointEvents.mock.calls.length).toBe(scans);
+    expect(store.getState().sync).toEqual(before.sync);
+    expect(store.getState().deposits).toEqual(before.deposits);
+
+    await sync(store, dataService);
+
+    const [{ fromBlock }] = dataService.getEntrypointEvents.mock.calls.at(-1)!;
+
+    expect(fromBlock).toBe(104n);
+    expect(selectLastSyncedBlock(store.getState())).toBe(120n);
+    expect(myDepositsWithAssetSelector(store.getState()).has(myPrecommitment)).toBe(true);
+  });
+
+  it('scans a new pool from the cursor, not from a forged registration block', async () => {
+    const store = setupStore(0n);
+    const dataService = advancingChainDataService([120n]);
+    const scanEntrypoint = dataService.getEntrypointEvents.getMockImplementation()!;
+
+    // The source dates the registration after the pool's deposits at 105 and 108.
+    dataService.getEntrypointEvents.mockImplementation(async (params) => {
+      const result = await scanEntrypoint(params);
+      const { PoolRegistered } = result as unknown as Record<string, ChainEvent[]>;
+
+      return { ...result, PoolRegistered: PoolRegistered!.map((e) => ({ ...e, blockNumber: 110n })) };
+    });
+
+    await sync(store, dataService);
+
+    const [{ fromBlock }] = dataService.getPoolEvents.mock.calls[0]!;
+
+    expect(fromBlock).toBe(0n);
     expect(myDepositsWithAssetSelector(store.getState()).has(myPrecommitment)).toBe(true);
   });
 });
