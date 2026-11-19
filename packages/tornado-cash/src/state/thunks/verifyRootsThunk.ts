@@ -30,7 +30,9 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
 
       if (poolLeaves.length === 0) continue;
 
-      const localRoot = await poolMerkleTreeRootSelector(state, poolAddress);
+      // The last sync checked that the stored leaves rebuild this root, and only
+      // a sync changes them; older states without it rebuild the tree.
+      const localRoot = pools.get(poolAddress)?.verifiedRoot ?? await poolMerkleTreeRootSelector(state, poolAddress);
 
       await verifyStateRootOnChain({
         dataService,

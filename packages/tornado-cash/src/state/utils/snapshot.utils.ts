@@ -1,3 +1,5 @@
+import { MIMC_MERKLE_TREE_LEVELS } from '@kohaku-eth/mimc-tree';
+
 import type { PublicRootState } from '../store';
 
 type Check = (value: unknown) => boolean;
@@ -37,7 +39,10 @@ const deposit = record({ ...event, commitment: uint, timestamp: uint,
 const withdrawal = record({ ...event, to: uint, nullifierHash: uint, relayer: uint, fee: uint });
 const pool = record({ address: uint, asset: uint, isERC20: boolean, denomination: uint,
   protocolFeePercentage: nonnegative, registeredBlock: uint, rootHistorySize: integer,
-  state: value => value === 0 || value === 1, extended: optional(boolean), lastSyncedBlock: optional(uint) });
+  state: value => value === 0 || value === 1, extended: optional(boolean), lastSyncedBlock: optional(uint),
+  finalizedBlock: optional(uint), verifiedRoot: optional(uint),
+  frontier: optional(record({ size: integer, root: uint,
+    nodes: value => array(uint)(value) && (value as unknown[]).length === MIMC_MERKLE_TREE_LEVELS })) });
 const asset = record({ address: uint, name: text, symbol: text, decimals: integer });
 const relayer = record({ ensName: text, hostname: text, relayerAddress: uint, stakeBalance: uint });
 const secret = record({ commitment: uint, nullifierHash: uint, nullifier: uint, salt: uint });

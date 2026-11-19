@@ -4,6 +4,7 @@ import { IWithdrawalEvent } from '../../data/interfaces/events.interface';
 import { NullifierHash } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
 import { serialize } from '../utils/serialize.utils';
+import { prunePoolFromBlock } from './syncSlice';
 
 export interface WithdrawalsState {
   withdrawalsTuples: [NullifierHash, IWithdrawalEvent][];
@@ -30,6 +31,12 @@ export const withdrawalsSlice = createSlice({
 
       return { withdrawalsTuples: Array.from(newWithdrawals) };
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(prunePoolFromBlock, ({ withdrawalsTuples }, { payload: { pool, block } }) => ({
+      withdrawalsTuples: withdrawalsTuples.filter(([, withdrawal]) =>
+        BigInt(withdrawal.pool) !== pool || BigInt(withdrawal.blockNumber) < block),
+    }));
   },
 });
 
