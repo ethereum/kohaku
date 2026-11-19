@@ -92,6 +92,10 @@ note can supply the amount while retaining 1%, it is used alone. That amount is
 fixed by the request, so no random split is needed. Otherwise, each non-final
 note retains a cryptographically random 1–25% where feasible. The final note
 supplies the remainder and can retain more than 25%, but never less than 1%.
+If the sponsor's share cannot cover the gas fee, it is randomly increased within
+that 1% change limit and the other shares are reduced, skipping any reduced to
+zero. The total stays fixed. The fee must still fit the sponsoring note's
+available amount: other notes withdraw after the paymaster collects it.
 If the request equals the largest note's balance, at least two notes are needed;
 without another eligible note, preparation fails.
 

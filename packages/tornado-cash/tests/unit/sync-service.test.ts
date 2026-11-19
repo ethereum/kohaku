@@ -43,11 +43,12 @@ const relayerRegistered = (blockNumber: bigint): IRelayerRegisteredEvent => ({
 
 // A fake DataService: the chain path (getPoolEvents) tags events at the block it
 // was asked to start from, so tests can prove which range came from the chain.
-// The pool holds code from `deployedAt` onwards. Chain fetches without an
-// explicit `toBlock` stop at `rpcHead` (a node lagging behind the initial
-// `HEAD`), and an empty range reports `fromBlock - 1`, like EthClient.getLogs.
+// The pool holds code from `deployedAt` onwards. A node behind an explicit
+// query bound rejects it; an empty range reports `fromBlock - 1`, like EthClient.
 const chainRange = (fromBlock: bigint, toBlock: bigint | undefined, rpcHead: bigint) => {
   const end = toBlock ?? rpcHead;
+
+  if (end > rpcHead) throw new Error('query bound exceeds RPC head');
 
   return { empty: fromBlock > end, fromBlock, toBlock: fromBlock > end ? fromBlock - 1n : end };
 };
@@ -281,7 +282,7 @@ describe('SyncService.getPoolEvents', () => {
     expect(dataService.getPoolEvents).toHaveBeenCalledTimes(1);
   });
 
-  it("reports the tail's cursor, not the initial head, when the tail node lags", async () => {
+  it('rejects when the tail node cannot serve the captured head', async () => {
     // Initial head 1000, provider coverage 900, tail node only at 850.
     const dataService = makeDataService(500n, 850n);
     const provider = makeProvider(900n, [rawAt(200n)]);
@@ -291,10 +292,12 @@ describe('SyncService.getPoolEvents', () => {
       minExternalSyncBlocksAmount: 100,
     });
 
-    const result = await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n });
+    await expect(service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n }))
+      .rejects.toThrow('query bound exceeds RPC head');
 
-    expect(result.Deposited.map((d) => d.blockNumber)).toEqual([200n]);
-    expect(result.toBlock).toBe(900n);
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 901n, toBlock: HEAD }),
+    );
   });
 });
 
@@ -353,7 +356,7 @@ describe('SyncService.getRelayerRegistryEvents', () => {
     expect(result.RelayerRegistered.map((r) => r.blockNumber)).toEqual([100n]);
   });
 
-  it("backfills before the provider's coverage and reports the lagging tail's cursor", async () => {
+  it("backfills before the provider's coverage but rejects an unavailable tail", async () => {
     // Provider data only for [700, 900]; tail node only at 850.
     const dataService = makeDataService(500n, 850n);
     const provider = makeProvider(900n, [rawAt(750n)], 700n);
@@ -363,17 +366,18 @@ describe('SyncService.getRelayerRegistryEvents', () => {
       minExternalSyncBlocksAmount: 100,
     });
 
-    const result = await service.getRelayerRegistryEvents({
+    await expect(service.getRelayerRegistryEvents({
       chainId: CHAIN_ID,
       address: REGISTRY,
       fromBlock: 500n,
-    });
+    })).rejects.toThrow('query bound exceeds RPC head');
 
     expect(dataService.getRelayerRegistryEvents).toHaveBeenCalledWith(
       expect.objectContaining({ fromBlock: 500n, toBlock: 699n }),
     );
-    expect(result.RelayerRegistered.map((r) => r.blockNumber)).toEqual([500n, 750n]);
-    expect(result.toBlock).toBe(900n);
+    expect(dataService.getRelayerRegistryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 901n, toBlock: HEAD }),
+    );
   });
 });
 

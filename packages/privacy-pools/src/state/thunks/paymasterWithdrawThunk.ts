@@ -27,6 +27,7 @@ import {
 } from "../../paymaster/utils";
 import { verifierOverrides, type StateOverrides } from "../../paymaster/simulation";
 import { resolveTailCalls } from "../../paymaster/tail-calls";
+import { fundObfuscatedBatchSponsor } from "../../withdrawal/batch-plan";
 import { IPaymasterConfig } from "../../plugin/interfaces/protocol-params.interface";
 import { IGenericPaymasterWithdrawalPayload } from "../../relayer/interfaces/paymaster-client.interface";
 import { WithdrawalPayload } from "../../relayer/interfaces/relayer-client.interface";
@@ -133,7 +134,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     }
 
     // Reuse the protected allocation, or fall back to legacy full-note selection.
-    const notesToSpend = plannedNotes ?? (batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount));
+    const notesToSpend = (plannedNotes ?? (batch ? selectBatchNotes(state, asset, amount) : selectSingleNote(state, asset, amount)))
+      .map(entry => ({ ...entry }));
     const totalWithdrawn = notesToSpend.reduce((sum, n) => sum + n.withdrawnValue, 0n);
     // Largest note (first) is sponsored — it pays the fee; the rest run in the
     // execution phase. An execution phase exists when consolidating extra notes or
@@ -212,6 +214,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
       const fee = isERC20 ? await quotes.get(ethFee)! : ethFee;
 
+      if (plannedNotes) fundObfuscatedBatchSponsor(notesToSpend, fee);
+
       if (fee > sponsoring!.withdrawnValue) {
         throw new Error("Withdrawal amount too small to cover the sponsored gas fee");
       }
@@ -247,6 +251,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       const calls: TxData[] = [];
 
       for (const directNote of directNotes) {
+        if (directNote.withdrawnValue === 0n) continue;
+
         const withdrawal: WithdrawalPayload = { processooor: sender, data: "0x" };
         const proof = await proveNote(directNote, withdrawal, simulation);
 
@@ -255,7 +261,6 @@ export const paymasterWithdrawThunk = createAsyncThunk<
 
       return calls;
     };
-    const simulatedDirectCalls = await directWithdrawCalls(true);
 
     // Forward the consolidated balance (minus fee) to the recipient when the caller
     // supplied no tail calls.
@@ -309,7 +314,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       const proof = await proveNote(sponsoring!, withdrawal, simulation);
       const paymasterData = encodePaymasterData(adapterAddress, encodePrivacyPoolAdapterData(withdrawal, proof));
       // Batched notes are proved for real only in the final build.
-      const directCalls = simulation ? simulatedDirectCalls : await directWithdrawCalls(false);
+      const directCalls = await directWithdrawCalls(simulation);
       const params = {
         signer,
         executionAccount: accountConfig,
