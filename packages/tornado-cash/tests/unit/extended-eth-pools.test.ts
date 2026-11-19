@@ -248,7 +248,13 @@ describe('syncPoolsThunk extended ETH pools', () => {
 });
 
 describe('syncEventsThunk extended ETH pool cursors', () => {
-  const dataService = { getBlockNumber: async () => 10_000n } as IDataService;
+  // Pools without deposits: an empty tree matches, so every scan is stored.
+  const dataService = {
+    getBlockNumber: async () => 10_000n,
+    getFinalizedBlockNumber: async () => 9_900n,
+    getPoolLeafCount: async () => 0,
+    getPoolStateRoot: async () => 1n,
+  } as unknown as IDataService;
 
   function eventsService() {
     const calls: { address: Address; fromBlock: bigint }[] = [];
@@ -256,7 +262,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
       getPoolEvents: vi.fn(async ({ address, fromBlock }: { address: Address; fromBlock: bigint }) => {
         calls.push({ address, fromBlock });
 
-        return { Deposited: [], Withdrawn: [], toBlock: fromBlock };
+        return { Deposited: [], Withdrawn: [], toBlock: fromBlock, external: false };
       }),
     };
 
@@ -287,8 +293,8 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     store.dispatch(setLastSyncedBlock(5_000n));
     store.dispatch(registerPools([
-      pool(CLASSIC, ETH, 10n, 200n),
-      pool(EXTENDED, ETH / 100n, 50n, 80n, true),
+      { ...pool(CLASSIC, ETH, 10n, 200n), finalizedBlock: 200n },
+      { ...pool(EXTENDED, ETH / 100n, 50n, 80n, true), finalizedBlock: 80n },
     ]));
     store.dispatch(setProtocolConfig(protocolConfig(false)));
 

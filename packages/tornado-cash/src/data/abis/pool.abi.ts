@@ -16,6 +16,19 @@ export const poolAbi = [
   },
   {
     type: "function",
+    name: "nextIndex",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint32",
+        internalType: "uint32"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
     name: "currentRootIndex",
     inputs: [],
     outputs: [

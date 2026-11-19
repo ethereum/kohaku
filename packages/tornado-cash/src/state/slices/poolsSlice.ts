@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { IPool } from '../../data/interfaces/events.interface';
+import { IMerkleFrontier } from '../../utils/merkle-frontier';
 import { Address } from '../../interfaces/types.interface';
 import { Serializable } from '../interfaces/utils.interface';
 import { serialize } from '../utils/serialize.utils';
@@ -35,16 +36,28 @@ export const poolsSlice = createSlice({
 
       return { poolsTuples: poolsTuples.filter(([key]) => !removed.has(BigInt(key))) };
     },
-    setPoolSyncedBlock: (
+    setPoolSyncedBlocks: (
       { poolsTuples },
-      { payload: { pool, block } }: PayloadAction<{ pool: Address; block: bigint }>,
+      { payload: { pool, head, finalized, verifiedRoot, frontier } }: PayloadAction<{
+        pool: Address;
+        head: bigint;
+        finalized: bigint;
+        verifiedRoot: bigint;
+        frontier: IMerkleFrontier;
+      }>,
     ) => {
       const newPools = new Map(poolsTuples);
       const key = serialize(pool);
       const existing = newPools.get(key);
 
       if (existing) {
-        newPools.set(key, { ...existing, lastSyncedBlock: serialize(block) });
+        newPools.set(key, {
+          ...existing,
+          lastSyncedBlock: serialize(head),
+          finalizedBlock: serialize(finalized),
+          verifiedRoot: serialize(verifiedRoot),
+          frontier: serialize(frontier),
+        });
       }
 
       return { poolsTuples: Array.from(newPools) };
@@ -52,5 +65,5 @@ export const poolsSlice = createSlice({
   },
 });
 
-export const { registerPools, removePools, setPoolSyncedBlock } = poolsSlice.actions;
+export const { registerPools, removePools, setPoolSyncedBlocks } = poolsSlice.actions;
 export const poolsReducer = poolsSlice.reducer;
