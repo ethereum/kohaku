@@ -58,7 +58,26 @@ export const bundlerPostVia = (network: Network): BundlerPost => async (url, bod
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
   });
 
-  return { status: response.status, body: await response.text() };
+  // Match viem's 10 MiB limit before copying the response across the host bridge.
+  const maxBytes = 10 * 1024 * 1024;
+  let bytes = 0;
+  const stream = response.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      bytes += chunk.byteLength;
+
+      if (bytes > maxBytes) throw new Error('Bundler response exceeds 10 MiB');
+
+      controller.enqueue(chunk);
+    },
+  }));
+  // Hosts without streaming responses can only be checked after reading the text.
+  const text = await (stream ? new Response(stream) : response).text();
+
+  if (text.length > maxBytes || (!stream && new TextEncoder().encode(text).byteLength > maxBytes)) {
+    throw new Error('Bundler response exceeds 10 MiB');
+  }
+
+  return { status: response.status, body: text };
 };
 
 export const networkFromBundlerPost = (post: BundlerPost): Network => ({

@@ -110,7 +110,12 @@ export const getDepositPayloadThunk = createAsyncThunk<
     if (poolsCandidates.length === 0) throw new Error(`No pools available for asset ${addressToHex(asset)}`);
 
     const poolsToDepositInto = calculatePoolsDeposits(poolsCandidates, amount, strategy);
-    
+    const totalNotes = poolsToDepositInto.reduce((total, pool) => total + pool.depositsCount, 0);
+
+    if (!Number.isSafeInteger(totalNotes) || totalNotes > 1000) {
+      throw new Error('Deposit preparation is limited to 1000 notes; split the amount into smaller requests');
+    }
+
     const nonceAssignments = poolsToDepositInto.map((pool) => {
       const startNonce = nonce;
 

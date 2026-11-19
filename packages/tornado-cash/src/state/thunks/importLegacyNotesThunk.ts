@@ -22,6 +22,10 @@ export const importLegacyNotesThunk = createAsyncThunk<
 >(
   'userSecrets/importLegacy',
   async ({ notes }, { getState, dispatch }) => {
+    if (!Array.isArray(notes) || notes.length > 1000 || notes.some(note => typeof note !== 'string')) {
+      throw new Error('Import up to 1000 Tornado Cash note strings per request');
+    }
+
     const state = getState();
     const deposits = depositsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
