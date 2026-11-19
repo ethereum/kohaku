@@ -192,6 +192,34 @@ describe('syncEventsThunk pool root check', () => {
     expect(poolsSelector(store.getState()).get(POOL_B)?.lastSyncedBlock).toBe(50n);
   });
 
+  it('reads the pools on-chain concurrently rather than one after another', async () => {
+    const store = makeStore();
+
+    store.dispatch(registerPools([pool(POOL_A, 50n), pool(POOL_B, 50n)]));
+
+    const chain = await chainWith(new Map([[POOL_A, [11n]], [POOL_B, [44n]]]));
+    const readRoot = chain.getPoolStateRoot.getMockImplementation()!;
+    let poolBRead!: () => void;
+    const poolBReading = new Promise<void>((resolve) => { poolBRead = resolve; });
+
+    // Pool A's read only completes once pool B's has been sent: serial reads would hang.
+    chain.getPoolStateRoot.mockImplementation(async (address, blockNumber) => {
+      if (address === POOL_A) await poolBReading;
+      else poolBRead();
+
+      return readRoot(address, blockNumber);
+    });
+
+    const action = await sync(store, sourceServing(new Map([
+      [POOL_A, [deposit(11n, 0)]],
+      [POOL_B, [deposit(44n, 0)]],
+    ])), chain);
+
+    expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(storedCommitments(store, POOL_A)).toEqual([11n]);
+    expect(storedCommitments(store, POOL_B)).toEqual([44n]);
+  });
+
   it('skips the check when the RPC is behind the cursor and scanned nothing', async () => {
     const store = makeStore();
 

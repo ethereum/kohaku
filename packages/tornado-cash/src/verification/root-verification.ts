@@ -49,7 +49,11 @@ export interface IVerifyPoolLeavesAtBlockParams {
   deposits: Iterable<{ commitment: Commitment; leafIndex: number }>;
   /** The block the deposits are synced up to; the Pool is read at it. */
   blockNumber: bigint;
+  /** Builds the tree; callers checking several pools may queue the CPU-bound builds. */
+  buildRoot?: (leaves: Commitment[]) => Promise<bigint>;
 }
+
+const buildRootOf = async (leaves: Commitment[]) => BigInt((await buildTree(leaves)).root);
 
 /**
  * Verifies that `deposits` are exactly the Pool's tree at `blockNumber`, the
@@ -62,12 +66,16 @@ export interface IVerifyPoolLeavesAtBlockParams {
  *
  * An empty tree is checked through nextIndex(): Tornado versions differ on the
  * initial root, but an empty Pool's leaf count is always 0.
+ *
+ * The on-chain read is sent before the tree is built, so its latency overlaps
+ * the build and any build queued ahead of it.
  */
 export async function verifyPoolLeavesAtBlock({
   dataService,
   poolAddress,
   deposits,
   blockNumber,
+  buildRoot = buildRootOf,
 }: IVerifyPoolLeavesAtBlockParams): Promise<void> {
   const sorted = Array.from(deposits).sort((a, b) => a.leafIndex - b.leafIndex);
 
@@ -95,11 +103,10 @@ export async function verifyPoolLeavesAtBlock({
     return;
   }
 
-  const [{ root }, onchainRoot] = await Promise.all([
-    buildTree(sorted.map(({ commitment }) => commitment)),
+  const [expectedRoot, onchainRoot] = await Promise.all([
+    buildRoot(sorted.map(({ commitment }) => commitment)),
     dataService.getPoolStateRoot(poolAddress, blockNumber),
   ]);
-  const expectedRoot = BigInt(root);
 
   if (onchainRoot !== expectedRoot) {
     throw new Error(
