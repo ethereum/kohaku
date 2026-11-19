@@ -12,6 +12,8 @@ import { RootState } from "../store";
 import { poolsSelector } from "../selectors/slices.selectors";
 import { registerPoolLeaves } from "../slices/poolLeavesSlice";
 
+const POOL_SYNC_BATCH_SIZE = 4;
+
 export interface SyncEventsThunkParams {
   dataService: IDataService;
 }
@@ -28,59 +30,50 @@ export const syncEventsThunk = createAsyncThunk<
   SyncEventsParams,
   { state: RootState; }
 >("sync/events", async ({ dataService, fromBlock, toBlock }, { getState, dispatch }) => {
-  const state = getState();
-  const myPools = poolsSelector(state);
+  const pools = Array.from(poolsSelector(getState()).values());
 
-  // Fetch deposits, withdrawals, and ragequits from all pools in parallel. A failed
-  // scan fails the sync: the finalized block becomes the sync point, so a skipped
-  // pool's finalized events would never be fetched again.
-  const results = await Promise.all(
-    Array.from(myPools.values()).map(async (pool) => {
-      const events = await dataService.getPoolEvents({
-        events: ["PoolDeposited", "Withdrawn", "Ragequit", "LeafInserted"],
-        fromBlock: fromBlock === 0n ? pool.registeredBlock : fromBlock,
-        toBlock,
-        address: pool.address,
-      });
+  // Bound in-flight scans and temporary results. A failed batch still fails sync;
+  // the cursor stays unchanged and the next sync prunes/replays completed batches.
+  for (let start = 0; start < pools.length; start += POOL_SYNC_BATCH_SIZE) {
+    const results = await Promise.all(
+      pools.slice(start, start + POOL_SYNC_BATCH_SIZE).map(async (pool) => {
+        const events = await dataService.getPoolEvents({
+          events: ["PoolDeposited", "Withdrawn", "Ragequit", "LeafInserted"],
+          fromBlock: fromBlock === 0n ? pool.registeredBlock : fromBlock,
+          toBlock,
+          address: pool.address,
+        });
 
-      return {
-        ...events,
-        pool: pool.address,
-      };
-    }),
-  );
+        return { ...events, pool: pool.address };
+      }),
+    );
+    const allDeposits: IPoolDepositEvent[] = [];
+    const allWithdrawals: IWithdrawalEvent[] = [];
+    const allRagequits: IRagequitEvent[] = [];
 
-  // Collect all events from successful results
-  const allDeposits: IPoolDepositEvent[] = [];
-  const allWithdrawals: IWithdrawalEvent[] = [];
-  const allRagequits: IRagequitEvent[] = [];
+    for (const { PoolDeposited, Withdrawn, Ragequit, LeafInserted, pool } of results) {
+      for (const event of PoolDeposited) allDeposits.push({ ...event, pool });
 
-  results.forEach(({ PoolDeposited, Withdrawn, Ragequit, LeafInserted, pool }) => {
-    allDeposits.push(...PoolDeposited.map((e) => ({ ...e, pool })));
-    allWithdrawals.push(...Withdrawn.map((e) => ({ ...e, pool })));
-    allRagequits.push(...Ragequit.map((e) => ({ ...e, pool })));
+      for (const event of Withdrawn) allWithdrawals.push({ ...event, pool });
 
-    // Each registerPoolLeaves dispatch rebuilds and re-serializes the entire
-    // cross-pool leaf structure, so skip pools with no new leaves (the common
-    // case on an already-synced state — otherwise every pool pays that cost).
-    if (LeafInserted.length > 0) {
-      dispatch(registerPoolLeaves({
-        poolAddress: pool,
-        leaves: LeafInserted,
-      }));
+      for (const event of Ragequit) allRagequits.push({ ...event, pool });
+
+      // Empty pools need no cross-pool leaf rebuild.
+      if (LeafInserted.length > 0) {
+        dispatch(registerPoolLeaves({ poolAddress: pool, leaves: LeafInserted }));
+      }
     }
-  });
 
-  // Register all fetched events
-  if (allDeposits.length > 0) {
-    dispatch(registerDeposits(allDeposits));
-  }
+    if (allDeposits.length > 0) {
+      dispatch(registerDeposits(allDeposits));
+    }
 
-  if (allWithdrawals.length > 0) {
-    dispatch(registerWithdrawals(allWithdrawals));
-  }
+    if (allWithdrawals.length > 0) {
+      dispatch(registerWithdrawals(allWithdrawals));
+    }
 
-  if (allRagequits.length > 0) {
-    dispatch(registerRagequits(allRagequits));
+    if (allRagequits.length > 0) {
+      dispatch(registerRagequits(allRagequits));
+    }
   }
 });
