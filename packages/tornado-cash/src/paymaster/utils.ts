@@ -4,10 +4,12 @@ import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   BaseError,
+  HttpRequestError,
   encodeFunctionData,
   hashTypedData,
   http,
   RpcRequestError,
+  TimeoutError,
   toHex,
   type Address,
   type Hash,
@@ -22,7 +24,7 @@ import {
 } from 'viem/account-abstraction';
 import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
 import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
-import { isSameUserOperation, parseSendResult, redact } from './bundler-replies';
+import { aaCode, BundlerReplyError, isSameUserOperation, parseSendResult } from './bundler-replies';
 import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from './simulation';
 
 export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
@@ -136,15 +138,31 @@ export async function sendSerializedUserOperation(
 }
 
 /**
- * viem error messages embed the request body, which for the paymaster flow is
- * the signed userOp, and integrators forward errors to crash reporting. Only the
- * short message and the server-provided details are kept, and the original
- * error must never be attached as a `cause`.
+ * A description of a failed bundler request that is safe to report. viem
+ * messages embed the request body (the signed userOp), and bundler text can
+ * echo it in any form, split or encoded, so none of either is included: only
+ * the kind of failure, the JSON-RPC code and an ERC-4337 `AAxx` code. The
+ * original error must never be attached as a `cause`.
  */
-export const describeError = (error: unknown): string =>
-  error instanceof BaseError
-    ? redact([error.shortMessage, error.details].filter(Boolean).join(' '))
-    : 'Unknown error.';
+export const describeError = (error: unknown): string => {
+  if (error instanceof BundlerReplyError) return error.message;
+
+  if (!(error instanceof BaseError)) return 'Unknown error.';
+
+  const rejection = bundlerRejection(error);
+
+  if (rejection) {
+    const code = aaCode(rejection.details);
+
+    return `Bundler error ${rejection.code}${code ? ` (${code})` : ''}.`;
+  }
+
+  if (error.walk((cause) => cause instanceof TimeoutError)) return 'Request timed out.';
+
+  const http = error.walk((cause) => cause instanceof HttpRequestError) as HttpRequestError | null;
+
+  return http?.status ? `HTTP request failed with status ${http.status}.` : 'HTTP request failed.';
+};
 
 const bundlerRejection = (error: unknown): RpcRequestError | null =>
   error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;

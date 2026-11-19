@@ -8,6 +8,11 @@ import type { Address, Hash } from 'viem';
 
 const sameHex = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
+/** An invalid bundler reply, described by the SDK: its message is safe to report. */
+export class BundlerReplyError extends Error {
+  override name = 'BundlerReplyError';
+}
+
 /** A 32-byte 0x-prefixed hex string, such as a userOp or transaction hash. */
 export const isHash = (value: unknown): value is Hash => typeof value === 'string' && /^0x[0-9a-f]{64}$/i.test(value);
 
@@ -16,9 +21,9 @@ export const isHash = (value: unknown): value is Hash => typeof value === 'strin
  * and the one the sender signed when that is known.
  */
 export function parseSendResult(result: unknown, expected?: Hash): Hash {
-  if (!isHash(result)) throw new Error('Bundler answered the send with a malformed userOp hash.');
+  if (!isHash(result)) throw new BundlerReplyError('Bundler answered the send with a malformed userOp hash.');
 
-  if (expected && !sameHex(result, expected)) throw new Error('Bundler answered the send with a different userOp hash.');
+  if (expected && !sameHex(result, expected)) throw new BundlerReplyError('Bundler answered the send with a different userOp hash.');
 
   return expected ?? result;
 }
@@ -70,6 +75,13 @@ export function isSameUserOperation(result: unknown, op: ComparableUserOperation
 export type CheckedUserOperationReceipt = { success: boolean; reason?: unknown; receipt: { transactionHash: Hash } };
 
 /**
+ * The ERC-4337 `AAxx` code in bundler text, if any. Only the code is reported:
+ * the rest of the text can echo the signed userOp in any form.
+ */
+export const aaCode = (text: unknown): string | undefined =>
+  typeof text === 'string' ? /\bAA\d{2}\b/.exec(text)?.[0] : undefined;
+
+/**
  * Whether `receipt` is a well-formed receipt for `userOpHash`, with a boolean
  * `success`. A userOp can revert inside a successful bundle transaction, but
  * one that succeeded cannot have landed in a reverted transaction, so such a
@@ -86,17 +98,4 @@ export function isReceiptFor(receipt: unknown, userOpHash: Hash): receipt is Che
 
   // viem formats the transaction status as 'success' or 'reverted'.
   return !success || transaction.status === 'success' || transaction.status === '0x1';
-}
-
-const MAX_PUBLIC_TEXT = 300;
-
-/**
- * Bundler-provided text for messages documented as safe to report. A bundler
- * can echo the signed userOp in an error, so hex runs longer than a 32-byte
- * hash (signatures, proofs, calldata) are elided and the text is bounded.
- */
-export function redact(text: string): string {
-  const elided = text.replace(/(?:0x)?[0-9a-f]{65,}/gi, '0x…');
-
-  return elided.length > MAX_PUBLIC_TEXT ? `${elided.slice(0, MAX_PUBLIC_TEXT)}…` : elided;
 }

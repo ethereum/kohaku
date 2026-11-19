@@ -3,4 +3,4 @@
 "@kohaku-eth/privacy-pools": patch
 ---
 
-Bundler-provided text in `PaymasterBroadcastError` messages, including revert reasons, is bounded and has hex longer than a 32-byte hash elided, so a bundler that echoes the signed operation cannot carry it into errors documented as safe to report.
+`PaymasterBroadcastError` messages, and Privacy Pools gas-estimation errors, no longer include bundler-provided text, including revert reasons. A bundler can echo the signed operation there in any form, so the messages only name the failure, with the JSON-RPC error code and the ERC-4337 `AAxx` code when present. A malformed revert reason no longer prevents a reverted operation from being reported as `reverted` with its transaction hash.

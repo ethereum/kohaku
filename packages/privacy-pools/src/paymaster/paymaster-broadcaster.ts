@@ -10,7 +10,7 @@ import {
   sendSerializedUserOperation,
   serializedUserOperationHash,
 } from "./utils";
-import { isReceiptFor, redact } from "./bundler-replies";
+import { aaCode, isReceiptFor } from "./bundler-replies";
 import type { SerializedUserOperation } from "../interfaces/user-ops.interface";
 import {
   IGenericPaymasterWithdrawalPayload,
@@ -49,7 +49,10 @@ const waitForConfirmation = async (
   const txHash = userOpReceipt.receipt.transactionHash;
 
   if (!userOpReceipt.success) {
-    const reason = userOpReceipt.reason ? `: ${redact(String(userOpReceipt.reason))}` : "";
+    // Only an `AAxx` code from the reason: the rest is bundler text, and a
+    // non-string reason is never stringified.
+    const code = aaCode(userOpReceipt.reason);
+    const reason = code ? ` (${code})` : "";
 
     throw new PaymasterBroadcastError(
       "reverted",

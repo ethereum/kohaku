@@ -138,7 +138,9 @@ describe('PaymasterBroadcaster', () => {
     expect(error.failure).toBe('reverted');
     expect(error.userOpHash).toBe(USER_OP_HASH);
     expect(error.txHash).toBe(TX_HASH);
-    expect(error.message).toContain('AA33 boom');
+    // Only the AA code: the rest of the reason is bundler text.
+    expect(error.message).toContain('(AA33)');
+    expect(error.message).not.toContain('boom');
   });
 
   it('wait() throws `unconfirmed` on a receipt timeout, and can be retried', async () => {
@@ -171,7 +173,8 @@ describe('PaymasterBroadcaster', () => {
     const error = await catchError(wait());
 
     expect(error.failure).toBe('unconfirmed');
-    expect(error.message).toContain('bundler down');
+    expect(error.message).toContain('Bundler error -32603');
+    expect(error.message).not.toContain('bundler down');
     expectNoUserOp(error);
   });
 
@@ -182,7 +185,8 @@ describe('PaymasterBroadcaster', () => {
 
     expect(error.failure).toBe('not-accepted');
     expect(error.userOpHash).toBe(USER_OP_HASH);
-    expect(error.message).toContain('AA23 reverted');
+    expect(error.message).toContain('(AA23)');
+    expect(error.message).not.toContain('AA23 reverted');
     expectNoUserOp(error);
   });
 
@@ -192,7 +196,8 @@ describe('PaymasterBroadcaster', () => {
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
 
     expect(error.failure).toBe('not-accepted');
-    expect(error.message).toContain('AA23 reverted');
+    expect(error.message).toContain('(AA23)');
+    expect(error.message).not.toContain('AA23 reverted');
   });
 
   it('throws `unconfirmed` with the hash when the send response is lost and the bundler does not know the userOp yet', async () => {
@@ -287,7 +292,8 @@ describe('PaymasterBroadcaster', () => {
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal, other]));
 
     expect(error.failure).toBe('not-accepted');
-    expect(error.message).toContain('AA23 reverted');
+    expect(error.message).toContain('(AA23)');
+    expect(error.message).not.toContain('AA23 reverted');
   });
 });
 
@@ -352,7 +358,8 @@ describe('PrivacyPoolsBroadcaster paymaster path', () => {
 
     const error = await catchError(makeBroadcaster(network).broadcast(operation));
 
-    expect(error.message).toContain('AA23 reverted');
+    expect(error.message).toContain('(AA23)');
+    expect(error.message).not.toContain('AA23 reverted');
     expectNoUserOp(error);
   });
 });
@@ -374,7 +381,8 @@ describe('estimateUserOperationGas', () => {
   it('throws the real reason but no userOp on an RPC error', async () => {
     const error = await estimate(AA23);
 
-    expect(error.message).toContain('AA23 reverted');
+    expect(error.message).toContain('(AA23)');
+    expect(error.message).not.toContain('AA23 reverted');
     expectNoUserOp(error);
   });
 
@@ -497,24 +505,30 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('not-accepted');
   });
 
-  it('redacts and bounds bundler text that echoes the signed userOp', async () => {
-    const echo = `invalid userOp ${JSON.stringify(withdrawal.userOperation)} ${'x'.repeat(1_000)}`;
-    const { network } = makeNetwork(sendFails(() => ({ error: { code: -32602, message: echo } })));
+  it.each([
+    ['whole', (signature: string) => `invalid userOp {"signature":"${signature}"}`],
+    ['in short chunks', (signature: string) => `invalid userOp ${signature.match(/.{1,16}/g)!.join(' ')}`],
+  ])('keeps bundler text out of the error when it echoes the signed userOp %s', async (_case, echo) => {
+    const { network } = makeNetwork(sendFails(() => ({ error: { code: -32602, message: `AA23 ${echo(SIGNATURE)}` } })));
     const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
 
-    expect(error.message).not.toContain(SIGNATURE.slice(2));
-    expect(error.message).toContain('0x…');
-    expect(error.message.length).toBeLessThan(500);
+    expect(error.message).toContain('Bundler error -32602 (AA23)');
+    expect(error.message).not.toContain('invalid userOp');
+    expect(error.message).not.toContain(SIGNATURE.slice(2, 18));
     expectNoUserOp(error);
   });
 
-  it('redacts a revert reason that echoes the signed userOp', async () => {
-    const { network } = makeNetwork(accepted(() => ({ result: makeReceipt(false, `reverted: ${SIGNATURE}`) })));
+  it.each([
+    ['echoes the signed userOp', () => `reverted: ${SIGNATURE}`],
+    ['has a throwing toString', () => ({ toString: 'not a function' })],
+  ])('reports a reverted userOp with its transaction when the reason %s', async (_case, reason) => {
+    const { network } = makeNetwork(accepted(() => ({ result: { ...makeReceipt(false), reason: reason() } })));
     const [{ wait }] = await new PaymasterBroadcaster({ network }).broadcast([withdrawal]);
     const error = await catchError(wait());
 
     expect(error.failure).toBe('reverted');
-    expect(error.message).not.toContain(SIGNATURE.slice(2));
+    expect(error.txHash).toBe(TX_HASH);
+    expect(error.message).not.toContain(SIGNATURE.slice(2, 18));
   });
 });
 
