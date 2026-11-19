@@ -126,9 +126,11 @@ export const describeError = (error: unknown): string => {
   const rejection = bundlerRejection(error);
 
   if (rejection) {
+    // The JSON-RPC code is bundler-provided too: only an integer is reported.
+    const rpcCode = Number.isSafeInteger(rejection.code) ? ` ${rejection.code}` : "";
     const code = aaCode(rejection.details);
 
-    return `Bundler error ${rejection.code}${code ? ` (${code})` : ""}.`;
+    return `Bundler error${rpcCode}${code ? ` (${code})` : ""}.`;
   }
 
   if (error.walk((cause) => cause instanceof TimeoutError)) return "Request timed out.";

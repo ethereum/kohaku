@@ -464,6 +464,15 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     expectNoUserOp(error);
   });
 
+  it('reports the JSON-RPC code only when it is an integer', async () => {
+    const { network } = makeNetwork(sendFails(() => ({ error: { code: `-32602 ${withdrawal.userOperation.signature}` as never, message: 'AA23 reverted' } })));
+    const error = await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]));
+
+    expect(error.failure).toBe('not-accepted');
+    expect(error.message).toContain('Bundler error (AA23).');
+    expect(error.message).not.toContain(withdrawal.userOperation.signature.slice(2, 18));
+  });
+
   it.each([
     ['echoes the signed userOp', () => `reverted: ${withdrawal.userOperation.signature}`],
     ['has a throwing toString', () => ({ toString: 'not a function' })],
