@@ -543,7 +543,7 @@ export const storeStateManager = (
       }
 
       // Plan outside Redux so the structured headroom error reaches the caller intact.
-      // Resolve randomness once and reuse the allocation for every fee/proof refinement.
+      // Reuse the random allocation; preparation only adjusts it if the sponsor cannot cover its fee.
       const notesToSpend = planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label });
 
       return unwrapResult(
