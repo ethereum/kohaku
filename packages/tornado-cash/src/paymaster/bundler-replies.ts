@@ -34,7 +34,7 @@ const QUANTITY_FIELDS = ['nonce', 'callGasLimit', 'verificationGasLimit', 'preVe
   'maxPriorityFeePerGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'] as const;
 const DATA_FIELDS = ['sender', 'factory', 'factoryData', 'callData', 'paymaster', 'paymasterData', 'signature'] as const;
 
-/** The signed fields of a serialized userOp; absent optional fields are not compared. */
+/** The signed fields of a serialized userOp; an absent optional field must be absent or empty in the lookup. */
 export type ComparableUserOperation = { sender: string; nonce: string; signature: string } &
   Partial<Record<(typeof QUANTITY_FIELDS)[number] | (typeof DATA_FIELDS)[number], string>>;
 
@@ -48,10 +48,15 @@ const sameQuantity = (value: unknown, expected: string): boolean => {
   }
 };
 
+// A field the SDK did not send is signed as zero or empty, so the lookup must not add one.
+const isUnsetQuantity = (value: unknown) => value === undefined || value === null || sameQuantity(value, '0x0');
+const isUnsetData = (value: unknown) => value === undefined || value === null || (typeof value === 'string' && sameHex(value, '0x'));
+
 /**
  * Whether an `eth_getUserOperationByHash` result is this userOp: for the same
- * EntryPoint, with every signed field of `op` and its signature. Sender and
- * nonce alone would also match a different userOp pending with that nonce.
+ * EntryPoint, with every signed field of `op` and its signature, and no signed
+ * field that `op` does not have. Sender and nonce alone would also match a
+ * different userOp pending with that nonce.
  */
 export function isSameUserOperation(result: unknown, op: ComparableUserOperation, entryPoint: Address): boolean {
   if (typeof result !== 'object' || result === null) return false;
@@ -62,13 +67,23 @@ export function isSameUserOperation(result: unknown, op: ComparableUserOperation
 
   if (typeof userOperation !== 'object' || userOperation === null) return false;
 
-  return QUANTITY_FIELDS.every((field) => op[field] === undefined || sameQuantity(userOperation[field], op[field])) &&
-    DATA_FIELDS.every((field) => {
-      const expected = op[field];
-      const value = userOperation[field];
+  const sameQuantityField = (field: (typeof QUANTITY_FIELDS)[number]) => {
+    const expected = op[field];
 
-      return expected === undefined || (typeof value === 'string' && sameHex(value, expected));
-    });
+    if (expected === undefined) return isUnsetQuantity(userOperation[field]);
+
+    return sameQuantity(userOperation[field], expected);
+  };
+  const sameDataField = (field: (typeof DATA_FIELDS)[number]) => {
+    const expected = op[field];
+    const value = userOperation[field];
+
+    if (expected === undefined) return isUnsetData(value);
+
+    return typeof value === 'string' && sameHex(value, expected);
+  };
+
+  return QUANTITY_FIELDS.every(sameQuantityField) && DATA_FIELDS.every(sameDataField);
 }
 
 /** A userOp receipt whose fields the broadcaster relies on are well formed. */

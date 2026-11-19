@@ -422,6 +422,18 @@ describe('PaymasterBroadcaster with untrusted bundler replies', () => {
     expect((await catchError(new PaymasterBroadcaster({ network }).broadcast([withdrawal]))).failure).toBe('unconfirmed');
   });
 
+  it('does not treat the userOp with a factory it was not signed with as this one', async () => {
+    const lookupOf = (userOperation: object) => new PaymasterBroadcaster({ network: makeNetwork(lookups({ userOperation, entryPoint: entryPoint08Address })).network }).broadcast([withdrawal]);
+
+    expect(withdrawal.userOperation.factory).toBeUndefined();
+    // Control: the lookup of the operation as sent is recognized.
+    await expect(lookupOf({ ...withdrawal.userOperation })).resolves.toHaveLength(1);
+
+    const added = { ...withdrawal.userOperation, factory: `0x${'88'.repeat(20)}`, factoryData: '0x1234' };
+
+    expect((await catchError(lookupOf(added))).failure).toBe('unconfirmed');
+  });
+
   // Built lazily: the fixture userOp hash is only known once the suite runs.
   it.each([
     ['a string success', () => ({ ...makeReceipt(true), success: 'false' })],
