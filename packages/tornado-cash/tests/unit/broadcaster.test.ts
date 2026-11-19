@@ -1,3 +1,4 @@
+import { toHex } from 'viem';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TornadoBroadcastError } from '../../src';
@@ -99,5 +100,32 @@ describe('TornadoCashBroadcaster results', () => {
     const error = await catchBroadcastError(broadcaster.broadcast({ withdrawals: [relayerWithdrawal('a'), relayerWithdrawal('fail')] } as never));
 
     expect(error.message.length).toBeLessThan(400);
+  });
+});
+
+describe('TornadoCashBroadcaster paymaster nonce check', () => {
+  const withdrawal = { mode: 'paymaster', bundlerUrl: 'http://bundler', entryPointAddress: `0x${'43'.repeat(20)}`, userOperation: { sender: `0x${'aa'.repeat(20)}`, nonce: '0x0' } };
+  /** The sender's EntryPoint nonce is already 1, past the signed 0. */
+  const makeNonceBroadcaster = (broadcast: () => Promise<unknown>) => new TornadoCashBroadcaster({
+    host: { network: {}, provider: { request: async () => toHex(1n, { size: 32 }) } } as never,
+    paymasterConfig: {},
+    relayerClientFactory: () => ({}) as never,
+    paymasterClientFactory: () => ({ broadcast }) as never,
+  });
+
+  it('says to prepare again when the bundler refuses a withdrawal whose sender nonce moved', async () => {
+    const broadcaster = makeNonceBroadcaster(async () => { throw new PaymasterBroadcastError('not-accepted', 'Bundler error -32602.'); });
+    const error = await broadcaster.broadcast({ withdrawals: [withdrawal] } as never).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(PaymasterBroadcastError);
+    expect(error).toMatchObject({ staleNonce: { kind: 'entry-point', signed: 0n, current: 1n } });
+    expect((error as Error).message).toContain('prepare it again');
+  });
+
+  it('still resolves a rebroadcast of a withdrawal that landed, which moved the nonce', async () => {
+    const broadcaster = makeNonceBroadcaster(async () => [{ userOpHash: `0x${'cc'.repeat(32)}`, wait: async () => ({}) }]);
+
+    // eslint-disable-next-line no-restricted-syntax
+    expect(await broadcaster.broadcast({ withdrawals: [withdrawal] } as never)).toMatchObject([{ id: `0x${'cc'.repeat(32)}` }]);
   });
 });

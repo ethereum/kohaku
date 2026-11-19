@@ -12,7 +12,7 @@ export { IPFSAspService } from './data/ipfsAsp.service.js';
 export { OxBowAspService } from './data/0xbowAsp.service';
 export { OxBowAspReviewService } from './data/0xbowAspReview.service';
 export { DataService } from './data/data.service';
-export { PaymasterBroadcastError } from './relayer/interfaces/paymaster-client.interface';
+export { PaymasterBroadcastError, type StaleSenderNonce } from './relayer/interfaces/paymaster-client.interface';
 export { createSagaLogSource, createSagaDataService } from './data/saga-log-source';
 export type { SagaLogSourceParams, SagaDataServiceParams } from './data/saga-log-source';
 export type { OxBowAspGetTreeParams, OxBowAspServiceParams } from './data/0xbowAsp.service';

@@ -82,19 +82,33 @@ export interface IPaymasterBroadcasterClient {
  */
 export type PaymasterBroadcastFailure = 'not-accepted' | 'reverted' | 'unconfirmed';
 
+/**
+ * A sender nonce that moved after the withdrawal was prepared: its EntryPoint
+ * nonce, or the transaction count its EIP-7702 authorization was signed for.
+ * Prepare the withdrawal again.
+ */
+export interface StaleSenderNonce {
+  kind: 'entry-point' | 'authorization';
+  signed: bigint;
+  current: bigint;
+}
+
 /** Its message is safe to report: it never includes the signed userOp. */
 export class PaymasterBroadcastError extends Error {
   readonly userOpHash?: Hash;
   readonly txHash?: Hash;
+  /** Set on `not-accepted` when the bundler refused it because a sender nonce moved. */
+  readonly staleNonce?: StaleSenderNonce;
 
   constructor(
     readonly failure: PaymasterBroadcastFailure,
     message: string,
-    { userOpHash, txHash }: { userOpHash?: Hash; txHash?: Hash } = {},
+    { userOpHash, txHash, staleNonce }: { userOpHash?: Hash; txHash?: Hash; staleNonce?: StaleSenderNonce } = {},
   ) {
     super(message);
     this.name = 'PaymasterBroadcastError';
     this.userOpHash = userOpHash;
     this.txHash = txHash;
+    this.staleNonce = staleNonce;
   }
 }

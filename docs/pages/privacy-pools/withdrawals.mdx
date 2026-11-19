@@ -35,9 +35,11 @@ Both calls throw a `PaymasterBroadcastError`, whose message is safe to report: i
 
 | `failure` | Thrown by | Meaning |
 | --- | --- | --- |
-| `not-accepted` | `broadcast()` | The bundler answered the send request with an error and does not have the user operation, so it will not land. `userOpHash` is set. A different operation from the same sender, for example an earlier attempt at this withdrawal, may still be pending. |
+| `not-accepted` | `broadcast()` | The bundler answered the send request with an error and does not have the user operation, so it will not land. `userOpHash` is set. A different operation from the same sender, for example an earlier attempt at this withdrawal, may still be pending. When the sender's nonces changed since preparation, `staleNonce` is set and the withdrawal should be prepared again (see below). |
 | `reverted` | `wait()` | Mined with `success: false`. Notes spent before the revert stay spent, and their funds may be held by the sender. `txHash` is set. |
 | `unconfirmed` | `broadcast()`, `wait()` | The outcome is unknown and the user operation may still land. Do not report it as failed. `userOpHash` is set. After `wait()`, call it again to keep checking. |
+
+A prepared withdrawal is signed for its sender's current EntryPoint nonce and, for an EIP-7702 sender, its transaction count. When the bundler refuses a withdrawal, `broadcast()` reads both, and if either moved (the sender sent a transaction, or another withdrawal from the same sender landed first) its `not-accepted` error carries `staleNonce`: `{ kind: 'entry-point' | 'authorization', signed, current }`. Prepare the withdrawal again; its notes are still unspent. This matters only for senders used elsewhere, such as an external wallet or a reused `deterministic` path; a withdrawal holds its sender's nonces until it lands, so prepare the next one from that sender after the previous one lands. A rebroadcast of a withdrawal that already landed still resolves. If the host provider cannot be read, the bundler's own error is kept.
 
 The fee is the sponsored gas, priced into the pool asset (`fee` and `gasFeeWei` on the estimate). The broadcaster posts the user operation to the bundler. The user's public account does not need ETH for gas.
 
