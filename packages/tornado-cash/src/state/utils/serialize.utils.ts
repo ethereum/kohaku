@@ -23,7 +23,7 @@ export const serialize = <const T>(data: T): Serializable<T> => {
       }, {} as Serializable<T>);
     }
     case "bigint":
-      return ("0x" + data.toString(16)) as Serializable<T>;
+      return (data < 0n ? data.toString() : "0x" + data.toString(16)) as Serializable<T>;
     default:
       return data as Serializable<T>;
   }

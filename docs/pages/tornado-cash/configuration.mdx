@@ -167,6 +167,24 @@ The worker never holds your host objects. It gets a bridge to each one that allo
 
 `initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use a `dumpState()` snapshot as a sync checkpoint so the first open does not start at the registry's deployment block. `dumpState()` excludes note secrets, so this checkpoint is not a backup of imported notes. Keep imported notes in private `host.storage` and retain their original note strings for recovery.
 
+### Saved state and recovery
+
+The host must keep stored state and initial snapshots trustworthy. Loading validates
+their structure, scalar types and deposit indices, but cannot prove that a plausible
+saved cursor represents complete event coverage. A pool cursor before its saved
+registration block or beyond the current chain head restarts from an independently
+checked deployment boundary. Other valid cursors keep their normal incremental sync.
+
+Malformed state is rejected with a recovery error; the SDK does not erase or
+overwrite it. Restore a valid private backup, or opt into a clean resync: back up
+the private storage entry, retain its valid `legacySecrets` slice, empty the
+`depositsTuples`, `withdrawalsTuples`, `poolsTuples`, `assetsTuples` and
+`relayersTuples` arrays in their respective slices, and set both `sync` cursors to
+`"0"`. Recreate the plugin and sync. Do not seed that rebuild with a suspected bad
+`initialState` checkpoint. If the saved legacy secrets are malformed or the JSON
+cannot be recovered, restore them from a valid backup or reimport the original
+note strings after the resync. A public `dumpState()` snapshot cannot recover them.
+
 ## Paymaster map
 
 `TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer.
