@@ -1,3 +1,4 @@
+import { poseidon } from 'maci-crypto/build/ts/hashing.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { IAspService } from '../../src/data/asp.interface';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
@@ -15,11 +16,13 @@ const user = 3000n as Address;
 
 type ChainEvent = { blockNumber: bigint; transactionHash: bigint } & Record<string, unknown>;
 
-const deposit = (commitment: bigint, blockNumber: bigint): ChainEvent => ({
-  depositor: user, commitment, label: commitment, value: 1n, precommitment: commitment, blockNumber, transactionHash: 0n,
+// Deposit `n` has label and precommitment `n`, and the commitment the pool computes for them.
+const commitmentOf = (n: bigint) => poseidon([1n, n, n]);
+const deposit = (n: bigint, blockNumber: bigint): ChainEvent => ({
+  depositor: user, commitment: commitmentOf(n), label: n, value: 1n, precommitment: n, blockNumber, transactionHash: 0n,
 });
-const leaf = (index: bigint, commitment: bigint, blockNumber: bigint): ChainEvent => ({
-  index, commitment, root: 0n, blockNumber, transactionHash: 0n,
+const leaf = (index: bigint, n: bigint, blockNumber: bigint): ChainEvent => ({
+  index, commitment: commitmentOf(n), root: 0n, blockNumber, transactionHash: 0n,
 });
 
 const entrypointEvents: Record<string, ChainEvent[]> = {
@@ -46,6 +49,9 @@ const LATEST = 130n;
  */
 const chainDataService = async ({ dropLeaves = [] as bigint[], heads = [HEAD] } = {}) => {
   let headCall = 0;
+  const droppedCommitments = new Set(poolEvents.LeafInserted!
+    .filter((e) => dropLeaves.includes(e.index as bigint))
+    .map((e) => e.commitment as bigint));
   const leavesAt = (block: bigint) => poolEvents.LeafInserted!
     .filter((e) => e.blockNumber <= block)
     .map((e) => e.commitment as bigint);
@@ -69,8 +75,8 @@ const chainDataService = async ({ dropLeaves = [] as bigint[], heads = [HEAD] } 
     getBlockNumber: vi.fn(async () => heads[Math.min(headCall++, heads.length - 1)]!),
     getFinalizedBlockNumber: vi.fn(async () => HEAD),
     getEntrypointEvents: scan(entrypointEvents, () => false),
-    // A source that silently leaves out some leaf-bearing events.
-    getPoolEvents: scan(poolEvents, (name, e) => name === 'LeafInserted' && dropLeaves.includes(e.index as bigint)),
+    // A source that silently leaves out some leaves, and the deposits that came with them.
+    getPoolEvents: scan(poolEvents, (name, e) => (name === 'LeafInserted' || name === 'PoolDeposited') && droppedCommitments.has(e.commitment as bigint)),
     getAsset: vi.fn(async (address: Address) => ({ address, name: 'T', symbol: 'T', decimals: 18 })),
     getPoolStateRoot: vi.fn(async (_pool: Address, blockNumber: bigint = LATEST) => (await rootHistoryAt(blockNumber)).at(-1) ?? 0n),
     getPoolCurrentRootIndex: vi.fn(async () => leavesAt(LATEST).length - 1),

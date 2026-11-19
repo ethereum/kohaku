@@ -47,10 +47,11 @@ export const myEntrypointDepositsSelector = createSelector(
   (myDeposits, entrypointDepositsMap): Map<Precommitment, IEntrypointDepositEvent> => {
     const result = new Map<Precommitment, IEntrypointDepositEvent>();
 
-    for (const [precommitment, { commitment }] of myDeposits) {
+    for (const [precommitment, { commitment, pool }] of myDeposits) {
       const entrypointDeposit = entrypointDepositsMap.get(commitment);
 
-      if (entrypointDeposit) {
+      // The pool deposit is bound to its pool's verified leaves; the entrypoint one is not.
+      if (entrypointDeposit?.poolAddress === pool) {
         result.set(precommitment, entrypointDeposit);
       }
     }
