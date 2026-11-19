@@ -262,6 +262,9 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
     return { calls, syncService: syncService as unknown as ISyncService };
   }
 
+  // No deposits are synced, so each pool is checked as empty at its synced block.
+  const emptyPools = { getPoolNextIndex: vi.fn(async () => 0) } as unknown as IDataService;
+
   it('syncs a pool with no cursor from its registered block, not the global cursor', async () => {
     const store = storeWith(true);
 
@@ -273,7 +276,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     const { calls, syncService } = eventsService();
 
-    unwrapResult(await store.dispatch(syncEventsThunk({ syncService })));
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService , dataService: emptyPools })));
 
     expect(calls).toEqual([
       { address: CLASSIC, fromBlock: 10n },
@@ -293,7 +296,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     const ignored = eventsService();
 
-    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: ignored.syncService })));
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: ignored.syncService , dataService: emptyPools })));
 
     expect(ignored.calls).toEqual([{ address: CLASSIC, fromBlock: 200n }]);
     expect(poolsSelector(store.getState()).get(EXTENDED)?.lastSyncedBlock).toBe(80n);
@@ -302,7 +305,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     const resumed = eventsService();
 
-    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: resumed.syncService })));
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: resumed.syncService , dataService: emptyPools })));
 
     expect(resumed.calls).toEqual([
       { address: CLASSIC, fromBlock: 200n },

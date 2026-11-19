@@ -32,7 +32,7 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       instances,
     })));
 
-    const syncEventsResult = await dispatch(syncEventsThunk({ syncService }));
+    const syncEventsResult = await dispatch(syncEventsThunk({ syncService, dataService }));
 
     const syncEventsLastBlock = unwrapResult(syncEventsResult);
 
