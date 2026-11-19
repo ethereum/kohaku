@@ -94,6 +94,8 @@ export interface BuildSignedUserOpParams {
   signer: DelegatorAccount;
   executionAccount?: ExecutionAccountConfig;
   chainId: number;
+  /** EntryPoint the userOp is sent to; its address is part of the signed EIP-712 domain. */
+  entryPointAddress: `0x${string}`;
   paymasterAddress: `0x${string}`;
   paymasterData: `0x${string}`;
   gas: UserOpGasLimits;

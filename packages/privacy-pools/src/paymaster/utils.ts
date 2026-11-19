@@ -15,7 +15,6 @@ import {
 } from "viem";
 import {
   createBundlerClient,
-  entryPoint08Address,
   getUserOperationTypedData,
   type BundlerClient,
 } from "viem/account-abstraction";
@@ -226,6 +225,7 @@ async function assembleUserOp({
   signer,
   executionAccount,
   chainId,
+  entryPointAddress,
   paymasterAddress,
   paymasterData,
   gas,
@@ -291,7 +291,7 @@ async function assembleUserOp({
 
   const typedData = getUserOperationTypedData({
     chainId,
-    entryPointAddress: entryPoint08Address,
+    entryPointAddress,
     // viem's type requires a `signature`, but the userOp typedData does not contain one.
     userOperation: userOperation as unknown as Parameters<
       typeof getUserOperationTypedData
