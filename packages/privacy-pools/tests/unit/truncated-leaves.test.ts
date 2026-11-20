@@ -79,8 +79,6 @@ const chainDataService = async ({ dropLeaves = [] as bigint[], heads = [HEAD] } 
     getPoolEvents: scan(poolEvents, (name, e) => (name === 'LeafInserted' || name === 'PoolDeposited') && droppedCommitments.has(e.commitment as bigint)),
     getAsset: vi.fn(async (address: Address) => ({ address, name: 'T', symbol: 'T', decimals: 18 })),
     getPoolStateRoot: vi.fn(async (_pool: Address, blockNumber: bigint = LATEST) => (await rootHistoryAt(blockNumber)).at(-1) ?? 0n),
-    getPoolCurrentRootIndex: vi.fn(async () => leavesAt(LATEST).length - 1),
-    getPoolHistoricalRoot: vi.fn(async (_pool: Address, index: number) => (await rootHistoryAt(LATEST))[index] ?? 0n),
   };
 };
 

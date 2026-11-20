@@ -2,17 +2,20 @@ import { IDataService } from '../data/interfaces/data.service.interface.js';
 import { Address } from '../interfaces/types.interface.js';
 
 /**
- * Verifies that the ASP tree root matches the Entrypoint contract's latestRoot().
+ * Verifies that the ASP tree root is the Entrypoint's latestRoot() at
+ * `blockNumber`, the block the RootUpdated events were synced up to.
  *
  * The Entrypoint validates withdrawal proofs against latestRoot() with exact
- * equality — historical roots are not accepted. This check must mirror that
- * contract behavior to avoid false positives where sync passes locally but
- * proof submission reverts on-chain.
+ * equality — historical roots are not accepted — so this mirrors that check.
+ * It reads at the synced block rather than latest: the tree is the one of the
+ * last RootUpdated scanned, and a root posted after the scan would otherwise
+ * fail the whole sync. A root that moves before submission is rejected on-chain.
  */
 export async function verifyAspRootOnChain(
   dataService: IDataService,
   entrypointAddress: Address,
   expectedRoot: bigint,
+  blockNumber: bigint,
 ): Promise<void> {
   if (expectedRoot === 0n) {
     throw new Error(
@@ -20,15 +23,15 @@ export async function verifyAspRootOnChain(
     );
   }
 
-  const latestRoot = await dataService.getEntrypointLatestRoot(entrypointAddress);
+  const latestRoot = await dataService.getEntrypointLatestRoot(entrypointAddress, blockNumber);
 
   if (latestRoot === expectedRoot) {
     return;
   }
 
   throw new Error(
-    'ASP root verification failed: expected root does not match Entrypoint latestRoot ' +
-    `(expected=${expectedRoot}, latestOnChain=${latestRoot})`
+    'ASP root verification failed: expected root does not match Entrypoint latestRoot at the synced block ' +
+    `(expected=${expectedRoot}, onChain=${latestRoot}, block=${blockNumber})`
   );
 }
 
