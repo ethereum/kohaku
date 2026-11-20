@@ -25,7 +25,7 @@ function builder(consolidated = false, isERC20 = false) {
       args: [toHex(1n, { size: 32 }), toHex(2n, { size: 32 }), consolidated ? signer.address : recipient, paymaster, toHex(fee), '0x00'],
     };
     const userOperation = await (simulation ? buildSimulationTornadoUserOp : buildSignedTornadoUserOp)({
-      signer, chainId: 11155111, paymasterAddress: paymaster,
+      signer, chainId: 11155111, entryPointAddress: entryPoint08Address, paymasterAddress: paymaster,
       paymasterData: encodePoolPaymasterData(1n, proof), gas,
       maxFeePerGas: 2n, maxPriorityFeePerGas: 1n,
       ...(consolidated ? { tailCalls: async () => [{ to: recipient, data: '0x', value: 10n ** 18n - fee }] } : {}),
@@ -314,5 +314,23 @@ describe('Tornado paymaster gas estimation', () => {
     expect(harness.simulate).toHaveBeenCalledTimes(3);
     expect(harness.build).not.toHaveBeenCalled();
     expect(estimate).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('buildSignedTornadoUserOp EntryPoint', () => {
+  it('signs for the configured EntryPoint', async () => {
+    const signer = privateKeyToAccount(`0x${'07'.repeat(32)}`);
+    const entryPointAddress = `0x${'43'.repeat(20)}` as const;
+    const userOperation = await buildSignedTornadoUserOp({
+      signer, chainId: 11155111, entryPointAddress, paymasterAddress: `0x${'11'.repeat(20)}`, paymasterData: '0x',
+      gas: reasonableGasUnits(false), maxFeePerGas: 2n, maxPriorityFeePerGas: 1n,
+    });
+    const signedFor = (verifyingContract: `0x${string}`) => recoverTypedDataAddress({
+      ...getUserOperationTypedData({ chainId: 11155111, entryPointAddress: verifyingContract, userOperation: rawOperation(userOperation) }),
+      signature: userOperation.signature,
+    });
+
+    expect(await signedFor(entryPointAddress)).toBe(signer.address);
+    expect(await signedFor(entryPoint08Address)).not.toBe(signer.address);
   });
 });

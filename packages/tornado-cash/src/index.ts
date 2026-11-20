@@ -22,7 +22,7 @@ export type { GasEstimationPolicy, PaymasterGasEstimation } from './interfaces/u
 
 export type { PaymasterGasLimits } from './paymaster/gas-bounds';
 
-export { PaymasterBroadcastError } from './relayer/interfaces/paymaster-client.interface';
+export { PaymasterBroadcastError, type StaleSenderNonce } from './relayer/interfaces/paymaster-client.interface';
 export { TornadoBroadcastError, type TCBroadcastResponse } from './plugin/broadcaster';
 export type {
   IPaymasterBroadcasterClient,
