@@ -54,9 +54,10 @@ const snapshot = record({
   relayers: record({ relayersTuples: tuples(text, relayer) }),
   sync: record({ lastSyncedBlock: uint, relayerRegistrySyncedBlock: optional(uint) }),
   legacySecrets: optional(record({ byPool: tuples(uint, array(secret)) })),
+  signatureNonces: optional(record({ nextNonce: integer })),
 });
 
-/** Validate once at load, preserving old optional fields and imported note secrets. */
+/** Validate once at load, preserving imported notes and signature nonce reservations. */
 export function validateSnapshot(value: unknown): PublicRootState {
   if (!snapshot(value)) throw new Error('Malformed Tornado Cash snapshot');
 
@@ -75,8 +76,9 @@ export function validateSnapshot(value: unknown): PublicRootState {
   }
 
   // Derived secrets and protocol/fee configuration come from this session.
-  const { deposits, withdrawals, pools, assets, relayers, sync, legacySecrets } = state;
+  const { deposits, withdrawals, pools, assets, relayers, sync, legacySecrets, signatureNonces } = state;
 
   return { deposits, withdrawals, pools, assets, relayers, sync,
-    ...(legacySecrets === undefined ? {} : { legacySecrets }) } as PublicRootState;
+    ...(legacySecrets === undefined ? {} : { legacySecrets }),
+    ...(signatureNonces === undefined ? {} : { signatureNonces }) } as PublicRootState;
 }

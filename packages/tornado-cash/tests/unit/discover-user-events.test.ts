@@ -10,6 +10,7 @@ import { registerPools } from '../../src/state/slices/poolsSlice';
 import { addSignatureSecret } from '../../src/state/slices/signatureSecretsSlice';
 import { storeFactory } from '../../src/state/store';
 import { discoverUserEventsThunk, SIGNATURE_GAP_LIMIT } from '../../src/state/thunks/discoverUserEventsThunk';
+import { signatureNextNonceSelector } from '../../src/state/selectors/slices.selectors';
 import { DepositStrategy, getDepositPayloadThunk } from '../../src/state/thunks/getDepositPayloadThunk';
 
 const POOL_A = 11n;
@@ -62,8 +63,8 @@ function deposit(poolAddress: bigint, commitment: bigint): IDepositEvent {
   };
 }
 
-async function discover(commitments: { pool: bigint; commitment: bigint }[]) {
-  const store = storeFactory({
+function emptyStore() {
+  return storeFactory({
     protocolConfig: {
       chainId: 1n,
       ensSubdomainKey: 'eth',
@@ -73,10 +74,29 @@ async function discover(commitments: { pool: bigint; commitment: bigint }[]) {
     },
     logLevel: 'off',
   });
+}
 
+const DENOMINATION = 10n ** 18n;
+// POOL_A and POOL_B are not mainnet instances, so allow them explicitly.
+const INSTANCES = [POOL_A, POOL_B].map((address) => ({ address, asset: 0n, symbol: 'ETH', decimals: 18, denomination: DENOMINATION }));
+
+async function prepare(store: ReturnType<typeof emptyStore>, notes: number, secretManager = manager()) {
+  return unwrapResult(await store.dispatch(getDepositPayloadThunk({
+    secretManager,
+    asset: 0n,
+    amount: DENOMINATION * BigInt(notes),
+    strategy: DepositStrategy.MaxAnonimitySet,
+    instances: INSTANCES,
+  })));
+}
+
+async function discover(
+  commitments: { pool: bigint; commitment: bigint }[],
+  { store = emptyStore(), gapLimit }: { store?: ReturnType<typeof emptyStore>; gapLimit?: number } = {},
+) {
   store.dispatch(registerPools([pool(POOL_A), pool(POOL_B)]));
   store.dispatch(registerDeposits(commitments.map(({ pool: poolAddress, commitment }) => deposit(poolAddress, commitment))));
-  unwrapResult(await store.dispatch(discoverUserEventsThunk({ secretManager: manager() })));
+  unwrapResult(await store.dispatch(discoverUserEventsThunk({ secretManager: manager(), gapLimit })));
 
   const state = store.getState();
 
@@ -134,6 +154,45 @@ describe('discoverUserEventsThunk', () => {
     expect(found.signature.get(POOL_B)?.map((record) => record.nonce)).toEqual([0]);
     expect(found.signature.has(POOL_A)).toBe(false);
   });
+  it('finds every nonce of a reserved batch when only the last one is mined', async () => {
+    const store = emptyStore();
+
+    store.dispatch(registerPools([pool(POOL_A), pool(POOL_B)]));
+    await prepare(store, 30);
+
+    const found = await discover([{ pool: POOL_A, commitment: sigCommitment(29, POOL_A) }], { store });
+
+    expect(found.signature.get(POOL_A)?.map((record) => record.nonce)).toEqual([29]);
+  });
+
+  it('still stops the gap limit after the last hit once past the reservation', async () => {
+    const store = emptyStore();
+
+    store.dispatch(registerPools([pool(POOL_A), pool(POOL_B)]));
+    await prepare(store, 2);
+
+    const found = await discover([
+      { pool: POOL_A, commitment: sigCommitment(1, POOL_A) },
+      { pool: POOL_A, commitment: sigCommitment(21, POOL_A) },
+      { pool: POOL_A, commitment: sigCommitment(42, POOL_A) },
+    ], { store });
+
+    expect(found.signature.get(POOL_A)?.map((record) => record.nonce)).toEqual([1, 21]);
+  });
+
+  it('scans further with a larger gap limit', async () => {
+    const commitments = [
+      { pool: POOL_A, commitment: sigCommitment(0, POOL_A) },
+      { pool: POOL_A, commitment: sigCommitment(50, POOL_A) },
+    ];
+
+    expect((await discover(commitments)).signature.get(POOL_A)?.map((record) => record.nonce)).toEqual([0]);
+    expect((await discover(commitments, { gapLimit: 50 })).signature.get(POOL_A)?.map((record) => record.nonce)).toEqual([0, 50]);
+  });
+
+  it.each([0, 19, 20.5, 10_001])('rejects gap limit %s', async (gapLimit) => {
+    await expect(discover([], { gapLimit })).rejects.toThrow(/signatureGapLimit/);
+  });
 });
 
 describe('getDepositPayloadThunk nonce allocation', () => {
@@ -175,5 +234,35 @@ describe('getDepositPayloadThunk nonce allocation', () => {
     })));
 
     expect(nonces).toEqual([5, 6]);
+  });
+
+  it('starts after nonces reserved by a payload that was not mined', async () => {
+    const store = emptyStore();
+    const nonces: number[] = [];
+    const secretManager = manager();
+
+    secretManager.getSignatureSecrets = async ({ nonce, poolAddress }) => {
+      nonces.push(nonce);
+
+      return asSecret(sigCommitment(nonce, poolAddress));
+    };
+
+    store.dispatch(registerPools([pool(POOL_A), pool(POOL_B)]));
+    await prepare(store, 2, secretManager);
+    await prepare(store, 2, secretManager);
+
+    expect(nonces).toEqual([0, 1, 2, 3]);
+    expect(signatureNextNonceSelector(store.getState())).toBe(4);
+  });
+
+  it('does not reserve nonces when preparation fails', async () => {
+    const store = emptyStore();
+    const secretManager = manager();
+
+    secretManager.getSignatureSecrets = async () => { throw new Error('signer rejected'); };
+    store.dispatch(registerPools([pool(POOL_A), pool(POOL_B)]));
+
+    await expect(prepare(store, 2, secretManager)).rejects.toThrow('signer rejected');
+    expect(signatureNextNonceSelector(store.getState())).toBe(0);
   });
 });

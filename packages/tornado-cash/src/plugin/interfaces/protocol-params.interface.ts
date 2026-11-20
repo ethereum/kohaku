@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 import type { BundlerPost } from '../../paymaster/utils';
 import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
@@ -65,6 +66,13 @@ export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'> & {
    * `TornadoInstances` list; without either, deposits are refused.
    */
   instances?: readonly ITornadoInstance[];
+  /**
+   * Signature nonces with no deposit, past the last one found, before note
+   * discovery stops (default 20, at most 10000). Nonces this account prepared
+   * deposits for are always scanned; raise this only to recover deposits
+   * prepared on another device whose earlier transactions were never mined.
+   */
+  signatureGapLimit?: number;
 };
 
 export interface TCProtocolParams {

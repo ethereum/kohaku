@@ -30,6 +30,7 @@ import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { importLegacyNotesThunk } from "./thunks/importLegacyNotesThunk";
+import { assertSignatureGapLimit } from "./thunks/discoverUserEventsThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { ISyncService } from "../data/interfaces/sync.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
@@ -84,7 +85,7 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { userSecrets, legacySecrets, signatureSecrets, ...publicState } = store.getState();
+    const { userSecrets, legacySecrets, signatureSecrets, signatureNonces, ...publicState } = store.getState();
 
     return publicState;
   },
@@ -206,9 +207,11 @@ export const storeStateManager = async ({
   proverFactory,
   storageToSyncTo,
   initialState,
-  protocolConfig: { instances, ...protocolConfig },
+  protocolConfig: { instances, signatureGapLimit, ...protocolConfig },
   relayerConfig,
 }: StoreFactoryParams): Promise<IStateManager> => {
+  if (signatureGapLimit !== undefined) assertSignatureGapLimit(signatureGapLimit);
+
   const secretManager = await secretManagerFactory();
   const { getChainStore, getAllStores } = storeByChainAndEntrypoint({
     storageToSyncTo,
@@ -277,6 +280,7 @@ export const storeStateManager = async ({
               syncService,
               relayerClient,
               secretManager,
+              signatureGapLimit,
               instances,
               ...store.selectors,
             }),
@@ -312,13 +316,21 @@ export const storeStateManager = async ({
       return notes;
     },
     getDepositPayload: async ({ asset, amount, strategy }: IDepositOperationParams) => {
-      const store = await getChainStore(await getChainInfo());
+      const chainInfo = await getChainInfo();
 
-      return unwrapResult(
-        await store.dispatch(
-          getDepositPayloadThunk({ secretManager, asset, amount, strategy, instances }),
-        ),
-      );
+      // Queued and persisted so the nonces it reserves survive a restart and
+      // a concurrent preparation starts after them.
+      return enqueueWrite(chainInfo, async (store) => {
+        const payload = unwrapResult(
+          await store.dispatch(
+            getDepositPayloadThunk({ secretManager, asset, amount, strategy, instances }),
+          ),
+        );
+
+        await persistStateIfAvailable(chainInfo, store);
+
+        return payload;
+      });
     },
     getWithdrawalPayloads: async (params: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
       const chainInfo = await getChainInfo();
