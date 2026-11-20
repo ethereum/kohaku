@@ -3,6 +3,7 @@ import { createSelector } from "@reduxjs/toolkit";
 import { IDepositEvent } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
 import { buildTree } from "#merkle-tree";
+import type { MerkleTree } from "@kohaku-eth/mimc-tree";
 import { RootState } from "../store";
 import {
   depositsSelector,
@@ -33,11 +34,15 @@ export const poolEventsSelector = createSelector(
   },
 );
 
+// Depends on deposits only, so syncing withdrawals keeps the same Set and the cached tree below.
 export const poolCommitmentsSelector = createSelector(
-  [poolEventsSelector],
-  ({ deposits }): Set<Commitment> => {
+  [
+    depositsSelector,
+    (_state: RootState, poolAddress: Address) => poolAddress,
+  ],
+  (deposits, poolAddress): Set<Commitment> => {
 
-    const leavesInsertedArray = Array.from(deposits.values());
+    const leavesInsertedArray = Array.from(deposits.get(poolAddress)?.values() ?? []);
 
     const eventsSorterByBlockNumber = leavesInsertedArray.sort((a, b) => {
       return a.leafIndex - b.leafIndex;
@@ -49,21 +54,42 @@ export const poolCommitmentsSelector = createSelector(
   },
 );
 
-export const poolMerkleTreeRootSelector = createSelector(
-  [poolCommitmentsSelector],
-  async (commitments): Promise<bigint> => {
-    const start = new Date();
-    const leaves = Array.from(commitments);
+// One tree per pool leaf set, shared by root verification and every withdrawal proof.
+// A failed build is evicted so a retry rebuilds instead of replaying the rejection.
+const poolTrees = new WeakMap<Set<Commitment>, Promise<MerkleTree>>();
 
-    if (leaves.length === 0) {
-      return 0n;
-    }
+/**
+ * MUST ONLY BE USED IN THUNKS
+ */
+export const poolMerkleTreeSelector = (state: RootState, poolAddress: Address): Promise<MerkleTree> => {
+  const commitments = poolCommitmentsSelector(state, poolAddress);
+  const cached = poolTrees.get(commitments);
 
-    const {root} = await buildTree(leaves);
+  if (cached) {
+    return cached;
+  }
+
+  const start = new Date();
+  const tree = buildTree(Array.from(commitments)).then((built) => {
     const end = new Date();
 
-    console.log(`Merkle tree for ${leaves.length} leaves took ${ +end - +start }ms`);
+    console.log(`Merkle tree for ${commitments.size} leaves took ${ +end - +start }ms`);
 
-    return BigInt(root);
-  },
-);
+    return built;
+  });
+
+  poolTrees.set(commitments, tree);
+  tree.catch(() => poolTrees.delete(commitments));
+
+  return tree;
+};
+
+export const poolMerkleTreeRootSelector = async (state: RootState, poolAddress: Address): Promise<bigint> => {
+  if (poolCommitmentsSelector(state, poolAddress).size === 0) {
+    return 0n;
+  }
+
+  const { root } = await poolMerkleTreeSelector(state, poolAddress);
+
+  return BigInt(root);
+};
