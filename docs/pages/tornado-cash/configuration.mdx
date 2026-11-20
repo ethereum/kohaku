@@ -86,7 +86,7 @@ The CLI downloads once into the wallet's data directory and reads from disk afte
 
 The default relayer client accepts DNS hostnames (including `.onion`) and HTTPS root URLs only. It rejects credentials, ports, IP literals, local hostnames, extra paths, queries and fragments, and does not follow redirects. Server hosts that need to block private IPs resolved through DNS must enforce that policy in `host.network`.
 
-`relayerConfig` filters the on-chain relayer registry. A relayer is skipped when its `tornadoServiceFee` is below `minFee` or greater than or equal to `maxFee`, when its queue is longer than five, or when its `netId` disagrees with the provider's chain. ERC-20 withdrawals also skip relayers that do not publish ETH prices.
+`relayerConfig` filters the on-chain relayer registry. A relayer is skipped when its `tornadoServiceFee` is below `minFee` or greater than or equal to `maxFee`, when its queue is longer than five, or when its `netId` disagrees with the provider's chain. ERC-20 withdrawals also skip relayers that do not publish ETH prices. A relayer whose `rewardAccount` is not a nonzero address is rejected before ranking, since that address is proved as the withdrawal's relayer.
 
 The fee in the proof is the network fee (provider gas price × 550,000 gas, converted with the relayer's token price for ERC-20 pools) plus the service fee. Before proving, each surviving relayer's fee is checked:
 
