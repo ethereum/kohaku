@@ -48,6 +48,8 @@ const leafAbi = parseAbi([
 ]);
 const LEAF_INSERTED_TOPIC = toEventSelector("event LeafInserted(uint256 _index, uint256 _leaf, uint256 _root)");
 
+// @saga-sync/client >=0.4.0 rejects a chunk unless every blockNumber/logIndex is
+// minimal hex and every logIndex fits a JS number, so these conversions cannot fail.
 const toTxLog = (ev: CanonicalEvent): TxLog => ({
   address: ev.contractAddress,
   data: ev.data,
