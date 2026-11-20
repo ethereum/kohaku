@@ -6,6 +6,7 @@ import { TornadoCashConfigs } from '../../src/config';
 import type { IDataService, IPoolConfig } from '../../src/data/interfaces/data.service.interface';
 import type { ISyncService } from '../../src/data/interfaces/sync.service.interface';
 import type { Address, Commitment, Nullifier, NullifierHash } from '../../src/interfaces/types.interface';
+import type { ITornadoInstance } from '../../src/instances';
 import type { IRelayerClient } from '../../src/relayer/interfaces/relayer-client.interface';
 import { storeStateManager } from '../../src/state/state-manager';
 import { MAX_REGISTRY_POOLS } from '../../src/state/thunks/syncPoolsThunk';
@@ -67,7 +68,7 @@ function inFlight<A extends unknown[], R>(fn: (...args: A) => R) {
   return tracker;
 }
 
-function setup(registry: Address[]) {
+function setup(registry: Address[], instances?: readonly ITornadoInstance[]) {
   const saved = new Map<string, string>();
   const storage = {
     _brand: 'Storage',
@@ -98,7 +99,7 @@ function setup(registry: Address[]) {
     relayerClient: {} as IRelayerClient,
     paymasterConfig: {},
     storageToSyncTo: storage,
-    protocolConfig: { ...TornadoCashConfigs[1], instances: undefined },
+    protocolConfig: { ...TornadoCashConfigs[1], instances },
   });
 
   return { manager, getPoolConfig, getPoolEvents };
@@ -113,6 +114,20 @@ describe('pool discovery bounds (F-7)', () => {
     );
     expect(getPoolConfig.fn).not.toHaveBeenCalled();
     expect(getPoolEvents.fn).not.toHaveBeenCalled();
+  });
+
+  it('does not cap a registry when a catalog selects the pools to fetch', async () => {
+    const registry = poolsAt(MAX_REGISTRY_POOLS + 1);
+    const selected = registry[MAX_REGISTRY_POOLS]!;
+    const { manager, getPoolConfig, getPoolEvents } = setup(registry, [
+      { address: selected, asset: 0n, symbol: 'ETH', decimals: 18, denomination: 10n ** 18n },
+    ]);
+
+    await expect((await manager).sync()).resolves.toBeUndefined();
+
+    expect(getPoolConfig.fn).toHaveBeenCalledOnce();
+    expect(getPoolConfig.fn).toHaveBeenCalledWith(expect.anything(), selected);
+    expect(getPoolEvents.fn).toHaveBeenCalledOnce();
   });
 
   it('fetches and scans every pool, at most POOL_CONCURRENCY at once', async () => {

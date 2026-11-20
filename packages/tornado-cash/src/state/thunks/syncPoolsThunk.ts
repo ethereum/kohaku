@@ -12,10 +12,11 @@ import { IPoolSyncFailure, poolSyncFailure } from '../pool-sync-error';
 import { allSettledLimited, POOL_CONCURRENCY } from '../../utils/settle-limited';
 
 /**
- * The most instances a registry may list. The mainnet registry holds about 20;
- * a longer list is refused rather than cut short, so no pool is silently left out.
+ * The most instances a registry may list on a chain without a catalog. The
+ * mainnet registry holds about 20; a longer list is refused rather than cut
+ * short, so no pool is silently left out. With a catalog only its pools are fetched.
  */
-export const MAX_REGISTRY_POOLS = 256;
+export const MAX_REGISTRY_POOLS = 64;
 
 export interface SyncPoolsThunkParams {
   dataService: IDataService;
@@ -45,7 +46,7 @@ export const syncPoolsThunk = createAsyncThunk<IPoolSyncFailure[], SyncPoolsThun
 
     const registryAddresses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
 
-    if (registryAddresses.length > MAX_REGISTRY_POOLS) {
+    if (!catalog && registryAddresses.length > MAX_REGISTRY_POOLS) {
       throw new Error(`Instance registry lists ${registryAddresses.length} pools, more than the ${MAX_REGISTRY_POOLS} allowed`);
     }
 
