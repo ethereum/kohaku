@@ -1,6 +1,8 @@
+import { toHex } from 'viem';
 import { describe, expect, it } from 'vitest';
 
 import { PrivacyPoolsBroadcaster } from '../../src/plugin/broadcaster';
+import { PaymasterBroadcastError } from '../../src/relayer/interfaces/paymaster-client.interface';
 import { IRelayRequest } from '../../src/relayer/interfaces/relayer-client.interface';
 
 /** Builds a relayer private operation; set `exact` to mark it as exact-output. */
@@ -72,5 +74,31 @@ describe('PrivacyPoolsBroadcaster relayer path', () => {
     await broadcaster.broadcast(makeRelayerOp(exact) as any);
 
     expect(getCaptured()?.feeCommitment).toBeUndefined();
+  });
+});
+
+describe('PrivacyPoolsBroadcaster paymaster nonce check', () => {
+  const withdrawal = { bundlerUrl: 'http://bundler', entryPointAddress: `0x${'43'.repeat(20)}`, userOperation: { sender: `0x${'aa'.repeat(20)}`, nonce: '0x0' } };
+  /** The sender's EntryPoint nonce is already 1, past the signed 0. */
+  const makeBroadcaster = (broadcast: () => Promise<unknown>) => new PrivacyPoolsBroadcaster({
+    host: { provider: { request: async () => toHex(1n, { size: 32 }) } } as never,
+    broadcasterUrl: 'http://mock.relayer',
+    relayerClientFactory: () => ({} as never),
+    paymasterClientFactory: () => ({ broadcast }) as never,
+  });
+
+  it('reports staleNonce when the bundler refuses a withdrawal whose sender nonce moved', async () => {
+    const broadcaster = makeBroadcaster(async () => { throw new PaymasterBroadcastError('not-accepted', 'Bundler error -32602.'); });
+    const error = await broadcaster.broadcast({ mode: 'paymaster', withdrawal } as never).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(PaymasterBroadcastError);
+    expect(error).toMatchObject({ staleNonce: { kind: 'entry-point', signed: 0n, current: 1n } });
+    expect((error as Error).message).toContain('sync before preparing another withdrawal');
+  });
+
+  it('still resolves a rebroadcast of a withdrawal that landed, which moved the nonce', async () => {
+    const broadcaster = makeBroadcaster(async () => [{ userOpHash: `0x${'cc'.repeat(32)}`, wait: async () => ({}) }]);
+
+    await expect(broadcaster.broadcast({ mode: 'paymaster', withdrawal } as never)).resolves.toMatchObject({ requestId: `0x${'cc'.repeat(32)}` });
   });
 });

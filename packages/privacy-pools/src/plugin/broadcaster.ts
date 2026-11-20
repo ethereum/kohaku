@@ -2,6 +2,7 @@ import { IRelayerClient, ISuccessfullRelayResponse } from "../relayer/interfaces
 import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface";
 import { RelayerClient } from "../relayer/relayer-client";
 import { PaymasterBroadcaster } from "../paymaster/paymaster-broadcaster";
+import { rethrowWithStaleNonces } from "../paymaster/sender-nonces";
 import { PPv1Broadcaster, PPv1BroadcasterParameters, PPv1PaymasterBroadcastResponse } from "../v1";
 import { PPv1RelayerConstructorParams } from "./base";
 import {
@@ -15,6 +16,7 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
   relayersList: Record<string, string> = {};
   private relayerClient: IRelayerClient;
   private paymasterBroadcaster: IPaymasterBroadcasterClient;
+  private provider: PPv1RelayerConstructorParams["host"]["provider"];
 
   constructor({
     host,
@@ -22,6 +24,7 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
     broadcasterUrl,
     paymasterClientFactory = () => new PaymasterBroadcaster({ network: host.network }),
   }: PPv1RelayerConstructorParams) {
+    this.provider = host.provider;
     this.relayerClient = relayerClientFactory();
     this.relayersList = this.parseRelayers(broadcasterUrl);
     this.paymasterBroadcaster = paymasterClientFactory();
@@ -70,7 +73,8 @@ export class PrivacyPoolsBroadcaster implements PPv1Broadcaster {
   private async broadcastViaPaymaster(
     operation: PPv1PaymasterPrivateOperation,
   ): Promise<PPv1PaymasterBroadcastResponse> {
-    const [result] = await this.paymasterBroadcaster.broadcast([operation.withdrawal]);
+    const [result] = await this.paymasterBroadcaster.broadcast([operation.withdrawal])
+      .catch((error: unknown) => rethrowWithStaleNonces(this.provider, operation.withdrawal, error));
 
     // Only reachable with a custom paymaster client that breaks its contract.
     if (!result) {
