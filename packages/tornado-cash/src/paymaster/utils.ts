@@ -18,7 +18,6 @@ import {
 } from 'viem';
 import {
   createBundlerClient,
-  entryPoint08Address,
   getUserOperationTypedData,
   type BundlerClient,
 } from 'viem/account-abstraction';
@@ -303,6 +302,7 @@ async function assembleTornadoUserOp({
   signer,
   executionAccount,
   chainId,
+  entryPointAddress,
   paymasterAddress,
   paymasterData,
   gas,
@@ -370,7 +370,7 @@ async function assembleTornadoUserOp({
   const signature = simulation ? DUMMY_SIGNATURE : await owner.signTypedData(
     getUserOperationTypedData({
       chainId,
-      entryPointAddress: entryPoint08Address,
+      entryPointAddress,
       // we cast because viem type requires a `signature`, but under the hood UserOp typedData does not contain one
       userOperation: userOperation as Parameters<typeof getUserOperationTypedData>[0]['userOperation'],
     }),

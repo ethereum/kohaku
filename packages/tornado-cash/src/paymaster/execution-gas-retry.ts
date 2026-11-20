@@ -1,7 +1,19 @@
-/** Only an explicit execution-gas shortage is eligible. Validation failures,
- * funding/allowance errors, provider caps and nonempty revert data must not
- * cause a larger signed fee budget. Unknown errors remain hard failures. */
+import { BaseError, RpcRequestError } from 'viem';
+
+/** ERC-7769: the userOp reverted, or ran out of gas, in its execution phase (alto's `UserOperationReverted`). */
+const EXECUTION_REVERTED_CODE = -32521;
+
+/** Only an explicit execution-gas shortage is eligible: a bundler JSON-RPC
+ * rejection with the execution-phase code whose text says out of gas.
+ * Validation failures, funding/allowance errors, provider caps, nonempty revert
+ * data, transport errors and any other error must not cause a larger signed fee
+ * budget. Unknown errors remain hard failures. */
 export function isExecutionOutOfGas(error: unknown): boolean {
+  const rejection = error instanceof BaseError ? error.walk((cause) => cause instanceof RpcRequestError) as RpcRequestError | null : null;
+
+  // Words alone are not evidence: they can come from any error text.
+  if (rejection?.code !== EXECUTION_REVERTED_CODE) return false;
+
   const messages: string[] = [];
   const seen = new Set<object>();
   let current = error;

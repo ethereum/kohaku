@@ -148,6 +148,17 @@ createTCPlugin(host, {
 
 Omit the field to always scan with `eth_getLogs`. The CLI sets `1000` and attaches a saga-backed provider in [`src/utils/saga-external-sync.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/saga-external-sync.ts). The host contract for that provider is on [The host](/host).
 
+### What a sync verifies
+
+Event logs carry no proof that they are real, so the plugin checks what it can against `host.provider`. Before a sync stores a pool's events, it rebuilds the pool's Merkle tree from the stored and new deposits. The tree must have gapless leaf indices, the same leaf count as the pool's `nextIndex()`, and the same root as its `getLastRoot()`, all read at the scanned head. Each pool keeps the tree's right edge (its frontier) as of its last finalized block, so a sync only hashes the deposits it scanned again; the first sync of a pool, or of a state saved before this, builds the whole tree once. If the check fails, nothing is stored and the pool's cursor stays where it was. A scan the external provider served is retried from the chain alone. A chain scan that still fails replays the pool from its deployment block, in case its stored deposits were bad.
+
+This covers the pool's deposits: their commitments and their order. Nothing on chain covers the rest, so it is trusted to the event source, which is `host.provider` or the external provider:
+
+- `Withdrawn` events. A forged one makes a note look spent. A missing one makes a spent note look unspent, and its withdrawal reverts. The plugin does not ask the RPC about the account's own nullifiers, because that would reveal which notes are the account's.
+- Deposit and withdrawal metadata: block number, timestamp and transaction hash.
+
+`host.provider` is trusted to answer about the canonical chain. A sync scans each pool from the last block it saw finalized, and drops and rescans everything after it, so a reorg cannot leave orphaned events behind. The RPC must support the `finalized` block tag.
+
 ## Worker and initial state
 
 State is built inside a worker so proving and tree updates stay off the UI thread. The package ships the worker script. Set `stateManagerWorkerUrl` when your bundler needs an explicit URL:
@@ -169,8 +180,30 @@ The bridge rejects calls with more than two top-level arguments before validatin
 
 `initialState` returns a snapshot keyed the same way `dumpState()` writes it (`tornado-cash-state-…`). Use a `dumpState()` snapshot as a sync checkpoint so the first open does not start at the registry's deployment block. `dumpState()` excludes note secrets, so this checkpoint is not a backup of imported notes. Keep imported notes in private `host.storage` and retain their original note strings for recovery.
 
+### Saved state and recovery
+
+The host must keep stored state and initial snapshots trustworthy. Loading validates
+their structure, scalar types and deposit indices, and each sync checks a pool's
+deposits against its on-chain root before moving its cursor (see
+[What a sync verifies](#what-a-sync-verifies)). A pool cursor before its saved
+registration block or beyond the current chain head replays from an independently
+checked deployment boundary. A scan that stops before a saved event leaves that
+pool unchanged for a later retry.
+Pools saved before finalized-block tracking are rewound 7,200 blocks once.
+Other valid cursors keep their normal incremental sync.
+
+Malformed state is rejected with a recovery error; the SDK does not erase or
+overwrite it. Restore a valid private backup, or opt into a clean resync: back up
+the private storage entry, retain its valid `legacySecrets` slice, empty the
+`depositsTuples`, `withdrawalsTuples`, `poolsTuples`, `assetsTuples` and
+`relayersTuples` arrays in their respective slices, and set both `sync` cursors to
+`"0"`. Recreate the plugin and sync. Do not seed that rebuild with a suspected bad
+`initialState` checkpoint. If the saved legacy secrets are malformed or the JSON
+cannot be recovered, restore them from a valid backup or reimport the original
+note strings after the resync. A public `dumpState()` snapshot cannot recover them.
+
 ## Paymaster map
 
-`TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer.
+`TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer. `entryPointAddress` is the EntryPoint v0.8 the user operation is estimated, signed and submitted for. Another address only works with a sender built for it: the default Simple7702 implementation and SimpleAccount accept calls only from the standard EntryPoint, so a custom one also needs a matching `delegation` implementation or account.
 
 Use `mode: 'paymaster'` explicitly when preparing a withdrawal. The prepared operation carries the bundler URL and EntryPoint from the plugin's paymaster map; `createTCBroadcaster` uses those fields to submit it. See [deposits and withdrawals](/tornado-cash/options).

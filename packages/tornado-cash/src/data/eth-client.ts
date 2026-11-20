@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { EthereumProvider, TxLog } from "@kohaku-eth/provider";
 import { ContractFunctionName, decodeFunctionResult, DecodeFunctionResultReturnType, encodeFunctionData, EncodeFunctionDataParameters, erc20Abi, toHex } from 'viem';
 import { Address } from "../interfaces/types.interface";
@@ -76,6 +77,7 @@ export class EthClient {
         const logs: TxLog[] = [];
         let pageSize = maxQuerySize;
 
+        // Ranges are inclusive; advance only after accepting a page so no block is missed or repeated.
         for (let start = fromBlock; start <= toBlock;) {
             const rawEnd = start + pageSize - 1n;
             const end = rawEnd < toBlock ? rawEnd : toBlock;

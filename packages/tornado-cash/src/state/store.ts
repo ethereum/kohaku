@@ -20,6 +20,7 @@ import { withdrawalsReducer } from "./slices/withdrawalsSlice";
 import { userSecretsReducer } from "./slices/userSecretsSlice";
 import { legacySecretsReducer } from "./slices/legacySecretsSlice";
 import { signatureSecretsReducer } from "./slices/signatureSecretsSlice";
+import { signatureNoncesReducer } from "./slices/signatureNoncesSlice";
 
 const reducers = {
   deposits: depositsReducer,
@@ -32,6 +33,7 @@ const reducers = {
   userSecrets: userSecretsReducer,
   legacySecrets: legacySecretsReducer,
   signatureSecrets: signatureSecretsReducer,
+  signatureNonces: signatureNoncesReducer,
 } as const;
 
 export type RootState = ReturnType<ReturnType<typeof combineReducers<typeof reducers>>>;

@@ -9,6 +9,7 @@ autoInstallPeers: false
 blockExoticSubdeps: false
 minimumReleaseAgeExclude:
   - '@privacy-paymasters/sdk@0.0.5'
+  - "@saga-sync/client@0.4.0"
 packages:
   - "packages/provider"
   - "packages/privacy-pools"
