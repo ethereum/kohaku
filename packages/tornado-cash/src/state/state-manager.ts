@@ -40,6 +40,7 @@ import { assetSelector, depositsSelector, legacyUserSecretsSelector, poolsSelect
 import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from "../instances";
 import { createLoadCache, createSerialQueue, createSyncQueue } from "./utils/async.utils";
 import { validateSnapshot } from "./utils/snapshot.utils";
+import { TornadoPoolSyncError } from "./pool-sync-error";
 
 const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
@@ -273,7 +274,7 @@ export const storeStateManager = async ({
       syncQueues.set(storeKey, enqueue);
 
       return enqueue(() => enqueueWrite(chainInfo, async (store) => {
-        unwrapResult(
+        const { failures, totalPools } = unwrapResult(
           await store.dispatch(
             syncThunk({
               dataService,
@@ -287,7 +288,11 @@ export const storeStateManager = async ({
           ),
         );
 
+        // What the healthy pools synced is kept, but callers must not read
+        // balances or notes as complete while some pools are missing.
         await persistStateIfAvailable(chainInfo, store);
+
+        if (failures.length > 0) throw new TornadoPoolSyncError(failures, totalPools);
       }));
     },
     getBalances: async (assets) => {

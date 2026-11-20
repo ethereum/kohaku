@@ -3,6 +3,7 @@ import { ISyncService } from "../../data/interfaces/sync.service.interface";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositEvent, IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
+import { IPoolSyncFailure, poolSyncFailure } from "../pool-sync-error";
 import { addressToHex } from "../../utils";
 import { PoolVerificationError, verifyPoolLeavesAt } from "../../verification/root-verification";
 import { registerDeposits } from "../slices/depositsSlice";
@@ -38,6 +39,16 @@ interface PoolScan {
   reset: boolean;
 }
 
+export interface SyncEventsResult {
+  lastBlock: bigint;
+  poolCount: number;
+  /** Pools whose events could not be fetched or verified; their cursors are left unchanged. */
+  failures: IPoolSyncFailure[];
+}
+
+/** The RPC answered from a node behind the saved cursor: nothing new, and nothing lost. */
+class PoolScanBehindError extends Error {}
+
 const min = (a: bigint, b: bigint) => (a < b ? a : b);
 const max = (a: bigint, b: bigint) => (a > b ? a : b);
 
@@ -47,12 +58,12 @@ const legacyCursor = (pool: IPool, lastSyncedBlock: bigint, finalizedBlock: bigi
   max(min(lastSyncedBlock - LEGACY_REWIND_BLOCKS, finalizedBlock), pool.registeredBlock);
 
 export const syncEventsThunk = createAsyncThunk<
-  bigint,
+  SyncEventsResult,
   SyncEventsThunkParams,
   { state: RootState; }
 >("sync/events", async ({ syncService, dataService }, { getState, dispatch }) => {
   const state = getState();
-  const myPools = activePoolsSelector(state);
+  const myPools = [...activePoolsSelector(state).values()];
   const storedDeposits = depositsSelector(state);
   const latestStoredBlock = new Map<Address, bigint>();
 
@@ -67,7 +78,7 @@ export const syncEventsThunk = createAsyncThunk<
   }
 
   const { chainId } = instanceRegistryInfoSelector(state);
-  const [head, chainFinalizedBlock] = myPools.size > 0
+  const [head, chainFinalizedBlock] = myPools.length > 0
     ? await Promise.all([dataService.getBlockNumber(), dataService.getFinalizedBlockNumber()])
     : [0n, 0n];
   // A load-balanced RPC can answer from a node ahead of the head.
@@ -78,7 +89,7 @@ export const syncEventsThunk = createAsyncThunk<
 
     // Never replace saved events with a scan that has not reached their blocks.
     if (events.toBlock < fromBlock || events.toBlock < (latestStoredBlock.get(pool.address) ?? 0n)) {
-      throw new Error('Pool log scan is behind the saved cursor');
+      throw new PoolScanBehindError('Pool log scan is behind the saved cursor');
     }
 
     const stored = storedDeposits.get(pool.address) ?? new Map<Commitment, IDepositEvent>();
@@ -115,7 +126,7 @@ export const syncEventsThunk = createAsyncThunk<
   // chain at the scanned head; a mismatch retries without the external provider,
   // then replays the pool from deployment, in case its stored deposits are bad.
   const results = await Promise.allSettled(
-    Array.from(myPools.values()).map(async (pool) => {
+    myPools.map(async (pool) => {
       const saved = pool.finalizedBlock ?? pool.lastSyncedBlock;
       const resetScan = async (chainOnly: boolean): Promise<PoolScan> => ({
         fromBlock: await syncService.getPoolDeploymentBlock({ chainId, address: pool.address }),
@@ -154,13 +165,14 @@ export const syncEventsThunk = createAsyncThunk<
   // Start from the current global block so a run that syncs no pools never
   // regresses the value used for registry-level (relayer) syncing.
   let maxBlock = selectLastSyncedBlock(state);
-  const verificationErrors: PoolVerificationError[] = [];
+  const failures: IPoolSyncFailure[] = [];
 
-  results.forEach((result) => {
+  results.forEach((result, index) => {
     if (result.status === "rejected") {
       console.warn('Failed to sync pool events', result.reason);
 
-      if (result.reason instanceof PoolVerificationError) verificationErrors.push(result.reason);
+      // A lagging node keeps the pool's saved events and cursor as they were.
+      if (!(result.reason instanceof PoolScanBehindError)) failures.push(poolSyncFailure(myPools[index]!.address, result.reason));
 
       return;
     }
@@ -182,12 +194,7 @@ export const syncEventsThunk = createAsyncThunk<
     }
   });
 
-  // Keep verified pools' progress, but do not report the sync as complete when
-  // another pool still fails verification after the chain replay.
-  if (verificationErrors.length > 0) {
-    throw new Error(verificationErrors.map(({ message }) => message).join('; '));
-  }
-
-  // Return the highest block synced across all pools
-  return maxBlock;
+  // Verified pools keep their progress; the caller fails the sync if any pool failed,
+  // so a missing pool's notes are never reported as zero, nor a mismatch as done.
+  return { lastBlock: maxBlock, poolCount: myPools.length, failures };
 });

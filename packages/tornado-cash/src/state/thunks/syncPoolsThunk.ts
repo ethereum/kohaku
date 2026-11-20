@@ -8,6 +8,7 @@ import { RootState } from '../store';
 import { IDataService } from '../../data/interfaces/data.service.interface';
 import { ISyncService } from '../../data/interfaces/sync.service.interface';
 import { instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
+import { IPoolSyncFailure, poolSyncFailure } from '../pool-sync-error';
 
 export interface SyncPoolsThunkParams {
   dataService: IDataService;
@@ -16,7 +17,8 @@ export interface SyncPoolsThunkParams {
   instances?: readonly ITornadoInstance[];
 }
 
-export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { state: RootState }>(
+/** Resolves with the pools whose metadata could not be fetched; they are left unregistered. */
+export const syncPoolsThunk = createAsyncThunk<IPoolSyncFailure[], SyncPoolsThunkParams, { state: RootState }>(
   'sync/pools',
   async ({
     dataService,
@@ -81,12 +83,9 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
       })
     );
     const fetchedPools = unsyncedPoolsData.filter((p) => p.status === 'fulfilled');
-
-    if (fetchedPools.length < unsyncedPools.length) {
-      const failedFetches = unsyncedPoolsData.filter((p) => p.status === 'rejected');
-
-      console.warn('Failed to fetch some pools information', failedFetches.map((p) => p.reason))
-    }
+    const failures = unsyncedPoolsData.flatMap((p, index) => (
+      p.status === 'rejected' ? [poolSyncFailure(unsyncedPools[index]!, p.reason)] : []
+    ));
 
     const pools: IPool[] = fetchedPools
     .map(({
@@ -122,5 +121,7 @@ export const syncPoolsThunk = createAsyncThunk<void, SyncPoolsThunkParams, { sta
     });
 
     dispatch(registerPools(pools));
+
+    return failures;
   }
 );
