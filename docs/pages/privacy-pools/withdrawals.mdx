@@ -219,7 +219,7 @@ const operation = await pools.prepareUnshield(asset, recipient, {
 })
 ```
 
-With `batch: true`, the paymaster fee is priced for the notes the gross spends. Each note after the first adds an execution-phase withdrawal and its gas, and the gross grows with the fee. The SDK reprices until the gross spends exactly the notes its fee covers: a `requestedNet` that one note holds, but not together with its fee, is withdrawn from two notes and priced for both. With `obfuscateAmounts`, the random split that was priced is the one withdrawn.
+With `batch: true`, the paymaster fee is priced for the notes the gross spends. Each note after the first adds an execution-phase withdrawal and its gas, and the gross grows with the fee. The SDK reprices until the gross spends exactly the notes its fee covers: a `requestedNet` that one note holds, but not together with its fee, is withdrawn from two notes and priced for both. With `obfuscateAmounts`, the random split that was priced is the one withdrawn. A SimpleAccount sender that is not deployed yet also has its deployment gas priced.
 
 Send the refund to `payer` and the recipient nets `requestedNet`. Send the refund to `recipient` and they receive at least `requestedNet`. In that case `operation.exact.expectedNet` is a lower bound.
 

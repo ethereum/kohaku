@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { E_ADDRESS } from '../../src/config';
 import type { Address } from '../../src/interfaces/types.interface';
+import { executionGasBaseline } from '../../src/account/execution-account';
+import type { ExecutionAccountConfig } from '../../src/interfaces/user-ops.interface';
 import { computeMinimumViableFee, paymasterBaselineGas } from '../../src/paymaster/fee';
 import { storeStateManager, type StoreFactoryParams } from '../../src/state/state-manager';
 
@@ -58,7 +60,11 @@ vi.mock('../../src/paymaster/gas-bounds', async original => ({
 
 const ETH = BigInt(E_ADDRESS) as Address;
 /** The fee the withdrawal builder charges for an ETH withdrawal spending `noteCount` notes. */
-const builtFee = (noteCount: number) => computeMinimumViableFee(paymasterBaselineGas(false, noteCount, false), PRICE.maxFeePerGas);
+const builtFee = (noteCount: number, account: ExecutionAccountConfig = { kind: 'eip7702' }) =>
+  computeMinimumViableFee(executionGasBaseline(account, paymasterBaselineGas(false, noteCount, false)), PRICE.maxFeePerGas);
+
+const SIMPLE_ACCOUNT = '0x00000000000000000000000000000000000000a5';
+const FACTORY = { address: '0x00000000000000000000000000000000000000fa' as const, salt: 1n };
 
 const manager = (accountCode = '0x') => storeStateManager({
   entrypoint: { address: 900n, deploymentBlock: 0n },
@@ -137,5 +143,15 @@ describe('exact-output paymaster sizing', () => {
     expect(prepared.notesToSpend).toHaveLength(1);
     expect(grossAmount).toBe(requestedNet + builtFee(1));
     expect(prepared.amount).toBe(grossAmount);
+  });
+
+  it('prices the deployment of a SimpleAccount that is not deployed yet', async () => {
+    const delegation = { mode: 'smart-account', owner: SIMPLE_ACCOUNT, account: { kind: 'simple-account', address: SIMPLE_ACCOUNT, factory: FACTORY } };
+    const account = { kind: 'simple-account', address: SIMPLE_ACCOUNT, factory: FACTORY } as const;
+
+    expect(builtFee(1, account)).toBeGreaterThan(builtFee(1));
+    expect((await exact(ONE_ETH / 2n, { delegation }, '0x')).grossAmount).toBe(ONE_ETH / 2n + builtFee(1, account));
+    // Once deployed, the factory is not used and costs nothing.
+    expect((await exact(ONE_ETH / 2n, { delegation }, '0x6000')).grossAmount).toBe(ONE_ETH / 2n + builtFee(1));
   });
 });

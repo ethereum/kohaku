@@ -10,7 +10,8 @@ import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
-import type { UserOpGasLimits } from "../interfaces/user-ops.interface";
+import type { DelegationConfig, ExecutionAccountConfig, UserOpGasLimits } from "../interfaces/user-ops.interface";
+import { executionAccount, executionGasBaseline } from "../account/execution-account";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
@@ -258,6 +259,20 @@ export const storeStateManager = (
     if (planned) return planned.length;
 
     return batch ? getNotesToSpendSelector(store.getState(), asset, amount).length : 1;
+  };
+
+  /**
+   * The execution account whose gas baseline the withdrawal builder will use: a
+   * SimpleAccount that is not deployed yet pays for its deployment in verification gas.
+   */
+  const builtExecutionAccount = async (delegation?: DelegationConfig): Promise<ExecutionAccountConfig> => {
+    const account = executionAccount(delegation);
+
+    if (account.kind !== 'simple-account' || !account.factory) return account;
+
+    const code = await params.provider?.request({ method: 'eth_getCode', params: [account.address, 'latest'] });
+
+    return typeof code === 'string' && code !== '0x' ? { ...account, factory: undefined } : account;
   };
 
   const chainPaymasterConfig = (chainInfo: GetChainStoreParams) => {
@@ -588,12 +603,15 @@ export const storeStateManager = (
       };
     },
     getExactPaymasterWithdrawalPayloads: async ({ requestedNet, ...request }: IExactPaymasterWithdrawalParams): Promise<ExactPaymasterWithdrawal> => {
-      const { asset, batch = false, obfuscateAmounts = false, label, tailCalls, tailCallsGasEstimate, maxGasLimits } = request;
+      const { asset, batch = false, obfuscateAmounts = false, label, delegation, tailCalls, tailCallsGasEstimate, maxGasLimits } = request;
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
       const paymasterConfig = chainPaymasterConfig(chainInfo);
       const isERC20 = asset !== BigInt(E_ADDRESS);
-      const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
+      const [quote, account] = await Promise.all([
+        paymasterFeeQuoter(chainInfo, asset, maxGasLimits),
+        builtExecutionAccount(delegation),
+      ]);
       // One plan per amount, made outside Redux so planning errors reach the caller
       // intact: a random split may spend a different number of notes each time, so
       // the plan priced for the final gross is the one prepared.
@@ -606,7 +624,7 @@ export const storeStateManager = (
       const { grossAmount } = await sizeExactPaymasterWithdrawal({
         requestedNet,
         notesFor: (amount) => paymasterNoteCount(store, asset, amount, batch, planFor(amount)),
-        feeFor: async (noteCount) => (await quote(paymasterBaselineGas(isERC20, noteCount, tailCalls != null, tailCallsGasEstimate))).fee,
+        feeFor: async (noteCount) => (await quote(executionGasBaseline(account, paymasterBaselineGas(isERC20, noteCount, tailCalls != null, tailCallsGasEstimate)))).fee,
       });
       const payloads = await preparePaymasterWithdrawal(store, paymasterConfig, request, grossAmount, planFor(grossAmount));
 
