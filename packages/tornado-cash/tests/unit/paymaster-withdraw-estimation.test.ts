@@ -9,6 +9,9 @@ import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdraw
 import type { DelegationConfig, DelegatorAccount } from '../../src/account/delegation.interface';
 import { DUMMY_SIGNATURE, verifierForwarder } from '../../src/paymaster/simulation';
 
+/** The bundler's answer when the execution phase runs out of gas (ERC-7769 `-32521`). */
+const executionOutOfGas = () => new RpcRequestError({ url: 'unused', body: {}, error: { code: -32521, message: 'Execution out of gas' } });
+
 const fixture = vi.hoisted(() => ({
   isERC20: false,
   chainId: 11155111n,
@@ -743,7 +746,7 @@ describe('execution account routes', () => {
 
  seen.push(gas);
 
-      if (gas < required) throw new Error('Execution out of gas');
+      if (gas < required) throw executionOutOfGas();
 
       return { ...base, callGasLimit: required };
     });
@@ -762,7 +765,7 @@ describe('execution account routes', () => {
   });
 
   it.each([undefined, false])('does not treat a ceiling as retry opt-in (executionGasRetry=%s)', async executionGasRetry => {
-    fixture.estimate.mockRejectedValue(new Error('Execution out of gas'));
+    fixture.estimate.mockRejectedValue(executionOutOfGas());
     await expect(prepare({ mode: 'smart-account', allowUsed: true, signer: owner, account: { kind: 'simple-account', address: accountAddress } }, {
       executionGasRetry, maxGasLimits: { callGasLimit: 8_000_000n }, tailCalls: async () => [],
     })).rejects.toMatchObject({ message: expect.stringContaining('preparation stopped') });
