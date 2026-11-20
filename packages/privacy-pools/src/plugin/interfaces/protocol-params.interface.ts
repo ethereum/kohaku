@@ -172,6 +172,12 @@ export interface PPv1EstimateUnshieldOptions {
   /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
   maxGasLimits?: PaymasterGasLimits;
   mode?: 'relayer' | 'paymaster';
+  /**
+   * Paymaster mode: price a withdrawal that spends as many notes as the amount
+   * needs, as `prepareUnshield` with `batch: true` does. Each note after the first
+   * adds an execution-phase withdrawal, so the fee is higher than a single note's.
+   */
+  batch?: boolean;
   tailCalls?: UnshieldOptions['tailCalls'];
   tailCallsGasEstimate?: bigint;
 }
@@ -306,6 +312,23 @@ export interface IEstimateUnshieldOperationParams extends IDepositOperationParam
   /** Whether the withdrawal carries tail calls (they add an execution phase to the paymaster userOp). */
   hasTailCalls?: boolean;
   tailCallsGasEstimate?: bigint;
+  /** Paymaster mode: price the notes a batch withdrawal of `amount` spends. */
+  batch?: boolean;
+}
+
+export interface IExactPaymasterAmountParams extends Pick<IEstimateUnshieldOperationParams, 'hasTailCalls' | 'tailCallsGasEstimate' | 'maxGasLimits' | 'batch'> {
+  asset: Address;
+  /** What the recipient must receive after the paymaster fee. */
+  requestedNet: bigint;
+  obfuscateAmounts?: boolean;
+  label?: bigint;
+}
+
+/** The gross an exact-output paymaster withdrawal spends, its fee, and the notes priced. */
+export interface ExactPaymasterAmount {
+  grossAmount: bigint;
+  fee: bigint;
+  noteCount: number;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
@@ -444,6 +467,11 @@ export interface IStateManager {
    * signed commitment). The returned payload carries no `feeCommitment`.
    */
   getExactWithdrawalPayloads: (params: IExactWithdrawalOperationParams) => Promise<StateExactWithdrawalPayload>;
+  /**
+   * Sizes an exact-output paymaster withdrawal: the gross whose paymaster fee,
+   * priced for the notes that gross spends, leaves exactly `requestedNet`.
+   */
+  getExactPaymasterAmount: (params: IExactPaymasterAmountParams) => Promise<ExactPaymasterAmount>;
   /**
    * Generates paymaster-sponsored withdrawal payloads (fully built + signed userOps)
    * for the specified amount. No relayer is involved.

@@ -96,3 +96,36 @@ export function sizeExactRelayerWithdrawal(params: {
 
   return { grossAmount: grossForNet(requestedNet, feeBPS), feeBPS };
 }
+
+/** Most rounds `sizeExactPaymasterWithdrawal` takes; each one spends at least one more note. */
+const MAX_EXACT_PAYMASTER_ROUNDS = 16;
+
+/**
+ * Sizes an exact-output paymaster withdrawal: the gross whose fee leaves exactly
+ * `requestedNet`. The fee depends on how many notes the gross spends (each note
+ * after the first adds an execution-phase withdrawal), and the gross depends on
+ * the fee, so it repeats `gross = requestedNet + feeFor(notesFor(gross))` until the
+ * gross spends no more notes than the fee was priced for. The note count only
+ * grows and is bounded by the notes held, so this converges in a few rounds.
+ */
+export async function sizeExactPaymasterWithdrawal({ requestedNet, notesFor, feeFor }: {
+  requestedNet: bigint;
+  /** How many notes withdrawing `amount` spends. */
+  notesFor: (amount: bigint) => number;
+  /** The paymaster fee for a withdrawal spending `noteCount` notes. */
+  feeFor: (noteCount: number) => Promise<bigint>;
+}): Promise<{ grossAmount: bigint; fee: bigint; noteCount: number }> {
+  let noteCount = notesFor(requestedNet);
+
+  for (let round = 0; round < MAX_EXACT_PAYMASTER_ROUNDS; round++) {
+    const fee = await feeFor(noteCount);
+    const grossAmount = requestedNet + fee;
+    const grossNoteCount = notesFor(grossAmount);
+
+    if (grossNoteCount <= noteCount) return { grossAmount, fee, noteCount };
+
+    noteCount = grossNoteCount;
+  }
+
+  throw new Error('Exact-output paymaster sizing did not converge');
+}

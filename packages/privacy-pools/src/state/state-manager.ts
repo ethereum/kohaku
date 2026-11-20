@@ -1,5 +1,5 @@
 import type { EthereumProvider } from '@kohaku-eth/provider';
-import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference } from '../paymaster/gas-bounds';
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from '../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import { Network, Storage } from "@kohaku-eth/plugins";
@@ -10,11 +10,14 @@ import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
+import type { UserOpGasLimits } from "../interfaces/user-ops.interface";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
   IEntrypoint,
+  ExactPaymasterAmount,
   IEstimateUnshieldOperationParams,
+  IExactPaymasterAmountParams,
   IGetHistoryParams,
   IGetNotesParams,
   INote,
@@ -35,11 +38,11 @@ import {
   StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
-import { computeMinimumViableFee, reasonableGasUnits, tailCallsGas } from "../paymaster/fee";
+import { computeMinimumViableFee, paymasterBaselineGas } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
 import { encodeRelayData } from "../utils/encoding.utils";
-import { deductFeeBPS, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
+import { deductFeeBPS, sizeExactPaymasterWithdrawal, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
   allNotesSelector,
@@ -60,7 +63,7 @@ import {
   SpecificAssetBalanceFn,
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
-import { getNoteSelector, NoteToSpend } from "./selectors/notes.selector";
+import { getNoteSelector, getNotesToSpendSelector, NoteToSpend } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
 import {
   ChainEntry,
@@ -243,6 +246,51 @@ export const storeStateManager = (
     return notes;
   };
 
+  /** How many notes a paymaster withdrawal of `amount` spends, selected as paymasterWithdrawThunk selects them. */
+  const paymasterNoteCount = (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    asset: Address, amount: bigint,
+    options: { batch?: boolean; obfuscateAmounts?: boolean; label?: bigint },
+  ): number => {
+    const planned = planWithdrawal(store, asset, amount, options);
+
+    if (planned) return planned.length;
+
+    return options.batch ? getNotesToSpendSelector(store.getState(), asset, amount).length : 1;
+  };
+
+  /**
+   * Prices paymaster withdrawals of `asset` at the bundler's current gas price: the
+   * returned function gives the fee for a gas baseline, in the pool asset.
+   */
+  const paymasterFeeQuoter = async (chainInfo: GetChainStoreParams, asset: Address, maxGasLimits?: PaymasterGasLimits) => {
+    const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+
+    if (!paymasterConfig) {
+      throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
+    }
+
+    const { bundlerUrl, paymasterAddress } = paymasterConfig;
+    const isERC20 = asset !== BigInt(E_ADDRESS);
+    const [{ standard: price }, reference] = await Promise.all([
+      getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
+      readGasFeeReference(params.provider),
+    ]);
+
+    assertGasPriceWithinBounds(price, reference);
+    const { maxFeePerGas } = price;
+
+    return async (gas: UserOpGasLimits) => {
+      assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
+      const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
+      const fee = isERC20
+        ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
+        : gasFeeWei;
+
+      return { fee, gasFeeWei, maxFeePerGas };
+    };
+  };
+
   const runSync = async (chainInfo: GetChainStoreParams, skipAsp: boolean): Promise<void> => {
     const store = await getChainStore(chainInfo);
     const chainEntry = await getChainEntry(chainInfo);
@@ -300,36 +348,17 @@ export const storeStateManager = (
       hasTailCalls = false,
       tailCallsGasEstimate,
       maxGasLimits,
+      batch = false,
     }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
       const chainInfo = await getChainInfo();
 
       if (mode === 'paymaster') {
-        const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
-
-        if (!paymasterConfig) {
-          throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
-        }
-
-        const { bundlerUrl, paymasterAddress } = paymasterConfig;
         const isERC20 = asset !== BigInt(E_ADDRESS);
-        const [{ standard: price }, reference] = await Promise.all([
-          getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
-          readGasFeeReference(params.provider),
-        ]);
-
-        assertGasPriceWithinBounds(price, reference);
-        const { maxFeePerGas } = price;
-        // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
-        const gas = {
-          ...reasonableGasUnits(isERC20),
-          callGasLimit: hasTailCalls ? tailCallsGas(tailCallsGasEstimate) : 0n,
-        };
-
-        assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
-        const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
-        const fee = isERC20
-          ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
-          : gasFeeWei;
+        const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
+        // A batch spends as many notes as the amount needs, each after the first in
+        // the execution phase; price the same notes the withdrawal would spend.
+        const noteCount = batch ? paymasterNoteCount(await getChainStore(chainInfo), asset, amount, { batch }) : 1;
+        const { fee, gasFeeWei, maxFeePerGas } = await quote(paymasterBaselineGas(isERC20, noteCount, hasTailCalls, tailCallsGasEstimate));
 
         return { mode, fee, netAmount: amount - fee, gasFeeWei, maxFeePerGas };
       }
@@ -520,6 +549,27 @@ export const storeStateManager = (
         },
         exact: { grossAmount, requestedNet, expectedNet: net, fee },
       };
+    },
+    getExactPaymasterAmount: async ({
+      asset,
+      requestedNet,
+      batch = false,
+      obfuscateAmounts = false,
+      label,
+      hasTailCalls = false,
+      tailCallsGasEstimate,
+      maxGasLimits,
+    }: IExactPaymasterAmountParams): Promise<ExactPaymasterAmount> => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+      const isERC20 = asset !== BigInt(E_ADDRESS);
+      const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
+
+      return sizeExactPaymasterWithdrawal({
+        requestedNet,
+        notesFor: (amount) => paymasterNoteCount(store, asset, amount, { batch, obfuscateAmounts, label }),
+        feeFor: async (noteCount) => (await quote(paymasterBaselineGas(isERC20, noteCount, hasTailCalls, tailCallsGasEstimate))).fee,
+      });
     },
     getPaymasterWithdrawalPayloads: async ({
       asset,

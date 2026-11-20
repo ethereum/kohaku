@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch, TAIL_CALLS_DEFAULT_GAS } from '../../src/paymaster/fee';
+import { computeMinimumViableFee, paymasterBaselineGas, reasonableGasUnits, reasonableGasUnitsForBatch, TAIL_CALLS_DEFAULT_GAS } from '../../src/paymaster/fee';
 
 describe('paymaster fee math', () => {
   describe('reasonableGasUnits', () => {
@@ -65,5 +65,20 @@ describe('paymaster fee math', () => {
       expect(reasonableGasUnitsForBatch(false, 1, true).callGasLimit).toBe(500_000n + TAIL_CALLS_DEFAULT_GAS);
       expect(reasonableGasUnitsForBatch(false, 1, true, 123_456n).callGasLimit).toBe(500_000n + 123_456n);
     });
+  });
+});
+
+describe('paymasterBaselineGas', () => {
+  it.each([false, true])('has no execution phase for one note without tail calls, ERC20=%s', isERC20 => {
+    expect(paymasterBaselineGas(isERC20, 1, false)).toEqual({ ...reasonableGasUnits(isERC20), callGasLimit: 0n });
+  });
+
+  it('budgets tail calls on a single note', () => {
+    expect(paymasterBaselineGas(false, 1, true, 123_456n)).toEqual(reasonableGasUnitsForBatch(false, 0, true, 123_456n));
+  });
+
+  it.each([[2, false], [3, true]])('adds an execution-phase withdrawal for each note after the first (%s notes, ERC20=%s)', (noteCount, isERC20) => {
+    expect(paymasterBaselineGas(isERC20, noteCount, false)).toEqual(reasonableGasUnitsForBatch(isERC20, noteCount - 1, false));
+    expect(paymasterBaselineGas(isERC20, noteCount, false).callGasLimit).toBeGreaterThan(paymasterBaselineGas(isERC20, noteCount - 1, false).callGasLimit);
   });
 });

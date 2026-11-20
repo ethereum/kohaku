@@ -15,6 +15,7 @@ function setup() {
   const manager = {
     sync: vi.fn(async () => {}),
     getUnshieldEstimate: vi.fn(async () => ({ mode: 'paymaster', fee: 10n })),
+    getExactPaymasterAmount: vi.fn(async ({ requestedNet }: { requestedNet: bigint }) => ({ grossAmount: requestedNet + 10n, fee: 10n, noteCount: 1 })),
     getPaymasterWithdrawalPayloads: vi.fn(async () => [{ mode: 'paymaster', fee: 10n }]),
   };
   const protocol = new PrivacyPoolsV1Protocol(host, {

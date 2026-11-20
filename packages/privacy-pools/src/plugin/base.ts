@@ -243,6 +243,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       hasTailCalls: !!options?.tailCalls,
       tailCallsGasEstimate: options?.tailCallsGasEstimate,
       maxGasLimits: options?.maxGasLimits,
+      batch: options?.batch,
     });
   }
 
@@ -408,8 +409,19 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       );
     }
 
-    const estimate = await this.estimateUnshield(assets, to, options);
-    const grossAmount = requestedNet + estimate.fee;
+    // Sized against the notes the gross will spend, so sync first.
+    await this.stateManager.sync();
+
+    const { grossAmount } = await this.stateManager.getExactPaymasterAmount({
+      asset: this.unshieldAssetAddress(assets),
+      requestedNet,
+      batch: options.batch,
+      obfuscateAmounts: options.obfuscateAmounts,
+      label: options.label,
+      hasTailCalls: !!options.tailCalls,
+      tailCallsGasEstimate: options.tailCallsGasEstimate,
+      maxGasLimits: options.maxGasLimits,
+    });
     const operation = await this.buildUnshield(assets, grossAmount, to, options);
     const { expectedNet, fee } = resolveExactOutput(operation, grossAmount);
 

@@ -58,6 +58,8 @@ function setup() {
 
   vi.spyOn(stateManager, 'sync').mockResolvedValue();
   vi.spyOn(stateManager, 'getUnshieldEstimate').mockResolvedValue({ mode: 'paymaster', fee: 10n, netAmount: 100n, gasFeeWei: 10n, maxFeePerGas: 1n });
+  // A fixed fee of 10, as the exact-output sizing would quote it for these notes.
+  vi.spyOn(stateManager, 'getExactPaymasterAmount').mockImplementation(async ({ requestedNet }) => ({ grossAmount: requestedNet + 10n, fee: 10n, noteCount: 1 }));
 
   return new PrivacyPoolsV1Protocol(createMockHost(), {
     entrypoint: { address: 1n, deploymentBlock: 0n },
