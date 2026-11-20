@@ -27,6 +27,8 @@ jobs:
           run: pnpm --filter @kohaku-eth/privacy-pools test:unit
         - name: Run Tornado Cash unit tests
           run: pnpm --filter @kohaku-eth/tornado-cash test:unit
+        - name: Run Tacit unit tests
+          run: pnpm --filter @kohaku-eth/tacit test:unit
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true

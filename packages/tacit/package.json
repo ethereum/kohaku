@@ -1,0 +1,64 @@
+{
+  "name": "@kohaku-eth/tacit",
+  "version": "0.0.0",
+  "description": "Tacit EVM Shielded Pool Kohaku Plugin",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum/kohaku.git",
+    "directory": "packages/tacit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p ./tsconfig.json",
+    "build": "echo Building @kohaku-eth/tacit && tsup --config tsup.config.ts",
+    "dev": "tsup --config tsup.config.ts --watch",
+    "test": "vitest run --project=unit",
+    "test:unit": "vitest run --project=unit",
+    "test:e2e": "vitest run --project=e2e",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
+    "poseidon-lite": "^0.3.0",
+    "snarkjs": "^0.7.6",
+    "viem": "^2.51.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "get-port": "^7.1.0",
+    "prool": "^0.0.24",
+    "tsup": "^8.5.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.0.0"
+  }
+}

@@ -15,6 +15,7 @@ packages:
   - "packages/privacy-pools"
   - "packages/plugins"
   - "packages/tornado-cash"
+  - "packages/tacit"
   - "packages/mimc-tree"
   - "packages/poseidon"
   - "packages/poseidon-lean-imt"
