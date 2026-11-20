@@ -25,6 +25,7 @@ beforeAll(async () => {
   const userOperation = await buildSignedTornadoUserOp({
     signer,
     chainId: CHAIN_ID,
+    entryPointAddress: entryPoint08Address,
     paymasterAddress: ADDRESS,
     paymasterData: '0x1234',
     gas: {

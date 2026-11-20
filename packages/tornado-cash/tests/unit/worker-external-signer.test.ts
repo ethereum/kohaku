@@ -32,7 +32,7 @@ describe('external signer delivery through the worker API', () => {
   it('reconstructs a signer from cloneable options and separate callbacks over real message ports', async () => {
     prepare.mockImplementation(async (full: IPaymasterWithdrawParams) => {
       if (full.delegation?.mode !== 'external') throw new Error('Expected external signer');
-      const operation = await buildSignedTornadoUserOp({ signer: full.delegation.signer, chainId: 1, paymasterAddress, paymasterData: '0x',
+      const operation = await buildSignedTornadoUserOp({ signer: full.delegation.signer, chainId: 1, entryPointAddress: entryPoint08Address, paymasterAddress, paymasterData: '0x',
         gas: { callGasLimit: 100_000n, verificationGasLimit: 100_000n, preVerificationGas: 100_000n, paymasterVerificationGasLimit: 100_000n, paymasterPostOpGasLimit: 100_000n },
         maxFeePerGas: 2n, maxPriorityFeePerGas: 1n });
       return [{ mode: 'paymaster', userOperation: operation }];
@@ -46,6 +46,27 @@ describe('external signer delivery through the worker API', () => {
     const full = prepare.mock.calls[0]![0] as IPaymasterWithdrawParams;
     if (full.delegation?.mode !== 'external') throw new Error('Expected external signer');
     await expect(full.delegation.signer.signAuthorization({ address: paymasterAddress, chainId: 1, nonce: 0 })).rejects.toThrow('released');
+    remote[releaseProxy]();
+  });
+  it('signs for a configured custom EntryPoint within the signer scope', async () => {
+    const entryPointAddress = `0x${'43'.repeat(20)}` as const;
+
+    prepare.mockImplementation(async (full: IPaymasterWithdrawParams) => {
+      if (full.delegation?.mode !== 'external') throw new Error('Expected external signer');
+
+      const operation = await buildSignedTornadoUserOp({ signer: full.delegation.signer, chainId: 1, entryPointAddress, paymasterAddress, paymasterData: '0x',
+        gas: { callGasLimit: 100_000n, verificationGasLimit: 100_000n, preVerificationGas: 100_000n, paymasterVerificationGasLimit: 100_000n, paymasterPostOpGasLimit: 100_000n },
+        maxFeePerGas: 2n, maxPriorityFeePerGas: 1n });
+
+      return [{ mode: 'paymaster', userOperation: operation }];
+    });
+    const signTypedData = vi.fn(account.signTypedData);
+    const hostSigner = exposeOnly({ ...account, signTypedData }, externalSignerPolicy({ address: account.address, chainId: 1, nonce: 0n, entryPointAddress, paymasterAddress }));
+    const remote = remoteWorker();
+
+    await remote.getWithdrawalPayloads(params, undefined, undefined, hostSigner);
+    expect(signTypedData).toHaveBeenCalledOnce();
+    expect(signTypedData.mock.calls[0]![0].domain!.verifyingContract).toBe(entryPointAddress);
     remote[releaseProxy]();
   });
   it('fails closed if external signing callbacks are missing', async () => {
@@ -63,7 +84,7 @@ it('carries a smart account and exposes only its owner typed-data signing capabi
     expect(full.maxGasLimits).toEqual({ callGasLimit: 8_000_000n });
     const { externalAccountSigner } = await import('../../src/account/execution-account');
     const operation = await buildSignedTornadoUserOp({ signer: externalAccountSigner(full.delegation), executionAccount: full.delegation.account,
-      nonce: full.delegation.nonce, chainId: 1, paymasterAddress, paymasterData: '0x',
+      nonce: full.delegation.nonce, chainId: 1, entryPointAddress: entryPoint08Address, paymasterAddress, paymasterData: '0x',
       gas: { callGasLimit: 0n, verificationGasLimit: 100_000n, preVerificationGas: 100_000n, paymasterVerificationGasLimit: 100_000n, paymasterPostOpGasLimit: 100_000n },
       maxFeePerGas: 2n, maxPriorityFeePerGas: 1n });
     return [{ mode: 'paymaster', userOperation: operation }];

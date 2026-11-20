@@ -54,6 +54,8 @@ export interface BuildSignedTornadoUserOpParams {
   signer: DelegatorAccount;
   executionAccount?: ExecutionAccountConfig;
   chainId: number;
+  /** EntryPoint the userOp is sent to; its address is part of the signed EIP-712 domain. */
+  entryPointAddress: `0x${string}`;
   paymasterAddress: Address;
   paymasterData: Hex;
   gas: UserOpGasLimits;
