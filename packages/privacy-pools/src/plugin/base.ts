@@ -97,8 +97,11 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   private entrypoint: IEntrypoint;
   private relayersList: Map<string, string>;
   private relayerClient: IRelayerClient;
-  // Wallet paths the integrator named in `delegation.path`.
+  // Wallet paths the integrator named in `delegation.path`, allowed only while an
+  // unshield naming them is being prepared. Counted, so overlapping preparations
+  // on one path keep it until the last of them settles.
   private readonly delegationPaths = new Set<string>();
+  private readonly delegationGrants = new Map<string, number>();
 
   constructor(
     readonly host: Host,
@@ -411,12 +414,12 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
     // Sized against the notes the gross will spend, so sync first.
     await this.stateManager.sync();
-    this.allowDelegationPath(options);
 
-    const { payloads: [withdrawal], grossAmount } = await this.stateManager.getExactPaymasterWithdrawalPayloads({
-      ...this.paymasterWithdrawalParams(this.unshieldAssetAddress(assets), to, options),
-      requestedNet,
-    });
+    const { payloads: [withdrawal], grossAmount } = await this.withDelegationPath(this.delegationPath(options), () =>
+      this.stateManager.getExactPaymasterWithdrawalPayloads({
+        ...this.paymasterWithdrawalParams(this.unshieldAssetAddress(assets), to, options),
+        requestedNet,
+      }));
 
     if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
 
@@ -433,10 +436,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   }
 
   /** The integrator named this wallet key, so the secret manager may derive exactly it. */
-  private allowDelegationPath(options: PPv1PaymasterUnshieldOptions): void {
-    if (options.delegation?.mode === 'deterministic' && options.delegation.path) {
-      this.delegationPaths.add(options.delegation.path);
-    }
+  private delegationPath(options: PPv1PaymasterUnshieldOptions): string | undefined {
+    return options.delegation?.mode === 'deterministic' ? options.delegation.path : undefined;
   }
 
   private paymasterWithdrawalParams(asset: bigint, to: AccountId, options: PPv1PaymasterUnshieldOptions) {
@@ -462,6 +463,28 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     return BigInt(assets.asset.contract);
   }
 
+  // The delegator is derived while the payload is prepared, so the path is
+  // allowed for that call only, whether it succeeds or not.
+  private async withDelegationPath<T>(path: string | undefined, prepare: () => Promise<T>): Promise<T> {
+    if (!path) return prepare();
+
+    this.delegationGrants.set(path, (this.delegationGrants.get(path) ?? 0) + 1);
+    this.delegationPaths.add(path);
+
+    try {
+      return await prepare();
+    } finally {
+      const left = this.delegationGrants.get(path)! - 1;
+
+      if (left > 0) {
+        this.delegationGrants.set(path, left);
+      } else {
+        this.delegationGrants.delete(path);
+        this.delegationPaths.delete(path);
+      }
+    }
+  }
+
   private async buildUnshield(
     assets: AssetAmount,
     amount: bigint,
@@ -473,12 +496,10 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     await this.stateManager.sync();
 
     if (options?.mode === 'paymaster') {
-      this.allowDelegationPath(options);
-
-      const [withdrawal] = await this.stateManager.getPaymasterWithdrawalPayloads({
+      const [withdrawal] = await this.withDelegationPath(this.delegationPath(options), () => this.stateManager.getPaymasterWithdrawalPayloads({
         ...this.paymasterWithdrawalParams(assetAddress, to, options),
         amount,
-      });
+      }));
 
       if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
 

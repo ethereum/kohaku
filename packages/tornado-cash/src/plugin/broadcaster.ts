@@ -6,6 +6,7 @@ import { TCBroadcaster, TCBroadcasterParameters, TCPaymasterBroadcastResponse } 
 import { IPaymasterConfig, IRelayerWithdrawalPayload, TCPrivateOperation } from "./interfaces/protocol-params.interface";
 import { addressToHex } from "../utils";
 import { PaymasterBroadcaster } from "../paymaster/paymaster-broadcaster";
+import { rethrowWithStaleNonces } from "../paymaster/sender-nonces";
 import { IGenericPaymasterWithdrawalPayload, IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface";
 
 export interface TCRelayerConstructorParams extends TCBroadcasterParameters {
@@ -104,7 +105,8 @@ export class TornadoCashBroadcaster implements TCBroadcaster {
   private async broadcastViaPaymaster(
     withdrawal: IGenericPaymasterWithdrawalPayload,
   ): Promise<TCPaymasterBroadcastResponse> {
-    const [result] = await this.paymasterBroadcaster.broadcast([withdrawal]);
+    const [result] = await this.paymasterBroadcaster.broadcast([withdrawal])
+      .catch((error: unknown) => rethrowWithStaleNonces(this.provider, withdrawal, error));
 
     // Only reachable with a custom paymaster client that breaks its contract.
     if (!result) throw new Error('Paymaster client returned no result for the withdrawal.');

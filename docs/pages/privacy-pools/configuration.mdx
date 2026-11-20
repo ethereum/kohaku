@@ -174,7 +174,7 @@ createPPv1Plugin(host, {
 })
 ```
 
-`poolsAccountsMap` keys are lowercase pool addresses. A pool missing from the map cannot be withdrawn in paymaster mode. Relayer withdrawals ignore this table. The withdrawal options are on the [withdrawals page](/privacy-pools/withdrawals).
+`poolsAccountsMap` keys are lowercase pool addresses. A pool missing from the map cannot be withdrawn in paymaster mode. Relayer withdrawals ignore this table. `entryPointAddress` is the EntryPoint v0.8 the user operation is estimated, signed and submitted for. Another address only works with a sender built for it: the default Simple7702 implementation and SimpleAccount accept calls only from the standard EntryPoint, so a custom one also needs a matching `delegation` implementation or account. The withdrawal options are on the [withdrawals page](/privacy-pools/withdrawals).
 
 ## Sync from saga
 

@@ -15,6 +15,7 @@ import {
 const USER_OP_HASH = `0x${'aa'.repeat(32)}` as const;
 const TX_HASH = `0x${'bb'.repeat(32)}` as const;
 const SIGNATURE = `0x${'5e'.repeat(65)}` as const;
+const CUSTOM_ENTRY_POINT = `0x${'43'.repeat(20)}` as const;
 const ADDRESS = `0x${'11'.repeat(20)}` as const;
 const BUNDLER_URL = 'http://mock.bundler';
 
@@ -302,6 +303,7 @@ describe('PaymasterBroadcaster with a payload prepared before it carried `userOp
     const { userOperation, userOpHash: signedHash } = await buildSignedUserOp({
       signer: privateKeyToAccount(generatePrivateKey()),
       chainId: 11155111,
+      entryPointAddress: entryPoint08Address,
       paymasterAddress: ADDRESS,
       paymasterData: '0x1234',
       gas: {
@@ -395,12 +397,16 @@ describe('estimateUserOperationGas', () => {
 });
 
 describe('buildSignedUserOp', () => {
-  it('returns the EntryPoint v0.8 hash of the userOp, which is what the signer signed', async () => {
+  it.each([
+    ['the standard', entryPoint08Address],
+    ['a configured custom', CUSTOM_ENTRY_POINT],
+  ])('returns the v0.8 hash for %s EntryPoint, which is what the signer signed', async (_name, entryPointAddress) => {
     const signer = privateKeyToAccount(generatePrivateKey());
     const chainId = 11155111;
     const { userOperation, userOpHash } = await buildSignedUserOp({
       signer,
       chainId,
+      entryPointAddress,
       paymasterAddress: ADDRESS,
       paymasterData: '0x1234',
       gas: {
@@ -417,7 +423,7 @@ describe('buildSignedUserOp', () => {
     expect(await recoverAddress({ hash: userOpHash, signature: userOperation.signature })).toBe(signer.address);
     expect(userOpHash).toBe(getUserOperationHash({
       chainId,
-      entryPointAddress: entryPoint08Address,
+      entryPointAddress,
       entryPointVersion: '0.8',
       userOperation: {
         sender: userOperation.sender,
@@ -570,6 +576,7 @@ describe('PaymasterBroadcaster for a SimpleAccount sender', () => {
       signer: owner,
       executionAccount: { kind: 'simple-account', address: ADDRESS, ...(deploys ? { factory } : {}) },
       chainId: 11155111,
+      entryPointAddress: entryPoint08Address,
       paymasterAddress: ADDRESS,
       paymasterData: '0x1234',
       gas: { callGasLimit: 0n, verificationGasLimit: 500_000n, preVerificationGas: 60_000n, paymasterVerificationGasLimit: 900_000n, paymasterPostOpGasLimit: 50_000n },

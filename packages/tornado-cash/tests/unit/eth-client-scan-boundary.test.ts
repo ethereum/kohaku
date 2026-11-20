@@ -87,6 +87,17 @@ describe('EthClient.getLogs', () => {
     expect(result.toBlock).toBe(HEAD + 49n);
   });
 
+  it('splits a range into chunks that never repeat a block', async () => {
+    const provider = makeProvider(() => '0x');
+    const client = new EthClient(provider);
+
+    await client.getLogs({ address: '0xaa', fromBlock: 0n, toBlock: 25n, maxQuerySize: 10n });
+
+    expect(provider.getLogs.mock.calls.map(([range]) => [range.fromBlock, range.toBlock])).toEqual([
+      [0n, 9n], [10n, 19n], [20n, 25n],
+    ]);
+  });
+
   it('reports the head as the cursor for a non-empty range', async () => {
     const provider = makeProvider(() => '0x');
     const client = new EthClient(provider);

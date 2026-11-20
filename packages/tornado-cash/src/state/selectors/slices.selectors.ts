@@ -38,6 +38,8 @@ export const instanceRegistryInfoSelector = createSelector(
   (poolInfo) => deserialize(poolInfo, { ensSubdomainKey: true }) as ProtocolConfigState,
 );
 
+export const signatureNextNonceSelector = (state: RootState): number => state.signatureNonces.nextNonce;
+
 /**
  * Maps asset address to IPoolInfo
  *

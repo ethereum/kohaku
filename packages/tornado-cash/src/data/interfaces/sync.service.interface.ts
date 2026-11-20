@@ -27,14 +27,18 @@ export interface IGetEventsParams {
   fromBlock: bigint;
 }
 
-/** Alias kept for readability at pool call sites. */
-export type IGetPoolEventsParams = IGetEventsParams;
+export interface IGetPoolEventsParams extends IGetEventsParams {
+  /** Read only the chain, skipping the external sync provider. */
+  chainOnly?: boolean;
+}
 
 export interface IGetPoolEventsResult {
   Deposited: IRawDepositEvent[];
   Withdrawn: IRawWithdrawalEvent[];
   /** Highest block the returned events are synced up to. */
   toBlock: bigint;
+  /** Whether any of the events came from the external sync provider. */
+  external: boolean;
 }
 
 export interface IGetRelayerRegistryEventsResult {
@@ -49,7 +53,7 @@ export interface ISyncService {
    * Uses the external sync provider for the bulk of a large range and the chain
    * for the remaining tail; falls back to a chain-only fetch otherwise.
    */
-  getPoolEvents(params: IGetEventsParams): Promise<IGetPoolEventsResult>;
+  getPoolEvents(params: IGetPoolEventsParams): Promise<IGetPoolEventsResult>;
 
   /**
    * Fetches the relayer registry's `RelayerRegistered` events from `fromBlock`,

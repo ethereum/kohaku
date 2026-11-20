@@ -7,7 +7,7 @@ import { createSagaLogSource } from '../../src/data/saga-log-source';
 const SAGA_LAST = 1_000n;
 
 // Events the mocked stream yields; empty unless a test fills it.
-const { streamed } = vi.hoisted(() => ({ streamed: [] as { blockNumber: string }[] }));
+const { streamed } = vi.hoisted(() => ({ streamed: [] as { blockNumber: string; contractAddress: string }[] }));
 
 // saga covers its pool up to SAGA_LAST and streams `streamed`.
 vi.mock('@saga-sync/client', () => ({
@@ -70,7 +70,8 @@ describe('createSagaLogSource tail', () => {
 
 describe('createSagaLogSource window', () => {
   // A non-leaf event (no Deposited/Withdrawn topic), so nothing is synthesized.
-  const event = (blockNumber: bigint) => ({
+  const event = (blockNumber: bigint, contractAddress: string = address) => ({
+    contractAddress,
     blockNumber: String(blockNumber),
     logIndex: '0',
     topics: ['0x' + '11'.repeat(32)],
@@ -90,16 +91,34 @@ describe('createSagaLogSource window', () => {
     expect(logs.map(({ blockNumber }) => blockNumber)).toEqual([700n, 800n]);
   });
 
-  it('returns only events from fromBlock, keeping global leaf indices', async () => {
-    const deposited = (blockNumber: bigint, commitment: bigint) => ({
-      ...event(blockNumber),
-      topics: encodeEventTopics({ abi: depositedAbi, eventName: 'Deposited', args: { _depositor: address } }),
-      data: encodeAbiParameters(
-        [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
-        [commitment, 0n, 0n, 0n],
-      ),
-    });
+  const deposited = (blockNumber: bigint, commitment: bigint, contractAddress: string = address) => ({
+    ...event(blockNumber, contractAddress),
+    topics: encodeEventTopics({ abi: depositedAbi, eventName: 'Deposited', args: { _depositor: address } }),
+    data: encodeAbiParameters(
+      [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
+      [commitment, 0n, 0n, 0n],
+    ),
+  });
+  const leavesOf = (logs: TxLog[]) => logs
+    .filter(({ topics }) => topics[0] === toEventSelector('event LeafInserted(uint256 _index, uint256 _leaf, uint256 _root)'))
+    .map(({ data }) => decodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }], data as `0x${string}`));
 
+  it('counts and returns only the requested contract\'s events', async () => {
+    // Another pool in the same protocol stream, whose deposit decodes the same way.
+    const other = '0x0000000000000000000000000000000000002000';
+
+    streamed.splice(0, streamed.length, deposited(100n, 11n), deposited(110n, 99n, other), deposited(200n, 22n));
+
+    const { getLogs } = await source();
+    const logs = await getLogs({ address, fromBlock: 0n, toBlock: 900n });
+
+    streamed.length = 0;
+
+    expect(logs.some(({ blockNumber }) => blockNumber === 110n)).toBe(false);
+    expect(leavesOf(logs).map(([index, leaf]) => [index, leaf])).toEqual([[1n, 11n], [2n, 22n]]);
+  });
+
+  it('returns only events from fromBlock, keeping global leaf indices', async () => {
     // Already synced up to 150: re-sending 100 would e.g. roll a later RootUpdated back.
     streamed.splice(0, streamed.length, deposited(100n, 11n), event(120n), deposited(200n, 22n));
 
@@ -108,11 +127,7 @@ describe('createSagaLogSource window', () => {
 
     streamed.length = 0;
 
-    const leaves = logs
-      .filter(({ topics }) => topics[0] === toEventSelector('event LeafInserted(uint256 _index, uint256 _leaf, uint256 _root)'))
-      .map(({ data }) => decodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }], data as `0x${string}`));
-
     expect(logs.every(({ blockNumber }) => blockNumber === 200n)).toBe(true);
-    expect(leaves).toEqual([[2n, 22n, 0n]]);
+    expect(leavesOf(logs)).toEqual([[2n, 22n, 0n]]);
   });
 });

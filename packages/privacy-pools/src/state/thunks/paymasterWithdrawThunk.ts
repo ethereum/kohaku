@@ -318,6 +318,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
         signer,
         executionAccount: accountConfig,
         chainId: Number(chainId),
+        entryPointAddress,
         paymasterAddress,
         paymasterData,
         gas,

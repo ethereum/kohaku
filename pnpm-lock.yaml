@@ -275,8 +275,8 @@ importers:
         specifier: ^2.11.2
         version: 2.12.0(react@19.3.1)
       '@saga-sync/client':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.0
+        version: 0.4.0
       maci-crypto:
         specifier: 2.5.0
         version: 2.5.0
@@ -3153,8 +3153,8 @@ packages:
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
-  '@saga-sync/client@0.3.0':
-    resolution: {integrity: sha512-quYuCqcPMnYHB8kWRhcyJnbGnC89gPq8dlFemZX0xsKD/+HHFG+2AGfrwfU/pJgjtMLd4ja2tmhJX4TbyKVv7g==}
+  '@saga-sync/client@0.4.0':
+    resolution: {integrity: sha512-1piYr9SK2aWYxBW/VjS/CvbQuuDN8JcAVyBPmYtKCINA7PVLQhVr/5s7AmnTbmjmJfFmA3rD5JtJ3Ywmhbm9Ww==}
     hasBin: true
 
   '@saga-sync/core@0.3.0':
@@ -11597,7 +11597,7 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@saga-sync/client@0.3.0':
+  '@saga-sync/client@0.4.0':
     dependencies:
       '@saga-sync/core': 0.3.0
 

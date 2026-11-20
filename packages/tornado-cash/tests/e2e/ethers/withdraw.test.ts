@@ -91,7 +91,8 @@ describe('TornadoCash Unshield E2E', () => {
     const protocolPools = Object.values(state)[0].pools.poolsTuples.map(([, p]: [unknown, Serializable<IPool>]) => p);
 
     erc20Pool = protocolPools.find((p) => BigInt(p.asset) === BigInt(erc20Address))!;
-  });
+    // Each test syncs against a new, cold fork, which is slow when other suites share the CPU.
+  }, 30_000);
 
   afterAll(async () => {
     await anvil.stop();

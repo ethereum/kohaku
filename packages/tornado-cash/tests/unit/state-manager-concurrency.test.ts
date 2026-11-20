@@ -22,7 +22,12 @@ const hooks = vi.hoisted(() => ({
 vi.mock('../../src/state/thunks/syncThunk', async () => {
   const { createAsyncThunk } = await import('@reduxjs/toolkit');
 
-  return { syncThunk: createAsyncThunk('test/sync', (_: unknown, { dispatch }) => hooks.sync(dispatch)) };
+  // Resolves with no failed pools, as a complete sync does.
+  return { syncThunk: createAsyncThunk('test/sync', async (_: unknown, { dispatch }) => {
+    await hooks.sync(dispatch);
+
+    return { failures: [], totalPools: 0 };
+  }) };
 });
 vi.mock('../../src/state/thunks/importLegacyNotesThunk', async () => {
   const { createAsyncThunk } = await import('@reduxjs/toolkit');

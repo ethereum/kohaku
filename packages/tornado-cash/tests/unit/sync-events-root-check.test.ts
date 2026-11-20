@@ -9,7 +9,7 @@ import { depositsSelector, poolsSelector } from '../../src/state/selectors/slice
 import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
-import { syncEventsThunk } from '../../src/state/thunks/syncEventsThunk';
+import { syncEventsThunk, SyncEventsResult } from '../../src/state/thunks/syncEventsThunk';
 
 // Real mainnet instances: synced pools are restricted to the instance catalog.
 const POOL_A = 0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936n as Address; // 1 ETH
@@ -59,13 +59,18 @@ async function chainWith(onchain: Map<Address, bigint[]>) {
 
   for (const [address, commitments] of onchain) roots.set(address, await rootOf(commitments));
 
+  const getPoolNextIndex = vi.fn(async (address: Address) => onchain.get(address)?.length ?? 0);
+
   return {
+    getBlockNumber: vi.fn(async () => HEAD),
+    getFinalizedBlockNumber: vi.fn(async () => HEAD),
     getPoolStateRoot: vi.fn(async (address: Address, blockNumber?: bigint) => {
       expect(blockNumber).toBe(HEAD);
 
       return roots.get(address)!;
     }),
-    getPoolNextIndex: vi.fn(async (address: Address) => onchain.get(address)?.length ?? 0),
+    getPoolNextIndex,
+    getPoolLeafCount: getPoolNextIndex,
   };
 }
 
@@ -77,6 +82,7 @@ function sourceServing(served: Map<Address, IRawDepositEvent[]>, toBlock = HEAD)
       Withdrawn: [],
       toBlock,
     })),
+    getPoolDeploymentBlock: vi.fn(async () => 10n),
   } as unknown as ISyncService;
 }
 
@@ -87,6 +93,13 @@ async function sync(
 ) {
   return store.dispatch(syncEventsThunk({ syncService, dataService: dataService as unknown as IDataService }));
 }
+
+/** The pools the sync reported as failed; the thunk itself resolves either way. */
+const failuresOf = (action: { meta: { requestStatus: string }; payload?: unknown }) => {
+  expect(action.meta.requestStatus).toBe('fulfilled');
+
+  return (action.payload as SyncEventsResult).failures;
+};
 
 const storedCommitments = (store: ReturnType<typeof makeStore>, address: Address) =>
   [...(depositsSelector(store.getState()).get(address)?.keys() ?? [])];
@@ -100,8 +113,8 @@ describe('syncEventsThunk pool root check', () => {
     const chain = await chainWith(new Map([[POOL_A, [11n, 22n, 33n]]]));
     const action = await sync(store, sourceServing(new Map([[POOL_A, [deposit(11n, 0), deposit(22n, 1), deposit(33n, 2)]]])), chain);
 
-    expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(action.payload).toBe(HEAD);
+    expect(failuresOf(action)).toEqual([]);
+    expect((action.payload as SyncEventsResult).lastBlock).toBe(HEAD);
     expect(chain.getPoolStateRoot).toHaveBeenCalledWith(POOL_A, HEAD);
     expect(storedCommitments(store, POOL_A)).toEqual([11n, 22n, 33n]);
     expect(poolsSelector(store.getState()).get(POOL_A)?.lastSyncedBlock).toBe(HEAD);
@@ -110,17 +123,17 @@ describe('syncEventsThunk pool root check', () => {
   it('completes the stored tree with the new events before checking it', async () => {
     const store = makeStore();
 
-    store.dispatch(registerPools([pool(POOL_A, 500n)]));
+    store.dispatch(registerPools([{ ...pool(POOL_A, 500n), finalizedBlock: 500n }]));
     store.dispatch(registerDeposits([{ ...deposit(11n, 0), pool: POOL_A }]));
 
     const chain = await chainWith(new Map([[POOL_A, [11n, 22n]]]));
     const action = await sync(store, sourceServing(new Map([[POOL_A, [deposit(22n, 1)]]])), chain);
 
-    expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(failuresOf(action)).toEqual([]);
     expect(storedCommitments(store, POOL_A)).toEqual([11n, 22n]);
   });
 
-  it('rejects a stream missing its newest leaves, although their root is still in the recent history', async () => {
+  it('fails a stream missing its newest leaves, although their root is still in the recent history', async () => {
     const store = makeStore();
 
     store.dispatch(registerPools([pool(POOL_A, 50n)]));
@@ -128,13 +141,12 @@ describe('syncEventsThunk pool root check', () => {
     const chain = await chainWith(new Map([[POOL_A, [11n, 22n, 33n]]]));
     const action = await sync(store, sourceServing(new Map([[POOL_A, [deposit(11n, 0), deposit(22n, 1)]]])), chain);
 
-    expect(action.meta.requestStatus).toBe('rejected');
-    expect(action.error?.message).toMatch(/root does not match/);
+    expect(failuresOf(action)).toEqual([{ pool: POOL_A, reason: expect.stringMatching(/holds 3 leaves/) }]);
     expect(storedCommitments(store, POOL_A)).toEqual([]);
     expect(poolsSelector(store.getState()).get(POOL_A)?.lastSyncedBlock).toBe(50n);
   });
 
-  it('rejects a stream with a hole in its leaf indices before any on-chain read', async () => {
+  it('fails a stream with a hole in its leaf indices before any on-chain read', async () => {
     const store = makeStore();
 
     store.dispatch(registerPools([pool(POOL_A, 50n)]));
@@ -142,26 +154,25 @@ describe('syncEventsThunk pool root check', () => {
     const chain = await chainWith(new Map([[POOL_A, [11n, 22n, 33n]]]));
     const action = await sync(store, sourceServing(new Map([[POOL_A, [deposit(11n, 0), deposit(33n, 2)]]])), chain);
 
-    expect(action.meta.requestStatus).toBe('rejected');
-    expect(action.error?.message).toMatch(/not contiguous/);
+    expect(failuresOf(action)).toEqual([{ pool: POOL_A, reason: expect.stringMatching(/not contiguous/) }]);
     expect(chain.getPoolStateRoot).not.toHaveBeenCalled();
     expect(poolsSelector(store.getState()).get(POOL_A)?.lastSyncedBlock).toBe(50n);
   });
 
-  it('rejects a forged event that reuses a stored leaf index', async () => {
+  it('fails a forged event that reuses a stored leaf index', async () => {
     const store = makeStore();
 
-    store.dispatch(registerPools([pool(POOL_A, 500n)]));
+    store.dispatch(registerPools([{ ...pool(POOL_A, 500n), finalizedBlock: 500n }]));
     store.dispatch(registerDeposits([{ ...deposit(11n, 0), pool: POOL_A }]));
 
     const chain = await chainWith(new Map([[POOL_A, [11n]]]));
     const action = await sync(store, sourceServing(new Map([[POOL_A, [deposit(99n, 0)]]])), chain);
 
-    expect(action.meta.requestStatus).toBe('rejected');
+    expect(failuresOf(action).map(({ pool }) => pool)).toEqual([POOL_A]);
     expect(storedCommitments(store, POOL_A)).toEqual([11n]);
   });
 
-  it('rejects an empty stream for a pool that holds deposits on-chain', async () => {
+  it('fails an empty stream for a pool that holds deposits on-chain', async () => {
     const store = makeStore();
 
     store.dispatch(registerPools([pool(POOL_A, 50n)]));
@@ -169,7 +180,7 @@ describe('syncEventsThunk pool root check', () => {
     const chain = await chainWith(new Map([[POOL_A, [11n]]]));
     const action = await sync(store, sourceServing(new Map()), chain);
 
-    expect(action.meta.requestStatus).toBe('rejected');
+    expect(failuresOf(action).map(({ pool }) => pool)).toEqual([POOL_A]);
     expect(chain.getPoolNextIndex).toHaveBeenCalledWith(POOL_A, HEAD);
     expect(poolsSelector(store.getState()).get(POOL_A)?.lastSyncedBlock).toBe(50n);
   });
@@ -185,7 +196,7 @@ describe('syncEventsThunk pool root check', () => {
       [POOL_B, [deposit(44n, 0)]],
     ])), chain);
 
-    expect(action.meta.requestStatus).toBe('rejected');
+    expect(failuresOf(action).map(({ pool }) => pool)).toEqual([POOL_B]);
     expect(storedCommitments(store, POOL_A)).toEqual([11n]);
     expect(poolsSelector(store.getState()).get(POOL_A)?.lastSyncedBlock).toBe(HEAD);
     expect(storedCommitments(store, POOL_B)).toEqual([]);
@@ -215,7 +226,7 @@ describe('syncEventsThunk pool root check', () => {
       [POOL_B, [deposit(44n, 0)]],
     ])), chain);
 
-    expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(failuresOf(action)).toEqual([]);
     expect(storedCommitments(store, POOL_A)).toEqual([11n]);
     expect(storedCommitments(store, POOL_B)).toEqual([44n]);
   });
@@ -223,12 +234,14 @@ describe('syncEventsThunk pool root check', () => {
   it('skips the check when the RPC is behind the cursor and scanned nothing', async () => {
     const store = makeStore();
 
-    store.dispatch(registerPools([pool(POOL_A, 2_000n)]));
+    store.dispatch(registerPools([{ ...pool(POOL_A, 2_000n), finalizedBlock: 2_000n }]));
 
     const chain = await chainWith(new Map([[POOL_A, [11n]]]));
+
+    chain.getBlockNumber.mockResolvedValue(2_000n);
     const action = await sync(store, sourceServing(new Map()), chain);
 
-    expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(failuresOf(action)).toEqual([]);
     expect(chain.getPoolStateRoot).not.toHaveBeenCalled();
     expect(chain.getPoolNextIndex).not.toHaveBeenCalled();
   });

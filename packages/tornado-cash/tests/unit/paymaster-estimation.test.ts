@@ -10,6 +10,9 @@ import { DUMMY_SIGNATURE } from '../../src/paymaster/simulation';
 import { buildSignedTornadoUserOp, buildSimulationTornadoUserOp } from '../../src/paymaster/utils';
 import type { TornadoProveOutput } from '../../src/utils/tornado-prover';
 
+/** The bundler's answer when the execution phase runs out of gas (ERC-7769 `-32521`). */
+const executionOutOfGas = () => new RpcRequestError({ url: 'unused', body: {}, error: { code: -32521, message: 'Execution out of gas' } });
+
 const baseline = { ...reasonableGasUnits(false), callGasLimit: 0n };
 const signer = privateKeyToAccount(`0x${'01'.repeat(32)}`);
 const paymaster = '0x0000000000000000000000000000000000000002';
@@ -25,7 +28,7 @@ function builder(consolidated = false, isERC20 = false) {
       args: [toHex(1n, { size: 32 }), toHex(2n, { size: 32 }), consolidated ? signer.address : recipient, paymaster, toHex(fee), '0x00'],
     };
     const userOperation = await (simulation ? buildSimulationTornadoUserOp : buildSignedTornadoUserOp)({
-      signer, chainId: 11155111, paymasterAddress: paymaster,
+      signer, chainId: 11155111, entryPointAddress: entryPoint08Address, paymasterAddress: paymaster,
       paymasterData: encodePoolPaymasterData(1n, proof), gas,
       maxFeePerGas: 2n, maxPriorityFeePerGas: 1n,
       ...(consolidated ? { tailCalls: async () => [{ to: recipient, data: '0x', value: 10n ** 18n - fee }] } : {}),
@@ -115,7 +118,7 @@ describe('Tornado paymaster gas estimation', () => {
   it('does not downgrade a failed execution retry into unestimated fallback', async () => {
     const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true);
     const unavailable = new RpcRequestError({ url: 'unused', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
-    const estimate = vi.fn().mockRejectedValueOnce(new Error('Execution out of gas')).mockRejectedValue(unavailable);
+    const estimate = vi.fn().mockRejectedValueOnce(executionOutOfGas()).mockRejectedValue(unavailable);
 
     await expect(run(base, harness, estimate, { allowFallback: true, executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
     expect(harness.simulate.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n]);
@@ -124,7 +127,7 @@ describe('Tornado paymaster gas estimation', () => {
   });
 
   it('never probes above the explicit ceiling or retries a zero-execution operation', async () => {
-    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
+    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(executionOutOfGas());
 
     await expect(run(base, harness, estimate, { executionGasRetryLimit: 700_000n })).rejects.toThrow('preparation stopped');
     expect(harness.simulate.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 700_000n]);
@@ -135,7 +138,7 @@ describe('Tornado paymaster gas estimation', () => {
   });
 
   it('caps gas-shortage probes at three and honors validation before another proof', async () => {
-    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
+    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(executionOutOfGas());
 
     await expect(run(base, harness, estimate, { executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
     expect(harness.simulate.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 1_200_000n, 2_400_000n]);
@@ -314,5 +317,23 @@ describe('Tornado paymaster gas estimation', () => {
     expect(harness.simulate).toHaveBeenCalledTimes(3);
     expect(harness.build).not.toHaveBeenCalled();
     expect(estimate).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('buildSignedTornadoUserOp EntryPoint', () => {
+  it('signs for the configured EntryPoint', async () => {
+    const signer = privateKeyToAccount(`0x${'07'.repeat(32)}`);
+    const entryPointAddress = `0x${'43'.repeat(20)}` as const;
+    const userOperation = await buildSignedTornadoUserOp({
+      signer, chainId: 11155111, entryPointAddress, paymasterAddress: `0x${'11'.repeat(20)}`, paymasterData: '0x',
+      gas: reasonableGasUnits(false), maxFeePerGas: 2n, maxPriorityFeePerGas: 1n,
+    });
+    const signedFor = (verifyingContract: `0x${string}`) => recoverTypedDataAddress({
+      ...getUserOperationTypedData({ chainId: 11155111, entryPointAddress: verifyingContract, userOperation: rawOperation(userOperation) }),
+      signature: userOperation.signature,
+    });
+
+    expect(await signedFor(entryPointAddress)).toBe(signer.address);
+    expect(await signedFor(entryPoint08Address)).not.toBe(signer.address);
   });
 });
