@@ -25,6 +25,12 @@ export interface QuoteThunkParams {
   extraGas?: boolean;
   /** The pool's on-chain `maxRelayFeeBPS`; quotes embedding a higher fee are dropped. */
   maxRelayFeeBPS?: bigint;
+  /**
+   * Whether the quote's signed fee commitment is sent with the relay request
+   * (default). Exact-output withdrawals embed their own fee and omit it, so a
+   * quote without a usable signature still serves them.
+   */
+  requireCommitment?: boolean;
 }
 
 class RelayFeeTooHighError extends Error {
@@ -72,6 +78,28 @@ export const validateWithdrawalData = (
   return relayData;
 };
 
+/**
+ * Checks the rest of a quote's fee commitment before it is ranked: an expired
+ * quote, or one without a signature to send back, is refused by the relayer
+ * only after the SDK has proved. The signature itself is the relayer's own and
+ * is verified by the relayer, so only its shape is checked here.
+ */
+export const validateFeeCommitment = (quote: IQuoteResponse, { requireCommitment = true, now = Date.now() } = {}): void => {
+  const { expiration, signedRelayerCommitment } = quote.feeCommitment ?? {};
+
+  if (typeof expiration !== 'number' || !Number.isFinite(expiration)) {
+    throw new Error('quote has no expiration');
+  }
+
+  if (expiration <= now) {
+    throw new Error(`quote expired ${now - expiration} ms ago`);
+  }
+
+  if (requireCommitment && (typeof signedRelayerCommitment !== 'string' || signedRelayerCommitment === '0x' || !isHex(signedRelayerCommitment, { strict: true }))) {
+    throw new Error('quote has no signed fee commitment');
+  }
+};
+
 export const quoteThunk = createAsyncThunk<
   QuoteResult,
   QuoteThunkParams,
@@ -80,7 +108,7 @@ export const quoteThunk = createAsyncThunk<
   'quote/getBestQuote',
   async (params, { getState, rejectWithValue }) => {
     const { chainId } = entrypointInfoSelector(getState());
-    const { relayerClient, relayers, asset, amount, recipient, extraGas, maxRelayFeeBPS } = params;
+    const { relayerClient, relayers, asset, amount, recipient, extraGas, maxRelayFeeBPS, requireCommitment } = params;
 
     if (relayers.size === 0) {
       return rejectWithValue(new PPv1RelayerQuoteError([]));
@@ -100,6 +128,8 @@ export const quoteThunk = createAsyncThunk<
           });
 
           const relayData = validateWithdrawalData(quote, recipient, maxRelayFeeBPS);
+
+          validateFeeCommitment(quote, { requireCommitment });
 
           return { quote, relayerId, relayerUrl, relayData };
         } catch (error) {

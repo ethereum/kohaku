@@ -7,21 +7,26 @@ import { PPv1RelayerQuoteError } from '../../src/relayer/quote-error';
 import { RelayerClient } from '../../src/relayer/relayer-client';
 import { storeStateManager, type StoreFactoryParams } from '../../src/state/state-manager';
 import { storeFactory } from '../../src/state/store';
-import { quoteThunk, validateWithdrawalData } from '../../src/state/thunks/quoteThunk';
+import { quoteThunk, validateFeeCommitment, validateWithdrawalData } from '../../src/state/thunks/quoteThunk';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 const USER = getAddress('0x1111111111111111111111111111111111111111');
 const RELAYER = getAddress('0x2222222222222222222222222222222222222222');
 const ASSET = 0x3333n as Address;
+const SIGNATURE = `0x${'5e'.repeat(65)}`;
 
 const relayData = (recipient: `0x${string}`, relayFeeBps: bigint) =>
   encodeAbiParameters([relayDataAbi], [{ recipient, feeRecipient: RELAYER, relayFeeBps }]);
+
+/** `quote` with its fee commitment's expiration or signature replaced. */
+const withCommitment = (base: IQuoteResponse, commitment: Record<string, unknown>): IQuoteResponse =>
+  ({ ...base, feeCommitment: { ...base.feeCommitment, ...commitment } } as IQuoteResponse);
 
 const quote = (withdrawalData: string, feeBPS: string): IQuoteResponse => ({
   baseFeeBPS: '0',
   feeBPS,
   gasPrice: '1',
-  feeCommitment: { expiration: Date.now() + 60_000, withdrawalData, signedRelayerCommitment: '0x' },
+  feeCommitment: { expiration: Date.now() + 60_000, withdrawalData, signedRelayerCommitment: SIGNATURE },
   detail: { relayTxCost: { gas: '0', eth: '0' } },
 });
 
@@ -83,6 +88,31 @@ describe('validateWithdrawalData', () => {
   });
 });
 
+describe('validateFeeCommitment', () => {
+  const NOW = 1_700_000_000_000;
+  const valid = () => quote(relayData(USER, 100n), '100');
+
+  it('accepts a signed quote that has not expired', () => {
+    expect(() => validateFeeCommitment(withCommitment(valid(), { expiration: NOW + 1 }), { now: NOW })).not.toThrow();
+  });
+
+  it.each([
+    ['at its expiration', { expiration: NOW }, 'quote expired 0 ms ago'],
+    ['past its expiration', { expiration: NOW - 5_000 }, 'quote expired 5000 ms ago'],
+    ['without an expiration', { expiration: undefined }, 'quote has no expiration'],
+    ['with a non-numeric expiration', { expiration: '9999999999999' }, 'quote has no expiration'],
+  ])('rejects a quote %s', (_case, commitment, message) => {
+    expect(() => validateFeeCommitment(withCommitment(valid(), commitment), { now: NOW })).toThrow(message);
+  });
+
+  it.each([undefined, '', '0x', '0xmocksignature', 42])('rejects the signature %s', (signedRelayerCommitment) => {
+    const unsigned = withCommitment(valid(), { expiration: NOW + 1, signedRelayerCommitment });
+
+    expect(() => validateFeeCommitment(unsigned, { now: NOW })).toThrow('quote has no signed fee commitment');
+    expect(() => validateFeeCommitment(unsigned, { now: NOW, requireCommitment: false })).not.toThrow();
+  });
+});
+
 describe('quoteThunk', () => {
   const store = () => storeFactory({
     logLevel: 'off',
@@ -96,7 +126,7 @@ describe('quoteThunk', () => {
     getFees: async () => { throw new Error('not used'); },
   });
 
-  const getBestQuote = (quotes: Record<string, IQuoteResponse>, maxRelayFeeBPS?: bigint) =>
+  const getBestQuote = (quotes: Record<string, IQuoteResponse>, maxRelayFeeBPS?: bigint, requireCommitment?: boolean) =>
     store().dispatch(quoteThunk({
       relayerClient: relayerClient(quotes),
       relayers: new Map(Object.keys(quotes).map((url) => [url, url])),
@@ -104,7 +134,49 @@ describe('quoteThunk', () => {
       amount: 10n ** 18n,
       recipient: BigInt(USER),
       maxRelayFeeBPS,
+      requireCommitment,
     })).unwrap();
+
+  it.each([
+    ['an expired quote', { expiration: Date.now() - 1 }],
+    ['a quote without a signature', { signedRelayerCommitment: '0x' }],
+  ])('drops the cheapest relayer when it serves %s, before ranking', async (_case, commitment) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const best = await getBestQuote({
+      cheapest: withCommitment(quote(relayData(USER, 10n), '10'), commitment),
+      valid: quote(relayData(USER, 100n), '100'),
+    });
+
+    expect(best.relayerId).toBe('valid');
+  });
+
+  it('reports the stale quote when it is the only one', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const error = await getBestQuote({ stale: withCommitment(quote(relayData(USER, 10n), '10'), { expiration: Date.now() - 1 }) }).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(PPv1RelayerQuoteError);
+    expect((error as PPv1RelayerQuoteError).failures).toEqual([expect.objectContaining({ relayerId: 'stale', reason: 'quote-failed', message: expect.stringMatching(/^quote expired/) })]);
+  });
+
+  it('still ranks an unsigned quote for exact output, which omits the commitment, but not an expired one', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const unsigned = await getBestQuote({
+      cheapest: withCommitment(quote(relayData(USER, 10n), '10'), { signedRelayerCommitment: undefined }),
+      signed: quote(relayData(USER, 100n), '100'),
+    }, undefined, false);
+
+    expect(unsigned.relayerId).toBe('cheapest');
+
+    const expired = await getBestQuote({
+      cheapest: withCommitment(quote(relayData(USER, 10n), '10'), { expiration: Date.now() - 1 }),
+      signed: quote(relayData(USER, 100n), '100'),
+    }, undefined, false);
+
+    expect(expired.relayerId).toBe('signed');
+  });
 
   it('skips a relayer that names itself as recipient, even when it quotes 0 bps', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
