@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => {
         WarningWithFallback: () => Promise.resolve('warning-with-fallback'),
     };
 
-    return { strategies, configs: [] as Record<string, unknown>[] };
+    return { strategies, exported: strategies as Record<string, unknown>, configs: [] as Record<string, unknown>[] };
 });
 
 vi.mock('@corpus-core/colibri-stateless', () => ({
-    Strategy: mocks.strategies,
+    get Strategy() {
+        return mocks.exported;
+    },
     default: class {
         constructor(config: Record<string, unknown>) {
             mocks.configs.push(config);
@@ -25,12 +27,26 @@ vi.mock('@corpus-core/colibri-stateless', () => ({
 describe('colibri adapter proof strategy', () => {
     beforeEach(() => {
         mocks.configs.length = 0;
+        mocks.exported = mocks.strategies;
     });
 
     it('fails closed by default: VerifiedOnly', async () => {
         await colibri({ chainId: 1 });
 
         expect(mocks.configs[0]?.proofStrategy).toBe(mocks.strategies.VerifiedOnly);
+    });
+
+    it('fails closed when proofStrategy is explicitly undefined', async () => {
+        await colibri({ chainId: 1, proofStrategy: undefined });
+
+        expect(mocks.configs[0]?.proofStrategy).toBe(mocks.strategies.VerifiedOnly);
+    });
+
+    it('refuses to build without a VerifiedOnly export', async () => {
+        mocks.exported = { WarningWithFallback: mocks.strategies.WarningWithFallback };
+
+        await expect(colibri({ chainId: 1 })).rejects.toThrow(/Strategy\.VerifiedOnly/);
+        expect(mocks.configs).toHaveLength(0);
     });
 
     it('keeps a strategy the caller chose', async () => {
