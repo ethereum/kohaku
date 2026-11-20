@@ -75,7 +75,7 @@ export const createMockRelayerClient = (options: MockRelayerOptions = {}): IRela
         feeCommitment: {
           expiration: Date.now() + 3600000, // 1 hour from now
           withdrawalData,
-          signedRelayerCommitment: '0xmocksignature',
+          signedRelayerCommitment: `0x${'5e'.repeat(65)}`,
           extraGas: body.extraGas,
         },
         detail: {

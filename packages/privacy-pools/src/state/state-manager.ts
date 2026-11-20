@@ -526,6 +526,8 @@ export const storeStateManager = (
           asset,
           amount: requestedNet,
           recipient,
+          // The relay request embeds its own fee and omits the quote's commitment.
+          requireCommitment: false,
         }),
       );
 
