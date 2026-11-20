@@ -1,7 +1,7 @@
 import { createTx, TxData } from '@kohaku-eth/provider';
 import { encodeFunctionData, toHex } from "viem";
 import { poolAbi } from '../../data/abis/pool.abi';
-import { erc20Abi } from 'viem';
+import { approvalTxs } from './approve';
 
 type PrepareNativeShieldParam = {
   commitment: bigint;
@@ -27,12 +27,6 @@ export function prepareNativeShield({ commitment, poolAddress, poolDenomination 
 }
 
 export function prepareErc20Shield({ commitment, tokenAddress, poolAddress, denomination }: PrepareErc20ShieldParam): TxData[] {
-  const approveData = encodeFunctionData({
-    abi: erc20Abi,
-    functionName: 'approve',
-    args: [poolAddress as `0x${string}`, denomination],
-  });
-
   const depositData = encodeFunctionData({
     abi: poolAbi,
     functionName: 'deposit',
@@ -40,7 +34,7 @@ export function prepareErc20Shield({ commitment, tokenAddress, poolAddress, deno
   });
 
   return [
-    createTx(tokenAddress, approveData),
+    ...approvalTxs(tokenAddress, poolAddress, denomination),
     createTx(poolAddress, depositData),
   ];
 }

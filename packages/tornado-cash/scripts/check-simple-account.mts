@@ -35,7 +35,7 @@ const signer=externalAccountSigner({mode:'smart-account',signer:{address:owner.a
 const accountConfig = { mode: 'smart-account' as const, signer: { address: owner.address, signTypedData: owner.signTypedData }, account: { kind: 'simple-account' as const, address: sender, factory: { address: factory, salt: 0n } } };
 const initial = await prepareExecutionAccount(accountConfig, signer, client, entryPoint08Address);
 assert.equal(initial.nonce, 0n);
-const op=await buildSignedTornadoUserOp({signer,executionAccount:{kind:'simple-account',address:sender,factory:{address:factory,salt:0n}},chainId,nonce:0n,paymasterAddress:'0x0000000000000000000000000000000000000044',paymasterData:'0x',gas:{callGasLimit:100000n,verificationGasLimit:500000n,preVerificationGas:100000n,paymasterVerificationGasLimit:100000n,paymasterPostOpGasLimit:50000n},maxFeePerGas:2000000000n,maxPriorityFeePerGas:1000000000n,tailCalls:async()=>[{to:deployer,value:1n,data:'0x'}]});
+const op=await buildSignedTornadoUserOp({signer,executionAccount:{kind:'simple-account',address:sender,factory:{address:factory,salt:0n}},chainId,entryPointAddress:entryPoint08Address,nonce:0n,paymasterAddress:'0x0000000000000000000000000000000000000044',paymasterData:'0x',gas:{callGasLimit:100000n,verificationGasLimit:500000n,preVerificationGas:100000n,paymasterVerificationGasLimit:100000n,paymasterPostOpGasLimit:50000n},maxFeePerGas:2000000000n,maxPriorityFeePerGas:1000000000n,tailCalls:async()=>[{to:deployer,value:1n,data:'0x'}]});
 assert(!('eip7702Auth' in op));
 // Exercise the exact factoryData supplied by the SDK through canonical EntryPoint.
 await client.request({method:'anvil_setBalance',params:[sender,toHex(parseEther('2'))]});

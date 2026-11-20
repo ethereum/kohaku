@@ -172,6 +172,12 @@ export interface PPv1EstimateUnshieldOptions {
   /** Optional absolute gas ceilings, including buffers. No percentage fee cap. */
   maxGasLimits?: PaymasterGasLimits;
   mode?: 'relayer' | 'paymaster';
+  /**
+   * Paymaster mode: price a withdrawal that spends as many notes as the amount
+   * needs, as `prepareUnshield` with `batch: true` does. Each note after the first
+   * adds an execution-phase withdrawal, so the fee is higher than a single note's.
+   */
+  batch?: boolean;
   tailCalls?: UnshieldOptions['tailCalls'];
   tailCallsGasEstimate?: bigint;
 }
@@ -306,6 +312,20 @@ export interface IEstimateUnshieldOperationParams extends IDepositOperationParam
   /** Whether the withdrawal carries tail calls (they add an execution phase to the paymaster userOp). */
   hasTailCalls?: boolean;
   tailCallsGasEstimate?: bigint;
+  /** Paymaster mode: price the notes a batch withdrawal of `amount` spends. */
+  batch?: boolean;
+}
+
+export interface IExactPaymasterWithdrawalParams extends Omit<IPaymasterWithdrawapOperationParams, 'amount'> {
+  /** What the recipient must receive after the paymaster fee. */
+  requestedNet: bigint;
+}
+
+/** An exact-output paymaster withdrawal and the gross it spends. */
+export interface ExactPaymasterWithdrawal {
+  payloads: IGenericPaymasterWithdrawalPayload[];
+  /** Sized so the fee for the notes it spends leaves `requestedNet`. */
+  grossAmount: bigint;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
@@ -421,9 +441,10 @@ export interface IStateManager {
    */
   sync: (options?: IStateSyncOptions) => Promise<void>;
   /**
-   * Generates a deposit payload for the signer
+   * Generates a deposit payload for the signer.
+   * The shield plan, in order: an ERC-20 deposit is preceded by its approval.
    */
-  getDepositPayload: (params: IDepositOperationParams) => Promise<TxData>;
+  getDepositPayload: (params: IDepositOperationParams) => Promise<TxData[]>;
   /**
    * Computes the vetting fee for a deposit from the Entrypoint's current asset config
    */
@@ -443,6 +464,12 @@ export interface IStateManager {
    * signed commitment). The returned payload carries no `feeCommitment`.
    */
   getExactWithdrawalPayloads: (params: IExactWithdrawalOperationParams) => Promise<StateExactWithdrawalPayload>;
+  /**
+   * Builds an exact-output paymaster withdrawal: sizes the gross whose fee, priced
+   * for the notes it spends, leaves exactly `requestedNet`, then prepares it from
+   * the same note plan that was priced.
+   */
+  getExactPaymasterWithdrawalPayloads: (params: IExactPaymasterWithdrawalParams) => Promise<ExactPaymasterWithdrawal>;
   /**
    * Generates paymaster-sponsored withdrawal payloads (fully built + signed userOps)
    * for the specified amount. No relayer is involved.

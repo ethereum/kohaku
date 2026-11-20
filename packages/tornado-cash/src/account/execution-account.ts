@@ -56,13 +56,18 @@ export function executionGasBaseline<T extends { verificationGasLimit: bigint }>
 const nonceAbi = [{ type: 'function', name: 'getNonce', stateMutability: 'view',
   inputs: [{ name: 'sender', type: 'address' }, { name: 'key', type: 'uint192' }], outputs: [{ type: 'uint256' }] }] as const;
 
-export async function readEntryPointNonce(provider: Pick<EthereumProvider, 'request'>, entryPoint: `0x${string}`, sender: `0x${string}`, expected?: bigint): Promise<bigint> {
-  const data = encodeFunctionData({ abi: nonceAbi, functionName: 'getNonce', args: [sender, (expected ?? 0n) >> 64n] });
+/** The sender's current EntryPoint nonce for `key` (the nonce's upper 192 bits). */
+export async function entryPointNonce(provider: Pick<EthereumProvider, 'request'>, entryPoint: `0x${string}`, sender: `0x${string}`, key: bigint): Promise<bigint> {
+  const data = encodeFunctionData({ abi: nonceAbi, functionName: 'getNonce', args: [sender, key] });
   const value = await provider.request({ method: 'eth_call', params: [{ to: entryPoint, data }, 'latest'] });
 
   if (typeof value !== 'string' || !/^0x[0-9a-f]{64}$/i.test(value)) throw new Error('Invalid EntryPoint nonce response');
 
-  const nonce = BigInt(value);
+  return BigInt(value);
+}
+
+export async function readEntryPointNonce(provider: Pick<EthereumProvider, 'request'>, entryPoint: `0x${string}`, sender: `0x${string}`, expected?: bigint): Promise<bigint> {
+  const nonce = await entryPointNonce(provider, entryPoint, sender, (expected ?? 0n) >> 64n);
 
   if (expected !== undefined && nonce !== expected) throw new Error('Requested EntryPoint nonce does not match the current on-chain nonce');
 

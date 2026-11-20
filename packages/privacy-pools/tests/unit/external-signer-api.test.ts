@@ -15,6 +15,7 @@ function setup() {
   const manager = {
     sync: vi.fn(async () => {}),
     getUnshieldEstimate: vi.fn(async () => ({ mode: 'paymaster', fee: 10n })),
+    getExactPaymasterWithdrawalPayloads: vi.fn(async ({ requestedNet }: { requestedNet: bigint }) => ({ payloads: [{ mode: 'paymaster', fee: 10n }], grossAmount: requestedNet + 10n })),
     getPaymasterWithdrawalPayloads: vi.fn(async () => [{ mode: 'paymaster', fee: 10n }]),
   };
   const protocol = new PrivacyPoolsV1Protocol(host, {
@@ -41,7 +42,7 @@ describe('public external unshield API', () => {
       mode: 'paymaster', delegation: { mode: 'external', signer }, refundRecipient: account.address, exact: {},
     });
     expect(result.exact).toEqual({ requestedNet: 100n, grossAmount: 110n, expectedNet: 100n, fee: 10n });
-    expect(manager.getPaymasterWithdrawalPayloads).toHaveBeenCalledWith(expect.objectContaining({ amount: 110n, delegation: { mode: 'external', signer } }));
+    expect(manager.getExactPaymasterWithdrawalPayloads).toHaveBeenCalledWith(expect.objectContaining({ requestedNet: 100n, delegation: { mode: 'external', signer } }));
     expect(derive).not.toHaveBeenCalled();
   });
   it('does not ask for delegation or UserOperation signatures for a read-only quote', async () => {

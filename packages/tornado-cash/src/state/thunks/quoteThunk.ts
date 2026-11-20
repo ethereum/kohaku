@@ -1,4 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
+import { getAddress, isAddress, zeroAddress } from 'viem';
 import { IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
 import { RootState } from '../store';
 import { instanceRegistryInfoSelector, relayerFeeConfigSelector, relayersSelector } from '../selectors/slices.selectors';
@@ -90,6 +91,12 @@ export const quoteThunk = createAsyncThunk<
           return null;
         }
 
+        // The reward account is proved as the withdrawal's relayer: an unusable one
+        // must not win the ranking and fail only when proving.
+        if (typeof status.rewardAccount !== 'string' || !isAddress(status.rewardAccount, { strict: false }) || getAddress(status.rewardAccount) === zeroAddress) {
+          return reject(`invalid reward account ${JSON.stringify(status.rewardAccount)?.slice(0, 64)}`);
+        }
+
         // The relayer's /status sets the token price, so it is checked against
         // the reference quote and every fee against the cap before proving.
         let networkFeeInAsset = networkFee;
@@ -130,7 +137,7 @@ export const quoteThunk = createAsyncThunk<
         return {
           relayerId: ensName,
           relayerUrl,
-          rewardAccount: status.rewardAccount,
+          rewardAccount: getAddress(status.rewardAccount),
           tornadoServiceFee: status.tornadoServiceFee,
           fees,
           totalFee: fees.reduce((sum, fee) => sum + fee, 0n),

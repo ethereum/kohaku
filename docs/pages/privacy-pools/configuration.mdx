@@ -49,7 +49,7 @@ createPPv1Plugin(host, {
 })
 ```
 
-These ids (`fast`, `backup`) are used only by the regular relayer mode. The recommended ERC-4337 paymaster path uses the bundler URL from `paymasterConfig`; `broadcasterUrl` remains a required constructor field. See [withdrawals](/privacy-pools/withdrawals) for preparation and broadcasting.
+These ids (`fast`, `backup`) are used only by the regular relayer mode. In that mode every relayer is asked for a quote. Quotes are collected until every relayer has answered, or for 5 seconds after the first valid quote arrives, whichever comes first; a relayer that answers later is not considered, so answering late never helps. A quote is then ranked only if its relay data pays your recipient within the quoted and on-chain fee limits, it has not expired (checked for every quote at the moment of ranking), and it carries a signed fee commitment (exact-output withdrawals, which send their own fee instead, skip the signature check). The cheapest remaining quote by embedded fee is used. The recommended ERC-4337 paymaster path uses the bundler URL from `paymasterConfig`; `broadcasterUrl` remains a required constructor field. See [withdrawals](/privacy-pools/withdrawals) for preparation and broadcasting.
 
 ## Secret managers
 
@@ -147,6 +147,8 @@ The option is off by default because it calls 0xbow's API. The client downloads 
 
 The client is not trusted either. The set always wins: a deposit in it reads `'approved'` whatever the feed says, so the feed can mislabel an unapproved deposit but never make one spendable. If the feed fails, or does not answer within 10 seconds, the sync goes on with the last statuses it fetched. An account without `aspReviewServiceFactory` reads no statuses, not even ones fetched by another account sharing its `chainStorage`, so every deposit outside the set reads `'pending'` for it. Each fetch replaces the previous list, so a decline the ASP reverses goes back to `'pending'`.
 
+The built-in review client rejects pages above the requested 100 rows, decimal fields above 78 digits, or response bodies above 16 MiB. These failures also preserve the previous statuses. Body size is checked while streaming; hosts exposing only materialized text can be checked only after reading it.
+
 A custom client implements `getFlaggedDeposits({ chainId }): Promise<{ precommitment, pool, status }[]>`, where `status` is `'declined'` or `'poi_required'`. Rows for pools of another entrypoint are ignored.
 
 ## Paymaster
@@ -172,7 +174,7 @@ createPPv1Plugin(host, {
 })
 ```
 
-`poolsAccountsMap` keys are lowercase pool addresses. A pool missing from the map cannot be withdrawn in paymaster mode. Relayer withdrawals ignore this table. The withdrawal options are on the [withdrawals page](/privacy-pools/withdrawals).
+`poolsAccountsMap` keys are lowercase pool addresses. A pool missing from the map cannot be withdrawn in paymaster mode. Relayer withdrawals ignore this table. `entryPointAddress` is the EntryPoint v0.8 the user operation is estimated, signed and submitted for. Another address only works with a sender built for it: the default Simple7702 implementation and SimpleAccount accept calls only from the standard EntryPoint, so a custom one also needs a matching `delegation` implementation or account. The withdrawal options are on the [withdrawals page](/privacy-pools/withdrawals).
 
 ## Sync from saga
 

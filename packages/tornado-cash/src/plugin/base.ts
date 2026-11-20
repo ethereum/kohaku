@@ -69,7 +69,33 @@ export class TornadoCashProtocol implements TCInstance {
       secretManagerFactory,
     }: RequireOnly<TCProtocolParams, 'protocolConfig'>,
   ) {
+    // Wallet paths the integrator named in `delegation.path`, allowed only while an
+    // unshield naming them is being prepared. Counted, so overlapping preparations
+    // on one path keep it until the last of them settles.
     const delegationPaths = new Set<string>();
+    const delegationGrants = new Map<string, number>();
+
+    // The worker derives the delegator while it prepares the payload, so the path
+    // is allowed for that call only, whether it succeeds or not.
+    const withDelegationPath = async <T>(path: string | undefined, prepare: () => Promise<T>): Promise<T> => {
+      if (!path) return prepare();
+
+      delegationGrants.set(path, (delegationGrants.get(path) ?? 0) + 1);
+      delegationPaths.add(path);
+
+      try {
+        return await prepare();
+      } finally {
+        const left = delegationGrants.get(path)! - 1;
+
+        if (left > 0) {
+          delegationGrants.set(path, left);
+        } else {
+          delegationGrants.delete(path);
+          delegationPaths.delete(path);
+        }
+      }
+    };
 
     this.stateManager = (async () => {
       const { remote, onError } = loadStateManagerWorker(stateManagerWorkerUrl);
@@ -128,11 +154,6 @@ export class TornadoCashProtocol implements TCInstance {
           if (params.mode === 'paymaster') {
             const { tailCalls, delegation, ...rest } = params as IPaymasterWithdrawParams;
 
-            // The integrator named this wallet key, so the worker may derive exactly it.
-            if (delegation?.mode === 'deterministic' && delegation.path) {
-              delegationPaths.add(delegation.path);
-            }
-
             if (delegation?.mode === 'external' || delegation?.mode === 'smart-account') {
               const chainId = Number(await host.provider.getChainId());
               const config = paymasterConfig[chainId];
@@ -163,14 +184,17 @@ export class TornadoCashProtocol implements TCInstance {
               );
             }
 
+            // The integrator named this wallet key, so the worker may derive exactly it.
+            const path = delegation?.mode === 'deterministic' ? delegation.path : undefined;
+
             // tailCalls must be a top-level comlink arg (not nested in an object) so
             // the host-bridge transfer handler can wrap it in a MessagePort instead of
             // trying to structuredClone the function.
-            return (remote.getWithdrawalPayloads)(
+            return withDelegationPath(path, () => (remote.getWithdrawalPayloads)(
               { ...rest, delegation },
               tailCalls ? exposeCall(tailCalls, tailCallsCheck) : undefined,
               exposeCall(bundlerPostVia(host.network), bundlerPostCheck(Object.values(paymasterConfig).map(c => c.bundlerUrl))),
-            );
+            ));
           }
 
           return remote.getWithdrawalPayloads(params);

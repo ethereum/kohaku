@@ -54,6 +54,7 @@ const FAIR_DAI_PRICE = 10n ** 18n / DAI_PER_ETH; // wei per DAI
 const HONEST = 'honest.eth';
 const MALICIOUS = 'malicious.eth';
 const CHEAP_LOOKING = 'cheap-looking.eth';
+const BAD_REWARD = 'bad-reward.eth';
 
 function pool(address: Address, asset: Address, denomination: bigint): IPool {
   return {
@@ -96,8 +97,11 @@ const STATUSES: Record<string, IRelayerStatusResponse> = {
   }),
 };
 
+// The cheapest relayer, unless its reward account is unusable.
+const badReward = { rewardAccount: 'not-an-address' };
+
 const relayerClient: IRelayerClient = {
-  getStatus: async (hostname) => STATUSES[hostname]!,
+  getStatus: async (hostname) => hostname === BAD_REWARD ? status({ tornadoServiceFee: 0.01, ...badReward }) : STATUSES[hostname]!,
   withdraw: async () => { throw new Error('not used'); },
 };
 
@@ -179,6 +183,26 @@ describe('relayer fee checks', () => {
       expect(() => unwrapResult(result)).toThrow(/No relayer quote within fee limits \(malicious\.eth: /);
     }
 
+    expect(proofCalls).toEqual([]);
+  });
+
+  it.each([
+    ['not an address', 'not-an-address'],
+    ['the zero address', '0x0000000000000000000000000000000000000000'],
+    ['too short', '0x1234'],
+  ])('drops the cheapest relayer when its reward account is %s, before proving', async (_case, rewardAccount) => {
+    badReward.rewardAccount = rewardAccount;
+    const [payload] = unwrapResult(await withdraw(storeWith([BAD_REWARD, HONEST]), DAI)) as IRelayerWithdrawalPayload[];
+
+    expect(payload!.relayerUrl).toBe(`https://${HONEST}/`);
+    expect(proofCalls).toEqual([{ fee: payload!.fee, relayerAddress: 0xaan }]);
+  });
+
+  it('reports an invalid reward account when it is the only relayer', async () => {
+    badReward.rewardAccount = 'not-an-address';
+    const result = await withdraw(storeWith([BAD_REWARD]), DAI);
+
+    expect(() => unwrapResult(result)).toThrow(/bad-reward\.eth: invalid reward account "not-an-address"/);
     expect(proofCalls).toEqual([]);
   });
 

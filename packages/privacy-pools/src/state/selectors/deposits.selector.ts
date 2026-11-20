@@ -47,10 +47,11 @@ export const myEntrypointDepositsSelector = createSelector(
   (myDeposits, entrypointDepositsMap): Map<Precommitment, IEntrypointDepositEvent> => {
     const result = new Map<Precommitment, IEntrypointDepositEvent>();
 
-    for (const [precommitment, { commitment }] of myDeposits) {
+    for (const [precommitment, { commitment, pool }] of myDeposits) {
       const entrypointDeposit = entrypointDepositsMap.get(commitment);
 
-      if (entrypointDeposit) {
+      // The pool deposit is bound to its pool's verified leaves; the entrypoint one is not.
+      if (entrypointDeposit?.poolAddress === pool) {
         result.set(precommitment, entrypointDeposit);
       }
     }
@@ -59,13 +60,13 @@ export const myEntrypointDepositsSelector = createSelector(
   },
 );
 
-export const buildDepositPayload = (precommitment: bigint, asset: Address, amount: bigint, entrypointAddress: Address): TxData => {
+export const buildDepositPayload = (precommitment: bigint, asset: Address, amount: bigint, entrypointAddress: Address): TxData[] => {
   const assetHex = addressToHex(asset);
   const entrypointHex = addressToHex(entrypointAddress);
   const isNative = assetHex.toLowerCase() === E_ADDRESS;
 
   if (isNative) {
-    return prepareNativeShield({ precommitment, amount, entrypointAddress: entrypointHex });
+    return [prepareNativeShield({ precommitment, amount, entrypointAddress: entrypointHex })];
   } else {
     return prepareErc20Shield({ precommitment, amount, tokenAddress: assetHex, entrypointAddress: entrypointHex });
   }

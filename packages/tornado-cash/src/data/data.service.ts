@@ -106,7 +106,7 @@ export class DataService implements IDataService {
     const { logs, toBlock: resultingToBlock, fromBlock: resultingFromBlock } = await this.ethClient.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
-      ...(toBlock ? { toBlock } : {}),
+      ...(toBlock !== undefined ? { toBlock } : {}),
     });
     const allEvents = events instanceof Array ? events : [events];
 
@@ -144,6 +144,20 @@ export class DataService implements IDataService {
 
   async getBlockNumber(): Promise<bigint> {
     return this.ethClient.getBlockNumber();
+  }
+
+  async getFinalizedBlockNumber(): Promise<bigint> {
+    const block = await this.ethClient.request({
+      method: "eth_getBlockByNumber",
+      params: ["finalized", false],
+    }) as { number?: string } | null;
+
+    // No fallback to a fixed depth: a guess too shallow would let a reorg back in.
+    if (!block?.number) {
+      throw new Error("Failed to fetch the finalized block");
+    }
+
+    return BigInt(block.number);
   }
 
   /**
@@ -283,8 +297,20 @@ export class DataService implements IDataService {
     return this.ethClient.getDeploymentBlock(address, fromBlock);
   }
 
-  async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
-    return this.ethClient.makeContractRequest(poolAddress, "pool", "getLastRoot").then(hexToBigInt);
+  async isContractDeployedAt(address: Address, block: bigint): Promise<boolean> {
+    return this.ethClient.hasCodeAt(address, block);
+  }
+
+  async getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', poolAddress, "pool", "getLastRoot").then(hexToBigInt);
+  }
+
+  async getPoolNextIndex(poolAddress: Address, blockNumber: bigint): Promise<number> {
+    return this.ethClient.makeContractRequestAt(blockNumber, poolAddress, "pool", "nextIndex");
+  }
+
+  getPoolLeafCount(poolAddress: Address, blockNumber: bigint): Promise<number> {
+    return this.getPoolNextIndex(poolAddress, blockNumber);
   }
 
   async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {

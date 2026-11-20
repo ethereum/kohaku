@@ -295,6 +295,19 @@ export async function sendTxAndWait(signer: Wallet, { to, data, value }: { to: s
     });
 }
 
+/** Sends a prepared plan's transactions in order; returns the first failed receipt, else the last. */
+export async function sendTxnsAndWait(signer: Wallet, txns: { to: string; data: string; value: bigint; }[]) {
+  let receipt: Awaited<ReturnType<typeof sendTxAndWait>> = { status: 0 };
+
+  for (const tx of txns) {
+    receipt = await sendTxAndWait(signer, tx);
+
+    if (receipt?.status !== 1) break;
+  }
+
+  return receipt;
+}
+
 export async function setupWallet(pool: AnvilPool, pk: string | SigningKey): Promise<Wallet> {
   const jsonRpcProvider = await pool.getProvider();
   const signer = new Wallet(pk, jsonRpcProvider);

@@ -7,6 +7,20 @@ const ERC20_TRANSFER_GAS = 100_000n;
 // tail calls should pass an explicit `tailCallsGasEstimate`.
 export const TAIL_CALLS_DEFAULT_GAS = 300_000n;
 
+/**
+ * The execution-phase budget for tail calls: the caller's estimate, else the default.
+ * A zero budget would sign calls that cannot run after the payout reaches the sender.
+ */
+export function tailCallsGas(tailCallsGasEstimate?: bigint): bigint {
+  if (tailCallsGasEstimate === undefined) return TAIL_CALLS_DEFAULT_GAS;
+
+  if (typeof tailCallsGasEstimate !== 'bigint' || tailCallsGasEstimate <= 0n) {
+    throw new Error('tailCallsGasEstimate must be a positive bigint');
+  }
+
+  return tailCallsGasEstimate;
+}
+
 // Conservative ceilings for a single-note paymaster withdrawal. The groth16
 // verify + 2-depth state/ASP merkle path plus the adapter's inline
 // entrypoint.relay run inside paymaster validation, so their cost lives in
@@ -65,12 +79,31 @@ export function reasonableGasUnitsForBatch(
 ): UserOpGasLimits {
   const base = reasonableGasUnits(isERC20);
   const perWithdraw = isERC20 ? PER_EXTRA_WITHDRAW_GAS_ERC20 : PER_EXTRA_WITHDRAW_GAS;
-  const executionTail = hasTailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : FORWARD_GAS;
+  const executionTail = hasTailCalls ? tailCallsGas(tailCallsGasEstimate) : FORWARD_GAS;
 
   return {
     ...base,
     callGasLimit: BigInt(extraWithdrawals) * perWithdraw + executionTail,
   };
+}
+
+/**
+ * The static gas baseline of a paymaster withdrawal spending `noteCount` notes:
+ * the first is sponsored in paymaster validation, and the others (or tail calls)
+ * add an execution phase. The withdrawal builder and the fee estimate both use it,
+ * so a quote prices the same operation that is built.
+ */
+export function paymasterBaselineGas(
+  isERC20: boolean,
+  noteCount: number,
+  hasTailCalls: boolean,
+  tailCallsGasEstimate?: bigint,
+): UserOpGasLimits {
+  const hasExecutionPhase = noteCount > 1 || hasTailCalls;
+
+  if (!hasExecutionPhase) return { ...reasonableGasUnits(isERC20), callGasLimit: 0n };
+
+  return reasonableGasUnitsForBatch(isERC20, noteCount - 1, hasTailCalls, tailCallsGasEstimate);
 }
 
 /** The fee amount (in wei) the paymaster expects to break even for these gas limits. */

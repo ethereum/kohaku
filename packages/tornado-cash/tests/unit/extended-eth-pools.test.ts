@@ -6,10 +6,11 @@ import { ExtendedEthPools } from '../../src/config';
 import { TornadoInstances } from '../../src/instances';
 import { IDataService, IPoolConfig } from '../../src/data/interfaces/data.service.interface';
 import { ISyncService } from '../../src/data/interfaces/sync.service.interface';
-import { IPool } from '../../src/data/interfaces/events.interface';
+import { IIndexedDepositWithSecrets, IPool } from '../../src/data/interfaces/events.interface';
 import { Address, Commitment, Nullifier, NullifierHash } from '../../src/interfaces/types.interface';
 import { addressToHex } from '../../src/utils';
 import { poolsSelector } from '../../src/state/selectors/slices.selectors';
+import { getWithdrawableDepositsSelector } from '../../src/state/selectors/withdrawals.selector';
 import { setProtocolConfig } from '../../src/state/slices/protocolConfigSlice';
 import { ProtocolConfigState } from '../../src/state/slices/protocolConfigSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
@@ -106,6 +107,7 @@ describe('syncPoolsThunk extended ETH pools', () => {
       getPoolConfig: vi.fn().mockResolvedValue(registryConfig(CLASSIC, ETH)),
     };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
     try {
       unwrapResult(await store.dispatch(syncPoolsThunk({
         dataService: dataService as unknown as IDataService,
@@ -116,6 +118,7 @@ describe('syncPoolsThunk extended ETH pools', () => {
       expect(dataService.getPoolConfig).toHaveBeenCalledWith(1n, CLASSIC);
       expect(poolsSelector(store.getState()).has(unknown)).toBe(false);
       expect(poolsSelector(store.getState()).has(CLASSIC)).toBe(true);
+
       if (custom) expect(warn).not.toHaveBeenCalled();
       else expect(warn).toHaveBeenCalledWith('Ignoring pools missing from the instance catalog', [addressToHex(unknown)]);
     } finally {
@@ -246,13 +249,22 @@ describe('syncPoolsThunk extended ETH pools', () => {
 });
 
 describe('syncEventsThunk extended ETH pool cursors', () => {
+  // Pools without deposits: an empty tree matches, so every scan is stored.
+  const dataService = {
+    getBlockNumber: async () => 10_000n,
+    getFinalizedBlockNumber: async () => 9_900n,
+    getPoolLeafCount: async () => 0,
+    getPoolNextIndex: async () => 0,
+    getPoolStateRoot: async () => 1n,
+  } as unknown as IDataService;
+
   function eventsService() {
     const calls: { address: Address; fromBlock: bigint }[] = [];
     const syncService = {
       getPoolEvents: vi.fn(async ({ address, fromBlock }: { address: Address; fromBlock: bigint }) => {
         calls.push({ address, fromBlock });
 
-        return { Deposited: [], Withdrawn: [], toBlock: fromBlock };
+        return { Deposited: [], Withdrawn: [], toBlock: fromBlock, external: false };
       }),
     };
 
@@ -270,7 +282,7 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     const { calls, syncService } = eventsService();
 
-    unwrapResult(await store.dispatch(syncEventsThunk({ syncService })));
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService, dataService })));
 
     expect(calls).toEqual([
       { address: CLASSIC, fromBlock: 10n },
@@ -283,14 +295,14 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     store.dispatch(setLastSyncedBlock(5_000n));
     store.dispatch(registerPools([
-      pool(CLASSIC, ETH, 10n, 200n),
-      pool(EXTENDED, ETH / 100n, 50n, 80n, true),
+      { ...pool(CLASSIC, ETH, 10n, 200n), finalizedBlock: 200n },
+      { ...pool(EXTENDED, ETH / 100n, 50n, 80n, true), finalizedBlock: 80n },
     ]));
     store.dispatch(setProtocolConfig(protocolConfig(false)));
 
     const ignored = eventsService();
 
-    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: ignored.syncService })));
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: ignored.syncService, dataService })));
 
     expect(ignored.calls).toEqual([{ address: CLASSIC, fromBlock: 200n }]);
     expect(poolsSelector(store.getState()).get(EXTENDED)?.lastSyncedBlock).toBe(80n);
@@ -299,13 +311,27 @@ describe('syncEventsThunk extended ETH pool cursors', () => {
 
     const resumed = eventsService();
 
-    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: resumed.syncService })));
+    unwrapResult(await store.dispatch(syncEventsThunk({ syncService: resumed.syncService, dataService })));
 
     expect(resumed.calls).toEqual([
       { address: CLASSIC, fromBlock: 200n },
       { address: EXTENDED, fromBlock: 80n },
     ]);
   });
+});
+
+it('selects four 0.03 ETH notes for 0.12 ETH instead of getting stuck after a 0.1 ETH note', () => {
+  const large = pool(0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fcn as Address, ETH / 10n);
+  const small = pool(EXTENDED_003, ETH * 3n / 100n);
+  const unspent = new Map([
+    [large.address, [{ commitment: 1n } as IIndexedDepositWithSecrets]],
+    [small.address, Array.from({ length: 4 }, (_, index) => ({ commitment: BigInt(index + 2) } as IIndexedDepositWithSecrets))],
+  ]);
+  const selected = getWithdrawableDepositsSelector.resultFunc(
+    unspent, new Map([[large.address, large], [small.address, small]]), 0n, ETH * 12n / 100n,
+  );
+
+  expect(selected).toEqual(unspent.get(small.address));
 });
 
 describe('deposit denomination packing', () => {

@@ -8,8 +8,8 @@ import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
 import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
-import { verifyRootsThunk } from './verifyRootsThunk';
 import { discoverUserEventsThunk } from './discoverUserEventsThunk';
+import { IPoolSyncFailure } from '../pool-sync-error';
 
 export interface SyncThunkParams extends
   SyncEventsThunkParams,
@@ -19,33 +19,45 @@ export interface SyncThunkParams extends
   syncService: ISyncService;
   relayerClient: IRelayerClient;
   secretManager: ISecretManager;
-  verify?: boolean;
+  signatureGapLimit?: number;
 }
 
-export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
-  'sync/syncEverything',
-  async ({ dataService, syncService, secretManager, instances, verify = false, ...params }, { dispatch }) => {
+export interface SyncResult {
+  /** Pools that could not be synced; empty when the sync is complete. */
+  failures: IPoolSyncFailure[];
+  /** Pools the sync covered, including those whose configuration could not be fetched. */
+  totalPools: number;
+}
 
-    unwrapResult(await dispatch(syncPoolsThunk({
+/**
+ * Resolves with the pools that failed to sync. The pools that synced keep their
+ * progress, but the global cursor only advances once every pool has synced.
+ */
+export const syncThunk = createAsyncThunk<SyncResult, SyncThunkParams, { state: RootState; }>(
+  'sync/syncEverything',
+  async ({ dataService, syncService, secretManager, signatureGapLimit, instances, ...params }, { dispatch }) => {
+
+    const poolFailures = unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
       syncService,
       instances,
     })));
 
-    const syncEventsResult = await dispatch(syncEventsThunk({ syncService }));
+    // Every pool's synced deposits are checked against its on-chain root before
+    // they are stored (see syncEventsThunk), so there is no separate verify step.
+    const syncEventsResult = await dispatch(syncEventsThunk({ syncService, dataService }));
 
-    const syncEventsLastBlock = unwrapResult(syncEventsResult);
+    const { lastBlock: syncEventsLastBlock, poolCount, failures: eventFailures } = unwrapResult(syncEventsResult);
 
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
-    unwrapResult(await dispatch(discoverUserEventsThunk({ secretManager })));
+    unwrapResult(await dispatch(discoverUserEventsThunk({ secretManager, gapLimit: signatureGapLimit })));
 
-    if (verify) {
-      const verifyResult = await dispatch(verifyRootsThunk({ dataService }));
+    const failures = [...poolFailures, ...eventFailures];
+    const totalPools = poolCount + poolFailures.length;
 
-      unwrapResult(verifyResult);
-    }
+    if (failures.length === 0) dispatch(setLastSyncedBlock(syncEventsLastBlock));
 
-    dispatch(setLastSyncedBlock(syncEventsLastBlock));
+    return { failures, totalPools };
   }
 );

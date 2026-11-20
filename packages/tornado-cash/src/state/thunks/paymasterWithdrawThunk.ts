@@ -14,7 +14,9 @@ import { encodeFunctionData, erc20Abi } from "viem";
 import { buildEstimatedTornadoUserOp } from "../../paymaster/estimate";
 import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
 import { encodePoolPaymasterData, resolvePoolPaymaster } from "../../paymaster/config";
-import { buildSignedTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, type BundlerPost } from "../../paymaster/utils";
+import { buildSignedTornadoUserOp, buildSimulationTornadoUserOp, createPaymasterBundlerClient, estimateUserOperationGas, getUserOperationGasPrice, networkFromBundlerPost, serializedUserOperationHash, type BundlerPost } from "../../paymaster/utils";
+import { verifierOverrides } from "../../paymaster/simulation";
+import { resolveTailCalls } from "../../paymaster/tail-calls";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { poolAbi } from "../../data/abis/pool.abi";
 import { addressToHex } from "../../utils";
@@ -146,16 +148,23 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   // Price an ETH-denominated fee in the pool asset via the paymaster's own
   // oracle (same pool/TWAP it enforces in validation), so feePaid >= required
   // holds by construction. Native pools pay the fee directly in ETH.
-  const quoteFee = async (ethFee: bigint): Promise<bigint> =>
-    poolInfo.isERC20
-      ? dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee)
-      : ethFee;
+  // Memoized so the final build commits to the fee its gas was simulated with.
+  const quotes = new Map<bigint, Promise<bigint>>();
+  const quoteFee = (ethFee: bigint): Promise<bigint> => {
+    if (!poolInfo.isERC20) return Promise.resolve(ethFee);
 
+    if (!quotes.has(ethFee)) quotes.set(ethFee, dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, poolInfo.asset, ethFee));
+
+    return quotes.get(ethFee)!;
+  };
+
+  // `simulation` returns a dummy proof for gas estimation (see withdrawalsProofThunk).
   const prove = async (
     deposit: (typeof deposits)[number],
     recipient: Address,
     relayer: Address,
     depositFee: bigint,
+    simulation = false,
   ): Promise<TornadoProveOutput> =>
     unwrapResult(await dispatch(withdrawalsProofThunk({
       ...restWithoutRecipient,
@@ -163,6 +172,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       deposit,
       relayerAddress: relayer,
       fee: depositFee,
+      simulation,
     })));
 
   // The paymaster decodes the pool and proof itself.
@@ -244,24 +254,33 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const sponsoringDeposit = deposits[0]!;
   const directDeposits = deposits.slice(1);
 
+  // Estimation simulates dummy proofs, which only these verifier overrides accept.
+  const stateOverrides = await verifierOverrides(provider!, poolsToWithdrawFrom.map(addressToHex));
+
   // deposits[1..]: proved with recipient = shared sender, relayer = 0, fee = 0
   // (gas is already sponsored via deposit[0]'s fee). Encode each as a direct
   // pool.withdraw against its own pool, reusing the proof's own args so the call
-  // exactly matches the proof's bound public inputs.
+  // exactly matches the proof's bound public inputs. A real proof here could be
+  // submitted on its own, so estimation uses dummy-proof calls instead.
   const ZERO_ADDRESS = 0n as Address;
-  const directWithdrawCalls: TxData[] = [];
+  const directWithdrawCalls = async (simulation: boolean): Promise<TxData[]> => {
+    const calls: TxData[] = [];
 
-  for (const deposit of directDeposits) {
-    const proof = await prove(deposit, senderAddress, ZERO_ADDRESS, 0n);
-    const [root, nullifierHash, proofRecipient, relayerArg, feeArg, refundArg] = proof.args;
-    const data = encodeFunctionData({
-      abi: poolAbi,
-      functionName: 'withdraw',
-      args: [proof.proof, root, nullifierHash, proofRecipient, relayerArg, BigInt(feeArg), BigInt(refundArg)],
-    });
-  
-    directWithdrawCalls.push(createTx(addressToHex(deposit.pool), data, 0n));
-  }
+    for (const deposit of directDeposits) {
+      const proof = await prove(deposit, senderAddress, ZERO_ADDRESS, 0n, simulation);
+      const [root, nullifierHash, proofRecipient, relayerArg, feeArg, refundArg] = proof.args;
+      const data = encodeFunctionData({
+        abi: poolAbi,
+        functionName: 'withdraw',
+        args: [proof.proof, root, nullifierHash, proofRecipient, relayerArg, BigInt(feeArg), BigInt(refundArg)],
+      });
+
+      calls.push(createTx(addressToHex(deposit.pool), data, 0n));
+    }
+
+    return calls;
+  };
+  const simulatedDirectCalls = await directWithdrawCalls(true);
 
   // Total asset released across the batch, used to forward the accumulated
   // balance (minus deposit[0]'s fee) when the caller supplied no tailCalls.
@@ -287,30 +306,49 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     return [createTx(addressToHex(originalRecipient), '0x', amount)];
   };
 
+  // The caller's tail calls, resolved once: every build signs or estimates
+  // these same calls.
+  const resolvedTailCalls = tailCalls ? await resolveTailCalls(tailCalls, executionSender(delegation, signer)) : undefined;
+
   // callData order: direct withdraws first (they fund the sender), then either
   // the caller's tailCalls or the synthesized forward to the recipient.
-  const composeTailCalls = (fee: bigint) => async (addr: AccountId): Promise<TxData[]> => [
-    ...directWithdrawCalls,
-    ...(tailCalls ? await tailCalls(addr) : forwardCalls(fee)),
+  const composeTailCalls = (fee: bigint, directCalls: TxData[]) => async (): Promise<TxData[]> => [
+    ...directCalls,
+    ...(resolvedTailCalls ?? forwardCalls(fee)),
   ];
 
-  const buildOp = (gas: UserOpGasLimits, fee: bigint, paymasterData: `0x${string}`) =>
-    buildSignedTornadoUserOp({
+  // `simulation` builds the estimation payload: dummy proofs and signatures that
+  // the bundler cannot submit. Only the final build proves and signs.
+  const buildOp = async (gas: UserOpGasLimits, simulation: boolean) => {
+    const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
+
+    if (fee >= pools.get(sponsoringDeposit.pool)!.denomination) {
+      throw new Error('Tornado paymaster fee would consume the sponsoring note. Use a larger note or wait for lower gas prices.');
+    }
+
+    const sponsoringProof = await prove(sponsoringDeposit, validationOnly ? originalRecipient : senderAddress, relayerAddress, fee, simulation);
+    // Batched deposits are proved for real only in the final build.
+    const directCalls = simulation ? simulatedDirectCalls : await directWithdrawCalls(false);
+    const userOperation = await (simulation ? buildSimulationTornadoUserOp : buildSignedTornadoUserOp)({
       signer,
       executionAccount: accountConfig,
       chainId,
+      entryPointAddress,
       paymasterAddress,
-      paymasterData,
+      paymasterData: buildPaymasterData(sponsoringDeposit.pool, sponsoringProof),
       gas,
       maxFeePerGas,
       maxPriorityFeePerGas,
-      tailCalls: validationOnly ? undefined : composeTailCalls(fee),
+      tailCalls: validationOnly ? undefined : composeTailCalls(fee, directCalls),
       nonce: userOpNonce,
       authorizationNonce,
     });
 
-  // Every refinement re-quotes the pool asset, re-proves the sponsoring
-  // deposit and rebuilds forwarding calldata/signature before final estimation.
+    return { sponsoringProof, userOperation, fee };
+  };
+
+  // Every refinement re-quotes the pool asset and rebuilds the simulation
+  // payload; the converged gas is proven and signed once.
   const baselineGas = executionGasBaseline(accountConfig, validationOnly ? { ...reasonableGasUnits(poolInfo.isERC20), callGasLimit: 0n } : reasonableGasUnitsForBatch(
     poolInfo.isERC20,
     directDeposits.length,
@@ -319,19 +357,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   ));
   const { sponsoringProof, userOperation, gasEstimation, fee } = await buildEstimatedTornadoUserOp(
     baselineGas,
-    async (gas) => {
-      const fee = await quoteFee(computeMinimumViableFee(gas, maxFeePerGas));
-
-      if (fee >= pools.get(sponsoringDeposit.pool)!.denomination) {
-        throw new Error('Tornado paymaster fee would consume the sponsoring note. Use a larger note or wait for lower gas prices.');
-      }
-
-      const sponsoringProof = await prove(sponsoringDeposit, validationOnly ? originalRecipient : senderAddress, relayerAddress, fee);
-      const userOperation = await buildOp(gas, fee, buildPaymasterData(sponsoringDeposit.pool, sponsoringProof));
-
-      return { sponsoringProof, userOperation, fee };
-    },
-    (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress),
+    async (gas) => (await buildOp(gas, true)).userOperation,
+    (gas) => buildOp(gas, false),
+    (op) => estimateUserOperationGas(bundlerClient, op, entryPointAddress, stateOverrides),
     {
       validateGas: (gas, op) => assertGasLimitsWithinBounds(gas, baselineGas, op, maxGasLimits, poolInfo.isERC20),
       allowFallback,
@@ -349,6 +377,9 @@ export const paymasterWithdrawThunk = createAsyncThunk<
     entryPointAddress,
     bundlerUrl,
     userOperation,
+    // Kept so a lost send reply can be recovered by hash for any sender: a
+    // smart-account userOp carries no 7702 authorization to read the chain from.
+    userOpHash: serializedUserOperationHash(userOperation, entryPointAddress, chainId),
     gasEstimation,
     fee,
     withdrawnValue: totalDenomination,

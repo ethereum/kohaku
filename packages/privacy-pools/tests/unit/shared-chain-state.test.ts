@@ -1,3 +1,4 @@
+import { poseidon } from 'maci-crypto/build/ts/hashing.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { Storage } from '@kohaku-eth/plugins';
 import type { ISecretManager } from '../../src/account/keys';
@@ -30,21 +31,24 @@ type ChainEvent = { blockNumber: bigint; transactionHash: bigint } & Record<stri
 
 const deposit = (precommitment: bigint, commitment: bigint, label: bigint, blockNumber: bigint): ChainEvent =>
   ({ depositor, commitment, label, value: 100n, precommitment, blockNumber, transactionHash: 0n });
+// As the pool computes them: poseidon(value, label, precommitment).
+const COMMITMENT_A = poseidon([100n, 10n, ACCOUNT_A]);
+const COMMITMENT_B = poseidon([100n, 20n, ACCOUNT_B]);
 
 const entrypointEvents: Record<string, ChainEvent[]> = {
   PoolRegistered: [{ pool, asset, scope: 1n, blockNumber: 100n, transactionHash: 0n }],
   PoolWindDown: [],
   RootUpdated: [],
   EntrypointDeposited: [
-    { depositor, poolAddress: pool, commitment: 11n, blockNumber: 105n, transactionHash: 0n },
-    { depositor, poolAddress: pool, commitment: 22n, blockNumber: 106n, transactionHash: 0n },
+    { depositor, poolAddress: pool, commitment: COMMITMENT_A, blockNumber: 105n, transactionHash: 0n },
+    { depositor, poolAddress: pool, commitment: COMMITMENT_B, blockNumber: 106n, transactionHash: 0n },
   ],
 };
 const poolEvents: Record<string, ChainEvent[]> = {
-  PoolDeposited: [deposit(ACCOUNT_A, 11n, 10n, 105n), deposit(ACCOUNT_B, 22n, 20n, 106n)],
+  PoolDeposited: [deposit(ACCOUNT_A, COMMITMENT_A, 10n, 105n), deposit(ACCOUNT_B, COMMITMENT_B, 20n, 106n)],
   LeafInserted: [
-    { index: 1n, commitment: 11n, root: 1n, blockNumber: 105n, transactionHash: 0n },
-    { index: 2n, commitment: 22n, root: 2n, blockNumber: 106n, transactionHash: 0n },
+    { index: 1n, commitment: COMMITMENT_A, root: 1n, blockNumber: 105n, transactionHash: 0n },
+    { index: 2n, commitment: COMMITMENT_B, root: 2n, blockNumber: 106n, transactionHash: 0n },
   ],
   Withdrawn: [],
   Ragequit: [],
@@ -52,16 +56,17 @@ const poolEvents: Record<string, ChainEvent[]> = {
 
 // A deposit that lands after the first sync, at block 250.
 const LATE_DEPOSIT = 99n;
+const LATE_COMMITMENT = poseidon([100n, 30n, LATE_DEPOSIT]);
 const lateEntrypointEvents: Record<string, ChainEvent[]> = {
-  EntrypointDeposited: [{ depositor, poolAddress: pool, commitment: 33n, blockNumber: 250n, transactionHash: 0n }],
+  EntrypointDeposited: [{ depositor, poolAddress: pool, commitment: LATE_COMMITMENT, blockNumber: 250n, transactionHash: 0n }],
 };
 const latePoolEvents: Record<string, ChainEvent[]> = {
-  PoolDeposited: [deposit(LATE_DEPOSIT, 33n, 30n, 250n)],
-  LeafInserted: [{ index: 3n, commitment: 33n, root: 3n, blockNumber: 250n, transactionHash: 0n }],
+  PoolDeposited: [deposit(LATE_DEPOSIT, LATE_COMMITMENT, 30n, 250n)],
+  LeafInserted: [{ index: 3n, commitment: LATE_COMMITMENT, root: 3n, blockNumber: 250n, transactionHash: 0n }],
 };
 
 const setupDataService = async ({ aspRoot, late = false }: { aspRoot?: bigint; late?: boolean } = {}) => {
-  const stateRoot = await computeMerkleTreeRoot([11n, 22n]);
+  const stateRoot = await computeMerkleTreeRoot([COMMITMENT_A, COMMITMENT_B]);
   const withLate = (source: Record<string, ChainEvent[]>, extra: Record<string, ChainEvent[]>) =>
     late ? Object.fromEntries(Object.entries(source).map(([name, events]) => [name, [...events, ...(extra[name] ?? [])]])) : source;
   const scan = (source: Record<string, ChainEvent[]>) =>
@@ -381,7 +386,7 @@ describe('shared chain state', () => {
     expect(requested).not.toContain(250n);
     expect(a.dumpState()[stateKey]!.deposits.depositsTuples).toHaveLength(2);
 
-    release(await computeMerkleTreeRoot([11n, 22n, 33n]));
+    release(await computeMerkleTreeRoot([COMMITMENT_A, COMMITMENT_B, LATE_COMMITMENT]));
     await syncing;
 
     expect(a.dumpState()[stateKey]!.deposits.depositsTuples).toHaveLength(3);

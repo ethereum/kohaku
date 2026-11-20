@@ -30,6 +30,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
 
       if (poolLeaves.length === 0) continue;
 
+      // A cached root cannot validate the stored leaves if a pool scan failed.
       const localRoot = await poolMerkleTreeRootSelector(state, poolAddress);
 
       await verifyStateRootOnChain({

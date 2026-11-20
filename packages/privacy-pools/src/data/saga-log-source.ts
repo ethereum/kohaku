@@ -48,6 +48,8 @@ const leafAbi = parseAbi([
 ]);
 const LEAF_INSERTED_TOPIC = toEventSelector("event LeafInserted(uint256 _index, uint256 _leaf, uint256 _root)");
 
+// @saga-sync/client >=0.4.0 rejects a chunk unless every blockNumber/logIndex is
+// minimal hex and every logIndex fits a JS number, so these conversions cannot fail.
 const toTxLog = (ev: CanonicalEvent): TxLog => ({
   address: ev.contractAddress,
   data: ev.data,
@@ -148,6 +150,10 @@ export async function createSagaLogSource({
     for await (const ev of client.streamEvents(protocolId, { fromBlock: 0n, toBlock: sagaTo + 1n })) {
       // Privacy-pools streams only publish logs; skip any indexer-derived entity.
       if (isEntityRecord(ev)) continue;
+
+      // A protocol's stream can carry several contracts' events. Only this
+      // address's count as its leaves, or every later leaf index would shift.
+      if (BigInt(ev.contractAddress) !== BigInt(address)) continue;
 
       const blockNumber = BigInt(ev.blockNumber);
 

@@ -2,13 +2,15 @@ import { Prover } from '@fatsolutions/privacy-pools-core-circuits';
 import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 import { Wallet } from 'ethers';
-import { parseEther, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, http, parseEther, parseUnits, type Hex } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { mainnet } from 'viem/chains';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
 import { E_ADDRESS, PrivacyPoolsPaymasterConfigs } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
 import { EthClient } from '../../../src/data/eth-client';
-import { PrivacyPoolsV1Protocol } from '../../../src/index';
+import { PaymasterBroadcastError, PrivacyPoolsV1Protocol } from '../../../src/index';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
 import { getChainConfigSetup } from '../../constants';
@@ -18,6 +20,7 @@ import { createMockHost } from '../../utils/mock-host';
 import { createSagaLogSource } from '../../utils/saga-log-source';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import {
+  fundAccountWithERC20,
   getProtocolWithState,
   MOCK_IPFS_CID,
   pushNewAspRoot,
@@ -175,5 +178,73 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster broadcast (real bundle
     expect(paymasterAfter).toBeGreaterThan(paymasterBefore);
     // The note was spent.
     expect(approvedAfter).toBe(approvedBefore - WITHDRAW_AMOUNT);
+  });
+
+  it('[paymaster] reports staleNonce when the bundler refuses a withdrawal whose sender nonce moved', { timeout: 300_000 }, async () => {
+    const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+    const usdcAsset = ERC20Asset(USDC);
+    const DEPOSIT_AMOUNT = parseUnits('300', 6);
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: () => Prover(),
+      aspServiceFactory: () => mockAspService,
+      relayersList: {},
+      paymasterConfig: { 1: { ...PrivacyPoolsPaymasterConfigs[1]!, bundlerUrl: bundlerRpcUrl } },
+    });
+
+    await fundAccountWithERC20(pool.rpcUrl, USDC, alice.address, DEPOSIT_AMOUNT);
+
+    for (const tx of (await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT })).txns) {
+      expect((await sendTxAndWait(alice, tx))?.status).toBe(1);
+    }
+
+    await pool.mine(1);
+
+    const [note] = await protocol.notes([usdcAsset]);
+
+    mockAspService.addLabel(note.label);
+    await pushNewAspRoot(
+      pool.rpcUrl,
+      '0x' + ENTRYPOINT_ADDRESS.toString(16),
+      '0x' + BigInt(postman).toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID },
+    );
+
+    // A wallet sender, whose own transactions move its EIP-7702 authorization nonce.
+    const wallet = privateKeyToAccount(generatePrivateKey());
+    const client = createPublicClient({ chain: mainnet, transport: http(pool.rpcUrl) });
+
+    await pool.setBalance(wallet.address, `0x${parseEther('1').toString(16)}`);
+
+    // Empty tail calls take the estimated execution path that external signing requires.
+    const prepare = () => protocol.prepareUnshield(
+      { asset: usdcAsset, amount: DEPOSIT_AMOUNT / 2n },
+      RECIPIENT as AccountId,
+      { mode: 'paymaster', delegation: { mode: 'external', signer: wallet }, tailCalls: async () => [] },
+    );
+    const stale = await prepare();
+    const hash = await createWalletClient({ account: wallet, chain: mainnet, transport: http(pool.rpcUrl) }).sendTransaction({ to: wallet.address, value: 0n });
+
+    await client.waitForTransactionReceipt({ hash });
+
+    const broadcaster = new PrivacyPoolsBroadcaster({ host, broadcasterUrl: { default: 'http://unused' } });
+    const error = await broadcaster.broadcast(stale).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(PaymasterBroadcastError);
+    expect(error).toMatchObject({ failure: 'not-accepted', staleNonce: { kind: 'authorization', signed: 0n, current: 1n } });
+    expect((error as Error).message).toContain('sync before preparing another withdrawal');
+
+    // Here the earlier outcome is known: only a plain transaction moved the nonce, so the note is unspent and preparing again lands.
+    const approvedBalance = async () => unwrapBalance(await protocol.balance([usdcAsset]), usdcAsset).approved?.amount ?? 0n;
+    const approvedBefore = await approvedBalance();
+
+    await (await broadcaster.broadcast(await prepare())).wait();
+    await pool.mine(1);
+
+    expect(await approvedBalance()).toBe(approvedBefore - DEPOSIT_AMOUNT / 2n);
   });
 });

@@ -98,11 +98,17 @@ export class DataService implements IDataService {
     toBlock,
   }) => {
 
-    const logs = await this.getLogs({
+    const fetched = await this.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
       ...(toBlock !== undefined ? { toBlock } : {}),
     });
+    // A source can answer past the requested range (an indexer chunk straddling
+    // it, a provider ignoring the bounds). Those logs belong to another scan:
+    // earlier ones were already stored, later ones are fetched by the next sync,
+    // and stored here they would sit outside the pruning that rescans from the cursor.
+    const logs = fetched.filter(({ blockNumber }) =>
+      blockNumber >= fromBlock && (toBlock === undefined || blockNumber <= toBlock));
 
     return {
       ...parseLogs(logs.map(txLogToRpcLog), events),

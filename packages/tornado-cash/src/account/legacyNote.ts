@@ -10,7 +10,7 @@ import { pedersenHash } from "../utils/proof.util";
  * builds (31 LE bytes of nullifier, followed by 31 LE bytes of salt) — see
  * `deriveSecrets` in `./keys.ts`.
  */
-const NOTE_REGEX = /^tornado-([a-zA-Z0-9]+)-([0-9.]+)-(\d+)-0x([0-9a-fA-F]+)$/;
+const NOTE_REGEX = /^tornado-([a-zA-Z0-9]+)-([0-9.]+)-(\d{1,78})-0x([0-9a-fA-F]{124})$/;
 
 export interface ParsedLegacyNote {
   currency: string;
@@ -23,18 +23,16 @@ export interface ParsedLegacyNote {
 }
 
 export function parseLegacyNote(note: string): ParsedLegacyNote {
+  if (typeof note !== 'string' || note.length > 1024) throw new Error('Invalid tornado cash note');
+
   const match = NOTE_REGEX.exec(note.trim());
 
   if (!match) {
-    throw new Error(`Invalid tornado cash note: ${note}`);
+    throw new Error('Invalid tornado cash note');
   }
 
   const [, currency, denomination, chainId, preimageHex] = match as unknown as [string, string, string, string, string];
   const preimageBytes = hexToBytes(preimageHex);
-
-  if (preimageBytes.length !== 62) {
-    throw new Error(`Invalid tornado cash note preimage length: ${note}`);
-  }
 
   const nullifierBytes = preimageBytes.subarray(0, 31);
   const saltBytes = preimageBytes.subarray(31, 62);

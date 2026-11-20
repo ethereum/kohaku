@@ -21,9 +21,9 @@ import {
   getProtocolWithState,
   MOCK_IPFS_CID,
   pushNewAspRoot,
-  sendTxAndWait,
   setupMockAspForTest,
   setupWallet,
+  sendTxnsAndWait,
 } from '../../utils/test-helpers';
 
 // The bundler is external infra, so we stub only the two network calls the
@@ -143,12 +143,15 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster unshield — real orac
 
     // 1. Fund + deposit USDT.
     await fundAccountWithERC20(pool.rpcUrl, USDT, alice.address, DEPOSIT_AMOUNT, USDT_BALANCE_SLOT);
-    const approval = await approveERC20(alice, USDT, ENTRYPOINT_HEX, DEPOSIT_AMOUNT);
+    // A leftover allowance must not block the shield: USDT reverts on a
+    // nonzero-to-nonzero approve, so the plan resets it first.
+    expect((await approveERC20(alice, USDT, ENTRYPOINT_HEX, 1n))?.status).toBe(1);
 
-    expect(approval?.status).toBe(1);
+    const { txns } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
 
-    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
-    const depositReceipt = await sendTxAndWait(alice, shieldTx);
+    expect(txns).toHaveLength(3);
+
+    const depositReceipt = await sendTxnsAndWait(alice, txns);
 
     expect(depositReceipt?.status).toBe(1);
     await pool.mine(1);

@@ -5,7 +5,8 @@ import { prepareErc20Shield, prepareNativeShield } from '../../account/tx/shield
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { RootState } from '../store';
-import { activePoolsSelector, instanceRegistryInfoSelector, signatureUserSecretsSelector } from '../selectors/slices.selectors';
+import { activePoolsSelector, instanceRegistryInfoSelector, signatureNextNonceSelector, signatureUserSecretsSelector } from '../selectors/slices.selectors';
+import { reserveSignatureNonces } from '../slices/signatureNoncesSlice';
 import { IPool } from '../../data/interfaces/events.interface';
 import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from '../../instances';
 
@@ -84,7 +85,7 @@ export const getDepositPayloadThunk = createAsyncThunk<
   { state: RootState }
 >(
   'deposits/getPayload',
-  async ({ secretManager, asset, amount, strategy, instances }, { getState }) => {
+  async ({ secretManager, asset, amount, strategy, instances }, { getState, dispatch }) => {
     const state = getState();
     const pools = activePoolsSelector(state);
     const { chainId } = instanceRegistryInfoSelector(state);
@@ -95,7 +96,9 @@ export const getDepositPayloadThunk = createAsyncThunk<
     }
 
     const signatureSecrets = signatureUserSecretsSelector(state);
-    let nonce = 0;
+    // Start after every nonce already handed out, mined or not, so an earlier
+    // payload that is still pending never shares a commitment with this one.
+    let nonce = signatureNextNonceSelector(state);
 
     for (const records of signatureSecrets.values()) {
       for (const record of records) {
@@ -110,7 +113,12 @@ export const getDepositPayloadThunk = createAsyncThunk<
     if (poolsCandidates.length === 0) throw new Error(`No pools available for asset ${addressToHex(asset)}`);
 
     const poolsToDepositInto = calculatePoolsDeposits(poolsCandidates, amount, strategy);
-    
+    const totalNotes = poolsToDepositInto.reduce((total, pool) => total + pool.depositsCount, 0);
+
+    if (!Number.isSafeInteger(totalNotes) || totalNotes > 1000) {
+      throw new Error('Deposit preparation is limited to 1000 notes; split the amount into smaller requests');
+    }
+
     const nonceAssignments = poolsToDepositInto.map((pool) => {
       const startNonce = nonce;
 
@@ -164,6 +172,10 @@ export const getDepositPayloadThunk = createAsyncThunk<
 
       return txData.concat(newDeposits)
     }, [] as TxData[])
+
+    // The caller may submit any subset of these, in any order; discovery scans
+    // up to this mark so whichever ones are mined are found.
+    dispatch(reserveSignatureNonces(nonce));
 
     return newDeposits;
   },
