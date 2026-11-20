@@ -151,10 +151,9 @@ describe('TornadoCash Paymaster Unshield E2E — single deposit (direct payout)'
       await provider.send('anvil_setStorageAt', [data.instance, slot, toHex((packed & ~0xffffffffn) | ((index + historySize - 1n) % historySize), { size: 32 })]);
       expect(await instance.currentRootIndex!()).toBe((index + historySize - 1n) % historySize);
       expect(await instance.isKnownRoot!(data.root)).toBe(true);
-
-      // The rewound index makes getLastRoot() disagree with the pool's own
-      // leaves, which sync rightly rejects; it is only needed while the
-      // withdrawal is verified on-chain.
+      // The rewound index leaves getLastRoot() behind nextIndex(), which sync
+      // rejects as a pool the chain could not produce. A withdrawal does not
+      // touch the slot, so the original value is restored once it is mined.
       restoreRootIndex = async () => {
         await provider.send('anvil_setStorageAt', [data.instance, slot, toHex(packed, { size: 32 })]);
       };

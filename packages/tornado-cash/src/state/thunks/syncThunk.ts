@@ -8,7 +8,6 @@ import { syncPoolsThunk, SyncPoolsThunkParams } from './syncPoolsThunk';
 import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
-import { verifyRootsThunk } from './verifyRootsThunk';
 import { discoverUserEventsThunk } from './discoverUserEventsThunk';
 
 export interface SyncThunkParams extends
@@ -20,12 +19,11 @@ export interface SyncThunkParams extends
   relayerClient: IRelayerClient;
   secretManager: ISecretManager;
   signatureGapLimit?: number;
-  verify?: boolean;
 }
 
 export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
-  async ({ dataService, syncService, secretManager, signatureGapLimit, instances, verify = false, ...params }, { dispatch }) => {
+  async ({ dataService, syncService, secretManager, signatureGapLimit, instances, ...params }, { dispatch }) => {
 
     unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
@@ -33,6 +31,8 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
       instances,
     })));
 
+    // Every pool's synced deposits are checked against its on-chain root before
+    // they are stored (see syncEventsThunk), so there is no separate verify step.
     const syncEventsResult = await dispatch(syncEventsThunk({ syncService, dataService }));
 
     const syncEventsLastBlock = unwrapResult(syncEventsResult);
@@ -40,12 +40,6 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
     unwrapResult(await dispatch(discoverUserEventsThunk({ secretManager, gapLimit: signatureGapLimit })));
-
-    if (verify) {
-      const verifyResult = await dispatch(verifyRootsThunk({ dataService }));
-
-      unwrapResult(verifyResult);
-    }
 
     dispatch(setLastSyncedBlock(syncEventsLastBlock));
   }

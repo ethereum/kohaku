@@ -1,3 +1,4 @@
+import type { IMerkleFrontier } from '../../utils/merkle-frontier';
 import { Secret } from "../../account/keys";
 import { Address, Commitment, NullifierHash } from "../../interfaces/types.interface";
 
@@ -84,6 +85,24 @@ export interface IPool {
    * its own coverage.
    */
   lastSyncedBlock?: bigint;
+  /**
+   * The last block this pool's sync saw finalized. Everything after it may still
+   * be reorged away, so each sync drops it and scans it again (see
+   * syncEventsThunk). Absent in states saved before it existed, which are
+   * rewound once.
+   */
+  finalizedBlock?: bigint;
+  /**
+   * The pool's on-chain root at `lastSyncedBlock`, which the stored deposits
+   * were checked to rebuild. Lets a withdrawal check its root without
+   * rebuilding the tree.
+   */
+  verifiedRoot?: bigint;
+  /**
+   * The tree's frontier over the deposits from before `finalizedBlock`, which
+   * the next sync keeps. It extends this instead of rebuilding the tree.
+   */
+  frontier?: IMerkleFrontier;
 }
 
 export interface IAsset {

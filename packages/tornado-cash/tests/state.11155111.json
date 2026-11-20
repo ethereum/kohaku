@@ -27930,7 +27930,35 @@
                         "protocolFeePercentage": 0.04,
                         "state": 1,
                         "rootHistorySize": 30,
-                        "lastSyncedBlock": "0xa8e25e"
+                        "lastSyncedBlock": "0xa8e25e",
+                        "finalizedBlock": "0xa8e25e",
+                        "verifiedRoot": "0xfddd658d059b3248a30ae480e1fad3397bf3e192753c0d706028b84eb972c84",
+                        "frontier": {
+                            "size": 1341,
+                            "nodes": [
+                                "0x203f702811178916d944d8ba4d057a09dd32e92733669a6993bdf849878016b3",
+                                "0x2ec1c1375d8bc6baaa42531be3d3e8bcf45ca83e977f01769f834879ab463155",
+                                "0xa2bdf7c627db1c639fc6c6f77f14888005ca70495a965d16cc53cd75aaddf9b",
+                                "0x43271d659b3dc449313c186d2b2359ff9dcd998f08382a5bacc11549321eab2",
+                                "0x1df50cae062037e340cfaafe776f80593b90ede47890020e496cd8680a025c9e",
+                                "0x36093c8568fee240aa2fb683b96bd5709cf2956e09f816b9112c77842013df4",
+                                "0x24572c21606c304bda40d90ad5d3f591bd81242656e4e326893c647751ed054d",
+                                "0x27d9afb0b58cb3f51475c2131ad3bc5005e139089be8dd378c7e85f96e2b9ac3",
+                                "0x7108ea58b204d95cea24744a3038a6024e3643ab178283e88e6bfc443829e52",
+                                "0x2d6255f85e0e4aef603c378b9ca66aca63457d5672c664e6be53d3020d02dfb5",
+                                "0x2b56cfa3cf15503c3d808194c3a1f13f221bea83760394af8329a6cdb8f4cadf",
+                                "0x1d51f23e38fd8583625e1ed72bb62c5a21a6898a80eec951df92cc8c75e7af5",
+                                "0x4cf1eca0972e44c0b79ae17e0d458c6aad8bef68ea37ed5b97e1743e1a4ed3f",
+                                "0xff45f697fcb3d8894f6f1a7529457e751e638cb2864278ba3232bc893ca5851",
+                                "0x15acbbea5965941d23cb9e06bb870f6fb7ee18f04bc424544a7a81e53576def5",
+                                "0x14dfec649697ab2f01fa102a3cf8ccba9afe9071867ffac759db000f3ef0e9c5",
+                                "0x2a997a4197e079588d2f1e69ad21f590dc94f4619ea4a5a312960c2fb2e971c1",
+                                "0x60b6492984598f27757fad2cf4693ba135645ea88e3fccc450e57b307b4a787",
+                                "0x2b5c683af9dbc68b503f7bc24a25f9e3ddf8f466e707c8c4d98e2017bb211d13",
+                                "0x1cf5e0ce3fc28e7560eae79c4f7509f5739130379f5481caee0b73d758bbff2c"
+                            ],
+                            "root": "0xfddd658d059b3248a30ae480e1fad3397bf3e192753c0d706028b84eb972c84"
+                        }
                     }
                 ],
                 [
@@ -27945,7 +27973,35 @@
                         "protocolFeePercentage": 0.04,
                         "state": 1,
                         "rootHistorySize": 30,
-                        "lastSyncedBlock": "0xa8e25e"
+                        "lastSyncedBlock": "0xa8e25e",
+                        "finalizedBlock": "0xa8e25e",
+                        "verifiedRoot": "0x1393d3214178d13692a641f986f0f21f0ae5cfa27391a1ef0d8c947fdc9c6558",
+                        "frontier": {
+                            "size": 160,
+                            "nodes": [
+                                "0x1b52791d3c38fce959e8c51e35bb3c7fe1a5a80546e8517feba3b02c5c605d3d",
+                                "0x2ffb6b905f8c5cbc11a1b9eafe4f6cae08cfb8abdb20e882946493ad467c34c1",
+                                "0xe5314cc059ed25467e677a425e02316ae99edba853d100a4ce9c1184f4437f2",
+                                "0x1746ace550ce8e3dc4d70893689e8143047bd42873328a1ddff698429589b64",
+                                "0x2f8d98abfbd7e35f143f5b5129e6463da9f832b18b3bddcf51df46166fc26779",
+                                "0x2059e2fc454eb2e33af6e9549a1027a9b079e9edc890725b055e9c02d7317675",
+                                "0x163455a704e5bbaec2c253175717934e774009c3774f33f0fa36632339957a50",
+                                "0x28f97edbdbd5b4e4d805735127fb8d45063ea76a7afa777f625c918a5951d72d",
+                                "0x9e423f702014802fff06ea32d712db89256a7e5ab957871ffc8d1d54a9ed6d",
+                                "0x1e742b6f23c2146a097e71602a644f293429ffab251784ec46d0df5f351dbf7c",
+                                "0x23c6ad862f081f9abca44f77606317bf963977f9281779b35f9aba9e419ef213",
+                                "0x24b36a25256a7cc9414df2eec513fcd7c378572b6db1ccf3441a2cb2d2b1f348",
+                                "0x2c8c7b8d615aa3c7e397e9e811315fdfdfc7b1c7eb333c54c7da29ffc53adc51",
+                                "0x2f9f99659ce889fdff890b51d8b9afb76d41bf6ca4548c4c17491f8f3f10b4ab",
+                                "0xa248d76631ccd08aa81c86e948f1c5f5c35c5b24c27be4c550956f4f9d3983",
+                                "0xeb8e5a1f59b2396dabe7029a246a1f2b979638e754ca818490fd8af01cd8b3e",
+                                "0x2822881014da661099283730a2e866ed5896637e667ef178d743182f853e4ed0",
+                                "0xa624a6b08d596c8fed77131856af64ef21024fd89c390361a8be080931c265b",
+                                "0x2f6cf833b2619fd159715e49f0f01af879a698ea00c81de25900efeb38ed9b5e",
+                                "0x2d54a35da90c5650b2c9aa715b5eff49638cd72dfe91eaa7b078ac91fe65b40b"
+                            ],
+                            "root": "0x1393d3214178d13692a641f986f0f21f0ae5cfa27391a1ef0d8c947fdc9c6558"
+                        }
                     }
                 ],
                 [
@@ -27960,7 +28016,35 @@
                         "protocolFeePercentage": 0.04,
                         "state": 1,
                         "rootHistorySize": 30,
-                        "lastSyncedBlock": "0xa8e25e"
+                        "lastSyncedBlock": "0xa8e25e",
+                        "finalizedBlock": "0xa8e25e",
+                        "verifiedRoot": "0x2901bf5fc897ef5694acd15b454828068f9b7783822a13c792c1f43a0d8ccba",
+                        "frontier": {
+                            "size": 112,
+                            "nodes": [
+                                "0x4b7384114146235cb8efb93c81bfc8fbff5eb71f14938b8ce46fea2d7509fb5",
+                                "0x12e45995818e22bc0489f4f381bc23fc25225f8bbdd851562314166bab6d5c96",
+                                "0xe8f06307402528c9c1d2b8d4f75b7754312fc2ba5c7761fdf5004783a4f9e4",
+                                "0x11564c939445e1fc661f4258c5c0328a913f21809614df7625e1f411e3282c0",
+                                "0x3a7b998151b3717181a8cf56510f51fc34156d2f4493dcc41e522a1dff57b87",
+                                "0x1d5e7c80946df33f00d5aa6a760eec2b9c5fd5512ac5d251da940c0e22fb93cc",
+                                "0x25075cd6e18fee3419c08d2ceae069aa551a0b4d1e5c2c4b30c33150c27ee7df",
+                                "0x12fdc2d0bf6905b22957006c9c55fc5c76f1e80abcdfd09fb5a4985a4b3df78d",
+                                "0x40080171daa7b6afe218e2ac98be41b301d177b8ce891578b2b5e7c8e8714fe",
+                                "0x28d69e503d9819566bb378f9c8a6f5fddf962490863fb73c64f83656f208e3e4",
+                                "0x2d70d481b2377103788c6784fa0fc5e16619ab7beea52c5a17ec9274e9a9a089",
+                                "0xde3070b7c7650e1551a990b7eec582ca9d56b0540f46c378c7eb74eb3ebc027",
+                                "0x9646f3c62c6c71f72e841ab31fd208a40bed24c9f3b881a58ac16c81676cf3c",
+                                "0x29c17f5d738ee27ec218d8b6e06ffb0fc28d23e91326dc1063339ef0b0abb43b",
+                                "0x1648c9bd8afc8f49c2c600a2c0d5c6343e4ad24d364afa819414343800b8fab7",
+                                "0x14775ae980fc4baeb255a7daf09fe2b443ca5185bd4ccc70c343fbe263be1ef4",
+                                "0x1fd1bad8d46a84d629a6027da0ada164f2d7d5a8f63f5ce7bbccfa6bc8ff7fed",
+                                "0xd9dffed04ae2797e98f46b581fb2e0a502bc97897d44d861327577db1f3d879",
+                                "0x1135d6e7df7ba60367538e1b1e216fdebe751359ed52761c01def7f498df72e6",
+                                "0x136e094808e9dd4066a8c7932c3649af0d10779c7480b0201c56c9c702f3fd84"
+                            ],
+                            "root": "0x2901bf5fc897ef5694acd15b454828068f9b7783822a13c792c1f43a0d8ccba"
+                        }
                     }
                 ]
             ]

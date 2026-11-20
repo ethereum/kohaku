@@ -41,8 +41,10 @@ export class EthClient {
 
         const logs: TxLog[] = [];
 
+        // Ranges are inclusive: each chunk spans `maxQuerySize` blocks, so no
+        // block is requested twice.
         for (let start = fromBlock; start <= toBlock; start += maxQuerySize) {
-            const rawEnd = start + maxQuerySize;
+            const rawEnd = start + maxQuerySize - 1n;
             const end = rawEnd < toBlock ? rawEnd : toBlock;
             const result = await this.provider.getLogs({
                 address: params.address as `0x${string}`,
