@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { ISyncService } from "../../data/interfaces/sync.service.interface";
 import { IDataService } from "../../data/interfaces/data.service.interface";
@@ -18,6 +19,7 @@ import {
   withdrawalsSelector,
 } from "../selectors/slices.selectors";
 import { selectLastSyncedBlock } from "../selectors/last-synced-block.selector";
+import { allSettledLimited, POOL_CONCURRENCY } from "../../utils/settle-limited";
 
 /**
  * How far below its saved head a pool saved before the finalized cursor existed
@@ -125,8 +127,10 @@ export const syncEventsThunk = createAsyncThunk<
   // its own coverage. Nothing is stored until the pool's rebuilt tree matches the
   // chain at the scanned head; a mismatch retries without the external provider,
   // then replays the pool from deployment, in case its stored deposits are bad.
-  const results = await Promise.allSettled(
-    myPools.map(async (pool) => {
+  const results = await allSettledLimited(
+    myPools,
+    POOL_CONCURRENCY,
+    async (pool) => {
       const saved = pool.finalizedBlock ?? pool.lastSyncedBlock;
       const resetScan = async (chainOnly: boolean): Promise<PoolScan> => ({
         fromBlock: await syncService.getPoolDeploymentBlock({ chainId, address: pool.address }),
@@ -159,7 +163,7 @@ export const syncEventsThunk = createAsyncThunk<
         // scan that still fails points at the stored deposits, so replay the pool.
         scan = scanned.external ? { ...scan, chainOnly: true } : await resetScan(true);
       }
-    }),
+    },
   );
 
   // Start from the current global block so a run that syncs no pools never
