@@ -7,6 +7,7 @@ import { addressToHex } from '../../utils';
 import { decodeRelayData, encodeRelayData } from '../../utils/encoding.utils';
 import { RootState } from '../store';
 import { entrypointInfoSelector } from '../selectors/slices.selectors';
+import { collectWithinWindow } from '../utils/async.utils';
 
 export interface QuoteResult {
   quote: IQuoteResponse;
@@ -100,6 +101,11 @@ export const validateFeeCommitment = (quote: IQuoteResponse, { requireCommitment
   }
 };
 
+/** How long quotes are collected after the first valid one arrives. */
+export const QUOTE_COLLECTION_WINDOW_MS = 5_000;
+
+type QuoteAnswer = QuoteResult | PPv1RelayerQuoteFailure;
+
 export const quoteThunk = createAsyncThunk<
   QuoteResult,
   QuoteThunkParams,
@@ -114,8 +120,9 @@ export const quoteThunk = createAsyncThunk<
       return rejectWithValue(new PPv1RelayerQuoteError([]));
     }
 
+    const relayerEntries = Array.from(relayers.entries());
     // Query all relayers in parallel
-    const quotePromises = Array.from(relayers.entries()).map(
+    const quotePromises = relayerEntries.map(
       async ([relayerId, relayerUrl]): Promise<QuoteResult | PPv1RelayerQuoteFailure> => {
         try {
           const quote = await relayerClient.getQuote({
@@ -150,7 +157,23 @@ export const quoteThunk = createAsyncThunk<
       }
     );
 
-    const results = await Promise.all(quotePromises);
+    const collected = await collectWithinWindow(quotePromises, (answer) => 'quote' in answer, QUOTE_COLLECTION_WINDOW_MS);
+    // Every quote is checked for expiry at the same moment, so no relayer gains
+    // from the others' latency.
+    const rankedAt = Date.now();
+    const results = collected.map((answer, index): QuoteAnswer => {
+      const [relayerId, relayerUrl] = relayerEntries[index]!;
+
+      if (!answer) {
+        return { relayerId, relayerUrl, reason: 'quote-failed', message: `no quote within ${QUOTE_COLLECTION_WINDOW_MS} ms of the first valid one` };
+      }
+
+      if ('quote' in answer && answer.quote.feeCommitment.expiration <= rankedAt) {
+        return { relayerId, relayerUrl, reason: 'quote-failed', message: `quote expired ${rankedAt - answer.quote.feeCommitment.expiration} ms before ranking` };
+      }
+
+      return answer;
+    });
     const validQuotes = results.filter((r): r is QuoteResult => 'quote' in r);
 
     if (validQuotes.length === 0) {

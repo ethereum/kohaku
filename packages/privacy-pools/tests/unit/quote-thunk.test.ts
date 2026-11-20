@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { concat, encodeAbiParameters, getAddress } from 'viem';
 import { relayDataAbi } from '../../src/data/abis/entrypoint.abi';
 import type { Address } from '../../src/interfaces/types.interface';
@@ -7,7 +7,7 @@ import { PPv1RelayerQuoteError } from '../../src/relayer/quote-error';
 import { RelayerClient } from '../../src/relayer/relayer-client';
 import { storeStateManager, type StoreFactoryParams } from '../../src/state/state-manager';
 import { storeFactory } from '../../src/state/store';
-import { quoteThunk, validateFeeCommitment, validateWithdrawalData } from '../../src/state/thunks/quoteThunk';
+import { QUOTE_COLLECTION_WINDOW_MS, quoteThunk, validateFeeCommitment, validateWithdrawalData } from '../../src/state/thunks/quoteThunk';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 const USER = getAddress('0x1111111111111111111111111111111111111111');
@@ -238,5 +238,104 @@ describe('quoteThunk', () => {
       { relayerId: 'offline', message: 'Quote request failed (HTTP 400): Amount must be a positive integer' },
     ] });
     expect(proverFactory).not.toHaveBeenCalled();
+  });
+});
+
+describe('quote collection window', () => {
+  const store = () => storeFactory({
+    logLevel: 'off',
+    devOptions: TEST_STORE_DEV_OPTIONS,
+    entrypointInfo: { chainId: 1n, entrypointAddress: 900n as Address, deploymentBlock: 0n },
+  });
+
+  /** Relayers that answer after `delay` ms (never when undefined), each with a quote built at answer time. */
+  const relayers = (answers: Record<string, { delay?: number; quote: () => IQuoteResponse }>) => {
+    const client: IRelayerClient = {
+      getQuote: ({ relayerUrl }) => new Promise((resolve) => {
+        const { delay, quote: build } = answers[relayerUrl]!;
+
+        if (delay !== undefined) setTimeout(() => resolve(build()), delay);
+      }),
+      relay: async () => { throw new Error('not used'); },
+      getFees: async () => { throw new Error('not used'); },
+    };
+
+    let settled = false;
+    const result = store().dispatch(quoteThunk({
+      relayerClient: client,
+      relayers: new Map(Object.keys(answers).map((url) => [url, url])),
+      asset: ASSET,
+      amount: 10n ** 18n,
+      recipient: BigInt(USER),
+    })).unwrap().finally(() => { settled = true; });
+
+    result.catch(() => {});
+
+    return { result, isSettled: () => settled };
+  };
+  /** A quote at `feeBPS`, valid for `lifetimeMs` from when it is built. */
+  const quoteAt = (feeBPS: bigint, lifetimeMs = 60_000) => () =>
+    withCommitment(quote(relayData(USER, feeBPS), String(feeBPS)), { expiration: Date.now() + lifetimeMs });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('ignores a cheaper, longer-lived quote that arrives after the window', async () => {
+    const { result } = relayers({
+      honest: { delay: 100, quote: quoteAt(100n) },
+      late: { delay: 100 + QUOTE_COLLECTION_WINDOW_MS + 1_000, quote: quoteAt(1n, 3_600_000) },
+    });
+
+    await vi.advanceTimersByTimeAsync(100 + QUOTE_COLLECTION_WINDOW_MS);
+
+    expect((await result).relayerId).toBe('honest');
+  });
+
+  it('ranks as soon as every relayer has answered', async () => {
+    const { result, isSettled } = relayers({ a: { delay: 100, quote: quoteAt(100n) }, b: { delay: 300, quote: quoteAt(50n) } });
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(isSettled()).toBe(true);
+    expect((await result).relayerId).toBe('b');
+  });
+
+  it('does not start the window on an invalid reply', async () => {
+    const { result, isSettled } = relayers({
+      thief: { delay: 10, quote: () => quote(relayData(RELAYER, 0n), '0') },
+      honest: { delay: 10 + QUOTE_COLLECTION_WINDOW_MS + 1_000, quote: quoteAt(100n) },
+      silent: { quote: quoteAt(1n) },
+    });
+
+    await vi.advanceTimersByTimeAsync(10 + QUOTE_COLLECTION_WINDOW_MS + 1_000);
+
+    expect(isSettled()).toBe(false);
+    await vi.advanceTimersByTimeAsync(QUOTE_COLLECTION_WINDOW_MS);
+    expect((await result).relayerId).toBe('honest');
+  });
+
+  it('drops a quote that expires before ranking, and reports relayers that did not answer in time', async () => {
+    const short = relayers({
+      short: { delay: 100, quote: quoteAt(10n, 2_000) },
+      valid: { delay: 3_000, quote: quoteAt(100n) },
+      silent: { quote: quoteAt(1n) },
+    });
+
+    await vi.advanceTimersByTimeAsync(100 + QUOTE_COLLECTION_WINDOW_MS);
+    expect((await short.result).relayerId).toBe('valid');
+
+    const none = relayers({ short: { delay: 100, quote: quoteAt(10n, 2_000) }, silent: { quote: quoteAt(1n) } });
+
+    await vi.advanceTimersByTimeAsync(100 + QUOTE_COLLECTION_WINDOW_MS);
+    const error = await none.result.catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(PPv1RelayerQuoteError);
+    expect((error as PPv1RelayerQuoteError).failures).toEqual([
+      expect.objectContaining({ relayerId: 'short', message: expect.stringMatching(/^quote expired \d+ ms before ranking$/) }),
+      expect.objectContaining({ relayerId: 'silent', message: `no quote within ${QUOTE_COLLECTION_WINDOW_MS} ms of the first valid one` }),
+    ]);
   });
 });

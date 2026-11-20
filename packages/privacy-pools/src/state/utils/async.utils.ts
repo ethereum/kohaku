@@ -110,3 +110,39 @@ export const withTimeout = async <T>(
     controller.abort();
   }
 };
+
+/**
+ * Settles `answers` in their order, once all have settled or `windowMs` after the
+ * first one that `startsWindow` accepts, whichever comes first. Answers still
+ * pending by then are left `undefined`, so a late answer cannot be chosen: for
+ * relayer quotes, a relayer cannot win by answering after the others expire.
+ * Answers that `startsWindow` rejects do not start the window, so they cannot
+ * shorten it for the others. An answer that rejects is left `undefined` too.
+ */
+export const collectWithinWindow = <T>(answers: Promise<T>[], startsWindow: (answer: T) => boolean, windowMs: number) =>
+  new Promise<(T | undefined)[]>((resolve) => {
+    const collected: (T | undefined)[] = answers.map(() => undefined);
+    let pending = answers.length;
+    let windowTimer: ReturnType<typeof setTimeout> | undefined;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+
+      done = true;
+      clearTimeout(windowTimer);
+      resolve([...collected]);
+    };
+
+    if (pending === 0) finish();
+
+    answers.forEach((answer, index) => answer.catch(() => undefined).then((result) => {
+      if (done) return;
+
+      collected[index] = result;
+      pending--;
+
+      if (result !== undefined && windowTimer === undefined && startsWindow(result)) windowTimer = setTimeout(finish, windowMs);
+
+      if (pending === 0) finish();
+    }));
+  });

@@ -49,7 +49,7 @@ createPPv1Plugin(host, {
 })
 ```
 
-These ids (`fast`, `backup`) are used only by the regular relayer mode. In that mode every relayer is asked for a quote, and a quote is ranked only if its relay data pays your recipient within the quoted and on-chain fee limits, it has not expired, and it carries a signed fee commitment (exact-output withdrawals, which send their own fee instead, skip the signature check). The cheapest remaining quote by embedded fee is used. The recommended ERC-4337 paymaster path uses the bundler URL from `paymasterConfig`; `broadcasterUrl` remains a required constructor field. See [withdrawals](/privacy-pools/withdrawals) for preparation and broadcasting.
+These ids (`fast`, `backup`) are used only by the regular relayer mode. In that mode every relayer is asked for a quote. Quotes are collected until every relayer has answered, or for 5 seconds after the first valid quote arrives, whichever comes first; a relayer that answers later is not considered, so answering late never helps. A quote is then ranked only if its relay data pays your recipient within the quoted and on-chain fee limits, it has not expired (checked for every quote at the moment of ranking), and it carries a signed fee commitment (exact-output withdrawals, which send their own fee instead, skip the signature check). The cheapest remaining quote by embedded fee is used. The recommended ERC-4337 paymaster path uses the bundler URL from `paymasterConfig`; `broadcasterUrl` remains a required constructor field. See [withdrawals](/privacy-pools/withdrawals) for preparation and broadcasting.
 
 ## Secret managers
 
