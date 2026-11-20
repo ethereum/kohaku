@@ -32,6 +32,23 @@ vi.mock('../../src/state/thunks/withdrawThunk', () => ({
     return { payload: { proof: { pi_a: ['1', '2', '1'], pi_b: [['1', '2'], ['3', '4'], ['1', '0']], pi_c: ['1', '2', '1'] }, publicSignals: Array(8).fill('0') } };
   },
 }));
+// The paymaster fee is a fixed 10, whatever the gas, so exact output adds 10 to the gross.
+vi.mock('../../src/paymaster/fee', async original => ({
+  ...await original<typeof import('../../src/paymaster/fee')>(),
+  computeMinimumViableFee: () => 10n,
+}));
+vi.mock('../../src/paymaster/utils', async original => ({
+  ...await original<typeof import('../../src/paymaster/utils')>(),
+  getUserOperationGasPrice: async () => {
+    const tier = { maxFeePerGas: 13n * 10n ** 9n, maxPriorityFeePerGas: 10n ** 9n };
+
+    return { slow: tier, standard: tier, fast: tier };
+  },
+}));
+vi.mock('../../src/paymaster/gas-bounds', async original => ({
+  ...await original<typeof import('../../src/paymaster/gas-bounds')>(),
+  readGasFeeReference: async () => ({ baseFeePerGas: 10n ** 10n, maxPriorityFeePerGas: 10n ** 9n }),
+}));
 vi.mock('../../src/state/thunks/paymasterWithdrawThunk', () => ({
   paymasterWithdrawThunk: (params: unknown) => async () => {
     fixture.prepare(params);
@@ -51,9 +68,9 @@ const note = (label: bigint, balance: bigint, overrides: Partial<INote> = {}): I
 function setup() {
   const stateManager = storeStateManager({
     entrypoint: { address: 1n, deploymentBlock: 0n },
-    dataService: { getChainId: async () => 1n, getPoolForAsset: async () => ({ maxRelayFeeBPS: 1000n }) },
+    dataService: { getChainId: async () => 1n, getPoolForAsset: async () => ({ maxRelayFeeBPS: 1000n }), quoteWeiInToken: async (_paymaster: bigint, _asset: bigint, wei: bigint) => wei },
     secretManager: {},
-    paymasterConfig: { 1: { bundlerUrl: 'unused', poolsAccountsMap: {} } },
+    paymasterConfig: { 1: { bundlerUrl: 'unused', paymasterAddress: '0x000000000000000000000000000000000000fee1', poolsAccountsMap: {} } },
   } as unknown as StoreFactoryParams);
 
   vi.spyOn(stateManager, 'sync').mockResolvedValue();

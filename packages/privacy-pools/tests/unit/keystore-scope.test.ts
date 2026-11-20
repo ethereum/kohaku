@@ -22,6 +22,11 @@ function setup() {
     getPaymasterWithdrawalPayloads: vi.fn(async ({ delegation }: IPaymasterWithdrawapOperationParams) => [
       { delegatorKey: await manager.deriveDelegatorSigner({ path: (delegation as { path: string }).path }) },
     ]),
+
+    getExactPaymasterWithdrawalPayloads: vi.fn(async ({ delegation, requestedNet }: IPaymasterWithdrawapOperationParams & { requestedNet: bigint }) => ({
+      payloads: [{ fee: 0n, delegatorKey: await manager.deriveDelegatorSigner({ path: (delegation as { path: string }).path }) }],
+      grossAmount: requestedNet,
+    })),
   };
 
   const pools = new PrivacyPoolsV1Protocol(host, {
@@ -71,6 +76,20 @@ describe('PrivacyPoolsV1Protocol keystore scope', () => {
 
     await unshieldWith(pools, DELEGATION_PATH);
 
+    await expect(manager.deriveDelegatorSigner({ path: DELEGATION_PATH })).rejects.toThrow(KeystorePathNotAllowedError);
+  });
+
+  it('drops the delegation.path once an exact-output unshield is prepared', async () => {
+    const { host, pools, manager } = setup();
+
+    const operation = await pools.prepareUnshield({ asset: ASSET, amount: 1n }, RECIPIENT, {
+      mode: 'paymaster',
+      exact: true,
+      refundRecipient: RECIPIENT,
+      delegation: { mode: 'deterministic', path: DELEGATION_PATH },
+    });
+
+    expect(operation).toMatchObject({ withdrawal: { delegatorKey: await host.keystore.deriveAt(DELEGATION_PATH) } });
     await expect(manager.deriveDelegatorSigner({ path: DELEGATION_PATH })).rejects.toThrow(KeystorePathNotAllowedError);
   });
 

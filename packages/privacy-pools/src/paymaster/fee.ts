@@ -87,6 +87,25 @@ export function reasonableGasUnitsForBatch(
   };
 }
 
+/**
+ * The static gas baseline of a paymaster withdrawal spending `noteCount` notes:
+ * the first is sponsored in paymaster validation, and the others (or tail calls)
+ * add an execution phase. The withdrawal builder and the fee estimate both use it,
+ * so a quote prices the same operation that is built.
+ */
+export function paymasterBaselineGas(
+  isERC20: boolean,
+  noteCount: number,
+  hasTailCalls: boolean,
+  tailCallsGasEstimate?: bigint,
+): UserOpGasLimits {
+  const hasExecutionPhase = noteCount > 1 || hasTailCalls;
+
+  if (!hasExecutionPhase) return { ...reasonableGasUnits(isERC20), callGasLimit: 0n };
+
+  return reasonableGasUnitsForBatch(isERC20, noteCount - 1, hasTailCalls, tailCallsGasEstimate);
+}
+
 /** The fee amount (in wei) the paymaster expects to break even for these gas limits. */
 export function computeMinimumViableFee(
   gasUnits: UserOpGasLimits,

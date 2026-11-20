@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { deductFeeBPS, grossForNet, sizeExactRelayerWithdrawal } from '../../src/utils/fee.utils';
+import { deductFeeBPS, grossForNet, sizeExactPaymasterWithdrawal, sizeExactRelayerWithdrawal } from '../../src/utils/fee.utils';
 
 describe('deductFeeBPS', () => {
   it('charges feeBPS / 10000 of the amount', () => {
@@ -103,5 +103,36 @@ describe('sizeExactRelayerWithdrawal', () => {
 
   it('rejects a base fee of 100% or more', () => {
     expect(() => sizeExactRelayerWithdrawal({ ...base, baseFeeBPS: 10_000n })).toThrow();
+  });
+});
+
+describe('sizeExactPaymasterWithdrawal', () => {
+  const feeFor = async (noteCount: number) => BigInt(noteCount) * 100n;
+
+  it('takes one round when the gross spends no more notes than the net', async () => {
+    const notesFor = vi.fn(() => 1);
+
+    expect(await sizeExactPaymasterWithdrawal({ requestedNet: 500n, notesFor, feeFor })).toEqual({ grossAmount: 600n, fee: 100n, noteCount: 1 });
+    expect(notesFor.mock.calls.map(([amount]) => amount)).toEqual([500n, 600n]);
+  });
+
+  it('reprices until the gross spends the notes it was priced for', async () => {
+    // 1000-unit notes: the 950 net fits one, the gross with fee needs two.
+    const notesFor = (amount: bigint) => Number((amount + 999n) / 1000n);
+
+    expect(await sizeExactPaymasterWithdrawal({ requestedNet: 950n, notesFor, feeFor })).toEqual({ grossAmount: 1150n, fee: 200n, noteCount: 2 });
+  });
+
+  it('reprices when a random split spends fewer notes than were priced', async () => {
+    const counts = [2, 3, 1, 1];
+    const notesFor = () => counts.shift()!;
+
+    expect(await sizeExactPaymasterWithdrawal({ requestedNet: 1000n, notesFor, feeFor })).toEqual({ grossAmount: 1100n, fee: 100n, noteCount: 1 });
+  });
+
+  it('stops when the note count keeps growing', async () => {
+    let calls = 0;
+
+    await expect(sizeExactPaymasterWithdrawal({ requestedNet: 1n, notesFor: () => ++calls, feeFor })).rejects.toThrow('did not converge');
   });
 });

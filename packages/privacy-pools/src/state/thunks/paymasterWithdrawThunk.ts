@@ -15,7 +15,7 @@ import { E_ADDRESS } from "../../config";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { Address } from "../../interfaces/types.interface";
 import { DelegationConfig, DelegatorAccount, SerializedUserOperation, UserOpGasLimits } from "../../interfaces/user-ops.interface";
-import { computeMinimumViableFee, reasonableGasUnits, reasonableGasUnitsForBatch } from "../../paymaster/fee";
+import { computeMinimumViableFee, paymasterBaselineGas } from "../../paymaster/fee";
 import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from "../../paymaster/gas-bounds";
 import { encodeFeeData, encodePaymasterData, encodePoolWithdraw, encodePrivacyPoolAdapterData } from "../../paymaster/adapter-data";
 import {
@@ -289,9 +289,8 @@ export const paymasterWithdrawThunk = createAsyncThunk<
       ...(resolvedTailCalls ?? (addressToHex(recipient).toLowerCase() === sender.toLowerCase() ? [] : [forwardCall(fee)])),
     ];
 
-    const baselineGas = executionGasBaseline(accountConfig, hasExecutionPhase
-      ? reasonableGasUnitsForBatch(isERC20, directNotes.length, tailCalls != null, tailCallsGasEstimate)
-      : { ...reasonableGasUnits(isERC20), callGasLimit: 0n });
+    const baselineGas = executionGasBaseline(accountConfig,
+      paymasterBaselineGas(isERC20, notesToSpend.length, tailCalls != null, tailCallsGasEstimate));
 
     assertGasLimitsWithinBounds(baselineGas, baselineGas, undefined, maxGasLimits);
 

@@ -1,5 +1,5 @@
 import type { EthereumProvider } from '@kohaku-eth/provider';
-import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference } from '../paymaster/gas-bounds';
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from '../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
 import { Network, Storage } from "@kohaku-eth/plugins";
@@ -10,11 +10,16 @@ import { E_ADDRESS } from "../config";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
+import type { DelegationConfig, ExecutionAccountConfig, UserOpGasLimits } from "../interfaces/user-ops.interface";
+import { executionAccount, executionGasBaseline } from "../account/execution-account";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
   IEntrypoint,
+  ExactPaymasterWithdrawal,
   IEstimateUnshieldOperationParams,
+  IExactPaymasterWithdrawalParams,
+  IPaymasterConfig,
   IGetHistoryParams,
   IGetNotesParams,
   INote,
@@ -35,11 +40,11 @@ import {
   StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
-import { computeMinimumViableFee, reasonableGasUnits, tailCallsGas } from "../paymaster/fee";
+import { computeMinimumViableFee, paymasterBaselineGas } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
 import { encodeRelayData } from "../utils/encoding.utils";
-import { deductFeeBPS, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
+import { deductFeeBPS, sizeExactPaymasterWithdrawal, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
   allNotesSelector,
@@ -60,7 +65,7 @@ import {
   SpecificAssetBalanceFn,
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
-import { getNoteSelector, NoteToSpend } from "./selectors/notes.selector";
+import { getNoteSelector, getNotesToSpendSelector, NoteToSpend } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
 import {
   ChainEntry,
@@ -243,6 +248,101 @@ export const storeStateManager = (
     return notes;
   };
 
+  /**
+   * How many notes a paymaster withdrawal of `amount` spends: the planned ones, else
+   * those paymasterWithdrawThunk selects itself.
+   */
+  const paymasterNoteCount = (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    asset: Address, amount: bigint, batch: boolean, planned: NoteToSpend[] | undefined,
+  ): number => {
+    if (planned) return planned.length;
+
+    return batch ? getNotesToSpendSelector(store.getState(), asset, amount).length : 1;
+  };
+
+  /**
+   * The execution account whose gas baseline the withdrawal builder will use: a
+   * SimpleAccount that is not deployed yet pays for its deployment in verification gas.
+   */
+  const builtExecutionAccount = async (delegation?: DelegationConfig): Promise<ExecutionAccountConfig> => {
+    const account = executionAccount(delegation);
+
+    if (account.kind !== 'simple-account' || !account.factory) return account;
+
+    const code = await params.provider?.request({ method: 'eth_getCode', params: [account.address, 'latest'] });
+
+    return typeof code === 'string' && code !== '0x' ? { ...account, factory: undefined } : account;
+  };
+
+  const chainPaymasterConfig = (chainInfo: GetChainStoreParams) => {
+    const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+
+    if (!paymasterConfig) {
+      throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
+    }
+
+    return paymasterConfig;
+  };
+
+  /** Prepares a paymaster withdrawal of `amount` from `notesToSpend`, or from the builder's own note selection. */
+  const preparePaymasterWithdrawal = async (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    paymasterConfig: IPaymasterConfig,
+    { asset, recipient, delegation, tailCalls, tailCallsGasEstimate, maxGasLimits, batch, refundRecipient }: Omit<IPaymasterWithdrawapOperationParams, 'amount'>,
+    amount: bigint | undefined,
+    notesToSpend: NoteToSpend[] | undefined,
+  ) => unwrapResult(
+    await store.dispatch(
+      paymasterWithdrawThunk({
+        getNextNote: store.selectors.getNextNote,
+        proverFactory: params.proverFactory,
+        merkleTreeBuilder: params.merkleTreeBuilder,
+        dataService: params.dataService,
+        secretManager,
+        asset,
+        amount,
+        recipient,
+        paymasterConfig,
+        delegation,
+        tailCalls,
+        tailCallsGasEstimate,
+        maxGasLimits,
+        provider: params.provider,
+        network: params.network,
+        batch,
+        notesToSpend,
+        refundRecipient,
+      }),
+    ),
+  );
+
+  /**
+   * Prices paymaster withdrawals of `asset` at the bundler's current gas price: the
+   * returned function gives the fee for a gas baseline, in the pool asset.
+   */
+  const paymasterFeeQuoter = async (chainInfo: GetChainStoreParams, asset: Address, maxGasLimits?: PaymasterGasLimits) => {
+    const { bundlerUrl, paymasterAddress } = chainPaymasterConfig(chainInfo);
+    const isERC20 = asset !== BigInt(E_ADDRESS);
+    const [{ standard: price }, reference] = await Promise.all([
+      getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
+      readGasFeeReference(params.provider),
+    ]);
+
+    assertGasPriceWithinBounds(price, reference);
+    const { maxFeePerGas } = price;
+
+    return async (gas: UserOpGasLimits) => {
+      assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
+      const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
+      const fee = isERC20
+        ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
+        : gasFeeWei;
+
+      return { fee, gasFeeWei, maxFeePerGas };
+    };
+  };
+
   const runSync = async (chainInfo: GetChainStoreParams, skipAsp: boolean): Promise<void> => {
     const store = await getChainStore(chainInfo);
     const chainEntry = await getChainEntry(chainInfo);
@@ -300,36 +400,17 @@ export const storeStateManager = (
       hasTailCalls = false,
       tailCallsGasEstimate,
       maxGasLimits,
+      batch = false,
     }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
       const chainInfo = await getChainInfo();
 
       if (mode === 'paymaster') {
-        const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
-
-        if (!paymasterConfig) {
-          throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
-        }
-
-        const { bundlerUrl, paymasterAddress } = paymasterConfig;
         const isERC20 = asset !== BigInt(E_ADDRESS);
-        const [{ standard: price }, reference] = await Promise.all([
-          getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
-          readGasFeeReference(params.provider),
-        ]);
-
-        assertGasPriceWithinBounds(price, reference);
-        const { maxFeePerGas } = price;
-        // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
-        const gas = {
-          ...reasonableGasUnits(isERC20),
-          callGasLimit: hasTailCalls ? tailCallsGas(tailCallsGasEstimate) : 0n,
-        };
-
-        assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
-        const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
-        const fee = isERC20
-          ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
-          : gasFeeWei;
+        const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
+        // A batch spends as many notes as the amount needs, each after the first in
+        // the execution phase; price the same notes the withdrawal would spend.
+        const noteCount = batch ? paymasterNoteCount(await getChainStore(chainInfo), asset, amount, batch, undefined) : 1;
+        const { fee, gasFeeWei, maxFeePerGas } = await quote(paymasterBaselineGas(isERC20, noteCount, hasTailCalls, tailCallsGasEstimate));
 
         return { mode, fee, netAmount: amount - fee, gasFeeWei, maxFeePerGas };
       }
@@ -523,55 +604,45 @@ export const storeStateManager = (
         exact: { grossAmount, requestedNet, expectedNet: net, fee },
       };
     },
-    getPaymasterWithdrawalPayloads: async ({
-      asset,
-      amount,
-      recipient,
-      delegation,
-      tailCalls,
-      tailCallsGasEstimate,
-      maxGasLimits,
-      batch,
-      obfuscateAmounts,
-      label,
-      refundRecipient,
-    }: IPaymasterWithdrawapOperationParams) => {
+    getExactPaymasterWithdrawalPayloads: async ({ requestedNet, ...request }: IExactPaymasterWithdrawalParams): Promise<ExactPaymasterWithdrawal> => {
+      const { asset, batch = false, obfuscateAmounts = false, label, delegation, tailCalls, tailCallsGasEstimate, maxGasLimits } = request;
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
-      const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+      const paymasterConfig = chainPaymasterConfig(chainInfo);
+      const isERC20 = asset !== BigInt(E_ADDRESS);
+      const [quote, account] = await Promise.all([
+        paymasterFeeQuoter(chainInfo, asset, maxGasLimits),
+        builtExecutionAccount(delegation),
+      ]);
+      // One plan per amount, made outside Redux so planning errors reach the caller
+      // intact: a random split may spend a different number of notes each time, so
+      // the plan priced for the final gross is the one prepared.
+      const plans = new Map<bigint, NoteToSpend[] | undefined>();
+      const planFor = (amount: bigint) => {
+        if (!plans.has(amount)) plans.set(amount, planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label }));
 
-      if (!paymasterConfig) {
-        throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
-      }
+        return plans.get(amount);
+      };
+      const { grossAmount } = await sizeExactPaymasterWithdrawal({
+        requestedNet,
+        notesFor: (amount) => paymasterNoteCount(store, asset, amount, batch, planFor(amount)),
+        feeFor: async (noteCount) => (await quote(executionGasBaseline(account, paymasterBaselineGas(isERC20, noteCount, tailCalls != null, tailCallsGasEstimate)))).fee,
+      });
+      const payloads = await preparePaymasterWithdrawal(store, paymasterConfig, request, grossAmount, planFor(grossAmount));
+
+      return { payloads, grossAmount };
+    },
+    getPaymasterWithdrawalPayloads: async ({ amount, ...request }: IPaymasterWithdrawapOperationParams) => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+      const paymasterConfig = chainPaymasterConfig(chainInfo);
+      const { asset, batch, obfuscateAmounts, label } = request;
 
       // Plan outside Redux so the structured headroom error reaches the caller intact.
       // Reuse the random allocation; preparation only adjusts it if the sponsor cannot cover its fee.
       const notesToSpend = planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label });
 
-      return unwrapResult(
-        await store.dispatch(
-          paymasterWithdrawThunk({
-            getNextNote: store.selectors.getNextNote,
-            proverFactory: params.proverFactory,
-            merkleTreeBuilder: params.merkleTreeBuilder,
-            dataService: params.dataService,
-            secretManager,
-            asset,
-            amount,
-            recipient,
-            paymasterConfig,
-            delegation,
-            tailCalls,
-            tailCallsGasEstimate,
-            maxGasLimits,
-            provider: params.provider,
-            network: params.network,
-            batch,
-            notesToSpend,
-            refundRecipient,
-          }),
-        ),
-      );
+      return preparePaymasterWithdrawal(store, paymasterConfig, request, amount, notesToSpend);
     },
     getRagequitPayloads: async ({
       assets = [],

@@ -2,7 +2,7 @@
 
 `prepareUnshield(asset, recipient, options)` builds a private operation. `createPPv1Broadcaster` submits it. Use the ERC-4337 paymaster relay/broadcast path as the default integration path. Pass `mode: 'paymaster'` explicitly on both preparation and fee previews; omitting it selects the SDK's regular relayer mode.
 
-Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, and `tailCallsGasEstimate` fields, and it does not generate a proof or validate amount obfuscation. `prepareUnshield` estimates again when you are ready to submit, so a preview can go slightly stale.
+Call `estimateUnshield` for the fee preview. It uses the same `mode`, `tailCalls`, `tailCallsGasEstimate` and, in paymaster mode, `batch` fields, and it does not generate a proof or validate amount obfuscation. `prepareUnshield` estimates again when you are ready to submit, so a preview can go slightly stale.
 
 ```ts
 const preview = await pools.estimateUnshield(asset, recipient, {
@@ -159,7 +159,7 @@ await pools.prepareUnshield(asset, recipient, {
 })
 ```
 
-`estimateUnshield` needs the same `tailCalls` (or at least their presence) and the same gas estimate, or the preview will miss the execution phase.
+`estimateUnshield` needs the same `tailCalls` (or at least their presence) and the same gas estimate, or the preview will miss the execution phase. Pass `batch: true` too when the withdrawal batches: the preview then prices every note the amount spends, and throws if the approved notes cannot cover it.
 
 `tailCallsGasEstimate` must be a positive bigint. Tail calls and batched notes run after the payout reaches the sender, so `prepareUnshield` signs them only after the bundler successfully estimates a positive `callGasLimit` and confirms the refined limits with a second estimate. If estimation fails, preparation throws instead of signing a baseline guess. A single-note withdrawal without `tailCalls` has no execution phase and still uses baseline gas when estimation is unavailable.
 
@@ -220,6 +220,8 @@ const operation = await pools.prepareUnshield(asset, recipient, {
   exact: {},
 })
 ```
+
+With `batch: true`, the paymaster fee is priced for the notes the gross spends. Each note after the first adds an execution-phase withdrawal and its gas, and the gross grows with the fee. The SDK reprices until the gross spends exactly the notes its fee covers: a `requestedNet` that one note holds, but not together with its fee, is withdrawn from two notes and priced for both. With `obfuscateAmounts`, the random split that was priced is the one withdrawn. A SimpleAccount sender that is not deployed yet also has its deployment gas priced.
 
 Send the refund to `payer` and the recipient nets `requestedNet`. Send the refund to `recipient` and they receive at least `requestedNet`. In that case `operation.exact.expectedNet` is a lower bound.
 

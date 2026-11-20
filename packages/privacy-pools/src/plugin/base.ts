@@ -246,6 +246,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       hasTailCalls: !!options?.tailCalls,
       tailCallsGasEstimate: options?.tailCallsGasEstimate,
       maxGasLimits: options?.maxGasLimits,
+      batch: options?.batch,
     });
   }
 
@@ -411,9 +412,18 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       );
     }
 
-    const estimate = await this.estimateUnshield(assets, to, options);
-    const grossAmount = requestedNet + estimate.fee;
-    const operation = await this.buildUnshield(assets, grossAmount, to, options);
+    // Sized against the notes the gross will spend, so sync first.
+    await this.stateManager.sync();
+
+    const { payloads: [withdrawal], grossAmount } = await this.withDelegationPath(this.delegationPath(options), () =>
+      this.stateManager.getExactPaymasterWithdrawalPayloads({
+        ...this.paymasterWithdrawalParams(this.unshieldAssetAddress(assets), to, options),
+        requestedNet,
+      }));
+
+    if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
+
+    const operation: PPv1PrivateOperation = { mode: 'paymaster', withdrawal } as PPv1PaymasterPrivateOperation;
     const { expectedNet, fee } = resolveExactOutput(operation, grossAmount);
 
     if (expectedNet < requestedNet) {
@@ -423,6 +433,26 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     operation.exact = { grossAmount, requestedNet, expectedNet, fee };
 
     return operation;
+  }
+
+  /** The integrator named this wallet key, so the secret manager may derive exactly it. */
+  private delegationPath(options: PPv1PaymasterUnshieldOptions): string | undefined {
+    return options.delegation?.mode === 'deterministic' ? options.delegation.path : undefined;
+  }
+
+  private paymasterWithdrawalParams(asset: bigint, to: AccountId, options: PPv1PaymasterUnshieldOptions) {
+    return {
+      asset,
+      recipient: BigInt(to),
+      delegation: options.delegation,
+      tailCalls: options.tailCalls,
+      tailCallsGasEstimate: options.tailCallsGasEstimate,
+      maxGasLimits: options.maxGasLimits,
+      batch: options.batch,
+      obfuscateAmounts: options.obfuscateAmounts ?? false,
+      label: options.label,
+      refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
+    };
   }
 
   private unshieldAssetAddress(assets: AssetAmount): bigint {
@@ -466,20 +496,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     await this.stateManager.sync();
 
     if (options?.mode === 'paymaster') {
-      // The integrator named this wallet key, so the secret manager may derive exactly it.
-      const path = options.delegation?.mode === 'deterministic' ? options.delegation.path : undefined;
-      const [withdrawal] = await this.withDelegationPath(path, () => this.stateManager.getPaymasterWithdrawalPayloads({
-        asset: assetAddress,
+      const [withdrawal] = await this.withDelegationPath(this.delegationPath(options), () => this.stateManager.getPaymasterWithdrawalPayloads({
+        ...this.paymasterWithdrawalParams(assetAddress, to, options),
         amount,
-        recipient: BigInt(to),
-        delegation: options.delegation,
-        tailCalls: options.tailCalls,
-        tailCallsGasEstimate: options.tailCallsGasEstimate,
-        maxGasLimits: options.maxGasLimits,
-        batch: options.batch,
-        obfuscateAmounts: options.obfuscateAmounts ?? false,
-        label: options.label,
-        refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
       }));
 
       if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
