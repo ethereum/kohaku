@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { getUserOperationTypedData, entryPoint08Address } from 'viem/account-abstraction';
-import { decodeAbiParameters, parseAbiParameters, toHex } from 'viem';
+import { decodeAbiParameters, hashTypedData, parseAbiParameters, toHex } from 'viem';
 import { verifiedExternalDelegator } from '../../src/account/external-delegator';
 import type { DelegatorAccount, DelegationConfig, SerializedUserOperation } from '../../src/interfaces/user-ops.interface';
 import { E_ADDRESS } from '../../src/config';
@@ -13,7 +13,7 @@ import { storeFactory } from '../../src/state/store';
 import type { NoteToSpend } from '../../src/state/selectors/notes.selector';
 
 const fixture = vi.hoisted(() => ({
-  count: 1, isERC20: false, nonce: 0, deployed: false,
+  count: 1, isERC20: false, nonce: 0, deployed: false, entryPoint: '0x' as `0x${string}`,
   estimate: vi.fn(), proof: vi.fn(),
   deriveEphemeral: vi.fn(async () => `0x${'01'.repeat(32)}` as const),
   deriveDelegator: vi.fn(async () => `0x${'02'.repeat(32)}` as const),
@@ -86,14 +86,14 @@ async function prepare(delegation?: DelegationConfig, tailCalls?: () => Promise<
       return method === 'eth_getBlockByNumber' ? { baseFeePerGas: toHex(1_000_000_000_000n) } : toHex(1n);
     } },
     secretManager: { deriveEphemeralSigner: fixture.deriveEphemeral, deriveDelegatorSigner: fixture.deriveDelegator },
-    paymasterConfig: { paymasterAddress, entryPointAddress: entryPoint08Address, bundlerUrl: 'unused', poolsAccountsMap: { '0x0000000000000000000000000000000000000001': adapter } },
+    paymasterConfig: { paymasterAddress, entryPointAddress: fixture.entryPoint, bundlerUrl: 'unused', poolsAccountsMap: { '0x0000000000000000000000000000000000000001': adapter } },
     recipient: BigInt(recipient), asset: fixture.isERC20 ? 2n : BigInt(E_ADDRESS),
     amount: notesToSpend?.reduce((sum, n) => sum + n.withdrawnValue, 0n) ?? BigInt(fixture.count) * 10n ** 18n,
     batch: fixture.count > 1, delegation, tailCalls, notesToSpend, getNextNote: vi.fn(), proverFactory: vi.fn(),
   } as never)).unwrap();
 }
 beforeEach(() => {
-  vi.clearAllMocks(); fixture.count = 1; fixture.isERC20 = false; fixture.nonce = 0; fixture.deployed = false;
+  vi.clearAllMocks(); fixture.count = 1; fixture.isERC20 = false; fixture.nonce = 0; fixture.deployed = false; fixture.entryPoint = entryPoint08Address;
   fixture.getTransactionCount.mockImplementation(async () => fixture.nonce);
   fixture.estimate.mockReset();
   fixture.estimate.mockImplementation(async (op: SerializedUserOperation) => ({
@@ -194,6 +194,14 @@ describe('Privacy Pools external paymaster signing', () => {
     expect(fixture.getTransactionCount).toHaveBeenCalledExactlyOnceWith(account.address);
     expect(withdrawal!.userOperation.eip7702Auth!.nonce).toBe('0x7');
     expect(withdrawal!.userOperation.nonce).toBe('0x0');
+  });
+  it('signs for the configured EntryPoint, which the signer scope requires', async () => {
+    fixture.entryPoint = `0x${'43'.repeat(20)}`;
+    const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', signer });
+    const signed = signer.signTypedData.mock.calls[0]![0] as Parameters<typeof hashTypedData>[0];
+
+    expect(signed.domain!.verifyingContract).toBe(fixture.entryPoint);
+    expect(withdrawal!.userOpHash).toBe(hashTypedData(signed));
   });
   it('supports external signing with user tail calls', async () => {
     const signer = externalSigner(), [withdrawal] = await prepare({ mode: 'external', allowUsed: true, signer }, async () => []);

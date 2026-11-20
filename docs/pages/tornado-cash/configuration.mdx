@@ -204,6 +204,6 @@ note strings after the resync. A public `dumpState()` snapshot cannot recover th
 
 ## Paymaster map
 
-`TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer.
+`TornadoPaymasterConfigs` is the default: a bundler URL, the EntryPoint v0.8 address, the paymaster, and a pool-to-adapter map for mainnet and Sepolia. Pass `paymasterConfig` with the same shape to use another bundler. Pool keys are lowercase addresses. A pool that is missing from the map can still be withdrawn through a relayer. `entryPointAddress` is the EntryPoint v0.8 the user operation is estimated, signed and submitted for. Another address only works with a sender built for it: the default Simple7702 implementation and SimpleAccount accept calls only from the standard EntryPoint, so a custom one also needs a matching `delegation` implementation or account.
 
 Use `mode: 'paymaster'` explicitly when preparing a withdrawal. The prepared operation carries the bundler URL and EntryPoint from the plugin's paymaster map; `createTCBroadcaster` uses those fields to submit it. See [deposits and withdrawals](/tornado-cash/options).
