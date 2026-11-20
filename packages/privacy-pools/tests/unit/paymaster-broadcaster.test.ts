@@ -576,6 +576,7 @@ describe('PaymasterBroadcaster for a SimpleAccount sender', () => {
       signer: owner,
       executionAccount: { kind: 'simple-account', address: ADDRESS, ...(deploys ? { factory } : {}) },
       chainId: 11155111,
+      entryPointAddress: entryPoint08Address,
       paymasterAddress: ADDRESS,
       paymasterData: '0x1234',
       gas: { callGasLimit: 0n, verificationGasLimit: 500_000n, preVerificationGas: 60_000n, paymasterVerificationGasLimit: 900_000n, paymasterPostOpGasLimit: 50_000n },
