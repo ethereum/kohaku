@@ -146,6 +146,20 @@ export class DataService implements IDataService {
     return this.ethClient.getBlockNumber();
   }
 
+  async getFinalizedBlockNumber(): Promise<bigint> {
+    const block = await this.ethClient.request({
+      method: "eth_getBlockByNumber",
+      params: ["finalized", false],
+    }) as { number?: string } | null;
+
+    // No fallback to a fixed depth: a guess too shallow would let a reorg back in.
+    if (!block?.number) {
+      throw new Error("Failed to fetch the finalized block");
+    }
+
+    return BigInt(block.number);
+  }
+
   /**
    * Parses the given event types out of raw events served by an
    * ExternalSyncProvider. Callers pass events for a single contract (the provider
@@ -293,6 +307,10 @@ export class DataService implements IDataService {
 
   async getPoolNextIndex(poolAddress: Address, blockNumber: bigint): Promise<number> {
     return this.ethClient.makeContractRequestAt(blockNumber, poolAddress, "pool", "nextIndex");
+  }
+
+  getPoolLeafCount(poolAddress: Address, blockNumber: bigint): Promise<number> {
+    return this.getPoolNextIndex(poolAddress, blockNumber);
   }
 
   async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {

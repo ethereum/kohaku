@@ -1,9 +1,11 @@
+/* eslint-disable max-lines */
 import { ExternalRawEvent } from "@kohaku-eth/plugins";
 import { toHex } from "viem";
 import { Address } from "../interfaces/types.interface";
 import {
   ExternalSyncClient,
   IGetEventsParams,
+  IGetPoolEventsParams,
   IGetPoolEventsResult,
   IGetRelayerRegistryEventsResult,
   ISyncService,
@@ -32,8 +34,8 @@ export class SyncService implements ISyncService {
     this.minExternalSyncBlocksAmount = minExternalSyncBlocksAmount;
   }
 
-  async getPoolEvents({ address, ...params }: IGetEventsParams): Promise<IGetPoolEventsResult> {
-    const { segments, toBlock } = await this.fetchSegments(
+  async getPoolEvents({ address, ...params }: IGetPoolEventsParams): Promise<IGetPoolEventsResult> {
+    const { segments, toBlock, external } = await this.fetchSegments(
       { address, ...params },
       (range) => this.dataService.getPoolEvents({ events: ["Deposited", "Withdrawn"], address, ...range }),
       (rawEvents) => this.dataService.parsePoolEvents(rawEvents),
@@ -43,6 +45,7 @@ export class SyncService implements ISyncService {
       Deposited: segments.flatMap((segment) => segment.Deposited),
       Withdrawn: segments.flatMap((segment) => segment.Withdrawn),
       toBlock,
+      external,
     };
   }
 
@@ -112,18 +115,18 @@ export class SyncService implements ISyncService {
    * captured head so a later head read cannot advance the scan's cursor.
    */
   private async fetchSegments<T>(
-    params: IGetEventsParams,
+    params: IGetPoolEventsParams,
     fetchChain: (range: { fromBlock: bigint; toBlock?: bigint }) => Promise<T & { toBlock: bigint }>,
     parseExternal: (rawEvents: ExternalRawEvent[]) => T,
-  ): Promise<{ segments: T[]; toBlock: bigint }> {
+  ): Promise<{ segments: T[]; toBlock: bigint; external: boolean }> {
     const head = await this.dataService.getBlockNumber();
-    const external = await this.maybeFetchExternalRaw({ ...params, head });
+    const external = params.chainOnly ? null : await this.maybeFetchExternalRaw({ ...params, head });
 
     if (!external) {
-      // Chain-only: below the threshold, no provider, or no external coverage.
+      // Chain-only: asked for, below the threshold, no provider, or no external coverage.
       const chain = await fetchChain({ fromBlock: params.fromBlock, toBlock: head });
 
-      return { segments: [chain], toBlock: chain.toBlock };
+      return { segments: [chain], toBlock: chain.toBlock, external: false };
     }
 
     const segments: T[] = [];
@@ -139,7 +142,7 @@ export class SyncService implements ISyncService {
 
     segments.push(tail);
 
-    return { segments, toBlock: tail.toBlock };
+    return { segments, toBlock: tail.toBlock, external: true };
   }
 
   /**

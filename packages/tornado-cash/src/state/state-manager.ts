@@ -30,14 +30,16 @@ import { withdrawThunk } from "./thunks/withdrawThunk";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { getDepositPayloadThunk } from "./thunks/getDepositPayloadThunk";
 import { importLegacyNotesThunk } from "./thunks/importLegacyNotesThunk";
+import { assertSignatureGapLimit } from "./thunks/discoverUserEventsThunk";
 import { IDataService } from "../data/interfaces/data.service.interface";
 import { ISyncService } from "../data/interfaces/sync.service.interface";
 import { DEFAULT_MAINNET_FEE_CONFIG, DEFAULT_OTHER_FEE_CONFIG, IRelayerFeeConfig, setRelayerFeeConfig } from "./slices/relayersSlice";
 import { ProtocolConfigState } from "./slices/protocolConfigSlice";
 import { removePools } from "./slices/poolsSlice";
-import { poolsSelector } from "./selectors/slices.selectors";
+import { assetSelector, depositsSelector, legacyUserSecretsSelector, poolsSelector, relayersSelector, withdrawalsSelector } from "./selectors/slices.selectors";
 import { catalogInstanceFor, instanceCatalog, ITornadoInstance } from "../instances";
 import { createLoadCache, createSerialQueue, createSyncQueue } from "./utils/async.utils";
+import { validateSnapshot } from "./utils/snapshot.utils";
 
 const ETH_SEPOLIA_CHAIN_ID = 11155111n;
 
@@ -83,7 +85,7 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { userSecrets, legacySecrets, signatureSecrets, ...publicState } = store.getState();
+    const { userSecrets, legacySecrets, signatureSecrets, signatureNonces, ...publicState } = store.getState();
 
     return publicState;
   },
@@ -128,15 +130,22 @@ const storeByChainAndEntrypoint = ({
       relayerConfig
     } = getChainStoreParams;
     const storageKey = getStoreStorageKey(getChainStoreParams);
+    const readSnapshot = (value: unknown) => {
+      try {
+        return validateSnapshot(typeof value === 'string' ? JSON.parse(value) : value);
+      } catch {
+        throw new Error(`Invalid Tornado Cash snapshot for ${storageKey}. Restore a valid backup or rebuild the sync cache while preserving imported legacy notes.`);
+      }
+    };
     const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : undefined;
-    const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
+    const storedState = rawStoredState ? readSnapshot(rawStoredState) : undefined;
     const snapshotInitialState = storedState || !resolveInitialState
       ? undefined
       : (await resolveInitialState())[storageKey];
-    let initialState: PublicRootState | undefined = storedState || snapshotInitialState;
+    let initialState = storedState ?? (snapshotInitialState === undefined ? undefined : readSnapshot(snapshotInitialState));
 
     if (!initialState && getChainStoreParams.chainId === ETH_SEPOLIA_CHAIN_ID) {
-      initialState = await import('./initial-states/state.11155111.minimal.json').then((a) => a["tornado-cash-state-11155111-447664927873626138772898946646079239273904189887"] as never);
+      initialState = readSnapshot(await import('./initial-states/state.11155111.minimal.json').then((a) => a["tornado-cash-state-11155111-447664927873626138772898946646079239273904189887"]));
     }
 
     const store = storeFactory({
@@ -145,6 +154,12 @@ const storeByChainAndEntrypoint = ({
     });
 
     store.dispatch(setRelayerFeeConfig(relayerConfig));
+
+    try {
+      for (const select of [depositsSelector, withdrawalsSelector, poolsSelector, assetSelector, relayersSelector, legacyUserSecretsSelector]) select(store.getState());
+    } catch {
+      throw new Error(`Invalid Tornado Cash snapshot for ${storageKey}. Restore a valid backup or rebuild the sync cache while preserving imported legacy notes.`);
+    }
 
     // Pools saved by an older version (or a poisoned RPC) may not be
     // catalog instances; drop them so nothing downstream can use them.
@@ -192,9 +207,11 @@ export const storeStateManager = async ({
   proverFactory,
   storageToSyncTo,
   initialState,
-  protocolConfig: { instances, ...protocolConfig },
+  protocolConfig: { instances, signatureGapLimit, ...protocolConfig },
   relayerConfig,
 }: StoreFactoryParams): Promise<IStateManager> => {
+  if (signatureGapLimit !== undefined) assertSignatureGapLimit(signatureGapLimit);
+
   const secretManager = await secretManagerFactory();
   const { getChainStore, getAllStores } = storeByChainAndEntrypoint({
     storageToSyncTo,
@@ -263,6 +280,7 @@ export const storeStateManager = async ({
               syncService,
               relayerClient,
               secretManager,
+              signatureGapLimit,
               instances,
               ...store.selectors,
             }),
@@ -298,13 +316,21 @@ export const storeStateManager = async ({
       return notes;
     },
     getDepositPayload: async ({ asset, amount, strategy }: IDepositOperationParams) => {
-      const store = await getChainStore(await getChainInfo());
+      const chainInfo = await getChainInfo();
 
-      return unwrapResult(
-        await store.dispatch(
-          getDepositPayloadThunk({ secretManager, asset, amount, strategy, instances }),
-        ),
-      );
+      // Queued and persisted so the nonces it reserves survive a restart and
+      // a concurrent preparation starts after them.
+      return enqueueWrite(chainInfo, async (store) => {
+        const payload = unwrapResult(
+          await store.dispatch(
+            getDepositPayloadThunk({ secretManager, asset, amount, strategy, instances }),
+          ),
+        );
+
+        await persistStateIfAvailable(chainInfo, store);
+
+        return payload;
+      });
     },
     getWithdrawalPayloads: async (params: IWithdrawapOperationParams): Promise<IWithdrawalPayload[]> => {
       const chainInfo = await getChainInfo();

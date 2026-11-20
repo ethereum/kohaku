@@ -10,6 +10,9 @@ import { DUMMY_SIGNATURE } from '../../src/paymaster/simulation';
 import { buildSignedTornadoUserOp, buildSimulationTornadoUserOp } from '../../src/paymaster/utils';
 import type { TornadoProveOutput } from '../../src/utils/tornado-prover';
 
+/** The bundler's answer when the execution phase runs out of gas (ERC-7769 `-32521`). */
+const executionOutOfGas = () => new RpcRequestError({ url: 'unused', body: {}, error: { code: -32521, message: 'Execution out of gas' } });
+
 const baseline = { ...reasonableGasUnits(false), callGasLimit: 0n };
 const signer = privateKeyToAccount(`0x${'01'.repeat(32)}`);
 const paymaster = '0x0000000000000000000000000000000000000002';
@@ -115,7 +118,7 @@ describe('Tornado paymaster gas estimation', () => {
   it('does not downgrade a failed execution retry into unestimated fallback', async () => {
     const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true);
     const unavailable = new RpcRequestError({ url: 'unused', body: {}, error: { code: -32603, message: 'Unknown error, could not parse simulate validation result.' } });
-    const estimate = vi.fn().mockRejectedValueOnce(new Error('Execution out of gas')).mockRejectedValue(unavailable);
+    const estimate = vi.fn().mockRejectedValueOnce(executionOutOfGas()).mockRejectedValue(unavailable);
 
     await expect(run(base, harness, estimate, { allowFallback: true, executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
     expect(harness.simulate.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n]);
@@ -124,7 +127,7 @@ describe('Tornado paymaster gas estimation', () => {
   });
 
   it('never probes above the explicit ceiling or retries a zero-execution operation', async () => {
-    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
+    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(executionOutOfGas());
 
     await expect(run(base, harness, estimate, { executionGasRetryLimit: 700_000n })).rejects.toThrow('preparation stopped');
     expect(harness.simulate.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 700_000n]);
@@ -135,7 +138,7 @@ describe('Tornado paymaster gas estimation', () => {
   });
 
   it('caps gas-shortage probes at three and honors validation before another proof', async () => {
-    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(new Error('Execution out of gas'));
+    const base = reasonableGasUnitsForBatch(false, 0, true), harness = builder(true), estimate = vi.fn().mockRejectedValue(executionOutOfGas());
 
     await expect(run(base, harness, estimate, { executionGasRetryLimit: 8_000_000n })).rejects.toThrow('preparation stopped');
     expect(harness.simulate.mock.calls.map(([gas]) => gas.callGasLimit)).toEqual([300_000n, 600_000n, 1_200_000n, 2_400_000n]);

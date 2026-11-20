@@ -151,6 +151,10 @@ export async function createSagaLogSource({
       // Privacy-pools streams only publish logs; skip any indexer-derived entity.
       if (isEntityRecord(ev)) continue;
 
+      // A protocol's stream can carry several contracts' events. Only this
+      // address's count as its leaves, or every later leaf index would shift.
+      if (BigInt(ev.contractAddress) !== BigInt(address)) continue;
+
       const blockNumber = BigInt(ev.blockNumber);
 
       // @saga-sync/client <=0.3.0 uses the window only to pick chunks, so a chunk

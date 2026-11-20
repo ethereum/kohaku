@@ -59,13 +59,18 @@ async function chainWith(onchain: Map<Address, bigint[]>) {
 
   for (const [address, commitments] of onchain) roots.set(address, await rootOf(commitments));
 
+  const getPoolNextIndex = vi.fn(async (address: Address) => onchain.get(address)?.length ?? 0);
+
   return {
+    getBlockNumber: vi.fn(async () => HEAD),
+    getFinalizedBlockNumber: vi.fn(async () => HEAD),
     getPoolStateRoot: vi.fn(async (address: Address, blockNumber?: bigint) => {
       expect(blockNumber).toBe(HEAD);
 
       return roots.get(address)!;
     }),
-    getPoolNextIndex: vi.fn(async (address: Address) => onchain.get(address)?.length ?? 0),
+    getPoolNextIndex,
+    getPoolLeafCount: getPoolNextIndex,
   };
 }
 
@@ -77,6 +82,7 @@ function sourceServing(served: Map<Address, IRawDepositEvent[]>, toBlock = HEAD)
       Withdrawn: [],
       toBlock,
     })),
+    getPoolDeploymentBlock: vi.fn(async () => 10n),
   } as unknown as ISyncService;
 }
 
@@ -110,7 +116,7 @@ describe('syncEventsThunk pool root check', () => {
   it('completes the stored tree with the new events before checking it', async () => {
     const store = makeStore();
 
-    store.dispatch(registerPools([pool(POOL_A, 500n)]));
+    store.dispatch(registerPools([{ ...pool(POOL_A, 500n), finalizedBlock: 500n }]));
     store.dispatch(registerDeposits([{ ...deposit(11n, 0), pool: POOL_A }]));
 
     const chain = await chainWith(new Map([[POOL_A, [11n, 22n]]]));
@@ -129,7 +135,7 @@ describe('syncEventsThunk pool root check', () => {
     const action = await sync(store, sourceServing(new Map([[POOL_A, [deposit(11n, 0), deposit(22n, 1)]]])), chain);
 
     expect(action.meta.requestStatus).toBe('rejected');
-    expect(action.error?.message).toMatch(/root does not match/);
+    expect(action.error?.message).toMatch(/holds 3 leaves/);
     expect(storedCommitments(store, POOL_A)).toEqual([]);
     expect(poolsSelector(store.getState()).get(POOL_A)?.lastSyncedBlock).toBe(50n);
   });
@@ -151,7 +157,7 @@ describe('syncEventsThunk pool root check', () => {
   it('rejects a forged event that reuses a stored leaf index', async () => {
     const store = makeStore();
 
-    store.dispatch(registerPools([pool(POOL_A, 500n)]));
+    store.dispatch(registerPools([{ ...pool(POOL_A, 500n), finalizedBlock: 500n }]));
     store.dispatch(registerDeposits([{ ...deposit(11n, 0), pool: POOL_A }]));
 
     const chain = await chainWith(new Map([[POOL_A, [11n]]]));
@@ -223,9 +229,11 @@ describe('syncEventsThunk pool root check', () => {
   it('skips the check when the RPC is behind the cursor and scanned nothing', async () => {
     const store = makeStore();
 
-    store.dispatch(registerPools([pool(POOL_A, 2_000n)]));
+    store.dispatch(registerPools([{ ...pool(POOL_A, 2_000n), finalizedBlock: 2_000n }]));
 
     const chain = await chainWith(new Map([[POOL_A, [11n]]]));
+
+    chain.getBlockNumber.mockResolvedValue(2_000n);
     const action = await sync(store, sourceServing(new Map()), chain);
 
     expect(action.meta.requestStatus).toBe('fulfilled');

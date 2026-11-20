@@ -76,8 +76,9 @@ export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
      */
     tailCallsGasEstimate?: bigint;
     /**
-     * Opt in to at most three extra probes for recognized execution out-of-gas
-     * errors. Requires a positive maxGasLimits.callGasLimit. Rebuilds the fee,
+     * Opt in to at most three extra probes for execution out-of-gas errors: a
+     * bundler rejection with code -32521 whose message says out of gas.
+     * Requires a positive maxGasLimits.callGasLimit. Rebuilds the fee,
      * proof and signature for each probe; defaults to false.
      */
     executionGasRetry?: boolean;
