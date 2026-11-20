@@ -123,6 +123,13 @@ describe('sizeExactPaymasterWithdrawal', () => {
     expect(await sizeExactPaymasterWithdrawal({ requestedNet: 950n, notesFor, feeFor })).toEqual({ grossAmount: 1150n, fee: 200n, noteCount: 2 });
   });
 
+  it('reprices when a random split spends fewer notes than were priced', async () => {
+    const counts = [2, 3, 1, 1];
+    const notesFor = () => counts.shift()!;
+
+    expect(await sizeExactPaymasterWithdrawal({ requestedNet: 1000n, notesFor, feeFor })).toEqual({ grossAmount: 1100n, fee: 100n, noteCount: 1 });
+  });
+
   it('stops when the note count keeps growing', async () => {
     let calls = 0;
 

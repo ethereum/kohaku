@@ -10,7 +10,11 @@ const ONE_ETH = 10n ** 18n;
 const PRICE = { maxFeePerGas: 13n * GWEI, maxPriorityFeePerGas: GWEI };
 
 // Approved 1 ETH notes: a batch of `amount` spends ceil(amount / 1 ETH) of them.
-const fixture = vi.hoisted(() => ({ noteBalance: 10n ** 18n, notesHeld: 4 }));
+// A protected (random) plan spends `randomPlanSizes` notes, a different count per call.
+const fixture = vi.hoisted(() => ({
+  noteBalance: 10n ** 18n, notesHeld: 4,
+  randomPlanSizes: [] as number[], plans: [] as unknown[][], prepared: [] as { amount: bigint; notesToSpend?: unknown[] }[],
+}));
 
 vi.mock('../../src/state/selectors/notes.selector', async original => {
   const { NotEnoughCommitsToSpendError } = await import('../../src/state/selectors/balance.selector');
@@ -26,6 +30,23 @@ vi.mock('../../src/state/selectors/notes.selector', async original => {
     },
   };
 });
+vi.mock('../../src/withdrawal/batch-plan', async original => ({
+  ...await original<typeof import('../../src/withdrawal/batch-plan')>(),
+  planObfuscatedBatchWithdrawal: () => {
+    const plan = Array.from({ length: fixture.randomPlanSizes.shift() ?? 1 }, (_, deposit) => ({ note: { deposit }, withdrawnValue: 1n }));
+
+    fixture.plans.push(plan);
+
+    return plan;
+  },
+}));
+vi.mock('../../src/state/thunks/paymasterWithdrawThunk', () => ({
+  paymasterWithdrawThunk: (params: { amount: bigint; notesToSpend?: unknown[] }) => async () => {
+    fixture.prepared.push(params);
+
+    return { payload: [{ mode: 'paymaster' }] };
+  },
+}));
 vi.mock('../../src/paymaster/utils', async original => ({
   ...await original<typeof import('../../src/paymaster/utils')>(),
   getUserOperationGasPrice: async () => ({ slow: PRICE, standard: PRICE, fast: PRICE }),
@@ -39,17 +60,27 @@ const ETH = BigInt(E_ADDRESS) as Address;
 /** The fee the withdrawal builder charges for an ETH withdrawal spending `noteCount` notes. */
 const builtFee = (noteCount: number) => computeMinimumViableFee(paymasterBaselineGas(false, noteCount, false), PRICE.maxFeePerGas);
 
-const manager = () => storeStateManager({
+const manager = (accountCode = '0x') => storeStateManager({
   entrypoint: { address: 900n, deploymentBlock: 0n },
   dataService: { getChainId: async () => 1n },
   secretManager: {},
   paymasterConfig: { 1: { bundlerUrl: 'https://bundler.test/rpc', paymasterAddress: '0x000000000000000000000000000000000000fee1' } },
-  provider: {},
+  provider: { request: async ({ method }: { method: string }) => method === 'eth_getCode' ? accountCode : '0x0' },
 } as unknown as StoreFactoryParams);
+
+/** Sizes and prepares an exact ETH withdrawal; returns the gross and what the builder was given. */
+const exact = async (requestedNet: bigint, options: Record<string, unknown> = {}, accountCode?: string) => {
+  const { grossAmount } = await manager(accountCode).getExactPaymasterWithdrawalPayloads({ asset: ETH, requestedNet, recipient: 0xbeefn as Address, ...options });
+
+  return { grossAmount, prepared: fixture.prepared.at(-1)! };
+};
 
 beforeEach(() => {
   fixture.noteBalance = ONE_ETH;
   fixture.notesHeld = 4;
+  fixture.randomPlanSizes = [];
+  fixture.plans = [];
+  fixture.prepared = [];
 });
 
 describe('paymaster unshield estimate', () => {
@@ -70,29 +101,41 @@ describe('exact-output paymaster sizing', () => {
   it('prices the second note when the fee pushes the gross over a note boundary', async () => {
     // Fits one note, but not together with even a single-note fee.
     const requestedNet = ONE_ETH - builtFee(1) / 2n;
-    const sized = await manager().getExactPaymasterAmount({ asset: ETH, requestedNet, batch: true });
+    const { grossAmount, prepared } = await exact(requestedNet, { batch: true });
 
-    expect(sized).toEqual({ grossAmount: requestedNet + builtFee(2), fee: builtFee(2), noteCount: 2 });
+    expect(grossAmount).toBe(requestedNet + builtFee(2));
+    expect(prepared.amount).toBe(grossAmount);
   });
 
   it('prices the notes the requested net already needs', async () => {
     const requestedNet = 2n * ONE_ETH + 1n;
 
-    expect(await manager().getExactPaymasterAmount({ asset: ETH, requestedNet, batch: true }))
-      .toEqual({ grossAmount: requestedNet + builtFee(3), fee: builtFee(3), noteCount: 3 });
+    expect((await exact(requestedNet, { batch: true })).grossAmount).toBe(requestedNet + builtFee(3));
   });
 
   it('prices one note without batch, whatever the amount', async () => {
     const requestedNet = ONE_ETH - builtFee(1) / 2n;
 
-    expect(await manager().getExactPaymasterAmount({ asset: ETH, requestedNet }))
-      .toEqual({ grossAmount: requestedNet + builtFee(1), fee: builtFee(1), noteCount: 1 });
+    expect((await exact(requestedNet)).grossAmount).toBe(requestedNet + builtFee(1));
   });
 
   it('fails when the fee-inclusive gross needs more notes than are held', async () => {
     fixture.notesHeld = 1;
 
-    await expect(manager().getExactPaymasterAmount({ asset: ETH, requestedNet: ONE_ETH - builtFee(1) / 2n, batch: true }))
-      .rejects.toThrow('not enough notes');
+    await expect(exact(ONE_ETH - builtFee(1) / 2n, { batch: true })).rejects.toThrow('not enough notes');
+    expect(fixture.prepared).toHaveLength(0);
+  });
+
+  it('prepares the protected plan it priced, though fresh splits spend different numbers of notes', async () => {
+    // Each new gross gets a fresh random split: 2 notes, then 3, then 1, then 1.
+    fixture.randomPlanSizes = [2, 3, 1, 1];
+    const requestedNet = ONE_ETH;
+    const { grossAmount, prepared } = await exact(requestedNet, { batch: true, obfuscateAmounts: true });
+
+    // The prepared plan is one of the planned splits, and the fee covers exactly its notes.
+    expect(fixture.plans).toContain(prepared.notesToSpend);
+    expect(prepared.notesToSpend).toHaveLength(1);
+    expect(grossAmount).toBe(requestedNet + builtFee(1));
+    expect(prepared.amount).toBe(grossAmount);
   });
 });

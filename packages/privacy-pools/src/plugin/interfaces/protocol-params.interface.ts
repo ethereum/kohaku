@@ -316,19 +316,16 @@ export interface IEstimateUnshieldOperationParams extends IDepositOperationParam
   batch?: boolean;
 }
 
-export interface IExactPaymasterAmountParams extends Pick<IEstimateUnshieldOperationParams, 'hasTailCalls' | 'tailCallsGasEstimate' | 'maxGasLimits' | 'batch'> {
-  asset: Address;
+export interface IExactPaymasterWithdrawalParams extends Omit<IPaymasterWithdrawapOperationParams, 'amount'> {
   /** What the recipient must receive after the paymaster fee. */
   requestedNet: bigint;
-  obfuscateAmounts?: boolean;
-  label?: bigint;
 }
 
-/** The gross an exact-output paymaster withdrawal spends, its fee, and the notes priced. */
-export interface ExactPaymasterAmount {
+/** An exact-output paymaster withdrawal and the gross it spends. */
+export interface ExactPaymasterWithdrawal {
+  payloads: IGenericPaymasterWithdrawalPayload[];
+  /** Sized so the fee for the notes it spends leaves `requestedNet`. */
   grossAmount: bigint;
-  fee: bigint;
-  noteCount: number;
 }
 
 export interface IRagequitAssetsOperationParams extends IBaseOperationParams {
@@ -468,10 +465,11 @@ export interface IStateManager {
    */
   getExactWithdrawalPayloads: (params: IExactWithdrawalOperationParams) => Promise<StateExactWithdrawalPayload>;
   /**
-   * Sizes an exact-output paymaster withdrawal: the gross whose paymaster fee,
-   * priced for the notes that gross spends, leaves exactly `requestedNet`.
+   * Builds an exact-output paymaster withdrawal: sizes the gross whose fee, priced
+   * for the notes it spends, leaves exactly `requestedNet`, then prepares it from
+   * the same note plan that was priced.
    */
-  getExactPaymasterAmount: (params: IExactPaymasterAmountParams) => Promise<ExactPaymasterAmount>;
+  getExactPaymasterWithdrawalPayloads: (params: IExactPaymasterWithdrawalParams) => Promise<ExactPaymasterWithdrawal>;
   /**
    * Generates paymaster-sponsored withdrawal payloads (fully built + signed userOps)
    * for the specified amount. No relayer is involved.

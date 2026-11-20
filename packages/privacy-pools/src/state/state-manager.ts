@@ -15,9 +15,10 @@ import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
   IEntrypoint,
-  ExactPaymasterAmount,
+  ExactPaymasterWithdrawal,
   IEstimateUnshieldOperationParams,
-  IExactPaymasterAmountParams,
+  IExactPaymasterWithdrawalParams,
+  IPaymasterConfig,
   IGetHistoryParams,
   IGetNotesParams,
   INote,
@@ -246,31 +247,67 @@ export const storeStateManager = (
     return notes;
   };
 
-  /** How many notes a paymaster withdrawal of `amount` spends, selected as paymasterWithdrawThunk selects them. */
+  /**
+   * How many notes a paymaster withdrawal of `amount` spends: the planned ones, else
+   * those paymasterWithdrawThunk selects itself.
+   */
   const paymasterNoteCount = (
     store: Awaited<ReturnType<typeof getChainStore>>,
-    asset: Address, amount: bigint,
-    options: { batch?: boolean; obfuscateAmounts?: boolean; label?: bigint },
+    asset: Address, amount: bigint, batch: boolean, planned: NoteToSpend[] | undefined,
   ): number => {
-    const planned = planWithdrawal(store, asset, amount, options);
-
     if (planned) return planned.length;
 
-    return options.batch ? getNotesToSpendSelector(store.getState(), asset, amount).length : 1;
+    return batch ? getNotesToSpendSelector(store.getState(), asset, amount).length : 1;
   };
 
-  /**
-   * Prices paymaster withdrawals of `asset` at the bundler's current gas price: the
-   * returned function gives the fee for a gas baseline, in the pool asset.
-   */
-  const paymasterFeeQuoter = async (chainInfo: GetChainStoreParams, asset: Address, maxGasLimits?: PaymasterGasLimits) => {
+  const chainPaymasterConfig = (chainInfo: GetChainStoreParams) => {
     const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
 
     if (!paymasterConfig) {
       throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
     }
 
-    const { bundlerUrl, paymasterAddress } = paymasterConfig;
+    return paymasterConfig;
+  };
+
+  /** Prepares a paymaster withdrawal of `amount` from `notesToSpend`, or from the builder's own note selection. */
+  const preparePaymasterWithdrawal = async (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    paymasterConfig: IPaymasterConfig,
+    { asset, recipient, delegation, tailCalls, tailCallsGasEstimate, maxGasLimits, batch, refundRecipient }: Omit<IPaymasterWithdrawapOperationParams, 'amount'>,
+    amount: bigint | undefined,
+    notesToSpend: NoteToSpend[] | undefined,
+  ) => unwrapResult(
+    await store.dispatch(
+      paymasterWithdrawThunk({
+        getNextNote: store.selectors.getNextNote,
+        proverFactory: params.proverFactory,
+        merkleTreeBuilder: params.merkleTreeBuilder,
+        dataService: params.dataService,
+        secretManager,
+        asset,
+        amount,
+        recipient,
+        paymasterConfig,
+        delegation,
+        tailCalls,
+        tailCallsGasEstimate,
+        maxGasLimits,
+        provider: params.provider,
+        network: params.network,
+        batch,
+        notesToSpend,
+        refundRecipient,
+      }),
+    ),
+  );
+
+  /**
+   * Prices paymaster withdrawals of `asset` at the bundler's current gas price: the
+   * returned function gives the fee for a gas baseline, in the pool asset.
+   */
+  const paymasterFeeQuoter = async (chainInfo: GetChainStoreParams, asset: Address, maxGasLimits?: PaymasterGasLimits) => {
+    const { bundlerUrl, paymasterAddress } = chainPaymasterConfig(chainInfo);
     const isERC20 = asset !== BigInt(E_ADDRESS);
     const [{ standard: price }, reference] = await Promise.all([
       getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
@@ -357,7 +394,7 @@ export const storeStateManager = (
         const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
         // A batch spends as many notes as the amount needs, each after the first in
         // the execution phase; price the same notes the withdrawal would spend.
-        const noteCount = batch ? paymasterNoteCount(await getChainStore(chainInfo), asset, amount, { batch }) : 1;
+        const noteCount = batch ? paymasterNoteCount(await getChainStore(chainInfo), asset, amount, batch, undefined) : 1;
         const { fee, gasFeeWei, maxFeePerGas } = await quote(paymasterBaselineGas(isERC20, noteCount, hasTailCalls, tailCallsGasEstimate));
 
         return { mode, fee, netAmount: amount - fee, gasFeeWei, maxFeePerGas };
@@ -550,76 +587,42 @@ export const storeStateManager = (
         exact: { grossAmount, requestedNet, expectedNet: net, fee },
       };
     },
-    getExactPaymasterAmount: async ({
-      asset,
-      requestedNet,
-      batch = false,
-      obfuscateAmounts = false,
-      label,
-      hasTailCalls = false,
-      tailCallsGasEstimate,
-      maxGasLimits,
-    }: IExactPaymasterAmountParams): Promise<ExactPaymasterAmount> => {
+    getExactPaymasterWithdrawalPayloads: async ({ requestedNet, ...request }: IExactPaymasterWithdrawalParams): Promise<ExactPaymasterWithdrawal> => {
+      const { asset, batch = false, obfuscateAmounts = false, label, tailCalls, tailCallsGasEstimate, maxGasLimits } = request;
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
+      const paymasterConfig = chainPaymasterConfig(chainInfo);
       const isERC20 = asset !== BigInt(E_ADDRESS);
       const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
+      // One plan per amount, made outside Redux so planning errors reach the caller
+      // intact: a random split may spend a different number of notes each time, so
+      // the plan priced for the final gross is the one prepared.
+      const plans = new Map<bigint, NoteToSpend[] | undefined>();
+      const planFor = (amount: bigint) => {
+        if (!plans.has(amount)) plans.set(amount, planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label }));
 
-      return sizeExactPaymasterWithdrawal({
+        return plans.get(amount);
+      };
+      const { grossAmount } = await sizeExactPaymasterWithdrawal({
         requestedNet,
-        notesFor: (amount) => paymasterNoteCount(store, asset, amount, { batch, obfuscateAmounts, label }),
-        feeFor: async (noteCount) => (await quote(paymasterBaselineGas(isERC20, noteCount, hasTailCalls, tailCallsGasEstimate))).fee,
+        notesFor: (amount) => paymasterNoteCount(store, asset, amount, batch, planFor(amount)),
+        feeFor: async (noteCount) => (await quote(paymasterBaselineGas(isERC20, noteCount, tailCalls != null, tailCallsGasEstimate))).fee,
       });
+      const payloads = await preparePaymasterWithdrawal(store, paymasterConfig, request, grossAmount, planFor(grossAmount));
+
+      return { payloads, grossAmount };
     },
-    getPaymasterWithdrawalPayloads: async ({
-      asset,
-      amount,
-      recipient,
-      delegation,
-      tailCalls,
-      tailCallsGasEstimate,
-      maxGasLimits,
-      batch,
-      obfuscateAmounts,
-      label,
-      refundRecipient,
-    }: IPaymasterWithdrawapOperationParams) => {
+    getPaymasterWithdrawalPayloads: async ({ amount, ...request }: IPaymasterWithdrawapOperationParams) => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
-      const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
-
-      if (!paymasterConfig) {
-        throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
-      }
+      const paymasterConfig = chainPaymasterConfig(chainInfo);
+      const { asset, batch, obfuscateAmounts, label } = request;
 
       // Plan outside Redux so the structured headroom error reaches the caller intact.
       // Reuse the random allocation; preparation only adjusts it if the sponsor cannot cover its fee.
       const notesToSpend = planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label });
 
-      return unwrapResult(
-        await store.dispatch(
-          paymasterWithdrawThunk({
-            getNextNote: store.selectors.getNextNote,
-            proverFactory: params.proverFactory,
-            merkleTreeBuilder: params.merkleTreeBuilder,
-            dataService: params.dataService,
-            secretManager,
-            asset,
-            amount,
-            recipient,
-            paymasterConfig,
-            delegation,
-            tailCalls,
-            tailCallsGasEstimate,
-            maxGasLimits,
-            provider: params.provider,
-            network: params.network,
-            batch,
-            notesToSpend,
-            refundRecipient,
-          }),
-        ),
-      );
+      return preparePaymasterWithdrawal(store, paymasterConfig, request, amount, notesToSpend);
     },
     getRagequitPayloads: async ({
       assets = [],
