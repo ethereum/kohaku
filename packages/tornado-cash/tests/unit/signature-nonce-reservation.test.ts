@@ -31,6 +31,9 @@ vi.mock('../../src/state/thunks/syncThunk', async () => {
         state: 1,
         rootHistorySize: 100,
       }]));
+
+      // A complete sync: no pool failed.
+      return { failures: [], totalPools: 1 };
     }),
   };
 });

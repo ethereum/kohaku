@@ -3,6 +3,7 @@ import { ISyncService } from "../../data/interfaces/sync.service.interface";
 import { IDataService } from "../../data/interfaces/data.service.interface";
 import { IDepositEvent, IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment } from "../../interfaces/types.interface";
+import { IPoolSyncFailure, poolSyncFailure } from "../pool-sync-error";
 import { addressToHex } from "../../utils";
 import { PoolVerificationError, verifyPoolLeavesAt } from "../../verification/root-verification";
 import { registerDeposits } from "../slices/depositsSlice";
@@ -38,35 +39,11 @@ interface PoolScan {
   reset: boolean;
 }
 
-// Provider errors (viem's in particular) put the request URL on later lines, and
-// hosted RPC URLs often embed an API key. Keep only the first line, capped, so the
-// summary is safe to show in a wallet UI or log.
-const MAX_REASON_LENGTH = 200;
-
-function summarizeReason(reason: unknown): string {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  const firstLine = message.split("\n", 1)[0]!.trim() || "unknown error";
-
-  return firstLine.length > MAX_REASON_LENGTH ? `${firstLine.slice(0, MAX_REASON_LENGTH)}…` : firstLine;
-}
-
-/**
- * Thrown when one or more pools could not be synced. Pools that did sync keep
- * their progress; the failed ones keep their previous cursor, so the next sync
- * retries exactly the range that failed. Only `name` and `message` survive the
- * worker and Redux boundaries, so the message carries the whole summary.
- */
-export class TornadoPoolSyncError extends Error {
-  constructor(failures: { pool: Address; reason: unknown }[], totalPools: number) {
-    const pools = failures.map(({ pool }) => addressToHex(pool)).join(", ");
-    const reasons = [...new Set(failures.map(({ reason }) => summarizeReason(reason)))].join(" | ");
-
-    super(
-      `Failed to sync events for ${failures.length} of ${totalPools} Tornado pools (${pools}): ${reasons}. ` +
-      `Balances and notes may be incomplete until a sync succeeds; the next sync retries from each pool's last synced block.`,
-    );
-    this.name = "TornadoPoolSyncError";
-  }
+export interface SyncEventsResult {
+  lastBlock: bigint;
+  poolCount: number;
+  /** Pools whose events could not be fetched or verified; their cursors are left unchanged. */
+  failures: IPoolSyncFailure[];
 }
 
 /** The RPC answered from a node behind the saved cursor: nothing new, and nothing lost. */
@@ -81,12 +58,12 @@ const legacyCursor = (pool: IPool, lastSyncedBlock: bigint, finalizedBlock: bigi
   max(min(lastSyncedBlock - LEGACY_REWIND_BLOCKS, finalizedBlock), pool.registeredBlock);
 
 export const syncEventsThunk = createAsyncThunk<
-  bigint,
+  SyncEventsResult,
   SyncEventsThunkParams,
   { state: RootState; }
 >("sync/events", async ({ syncService, dataService }, { getState, dispatch }) => {
   const state = getState();
-  const myPools = activePoolsSelector(state);
+  const myPools = [...activePoolsSelector(state).values()];
   const storedDeposits = depositsSelector(state);
   const latestStoredBlock = new Map<Address, bigint>();
 
@@ -101,7 +78,7 @@ export const syncEventsThunk = createAsyncThunk<
   }
 
   const { chainId } = instanceRegistryInfoSelector(state);
-  const [head, chainFinalizedBlock] = myPools.size > 0
+  const [head, chainFinalizedBlock] = myPools.length > 0
     ? await Promise.all([dataService.getBlockNumber(), dataService.getFinalizedBlockNumber()])
     : [0n, 0n];
   // A load-balanced RPC can answer from a node ahead of the head.
@@ -148,9 +125,8 @@ export const syncEventsThunk = createAsyncThunk<
   // its own coverage. Nothing is stored until the pool's rebuilt tree matches the
   // chain at the scanned head; a mismatch retries without the external provider,
   // then replays the pool from deployment, in case its stored deposits are bad.
-  const pools = Array.from(myPools.values());
   const results = await Promise.allSettled(
-    pools.map(async (pool) => {
+    myPools.map(async (pool) => {
       const saved = pool.finalizedBlock ?? pool.lastSyncedBlock;
       const resetScan = async (chainOnly: boolean): Promise<PoolScan> => ({
         fromBlock: await syncService.getPoolDeploymentBlock({ chainId, address: pool.address }),
@@ -189,16 +165,14 @@ export const syncEventsThunk = createAsyncThunk<
   // Start from the current global block so a run that syncs no pools never
   // regresses the value used for registry-level (relayer) syncing.
   let maxBlock = selectLastSyncedBlock(state);
-  const verificationErrors: PoolVerificationError[] = [];
-  const failures: { pool: Address; reason: unknown }[] = [];
+  const failures: IPoolSyncFailure[] = [];
 
   results.forEach((result, index) => {
     if (result.status === "rejected") {
       console.warn('Failed to sync pool events', result.reason);
 
-      if (result.reason instanceof PoolVerificationError) verificationErrors.push(result.reason);
       // A lagging node keeps the pool's saved events and cursor as they were.
-      else if (!(result.reason instanceof PoolScanBehindError)) failures.push({ pool: pools[index]!.address, reason: result.reason });
+      if (!(result.reason instanceof PoolScanBehindError)) failures.push(poolSyncFailure(myPools[index]!.address, result.reason));
 
       return;
     }
@@ -220,19 +194,7 @@ export const syncEventsThunk = createAsyncThunk<
     }
   });
 
-  // Keep verified pools' progress, but do not report the sync as complete when
-  // another pool still fails verification after the chain replay.
-  if (verificationErrors.length > 0) {
-    throw new Error(verificationErrors.map(({ message }) => message).join('; '));
-  }
-
-  // Fail the sync after keeping the progress above. Returning normally here would
-  // let `balance` and `prepareUnshield` report a missing pool's notes as zero, with
-  // nothing telling the user or the wallet that the sync did not complete.
-  if (failures.length > 0) {
-    throw new TornadoPoolSyncError(failures, pools.length);
-  }
-
-  // Return the highest block synced across all pools
-  return maxBlock;
+  // Verified pools keep their progress; the caller fails the sync if any pool failed,
+  // so a missing pool's notes are never reported as zero, nor a mismatch as done.
+  return { lastBlock: maxBlock, poolCount: myPools.length, failures };
 });

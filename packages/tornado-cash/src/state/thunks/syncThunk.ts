@@ -9,6 +9,7 @@ import { syncAssetsThunk, SyncAssetsThunkParams } from './syncAssetsThunk';
 import { setLastSyncedBlock } from '../slices/syncSlice';
 import { syncEventsThunk, SyncEventsThunkParams } from './syncEventsThunk';
 import { discoverUserEventsThunk } from './discoverUserEventsThunk';
+import { IPoolSyncFailure } from '../pool-sync-error';
 
 export interface SyncThunkParams extends
   SyncEventsThunkParams,
@@ -21,11 +22,22 @@ export interface SyncThunkParams extends
   signatureGapLimit?: number;
 }
 
-export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootState; }>(
+export interface SyncResult {
+  /** Pools that could not be synced; empty when the sync is complete. */
+  failures: IPoolSyncFailure[];
+  /** Pools the sync covered, including those whose configuration could not be fetched. */
+  totalPools: number;
+}
+
+/**
+ * Resolves with the pools that failed to sync. The pools that synced keep their
+ * progress, but the global cursor only advances once every pool has synced.
+ */
+export const syncThunk = createAsyncThunk<SyncResult, SyncThunkParams, { state: RootState; }>(
   'sync/syncEverything',
   async ({ dataService, syncService, secretManager, signatureGapLimit, instances, ...params }, { dispatch }) => {
 
-    unwrapResult(await dispatch(syncPoolsThunk({
+    const poolFailures = unwrapResult(await dispatch(syncPoolsThunk({
       dataService,
       syncService,
       instances,
@@ -35,12 +47,17 @@ export const syncThunk = createAsyncThunk<void, SyncThunkParams, { state: RootSt
     // they are stored (see syncEventsThunk), so there is no separate verify step.
     const syncEventsResult = await dispatch(syncEventsThunk({ syncService, dataService }));
 
-    const syncEventsLastBlock = unwrapResult(syncEventsResult);
+    const { lastBlock: syncEventsLastBlock, poolCount, failures: eventFailures } = unwrapResult(syncEventsResult);
 
     unwrapResult(await dispatch(syncAssetsThunk({ dataService, ...params })));
 
     unwrapResult(await dispatch(discoverUserEventsThunk({ secretManager, gapLimit: signatureGapLimit })));
 
-    dispatch(setLastSyncedBlock(syncEventsLastBlock));
+    const failures = [...poolFailures, ...eventFailures];
+    const totalPools = poolCount + poolFailures.length;
+
+    if (failures.length === 0) dispatch(setLastSyncedBlock(syncEventsLastBlock));
+
+    return { failures, totalPools };
   }
 );

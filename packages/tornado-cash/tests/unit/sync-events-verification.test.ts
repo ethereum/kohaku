@@ -10,7 +10,7 @@ import { registerDeposits } from '../../src/state/slices/depositsSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { registerWithdrawals } from '../../src/state/slices/withdrawalsSlice';
 import { storeFactory } from '../../src/state/store';
-import { LEGACY_REWIND_BLOCKS, syncEventsThunk } from '../../src/state/thunks/syncEventsThunk';
+import { LEGACY_REWIND_BLOCKS, syncEventsThunk, SyncEventsResult } from '../../src/state/thunks/syncEventsThunk';
 import { appendLeaves, emptyFrontier, frontierOf } from '../../src/utils/merkle-frontier';
 import { buildTree } from '../../src/utils/merkle-tree/merkle-tree.util.node';
 
@@ -109,6 +109,13 @@ const chainFrom = (chain: IRawDepositEvent[]) => ({ fromBlock }: IGetPoolEventsP
   Deposited: chain.filter(({ blockNumber }) => blockNumber >= fromBlock),
 });
 
+/** The pools the sync reported as failed; the thunk itself resolves either way. */
+const failuresOf = (action: { meta: { requestStatus: string }; payload?: unknown }) => {
+  expect(action.meta.requestStatus).toBe('fulfilled');
+
+  return (action.payload as SyncEventsResult).failures;
+};
+
 const storedCommitments = (store: ReturnType<typeof storeWith>) =>
   [...(depositsSelector(store.getState()).get(POOL)?.keys() ?? [])].sort((a, b) => Number(a - b));
 
@@ -147,7 +154,7 @@ describe('syncEventsThunk pool verification', () => {
     expect(storedCommitments(store)).toEqual([1n, 2n]);
   });
 
-  it('rejects a truncated stream without storing it or moving the cursor', async () => {
+  it('fails a truncated stream without storing it or moving the cursor', async () => {
     const chain = [deposit(0, 100n), deposit(1, 950n)];
     const store = storeWith({ lastSyncedBlock: 500n, finalizedBlock: 500n });
 
@@ -160,8 +167,7 @@ describe('syncEventsThunk pool verification', () => {
     // without the provider, which served neither.
     const action = await store.dispatch(syncEventsThunk(params));
 
-    expect(action.meta.requestStatus).toBe('rejected');
-    expect(action.error?.message).toMatch(/holds 2 leaves/);
+    expect(failuresOf(action)).toEqual([{ pool: POOL, reason: expect.stringMatching(/holds 2 leaves/) }]);
     expect(scans.map(({ fromBlock, chainOnly }) => [fromBlock, chainOnly])).toEqual([[500n, false], [DEPLOYED, true]]);
     expect(storedCommitments(store)).toEqual([1n]);
     expect(poolsSelector(store.getState()).get(POOL)).toMatchObject({ lastSyncedBlock: 500n, finalizedBlock: 500n });
@@ -224,9 +230,8 @@ describe('syncEventsThunk pool verification', () => {
 
     const action = await store.dispatch(syncEventsThunk(params));
 
-    // The pool is not dropped silently: the sync fails and names it (F-27).
-    expect(action.meta.requestStatus).toBe('rejected');
-    expect((action as { error: { name?: string } }).error.name).toBe('TornadoPoolSyncError');
+    // The pool is not dropped silently: it is reported, so the sync fails (F-27).
+    expect(failuresOf(action)).toEqual([{ pool: POOL, reason: 'rpc down' }]);
 
     expect(scans).toHaveLength(1);
     expect(poolsSelector(store.getState()).get(POOL)).toMatchObject({ lastSyncedBlock: 500n, finalizedBlock: 500n });

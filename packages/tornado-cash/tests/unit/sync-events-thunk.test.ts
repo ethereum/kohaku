@@ -7,6 +7,7 @@ import { depositsSelector, poolsSelector } from '../../src/state/selectors/slice
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { syncEventsThunk } from '../../src/state/thunks/syncEventsThunk';
+import { TornadoPoolSyncError } from '../../src/state/pool-sync-error';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 
 // The root check has its own tests (sync-events-root-check, sync-events-verification);
@@ -55,7 +56,7 @@ const syncService = (getPoolEvents: (params: IGetEventsParams) => Promise<IGetPo
   ({ getPoolEvents: vi.fn(getPoolEvents) }) as unknown as ISyncService & { getPoolEvents: ReturnType<typeof vi.fn> };
 
 describe('syncEventsThunk', () => {
-  it('fails the sync and names the pools whose events could not be fetched', async () => {
+  it('reports the pools whose events could not be fetched, in an error that names them', async () => {
     const store = makeStore();
 
     store.dispatch(registerPools([pool(okPool, 100n), pool(failingPool, 200n)]));
@@ -69,10 +70,14 @@ describe('syncEventsThunk', () => {
       }),
     }));
 
-    expect(action.meta.requestStatus).toBe('rejected');
-    expect(action.type).toBe('sync/events/rejected');
+    expect(action.meta.requestStatus).toBe('fulfilled');
 
-    const error = (action as { error: { name?: string; message?: string } }).error;
+    const { failures, poolCount } = action.payload as { failures: { pool: Address; reason: string }[]; poolCount: number };
+
+    expect(failures.map(({ pool }) => pool)).toEqual([failingPool]);
+    expect(failures[0]!.reason).not.toContain('SECRET_API_KEY');
+
+    const error = new TornadoPoolSyncError(failures, poolCount);
 
     expect(error.name).toBe('TornadoPoolSyncError');
     expect(error.message).toContain('1 of 2 Tornado pools');
@@ -122,7 +127,7 @@ describe('syncEventsThunk', () => {
     const action = await store.dispatch(syncEventsThunk({ dataService, syncService: retry }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(action.payload).toBe(650n);
+    expect(action.payload).toMatchObject({ lastBlock: 650n, failures: [] });
     expect(retry.getPoolEvents).toHaveBeenCalledWith(expect.objectContaining({ address: failingPool, fromBlock: 200n }));
     expect(retry.getPoolEvents).toHaveBeenCalledWith(expect.objectContaining({ address: okPool, fromBlock: 500n }));
     expect(poolsSelector(store.getState()).get(failingPool)?.lastSyncedBlock).toBe(600n);
@@ -139,6 +144,6 @@ describe('syncEventsThunk', () => {
     }));
 
     expect(action.meta.requestStatus).toBe('fulfilled');
-    expect(action.payload).toBe(450n);
+    expect(action.payload).toEqual({ lastBlock: 450n, poolCount: 2, failures: [] });
   });
 });

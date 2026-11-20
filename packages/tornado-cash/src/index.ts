@@ -22,6 +22,9 @@ export type { GasEstimationPolicy, PaymasterGasEstimation } from './interfaces/u
 
 export type { PaymasterGasLimits } from './paymaster/gas-bounds';
 
+export { TornadoPoolSyncError } from './state/pool-sync-error';
+export type { IPoolSyncFailure } from './state/pool-sync-error';
+
 export { PaymasterBroadcastError, type StaleSenderNonce } from './relayer/interfaces/paymaster-client.interface';
 export { TornadoBroadcastError, type TCBroadcastResponse } from './plugin/broadcaster';
 export type {
