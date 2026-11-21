@@ -9,6 +9,14 @@ import { IDataService } from '../../data/interfaces/data.service.interface';
 import { ISyncService } from '../../data/interfaces/sync.service.interface';
 import { instanceRegistryInfoSelector, poolsSelector } from '../selectors/slices.selectors';
 import { IPoolSyncFailure, poolSyncFailure } from '../pool-sync-error';
+import { allSettledLimited, POOL_CONCURRENCY } from '../../utils/settle-limited';
+
+/**
+ * The most instances a registry may list on a chain without a catalog. The
+ * mainnet registry holds about 20; a longer list is refused rather than cut
+ * short, so no pool is silently left out. With a catalog only its pools are fetched.
+ */
+export const MAX_REGISTRY_POOLS = 64;
 
 export interface SyncPoolsThunkParams {
   dataService: IDataService;
@@ -37,6 +45,11 @@ export const syncPoolsThunk = createAsyncThunk<IPoolSyncFailure[], SyncPoolsThun
     const catalog = instanceCatalog(chainId, instances);
 
     const registryAddresses = await dataService.getAllPoolsAddresses(instanceRegistryAddress);
+
+    if (!catalog && registryAddresses.length > MAX_REGISTRY_POOLS) {
+      throw new Error(`Instance registry lists ${registryAddresses.length} pools, more than the ${MAX_REGISTRY_POOLS} allowed`);
+    }
+
     const registrySet = new Set(registryAddresses);
     const extendedPools = extendedEthPoolSet(chainId);
     const poolAddresses = new Set(
@@ -65,13 +78,16 @@ export const syncPoolsThunk = createAsyncThunk<IPoolSyncFailure[], SyncPoolsThun
       if (instances === undefined) {
         console.warn('Ignoring pools missing from the instance catalog', uncataloguedPools.map((address) => addressToHex(address)));
       }
+
       uncataloguedPools.forEach((address) => poolAddresses.delete(address));
     }
 
     const unsyncedPools = [...poolAddresses].filter((address) => !existingPools.has(address));
 
-    const unsyncedPoolsData = await Promise.allSettled(
-      unsyncedPools.map(async (poolAddress) => {
+    const unsyncedPoolsData = await allSettledLimited(
+      unsyncedPools,
+      POOL_CONCURRENCY,
+      async (poolAddress) => {
         const [config, registeredBlock] = await Promise.all([
           registrySet.has(poolAddress)
             ? dataService.getPoolConfig(instanceRegistryAddress, poolAddress)
@@ -80,7 +96,7 @@ export const syncPoolsThunk = createAsyncThunk<IPoolSyncFailure[], SyncPoolsThun
         ]);
 
         return { config, registeredBlock };
-      })
+      },
     );
     const fetchedPools = unsyncedPoolsData.filter((p) => p.status === 'fulfilled');
     const failures = unsyncedPoolsData.flatMap((p, index) => (
