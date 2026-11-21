@@ -1,4 +1,4 @@
-export { anonAadhaarMethod } from './method';
+export { anonAadhaarMethod } from './factory';
 export type {
   AadhaarArgsOptions,
   AadhaarGroth16,

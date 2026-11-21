@@ -1,6 +1,8 @@
+import { getAddress, size, slice } from 'viem';
 export { normalizeAddresses } from '../formats/guards';
-import { assertBool, assertObject } from '../formats/guards';
-import type { Address, ErrorCode, FindingSubject, FindingValues, ValidationResult, WarningCode } from '../interfaces';
+import { FORMATS_ADDRESS_BYTES, FORMATS_ZERO_ADDRESS } from '../constants';
+import { assertAddress, assertBool, assertBytes32, assertObject, lowerHex } from '../formats/guards';
+import type { Address, DescribedFallbackHandler, ErrorCode, FindingSubject, FindingValues, Hex, ValidationResult, WarningCode } from '../interfaces';
 import type { ActionReads, Findings } from '../types/validation';
 
 /** An empty collection. */
@@ -45,4 +47,34 @@ export function assertActionReads(action: ActionReads, path: string): void {
 
   assertBool(action.supportsAccount, `${path}.supportsAccount`);
   assertBool(action.accountHoldsCode, `${path}.accountHoldsCode`);
+  assertObject(action.manager, `${path}.manager`);
+  assertBool(action.manager.answered, `${path}.manager.answered`);
+
+  if (action.manager.answered) assertAddress(action.manager.value, `${path}.manager.value`);
+
+  const entry = action.fallbackHandlerEntry;
+
+  if (entry !== undefined) {
+    assertObject(entry, `${path}.fallbackHandlerEntry`);
+    assertBool(entry.answered, `${path}.fallbackHandlerEntry.answered`);
+
+    if (entry.answered) assertBytes32(entry.value, `${path}.fallbackHandlerEntry.value`);
+  }
+
+  const implementation = action.actionImplementation;
+
+  if (implementation !== undefined) {
+    assertObject(implementation, `${path}.actionImplementation`);
+    assertBool(implementation.answered, `${path}.actionImplementation.answered`);
+
+    if (implementation.answered) assertAddress(implementation.value, `${path}.actionImplementation.value`);
+  }
+}
+
+/** The fallback-handler word in lower case, beside the address the account delegatecalls, its low 20 bytes, where they are not zero. */
+export function fallbackHandlerOf(entry: Hex): DescribedFallbackHandler {
+  const word = lowerHex(entry);
+  const low = slice(word, size(word) - FORMATS_ADDRESS_BYTES);
+
+  return low === FORMATS_ZERO_ADDRESS ? { entry: word } : { entry: word, handler: getAddress(low) };
 }

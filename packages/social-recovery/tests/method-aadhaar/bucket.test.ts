@@ -57,9 +57,44 @@ describe('the bucket constants', () => {
   });
 });
 
+describe('the bucket files\' pinned hashes', () => {
+  it('are the recorded sha256 of the v2.0.0 wasm, whole zkey and vkey, as lower-case 0x hex, frozen', () => {
+    expect(bucket.METHOD_AADHAAR_BUCKET_SHA256).toStrictEqual({
+      wasm: '0x4894923663fafda95beb70abca4112ea97a62058c9a46419a274f04236f10d4f',
+      zkey: '0x0d443ea85279b0370b53202f5e768ca9098cfcb5bb14f8ca8323d2266822c492',
+      vkey: '0x40f2ea24b56ffe2b6e6e3578053cbda15e773cb560697bac883a404077fcf177',
+    });
+    expect(Object.isFrozen(bucket.METHOD_AADHAAR_BUCKET_SHA256)).toBe(true);
+  });
+
+  it('the two messages are non-empty strings that differ', () => {
+    const messages = [bucket.METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE, bucket.METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE];
+
+    for (const message of messages) expect(message.length).toBeGreaterThan(0);
+
+    expect(new Set(messages).size).toBe(2);
+  });
+
+  it.each(['METHOD_AADHAAR_BUCKET_SHA256', 'METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE', 'METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE'])(
+    '%s is exported by the core entry and by ./recovery-methods as the same value',
+    (name) => {
+      expect(named(core)[name]).toBeDefined();
+      expect(named(recoveryMethods)[name]).toBe(named(core)[name]);
+      expect(named(bucket)[name]).toBe(named(core)[name]);
+    },
+  );
+});
+
 describe('the bucket constants on both entries', () => {
-  it('the bucket module declares the four bucket constants', () => {
-    expect(Object.keys(bucket).sort()).toEqual(BUCKET_NAMES.filter((name) => name !== 'METHOD_AADHAAR_NO_ARTIFACTS_MESSAGE').sort());
+  it('the bucket module declares the four bucket constants, the pinned hashes and the two messages', () => {
+    expect(Object.keys(bucket).sort()).toEqual(
+      [
+        ...BUCKET_NAMES.filter((name) => name !== 'METHOD_AADHAAR_NO_ARTIFACTS_MESSAGE'),
+        'METHOD_AADHAAR_BUCKET_SHA256',
+        'METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE',
+        'METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE',
+      ].sort(),
+    );
   });
 
   it('the constants beside the bucket keep their values', () => {

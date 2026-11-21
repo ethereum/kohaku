@@ -15,6 +15,7 @@ import {
   AUTHENTICATED,
   byteLength,
   flipByte,
+  LEGACY_AUTHENTICATED,
   METHOD_WALLET,
   METHOD_ZKPASSPORT,
   MIXED_RULE,
@@ -28,6 +29,7 @@ import {
   referenceAssociatedData,
   referenceKey,
   referenceOpenRaw,
+  referenceSeal,
   referenceSealRaw,
   referenceSerialize,
   toBytes,
@@ -136,7 +138,8 @@ const FOREIGN: ReadonlyArray<readonly [string, BackupAuthenticated]> = [
   ['setup commitment', { ...AUTHENTICATED, setupCommitment: `${AUTHENTICATED.setupCommitment.slice(0, -2)}7a` as Hex }],
   ['setup nonce, the next one', { ...AUTHENTICATED, nonce: AUTHENTICATED.nonce + 1n }],
   ['setup nonce, zero', { ...AUTHENTICATED, nonce: 0n }],
-  ['payload version, the next one', { ...AUTHENTICATED, payloadVersion: BACKUP_PAYLOAD_VERSION + 1 }],
+  ['payload version, the next one', { ...AUTHENTICATED, payloadVersion: 3 }],
+  ['payload version, the legacy one', LEGACY_AUTHENTICATED],
   ['payload version, zero', { ...AUTHENTICATED, payloadVersion: 0 }],
 ];
 
@@ -156,15 +159,63 @@ describe('a foreign authenticated value, each of the five', () => {
 });
 
 describe('a payload of another version', () => {
-  it('fails when a payload sealed under another version is opened under this build\'s version', async () => {
-    const other = await sealBackup(MIXED_RULE, PASSWORD, NONCE, BACKUP_PADDING_SIZE, {
-      ...AUTHENTICATED,
-      payloadVersion: BACKUP_PAYLOAD_VERSION + 1,
-    });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    expect(byteLength(other)).toBe(PAYLOAD_SIZE);
-    expectUnopened(await failure(openBackup(other, PASSWORD, AUTHENTICATED)), PAYLOAD_SIZE);
+  it('fails when a version-2 payload is opened under version 1', async () => {
+    expect(AUTHENTICATED.payloadVersion).toBe(BACKUP_PAYLOAD_VERSION);
+    expectUnopened(await failure(openBackup(payload, PASSWORD, LEGACY_AUTHENTICATED)), PAYLOAD_SIZE);
   }, TIMEOUT);
+
+  it('fails when a version-1 payload is opened under version 2', async () => {
+    const legacy = referenceSeal(MIXED_RULE, PASSWORD, NONCE, BACKUP_PADDING_SIZE, LEGACY_AUTHENTICATED);
+
+    await expect(openBackup(legacy, PASSWORD, LEGACY_AUTHENTICATED)).resolves.toBeDefined();
+    expectUnopened(await failure(openBackup(legacy, PASSWORD, AUTHENTICATED)), PAYLOAD_SIZE);
+  }, TIMEOUT);
+
+  it.for([
+    ['zero', 0],
+    ['3, the next one', 3],
+    ['255', 255],
+    ['2^53 - 1', Number.MAX_SAFE_INTEGER],
+  ] as const)('refuses version %s from openBackup as the one unopened failure, with no key derived', async ([, version]) => {
+    const derivation = spyOnDerivation();
+
+    expectUnopened(await failure(openBackup(payload, PASSWORD, { ...AUTHENTICATED, payloadVersion: version })), PAYLOAD_SIZE);
+    expect(derivation.calls()).toBe(0);
+  });
+
+  it.for([
+    ['1, the legacy one', 1],
+    ['zero', 0],
+    ['3, the next one', 3],
+    ['2^53 - 1', Number.MAX_SAFE_INTEGER],
+  ] as const)('refuses to seal under version %s with a RangeError, no payload and no key derived', async ([, version]) => {
+    const derivation = spyOnDerivation();
+    let produced: Hex | undefined;
+    let error: unknown;
+
+    try {
+      produced = await sealBackup(MIXED_RULE, PASSWORD, NONCE, BACKUP_PADDING_SIZE, { ...AUTHENTICATED, payloadVersion: version });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(produced).toBeUndefined();
+    expect(error).toBeInstanceOf(RangeError);
+    expect(error).not.toBeInstanceOf(BackupTooWideError);
+    expect(error).not.toBeInstanceOf(BackupUnopenedError);
+    expect(derivation.calls()).toBe(0);
+  });
+
+  it('refuses an oversized configuration under version 1 as too wide: the version rule follows the existing checks', async () => {
+    const error = await failure(sealBackup(passkeyRule(17, true), PASSWORD, NONCE, BACKUP_PADDING_SIZE, LEGACY_AUTHENTICATED));
+
+    expect(error).toBeInstanceOf(BackupTooWideError);
+    tooWide.push(error as BackupTooWideError);
+  });
 });
 
 describe('a plaintext beyond the padding is refused', () => {
@@ -318,7 +369,7 @@ describe('an authenticated payload whose plaintext is not a configuration', () =
   /** Seals with the node:crypto reference, since only a sealer holding the key can authenticate such a plaintext. */
   const sealPlaintext = (plaintext: Buffer): Hex => {
     const associatedData = referenceAssociatedData(AUTHENTICATED);
-    const key = referenceKey(PASSWORD);
+    const key = referenceKey(PASSWORD, associatedData);
     const sealed = referenceSealRaw(key, toBytes(NONCE), associatedData, plaintext);
 
     expect(referenceOpenRaw(key, sealed, associatedData).equals(plaintext)).toBe(true);

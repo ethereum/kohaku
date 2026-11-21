@@ -95,6 +95,7 @@ const REPLY_FAILURE = [
   { meaning: 'the device refused', spelling: 'device-refused' },
   { meaning: 'the device was unavailable', spelling: 'device-unavailable' },
   { meaning: 'the material was rejected as the wrong shape for this method', spelling: 'material-rejected' },
+  { meaning: "the material proves, but under an issuer key or version the method's module does not trust now", spelling: 'material-untrusted' },
   { meaning: 'no implementation serves the method the request names', spelling: 'method-unsupported' },
   { meaning: "the request's kind or version is one this build does not read", spelling: 'request-unsupported' },
 ] as const;
@@ -125,6 +126,7 @@ const SETUP_ERRORS = [
   'wait.above-maximum',
   'action.unsupported',
   'account.not-deployed',
+  'action.manager-mismatch',
   'backup.too-wide',
 ];
 
@@ -138,6 +140,8 @@ const SETUP_WARNINGS = [
   'method.stopped',
   'action.unaudited',
   'manager.already-armed',
+  'account.fallback-handler',
+  'account.deploy-pending',
   'setup.wait-short',
   'setup.wait-zero',
   'backup.clear',
@@ -151,13 +155,17 @@ const REQUEST_ERRORS = [
   'request.attempt-active',
   'request.no-active-attempt',
   'request.stale-attempt',
+  'request.no-setup',
+  'request.setup-nonce',
   'request.body-mismatch',
   'request.rule-unsatisfied',
   'request.method-stopped',
   'proof.places-unordered',
   'proof.place-out-of-range',
+  'proof.expired',
   'handover.removed-not-authority',
   'handover.new-holds-privilege',
+  'handover.new-reserved',
   'handover.same-authority',
   'handover.malformed',
   'handover.removed-unknown',
@@ -168,9 +176,11 @@ const REQUEST_WARNINGS = [
   'method.unshipped', // also a setup warning, so the ValidationWarning union holds it once
   'payment.open-payee',
   'payment.token-unknown',
+  'request.window-wide',
   'request.window-short',
   'request.moment-skew',
   'cancel.window-late',
+  'proof.expiring',
   'payment.sponsor-sees',
 ];
 
@@ -217,13 +227,13 @@ describe('the fourteen notification shapes', () => {
   });
 });
 
-describe('the five ReplyFailure causes', () => {
-  it('derives five distinct meanings', () => {
-    expect(new Set(REPLY_FAILURE.map((entry) => entry.meaning)).size).toBe(5);
+describe('the six ReplyFailure causes', () => {
+  it('derives six distinct meanings', () => {
+    expect(new Set(REPLY_FAILURE.map((entry) => entry.meaning)).size).toBe(6);
   });
 
-  it('REPLY_FAILURE_CAUSES holds five causes, one per meaning', () => {
-    expect(REPLY_FAILURE_CAUSES).toHaveLength(5);
+  it('REPLY_FAILURE_CAUSES holds six causes, one per meaning', () => {
+    expect(REPLY_FAILURE_CAUSES).toHaveLength(6);
     expect(sorted(REPLY_FAILURE_CAUSES)).toEqual(sorted(REPLY_FAILURE.map((entry) => entry.spelling)));
   });
 
@@ -303,26 +313,26 @@ describe('the three restore causes', () => {
 
 describe('the finding codes', () => {
   it.each([
-    ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 13],
-    ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 14],
-    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 15],
-    ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 8],
+    ['setup errors', SETUP_ERROR_CODES, SETUP_ERRORS, 14],
+    ['setup warnings', SETUP_WARNING_CODES, SETUP_WARNINGS, 16],
+    ['request errors', REQUEST_ERROR_CODES, REQUEST_ERRORS, 19],
+    ['request warnings', REQUEST_WARNING_CODES, REQUEST_WARNINGS, 10],
   ] as const)('the %s tuple is the table, in its order', (_label, tuple, table, count) => {
     expect(table).toHaveLength(count);
     expect([...tuple]).toEqual(table);
   });
 
-  it("ValidationError's code is the setup and request errors together, twenty-eight codes", () => {
+  it("ValidationError's code is the setup and request errors together, thirty-three codes", () => {
     const expected = sorted([...new Set([...SETUP_ERRORS, ...REQUEST_ERRORS])]);
 
-    expect(expected).toHaveLength(28);
+    expect(expected).toHaveLength(33);
     expect(literalsOf('ValidationError', 'code')).toEqual(expected);
   });
 
   it("ValidationWarning's code is the setup and request warnings together, method.unshipped once", () => {
     const expected = sorted([...new Set([...SETUP_WARNINGS, ...REQUEST_WARNINGS])]);
 
-    expect(expected).toHaveLength(21);
+    expect(expected).toHaveLength(25);
     expect(literalsOf('ValidationWarning', 'code')).toEqual(expected);
   });
 

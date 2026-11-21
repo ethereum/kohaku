@@ -13,7 +13,7 @@ import {
 } from '../../src/index';
 import { encodeEvent, rawLog, type EventName } from '../event-manager/fixture';
 import { readVector } from '../kat/read-vector';
-import { BLOCK, DESCRIPTOR, keySet } from './doubles';
+import { BLOCK, DESCRIPTOR, keySet, PRIV_KEY, PRIV_NONE } from './doubles';
 
 type EventRow = { readonly 'id': string; readonly input: Readonly<Record<string, unknown>>; readonly expected: { readonly topics: readonly Hex[]; readonly data: Hex } };
 
@@ -64,7 +64,14 @@ const startedWith = (payload: Hex, block: number): RawLog => {
   return rawLog(DESCRIPTOR.manager, topics, data, { blockNumber: block });
 };
 
-/** A chain answering logs and transactions from fixed lists, recording the hashes asked for. */
+/** A `LogPrivilegeChanged` the vector rows' account emits at a block. */
+const privilegeLog = (addr: Address, priv: Hex, block: number): RawLog => {
+  const { topics, data } = encodeEvent('LogPrivilegeChanged' as EventName, { addr, priv });
+
+  return rawLog(VECTOR_ACCOUNT, topics, data, { blockNumber: block });
+};
+
+/** A chain answering logs by emitter and range and transactions from fixed lists, recording the hashes asked for. */
 const chain = (logs: readonly RawLog[]): { provider: IProvider; asked: Hex[] } => {
   const asked: Hex[] = [];
   const known = new Map<string, RawTransaction>(
@@ -81,7 +88,13 @@ const chain = (logs: readonly RawLog[]): { provider: IProvider; asked: Hex[] } =
       call: () => Promise.reject(new Error('not the inference\'s')),
       block: () => Promise.reject(new Error('not the inference\'s')),
       code: () => Promise.reject(new Error('not the inference\'s')),
-      logs: async (_filter, range) => logs.filter((log) => log.blockNumber >= range.from && log.blockNumber <= range.to),
+      logs: async (filter, range) =>
+        logs.filter(
+          (log) =>
+            log.blockNumber >= range.from &&
+            log.blockNumber <= range.to &&
+            filter.address.some((emitter) => emitter.toLowerCase() === log.address.toLowerCase()),
+        ),
       transaction: async (hash) => {
         asked.push(hash);
 
@@ -155,6 +168,24 @@ describe('the blessed manager events through the real event manager', () => {
     const { inputs } = inputsFor([startedWith(NORMAL_ENCODED, 200), consumedLog], [NORMAL_NEW]);
 
     await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe('no-source');
+  });
+
+  it('a privilege write of the account naming a second confirmed address makes the normal handover\'s key ambiguous', async () => {
+    const other = getAddress(`0x${'6'.repeat(40)}`);
+    const logs = [startedWith(NORMAL_ENCODED, 200), rowLog('AttemptConsumed', 201), privilegeLog(other, PRIV_KEY, 150)];
+    const { inputs, askedKeys } = inputsFor(logs, [NORMAL_NEW, other]);
+
+    await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe('ambiguous');
+    expect(askedKeys.sort()).toEqual([NORMAL_NEW, other].map((one) => one.toLowerCase()).sort());
+  });
+
+  it('the same address written back to zero leaves the normal handover\'s key, never asked', async () => {
+    const other = getAddress(`0x${'6'.repeat(40)}`);
+    const logs = [privilegeLog(other, PRIV_KEY, 150), startedWith(NORMAL_ENCODED, 200), rowLog('AttemptConsumed', 201), privilegeLog(other, PRIV_NONE, 250)];
+    const { inputs, askedKeys } = inputsFor(logs, [NORMAL_NEW, other]);
+
+    await expect(inferRemovedKey(inputs, BLOCK)).resolves.toBe(NORMAL_NEW);
+    expect(askedKeys).toEqual([NORMAL_NEW.toLowerCase()]);
   });
 
   it('the SetupCommitted row\'s transaction hash is the one transaction asks for', async () => {

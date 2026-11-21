@@ -118,6 +118,16 @@ describe('an implementation\'s own typed failure passes through unchanged', () =
     });
   }
 
+  it('material-untrusted, a key the module does not trust now, comes back from replyFrom and configFrom as the method gave it', async () => {
+    const failure = { kind: 'reply-failure', cause: 'material-untrusted' } as const;
+    const { method } = recordingMethod('none', { replyFrom: async () => failure, configFrom: async () => failure });
+    const orchestrator = orchestratorOver([[REQUEST_METHOD, method]]);
+
+    expect(REPLY_FAILURE_CAUSES).toContain('material-untrusted');
+    expect(await orchestrator.replyFrom(approval(), {}, undefined)).toStrictEqual(failure);
+    expect(await orchestrator.configFrom(REQUEST_METHOD, { kind: 'ceremony' }, undefined)).toStrictEqual(failure);
+  });
+
   it('the method\'s config bytes come back as the method gave them', async () => {
     const { method, calls } = recordingMethod('none', { configFrom: async () => '0xabcdef' });
     const input = { kind: 'ceremony', session: 1 } as const;

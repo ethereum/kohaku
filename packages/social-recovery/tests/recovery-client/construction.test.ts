@@ -84,8 +84,8 @@ describe('construction refuses a malformed consumed field with no read', () => {
     ['accountImplementation, a bad checksum', { accountImplementation: BAD_CHECKSUM }],
     ['tokens, a bad entry', { tokens: [TOKEN, '0x1234'] }],
     ['tokens, not an array', { tokens: TOKEN }],
-    ['requestWindow.default, negative', { requestWindow: { default: -1, floor: 3_600 } }],
-    ['requestWindow.floor, a string', { requestWindow: { default: 86_400, floor: '3600' } }],
+    ['requestWindow.default, negative', { requestWindow: { default: -1, floor: 3_600, ceiling: 259_200 } }],
+    ['requestWindow.floor, a string', { requestWindow: { default: 86_400, floor: '3600', ceiling: 259_200 } }],
     ['requestWindow, missing', { requestWindow: undefined }],
     ['logChunkSize, fractional', { logChunkSize: 1.5 }],
     ['defaultWait, negative', { defaultWait: -1 }],
@@ -100,6 +100,24 @@ describe('construction refuses a malformed consumed field with no read', () => {
 
     expect(isArgumentError(thrown)).toBe(true);
     expect(seen).toEqual([]);
+  });
+
+  it.each([
+    ['missing', { default: 86_400, floor: 3_600 }],
+    ['fractional', { default: 86_400, floor: 3_600, ceiling: 259_200.5 }],
+    ['negative', { default: 86_400, floor: 3_600, ceiling: -1 }],
+  ])('configuration requestWindow.ceiling %s throws naming it, with no read', (_name, requestWindow) => {
+    const { thrown, seen } = construct(DESCRIPTOR, { ...CLIENT_CONFIGURATION, requestWindow } as unknown as ClientConfiguration);
+
+    expect(isArgumentError(thrown)).toBe(true);
+    expect((thrown as Error).message).toContain('configuration.requestWindow.ceiling');
+    expect(seen).toEqual([]);
+  });
+
+  it('a ceiling under the floor and the default constructs: no order is checked between them', () => {
+    const { thrown } = construct(DESCRIPTOR, { ...CLIENT_CONFIGURATION, requestWindow: { default: 86_400, floor: 3_600, ceiling: 0 } });
+
+    expect(thrown).toBeUndefined();
   });
 
   it.each([

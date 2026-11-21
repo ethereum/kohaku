@@ -82,6 +82,7 @@ export const REPLY_FAILURE_CAUSES = [
   'device-refused',
   'device-unavailable',
   'material-rejected',
+  'material-untrusted',
   'method-unsupported',
   'request-unsupported',
 ] as const;

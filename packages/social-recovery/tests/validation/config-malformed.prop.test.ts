@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { bytesToHex } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { passkeyMethod, validateSetup, walletMethod, type Address, type Credential, type IMethodCodec, type MethodReads, type SetupValidationContext } from '../../src/index';
+import { passkeyMethod, validateSetup, walletMethod, type Address, type Credential, type IMethodCodec, type MethodReads, type SetupDraft, type SetupValidationContext } from '../../src/index';
 import type { Fields } from '../../src/interfaces';
 import { anonAadhaarMethod, zkPassportMethod } from '../../src/recovery-methods';
 import { AADHAAR, ECDSA, PASSKEY, SETUP_CONTEXT, ZKPASSPORT, findingsOf, withClauses } from './fixtures';
@@ -52,24 +52,30 @@ const credentialOf = ([module, fields]: readonly [Address, Fields]): Credential 
   return { method: module, config: codec.encodeConfig(fields) };
 };
 
+const CODE = 'credential.config-malformed';
+
+/** The config-malformed findings that are not a bound finding, so a layout error whatever its reason says. */
+const layoutFindings = (draft: SetupDraft) =>
+  findingsOf(validateSetup(draft, CONTEXT), CODE).filter((finding) => (finding.values as { readonly reason?: unknown }).reason !== 'bound');
+
 describe('credential.config-malformed properties', () => {
-  it('a config a shipped method\'s own encodeConfig produced never errs', () => {
+  it('a config a shipped method\'s own encodeConfig produced is never a layout error', () => {
     fc.assert(
       fc.property(fieldsArb, (tagged) => {
         const draft = withClauses([{ threshold: 1, credentials: [credentialOf(tagged)] }]);
 
-        expect(findingsOf(validateSetup(draft, CONTEXT), 'credential.config-malformed')).toEqual([]);
+        expect(layoutFindings(draft)).toEqual([]);
       }),
       { numRuns: NUM_RUNS, ...SEED },
     );
   }, PROPERTY_TIMEOUT);
 
-  it('a draft mixing encoded configs of every method across clauses never errs', () => {
+  it('a draft mixing encoded configs of every method across clauses is never a layout error', () => {
     fc.assert(
       fc.property(fc.array(fc.array(fieldsArb, { minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 3 }), (clauses) => {
         const draft = withClauses(clauses.map((tagged) => ({ threshold: 1, credentials: tagged.map(credentialOf) })));
 
-        expect(findingsOf(validateSetup(draft, CONTEXT), 'credential.config-malformed')).toEqual([]);
+        expect(layoutFindings(draft)).toEqual([]);
       }),
       { numRuns: NUM_RUNS, ...SEED },
     );

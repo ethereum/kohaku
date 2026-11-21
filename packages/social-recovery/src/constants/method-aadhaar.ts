@@ -16,8 +16,8 @@ export const METHOD_AADHAAR_CONFIG_FIELDS = Object.freeze(['nullifier', 'nullifi
 /** The config's exact length in bytes. */
 export const METHOD_AADHAAR_CONFIG_BYTES = 96;
 
-/** The freshness window `configFrom` writes into every config: 24 hours, in seconds. */
-export const METHOD_AADHAAR_FRESHNESS_WINDOW = 86400n;
+/** The freshness window `configFrom` writes where the enrollment parameters name none: 75 minutes, in seconds. */
+export const METHOD_AADHAAR_FRESHNESS_WINDOW = 4500n;
 
 /** The shortest freshness window, in seconds, a config may carry; a shorter one is judged `rejected`. */
 export const METHOD_AADHAAR_MIN_FRESHNESS_WINDOW = 3600n;
@@ -118,6 +118,9 @@ export const METHOD_AADHAAR_STACK_TIME_CALLS = Object.freeze([
   'convertBigIntToByteArray',
 ] as const);
 
+/** The prover states the peer reports while it downloads the circuit's files; a proof that fails in one of them is the device's failure. */
+export const METHOD_AADHAAR_DOWNLOAD_STATES = Object.freeze(['fetching-wasm', 'fetching-zkey'] as const);
+
 /** The stack's members naming its two signing keys: UIDAI's 2021 key and its own test key, the one `verify` refuses locally outside test mode. */
 export const METHOD_AADHAAR_STACK_KEY_MEMBERS = Object.freeze(['productionPublicKeyHash', 'testPublicKeyHash'] as const);
 
@@ -136,6 +139,7 @@ export const METHOD_AADHAAR_MATERIAL_REJECTED: ReplyFailure = Object.freeze({ ki
 export const METHOD_AADHAAR_DEVICE_REFUSED: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'device-refused' });
 export const METHOD_AADHAAR_DEVICE_UNAVAILABLE: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'device-unavailable' });
 export const METHOD_AADHAAR_REQUEST_UNSUPPORTED: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'request-unsupported' });
+export const METHOD_AADHAAR_MATERIAL_UNTRUSTED: ReplyFailure = Object.freeze({ kind: 'reply-failure', cause: 'material-untrusted' });
 
 /** The device kind `describe` reports. */
 export const METHOD_AADHAAR_DEVICE_KIND = 'in-page-prover';

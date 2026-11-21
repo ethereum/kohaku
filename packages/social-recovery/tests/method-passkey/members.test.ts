@@ -108,7 +108,7 @@ describe('the ten members', () => {
     for (const file of method.vector) expect(readVector(file)).toBeDefined();
   });
 
-  it('codec carries the four functions of IMethodCodec', () => {
-    expect(Object.keys(method.codec).sort()).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof']);
+  it('codec carries the five functions of IMethodCodec', () => {
+    expect(Object.keys(method.codec).sort()).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof', 'outOfBounds']);
   });
 });

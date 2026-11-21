@@ -111,3 +111,24 @@ describe('describeStatus over arbitrary consistent records', () => {
     }));
   }, TIMEOUT);
 });
+
+/** The inputs, with arms that force the recovery record's nonce to the attempt's, and the attempt to consumed, so a re-commit is owed often. */
+const owingInputs = fc.oneof(
+  inputs,
+  inputs.map(({ recovery, ...rest }) => ({ ...rest, recovery: { ...recovery, setupNonce: recovery.attempt.setupNonce } })),
+  inputs.map(({ recovery, ...rest }) => ({
+    ...rest,
+    recovery: { ...recovery, attempt: { ...recovery.attempt, state: 'Consumed' as const }, setupNonce: recovery.attempt.setupNonce },
+  })),
+);
+
+describe('describeStatus says a re-commit is owed from the recovery record alone', () => {
+  it('recommitOwed is exactly a consumed attempt under the standing nonce, whatever the setup record', () => {
+    run(fc.property(owingInputs, setupState, ({ setup, recovery, latest, scope }, otherSetup) => {
+      const owed = recovery.attempt.state === 'Consumed' && recovery.attempt.setupNonce === recovery.setupNonce;
+
+      expect(describeStatus(setup, recovery, latest, scope).recommitOwed).toBe(owed);
+      expect(describeStatus(otherSetup, recovery, [], scope).recommitOwed).toBe(owed);
+    }));
+  }, TIMEOUT);
+});

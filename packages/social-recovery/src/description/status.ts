@@ -1,3 +1,4 @@
+import { DESCRIPTION_CONSUMED_ATTEMPT_STATE } from '../constants';
 import { assertArray, assertBool, assertBytes32, assertObject, isSafeCount, normalizeAddress, sameAddress } from '../formats/guards';
 import { assertNotification, byPosition } from '../formats/notifications';
 import type {
@@ -76,10 +77,16 @@ function assertStatusInputs(setupState: SetupState, recoveryState: RecoveryState
   assertObject(setupState.block, 'setupState.block');
   assertBytes32(setupState.block.hash, 'setupState.block.hash');
   assertObject(recoveryState, 'recoveryState');
+
+  if (typeof recoveryState.setupNonce !== 'bigint') throw new TypeError('recoveryState.setupNonce must be a bigint');
+
   assertObject(recoveryState.block, 'recoveryState.block');
   assertBytes32(recoveryState.block.hash, 'recoveryState.block.hash');
   assertCount(recoveryState.block.timestamp, 'recoveryState.block.timestamp');
   assertObject(recoveryState.attempt, 'recoveryState.attempt');
+
+  if (typeof recoveryState.attempt.setupNonce !== 'bigint') throw new TypeError('recoveryState.attempt.setupNonce must be a bigint');
+
   assertArray(latest, 'latest');
 
   for (let index = 0; index < latest.length; index += 1) assertNotification(latest[index], `latest[${index}]`);
@@ -120,5 +127,6 @@ export function describeStatus(
 
       return stop === undefined ? { method } : { method, latest: stop };
     }),
+    recommitOwed: recoveryState.attempt.state === DESCRIPTION_CONSUMED_ATTEMPT_STATE && recoveryState.attempt.setupNonce === recoveryState.setupNonce,
   };
 }

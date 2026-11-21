@@ -28,11 +28,15 @@ describe('account.not-deployed', () => {
     expect(validateSetup(DRAFT, withAccount(false, supportsAccount))).toEqual({ errors: [NOT_DEPLOYED], warnings: [] });
   });
 
-  it('names the implementation the configuration names, beside the served one', () => {
+  it('gives way to action.unsupported where the configuration names an implementation the action does not serve', () => {
     const context = withAccount(false, false, { configuration: { ...CONFIGURATION, accountImplementation: OTHER_IMPLEMENTATION } });
 
     expect(validateSetup(DRAFT, context).errors).toEqual([
-      { ...NOT_DEPLOYED, values: { ...NOT_DEPLOYED.values, accountImplementation: OTHER_IMPLEMENTATION } },
+      {
+        code: 'action.unsupported',
+        subject: 'action',
+        values: { action: ACTION, account: ACCOUNT, supportsAccount: false, accountImplementation: OTHER_IMPLEMENTATION, servedImplementation: SERVED_IMPLEMENTATION },
+      },
     ]);
   });
 

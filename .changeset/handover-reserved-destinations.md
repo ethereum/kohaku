@@ -1,0 +1,9 @@
+---
+"@kohaku-eth/social-recovery": patch
+---
+
+`initRecoveryGathering` and the pure `validateRequest` refuse a handover whose new key is an address nobody can sign for as a key of the account: the account itself, the policy manager the request is submitted to, the action, that action's kit slot (`kitSlot(action)`) or the fallback-handler entry `0x0000000000000000000000000000000000006969`. The init refuses after its two handover reads and before any approver request exists, in the one `KitRefusalError` that carries every handover finding, with its message unchanged. New: the error code `handover.new-reserved` in `REQUEST_ERROR_CODES`, after `handover.new-holds-privilege` (subject `request`, values `newAuthority`, checksummed, and `reserved`, the first match in the order of the new constant `VALIDATION_RESERVED_DESTINATIONS`: `account`, `manager`, `action`, `kit-slot`, `fallback-handler`); the constant `RECOVERY_ACTION_FALLBACK_HANDLER_SLOT`; and the member `HandoverReads.manager`, the descriptor's `manager`, which `validateRequest` refuses with a `TypeError` on an opening where it is missing or not an address. A zero new key still gets `handover.malformed` alone. The action codec's `encode` and `decode`, `describeRequest`, `seed` and the prepares are unchanged: a payload naming one of these keys still encodes, is described and reaches `prepareStartAttempt`'s simulation.
+
+Breaking: `HandoverReads` gains the required member `manager`, so a caller of the pure `validateRequest` that builds its own reads must supply it; the recovery client fills it from its descriptor.
+
+Compatibility: the closed set `REQUEST_ERROR_CODES`, and with it the `ErrorCode` union, grew by one member, so a consumer that keeps an exhaustive map or switch over every error code must add `handover.new-reserved` before it compiles again; a consumer that reads findings as data is unaffected.

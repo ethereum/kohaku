@@ -79,6 +79,22 @@ describe('describeSetup refuses a malformed action read, naming the path', () =>
     ['a string actionInfo', { actionInfo: 'ambire' }, /context\.action\.actionInfo/],
     ['an actionInfo whose answered is a string', { actionInfo: { answered: 'yes' } }, /context\.action\.actionInfo\.answered/],
     ['an answered actionInfo without a value', { actionInfo: { answered: true } }, /context\.action\.actionInfo\.value/],
+    ['a missing manager', { manager: undefined }, /context\.action\.manager/],
+    ['a bare address as the manager', { manager: '0x8000000000000000000000000000000000000001' }, /context\.action\.manager/],
+    ['a manager whose answered is a string', { manager: { answered: 'yes' } }, /context\.action\.manager\.answered/],
+    ['an answered manager whose value is no address', { manager: { answered: true, value: 'nope' } }, /context\.action\.manager/],
+    ['a string fallbackHandlerEntry', { fallbackHandlerEntry: '0x6969' }, /context\.action\.fallbackHandlerEntry/],
+    ['a null fallbackHandlerEntry', { fallbackHandlerEntry: null }, /context\.action\.fallbackHandlerEntry/],
+    ['a fallbackHandlerEntry whose answered is a string', { fallbackHandlerEntry: { answered: 'yes' } }, /context\.action\.fallbackHandlerEntry\.answered/],
+    ['an answered fallbackHandlerEntry without a value', { fallbackHandlerEntry: { answered: true } }, /context\.action\.fallbackHandlerEntry\.value/],
+    ['an answered fallbackHandlerEntry of 31 bytes', { fallbackHandlerEntry: { answered: true, value: `0x${'ab'.repeat(31)}` } }, /context\.action\.fallbackHandlerEntry\.value/],
+    ['an answered fallbackHandlerEntry of 33 bytes', { fallbackHandlerEntry: { answered: true, value: `0x${'ab'.repeat(33)}` } }, /context\.action\.fallbackHandlerEntry\.value/],
+    ['an answered fallbackHandlerEntry that is not hex', { fallbackHandlerEntry: { answered: true, value: `0x${'zz'.repeat(32)}` } }, /context\.action\.fallbackHandlerEntry\.value/],
+    ['a string actionImplementation', { actionImplementation: '0x4000000000000000000000000000000000000001' }, /context\.action\.actionImplementation/],
+    ['a null actionImplementation', { actionImplementation: null }, /context\.action\.actionImplementation/],
+    ['an actionImplementation whose answered is a string', { actionImplementation: { answered: 'yes' } }, /context\.action\.actionImplementation\.answered/],
+    ['an answered actionImplementation without a value', { actionImplementation: { answered: true } }, /context\.action\.actionImplementation\.value/],
+    ['an answered actionImplementation whose value is no address', { actionImplementation: { answered: true, value: 'nope' } }, /context\.action\.actionImplementation\.value/],
   ])('throws a TypeError for %s', (_name, change, path) => {
     const context = { ...CONTEXT, action: { ...CONTEXT.action, ...change } } as unknown as typeof CONTEXT;
 
@@ -116,6 +132,14 @@ describe('describeSetup and validateSetup share one guard over the action reads'
     ['accountHoldsCode', (action) => ({ ...action, accountHoldsCode: 1 }), /^context\.action\.accountHoldsCode /],
     ['actionInfo.answered', (action) => ({ ...action, actionInfo: { answered: 'yes' } }), /^context\.action\.actionInfo\.answered /],
     ['actionInfo.value', (action) => ({ ...action, actionInfo: { answered: true } }), /^context\.action\.actionInfo\.value /],
+    ['manager', (action) => ({ ...action, manager: 'nope' }), /^context\.action\.manager /],
+    ['manager.answered', (action) => ({ ...action, manager: { answered: 'yes' } }), /^context\.action\.manager\.answered /],
+    ['fallbackHandlerEntry', (action) => ({ ...action, fallbackHandlerEntry: 'handler' }), /^context\.action\.fallbackHandlerEntry /],
+    ['fallbackHandlerEntry.answered', (action) => ({ ...action, fallbackHandlerEntry: { answered: 1 } }), /^context\.action\.fallbackHandlerEntry\.answered /],
+    ['fallbackHandlerEntry.value', (action) => ({ ...action, fallbackHandlerEntry: { answered: true, value: `0x${'ab'.repeat(20)}` } }), /^context\.action\.fallbackHandlerEntry\.value /],
+    ['actionImplementation', (action) => ({ ...action, actionImplementation: 'implementation' }), /^context\.action\.actionImplementation /],
+    ['actionImplementation.answered', (action) => ({ ...action, actionImplementation: { answered: 1 } }), /^context\.action\.actionImplementation\.answered /],
+    ['actionImplementation.value', (action) => ({ ...action, actionImplementation: { answered: true, value: `0x${'ab'.repeat(32)}` } }), /^context\.action\.actionImplementation\.value /],
   ])('a malformed %s throws the same TypeError message from both', (_member, change, path) => {
     const described = thrownBy(() => describeSetup(DRAFT, { ...CONTEXT, action: change(CONTEXT.action) } as unknown as typeof CONTEXT));
     const validated = thrownBy(() =>
@@ -126,5 +150,30 @@ describe('describeSetup and validateSetup share one guard over the action reads'
     expect(validated).toBeInstanceOf(TypeError);
     expect((described as Error).message).toMatch(path);
     expect((validated as Error).message).toBe((described as Error).message);
+  });
+});
+
+describe('describeSetup refuses a malformed identity-method address in the descriptor, naming it', () => {
+  it.each<[string, 'methodZkpassport' | 'methodAadhaar', unknown]>([
+    ['a word for the zkPassport method', 'methodZkpassport', 'nope'],
+    ['a short zkPassport method', 'methodZkpassport', '0x3000'],
+    ['a missing zkPassport method', 'methodZkpassport', undefined],
+    ['a word for the Aadhaar method', 'methodAadhaar', 'nope'],
+    ['a 32-byte Aadhaar method', 'methodAadhaar', `0x${'30'.repeat(32)}`],
+    ['a missing Aadhaar method', 'methodAadhaar', undefined],
+  ])('throws a TypeError for %s, even where the draft names no such credential', (_name, member, value) => {
+    const context = { ...CONTEXT, descriptor: { ...DESCRIPTOR, [member]: value } } as unknown as typeof CONTEXT;
+    const draft = { ...DRAFT, clauses: DRAFT.clauses.slice(0, 1) };
+
+    expect(() => describeSetup(DRAFT, context)).toThrow(TypeError);
+    expect(() => describeSetup(DRAFT, context)).toThrow(new RegExp(`context\\.descriptor\\.${member}`));
+    expect(() => describeSetup(draft, context)).toThrow(new RegExp(`context\\.descriptor\\.${member}`));
+  });
+
+  it.each(['methodZkpassport', 'methodAadhaar'] as const)('accepts %s in lower case', (member) => {
+    const lettered = '0xabcdef0123456789abcdef0123456789abcdef03';
+    const context = { ...CONTEXT, descriptor: { ...DESCRIPTOR, [member]: lettered } };
+
+    expect(() => describeSetup(DRAFT, context)).not.toThrow();
   });
 });

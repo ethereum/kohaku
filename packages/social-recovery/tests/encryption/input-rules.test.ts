@@ -155,6 +155,21 @@ describe('the authenticated values keep their refusals, split by class', () => {
   });
 
   it.for([
+    ['a fractional payload version', 1.5, TypeError],
+    ['a bigint payload version', 2n, TypeError],
+    ['a string payload version', '2', TypeError],
+    ['a negative payload version', -1, RangeError],
+    ['a payload version past the safe integers', 2 ** 53, RangeError],
+  ] as const)('refuses %s from sealBackup, naming the field, before any key derivation', async ([, payloadVersion, kind]) => {
+    const derivations = spyOnDerivation();
+    const authenticated = { ...AUTHENTICATED, payloadVersion } as unknown as BackupAuthenticated;
+
+    expectNamed(await failure(sealBackup(MIXED_RULE, PASSWORD, NONCE, BACKUP_PADDING_SIZE, authenticated)), kind, 'authenticated.payloadVersion');
+    expect(derivations()).toBe(0);
+    vi.restoreAllMocks();
+  });
+
+  it.for([
     ['a payload that is not hex', '0xzz', 'payload'],
     ['a payload of an odd digit count', '0x0', 'payload'],
     ['a payload without its prefix', '00'.repeat(2501), 'payload'],

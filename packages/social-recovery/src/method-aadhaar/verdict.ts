@@ -1,4 +1,5 @@
 import {
+  METHOD_AADHAAR_DEVICE_UNAVAILABLE,
   METHOD_AADHAAR_DIGEST_NAME,
   METHOD_AADHAAR_DISCLOSURE_INPUTS,
   METHOD_AADHAAR_G1_PROJECTIVE,
@@ -11,10 +12,11 @@ import {
   METHOD_AADHAAR_SIGNED_AT_SLACK,
 } from '../constants/method-aadhaar';
 import { assertBytes32 } from '../formats/guards';
-import type { Hex, Verdict } from '../interfaces';
+import type { Hex, ReplyFailure, Verdict } from '../interfaces';
 import type { AadhaarConfig, AadhaarPcd, AadhaarProof, AadhaarStackProof, AnonAadhaarStack } from '../types/method-aadhaar';
 import { decodeConfig, decodeProof } from './codec';
 import { signalHashFromDigest } from './signal';
+import { AadhaarStackUnavailable } from './stack';
 import { inputAt } from './words';
 
 /**
@@ -44,6 +46,10 @@ export function isFresh(proof: AadhaarProof, config: AadhaarConfig, now: bigint)
 
   return signedAt !== undefined && !(signedAt < now && now - signedAt > config.freshnessWindow);
 }
+
+/** Whether the proof's issuer-key input is the module's trusted key, or no trusted key was given. */
+export const issuerTrusted = (proof: AadhaarProof, trustedKey?: bigint): boolean =>
+  trustedKey === undefined || inputAt(proof.inputs, 'pubkeyHash') === trustedKey;
 
 /**
  * Whether the stack reads the QR as signed before `now` by more than the config's window and the slack; an unread
@@ -83,10 +89,17 @@ export function toPcd(proof: AadhaarProof): AadhaarPcd {
 }
 
 /**
- * The local verdict, read off no chain and no clock: `rejected` for bytes that do not decode or
- * a proof `bindsTo` refuses, else the stack's answer under `testMode`, or `not-judged` when the stack throws.
+ * The local verdict before a reply, read off no chain and no clock: `rejected` for bytes that do not decode or a proof `bindsTo`
+ * refuses, else the stack's answer under `testMode`; `device-unavailable` when the stack cannot load or initialise, and
+ * `not-judged` when it throws anything else.
  */
-export async function judge(stack: AnonAadhaarStack, config: Hex, digest: Hex, proof: Hex, testMode: boolean): Promise<Verdict> {
+export async function replyVerdict(
+  stack: AnonAadhaarStack,
+  config: Hex,
+  digest: Hex,
+  proof: Hex,
+  testMode: boolean,
+): Promise<Verdict | ReplyFailure> {
   assertBytes32(digest, METHOD_AADHAAR_DIGEST_NAME);
 
   let decoded: AadhaarProof;
@@ -103,7 +116,14 @@ export async function judge(stack: AnonAadhaarStack, config: Hex, digest: Hex, p
     const pcd = toPcd(decoded);
 
     return (await stack.verify(pcd, testMode)) === true ? 'satisfied' : 'rejected';
-  } catch {
-    return 'not-judged';
+  } catch (error) {
+    return error instanceof AadhaarStackUnavailable ? METHOD_AADHAAR_DEVICE_UNAVAILABLE : 'not-judged';
   }
+}
+
+/** The local verdict as `replyVerdict` reads it, except that a stack that cannot load or initialise is `not-judged`, since a verdict names no device failure. */
+export async function judge(stack: AnonAadhaarStack, config: Hex, digest: Hex, proof: Hex, testMode: boolean): Promise<Verdict> {
+  const verdict = await replyVerdict(stack, config, digest, proof, testMode);
+
+  return typeof verdict === 'string' ? verdict : 'not-judged';
 }

@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseAbi } from 'viem';
+import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseAbi, toFunctionSelector } from 'viem';
 import {
   POLICY_MANAGER_WRITES_ABI,
   RECOVERY_ACTION_SET_ADDR_PRIVILEGE_ABI,
@@ -13,6 +13,7 @@ import {
   type BlockTag,
   type ClientConfiguration,
   type DeploymentDescriptor,
+  type FetchedNotifications,
   type FilterSpec,
   type Hex,
   type IActionCodec,
@@ -33,6 +34,7 @@ import {
   type ReadResult,
   type SetupDraft,
 } from '../../src/index';
+import { selectorOf } from '../helpers/keccak';
 
 const numRuns = Number(process.env['FC_NUM_RUNS'] ?? 256);
 
@@ -91,7 +93,7 @@ export const CONFIGURATION: ClientConfiguration = {
   defaultWait: 259_200,
   shortWait: 86_400,
   maxWait: 31_536_000,
-  requestWindow: { default: 3_600, floor: 600 },
+  requestWindow: { default: 3_600, floor: 600, ceiling: 259_200 },
   cancelWindow: 3_600,
   ruleCostBound: 10_000_000,
   candidateKeys: [KEY_1, KEY_2],
@@ -340,6 +342,18 @@ export const MODULE_ANSWERS: ModuleAnswers = {
 
 export const ACTION_INFO: ActionInfo = { name: 'AmbireRecoveryAction', version: '1.0.0', supportsInterface: true };
 
+/** The action's `MANAGER()` selector, from the signature written out by hand. */
+export const MANAGER_SELECTOR: Hex = toFunctionSelector('MANAGER()');
+
+/** The action's `AMBIRE_IMPLEMENTATION()` selector, from the signature written out by hand. */
+export const IMPLEMENTATION_SELECTOR: Hex = toFunctionSelector('AMBIRE_IMPLEMENTATION()');
+
+/** The account's `privileges(address)` selector, its handler read's, hashed by the tests' own Keccak. */
+export const HANDLER_SELECTOR = selectorOf('privileges(address)') as Hex;
+
+/** One ABI word holding the address, as a clean `MANAGER()` return. */
+export const addressWord = (address: Address): Hex => encodeAbiParameters([{ type: 'address' }], [address]);
+
 /** The chain the doubles answer from; every member may be replaced per test. */
 export type World = {
   header: Answer<unknown>;
@@ -354,8 +368,14 @@ export type World = {
   bound: Answer<readonly KitNotification[]>;
   /** What `fetch` answers over the filter with the action topic left open. */
   allActions: Answer<readonly KitNotification[]>;
-  /** What `call` answers for one simulation, by its index. */
+  /** What `fetch` resolves to around the notifications it answers. */
+  fetched: (notifications: readonly KitNotification[]) => unknown;
+  /** What `call` answers for one simulation, by its index, and for the account's handler read, which is no simulation, at index -1. */
   simulate: (to: Address, data: Hex, from: Address, index: number) => Promise<Hex>;
+  /** What `call` answers to the action's `MANAGER()`, which is no simulation. */
+  manager: Answer<Hex>;
+  /** What `call` answers to the action's `AMBIRE_IMPLEMENTATION()`, which is no simulation. */
+  implementation: Answer<Hex>;
 };
 
 export const defaultWorld = (): World => ({
@@ -369,7 +389,10 @@ export const defaultWorld = (): World => ({
   modules: () => MODULE_ANSWERS,
   bound: [],
   allActions: [],
+  fetched: (notifications) => ({ notifications, skipped: [] }),
   simulate: async () => '0x',
+  manager: addressWord(MANAGER),
+  implementation: addressWord(DESCRIPTOR.servedImplementation),
 });
 
 /** The filter the events double hands out for the bound action. */
@@ -444,6 +467,7 @@ const unexpected = (name: string) => async (): Promise<never> => {
 
 export function doubles(world: World): Doubles {
   const seen: Seen = { blockTags: [], calls: [], codes: [], parts: [], fetches: [], filterOptions: [], provider: [] };
+  let simulations = 0;
   const note = (part: PartCall['part'], member: string, args: readonly unknown[]): void => {
     seen.parts.push({ part, member, args });
   };
@@ -458,7 +482,15 @@ export function doubles(world: World): Doubles {
       seen.provider.push('call');
       seen.calls.push({ to, data, from, block });
 
-      return world.simulate(to, data, from, seen.calls.length - 1);
+      if (data.slice(0, 10).toLowerCase() === MANAGER_SELECTOR) return answer(world.manager);
+
+      if (data.slice(0, 10).toLowerCase() === IMPLEMENTATION_SELECTOR) return answer(world.implementation);
+
+      if (data.slice(0, 10).toLowerCase() === HANDLER_SELECTOR) return world.simulate(to, data, from, -1);
+
+      simulations += 1;
+
+      return world.simulate(to, data, from, simulations - 1);
     },
     async logs() {
       seen.provider.push('logs');
@@ -577,7 +609,7 @@ export function doubles(world: World): Doubles {
       note('events', 'fetch', [filter, range]);
       seen.fetches.push({ filter, range });
 
-      return answer(filter === ALL_ACTIONS_FILTER ? world.allActions : world.bound);
+      return world.fetched(await answer(filter === ALL_ACTIONS_FILTER ? world.allActions : world.bound)) as FetchedNotifications;
     },
     decodeLog() {
       throw new Error('unexpected call to decodeLog');
@@ -651,6 +683,10 @@ export const lastArgument = (call: PartCall): unknown => call.args[call.args.len
 /** The members the client called on the parts, in order. */
 export const members = (seen: Seen): string[] => seen.parts.map((call) => `${call.part}.${call.member}`);
 
+/** The provider calls the doubles answered as simulations: neither the action's `MANAGER()` or `AMBIRE_IMPLEMENTATION()` nor the account's handler read. */
+export const simulationCalls = (seen: Seen): Seen['calls'] =>
+  seen.calls.filter((call) => ![MANAGER_SELECTOR, IMPLEMENTATION_SELECTOR, HANDLER_SELECTOR].includes(call.data.slice(0, 10).toLowerCase() as Hex));
+
 /** The members of the parts that read or prepare against a block; `fetch` takes a range instead. */
 export const pinnedPartCalls = (seen: Seen): PartCall[] => seen.parts.filter((call) => call.part !== 'events');
 
@@ -659,6 +695,18 @@ export const revert = (data: Hex): { readonly data: Hex } => ({ data });
 
 /** A failure that is no revert: an unreachable node. */
 export const transportFailure = (): Error => new Error('connect ECONNREFUSED');
+
+/** The address the account keeps its fallback handler under, written out here rather than imported from the package. */
+export const HANDLER_SLOT: Address = '0x0000000000000000000000000000000000006969';
+
+/** `privileges(HANDLER_SLOT)` calldata, its selector hashed by the tests' own Keccak. */
+export const HANDLER_READ_DATA = `${selectorOf('privileges(address)')}${'0'.repeat(60)}6969` as Hex;
+
+/** A simulation answering the account's handler read with the given answer, and every other call with `0x`. */
+export const answeringHandler =
+  (word: Answer<Hex>): World['simulate'] =>
+  async (to, data) =>
+    to.toLowerCase() === ACCOUNT.toLowerCase() && data.toLowerCase() === HANDLER_READ_DATA ? answer(word) : '0x';
 
 /** An arbitrary valid draft: up to three clauses of up to three credentials over the three methods. */
 export const draftArbitrary: fc.Arbitrary<SetupDraft> = fc

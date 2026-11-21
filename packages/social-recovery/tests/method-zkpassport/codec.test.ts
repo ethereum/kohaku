@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { METHOD_ZKPASSPORT_PROOF_DATE_INPUT, METHOD_ZKPASSPORT_PROOF_DATE_MESSAGE } from '../../src/constants';
 import { zkPassportMethod } from '../../src/method-zkpassport';
 import type { Fields, Hex } from '../../src/interfaces';
 import { readVector } from '../kat/read-vector';
@@ -11,6 +12,7 @@ import {
   encodeProof,
   isArgumentError,
   member,
+  outerInputs,
   readPinConfigRows,
   sparse,
   stackDouble,
@@ -323,5 +325,70 @@ describe('the codec refuses what its layouts do not hold', () => {
   it('decodeConfig refuses proof bytes and decodeProof refuses config bytes', () => {
     expect(() => codec.decodeConfig(codec.encodeProof(proof))).toThrow();
     expect(() => codec.decodeProof(codec.encodeConfig(config))).toThrow();
+  });
+});
+
+describe('proofExpiry: the first moment the module refuses a proof for its age', () => {
+  /** The contracts' digest fixture's proof date, 2026-10-05T17:31:43Z. */
+  const FIXTURE_DATE = 0x6ac3deffn;
+
+  const configWith = (validity: bigint): Hex => encodeConfig(word(7), 'recover.example', 'mast-social-recovery', validity);
+
+  /** An outer proof whose public inputs are the suite's default ones with the date word at index 2, cut to `count` inputs. */
+  const proofDated = (date: bigint, count = 8): Hex =>
+    encodeProof(word(0x63), '0x123456', outerInputs(7n).map((input, index) => (index === 2 ? word(date) : asHex(input))).slice(0, count), '0x1234');
+
+  /** The codec's member, failing where the codec carries none. */
+  const proofExpiry = (config: Hex, proof: Hex): bigint => {
+    if (codec.proofExpiry === undefined) throw new Error('the zkPassport codec carries no proofExpiry');
+
+    return codec.proofExpiry(config, proof);
+  };
+
+  it('reads the date at public input 2', () => {
+    expect(METHOD_ZKPASSPORT_PROOF_DATE_INPUT).toBe(2);
+  });
+
+  it.each([
+    ['the seven-day period', 604_800n, 1_791_826_303n],
+    ['one day, the vector config\'s period', 86_400n, 1_791_307_903n],
+    ['one second, the shortest period', 1n, 1_791_221_504n],
+  ])('the fixture date plus %s', (_why, validity, expected) => {
+    expect(proofExpiry(configWith(validity), proofDated(FIXTURE_DATE))).toBe(expected);
+    expect(expected).toBe(FIXTURE_DATE + validity);
+  });
+
+  it('adds without a bound: the largest date word plus the largest period', () => {
+    const top = (1n << 256n) - 1n;
+
+    expect(proofExpiry(configWith(top), proofDated(top))).toBe(top + top);
+  });
+
+  it('eight public inputs suffice; seven give a RangeError with the date message', () => {
+    expect(proofExpiry(configWith(604_800n), proofDated(FIXTURE_DATE, 8))).toBe(1_791_826_303n);
+    expect(() => proofExpiry(configWith(604_800n), proofDated(FIXTURE_DATE, 7))).toThrow(new RangeError(METHOD_ZKPASSPORT_PROOF_DATE_MESSAGE));
+    expect(() => proofExpiry(configWith(604_800n), proofDated(FIXTURE_DATE, 0))).toThrow(RangeError);
+  });
+
+  it.each([
+    ['empty bytes', '0x'],
+    ['an odd nibble count', '0x123'],
+    ['config bytes', encodeConfig(word(7), 'recover.example', 's', 1n)],
+    ['a trailing byte', `${encodeProof(word(1), '0x', outerInputs(7n).map(asHex), '0x')}00`],
+  ])('proof bytes that are %s give decodeProof\'s own error', (_why, bytes) => {
+    const theirs = thrown(() => codec.decodeProof(bytes as Hex)) as Error;
+    const ours = thrown(() => proofExpiry(configWith(604_800n), bytes as Hex)) as Error;
+
+    expect(ours.constructor).toBe(theirs.constructor);
+    expect(ours.message).toBe(theirs.message);
+  });
+
+  it('config bytes that do not decode give decodeConfig\'s own error', () => {
+    const bytes = word(7);
+    const theirs = thrown(() => codec.decodeConfig(bytes)) as Error;
+    const ours = thrown(() => proofExpiry(bytes, proofDated(FIXTURE_DATE))) as Error;
+
+    expect(ours.constructor).toBe(theirs.constructor);
+    expect(ours.message).toBe(theirs.message);
   });
 });

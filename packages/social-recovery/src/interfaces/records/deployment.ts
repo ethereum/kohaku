@@ -25,6 +25,8 @@ export type DeploymentDescriptor = {
 export type RequestWindowBounds = {
   readonly default: number;
   readonly floor: number;
+  /** The width above which a request warns, in seconds. */
+  readonly ceiling: number;
 };
 
 /** The tag a read pins at and the tag a watch pins at. */

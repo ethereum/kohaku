@@ -1,4 +1,5 @@
 import {
+  METHOD_AADHAAR_DOWNLOAD_STATES,
   METHOD_AADHAAR_STACK_CALLS,
   METHOD_AADHAAR_STACK_DEFAULT_MEMBER,
   METHOD_AADHAAR_STACK_INIT_MESSAGE,
@@ -10,11 +11,26 @@ import {
   METHOD_AADHAAR_STACK_SURFACE_MESSAGE,
   METHOD_AADHAAR_STACK_TIME_CALLS,
 } from '../constants/method-aadhaar';
+import {
+  METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE,
+  METHOD_AADHAAR_BUCKET_SHA256,
+  METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE,
+} from '../constants/method-aadhaar-bucket';
 import { assertDependency } from '../formats/guards';
-import type { AadhaarCoreSurface, AadhaarPcd, AnonAadhaarArtifacts, AnonAadhaarStack } from '../types/method-aadhaar';
+import type {
+  AadhaarCoreSurface,
+  AadhaarLoadedPeer,
+  AadhaarPcd,
+  AadhaarProgress,
+  AadhaarProverArgs,
+  AnonAadhaarArtifacts,
+  AnonAadhaarStack,
+} from '../types/method-aadhaar';
+import { pinnedArtifacts } from './artifacts';
 import { isRecord } from './inputs';
+import { underBinding } from './peer-binding';
 
-/** Thrown when the default stack cannot be loaded or initialised. */
+/** Thrown when the default stack cannot be loaded or initialised, or fails while downloading the circuit's files. */
 export class AadhaarStackUnavailable extends Error {}
 
 /** The loaded peer with the three time calls present, the shape `signedAt` reads. */
@@ -45,8 +61,8 @@ async function importCore(): Promise<AadhaarCoreSurface> {
   return surface;
 }
 
-/** Imports the peer and calls its `init`; a refused `init` is the device's failure, not the material's. */
-async function initialise(artifacts: AnonAadhaarArtifacts): Promise<AadhaarCoreSurface> {
+/** The imported peer and its `init` argument for the artifacts, the SDK's own bucket files checked; a failed fetch or check is the device's failure. */
+async function loadPeer(artifacts: AnonAadhaarArtifacts): Promise<AadhaarLoadedPeer> {
   let core: AadhaarCoreSurface;
 
   try {
@@ -61,20 +77,27 @@ async function initialise(artifacts: AnonAadhaarArtifacts): Promise<AadhaarCoreS
 
   if (typeof origin !== 'number') throw new AadhaarStackUnavailable(METHOD_AADHAAR_STACK_ORIGIN_MESSAGE);
 
+  const files = await pinnedArtifacts(artifacts, METHOD_AADHAAR_BUCKET_SHA256);
+
+  if (files === undefined) throw new AadhaarStackUnavailable(METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE);
+
+  return { core, argument: { ...files, artifactsOrigin: origin } };
+}
+
+/** Calls the peer's `init` with a copy of the argument; a refused `init` is the device's failure, not the material's. */
+async function initPeer({ core, argument }: AadhaarLoadedPeer): Promise<void> {
   try {
-    await core.init({ ...artifacts, artifactsOrigin: origin });
+    await core.init({ ...argument });
   } catch (error) {
     throw new AadhaarStackUnavailable(METHOD_AADHAAR_STACK_INIT_MESSAGE, { cause: error });
   }
-
-  return core;
 }
 
 /**
  * Whether the proof may reach the peer's `verify` under the mode. Test mode exists only for the peer's test QR, so in it
  * any other key answers false. Outside it the device refuses only the test key; a key the peer does not know (UIDAI
  * rotates its certificate, the module's key admin follows with `setTrustedKeys`, the peer only with a release) reaches
- * the peer, whose throw `judge` reads as `not-judged`, leaving the proof to the chain. An unparsable key answers false.
+ * the peer, whose throw the local verdict reads as `not-judged`, leaving the proof to the chain. An unparsable key answers false.
  */
 function signedByModeKey(core: AadhaarCoreSurface, pcd: AadhaarPcd, testMode: boolean): boolean {
   try {
@@ -113,18 +136,42 @@ async function signedAtOf(qrData: string): Promise<bigint | undefined> {
   }
 }
 
+const isDownloadState = (state: unknown): boolean => (METHOD_AADHAAR_DOWNLOAD_STATES as readonly unknown[]).includes(state);
+
 /**
- * The default stack over the artifacts, loaded and initialised once on first use; a failed load rejects with `AadhaarStackUnavailable` and is retried on the next call.
- * Once loaded, `verify` answers false without calling the peer for a test-key proof outside test mode and for any
- * other key in it; outside test mode a key the peer does not know is left to the peer's throw, `not-judged`.
- * `signedAt` imports the peer without `init`, so it downloads no artifact; a peer without the three time calls still loads, and
- * `signedAt` answers undefined.
+ * The peer's proof, its every state recorded before it reaches the page's callback unchanged; a rejection whose last state is a
+ * download is `AadhaarStackUnavailable`, any other rejection is the peer's own.
+ */
+async function proveRecorded(core: AadhaarCoreSurface, args: AadhaarProverArgs, onProgress?: AadhaarProgress): Promise<AadhaarPcd> {
+  let last: string | undefined;
+
+  try {
+    return await core.prove(args, (state) => {
+      last = state;
+      onProgress?.(state);
+    });
+  } catch (error) {
+    if (isDownloadState(last)) throw new AadhaarStackUnavailable(METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE, { cause: error });
+
+    throw error;
+  }
+}
+
+/**
+ * The default stack over the artifacts, loaded once on first use; a failed load rejects with `AadhaarStackUnavailable` and is retried on the next call.
+ * Loading fetches and checks the SDK's own bucket wasm and vkey first, and a proof that fails while the peer downloads also rejects with it.
+ * The peer's `init` is page-global, so two stacks with different files on one page take turns on the peer: before a call that reads the files,
+ * a stack whose files the peer does not hold waits until every call in flight under the files it holds has settled, then calls `init` with its
+ * own; a proof whose signal aborts while it waits never reaches the peer, and a refused `init` rejects with `AadhaarStackUnavailable`.
+ * Once loaded, `verify` answers false without calling the peer for a test-key proof outside test mode and for any other key in it;
+ * outside test mode a key the peer does not know is left to the peer's throw, `not-judged`. `signedAt` imports the peer without `init`,
+ * so it downloads no artifact; a peer without the three time calls still loads, and `signedAt` answers undefined.
  */
 export function coreStack(artifacts: AnonAadhaarArtifacts): AnonAadhaarStack {
-  let loading: Promise<AadhaarCoreSurface> | undefined;
+  let loading: Promise<AadhaarLoadedPeer> | undefined;
 
-  const load = (): Promise<AadhaarCoreSurface> => {
-    loading ??= initialise(artifacts).catch((error: unknown) => {
+  const load = (): Promise<AadhaarLoadedPeer> => {
+    loading ??= loadPeer(artifacts).catch((error: unknown) => {
       loading = undefined;
 
       throw error;
@@ -132,17 +179,21 @@ export function coreStack(artifacts: AnonAadhaarArtifacts): AnonAadhaarStack {
 
     return loading;
   };
+  const onPeer = async <T>(use: (core: AadhaarCoreSurface) => Promise<T>, signal?: AbortSignal): Promise<T> => {
+    const loaded = await load();
+
+    return underBinding(loaded.argument, () => initPeer(loaded), () => use(loaded.core), signal);
+  };
 
   return {
-    generateArgs: async (options) =>
-      (await load()).generateArgs({ ...options, fieldsToRevealArray: [...options.fieldsToRevealArray] }),
-    prove: async (args, onProgress) => (await load()).prove(args, onProgress),
+    generateArgs: (options) => onPeer((core) => core.generateArgs({ ...options, fieldsToRevealArray: [...options.fieldsToRevealArray] })),
+    prove: (args, onProgress, signal) => onPeer((core) => proveRecorded(core, args, onProgress), signal),
     signedAt: signedAtOf,
-    verify: async (pcd, testMode) => {
-      const core = await load();
-      const mode = testMode === true;
+    verify: (pcd, testMode) =>
+      onPeer(async (core) => {
+        const mode = testMode === true;
 
-      return signedByModeKey(core, pcd, mode) && core.verify(pcd, mode);
-    },
+        return signedByModeKey(core, pcd, mode) && core.verify(pcd, mode);
+      }),
   };
 }

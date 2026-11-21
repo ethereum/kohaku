@@ -13,7 +13,7 @@ export function checkedInputs(inputs: unknown): CheckedRemovedKeyInputs {
 
   assertObject(given.descriptor, 'inputs.descriptor');
   assertUintNumber(given.descriptor.deployedAt, FORMATS_SAFE_INTEGER_BITS, 'inputs.descriptor.deployedAt');
-  assertDependency(given.events, ['accountFilter', 'fetch'], 'inputs.events');
+  assertDependency(given.events, ['accountFilter', 'fetch', 'privilegeFilter'], 'inputs.events');
   assertDependency(given.action, ['isAuthority'], 'inputs.action');
   assertDependency(given.provider, ['transaction'], 'inputs.provider');
 

@@ -11,14 +11,15 @@ import {
   CONFIGURATION,
   DRAFT,
   ECDSA,
-  OLD_KEY,
   OPENING,
   OTHER_ACTION,
   OTHER_IMPLEMENTATION,
+  OTHER_MANAGER,
   OTHER_TOKEN,
   PASSKEY,
   REQUEST_CONTEXT,
   SALT,
+  SERVED_IMPLEMENTATION,
   SETUP_CONTEXT,
   STATE,
   T,
@@ -58,7 +59,7 @@ const committed = (account: string, action: string, block: number) => ({
 export function setupScenarios(): readonly [string, SetupDraft, SetupValidationContext][] {
   const deadAction = {
     ...SETUP_CONTEXT,
-    action: { ...SETUP_CONTEXT.action, supportsAccount: false },
+    action: { ...SETUP_CONTEXT.action, supportsAccount: false, manager: { answered: true as const, value: OTHER_MANAGER } },
     configuration: { ...CONFIGURATION, accountImplementation: OTHER_IMPLEMENTATION },
     costs: COSTS,
   };
@@ -90,6 +91,11 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
       managerEvents: [committed(ACCOUNT, OTHER_ACTION, 10)],
     }],
     ['an undeployed account', DRAFT, { ...SETUP_CONTEXT, action: { ...SETUP_CONTEXT.action, accountHoldsCode: false } }],
+    ['an undeployed account declared to get the served implementation', DRAFT, {
+      ...SETUP_CONTEXT,
+      action: { ...SETUP_CONTEXT.action, accountHoldsCode: false, supportsAccount: false },
+      configuration: { ...CONFIGURATION, accountImplementation: SERVED_IMPLEMENTATION },
+    }],
     ['a wallet config its codec cannot decode', withClauses([{ threshold: 1, credentials: [{ method: ECDSA, config: `0x${'ab'.repeat(20)}` }, credential(PASSKEY, 2)] }]), {
       ...SETUP_CONTEXT,
       methods: SETUP_CONTEXT.methods.map((reads) => (reads.module === ECDSA ? { ...reads, codec: walletMethod().codec } : reads)),
@@ -99,24 +105,34 @@ export function setupScenarios(): readonly [string, SetupDraft, SetupValidationC
       [{ threshold: 2, credentials: [credential(ECDSA, 1, { label: 'a' }), credential(PASSKEY, 2), credential(ECDSA, 3, { label: 'a' })] }],
       { wait: 0, privacy: { publicMetadata: '0x', backup: 'empty' } },
     ), SETUP_CONTEXT],
+    ['a fallback handler on the account', DRAFT, {
+      ...SETUP_CONTEXT,
+      action: { ...SETUP_CONTEXT.action, fallbackHandlerEntry: { answered: true, value: `0x${'00'.repeat(12)}${'69'.repeat(20)}` } },
+    }],
   ];
 }
 
 const UINT48_TOP = 2 ** 48 - 1;
 
-/** An opening over a body the stored commitment does not match, firing every opening error at once. */
+/** An opening under a moved nonce over a body the stored commitment does not match, firing every opening error but `request.no-setup` at once. */
 export function everyOpeningError(): [AttemptRequest, RequestValidationContext] {
   const second = OPENING.proofs[1]!;
 
   return [
-    { ...OPENING, attemptId: 9n, setupNonce: 4n, proofs: [second, second, { ...second, place: 5 }] },
+    { ...OPENING, attemptId: 9n, setupNonce: 4n, setupBody: oracleBody({ ...BODY, wait: 172_801 }), proofs: [second, second, { ...second, place: 5 }] },
     {
       ...REQUEST_CONTEXT,
       state: WAITING_STATE,
       moment: T + 90_000,
       block: { ...REQUEST_CONTEXT.block, timestamp: T + 89_500 },
       paused: [REQUEST_CONTEXT.paused[0]!, { method: PASSKEY, paused: { answered: true, value: true } }],
-      handover: { handover: { newAuthority: OLD_KEY, removedAuthority: OLD_KEY }, layoutDecodes: false, removedIsAuthority: false, newHoldsAnyPrivilege: true },
+      handover: {
+        ...REQUEST_CONTEXT.handover!,
+        handover: { newAuthority: ACCOUNT, removedAuthority: ACCOUNT },
+        layoutDecodes: false,
+        removedIsAuthority: false,
+        newHoldsAnyPrivilege: true,
+      },
     },
   ];
 }
@@ -128,13 +144,14 @@ export function requestScenarios(): readonly [string, AttemptRequest | CancelReq
 
   return [
     ['every opening error', ...everyOpeningError()],
+    ['an opening with no setup standing', OPENING, { ...REQUEST_CONTEXT, state: { ...STATE, setupCommitment: `0x${'00'.repeat(32)}` } }],
     ['a cancellation of nothing', unmatched, { ...REQUEST_CONTEXT, moment: T + 50_000 }],
     ['a stale cancellation', { ...CANCEL, attemptId: 5n }, {
       ...CANCEL_CONTEXT,
       state: { ...WAITING_STATE, attempt: { ...WAITING_STATE.attempt, setupNonce: 2n }, setupCommitment: oracleCommitment(ACCOUNT, ACTION, 3n, CANCEL.setupBody) },
     }],
     ['a cancellation read at a skewed moment', lateCancel, { ...CANCEL_CONTEXT, moment: T + 1_000 }],
-    ['every payment warning', { ...OPENING, validUntil: T + 300_000, order: { token: OTHER_TOKEN, amount: 5n, payee: ZERO } }, {
+    ['every payment warning and a wide window', { ...OPENING, validUntil: T + 300_000, order: { token: OTHER_TOKEN, amount: 5n, payee: ZERO } }, {
       ...REQUEST_CONTEXT,
       balance: 1n,
       implementedMethods: [],

@@ -8,6 +8,8 @@ import {
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import { coreStack } from '../../src/method-aadhaar/stack';
 import { CERTIFICATE, clockAt, configBytes, ctxFor, FRESH_NOW, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
+import { newPagePerTest } from './new-page';
+import { serveBucket, servedInit } from './served-bucket';
 
 const core = vi.hoisted(() => ({
   init: vi.fn((): Promise<void> => Promise.reject(new Error('fetch failed: https://unreachable.invalid/circuit.wasm'))),
@@ -31,6 +33,17 @@ vi.mock('@anon-aadhaar/core', () => ({
   productionPublicKeyHash: PRODUCTION_KEY,
   testPublicKeyHash: TEST_KEY,
 }));
+
+/** The pinned hashes replaced by the served bytes' own, so the default bucket loads against the stubbed fetch. */
+vi.mock('../../src/constants/method-aadhaar-bucket', async (importOriginal) => {
+  const { withServedHashes } = await import('./served-bucket');
+
+  return withServedHashes(await importOriginal<typeof import('../../src/constants/method-aadhaar-bucket')>());
+});
+
+serveBucket(METHOD_AADHAAR_BUCKET_CHUNKED);
+
+newPagePerTest();
 
 /** The proof vector's digest. */
 const DIGEST = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac040c339';
@@ -219,11 +232,11 @@ describe('the artifacts the peer\'s init receives', () => {
     return (core.init.mock.calls[0] as unknown[] | undefined)?.[0];
   };
 
-  it('no option: the chunked bucket\'s three URLs and the chunked origin, nothing else', async () => {
+  it('no option: object URLs for the chunked bucket\'s checked wasm and vkey, its zkey URL and the chunked origin, nothing else', async () => {
     expect(await initArgsOf(anonAadhaarMethod())).toStrictEqual({
-      wasmURL: METHOD_AADHAAR_BUCKET_CHUNKED.wasmURL,
+      wasmURL: expect.stringMatching(/^blob:/),
       zkeyURL: METHOD_AADHAAR_BUCKET_CHUNKED.zkeyURL,
-      vkeyURL: METHOD_AADHAAR_BUCKET_CHUNKED.vkeyURL,
+      vkeyURL: expect.stringMatching(/^blob:/),
       artifactsOrigin: 2,
     });
   });
@@ -234,7 +247,7 @@ describe('the artifacts the peer\'s init receives', () => {
     ['the default constant passed by name', { artifacts: METHOD_AADHAAR_DEFAULT_ARTIFACTS }],
     ['the chunked constant passed by name', { artifacts: METHOD_AADHAAR_BUCKET_CHUNKED }],
   ] as const)('%s: the same chunked bucket', async (_why, options) => {
-    expect(await initArgsOf(anonAadhaarMethod(options))).toStrictEqual({ ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 });
+    expect(await initArgsOf(anonAadhaarMethod(options))).toStrictEqual(servedInit(METHOD_AADHAAR_BUCKET_CHUNKED, 2));
   });
 
   it('testMode: true alone still loads the chunked bucket, and the peer\'s verify gets the flag', async () => {
@@ -251,17 +264,17 @@ describe('the artifacts the peer\'s init receives', () => {
     });
 
     expect(await anonAadhaarMethod({ testMode: true }).verify(ctx, test)).toBe('satisfied');
-    expect((core.init.mock.calls[0] as unknown[] | undefined)?.[0]).toStrictEqual({ ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 });
+    expect((core.init.mock.calls[0] as unknown[] | undefined)?.[0]).toStrictEqual(servedInit(METHOD_AADHAAR_BUCKET_CHUNKED, 2));
     expect(core.verify.mock.calls[0]?.[1]).toBe(true);
   });
 
-  it('the server constant: the whole-zkey URL and the server origin', async () => {
+  it('the server constant: object URLs for its checked wasm and vkey, the whole-zkey URL and the server origin', async () => {
     const args = await initArgsOf(anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER }));
 
     expect(args).toStrictEqual({
-      wasmURL: METHOD_AADHAAR_BUCKET_SERVER.wasmURL,
+      wasmURL: expect.stringMatching(/^blob:/),
       zkeyURL: METHOD_AADHAAR_BUCKET_SERVER.zkeyURL,
-      vkeyURL: METHOD_AADHAAR_BUCKET_SERVER.vkeyURL,
+      vkeyURL: expect.stringMatching(/^blob:/),
       artifactsOrigin: 0,
     });
     expect((args as { zkeyURL: string }).zkeyURL).not.toBe(METHOD_AADHAAR_BUCKET_CHUNKED.zkeyURL);
@@ -307,8 +320,8 @@ describe('the artifacts the peer\'s init receives', () => {
     await anonAadhaarMethod({ artifacts: METHOD_AADHAAR_BUCKET_SERVER }).verify(ctx, production);
 
     expect(core.init.mock.calls.map((call) => (call as unknown[])[0])).toStrictEqual([
-      { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 },
-      { ...METHOD_AADHAAR_BUCKET_SERVER, artifactsOrigin: 0 },
+      servedInit(METHOD_AADHAAR_BUCKET_CHUNKED, 2),
+      servedInit(METHOD_AADHAAR_BUCKET_SERVER, 0),
     ]);
   });
 

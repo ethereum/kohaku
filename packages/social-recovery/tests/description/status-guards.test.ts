@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { describeStatus, type KitNotification, type RecoveryState, type SetupState } from '../../src/index';
-import { at, paused, METHOD_A, PAYLOAD, RECOVERY_STATE, SCOPE, SETUP_STATE, started } from './status-fixtures';
+import { at, IDLE_STATE, paused, METHOD_A, PAYLOAD, RECOVERY_STATE, SCOPE, SETUP_STATE, started } from './status-fixtures';
 
 const call = (setup: unknown, recovery: unknown, latest: readonly unknown[]) => () =>
   describeStatus(setup as SetupState, recovery as RecoveryState, latest as KitNotification[], SCOPE);
@@ -24,6 +24,12 @@ describe('describeStatus refuses records missing what it reads, naming the membe
   it.each<readonly [string, unknown, string]>([
     ['with a short block hash', { ...RECOVERY_STATE, block: { ...RECOVERY_STATE.block, hash: '0x12' } }, 'recoveryState.block.hash'],
     ['with a text timestamp', { ...RECOVERY_STATE, block: { ...RECOVERY_STATE.block, timestamp: '1700000000' } }, 'recoveryState.block.timestamp'],
+    ['with a number setup nonce', { ...RECOVERY_STATE, setupNonce: 3 }, 'recoveryState.setupNonce'],
+    ['with a text setup nonce', { ...RECOVERY_STATE, setupNonce: '3' }, 'recoveryState.setupNonce'],
+    ['without a setup nonce', { ...RECOVERY_STATE, setupNonce: undefined }, 'recoveryState.setupNonce'],
+    ['with a number attempt setup nonce', { ...RECOVERY_STATE, attempt: { ...RECOVERY_STATE.attempt, setupNonce: 3 } }, 'recoveryState.attempt.setupNonce'],
+    ['with a text attempt setup nonce', { ...RECOVERY_STATE, attempt: { ...RECOVERY_STATE.attempt, setupNonce: '3' } }, 'recoveryState.attempt.setupNonce'],
+    ['with no attempt and a number attempt setup nonce', { ...IDLE_STATE, attempt: { ...IDLE_STATE.attempt, setupNonce: 0 } }, 'recoveryState.attempt.setupNonce'],
   ])('throws a TypeError for a recovery state %s', (_case, recovery, member) => {
     expect(call(SETUP_STATE, recovery, [])).toThrow(TypeError);
     expect(call(SETUP_STATE, recovery, [])).toThrow(naming(member));

@@ -1,5 +1,5 @@
 import { decodeAbiParameters, encodeAbiParameters } from 'viem';
-import { RECOVERY_ACTION_BOOL_RETURN_ABI, RECOVERY_ACTION_STRING_RETURN_ABI } from '../constants';
+import { RECOVERY_ACTION_BOOL_RETURN_ABI, RECOVERY_ACTION_STRING_RETURN_ABI, RECOVERY_ACTION_WORD_RETURN_ABI } from '../constants';
 import { decodeStrictly } from '../formats/strict';
 import type { Hex } from '../interfaces';
 
@@ -28,4 +28,11 @@ export const stringReturn = (returned: Hex, view: string): string =>
   strictReturn(returned, view, 'string', {
     decode: (bytes) => decodeAbiParameters(RECOVERY_ACTION_STRING_RETURN_ABI, bytes)[0],
     encode: (value) => encodeAbiParameters(RECOVERY_ACTION_STRING_RETURN_ABI, [value]),
+  });
+
+/** A word view's answer, refusing a short return and trailing bytes. */
+export const wordReturn = (returned: Hex, view: string): Hex =>
+  strictReturn(returned, view, 'bytes32', {
+    decode: (bytes) => decodeAbiParameters(RECOVERY_ACTION_WORD_RETURN_ABI, bytes)[0],
+    encode: (value) => encodeAbiParameters(RECOVERY_ACTION_WORD_RETURN_ABI, [value]),
   });

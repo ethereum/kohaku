@@ -1,6 +1,15 @@
 import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { BODY_ENCODER_KEY, DIGEST_VERSION, POLICY_METHOD_VERIFY_ABI, VERDICT_MAGIC_VALUE } from '../../src/index';
+import {
+  BODY_ENCODER_KEY,
+  DESCRIPTION_ISSUER_KEY_NAMES,
+  DESCRIPTION_ZKPASSPORT_KEY_NAMES,
+  DESCRIPTION_ZKPASSPORT_OPTIONAL_KEY,
+  DIGEST_VERSION,
+  METHOD_ZKPASSPORT_VERSION_KEY,
+  POLICY_METHOD_VERIFY_ABI,
+  VERDICT_MAGIC_VALUE,
+} from '../../src/index';
 import { keccak256Text, selectorOf } from '../helpers/keccak';
 import { readVector } from '../kat/read-vector';
 import { loadRecords, type RecordContext } from '../helpers/records';
@@ -110,5 +119,40 @@ describe('the two version constants', () => {
   it('BODY_ENCODER_KEY is a list of manager addresses the body encoder is keyed to', () => {
     expect(Array.isArray(BODY_ENCODER_KEY)).toBe(true);
     expect(BODY_ENCODER_KEY.filter((address) => !ADDRESS.test(address))).toEqual([]);
+  });
+});
+
+describe('the trusted-key names a setup description labels the identity methods\' words with', () => {
+  it.each(['DESCRIPTION_ZKPASSPORT_KEY_NAMES', 'DESCRIPTION_ZKPASSPORT_OPTIONAL_KEY', 'DESCRIPTION_ISSUER_KEY_NAMES'])(
+    'the core entry exports %s as a value',
+    (name) => {
+      const symbol = context.entry.get(name);
+
+      expect(symbol, `${name} is not exported from src/index.ts`).toBeDefined();
+      expect((symbol?.flags ?? 0) & ts.SymbolFlags.Variable).not.toBe(0);
+    },
+  );
+
+  it('the zkPassport names are the eight words in the method\'s order, index the word', () => {
+    expect(DESCRIPTION_ZKPASSPORT_KEY_NAMES).toEqual([
+      'version',
+      'rootVerifier',
+      'subVerifier',
+      'verifierHelper',
+      'rootRegistry',
+      'rootAdmin',
+      'rootGuardian',
+      'subVerifierAdmin',
+    ]);
+    expect(DESCRIPTION_ZKPASSPORT_KEY_NAMES[METHOD_ZKPASSPORT_VERSION_KEY]).toBe('version');
+  });
+
+  it('the one word that may be zero is word 6, the root guardian', () => {
+    expect(DESCRIPTION_ZKPASSPORT_OPTIONAL_KEY).toBe(6);
+    expect(DESCRIPTION_ZKPASSPORT_KEY_NAMES[DESCRIPTION_ZKPASSPORT_OPTIONAL_KEY]).toBe('rootGuardian');
+  });
+
+  it('the Aadhaar method names its one word issuerKeyHash', () => {
+    expect(DESCRIPTION_ISSUER_KEY_NAMES).toEqual(['issuerKeyHash']);
   });
 });

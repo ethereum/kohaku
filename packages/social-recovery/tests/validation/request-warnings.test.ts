@@ -70,12 +70,11 @@ describe('validateRequest warnings', () => {
     expect(warningCodes()).not.toContain('method.unshipped');
   });
 
-  it('never raises request.window-short or request.window-wide, even with a width under the floor', () => {
-    const narrow = { ...REQUEST_CONTEXT, configuration: { ...CONFIGURATION, requestWindow: { default: 600, floor: 300 } } };
+  it('never raises request.window-short, even with a width under the floor', () => {
+    const narrow = { ...REQUEST_CONTEXT, configuration: { ...CONFIGURATION, requestWindow: { default: 600, floor: 300, ceiling: 259_200 } } };
 
     expect(warningCodes({ ...OPENING, validUntil: T + 299 }, narrow)).toEqual(['payment.sponsor-sees']);
     expect(warningCodes({ ...OPENING, validUntil: T + 3_599 })).toEqual(['payment.sponsor-sees']);
-    expect(warningCodes({ ...OPENING, validUntil: T + 400_000 })).toEqual(['payment.sponsor-sees']);
     expect(warningCodes({ ...CANCEL, validUntil: T + 1 }, CANCEL_CONTEXT)).toEqual([]);
   });
 
@@ -104,5 +103,55 @@ describe('validateRequest warnings', () => {
   it('raises payment.sponsor-sees on a paying opening alone', () => {
     expect(findingsOf(validateRequest(OPENING, REQUEST_CONTEXT), 'payment.sponsor-sees')).toEqual([SPONSOR_SEES]);
     expect(warningCodes(withOrder({ amount: 0n }))).toEqual([]);
+  });
+});
+
+const WIDE = { code: 'request.window-wide', subject: 'request', values: { window: 259_201, ceiling: 259_200 } };
+
+const KINDS: readonly [string, AttemptRequest | CancelRequest, RequestValidationContext][] = [
+  ['an opening', OPENING, REQUEST_CONTEXT],
+  ['a cancellation', CANCEL, CANCEL_CONTEXT],
+];
+
+describe('validateRequest: the window ceiling', () => {
+  it.each(KINDS)('raises request.window-wide on %s one second over the ceiling and not at it', (_kind, request, context) => {
+    expect(findingsOf(validateRequest({ ...request, validUntil: T + 259_201 }, context), 'request.window-wide')).toEqual([WIDE]);
+    expect(findingsOf(validateRequest({ ...request, validUntil: T + 259_200 }, context), 'request.window-wide')).toEqual([]);
+  });
+
+  it('warns without refusing: a wide opening raises no error, the warning ahead of the payment ones', () => {
+    const result = validateRequest({ ...OPENING, validUntil: T + 400_000 }, REQUEST_CONTEXT);
+
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([{ ...WIDE, values: { window: 400_000, ceiling: 259_200 } }, SPONSOR_SEES]);
+  });
+
+  it('measures the width left from the pinned block, so a window wide at one block is not a second later', () => {
+    const request = { ...OPENING, validUntil: T + 259_201 };
+    const later = { ...REQUEST_CONTEXT, block: { ...REQUEST_CONTEXT.block, timestamp: T + 1 }, moment: T + 1 };
+
+    expect(findingsOf(validateRequest(request, REQUEST_CONTEXT), 'request.window-wide')).toEqual([WIDE]);
+    expect(findingsOf(validateRequest(request, later), 'request.window-wide')).toEqual([]);
+  });
+
+  it('reads the ceiling from the context configuration', () => {
+    const tight = { ...REQUEST_CONTEXT, configuration: { ...CONFIGURATION, requestWindow: { ...CONFIGURATION.requestWindow, ceiling: 7_200 } } };
+
+    expect(findingsOf(validateRequest({ ...OPENING, validUntil: T + 7_201 }, tight), 'request.window-wide')).toEqual([
+      { code: 'request.window-wide', subject: 'request', values: { window: 7_201, ceiling: 7_200 } },
+    ]);
+  });
+
+  it.each<[string, Record<string, unknown>, typeof TypeError | typeof RangeError]>([
+    ['without a ceiling', { default: 86_400, floor: 3_600 }, TypeError],
+    ['with a fractional ceiling', { ...CONFIGURATION.requestWindow, ceiling: 1.5 }, TypeError],
+    ['with a negative ceiling', { ...CONFIGURATION.requestWindow, ceiling: -1 }, RangeError],
+  ])('throws naming context.configuration.requestWindow.ceiling for a window %s, on both kinds, never a finding', (_name, requestWindow, kind) => {
+    for (const [, request, context] of KINDS) {
+      const judge = () => validateRequest(request, { ...context, configuration: { ...CONFIGURATION, requestWindow } as unknown as typeof CONFIGURATION });
+
+      expect(judge).toThrow(kind);
+      expect(judge).toThrow('context.configuration.requestWindow.ceiling');
+    }
   });
 });

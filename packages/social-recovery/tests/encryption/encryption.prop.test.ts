@@ -3,6 +3,7 @@ import { getAddress } from 'viem';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   BACKUP_PADDING_SIZE,
+  BACKUP_PAYLOAD_VERSION,
   BackupTooWideError,
   BackupUnopenedError,
   openBackup,
@@ -74,7 +75,7 @@ const authenticatedArb: fc.Arbitrary<BackupAuthenticated> = fc.record({
   action: addressArb,
   setupCommitment: anyCaseHex(32),
   nonce: fc.bigInt({ min: 0n, max: 2n ** 64n - 1n }),
-  payloadVersion: fc.integer({ min: 0, max: 2 ** 31 }),
+  payloadVersion: fc.constant(BACKUP_PAYLOAD_VERSION),
 });
 
 const passwordArb = fc.oneof(fc.string({ unit: 'grapheme', maxLength: 24 }), fc.string({ unit: 'binary', maxLength: 24 }));
@@ -105,7 +106,7 @@ describe('arbitrary configurations over the bound are refused', () => {
           action: `0x${'22'.repeat(20)}`,
           setupCommitment: `0x${'33'.repeat(32)}`,
           nonce: 1n,
-          payloadVersion: 1,
+          payloadVersion: BACKUP_PAYLOAD_VERSION,
         }).then(
           () => undefined,
           (reason: unknown) => reason,

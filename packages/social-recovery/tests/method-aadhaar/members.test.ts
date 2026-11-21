@@ -8,18 +8,23 @@ import { DEVICE_BINDINGS } from '../../src/interfaces';
 import * as folder from '../../src/method-aadhaar';
 import * as aadhaarConstantsFile from '../../src/constants/method-aadhaar';
 import * as aadhaarBucketFile from '../../src/constants/method-aadhaar-bucket';
+import * as aadhaarParamsFile from '../../src/constants/method-aadhaar-params';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import * as recoveryMethods from '../../src/recovery-methods';
 import { PACKAGE_ROOT, SRC_ROOT, createSourceProgram, requireSourceFile, resolveExports } from '../helpers/source';
 import { configBytes, ctxFor, stackDouble } from './fixtures';
 
-/** Every METHOD_AADHAAR_* constant, from the two source files that declare them. */
-const aadhaarConstants: { readonly [name: string]: unknown } = { ...aadhaarConstantsFile, ...aadhaarBucketFile };
+/** Every METHOD_AADHAAR_* constant, from the three source files that declare them. */
+const aadhaarConstants: { readonly [name: string]: unknown } = { ...aadhaarConstantsFile, ...aadhaarBucketFile, ...aadhaarParamsFile };
 
 /** The constant files whose exports make up the METHOD_AADHAAR_* source set. */
-const CONSTANT_FILES = [join(SRC_ROOT, 'constants', 'method-aadhaar.ts'), join(SRC_ROOT, 'constants', 'method-aadhaar-bucket.ts')];
+const CONSTANT_FILES = [
+  join(SRC_ROOT, 'constants', 'method-aadhaar.ts'),
+  join(SRC_ROOT, 'constants', 'method-aadhaar-bucket.ts'),
+  join(SRC_ROOT, 'constants', 'method-aadhaar-params.ts'),
+];
 
-/** The names the two constant files export, as the compiler resolves them. */
+/** The names the three constant files export, as the compiler resolves them. */
 const constantNames = (program: ts.Program): string[] => [
   ...new Set(CONSTANT_FILES.flatMap((file) => [...resolveExports(program.getTypeChecker(), requireSourceFile(program, file)).keys()])),
 ];
@@ -101,8 +106,8 @@ describe('the ten members', () => {
     expect(names.sort()).toEqual([...TEN, 'tier'].sort());
   }, PROGRAM_TIMEOUT);
 
-  it('the codec carries exactly the four functions of IMethodCodec', () => {
-    expect(Object.keys(method.codec).sort()).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof']);
+  it('the codec carries exactly the five functions of IMethodCodec', () => {
+    expect(Object.keys(method.codec).sort()).toEqual(['decodeConfig', 'decodeProof', 'encodeConfig', 'encodeProof', 'outOfBounds']);
   });
 
   it('modules(descriptor) is the descriptor own methodAadhaar address and nothing else', () => {
@@ -205,19 +210,22 @@ describe('the package surface', () => {
     expect(Object.keys(second).filter((name) => name.startsWith('METHOD_ZKPASSPORT_'))).toEqual([]);
   });
 
-  it('the ./recovery-methods entry declares every METHOD_AADHAAR_* name of both constant files among its exports', () => {
+  it('the ./recovery-methods entry declares every METHOD_AADHAAR_* name of the three constant files among its exports', () => {
     const program = createSourceProgram();
     const second = resolveExports(program.getTypeChecker(), requireSourceFile(program, join(SRC_ROOT, 'recovery-methods', 'index.ts')));
 
     expect([...second.keys()]).toEqual(expect.arrayContaining(constantNames(program)));
   }, PROGRAM_TIMEOUT);
 
-  it('the bucket file declares exactly the four bucket constants', () => {
+  it('the bucket file declares exactly the four bucket constants, the pinned hashes and the two messages', () => {
     expect(Object.keys(aadhaarBucketFile).sort()).toEqual([
+      'METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE',
       'METHOD_AADHAAR_BUCKET_CHUNKED',
       'METHOD_AADHAAR_BUCKET_SERVER',
+      'METHOD_AADHAAR_BUCKET_SHA256',
       'METHOD_AADHAAR_BUCKET_URL',
       'METHOD_AADHAAR_DEFAULT_ARTIFACTS',
+      'METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE',
     ]);
   });
 

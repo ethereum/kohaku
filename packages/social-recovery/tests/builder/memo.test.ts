@@ -112,11 +112,11 @@ describe('memoization', () => {
 
     await run(builder);
 
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'MANAGER']);
 
     for (const [, other] of BUILDS) await other(builder);
 
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'version', 'MANAGER']);
   });
 
   it('runs nothing on chain for the orchestrator', () => {
@@ -171,7 +171,7 @@ describe('the freeze', () => {
 
     await builder.buildSetupClient();
 
-    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'eip712Domain', 'chainId', 'eip712Domain', 'version', 'MANAGER']);
   });
 
   it('leaves the setters open after a transport failure and builds on the retry', async () => {
@@ -185,7 +185,7 @@ describe('the freeze', () => {
     builder.withSignerRecovery(signerRecoveryStub());
 
     await expect(builder.build()).resolves.toBeDefined();
-    expect(provider.reads).toEqual(['chainId', 'chainId', 'eip712Domain', 'version']);
+    expect(provider.reads).toEqual(['chainId', 'chainId', 'eip712Domain', 'version', 'MANAGER']);
   });
 
   it('leaves the setters open after a refused recoveryAction() and methodModuleReads()', async () => {
@@ -289,7 +289,7 @@ describe('the cached reading', () => {
 
     await builder.build();
 
-    expect(provider.reads).toEqual(['chainId']);
+    expect(provider.reads).toEqual(['chainId', 'MANAGER']);
     expect(builder.managerReading()).toEqual(reading);
   });
 

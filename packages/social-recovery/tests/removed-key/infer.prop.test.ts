@@ -141,19 +141,22 @@ const shapeOf = (read: Read): string => {
   return `recoverSigner ${read.transaction.hash.toLowerCase()} ${read.account.toLowerCase()}`;
 };
 
-/** The expected rule, written independently of `src/`: the result and the reads it makes when no read fails. */
-const expected = (input: Plan): { result: RemovedKey; reads: string[] } => {
+/** The expected rule, written independently of `src/`: the walk's answer and reads in order, then the reads its witnesses make in any order. */
+const expected = (input: Plan): { result: RemovedKey; walk: RemovedKey; reads: string[]; witnessReads: string[] } => {
   const reads: string[] = [];
   const allowed = keySet(...input.authorities.map(key));
+  const asked = (candidate: Address): string => `isAuthority ${candidate.toLowerCase()} ${BLOCK.number}/${BLOCK.hash}`;
   const ask = (candidate: Address): boolean => {
-    reads.push(`isAuthority ${candidate.toLowerCase()} ${BLOCK.number}/${BLOCK.hash}`);
+    reads.push(asked(candidate));
 
     return allowed.has(candidate.toLowerCase());
   };
   let denied = false;
 
   if (input.supplied !== undefined) {
-    return { result: ask(key(input.supplied)) ? key(input.supplied) : 'not-a-key', reads };
+    const result = ask(key(input.supplied)) ? key(input.supplied) : 'not-a-key';
+
+    return { result, walk: result, reads, witnessReads: [] };
   }
 
   const history = input.deployedAbove ? [] : historyOf(input);
@@ -167,27 +170,48 @@ const expected = (input: Plan): { result: RemovedKey; reads: string[] } => {
     .sort((left, right) => (left < right ? 1 : left > right ? -1 : 0))[0];
   const plannedOf = (attemptId: bigint): AttemptPlan | undefined => input.attempts.find((one) => BigInt(one.attemptId) === attemptId);
   const chosenPlan = chosen === undefined ? undefined : plannedOf(chosen);
+  const lastCommit = live.filter((note) => note.kind === 'setup-committed').at(-1);
+  const seamReads = (hash: string): string[] => [`transaction ${hash}`, `recoverSigner ${hash} ${ACCOUNT.toLowerCase()}`];
+
+  /** The walk's address against its witnesses: the setup signer where step 2 was not read, and a privilege scan finding nothing here. */
+  const named = (found: Address, fromHandover: boolean): { result: RemovedKey; walk: RemovedKey; reads: string[]; witnessReads: string[] } => {
+    const witnessReads = [`fetch ${DESCRIPTOR.deployedAt}-${BLOCK.number}`];
+    let result: RemovedKey = found;
+
+    if (fromHandover && input.signer !== undefined && lastCommit !== undefined) {
+      witnessReads.push(...seamReads(lastCommit.at.transactionHash.toLowerCase()));
+
+      const signer = input.signer.answer === undefined ? undefined : key(input.signer.answer);
+
+      if (signer !== undefined && signer.toLowerCase() !== found.toLowerCase()) {
+        witnessReads.push(asked(signer));
+
+        if (allowed.has(signer.toLowerCase())) result = 'ambiguous';
+      }
+    }
+
+    return { result, walk: found, reads, witnessReads };
+  };
 
   if (chosenPlan !== undefined && typeof chosenPlan.payload === 'number') {
-    if (ask(key(chosenPlan.payload))) return { result: key(chosenPlan.payload), reads };
+    if (ask(key(chosenPlan.payload))) return named(key(chosenPlan.payload), true);
 
     denied = true;
   }
 
-  const lastCommit = live.filter((note) => note.kind === 'setup-committed').at(-1);
-
   if (input.signer !== undefined && lastCommit !== undefined) {
-    reads.push(`transaction ${lastCommit.at.transactionHash.toLowerCase()}`);
-    reads.push(`recoverSigner ${lastCommit.at.transactionHash.toLowerCase()} ${ACCOUNT.toLowerCase()}`);
+    reads.push(...seamReads(lastCommit.at.transactionHash.toLowerCase()));
 
     if (input.signer.answer !== undefined) {
-      if (ask(key(input.signer.answer))) return { result: key(input.signer.answer), reads };
+      if (ask(key(input.signer.answer))) return named(key(input.signer.answer), false);
 
       denied = true;
     }
   }
 
-  return { result: denied ? 'not-a-key' : 'no-source', reads };
+  const result = denied ? 'not-a-key' : 'no-source';
+
+  return { result, walk: result, reads, witnessReads: [] };
 };
 
 const settle = async (subject: Rig): Promise<{ result: RemovedKey | { rejected: unknown }; reads: string[] }> => {
@@ -199,12 +223,15 @@ const settle = async (subject: Rig): Promise<{ result: RemovedKey | { rejected: 
 };
 
 describe('inferRemovedKey over arbitrary histories', () => {
-  it('answers what the rule answers, with the reads the rule makes, and never rejects', async () => {
+  it('answers what the rule answers, with the walk\'s reads in order and its witnesses\' after them in any order, and never rejects', async () => {
     await runAsync(
       fc.asyncProperty(plan, async (input) => {
         const actual = await settle(rigOf(input));
+        const rule = expected(input);
 
-        expect(actual).toEqual(expected(input));
+        expect(actual.result).toEqual(rule.result);
+        expect(actual.reads.slice(0, rule.reads.length)).toEqual(rule.reads);
+        expect(actual.reads.slice(rule.reads.length).sort()).toEqual([...rule.witnessReads].sort());
       }),
     );
   });
@@ -218,7 +245,7 @@ describe('inferRemovedKey over arbitrary histories', () => {
 
         if (input.supplied !== undefined && allowed.has(key(input.supplied).toLowerCase())) expect(result).toBe(key(input.supplied));
 
-        if (result === 'no-source' || result === 'not-a-key' || result === 'unread') return;
+        if (result === 'no-source' || result === 'not-a-key' || result === 'unread' || result === 'ambiguous') return;
 
         expect(allowed.has(result.toLowerCase())).toBe(true);
         expect(subject.reads.some((read) => read.kind === 'isAuthority' && read.key.toLowerCase() === result.toLowerCase() && read.block?.number === BLOCK.number && read.block.hash.toLowerCase() === BLOCK.hash)).toBe(true);
@@ -235,18 +262,41 @@ describe('inferRemovedKey over arbitrary histories', () => {
     );
   });
 
-  it('answers unread when any read of its own fails and rejects as the supplied key\'s read rejected, reading nothing after it', async () => {
+  it('answers unread when a read of the walk fails and rejects as the supplied key\'s read rejected, reading nothing after it', async () => {
     await runAsync(
       fc.asyncProperty(plan, fc.nat(), async (input, pick) => {
+        const rule = expected(input);
+
+        fc.pre(rule.reads.length > 0);
+
         const clean = await settle(rigOf(input));
 
-        fc.pre(clean.reads.length > 0);
-
-        const failAt = pick % clean.reads.length;
+        const failAt = pick % rule.reads.length;
         const failed = await settle(rigOf(input, failAt));
         const suppliedRead = input.supplied !== undefined && failAt === 0;
 
         expect(failed).toEqual({ result: suppliedRead ? { rejected: INJECTED } : 'unread', reads: clean.reads.slice(0, failAt + 1) });
+      }),
+    );
+  });
+
+  it('keeps the walk\'s address when a witness read fails, the other witness still read', async () => {
+    const unsupplied = plan.map((input) => ({ ...input, supplied: undefined, deployedAbove: false }));
+
+    await runAsync(
+      fc.asyncProperty(unsupplied, fc.nat(), async (input, pick) => {
+        const rule = expected(input);
+
+        fc.pre(rule.witnessReads.length > 0);
+
+        const clean = await settle(rigOf(input));
+
+        const failAt = rule.reads.length + (pick % rule.witnessReads.length);
+        const failedRead = clean.reads[failAt] ?? '';
+        const failed = await settle(rigOf(input, failAt));
+
+        expect(failed.reads.slice(0, failAt + 1)).toEqual(clean.reads.slice(0, failAt + 1));
+        expect(failed.result).toEqual(failedRead.startsWith('fetch') ? clean.result : rule.walk);
       }),
     );
   });

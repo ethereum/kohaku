@@ -3,14 +3,19 @@ import { beforeAll, describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src/index';
 import {
   ADD_OUTCOMES,
+  type ActionReads,
   type Address,
   type ApproverRequest,
   type ActionInfo,
   type Configuration,
   type Ctx,
   type DescribedAction,
+  type DescribedFallbackHandler,
+  type DescribedParties,
+  type NamedTrustedKeys,
   type ConfigurationSource,
   type GatheringPlace,
+  type Hex,
   type LogPosition,
   NO_BACKUP_CASES,
   NOT_LANDED_CAUSES,
@@ -67,7 +72,7 @@ function elementOf(type: ts.Type, name: string): ts.Type {
 }
 
 /** The values RemovedKey takes when no address could be named, listed independently of src/. */
-const REMOVED_KEY_VALUES = ['no-source', 'not-a-key', 'unread'];
+const REMOVED_KEY_VALUES = ['no-source', 'not-a-key', 'unread', 'ambiguous'];
 
 /** SetupDescription's fields besides removedKey, listed independently of src/. */
 const SETUP_DESCRIPTION_FIELDS = [
@@ -77,6 +82,7 @@ const SETUP_DESCRIPTION_FIELDS = [
   'parties',
   'methodStanding',
   'passkeyDomains',
+  'aadhaarWindows',
   'candidateKeys',
   'privacy',
   'backup',
@@ -85,18 +91,25 @@ const SETUP_DESCRIPTION_FIELDS = [
   'upgrade',
   'pause',
   'action',
+  'fallbackHandler',
 ];
 
 /** DescribedAction's fields, listed independently of src/. */
 const DESCRIBED_ACTION_FIELDS = ['address', 'info', 'shipped', 'audited', 'supportsAccount'];
 
 describe('the setup description and the recovery state', () => {
-  it('derives fourteen fields besides removedKey', () => {
-    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(14);
+  it('derives sixteen fields besides removedKey', () => {
+    expect(new Set(SETUP_DESCRIPTION_FIELDS).size).toBe(16);
   });
 
-  it('SetupDescription carries exactly the fourteen fields and removedKey', () => {
+  it('SetupDescription carries exactly the sixteen fields and removedKey', () => {
     expect(fieldsOf(typeOf('SetupDescription'))).toEqual(sorted([...SETUP_DESCRIPTION_FIELDS, 'removedKey']));
+  });
+
+  it('aadhaarWindows is required and lists a place and a bigint window per entry', () => {
+    expect(optional(typeOf('SetupDescription'), 'aadhaarWindows')).toBe(false);
+    expect(fieldsOf(elementOf(typeOf('SetupDescription'), 'aadhaarWindows'))).toEqual(['freshnessWindow', 'place']);
+    expectTypeOf<SetupDescription['aadhaarWindows']>().toEqualTypeOf<readonly { readonly place: number; readonly freshnessWindow: bigint }[]>();
   });
 
   it('action is required and is a DescribedAction', () => {
@@ -126,7 +139,30 @@ describe('the setup description and the recovery state', () => {
     expectTypeOf<NonNullable<DescribedAction['supportsAccount']>>().toEqualTypeOf<boolean>();
   });
 
-  it('removedKey is an address or one of the three values saying why none was named, and is required', () => {
+  it('fallbackHandler is optional and is a read result of a DescribedFallbackHandler', () => {
+    const description = typeOf('SetupDescription');
+
+    expect(optional(description, 'fallbackHandler')).toBe(true);
+    expectTypeOf<NonNullable<SetupDescription['fallbackHandler']>>().toEqualTypeOf<ReadResult<DescribedFallbackHandler>>();
+  });
+
+  it("ActionReads' fallbackHandlerEntry is optional and is a read result of a word", () => {
+    expect(optional(typeOf('ActionReads'), 'fallbackHandlerEntry')).toBe(true);
+    expectTypeOf<NonNullable<ActionReads['fallbackHandlerEntry']>>().toEqualTypeOf<ReadResult<Hex>>();
+  });
+
+  it('DescribedFallbackHandler carries exactly the entry word and an optional handler address', () => {
+    const handler = typeOf('DescribedFallbackHandler');
+
+    expect(fieldsOf(handler)).toEqual(['entry', 'handler']);
+    expect(fieldsOf(handler).filter((name) => optional(handler, name))).toEqual(['handler']);
+    expect(mutuallyAssignable(field(handler, 'entry'), typeOf('Hex'))).toBe(true);
+    expect(mutuallyAssignable(field(handler, 'handler'), typeOf('Address'))).toBe(true);
+    expectTypeOf<DescribedFallbackHandler['entry']>().toEqualTypeOf<Hex>();
+    expectTypeOf<NonNullable<DescribedFallbackHandler['handler']>>().toEqualTypeOf<Address>();
+  });
+
+  it('removedKey is an address or one of the four values saying why none was named, and is required', () => {
     const removedKey = field(typeOf('SetupDescription'), 'removedKey');
     const members = constituents(removedKey);
     const addressLike = members.filter((member) => !member.isStringLiteral());
@@ -140,21 +176,21 @@ describe('the setup description and the recovery state', () => {
     expect(mutuallyAssignable(removedKey, typeOf('RemovedKey'))).toBe(true);
   });
 
-  it('RemovedKey is exactly an address or the three values, as callers write it', () => {
-    expectTypeOf<RemovedKey>().toEqualTypeOf<Address | 'no-source' | 'not-a-key' | 'unread'>();
+  it('RemovedKey is exactly an address or the four values, as callers write it', () => {
+    expectTypeOf<RemovedKey>().toEqualTypeOf<Address | 'no-source' | 'not-a-key' | 'unread' | 'ambiguous'>();
     expectTypeOf<SetupDescription['removedKey']>().toEqualTypeOf<RemovedKey>();
     expectTypeOf<RecoveryState['removedKey']>().toEqualTypeOf<RemovedKey>();
   });
 
-  it('REMOVED_KEY_UNNAMED is the three values in order, once each, exported from the core entry', () => {
+  it('REMOVED_KEY_UNNAMED is the four values in order, once each, exported from the core entry', () => {
     expect(REMOVED_KEY_UNNAMED).toEqual(REMOVED_KEY_VALUES);
-    expect(new Set(REMOVED_KEY_UNNAMED).size).toBe(3);
+    expect(new Set(REMOVED_KEY_UNNAMED).size).toBe(4);
     expect(core.REMOVED_KEY_UNNAMED).toBe(REMOVED_KEY_UNNAMED);
   });
 
   it('REMOVED_KEY_UNNAMED and the non-address part of RemovedKey agree', () => {
     expectTypeOf<(typeof REMOVED_KEY_UNNAMED)[number]>().toEqualTypeOf<Exclude<RemovedKey, Address>>();
-    expectTypeOf(REMOVED_KEY_UNNAMED).toEqualTypeOf<readonly ['no-source', 'not-a-key', 'unread']>();
+    expectTypeOf(REMOVED_KEY_UNNAMED).toEqualTypeOf<readonly ['no-source', 'not-a-key', 'unread', 'ambiguous']>();
   });
 
   it('RecoveryState carries removedKey, required and of the same type as the description', () => {
@@ -184,6 +220,69 @@ describe('the setup description and the recovery state', () => {
       sorted(['isAuthorized', 'hasSetup', 'setupCommitment', 'setupNonce', 'setupCommittedAtBlock', 'attemptActive', 'block']),
     );
     expect(fieldsOf(field(setupState, 'block'))).toEqual(sorted(['number', 'timestamp', 'hash']));
+  });
+});
+
+/** The zkPassport method's trusted-key names in word order, listed independently of src/. */
+const ZKPASSPORT_KEY_NAMES = ['version', 'rootVerifier', 'subVerifier', 'verifierHelper', 'rootRegistry', 'rootAdmin', 'rootGuardian', 'subVerifierAdmin'];
+
+describe('the described parties and the named trusted keys', () => {
+  it('a described method entry carries exactly method, parties and an optional namedKeys', () => {
+    const entry = elementOf(typeOf('DescribedParties'), 'methods');
+
+    expect(fieldsOf(entry)).toEqual(sorted(['method', 'parties', 'namedKeys']));
+    expect(fieldsOf(entry).filter((name) => optional(entry, name))).toEqual(['namedKeys']);
+    expect(mutuallyAssignable(field(entry, 'method'), typeOf('Address'))).toBe(true);
+    expect(mutuallyAssignable(field(entry, 'namedKeys'), typeOf('NamedTrustedKeys'))).toBe(true);
+    expectTypeOf<DescribedParties['methods'][number]['parties']>().toEqualTypeOf<ReadResult<core.Parties>>();
+    expectTypeOf<NonNullable<DescribedParties['methods'][number]['namedKeys']>>().toEqualTypeOf<NamedTrustedKeys>();
+  });
+
+  it('the described parties keep exactly methods and walletGuardians', () => {
+    expect(fieldsOf(typeOf('DescribedParties'))).toEqual(sorted(['methods', 'walletGuardians']));
+  });
+
+  it('NamedTrustedKeys has exactly two members, kinds method-zkpassport and method-aadhaar', () => {
+    expect(constituents(typeOf('NamedTrustedKeys'))).toHaveLength(2);
+    expect(kindsOf(context.checker, typeOf('NamedTrustedKeys'))).toEqual(['method-aadhaar', 'method-zkpassport']);
+  });
+
+  it('the zkPassport member carries kind and the eight names, all required, the version a string and the seven others addresses', () => {
+    const member = memberWith(typeOf('NamedTrustedKeys'), 'kind', 'method-zkpassport');
+
+    expect(fieldsOf(member)).toEqual(sorted(['kind', ...ZKPASSPORT_KEY_NAMES]));
+    expect(fieldsOf(member).filter((name) => optional(member, name))).toEqual([]);
+    expect(isString(field(member, 'version'))).toBe(true);
+
+    for (const name of ZKPASSPORT_KEY_NAMES.slice(1)) expect(mutuallyAssignable(field(member, name), typeOf('Address')), name).toBe(true);
+
+    expectTypeOf<Extract<NamedTrustedKeys, { readonly kind: 'method-zkpassport' }>>().toEqualTypeOf<{
+      readonly kind: 'method-zkpassport';
+      readonly version: string;
+      readonly rootVerifier: Address;
+      readonly subVerifier: Address;
+      readonly verifierHelper: Address;
+      readonly rootRegistry: Address;
+      readonly rootAdmin: Address;
+      readonly rootGuardian: Address;
+      readonly subVerifierAdmin: Address;
+    }>();
+  });
+
+  it('the Aadhaar member carries exactly kind and a required issuerKeyHash word', () => {
+    const member = memberWith(typeOf('NamedTrustedKeys'), 'kind', 'method-aadhaar');
+
+    expect(fieldsOf(member)).toEqual(['issuerKeyHash', 'kind']);
+    expect(optional(member, 'issuerKeyHash')).toBe(false);
+    expect(mutuallyAssignable(field(member, 'issuerKeyHash'), typeOf('Hex'))).toBe(true);
+    expectTypeOf<Extract<NamedTrustedKeys, { readonly kind: 'method-aadhaar' }>>().toEqualTypeOf<{
+      readonly kind: 'method-aadhaar';
+      readonly issuerKeyHash: Hex;
+    }>();
+  });
+
+  it('SetupDescription.parties is a DescribedParties', () => {
+    expectTypeOf<SetupDescription['parties']>().toEqualTypeOf<DescribedParties>();
   });
 });
 
@@ -509,6 +608,8 @@ describe('the other records with named fields', () => {
     ['SetupConfirmation', ['landed', 'cause', 'nonce', 'setupCommitment', 'isAuthorized', 'position'], 'the setup confirmation'],
     ['Assessment', ['filled', 'missing', 'clauses', 'ruleSatisfied', 'findings'], 'the assessment of a gathering'],
     ['BlockRange', ['from', 'to'], 'the block range of a fetch'],
+    ['FetchedNotifications', ['notifications', 'skipped'], 'what a fetch resolves to'],
+    ['SkippedLog', ['at', 'log', 'error'], 'an owned log a fetch could not decode'],
     ['ValidationResult', ['errors', 'warnings'], 'the validation result'],
     ['ValidityWindow', ['window'], 'the validity window'],
     [
@@ -570,6 +671,19 @@ describe('the other records with named fields', () => {
     expect(fieldsOf(configuration)).toEqual(expect.arrayContaining(['tokens', 'candidateKeys', 'blockTags']));
     expect(fieldsOf(configuration)).not.toContain('creation');
     expect(fieldsOf(field(configuration, 'blockTags'))).toEqual(sorted(['read', 'watch']));
+  });
+
+  it('the request window bounds carry a default, a floor and a ceiling, each a required number', () => {
+    const bounds = typeOf('RequestWindowBounds');
+
+    expect(fieldsOf(bounds)).toEqual(sorted(['default', 'floor', 'ceiling']));
+
+    for (const name of ['default', 'floor', 'ceiling']) {
+      expect(optional(bounds, name)).toBe(false);
+      expect(isNumber(field(bounds, name))).toBe(true);
+    }
+
+    expect(context.checker.isTypeAssignableTo(field(typeOf('ClientConfiguration'), 'requestWindow'), bounds)).toBe(true);
   });
 
   it("ReplyFailure is kind reply-failure with its cause", () => {
@@ -847,5 +961,25 @@ void configuration;
     expect(members).toHaveLength(2);
     expect(members.filter((member) => mutuallyAssignable(member, typeOf('Configuration')))).toHaveLength(1);
     expect(members.filter((member) => fieldsOf(member).join() === 'password')).toHaveLength(1);
+  });
+});
+
+describe('the status description', () => {
+  it('StatusDescription carries exactly block, an optional attempt, armed, setup, stops and a required recommitOwed', () => {
+    const status = typeOf('StatusDescription');
+
+    expect(fieldsOf(status)).toEqual(sorted(['block', 'attempt', 'armed', 'setup', 'stops', 'recommitOwed']));
+    expect(fieldsOf(status).filter((name) => optional(status, name))).toEqual(['attempt']);
+  });
+
+  it('recommitOwed is a boolean', () => {
+    expect(hasFlag(field(typeOf('StatusDescription'), 'recommitOwed'), ts.TypeFlags.Boolean)).toBe(true);
+    expectTypeOf<core.StatusDescription['recommitOwed']>().toEqualTypeOf<boolean>();
+  });
+
+  it('StatusAttempt keeps its members and carries no setup nonce', () => {
+    expect(fieldsOf(typeOf('StatusAttempt'))).toEqual(
+      sorted(['state', 'attemptId', 'consumableAfter', 'blockTimestamp', 'usedMethods', 'usedPlaces', 'ignoresPause', 'payload', 'order']),
+    );
   });
 });

@@ -19,6 +19,7 @@ import {
   standingState,
   withBackup,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const DRAFT_EMPTY = withBackup(DRAFT, 'empty');
 const LATER = { number: HEADER.number + 12, timestamp: HEADER.timestamp + 144, hash: `0x${'6c'.repeat(32)}` as const };
@@ -155,6 +156,41 @@ describe('confirmSetup', () => {
     const { client } = build({ world: { header: LATER, bound: { rejects: failure } } });
 
     await expect(client.confirmSetup(DRAFT_EMPTY, batch)).rejects.toBe(failure);
+  });
+
+  it('rejects with the error of a log the read skipped, though the read also holds the landed event', async () => {
+    const { batch } = await preparedCommits();
+    const failure = new Error('undecodable log');
+    const commitment = referenceCommitment(DRAFT_EMPTY, ACCOUNT, ACTION, 1n);
+    const { client } = build({
+      world: {
+        header: LATER,
+        bound: [committed(1n, commitment, '0x', position(HEADER.number + 1))],
+        fetched: withSkipped(skippedAt(position(HEADER.number + 2), failure)),
+      },
+    });
+
+    await expect(client.confirmSetup(DRAFT_EMPTY, batch)).rejects.toBe(failure);
+  });
+
+  it('rejects with a TypeError where the event manager answers a bare array', async () => {
+    const { batch } = await preparedCommits();
+    const commitment = referenceCommitment(DRAFT_EMPTY, ACCOUNT, ACTION, 1n);
+    const { client } = build({
+      world: { header: LATER, bound: [committed(1n, commitment, '0x', position(HEADER.number + 1))], fetched: bareArray },
+    });
+
+    await expect(client.confirmSetup(DRAFT_EMPTY, batch)).rejects.toThrow(TypeError);
+  });
+
+  it("reads no event over an empty range, answering 'no-event' whatever the event manager would answer", async () => {
+    const { batch } = await preparedCommits();
+    const earlier = { number: HEADER.number - 1, timestamp: HEADER.timestamp - 12, hash: `0x${'4a'.repeat(32)}` as const };
+    const { client, seen } = build({ world: { header: earlier, fetched: bareArray } });
+    const confirmation = await client.confirmSetup(DRAFT_EMPTY, batch);
+
+    expect(confirmation.cause).toBe('no-event');
+    expect(seen.fetches).toEqual([]);
   });
 
   it('refuses a prepared record that carries no commitSetup', async () => {

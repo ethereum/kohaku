@@ -1,4 +1,4 @@
-import type { Address, Hex, LogPosition } from './chain';
+import type { Address, Hex, LogPosition, RawLog } from './chain';
 import type { PaymentOrder } from './manager';
 
 /** The per-account filter's options; `allActions` leaves the action topic open. */
@@ -136,3 +136,16 @@ export type KitNotification =
       readonly priv: Hex;
       readonly at: LogPosition;
     };
+
+/** An owned log whose decoder threw: its position as a notification would carry it, the log as the provider returned it, and the value thrown. */
+export type SkippedLog = {
+  readonly at: LogPosition;
+  readonly log: RawLog;
+  readonly error: unknown;
+};
+
+/** One range read: the notifications it decoded and the owned logs it skipped, each list in log order. */
+export type FetchedNotifications = {
+  readonly notifications: readonly KitNotification[];
+  readonly skipped: readonly SkippedLog[];
+};

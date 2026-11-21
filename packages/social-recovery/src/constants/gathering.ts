@@ -45,3 +45,6 @@ export const GATHERING_ORDER_REFUSAL_MESSAGES: Readonly<Record<OrderRefusal, str
   'rule-unsatisfied': GATHERING_RULE_UNSATISFIED_MESSAGE,
   'place-out-of-range': GATHERING_PLACE_OUT_OF_RANGE_MESSAGE,
 });
+
+/** Thrown by `complete` as a `KitRefusalError`, with the `proof.expired` findings, where a chosen proof has reached its expiry at the moment given. */
+export const GATHERING_PROOF_EXPIRED_MESSAGE = 'gathering: a chosen proof has expired; ask its approver again or select other places';

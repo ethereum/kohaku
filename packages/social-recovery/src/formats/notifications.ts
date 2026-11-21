@@ -1,5 +1,5 @@
 import { NOTIFICATION_KINDS } from '../interfaces';
-import type { KitNotification, LogPosition } from '../interfaces';
+import type { FetchedNotifications, KitNotification, LogPosition, SkippedLog } from '../interfaces';
 import { assertAddress, assertArray, assertBool, assertBytes, assertBytes32, assertObject, isSafeCount } from './guards';
 
 /** Orders notifications by block, then by log index; a tie keeps its arrival order. */
@@ -68,4 +68,27 @@ export function assertNotification(value: unknown, name: string): asserts value 
   } else if (kind === 'method-paused' || kind === 'method-unpaused') {
     assertAddress(entry['method'], `${name}.method`);
   }
+}
+
+/**
+ * The notifications of a range read that skipped no log, refusing with a `TypeError` an answer that does not carry both lists;
+ * a read that skipped any throws what the decoder threw on the first skipped log.
+ */
+export function decodedOnly(read: unknown): readonly KitNotification[] {
+  assertObject(read, 'fetched');
+
+  const { notifications, skipped } = read as Partial<Record<keyof FetchedNotifications, unknown>>;
+
+  assertArray(notifications, 'fetched.notifications');
+  assertArray(skipped, 'fetched.skipped');
+
+  if (skipped.length > 0) {
+    const [first] = skipped;
+
+    assertObject(first, 'fetched.skipped[0]');
+
+    throw (first as SkippedLog).error;
+  }
+
+  return notifications as readonly KitNotification[];
 }

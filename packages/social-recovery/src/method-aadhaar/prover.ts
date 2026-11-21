@@ -13,6 +13,7 @@ import type {
   AadhaarGroth16,
   AadhaarMaterial,
   AadhaarPcd,
+  AadhaarProgress,
   AadhaarProof,
   AnonAadhaarStack,
 } from '../types/method-aadhaar';
@@ -113,9 +114,22 @@ export async function untilSettled<T>(work: Promise<T>, signal: AbortSignal | un
 const failureOf = (error: unknown): ReplyFailure =>
   error instanceof AadhaarStackUnavailable ? METHOD_AADHAAR_DEVICE_UNAVAILABLE : METHOD_AADHAAR_MATERIAL_REJECTED;
 
+/** The page's callback, forwarding a state only until the call settles and while the signal reads neither aborted nor throwing. */
+function gatedProgress(onProgress: AadhaarProgress | undefined, signal: AbortSignal | undefined, settled: () => boolean): AadhaarProgress | undefined {
+  if (onProgress === undefined) return undefined;
+
+  return (state) => {
+    if (!settled() && abortFailure(signal) === undefined) onProgress(state);
+  };
+}
+
 /**
  * Runs the prover once. A QR code whose signature fails under the certificate is
- * `material-rejected`, since the stack then fails the witness.
+ * `material-rejected`, since the stack then fails the witness. The stack gets the page's progress gated on the signal and on
+ * the call: an abort settles the call `device-refused` at once, and no state is forwarded after the signal aborts or the call settles,
+ * while the installed stack's download and proving run on until they end; an injected stack may stop on the signal.
+ * A failed download is `device-unavailable`, except a zkey piece under `chunked`, whose error the peer drops: that proof
+ * reads `material-rejected`, and the piece stays in the browser's storage under its file name until the site's data is cleared.
  */
 export async function runProver(
   stack: AnonAadhaarStack,
@@ -127,14 +141,19 @@ export async function runProver(
 
   if (aborted !== undefined) return aborted;
 
+  let settled = false;
+  const progress = gatedProgress(onProgress, signal, () => settled);
+
   try {
     const args = await untilSettled(stack.generateArgs(options), signal);
 
     if (isFailure(args)) return args;
 
-    return await untilSettled(stack.prove(args, onProgress, signal), signal);
+    return await untilSettled(stack.prove(args, progress, signal), signal);
   } catch (error) {
     return failureOf(error);
+  } finally {
+    settled = true;
   }
 }
 

@@ -6,7 +6,10 @@ export const RECOVERY_CLIENT_ATTEMPT_WAITING_MESSAGE = 'an attempt is already wa
 /** The refusal message when a cancel init finds no attempt waiting. */
 export const RECOVERY_CLIENT_NO_ATTEMPT_WAITING_MESSAGE = 'no attempt is waiting for this account and action';
 
-/** The refusal message when the handover would not pass the action's own checks, or its removed key cannot be named. */
+/**
+ * The refusal message when the handover would not pass the action's own checks, its removed key cannot be named, or it
+ * names a new key nobody could use (the account, the manager, the action, its kit slot or the fallback-handler entry).
+ */
 export const RECOVERY_CLIENT_HANDOVER_REFUSED_MESSAGE = 'the handover would not pass the action';
 
 /** The rejection message when a rule method's stop or trusted-parties read went unanswered. */
