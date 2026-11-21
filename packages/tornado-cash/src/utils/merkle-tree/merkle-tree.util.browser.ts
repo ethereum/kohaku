@@ -5,6 +5,8 @@ import {
     type MerkleTree,
 } from '@kohaku-eth/mimc-tree';
 
+export { generateMimcMerkleProof } from '@kohaku-eth/mimc-tree';
+
 // Set after the first worker failure. The library keeps its worker pool cached and a
 // pool whose workers failed to load never answers again, so later builds must not reuse it.
 let workersFailed = false;

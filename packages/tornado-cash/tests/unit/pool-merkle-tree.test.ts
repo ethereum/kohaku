@@ -12,7 +12,10 @@ import { registerWithdrawals } from '../../src/state/slices/withdrawalsSlice';
 import { storeFactory } from '../../src/state/store';
 
 // Count builds while still hashing a real tree, without starting workers.
-vi.mock('#merkle-tree', () => ({ buildTree: vi.fn() }));
+vi.mock('#merkle-tree', async () => ({
+  buildTree: vi.fn(),
+  generateMimcMerkleProof: (await import('@kohaku-eth/mimc-tree')).generateMimcMerkleProof,
+}));
 
 const poolAddress = 1000n as Address;
 const poolAddress2 = 2000n as Address;
