@@ -27,14 +27,18 @@ export interface IGetEventsParams {
   fromBlock: bigint;
 }
 
-/** Alias kept for readability at pool call sites. */
-export type IGetPoolEventsParams = IGetEventsParams;
+export interface IGetPoolEventsParams extends IGetEventsParams {
+  /** Read only the chain, skipping the external sync provider. */
+  chainOnly?: boolean;
+}
 
 export interface IGetPoolEventsResult {
   Deposited: IRawDepositEvent[];
   Withdrawn: IRawWithdrawalEvent[];
   /** Highest block the returned events are synced up to. */
   toBlock: bigint;
+  /** Whether any of the events came from the external sync provider. */
+  external: boolean;
 }
 
 export interface IGetRelayerRegistryEventsResult {
@@ -49,7 +53,7 @@ export interface ISyncService {
    * Uses the external sync provider for the bulk of a large range and the chain
    * for the remaining tail; falls back to a chain-only fetch otherwise.
    */
-  getPoolEvents(params: IGetEventsParams): Promise<IGetPoolEventsResult>;
+  getPoolEvents(params: IGetPoolEventsParams): Promise<IGetPoolEventsResult>;
 
   /**
    * Fetches the relayer registry's `RelayerRegistered` events from `fromBlock`,
@@ -61,8 +65,9 @@ export interface ISyncService {
 
   /**
    * Resolves a pool's scan-start block. Uses the external provider's first
-   * covered block when available (an O(1) lookup), else falls back to the
-   * on-chain deployment-block binary search.
+   * covered block when it is verified on-chain as a lower bound (the pool has
+   * no code in the block before it), else falls back to the on-chain
+   * deployment-block binary search.
    */
   getPoolDeploymentBlock(params: { chainId: bigint; address: Address }): Promise<bigint>;
 }

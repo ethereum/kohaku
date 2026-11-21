@@ -1,11 +1,13 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { isHex } from 'viem';
 import { IQuoteResponse, IRelayerClient } from '../../relayer/interfaces/relayer-client.interface';
+import { PPv1RelayerQuoteError, type PPv1RelayerQuoteFailure } from '../../relayer/quote-error';
 import { Address } from '../../interfaces/types.interface';
 import { addressToHex } from '../../utils';
 import { decodeRelayData, encodeRelayData } from '../../utils/encoding.utils';
 import { RootState } from '../store';
 import { entrypointInfoSelector } from '../selectors/slices.selectors';
+import { collectWithinWindow } from '../utils/async.utils';
 
 export interface QuoteResult {
   quote: IQuoteResponse;
@@ -24,6 +26,18 @@ export interface QuoteThunkParams {
   extraGas?: boolean;
   /** The pool's on-chain `maxRelayFeeBPS`; quotes embedding a higher fee are dropped. */
   maxRelayFeeBPS?: bigint;
+  /**
+   * Whether the quote's signed fee commitment is sent with the relay request
+   * (default). Exact-output withdrawals embed their own fee and omit it, so a
+   * quote without a usable signature still serves them.
+   */
+  requireCommitment?: boolean;
+}
+
+class RelayFeeTooHighError extends Error {
+  constructor(readonly requiredFeeBPS: bigint, readonly maxRelayFeeBPS: bigint) {
+    super(`withdrawalData fee ${requiredFeeBPS} bps exceeds the pool's maxRelayFeeBPS ${maxRelayFeeBPS}`);
+  }
 }
 
 /**
@@ -38,8 +52,9 @@ export const validateWithdrawalData = (
 ): ReturnType<typeof decodeRelayData> => {
   const withdrawalData = quote.feeCommitment?.withdrawalData;
 
-  if (typeof withdrawalData !== 'string' || !isHex(withdrawalData, { strict: true })) {
-    throw new Error('withdrawalData is not hex');
+  // RelayData is three static ABI words (96 bytes).
+  if (typeof withdrawalData !== 'string' || withdrawalData.length !== 194 || !isHex(withdrawalData, { strict: true })) {
+    throw new Error('withdrawalData is not a canonical RelayData hex encoding');
   }
 
   const relayData = decodeRelayData(withdrawalData);
@@ -58,29 +73,57 @@ export const validateWithdrawalData = (
   }
 
   if (maxRelayFeeBPS !== undefined && relayData.relayFeeBps > maxRelayFeeBPS) {
-    throw new Error(`withdrawalData fee ${relayData.relayFeeBps} bps exceeds the pool's maxRelayFeeBPS ${maxRelayFeeBPS}`);
+    throw new RelayFeeTooHighError(relayData.relayFeeBps, maxRelayFeeBPS);
   }
 
   return relayData;
 };
 
+/**
+ * Checks the rest of a quote's fee commitment before it is ranked: an expired
+ * quote, or one without a signature to send back, is refused by the relayer
+ * only after the SDK has proved. The signature itself is the relayer's own and
+ * is verified by the relayer, so only its shape is checked here.
+ */
+export const validateFeeCommitment = (quote: IQuoteResponse, { requireCommitment = true, now = Date.now() } = {}): void => {
+  const { expiration, signedRelayerCommitment } = quote.feeCommitment ?? {};
+
+  if (typeof expiration !== 'number' || !Number.isFinite(expiration)) {
+    throw new Error('quote has no expiration');
+  }
+
+  if (expiration <= now) {
+    throw new Error(`quote expired ${now - expiration} ms ago`);
+  }
+
+  if (requireCommitment && (typeof signedRelayerCommitment !== 'string' || signedRelayerCommitment === '0x' || !isHex(signedRelayerCommitment, { strict: true }))) {
+    throw new Error('quote has no signed fee commitment');
+  }
+};
+
+/** How long quotes are collected after the first valid one arrives. */
+export const QUOTE_COLLECTION_WINDOW_MS = 5_000;
+
+type QuoteAnswer = QuoteResult | PPv1RelayerQuoteFailure;
+
 export const quoteThunk = createAsyncThunk<
   QuoteResult,
   QuoteThunkParams,
-  { state: RootState }
+  { state: RootState; rejectValue: PPv1RelayerQuoteError }
 >(
   'quote/getBestQuote',
-  async (params, { getState }) => {
+  async (params, { getState, rejectWithValue }) => {
     const { chainId } = entrypointInfoSelector(getState());
-    const { relayerClient, relayers, asset, amount, recipient, extraGas, maxRelayFeeBPS } = params;
+    const { relayerClient, relayers, asset, amount, recipient, extraGas, maxRelayFeeBPS, requireCommitment } = params;
 
     if (relayers.size === 0) {
-      throw new Error('No relayers configured');
+      return rejectWithValue(new PPv1RelayerQuoteError([]));
     }
 
+    const relayerEntries = Array.from(relayers.entries());
     // Query all relayers in parallel
-    const quotePromises = Array.from(relayers.entries()).map(
-      async ([relayerId, relayerUrl]): Promise<QuoteResult | null> => {
+    const quotePromises = relayerEntries.map(
+      async ([relayerId, relayerUrl]): Promise<QuoteResult | PPv1RelayerQuoteFailure> => {
         try {
           const quote = await relayerClient.getQuote({
             relayerUrl,
@@ -93,21 +136,51 @@ export const quoteThunk = createAsyncThunk<
 
           const relayData = validateWithdrawalData(quote, recipient, maxRelayFeeBPS);
 
+          validateFeeCommitment(quote, { requireCommitment });
+
           return { quote, relayerId, relayerUrl, relayData };
         } catch (error) {
-          // Log but don't fail - other relayers might succeed
-          console.warn(`Relayer ${relayerId} failed to quote:`, error);
+          const message = typeof error === 'string' ? error :
+            error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+              ? error.message : 'Unknown relayer error';
+          const failure: PPv1RelayerQuoteFailure = {
+            relayerId, relayerUrl, message,
+            ...(error instanceof RelayFeeTooHighError
+              ? { reason: 'fee-too-high', requiredFeeBPS: error.requiredFeeBPS, maxRelayFeeBPS: error.maxRelayFeeBPS }
+              : { reason: 'quote-failed' }),
+          };
 
-          return null;
+          console.warn(`Relayer ${relayerId} failed to quote:`, message);
+
+          return failure;
         }
       }
     );
 
-    const results = await Promise.all(quotePromises);
-    const validQuotes = results.filter((r): r is QuoteResult => r !== null);
+    const collected = await collectWithinWindow(quotePromises, (answer) => 'quote' in answer, QUOTE_COLLECTION_WINDOW_MS);
+    // Every quote is checked for expiry at the same moment, so no relayer gains
+    // from the others' latency.
+    const rankedAt = Date.now();
+    const results = collected.map((answer, index): QuoteAnswer => {
+      const [relayerId, relayerUrl] = relayerEntries[index]!;
+
+      if (!answer) {
+        return { relayerId, relayerUrl, reason: 'quote-failed', message: `no quote within ${QUOTE_COLLECTION_WINDOW_MS} ms of the first valid one` };
+      }
+
+      if ('quote' in answer && answer.quote.feeCommitment.expiration <= rankedAt) {
+        return { relayerId, relayerUrl, reason: 'quote-failed', message: `quote expired ${rankedAt - answer.quote.feeCommitment.expiration} ms before ranking` };
+      }
+
+      return answer;
+    });
+    const validQuotes = results.filter((r): r is QuoteResult => 'quote' in r);
 
     if (validQuotes.length === 0) {
-      throw new Error('All relayers failed to provide a quote');
+      const failures = results.filter((r): r is PPv1RelayerQuoteFailure => 'reason' in r);
+
+      // Keep the Error instance and its fields intact through Redux's unwrap().
+      return rejectWithValue(new PPv1RelayerQuoteError(failures));
     }
 
     // Rank by the fee that will be charged on-chain, not the relayer's self-reported feeBPS.

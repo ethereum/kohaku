@@ -2,16 +2,15 @@ import { Prover } from '@fatsolutions/privacy-pools-core-circuits';
 import { AccountId } from '@kohaku-eth/plugins';
 import { startServers } from '@privacy-paymasters/sdk/bundler-server';
 import { Wallet } from 'ethers';
-import { createPublicClient, erc20Abi, http, parseUnits, type Hex } from 'viem';
+import { createPublicClient, erc20Abi, http, parseEther, parseUnits, type Hex } from 'viem';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 
-import { PrivacyPoolsPaymasterConfigs } from '../../../src/config';
+import { E_ADDRESS, PrivacyPoolsPaymasterConfigs } from '../../../src/config';
 import { DataService } from '../../../src/data/data.service';
 import { EthClient } from '../../../src/data/eth-client';
 import { PrivacyPoolsV1Protocol } from '../../../src/index';
 import { PrivacyPoolsBroadcaster } from '../../../src/plugin/broadcaster';
 import { IChainsPaymastersConfig } from '../../../src/plugin/interfaces/protocol-params.interface';
-import { addressToHex } from '../../../src/utils';
 import { getChainConfigSetup } from '../../constants';
 import { defineAnvil, type AnvilInstance, type AnvilPool } from '../../utils/anvil';
 import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../../utils/common';
@@ -19,14 +18,13 @@ import { createMockHost } from '../../utils/mock-host';
 import { createSagaLogSource } from '../../utils/saga-log-source';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
 import {
-  approveERC20,
   fundAccountWithERC20,
   getProtocolWithState,
   MOCK_IPFS_CID,
   pushNewAspRoot,
-  sendTxAndWait,
   setupMockAspForTest,
   setupWallet,
+  sendTxnsAndWait,
 } from '../../utils/test-helpers';
 
 const EXECUTOR_PK = '0x4a3a02862ddcb260ed52d40ef03f8e3d78fa3d174b0ef333afdf1ffb4a648cd5' as Hex;
@@ -38,6 +36,8 @@ const chainId = inject('chainId');
 const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 // Fresh address (starts empty) that only this withdrawal pays.
 const EXACT_RECIPIENT = '0xec01ec01ec01ec01ec01ec01ec01ec01ec01ec01';
+// Fresh address (starts empty) for the two-note exact withdrawal.
+const BATCH_RECIPIENT = '0xec02ec02ec02ec02ec02ec02ec02ec02ec02ec02';
 
 describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bundler, real prover)', () => {
   let anvil: AnvilInstance;
@@ -127,11 +127,9 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bun
 
     // 1. Fund + approve + deposit USDC.
     await fundAccountWithERC20(pool.rpcUrl, USDC, alice.address, DEPOSIT_AMOUNT);
-    expect((await approveERC20(alice, USDC, addressToHex(ENTRYPOINT_ADDRESS), DEPOSIT_AMOUNT))?.status).toBe(1);
+    const { txns } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
 
-    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdcAsset, amount: DEPOSIT_AMOUNT });
-
-    expect((await sendTxAndWait(alice, shieldTx))?.status).toBe(1);
+    expect((await sendTxnsAndWait(alice, txns))?.status).toBe(1);
     await pool.mine(1);
 
     // 2. Approve the note via the mock ASP.
@@ -177,7 +175,7 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bun
     expect(recipientBefore).toBe(0n);
 
     // 4. Broadcast + mine.
-    await broadcaster.broadcast(op);
+    await (await broadcaster.broadcast(op)).wait();
     await pool.mine(1);
 
     // 5. The recipient received MORE than the exact/expected net — the paymaster's postOp
@@ -188,6 +186,72 @@ describe.skipIf(chainId !== 1)('PrivacyPools v1 paymaster exact output (real bun
 
     expect(received).toBeGreaterThan(op.exact!.expectedNet);
     expect(received).toBeLessThan(op.exact!.grossAmount);
+    expect(approvedAfter).toBe(approvedBefore - op.exact!.grossAmount);
+  });
+
+  it('[paymaster] exact output prices the second note when its fee pushes the gross past one note', { timeout: 300_000 }, async () => {
+    const alice = await setupWallet(pool, TEST_ACCOUNTS.alice.privateKey);
+    const host = createMockHost({ rpcUrl: pool.rpcUrl });
+    const rpc = createPublicClient({ transport: http(pool.rpcUrl) });
+    const ethAsset = ERC20Asset(E_ADDRESS);
+    const mockAspService = await setupMockAspForTest(pool.rpcUrl, ENTRYPOINT_ADDRESS, postman);
+    const protocol = new PrivacyPoolsV1Protocol(host, {
+      entrypoint,
+      initialState: async () => latestState,
+      proverFactory: () => Prover(),
+      aspServiceFactory: () => mockAspService,
+      relayersList: {},
+      paymasterConfig: { 1: { ...PrivacyPoolsPaymasterConfigs[1]!, bundlerUrl: bundlerRpcUrl } },
+    });
+    const broadcaster = new PrivacyPoolsBroadcaster({ host, broadcasterUrl: { default: 'http://unused' } });
+
+    // 1. Two 1 ETH deposits, both approved.
+    for (let deposit = 0; deposit < 2; deposit++) {
+      const { txns } = await protocol.prepareShield({ asset: ethAsset, amount: parseEther('1') });
+
+      expect((await sendTxnsAndWait(alice, txns))?.status).toBe(1);
+      await pool.mine(1);
+      await protocol.sync();
+    }
+
+    const notes = await protocol.notes([ethAsset]);
+
+    expect(notes).toHaveLength(2);
+    notes.forEach(note => mockAspService.addLabel(note.label));
+    await pushNewAspRoot(
+      pool.rpcUrl,
+      '0x' + ENTRYPOINT_ADDRESS.toString(16),
+      '0x' + BigInt(postman).toString(16),
+      { _root: mockAspService.getRoot(), _ipfsCID: MOCK_IPFS_CID },
+    );
+
+    // 2. A net that one note covers, but not together with its fee: the gross needs both.
+    const largestNote = notes.reduce((max, note) => note.balance > max ? note.balance : max, 0n);
+    const requestedNet = largestNote - 1_000n;
+    const approvedBefore = unwrapBalance(await protocol.balance([ethAsset]), ethAsset).approved?.amount ?? 0n;
+
+    // The refund goes to the payer, so the recipient gets exactly the expected net.
+    const op = await protocol.prepareUnshield(
+      { asset: ethAsset, amount: requestedNet },
+      BATCH_RECIPIENT as AccountId,
+      { mode: 'paymaster', batch: true, exact: {}, refundRecipient: alice.address as AccountId },
+    );
+
+    if (op.mode !== 'paymaster') throw new Error('expected paymaster operation');
+
+    expect(op.exact!.grossAmount).toBeGreaterThan(largestNote);
+    expect(op.exact!.expectedNet).toBeGreaterThanOrEqual(requestedNet);
+    // The second note runs as an execution-phase withdrawal.
+    expect(op.withdrawal.userOperation.callData).not.toBe('0x');
+
+    // 3. Broadcast, then check what landed.
+    await (await broadcaster.broadcast(op)).wait();
+    await pool.mine(1);
+
+    const received = await rpc.getBalance({ address: BATCH_RECIPIENT });
+    const approvedAfter = unwrapBalance(await protocol.balance([ethAsset]), ethAsset).approved?.amount ?? 0n;
+
+    expect(received).toBe(op.exact!.expectedNet);
     expect(approvedAfter).toBe(approvedBefore - op.exact!.grossAmount);
   });
 });

@@ -14,6 +14,8 @@ const includingSpent = await tornado.notes([], true)
 
 `sync` runs automatically at the start of `notes`, `balance`, `prepareShield`, and `prepareUnshield`. Call it yourself when a screen wants fresh data before the user picks an amount.
 
+If the configuration or events of any pool cannot be fetched, or its events still do not match the pool's on-chain root after a replay from the chain, the sync fails with a `TornadoPoolSyncError` naming those pools, and so do the calls that run it. Pools that did sync keep their progress, which is saved, and the failed ones keep their previous starting point, so the next sync retries the same range and no event is skipped. Show the error instead of a zero balance. A common cause is an RPC that rejects wide `eth_getLogs` ranges; see [Provider](/provider).
+
 The asset filter uses the same ERC-20 id as shield, including the ETH sentinel. An empty list returns every asset. `includeSpent` defaults to `false`, which hides notes whose `balance` is zero.
 
 ## Fields
@@ -33,6 +35,8 @@ The asset filter uses the same ERC-20 id as shield, including the ETH sentinel. 
 `assetAddress` for ETH is `0` in this list, while shield and unshield take the `0xeeee…` sentinel. Convert when you join the two.
 
 A wallet that offers "withdraw 0.3 ETH" should select a set of `amount`s that sum to 0.3 ETH. `prepareUnshield` does that selection itself when you pass the total. Use `notes` to explain the fee and the number of proofs, which grows with the number of notes.
+
+Selection prefers larger notes and tries other combinations if that first choice cannot match the requested gross total exactly. For example, 0.12 ETH can use four 0.03 ETH notes even when a 0.1 ETH note is available. Relayer or paymaster fees are deducted from that gross total.
 
 ## Import a legacy note
 
@@ -58,6 +62,10 @@ for (const result of results) {
 
 Pass one string or an array. The call syncs first. Imported notes show up with `depositIndex: -1`. Spending them uses the nullifier inside the note string, so the host keystore is not required for that secret. The paymaster sender for an imported note is derived from the nullifier as well.
 
+Each import accepts at most 1,000 notes, and each note string at most 1,024 characters before trimming. Split larger imports into separate calls. Preimages must contain exactly 124 hex characters; malformed notes are rejected before decoding, and parser errors do not include the private note text.
+
 After a successful import, `balance` and `prepareUnshield` treat the note like any other unspent note.
+
+Imported secrets persist in private `host.storage`, outside the keystore's derivation scheme. Give each wallet/account its own storage namespace if its imports must remain separate. Keep the original note string as a backup; `dumpState()` excludes it.
 
 The CLI command that calls this is [`src/commands/import-tornado-note.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/commands/import-tornado-note.ts), via `plugin.importNotes` in [`src/utils/plugins.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/utils/plugins.ts).

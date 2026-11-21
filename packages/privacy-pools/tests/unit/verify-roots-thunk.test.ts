@@ -8,7 +8,7 @@ import { registerPoolLeaves } from '../../src/state/slices/poolLeavesSlice';
 import { registerPools } from '../../src/state/slices/poolsSlice';
 import { storeFactory } from '../../src/state/store';
 import { verifyRootsThunk } from '../../src/state/thunks/verifyRootsThunk';
-import { computeMerkleTreeRoot } from '../../src/utils/proof.util';
+import { buildMerkleTree, computeMerkleTreeRoot } from '../../src/utils/proof.util';
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 import {
   verifyAspRootOnChain,
@@ -23,6 +23,7 @@ vi.mock('../../src/verification/root-verification.js', () => ({
 describe('verifyRootsThunk', () => {
   const entrypointAddress = 900n as Address;
   const poolAddress = 1000n as Address;
+  const blockNumber = 50n;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,21 +59,21 @@ describe('verifyRootsThunk', () => {
       poolAddress,
       leaves: [
         {
-          index: 2n,
+          index: 3n,
           commitment: 30n,
           root: 999n,
           blockNumber: 3n,
           transactionHash: 13n,
         },
         {
-          index: 0n,
+          index: 1n,
           commitment: 10n,
           root: 999n,
           blockNumber: 1n,
           transactionHash: 11n,
         },
         {
-          index: 1n,
+          index: 2n,
           commitment: 20n,
           root: 999n,
           blockNumber: 2n,
@@ -81,16 +82,19 @@ describe('verifyRootsThunk', () => {
       ],
     }));
 
+    const merkleTreeBuilder = vi.fn(buildMerkleTree);
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, blockNumber, merkleTreeBuilder }),
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
+    expect(merkleTreeBuilder.mock.calls.map(([leaves]) => leaves)).toEqual([[44n, 55n], [10n, 20n, 30n]]);
     // The root rebuilt from the leaves, not the stored (service-reported) 333n.
     expect(verifyAspRootOnChain).toHaveBeenCalledWith(
       dataService,
       entrypointAddress,
       await computeMerkleTreeRoot([44n, 55n]),
+      blockNumber,
     );
     expect(verifiedAspRootSelector(store.getState())).toBe(await computeMerkleTreeRoot([44n, 55n]));
     expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
@@ -98,10 +102,11 @@ describe('verifyRootsThunk', () => {
       dataService,
       poolAddress,
       9127177310664919889930445995208889905849450633936323651964704217531239861271n, //computeMerkleTreeRoot([10n, 20n, 30n]))
+      blockNumber,
     );
   });
 
-  it('skips verification when ASP root is zero and a pool has no leaves', async () => {
+  it('checks a pool with no leaves as an empty tree when the ASP root is zero', async () => {
     const dataService = {} as IDataService;
     const store = storeFactory({
       logLevel: 'off',
@@ -122,12 +127,48 @@ describe('verifyRootsThunk', () => {
     }]));
 
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, blockNumber }),
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
     expect(verifyAspRootOnChain).not.toHaveBeenCalled();
+    expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);
+    expect(verifyStateRootOnChain).toHaveBeenCalledWith(dataService, poolAddress, 0n, blockNumber);
+  });
+
+  it('checks only the ASP root when pool roots are left out', async () => {
+    const dataService = {} as IDataService;
+    const store = storeFactory({
+      logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
+      entrypointInfo: {
+        chainId: 1n,
+        entrypointAddress,
+        deploymentBlock: 0n,
+      },
+    });
+
+    store.dispatch(registerAspTree({
+      leaves: [44n, 55n],
+      aspTreeRoot: 333n,
+      blockNumber: 12n,
+    }));
+
+    store.dispatch(registerPools([{
+      address: poolAddress,
+      asset: 2000n as Address,
+      scope: 3000n,
+      registeredBlock: 0n,
+      woundDownAtBlock: null,
+    }]));
+
+    const action = await store.dispatch(
+      verifyRootsThunk({ dataService, blockNumber, verifyPoolRoots: false }),
+    );
+
+    expect(action.meta.requestStatus).toBe('fulfilled');
     expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect(verifiedAspRootSelector(store.getState())).toBe(await computeMerkleTreeRoot([44n, 55n]));
   });
 
   it('rejects when ASP root verification fails', async () => {
@@ -156,7 +197,7 @@ describe('verifyRootsThunk', () => {
     );
 
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, blockNumber }),
     );
 
     expect(action.meta.requestStatus).toBe('rejected');
@@ -187,7 +228,7 @@ describe('verifyRootsThunk', () => {
     store.dispatch(registerPoolLeaves({
       poolAddress,
       leaves: [{
-        index: 0n,
+        index: 1n,
         commitment: 10n,
         root: 999n,
         blockNumber: 1n,
@@ -200,10 +241,55 @@ describe('verifyRootsThunk', () => {
     );
 
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, blockNumber }),
     );
 
     expect(action.meta.requestStatus).toBe('rejected');
+  });
+
+  it('rejects a pool whose leaf indices have a hole, before any on-chain check', async () => {
+    const dataService = {} as IDataService;
+    const store = storeFactory({
+      logLevel: 'off',
+      devOptions: TEST_STORE_DEV_OPTIONS,
+      entrypointInfo: {
+        chainId: 1n,
+        entrypointAddress,
+        deploymentBlock: 0n,
+      },
+    });
+
+    store.dispatch(registerPools([{
+      address: poolAddress,
+      asset: 2000n as Address,
+      scope: 3000n,
+      registeredBlock: 0n,
+      woundDownAtBlock: null,
+    }]));
+
+    // Leaf 2 never arrived.
+    store.dispatch(registerPoolLeaves({
+      poolAddress,
+      leaves: [1n, 3n].map((index) => ({
+        index,
+        commitment: index * 10n,
+        root: 999n,
+        blockNumber: index,
+        transactionHash: 11n,
+      })),
+    }));
+
+    // Verified by an earlier sync; a failed check must not leave it usable.
+    store.dispatch(setVerifiedAspRoot(44n));
+
+    const action = await store.dispatch(
+      verifyRootsThunk({ dataService, blockNumber }),
+    );
+
+    expect(action.meta.requestStatus).toBe('rejected');
+    expect(action.meta.requestStatus === 'rejected' && action.error.message).toContain('leaf 2 is missing');
+    expect(verifyStateRootOnChain).not.toHaveBeenCalled();
+    expect(verifiedAspRootSelector(store.getState())).toBe(0n);
   });
 
   it('verifies each pool independently when multiple pools have leaves', async () => {
@@ -239,7 +325,7 @@ describe('verifyRootsThunk', () => {
     store.dispatch(registerPoolLeaves({
       poolAddress,
       leaves: [{
-        index: 0n,
+        index: 1n,
         commitment: 10n,
         root: 999n,
         blockNumber: 1n,
@@ -250,7 +336,7 @@ describe('verifyRootsThunk', () => {
     store.dispatch(registerPoolLeaves({
       poolAddress: poolAddress2,
       leaves: [{
-        index: 0n,
+        index: 1n,
         commitment: 77n,
         root: 888n,
         blockNumber: 2n,
@@ -259,7 +345,7 @@ describe('verifyRootsThunk', () => {
     }));
 
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, blockNumber }),
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
@@ -268,11 +354,13 @@ describe('verifyRootsThunk', () => {
       dataService,
       poolAddress,
       await computeMerkleTreeRoot([10n]),
+      blockNumber,
     );
     expect(verifyStateRootOnChain).toHaveBeenCalledWith(
       dataService,
       poolAddress2,
       await computeMerkleTreeRoot([77n]),
+      blockNumber,
     );
   });
 
@@ -299,7 +387,7 @@ describe('verifyRootsThunk', () => {
     store.dispatch(registerPoolLeaves({
       poolAddress,
       leaves: [{
-        index: 0n,
+        index: 1n,
         commitment: 10n,
         root: 999n,
         blockNumber: 1n,
@@ -308,7 +396,7 @@ describe('verifyRootsThunk', () => {
     }));
 
     const action = await store.dispatch(
-      verifyRootsThunk({ dataService }),
+      verifyRootsThunk({ dataService, blockNumber }),
     );
 
     expect(action.meta.requestStatus).toBe('fulfilled');
@@ -318,6 +406,7 @@ describe('verifyRootsThunk', () => {
       dataService,
       poolAddress,
       await computeMerkleTreeRoot([10n]),
+      blockNumber,
     );
   });
 });

@@ -1,8 +1,15 @@
+/* eslint-disable max-lines */
+import { SIMPLE_7702_IMPLEMENTATION, simpleAccountFactoryData } from '../account/execution-account';
 import type { Network } from '@kohaku-eth/plugins';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  BaseError,
+  HttpRequestError,
   encodeFunctionData,
+  hashTypedData,
   http,
+  RpcRequestError,
+  TimeoutError,
   toHex,
   type Address,
   type Hash,
@@ -11,19 +18,15 @@ import {
 } from 'viem';
 import {
   createBundlerClient,
-  entryPoint08Address,
   getUserOperationTypedData,
   type BundlerClient,
 } from 'viem/account-abstraction';
 import { SIMPLE_7702_EXECUTE_ABI } from '../data/abis/account.abi';
 import { BuildSignedTornadoUserOpParams, SerializedAuth, SerializedUserOperation, UserOpGasLimits } from '../interfaces/user-ops.interface';
+import { aaCode, BundlerReplyError, isSameUserOperation, parseSendResult } from './bundler-replies';
+import { DUMMY_SIGNATURE, dummyAuthorization, type StateOverrides } from './simulation';
 
-/**
- * EntryPoint v0.8 canonical Simple7702Account implementation. The ephemeral
- * withdrawal sender is 7702-delegated to this contract, whose `validateUserOp`
- * checks an owner ECDSA signature over the userOp hash.
- */
-export const SIMPLE_7702_IMPLEMENTATION = '0xe6Cae83BdE06E4c305530e199D7217f42808555B' as const;
+export { SIMPLE_7702_IMPLEMENTATION } from '../account/execution-account';
 
 export type GasPrice = {
   maxFeePerGas: bigint;
@@ -57,7 +60,26 @@ export const bundlerPostVia = (network: Network): BundlerPost => async (url, bod
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
   });
 
-  return { status: response.status, body: await response.text() };
+  // Match viem's 10 MiB limit before copying the response across the host bridge.
+  const maxBytes = 10 * 1024 * 1024;
+  let bytes = 0;
+  const stream = response.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      bytes += chunk.byteLength;
+
+      if (bytes > maxBytes) throw new Error('Bundler response exceeds 10 MiB');
+
+      controller.enqueue(chunk);
+    },
+  }));
+  // Hosts without streaming responses can only be checked after reading the text.
+  const text = await (stream ? new Response(stream) : response).text();
+
+  if (text.length > maxBytes || (!stream && new TextEncoder().encode(text).byteLength > maxBytes)) {
+    throw new Error('Bundler response exceeds 10 MiB');
+  }
+
+  return { status: response.status, body: text };
 };
 
 export const networkFromBundlerPost = (post: BundlerPost): Network => ({
@@ -79,9 +101,9 @@ export async function getUserOperationGasPrice(
   const result = (await client.request({
     method: 'pimlico_getUserOperationGasPrice',
     params: [],
-  } as any)) as any;
+  } as never)) as unknown as Record<'slow' | 'standard' | 'fast', { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex } >;
 
-  const parse = (tier: any): GasPrice => ({
+  const parse = (tier: { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex }): GasPrice => ({
     maxFeePerGas: BigInt(tier.maxFeePerGas),
     maxPriorityFeePerGas: BigInt(tier.maxPriorityFeePerGas),
   });
@@ -96,17 +118,126 @@ export async function getUserOperationGasPrice(
 /**
  * Sends an already-built, serialized (hex) userOp directly to the bundler.
  * viem's `sendUserOperation` rebuilds/re-signs from a structured op, but ours
- * is already finalized in the prepare phase, so we forward it verbatim.
+ * is already finalized in the prepare phase, so we forward it verbatim. Not
+ * retried: a retry of a userOp the bundler already got is rejected like an
+ * invalid one, which would hide that it was accepted.
  */
 export async function sendSerializedUserOperation(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  expectedHash?: Hash,
 ): Promise<Hash> {
-  return client.request({
+  const result: unknown = await client.request({
     method: 'eth_sendUserOperation',
     params: [op, entryPoint],
-  }) as Promise<Hash>;
+  }, { retryCount: 0 });
+
+  return parseSendResult(result, expectedHash);
+}
+
+/**
+ * A description of a failed bundler request that is safe to report. viem
+ * messages embed the request body (the signed userOp), and bundler text can
+ * echo it in any form, split or encoded, so none of either is included: only
+ * the kind of failure, the JSON-RPC code and an ERC-4337 `AAxx` code. The
+ * original error must never be attached as a `cause`.
+ */
+export const describeError = (error: unknown): string => {
+  if (error instanceof BundlerReplyError) return error.message;
+
+  if (!(error instanceof BaseError)) return 'Unknown error.';
+
+  const rejection = bundlerRejection(error);
+
+  if (rejection) {
+    // The JSON-RPC code is bundler-provided too: only an integer is reported.
+    const rpcCode = Number.isSafeInteger(rejection.code) ? ` ${rejection.code}` : '';
+    const code = aaCode(rejection.details);
+
+    return `Bundler error${rpcCode}${code ? ` (${code})` : ''}.`;
+  }
+
+  if (error.walk((cause) => cause instanceof TimeoutError)) return 'Request timed out.';
+
+  const http = error.walk((cause) => cause instanceof HttpRequestError) as HttpRequestError | null;
+
+  return http?.status ? `HTTP request failed with status ${http.status}.` : 'HTTP request failed.';
+};
+
+const bundlerRejection = (error: unknown): RpcRequestError | null =>
+  error instanceof BaseError ? error.walk((e) => e instanceof RpcRequestError) as RpcRequestError | null : null;
+
+/** Whether the bundler answered with a JSON-RPC error, as opposed to a transport failure. */
+export const isBundlerRejection = (error: unknown): boolean => bundlerRejection(error) !== null;
+
+/**
+ * Whether the bundler rejected the send because it already has this exact
+ * userOp, pending or being bundled. That is alto's answer to a resend; a
+ * different userOp with the same sender and nonce gets an AA25/AA10 error.
+ */
+export const isAlreadyKnown = (error: unknown): boolean => {
+  // Bundler-provided, so not necessarily a string.
+  const details: unknown = bundlerRejection(error)?.details;
+
+  return typeof details === 'string' && /^already known\.?$/i.test(details.trim());
+};
+
+/**
+ * Asks the bundler whether it knows a userOp. Some bundlers, alto among them,
+ * only know mined userOps, not pending ones. viem's
+ * `getUserOperation` is not used because it fails to format pending userOps,
+ * whose `blockNumber` is null.
+ */
+export async function isUserOperationKnown(
+  client: BundlerClient,
+  hash: Hash,
+  op: SerializedUserOperation,
+  entryPoint: Address,
+): Promise<boolean> {
+  const result: unknown = await client.request({
+    method: 'eth_getUserOperationByHash',
+    params: [hash],
+  });
+
+  return isSameUserOperation(result, op, entryPoint);
+}
+
+/**
+ * The EntryPoint v0.8 hash of a userOp built by `buildSignedTornadoUserOp`,
+ * which is what its sender signed. Computed from the serialized userOp so it
+ * also covers payloads stored by older SDKs. The chain is the one the 7702
+ * authorization was signed for, else `chainId`; `undefined` without either.
+ */
+export function serializedUserOperationHash(op: SerializedUserOperation, entryPoint: Address, chainId?: number): Hash | undefined {
+  const chain = op.eip7702Auth ? Number(op.eip7702Auth.chainId) : chainId;
+
+  if (chain === undefined) return undefined;
+
+  const optional = (value?: Hex) => (value === undefined ? undefined : BigInt(value));
+
+  return hashTypedData(getUserOperationTypedData({
+    chainId: chain,
+    entryPointAddress: entryPoint,
+    userOperation: {
+      sender: op.sender,
+      nonce: BigInt(op.nonce),
+      // A SimpleAccount deployment is part of what its owner signed.
+      factory: op.factory,
+      factoryData: op.factoryData,
+      callData: op.callData,
+      callGasLimit: BigInt(op.callGasLimit),
+      verificationGasLimit: BigInt(op.verificationGasLimit),
+      preVerificationGas: BigInt(op.preVerificationGas),
+      maxFeePerGas: BigInt(op.maxFeePerGas),
+      maxPriorityFeePerGas: BigInt(op.maxPriorityFeePerGas),
+      paymaster: op.paymaster,
+      paymasterVerificationGasLimit: optional(op.paymasterVerificationGasLimit),
+      paymasterPostOpGasLimit: optional(op.paymasterPostOpGasLimit),
+      paymasterData: op.paymasterData,
+      signature: op.signature,
+    },
+  }));
 }
 
 
@@ -116,11 +247,11 @@ export function ephemeralSenderAddress(privateKey: Hex): Address {
 }
 
 /**
- * Bundler gas estimation (`eth_estimateUserOperationGas`) for an already-built,
- * serialized userOp. Used to size a consolidated batch userOp — whose execution
- * phase runs N-1 extra `pool.withdraw` calls — tightly instead of guessing. The
- * op must carry a valid `paymasterData`/`eip7702Auth` so the bundler can
- * simulate the paymaster's validation and the delegated execution.
+ * Bundler gas estimation (`eth_estimateUserOperationGas`) for a simulation
+ * userOp (`buildSimulationTornadoUserOp`). Used to size a consolidated batch
+ * userOp — whose execution phase runs N-1 extra `pool.withdraw` calls — tightly
+ * instead of guessing. Never pass a signed userOp or real proofs: the bundler
+ * could submit them. `stateOverrides` make the dummy proofs verify.
  *
  * Not on viem's bundler action surface for our serialized shape, so we issue the
  * raw request and parse the returned limits ourselves. Preparation must stop on
@@ -130,11 +261,12 @@ export async function estimateUserOperationGas(
   client: BundlerClient,
   op: SerializedUserOperation,
   entryPoint: Address,
+  stateOverrides?: StateOverrides,
 ): Promise<UserOpGasLimits> {
   const result = (await client.request({
     method: 'eth_estimateUserOperationGas',
-    params: [op, entryPoint],
-  } as any)) as any;
+    params: stateOverrides ? [op, entryPoint, stateOverrides] : [op, entryPoint],
+  } as never)) as unknown as Record<'callGasLimit' | 'verificationGasLimit' | 'preVerificationGas', Hex> & Partial<Record<'paymasterVerificationGasLimit' | 'paymasterPostOpGasLimit', Hex>>;
 
   return {
     callGasLimit: BigInt(result.callGasLimit),
@@ -154,9 +286,23 @@ export async function estimateUserOperationGas(
  * prior transactions. The caller supplies that EOA's authorization nonce; this
  * helper performs no RPC reads.
  */
-export async function buildSignedTornadoUserOp({
+export const buildSignedTornadoUserOp = (params: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> =>
+  assembleTornadoUserOp(params, false);
+
+/**
+ * The same userOp as `buildSignedTornadoUserOp`, for bundler gas estimation
+ * only: it carries a dummy signature and 7702 authorization and never calls the
+ * signer, so the bundler cannot submit it. Pair it with a dummy-proof
+ * `paymasterData` (see `./simulation`).
+ */
+export const buildSimulationTornadoUserOp = (params: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> =>
+  assembleTornadoUserOp(params, true);
+
+async function assembleTornadoUserOp({
   signer,
+  executionAccount,
   chainId,
+  entryPointAddress,
   paymasterAddress,
   paymasterData,
   gas,
@@ -165,11 +311,11 @@ export async function buildSignedTornadoUserOp({
   tailCalls = async () => [],
   nonce = 0n,
   authorizationNonce,
-}: BuildSignedTornadoUserOpParams): Promise<SerializedUserOperation> {
+}: BuildSignedTornadoUserOpParams, simulation: boolean): Promise<SerializedUserOperation> {
 
   const owner = signer;
 
-  const calls = await tailCalls(owner.address);
+  const calls = await tailCalls(executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address);
   let callData: Hex = '0x';
 
   if (calls.length === 1) {
@@ -191,14 +337,21 @@ export async function buildSignedTornadoUserOp({
   // A wallet-path sender may have prior EOA transactions even though this is
   // its first UserOperation. For note-derived/random senders both nonces stay 0.
   // EntryPoint nonce 0 is intentionally single-use for all paymaster withdrawals.
-  const authorization = await owner.signAuthorization({
-    address: SIMPLE_7702_IMPLEMENTATION,
-    chainId,
-    nonce: Number(authorizationNonce ?? nonce),
-  });
+  const nativeNonce = authorizationNonce ?? nonce;
+
+  if (executionAccount?.kind !== 'simple-account' && (nativeNonce < 0n || nativeNonce > BigInt(Number.MAX_SAFE_INTEGER))) throw new Error('Authorization nonce exceeds the safe integer range');
+
+  const delegate = executionAccount?.kind === 'simple-account' ? undefined : executionAccount?.implementation ?? SIMPLE_7702_IMPLEMENTATION;
+  const authorization = !delegate ? undefined
+    : simulation ? dummyAuthorization(delegate, chainId, nativeNonce)
+    : serializeAuth(await owner.signAuthorization({ address: delegate, chainId, nonce: Number(nativeNonce) }));
+  const deployment = executionAccount?.kind === 'simple-account' && executionAccount.factory
+    ? { factory: executionAccount.factory.address, factoryData: simpleAccountFactoryData(owner.address, executionAccount.factory) } : {};
+
 
   const userOperation = {
-    sender: owner.address,
+    sender: executionAccount?.kind === 'simple-account' ? executionAccount.address : owner.address,
+    ...deployment,
     nonce,
     callData,
     callGasLimit: gas.callGasLimit,
@@ -214,10 +367,10 @@ export async function buildSignedTornadoUserOp({
 
   // No client/transport needed: the Simple7702 sender is the owner EOA itself,
   // so signing is a purely local EIP-712 sign over the userOp hash.
-  const signature = await owner.signTypedData(
+  const signature = simulation ? DUMMY_SIGNATURE : await owner.signTypedData(
     getUserOperationTypedData({
       chainId,
-      entryPointAddress: entryPoint08Address,
+      entryPointAddress,
       // we cast because viem type requires a `signature`, but under the hood UserOp typedData does not contain one
       userOperation: userOperation as Parameters<typeof getUserOperationTypedData>[0]['userOperation'],
     }),
@@ -237,13 +390,14 @@ export async function buildSignedTornadoUserOp({
     paymasterPostOpGasLimit: toHex(userOperation.paymasterPostOpGasLimit),
     paymasterData: userOperation.paymasterData,
     signature,
-    eip7702Auth: serializeAuth(authorization),
+    ...deployment,
+    ...(authorization ? { eip7702Auth: authorization } : {}),
   };
 }
 
 function serializeAuth(auth: SignedAuthorization): SerializedAuth {
   return {
-    address: (auth as any).address ?? (auth as any).contractAddress,
+    address: auth.address,
     chainId: toHex(auth.chainId),
     nonce: toHex(auth.nonce),
     r: auth.r,

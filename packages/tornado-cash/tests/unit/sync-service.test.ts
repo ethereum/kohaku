@@ -43,30 +43,49 @@ const relayerRegistered = (blockNumber: bigint): IRelayerRegisteredEvent => ({
 
 // A fake DataService: the chain path (getPoolEvents) tags events at the block it
 // was asked to start from, so tests can prove which range came from the chain.
-const makeDataService = () => {
-  const getPoolEvents = vi.fn(async ({ fromBlock }: { fromBlock: bigint }) => ({
-    Deposited: [deposit(fromBlock)],
-    Withdrawn: [withdrawal(fromBlock)],
-    fromBlock,
-    toBlock: HEAD,
-  }));
+// The pool holds code from `deployedAt` onwards. A node behind an explicit
+// query bound rejects it; an empty range reports `fromBlock - 1`, like EthClient.
+const chainRange = (fromBlock: bigint, toBlock: bigint | undefined, rpcHead: bigint) => {
+  const end = toBlock ?? rpcHead;
+
+  if (end > rpcHead) throw new Error('query bound exceeds RPC head');
+
+  return { empty: fromBlock > end, fromBlock, toBlock: fromBlock > end ? fromBlock - 1n : end };
+};
+
+const makeDataService = (deployedAt = 500n, rpcHead = HEAD) => {
+  const getPoolEvents = vi.fn(async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock?: bigint }) => {
+    const range = chainRange(fromBlock, toBlock, rpcHead);
+
+    return {
+      Deposited: range.empty ? [] : [deposit(fromBlock)],
+      Withdrawn: range.empty ? [] : [withdrawal(fromBlock)],
+      fromBlock,
+      toBlock: range.toBlock,
+    };
+  });
 
   const parsePoolEvents = vi.fn((events: ExternalRawEvent[]) => ({
     Deposited: events.map((e) => deposit(BigInt(e.blockNumber))),
     Withdrawn: [] as IRawWithdrawalEvent[],
   }));
 
-  const getRelayerRegistryEvents = vi.fn(async ({ fromBlock }: { fromBlock: bigint }) => ({
-    RelayerRegistered: [relayerRegistered(fromBlock)],
-    fromBlock,
-    toBlock: HEAD,
-  }));
+  const getRelayerRegistryEvents = vi.fn(async ({ fromBlock, toBlock }: { fromBlock: bigint; toBlock?: bigint }) => {
+    const range = chainRange(fromBlock, toBlock, rpcHead);
+
+    return {
+      RelayerRegistered: range.empty ? [] : [relayerRegistered(fromBlock)],
+      fromBlock,
+      toBlock: range.toBlock,
+    };
+  });
 
   const parseRelayerRegistryEvents = vi.fn((events: ExternalRawEvent[]) => ({
     RelayerRegistered: events.map((e) => relayerRegistered(BigInt(e.blockNumber))),
   }));
 
   const getContractDeploymentBlock = vi.fn(async () => 42n);
+  const isContractDeployedAt = vi.fn(async (_address: Address, block: bigint) => block >= deployedAt);
 
   return {
     getBlockNumber: vi.fn(async () => HEAD),
@@ -75,19 +94,21 @@ const makeDataService = () => {
     getRelayerRegistryEvents,
     parseRelayerRegistryEvents,
     getContractDeploymentBlock,
+    isContractDeployedAt,
   } as unknown as IDataService & {
     getPoolEvents: typeof getPoolEvents;
     parsePoolEvents: typeof parsePoolEvents;
     getRelayerRegistryEvents: typeof getRelayerRegistryEvents;
     parseRelayerRegistryEvents: typeof parseRelayerRegistryEvents;
     getContractDeploymentBlock: typeof getContractDeploymentBlock;
+    isContractDeployedAt: typeof isContractDeployedAt;
   };
 };
 
 const makeProvider = (
   coverage: bigint | null,
   events: ExternalRawEvent[] = [],
-  firstBlock: bigint | null = null,
+  firstBlock: bigint | null = 0n,
 ) => {
   const getEvents = vi.fn(async () => events);
 
@@ -201,6 +222,83 @@ describe('SyncService.getPoolEvents', () => {
       expect.objectContaining({ fromBlock: 100n }),
     );
   });
+
+  it("backfills from the chain the blocks before the provider's first covered block", async () => {
+    const dataService = makeDataService();
+    // Pool deployed at 500, provider data only for [700, 900].
+    const provider = makeProvider(900n, [rawAt(750n)], 700n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const result = await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 500n });
+
+    expect(provider.getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: toHex(700n), toBlock: toHex(900n) }),
+    );
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 500n, toBlock: 699n }),
+    );
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 901n }),
+    );
+    expect(result.Deposited.map((d) => d.blockNumber)).toEqual([500n, 750n, 901n]);
+    expect(result.toBlock).toBe(HEAD);
+  });
+
+  it('falls back to the chain when the first covered block is unavailable', async () => {
+    const dataService = makeDataService();
+    const provider = makeProvider(900n, [rawAt(750n)], null);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n });
+
+    expect(provider.getEvents).not.toHaveBeenCalled();
+    expect(dataService.getPoolEvents).toHaveBeenCalledTimes(1);
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 100n }),
+    );
+  });
+
+  it('falls back to the chain when the provider coverage is empty', async () => {
+    const dataService = makeDataService();
+    // First covered block past the last covered one: nothing to stream.
+    const provider = makeProvider(900n, [], 950n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    await service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n });
+
+    expect(provider.getEvents).not.toHaveBeenCalled();
+    expect(dataService.getPoolEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects when the tail node cannot serve the captured head', async () => {
+    // Initial head 1000, provider coverage 900, tail node only at 850.
+    const dataService = makeDataService(500n, 850n);
+    const provider = makeProvider(900n, [rawAt(200n)]);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    await expect(service.getPoolEvents({ chainId: CHAIN_ID, address: POOL, fromBlock: 100n }))
+      .rejects.toThrow('query bound exceeds RPC head');
+
+    expect(dataService.getPoolEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 901n, toBlock: HEAD }),
+    );
+  });
 });
 
 describe('SyncService.getRelayerRegistryEvents', () => {
@@ -257,12 +355,36 @@ describe('SyncService.getRelayerRegistryEvents', () => {
     );
     expect(result.RelayerRegistered.map((r) => r.blockNumber)).toEqual([100n]);
   });
+
+  it("backfills before the provider's coverage but rejects an unavailable tail", async () => {
+    // Provider data only for [700, 900]; tail node only at 850.
+    const dataService = makeDataService(500n, 850n);
+    const provider = makeProvider(900n, [rawAt(750n)], 700n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: provider,
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    await expect(service.getRelayerRegistryEvents({
+      chainId: CHAIN_ID,
+      address: REGISTRY,
+      fromBlock: 500n,
+    })).rejects.toThrow('query bound exceeds RPC head');
+
+    expect(dataService.getRelayerRegistryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 500n, toBlock: 699n }),
+    );
+    expect(dataService.getRelayerRegistryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ fromBlock: 901n, toBlock: HEAD }),
+    );
+  });
 });
 
 describe('SyncService.getPoolDeploymentBlock', () => {
-  it("uses the provider's first covered block, skipping the on-chain search", async () => {
-    const dataService = makeDataService();
-    const provider = makeProvider(600n, [], 12345n);
+  it("uses the provider's first covered block once verified as a lower bound", async () => {
+    const dataService = makeDataService(500n);
+    const provider = makeProvider(600n, [], 500n);
     const service = new SyncService({
       dataService,
       externalSyncProvider: provider,
@@ -271,11 +393,56 @@ describe('SyncService.getPoolDeploymentBlock', () => {
 
     const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
 
-    expect(block).toBe(12345n);
+    expect(block).toBe(500n);
     expect(provider.firstCoveredBlock).toHaveBeenCalledWith(
       expect.objectContaining({ chainId: toHex(CHAIN_ID) }),
     );
+    expect(dataService.isContractDeployedAt).toHaveBeenCalledWith(POOL, 499n);
     expect(dataService.getContractDeploymentBlock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a conservative hint below the deployment block', async () => {
+    const dataService = makeDataService(500n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: makeProvider(600n, [], 300n),
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(300n);
+    expect(dataService.getContractDeploymentBlock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a hint past the deployment block and falls back to the on-chain search', async () => {
+    const dataService = makeDataService(500n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: makeProvider(600n, [], 700n),
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(42n);
+    expect(dataService.isContractDeployedAt).toHaveBeenCalledWith(POOL, 699n);
+    expect(dataService.getContractDeploymentBlock).toHaveBeenCalledWith(POOL);
+  });
+
+  it('rejects a hint past the chain head and falls back to the on-chain search', async () => {
+    const dataService = makeDataService(500n);
+    const service = new SyncService({
+      dataService,
+      externalSyncProvider: makeProvider(600n, [], HEAD + 1n),
+      minExternalSyncBlocksAmount: 100,
+    });
+
+    const block = await service.getPoolDeploymentBlock({ chainId: CHAIN_ID, address: POOL });
+
+    expect(block).toBe(42n);
+    expect(dataService.isContractDeployedAt).not.toHaveBeenCalled();
+    expect(dataService.getContractDeploymentBlock).toHaveBeenCalledWith(POOL);
   });
 
   it('falls back to the on-chain deployment block when the provider has no coverage', async () => {

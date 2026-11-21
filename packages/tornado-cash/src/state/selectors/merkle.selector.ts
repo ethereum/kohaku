@@ -1,8 +1,9 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { poolCommitmentsSelector } from './pools.selector';
-import { Commitment } from '../../interfaces/types.interface';
-import { generateMerkleProof } from '#merkle-tree';
+import type { MimcMerkleProof } from '@kohaku-eth/mimc-tree';
+import { generateMimcMerkleProof } from '#merkle-tree';
+import { poolCommitmentsSelector, poolMerkleTreeSelector } from './pools.selector';
+import { Address, Commitment } from '../../interfaces/types.interface';
 
 export const stateLeavesSelector = createSelector(
   [poolCommitmentsSelector],
@@ -16,18 +17,13 @@ export const stateLeavesSelector = createSelector(
 /**
  * MUST ONLY BE USED IN THUNKS
  */
-export const stateMerkleProofSelector = createSelector(
-  [
-    stateLeavesSelector,
-    (_state: RootState, _poolAddress: bigint, commitment: Commitment) => commitment,
-  ],
-  async (stateLeaves, commitment: Commitment) => {
-    const start = new Date();
-    const proof = await generateMerkleProof(stateLeaves, commitment);
-    const end = new Date();
-  
-    console.log(`Merkle tree for ${stateLeaves.length} leaves took ${ +end - +start }ms`);
+export const stateMerkleProofSelector = async (
+  state: RootState,
+  poolAddress: Address,
+  commitment: Commitment,
+): Promise<MimcMerkleProof> => {
+  const tree = await poolMerkleTreeSelector(state, poolAddress);
 
-    return proof;
-  }
-);
+  // Use the tree builder's copy of MerkleTree across the worker bundle boundary.
+  return generateMimcMerkleProof(tree, commitment);
+};

@@ -1,44 +1,27 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { depositsSelector, entrypointInfoSelector, ragequitsSelector, withdrawalsSelector } from './slices.selectors';
+import { entrypointInfoSelector } from './slices.selectors';
 
+const max = (a: bigint, b: bigint) => (a > b ? a : b);
+
+/** The head the last sync scanned up to. */
 export const selectLastSyncedBlock = createSelector(
   [
-    depositsSelector,
-    withdrawalsSelector,
-    ragequitsSelector,
     entrypointInfoSelector,
     (state: RootState) => BigInt(state.sync.lastSyncedBlock),
   ],
-  (depositsMap, withdrawalsMap, ragequitsMap, { deploymentBlock }, lastSyncedBlock): bigint => {
-    let maxBlock = 0n;
+  ({ deploymentBlock }, lastSyncedBlock): bigint => max(lastSyncedBlock, deploymentBlock),
+);
 
-    for (const deposit of depositsMap.values()) {
-      if (deposit.blockNumber > maxBlock) {
-        maxBlock = deposit.blockNumber;
-      }
-    }
-
-    for (const withdrawal of withdrawalsMap.values()) {
-      if (withdrawal.blockNumber > maxBlock) {
-        maxBlock = withdrawal.blockNumber;
-      }
-    }
-
-    for (const ragequit of ragequitsMap.values()) {
-      if (ragequit.blockNumber > maxBlock) {
-        maxBlock = ragequit.blockNumber;
-      }
-    }
-
-    if (lastSyncedBlock > maxBlock) {
-      maxBlock = lastSyncedBlock;
-    }
-
-    if (deploymentBlock > maxBlock) {
-      maxBlock = deploymentBlock;
-    }
-
-    return maxBlock;
-  }
+/**
+ * Where the next sync starts: the last block seen finalized. Not the head, nor
+ * the latest stored event, which a reorg may have taken off the chain. A state
+ * saved without a finalized block is rewound by syncThunk instead.
+ */
+export const selectSyncCursor = createSelector(
+  [
+    entrypointInfoSelector,
+    (state: RootState) => BigInt(state.sync.finalizedBlock ?? 0),
+  ],
+  ({ deploymentBlock }, finalizedBlock): bigint => max(finalizedBlock, deploymentBlock),
 );

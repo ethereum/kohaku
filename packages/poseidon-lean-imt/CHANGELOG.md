@@ -1,5 +1,17 @@
 # @kohaku-eth/poseidon-lean-imt
 
+## 0.0.1-alpha.2
+
+### Patch Changes
+
+- a1d50c3: Export `parallelLevels` and add `PoseidonT3LeanIMT.fromLevels(levels)` to restore a local tree from trusted precomputed levels without hashing again. This lets offscreen builders return levels instead of a tree proxy tied to the offscreen document's lifetime.
+
+## 0.0.1-alpha.1
+
+### Patch Changes
+
+- 27cf0a7: Build Privacy Pools Merkle trees in the calling thread when workers are unavailable or fail, including Chrome MV3 service workers and React Native. Add an optional `merkleTreeBuilder` callback with async tree methods for offscreen/worker bridges, and clean up workers when a pool only partially starts.
+
 ## 0.0.1-alpha.0
 
 ### Patch Changes

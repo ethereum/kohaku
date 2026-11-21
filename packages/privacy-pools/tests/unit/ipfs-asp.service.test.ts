@@ -139,6 +139,18 @@ describe('IPFSAspService', () => {
     });
   });
 
+  it('passes the abort signal to the gateway request', async () => {
+    const trackedFetch = createTrackedMockFetch({
+      responses: new Map([[TEST_IPFS_CID, { json: MOCK_TREE }]]),
+    });
+    const service = new IPFSAspService({ network: { fetch: trackedFetch.fetch } });
+    const { signal } = new AbortController();
+
+    await service.getAspTreeIPFS({ ipfsCID: TEST_IPFS_CID, signal });
+
+    expect(trackedFetch.calls[0]?.init?.signal).toBe(signal);
+  });
+
   describe('getAspTree', () => {
     const createMockState = (lastUpdateRootEvent: { ipfsCID: string; root: string } | null): Partial<RootState> => ({
       updateRootEvents: {

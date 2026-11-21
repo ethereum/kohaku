@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 import type { BundlerPost } from '../../paymaster/utils';
 import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
@@ -65,6 +66,13 @@ export type TCProtocolConfig = Omit<ProtocolConfigState, 'chainId'> & {
    * `TornadoInstances` list; without either, deposits are refused.
    */
   instances?: readonly ITornadoInstance[];
+  /**
+   * Signature nonces with no deposit, past the last one found, before note
+   * discovery stops (default 20, at most 10000). Nonces this account prepared
+   * deposits for are always scanned; raise this only to recover deposits
+   * prepared on another device whose earlier transactions were never mined.
+   */
+  signatureGapLimit?: number;
 };
 
 export interface TCProtocolParams {
@@ -116,6 +124,7 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
   gasEstimationPolicy?: GasEstimationPolicy;
   mode: 'paymaster';
   delegation?: DelegationConfig;
+  /** Calls run after funding the sender, including one note; omit for direct single-note payout/refund. */
   tailCalls?: (address: AccountId) => Promise<TxData[]>;
   /**
    * Optional baseline for the execution-phase gas of user `tailCalls` (not
@@ -123,6 +132,12 @@ export interface IPaymasterWithdrawParams extends IWithdrawBaseParams {
    * still required and can increase this budget.
    */
   tailCallsGasEstimate?: bigint;
+  /**
+   * Opt in to at most three extra estimation probes for recognized execution
+   * out-of-gas failures. Requires a positive maxGasLimits.callGasLimit. Each
+   * probe rebuilds the fee, proof and signature; defaults to false.
+   */
+  executionGasRetry?: boolean;
   /** Optional absolute ceilings, including buffers; not a fee percentage. */
   maxGasLimits?: PaymasterGasLimits;
   /** Worker transport supplied by the host. */

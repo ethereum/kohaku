@@ -3,6 +3,18 @@ import { poseidonT3 } from "@kohaku-eth/poseidon";
 import { WithdrawalPayload } from "../relayer/interfaces/relayer-client.interface";
 import { encodeAbiParameters, keccak256, numberToHex } from "viem";
 
+/** A local tree or a proxy to one hosted in an offscreen document/worker.
+ * `root` must reflect the latest completed insert. Methods may use an async bridge.
+ */
+export interface MerkleTree {
+  readonly root: bigint;
+  indexOf(leaf: bigint): number | Promise<number>;
+  generateProof(index: number): LeanIMTMerkleProof | Promise<LeanIMTMerkleProof>;
+  insert(leaf: bigint): void | Promise<void>;
+}
+
+export type MerkleTreeBuilder = (leaves: bigint[]) => MerkleTree | Promise<MerkleTree>;
+
 export const SNARK_SCALAR_FIELD = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 
@@ -27,11 +39,23 @@ export async function buildMerkleTree(leaves: bigint[]): Promise<LeanIMT> {
     return new LeanIMT(leaves);
   }
 
-  return LeanIMT.fromLeavesParallel(leaves);
+  // MV3 service workers and React Native have neither Web Workers nor Node.
+  const runtime = globalThis as typeof globalThis & { process?: { versions?: { node?: string } } };
+  const canStartWorkers = typeof globalThis.Worker === 'function' || !!runtime.process?.versions?.node;
+
+  if (canStartWorkers) {
+    try {
+      return await LeanIMT.fromLeavesParallel(leaves);
+    } catch {
+      // Worker URLs, CSP, or startup failures must not make sync unavailable.
+    }
+  }
+
+  return new LeanIMT(leaves);
 }
 
-export async function computeMerkleTreeRoot(leaves: bigint[]): Promise<bigint> {
-  return (await buildMerkleTree(leaves)).root;
+export async function computeMerkleTreeRoot(leaves: bigint[], builder: MerkleTreeBuilder = buildMerkleTree): Promise<bigint> {
+  return (await builder(leaves)).root;
 }
 
 /**
@@ -41,11 +65,11 @@ export async function computeMerkleTreeRoot(leaves: bigint[]): Promise<bigint> {
  *
  * @throws {Error} If the leaf is not found in the tree.
  */
-export function proofFromTree(
-  tree: LeanIMT,
+export async function proofFromTree(
+  tree: MerkleTree,
   leaf: bigint,
-): LeanIMTMerkleProof {
-  const leafIndex = tree.indexOf(leaf);
+): Promise<LeanIMTMerkleProof> {
+  const leafIndex = await tree.indexOf(leaf);
 
   // if leaf does not exist in tree, throw error
   if (leafIndex === -1) {
@@ -54,7 +78,8 @@ export function proofFromTree(
     );
   }
 
-  const proof = tree.generateProof(leafIndex);
+  const generated = await tree.generateProof(leafIndex);
+  const proof = { ...generated, siblings: [...generated.siblings] };
 
   if (proof.siblings.length < 32) {
     proof.siblings = [

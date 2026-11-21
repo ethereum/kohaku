@@ -6,6 +6,7 @@ import { E_ADDRESS } from '../../src/config';
 import type { IDataService } from '../../src/data/interfaces/data.service.interface';
 import type { Address } from '../../src/interfaces/types.interface';
 import { reasonableGasUnits } from '../../src/paymaster/fee';
+import { DUMMY_SIGNATURE, verifierForwarder } from '../../src/paymaster/simulation';
 import type { PaymasterGasLimits } from '../../src/paymaster/gas-bounds';
 import { storeStateManager } from '../../src/state/state-manager';
 import { registerAspTree } from '../../src/state/slices/aspSlice';
@@ -18,14 +19,17 @@ import { paymasterWithdrawThunk } from '../../src/state/thunks/paymasterWithdraw
 import { TEST_STORE_DEV_OPTIONS } from '../utils/common';
 
 // Proving is stubbed: these tests are about what reaches the bundler, not the proof.
-const { proveCalls } = vi.hoisted(() => ({ proveCalls: { count: 0 } }));
+// `count` is every proof, `real` excludes gas-estimation stand-ins.
+const { proveCalls } = vi.hoisted(() => ({ proveCalls: { count: 0, real: 0 } }));
 
 vi.mock('../../src/state/thunks/withdrawThunk', async () => {
   const { createAsyncThunk } = await import('@reduxjs/toolkit');
 
   return {
-    withdrawThunk: createAsyncThunk('withdraw/generateProof', async () => {
+    withdrawThunk: createAsyncThunk('withdraw/generateProof', async ({ simulation }: { simulation?: boolean }) => {
       proveCalls.count += 1;
+
+      if (!simulation) proveCalls.real += 1;
 
       return {
         proof: { pi_a: ['1', '2', '1'], pi_b: [['1', '2'], ['3', '4'], ['1', '0']], pi_c: ['1', '2', '1'] },
@@ -50,6 +54,9 @@ const PAYMASTER = '0x000000000000000000000000000000000000fee1';
 const ENTRY_POINT = '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108';
 const BUNDLER_URL = 'https://bundler.test/rpc';
 const EPHEMERAL_KEY = `0x${'11'.repeat(32)}` as const;
+const VERIFIER = '0x00000000000000000000000000000000000000ce';
+const VERIFIER_CODE = '0x60006000fd';
+const WITHDRAWAL_VERIFIER_SELECTOR = '0x8735eb2b';
 // The chain's fee market as the host provider reports it.
 const FEE_REFERENCE = { baseFeePerGas: 10n * GWEI, maxPriorityFeePerGas: 1n * GWEI };
 const HONEST_PRICE = { maxFeePerGas: 13n * GWEI, maxPriorityFeePerGas: 1n * GWEI };
@@ -126,7 +133,13 @@ const setup = (bundler: ReturnType<typeof mockBundler>, noteValue = ONE_ETH, rec
     maxGasLimits: overrides.maxGasLimits,
     tailCalls: overrides.tailCalls,
     tailCallsGasEstimate: overrides.tailCallsGasEstimate,
-    provider: { request: async ({ method }: { method: string }) => {
+    provider: { request: async ({ method, params }: { method: string; params: [{ data?: string } | string] }) => {
+      if (method === 'eth_getCode') return params[0] === VERIFIER ? VERIFIER_CODE : '0x';
+
+      if (method === 'eth_call') return toHex((params[0] as { data?: string }).data === WITHDRAWAL_VERIFIER_SELECTOR ? BigInt(VERIFIER) : 0n, { size: 32 });
+
+      if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
+
       if (method === 'eth_feeHistory' && recentTips) return feeHistory(recentTips, FEE_REFERENCE.baseFeePerGas);
 
       return method === 'eth_getBlockByNumber'
@@ -164,7 +177,30 @@ const estimate = (overrides: Partial<Record<keyof ReturnType<typeof reasonableGa
   Object.fromEntries(Object.entries({ ...reasonableGasUnits(false), ...overrides }).map(([k, v]) => [k, toHex(v)]));
 
 describe('paymaster bundler safety', () => {
-  beforeEach(() => { proveCalls.count = 0; });
+  beforeEach(() => { proveCalls.count = 0; proveCalls.real = 0; });
+
+  it('estimates a dummy-signed simulation under verifier overrides and proves/signs only the final operation', async () => {
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 400_000n }) });
+    const [w] = await setup(bundler).withdraw({ tailCalls });
+    const estimates = bundler.requests.filter(({ method }) => method === 'eth_estimateUserOperationGas');
+
+    // Refinement, then the check of the refined limits that tail calls require.
+    expect(estimates).toHaveLength(2);
+
+    for (const { params: [op, entryPoint, overrides] } of estimates) {
+      expect((op as { signature: string }).signature).toBe(DUMMY_SIGNATURE);
+      expect((op as { eip7702Auth: { r: string } }).eip7702Auth.r).not.toBe(w!.userOperation.eip7702Auth!.r);
+      expect(entryPoint).toBe(ENTRY_POINT);
+
+      const shadow = Object.keys(overrides as object).find(address => address !== VERIFIER)! as `0x${string}`;
+
+      expect(overrides).toEqual({ [shadow]: { code: VERIFIER_CODE }, [VERIFIER]: { code: verifierForwarder(shadow) } });
+    }
+
+    expect(w!.userOperation.signature).not.toBe(DUMMY_SIGNATURE);
+    expect(proveCalls.real).toBe(1);
+    expect(bundler.requests.some(({ method }) => method === 'eth_sendUserOperation')).toBe(false);
+  });
   afterEach(() => { vi.unstubAllGlobals(); });
 
   it('rejects gas prices above the host market before proving', async () => {
@@ -221,7 +257,7 @@ describe('paymaster bundler safety', () => {
   });
 
   it('allows most of a 0.01 ETH note to sponsor the operation', async () => {
-    const bundler = mockBundler({ price: { maxFeePerGas: 3n * GWEI, maxPriorityFeePerGas: GWEI } });
+    const bundler = mockBundler({ price: { maxFeePerGas: 3n * GWEI, maxPriorityFeePerGas: GWEI }, estimate: estimate() });
     const note = ONE_ETH / 100n;
     const [w] = await setup(bundler, note).withdraw({ tailCalls });
 
@@ -245,6 +281,7 @@ describe('paymaster bundler safety', () => {
 
     await expect(setup(bundler).withdraw()).rejects.toThrow(field);
     expect(proveCalls.count).toBe(1);
+    expect(proveCalls.real).toBe(0);
   });
 
   it('honors explicit gas ceilings after buffering', async () => {
@@ -252,12 +289,97 @@ describe('paymaster bundler safety', () => {
 
     await expect(setup(bundler).withdraw({ tailCalls, maxGasLimits: { callGasLimit: 500_000n } })).rejects.toThrow('callGasLimit');
     expect(proveCalls.count).toBe(1);
+    expect(proveCalls.real).toBe(0);
   });
 
-  it('keeps a caller-provided heavy-tail baseline if estimation is unavailable', async () => {
-    const [w] = await setup(mockBundler()).withdraw({ tailCalls, tailCallsGasEstimate: 2_000_000n });
+  it('keeps the best-effort baseline for a validation-only withdrawal if estimation is unavailable', async () => {
+    const [w] = await setup(mockBundler()).withdraw();
 
-    expect(BigInt(w!.userOperation.callGasLimit)).toBe(2_000_000n);
+    expect(w!.userOperation).toMatchObject({ callData: '0x', callGasLimit: '0x0' });
+    expect(proveCalls.real).toBe(1);
+  });
+
+  it('refuses to sign tail calls with an unverified budget if estimation is unavailable', async () => {
+    await expect(setup(mockBundler()).withdraw({ tailCalls, tailCallsGasEstimate: 2_000_000n }))
+      .rejects.toThrow('runs calls after the payout requires successful bundler gas estimation');
+    expect(proveCalls.real).toBe(0);
+  });
+
+  it('refuses to sign tail calls when the bundler estimates no execution gas', async () => {
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 0n }) });
+
+    await expect(setup(bundler).withdraw({ tailCalls })).rejects.toThrow('positive bundler callGasLimit');
+    expect(proveCalls.real).toBe(0);
+  });
+
+  it('refuses tail calls when the refined limits no longer cover the final estimate', async () => {
+    let estimates = 0;
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 400_000n }) });
+    const globalFetch = bundler.globalFetch;
+
+    // The second estimate (of the refined operation) needs more than the buffered limit.
+    bundler.network.fetch = async (input, init) => {
+      if (String(init?.body).includes('eth_estimateUserOperationGas') && ++estimates === 2) {
+        // Echo the request envelope (jsonrpc, id) with the result.
+        const request = JSON.parse(String(init?.body));
+
+        return new Response(JSON.stringify({ ...request, result: estimate({ callGasLimit: 600_000n }) }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      return globalFetch(input, init);
+    };
+
+    await expect(setup(bundler).withdraw({ tailCalls })).rejects.toThrow('gas requirements changed after refinement');
+    expect(proveCalls.real).toBe(0);
+  });
+
+  it('resolves tail calls once, so the signed calls are the estimated ones', async () => {
+    const targets = ['0x00000000000000000000000000000000000000a1', '0x00000000000000000000000000000000000000a2'] as const;
+    const first = { to: targets[0] as `0x${string}`, value: 0n, data: '0xabcdef01' as `0x${string}` };
+    // A callback that would answer differently on every call.
+    const changingTailCalls = vi.fn().mockResolvedValueOnce([first]).mockResolvedValue([{ to: targets[1], value: 0n, data: '0xabcdef01' }]);
+    const bundler = mockBundler({ estimate: estimate({ callGasLimit: 400_000n }) });
+    const fetchEstimate = bundler.network.fetch;
+
+    // Mutating the returned call after estimation must not change the signed one either.
+    bundler.network.fetch = async (input, init) => {
+      if (String(init?.body).includes('eth_estimateUserOperationGas')) first.to = targets[1];
+
+      return fetchEstimate(input, init);
+    };
+
+    const [w] = await setup(bundler).withdraw({ tailCalls: changingTailCalls });
+    const estimated = sentUserOps(bundler);
+
+    expect(changingTailCalls).toHaveBeenCalledOnce();
+    expect(changingTailCalls).toHaveBeenCalledWith(w!.userOperation.sender);
+    expect(estimated).toHaveLength(2);
+
+    for (const op of estimated) expect(op.callData).toBe(w!.userOperation.callData);
+
+    expect(w!.userOperation.callData).toContain(targets[0].slice(2));
+  });
+
+  it.each([
+    ['a non-array', {}],
+    ['an invalid address', [{ to: '0x1234', value: 0n, data: '0x' }]],
+    ['a non-bigint value', [{ to: '0x000000000000000000000000000000000000beef', value: 1, data: '0x' }]],
+    ['a negative value', [{ to: '0x000000000000000000000000000000000000beef', value: -1n, data: '0x' }]],
+    ['odd-length data', [{ to: '0x000000000000000000000000000000000000beef', value: 0n, data: '0x123' }]],
+  ])('rejects tail calls resolving to %s before estimating or proving', async (_case, calls) => {
+    const bundler = mockBundler({ estimate: estimate() });
+
+    await expect(setup(bundler).withdraw({ tailCalls: async () => calls as never })).rejects.toThrow('tailCalls must resolve to an array');
+    expect(proveCalls.count).toBe(0);
+    expect(sentUserOps(bundler)).toHaveLength(0);
+  });
+
+  it.each([0n, -1n])('rejects a tailCallsGasEstimate of %s before estimating or proving', async tailCallsGasEstimate => {
+    const bundler = mockBundler({ estimate: estimate() });
+
+    await expect(setup(bundler).withdraw({ tailCalls, tailCallsGasEstimate })).rejects.toThrow('tailCallsGasEstimate must be a positive bigint');
+    expect(proveCalls.count).toBe(0);
+    expect(sentUserOps(bundler)).toHaveLength(0);
   });
 
   it('applies price checks to estimates with a custom data service, with no percentage cap', async () => {
@@ -274,5 +396,19 @@ describe('paymaster bundler safety', () => {
     expect(result.mode).toBe('paymaster');
     expect(result.fee).toBeGreaterThan(ONE_ETH / 200n);
     expect(bundler.requests.every(r => r.via === 'network')).toBe(true);
+  });
+
+  it('rejects a zero tailCallsGasEstimate when quoting', async () => {
+    const bundler = mockBundler();
+    const manager = storeStateManager({
+      dataService: { getChainId: async () => 1n },
+      secretManager: {}, entrypoint: { address: 900n },
+      paymasterConfig: { 1: { bundlerUrl: BUNDLER_URL, paymasterAddress: PAYMASTER } },
+      provider: { request: async ({ method }: { method: string }) => method === 'eth_getBlockByNumber' ? { baseFeePerGas: toHex(10n * GWEI) } : toHex(GWEI) },
+      network: bundler.network,
+    } as never);
+
+    await expect(manager.getUnshieldEstimate({ asset: BigInt(E_ADDRESS) as Address, amount: ONE_ETH, recipient: 0xbeefn as Address, mode: 'paymaster', hasTailCalls: true, tailCallsGasEstimate: 0n }))
+      .rejects.toThrow('tailCallsGasEstimate must be a positive bigint');
   });
 });

@@ -1,6 +1,4 @@
-import { PoseidonT3LeanIMT as LeanIMT } from "@kohaku-eth/poseidon-lean-imt";
-
-import { buildMerkleTree } from "../../utils/proof.util";
+import { buildMerkleTree, type MerkleTree, type MerkleTreeBuilder } from "../../utils/proof.util";
 
 /**
  * In-process cache of built Merkle trees, derived from the minimal persisted
@@ -30,12 +28,20 @@ import { buildMerkleTree } from "../../utils/proof.util";
 interface CachedTree {
   count: number;
   last: bigint;
-  tree: Promise<LeanIMT>;
+  tree: Promise<MerkleTree>;
 }
 
-const namespaces = new Map<string, Map<string, CachedTree>>();
+// A builder can host remote trees: keep its cache separate from other hosts.
+const caches = new WeakMap<MerkleTreeBuilder, Map<string, Map<string, CachedTree>>>();
 
-function namespace(ns: string): Map<string, CachedTree> {
+function namespace(ns: string, builder: MerkleTreeBuilder): Map<string, CachedTree> {
+  let namespaces = caches.get(builder);
+
+  if (!namespaces) {
+    namespaces = new Map();
+    caches.set(builder, namespaces);
+  }
+
   let cache = namespaces.get(ns);
 
   if (!cache) {
@@ -61,8 +67,9 @@ export function getIncrementalTree(
   key: string,
   leaves: bigint[],
   expectedRoot?: bigint,
-): Promise<LeanIMT> {
-  const cache = namespace(ns);
+  builder: MerkleTreeBuilder = buildMerkleTree,
+): Promise<MerkleTree> {
+  const cache = namespace(ns, builder);
   const cached = cache.get(key);
 
   const isAppendOf =
@@ -75,9 +82,9 @@ export function getIncrementalTree(
     if (leaves.length > cached.count) {
       const delta = leaves.slice(cached.count);
 
-      cached.tree = cached.tree.then((tree) => {
+      cached.tree = cached.tree.then(async (tree) => {
         for (const leaf of delta) {
-          tree.insert(leaf);
+          await tree.insert(leaf);
         }
 
         return tree;
@@ -92,18 +99,18 @@ export function getIncrementalTree(
     }
 
     return cached.tree.then((tree) =>
-      tree.root === expectedRoot ? tree : rebuild(cache, key, leaves),
+      tree.root === expectedRoot ? tree : rebuild(cache, key, leaves, builder),
     );
   }
 
-  return rebuild(cache, key, leaves);
+  return rebuild(cache, key, leaves, builder);
 }
 
-function rebuild(cache: Map<string, CachedTree>, key: string, leaves: bigint[]): Promise<LeanIMT> {
+function rebuild(cache: Map<string, CachedTree>, key: string, leaves: bigint[], builder: MerkleTreeBuilder): Promise<MerkleTree> {
   const entry: CachedTree = {
     count: leaves.length,
     last: leaves[leaves.length - 1]!,
-    tree: buildMerkleTree(leaves),
+    tree: Promise.resolve().then(() => builder(leaves)),
   };
 
   cache.set(key, entry);

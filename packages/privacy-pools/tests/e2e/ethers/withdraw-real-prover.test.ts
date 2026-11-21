@@ -13,7 +13,7 @@ import { ERC20Asset, InitialState, loadInitialState, unwrapBalance } from '../..
 import { createMockHost } from '../../utils/mock-host';
 import { createMockRelayerClient } from '../../utils/mock-relayer';
 import { TEST_ACCOUNTS } from '../../utils/test-accounts';
-import { approveERC20, assetVettingFee, deductVettingFees, getProtocolWithState, MOCK_IPFS_CID, pushNewAspRoot, sendTxAndWait, setupMockAspForTest, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
+import { assetVettingFee, deductVettingFees, getProtocolWithState, MOCK_IPFS_CID, pushNewAspRoot, sendTxAndWait, sendTxnsAndWait, setupMockAspForTest, setupWallet, transferERC20FromWhale } from '../../utils/test-helpers';
 
 
 describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
@@ -323,11 +323,9 @@ describe('PrivacyPools v1 Unshield E2E (Real Prover)', () => {
 
     // 1. Fund alice with USDT from the whale, approve the entrypoint, deposit.
     await transferERC20FromWhale(pool.rpcUrl, erc20Address, erc20WhaleAddress, alice.address, DEPOSIT_AMOUNT);
-    expect((await approveERC20(alice, erc20Address, entrypointHex, DEPOSIT_AMOUNT)).status).toEqual(1);
+    const { txns } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
 
-    const { txns: [shieldTx] } = await protocol.prepareShield({ asset: usdtAsset, amount: DEPOSIT_AMOUNT });
-
-    expect((await sendTxAndWait(alice, shieldTx))?.status).toEqual(1);
+    expect((await sendTxnsAndWait(alice, txns))?.status).toEqual(1);
     await pool.mine(1);
 
     // 2. Approve the note via the mock ASP.

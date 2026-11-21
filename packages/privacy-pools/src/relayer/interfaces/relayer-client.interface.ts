@@ -135,7 +135,7 @@ export interface IRelayRequestBody extends Omit<IRelayRequest, 'scope' | 'chainI
   chainId: string;
 }
 
-interface IBaseRelayResponse {
+export interface IBaseRelayResponse {
   /** Timestamp of the response */
   timestamp: number;
   /** Unique request identifier (UUID) */

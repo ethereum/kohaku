@@ -119,7 +119,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     const preWithdrawalBalance = await pool.getBalance(alice.address);
 
     // 4. Broadcast — TornadoCashBroadcaster routes paymaster withdrawals to PaymasterBroadcaster
-    await broadcaster.broadcast(unshieldOp);
+    await Promise.all((await broadcaster.broadcast(unshieldOp)).map((r) => r.wait()));
     await pool.mine(1);
 
     // 5. Assert
@@ -183,7 +183,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     const preWithdrawalBalance = await getERC20Balance(pool.rpcUrl, erc20Address, alice.address);
 
     // 4. Broadcast — TornadoCashBroadcaster routes paymaster withdrawals to PaymasterBroadcaster
-    await broadcaster.broadcast(unshieldOp);
+    await Promise.all((await broadcaster.broadcast(unshieldOp)).map((r) => r.wait()));
     await pool.mine(1);
 
     // 5. Assert
@@ -286,7 +286,7 @@ describe('TornadoCash Paymaster Unshield E2E', () => {
     // Broadcast — the userOp executes both tailCalls atomically; Bob receives tokens
     const preBobBalance = await getERC20Balance(pool.rpcUrl, erc20Address, bob);
 
-    await broadcaster.broadcast(unshieldOp);
+    await Promise.all((await broadcaster.broadcast(unshieldOp)).map((r) => r.wait()));
     await pool.mine(1);
 
     // Assert: alice got her withdrawal, bob got tokens via the in-userOp transferFrom

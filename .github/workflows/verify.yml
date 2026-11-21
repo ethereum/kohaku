@@ -23,6 +23,10 @@ jobs:
           run: pnpm --filter @kohaku-eth/provider test
         - name: Run social recovery unit tests
           run: pnpm --filter @kohaku-eth/social-recovery test
+        - name: Run Privacy Pools unit tests
+          run: pnpm --filter @kohaku-eth/privacy-pools test:unit
+        - name: Run Tornado Cash unit tests
+          run: pnpm --filter @kohaku-eth/tornado-cash test:unit
         - name: Audit dependencies
           run: pnpm audit
           continue-on-error: true

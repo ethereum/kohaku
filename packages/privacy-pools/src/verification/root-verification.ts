@@ -1,31 +1,21 @@
 import { IDataService } from '../data/interfaces/data.service.interface.js';
 import { Address } from '../interfaces/types.interface.js';
 
-// Privacy Pool stores the last 64 state roots in a circular buffer on-chain.
-// This value must match the contract's ROOT_HISTORY_SIZE exactly so historical
-// root lookups wrap over the same slots as _isKnownRoot().
-const ROOT_HISTORY_SIZE = 64;
-
 /**
- * Wraps an index within a ring buffer of the given size,
- * handling negative values from lookback arithmetic.
- */
-function wrapIndex(rawIndex: number, historySize: number): number {
-  return ((rawIndex % historySize) + historySize) % historySize;
-}
-
-/**
- * Verifies that the ASP tree root matches the Entrypoint contract's latestRoot().
+ * Verifies that the ASP tree root is the Entrypoint's latestRoot() at
+ * `blockNumber`, the block the RootUpdated events were synced up to.
  *
  * The Entrypoint validates withdrawal proofs against latestRoot() with exact
- * equality — historical roots are not accepted. This check must mirror that
- * contract behavior to avoid false positives where sync passes locally but
- * proof submission reverts on-chain.
+ * equality — historical roots are not accepted — so this mirrors that check.
+ * It reads at the synced block rather than latest: the tree is the one of the
+ * last RootUpdated scanned, and a root posted after the scan would otherwise
+ * fail the whole sync. A root that moves before submission is rejected on-chain.
  */
 export async function verifyAspRootOnChain(
   dataService: IDataService,
   entrypointAddress: Address,
   expectedRoot: bigint,
+  blockNumber: bigint,
 ): Promise<void> {
   if (expectedRoot === 0n) {
     throw new Error(
@@ -33,54 +23,44 @@ export async function verifyAspRootOnChain(
     );
   }
 
-  const latestRoot = await dataService.getEntrypointLatestRoot(entrypointAddress);
+  const latestRoot = await dataService.getEntrypointLatestRoot(entrypointAddress, blockNumber);
 
   if (latestRoot === expectedRoot) {
     return;
   }
 
   throw new Error(
-    'ASP root verification failed: expected root does not match Entrypoint latestRoot ' +
-    `(expected=${expectedRoot}, latestOnChain=${latestRoot})`
+    'ASP root verification failed: expected root does not match Entrypoint latestRoot at the synced block ' +
+    `(expected=${expectedRoot}, onChain=${latestRoot}, block=${blockNumber})`
   );
 }
 
 /**
- * Verifies that the state tree root is anchored on the Pool contract.
- * Checks currentRoot() first, then walks the full ring buffer to mirror
- * the contract's _isKnownRoot() behavior.
+ * Verifies that the state tree root is the Pool's currentRoot() at `blockNumber`,
+ * the block the leaves were synced up to.
+ *
+ * Exact equality at that block, not the contract's _isKnownRoot(): a tree that
+ * is missing its newest leaves still has a root in the recent history, so
+ * accepting one would let a truncated leaf stream pass and the sync point move
+ * past the leaves it left out.
+ *
+ * An empty tree (0n) is checked too: an empty Pool's currentRoot() is 0, so a
+ * stream that dropped every leaf still fails.
  */
 export async function verifyStateRootOnChain(
   dataService: IDataService,
   poolAddress: Address,
   expectedRoot: bigint,
+  blockNumber: bigint,
 ): Promise<void> {
-  if (expectedRoot === 0n) {
-    throw new Error(
-      'State root verification called with empty root (0n) — caller must filter empty trees'
-    );
-  }
-
-  const onchainRoot = await dataService.getPoolStateRoot(poolAddress);
+  const onchainRoot = await dataService.getPoolStateRoot(poolAddress, blockNumber);
 
   if (onchainRoot === expectedRoot) {
     return;
   }
 
-  const currentIndex = await dataService.getPoolCurrentRootIndex(poolAddress);
-
-  for (let offset = 1; offset < ROOT_HISTORY_SIZE; offset++) {
-    const idx = wrapIndex(currentIndex - offset, ROOT_HISTORY_SIZE);
-
-    const root = await dataService.getPoolHistoricalRoot(poolAddress, idx);
-
-    if (root === expectedRoot) {
-      return;
-    }
-  }
-
   throw new Error(
-    'State root verification failed: root not found in Pool recent history ' +
-    `(expected=${expectedRoot}, currentOnChain=${onchainRoot})`
+    'State root verification failed: root does not match Pool currentRoot at the synced block ' +
+    `(expected=${expectedRoot}, onChain=${onchainRoot}, block=${blockNumber})`
   );
 }

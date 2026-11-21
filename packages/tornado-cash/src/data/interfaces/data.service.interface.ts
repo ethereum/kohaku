@@ -72,6 +72,8 @@ export interface IRelayerAggregatorData {
 export interface IDataService {
   getPoolEvents: GetEventsFn<typeof POOL_EVENTS_SIGNATURES, IPoolEvents>;
   getBlockNumber(): Promise<bigint>;
+  /** The chain's last finalized block; throws when the RPC cannot report one. */
+  getFinalizedBlockNumber(): Promise<bigint>;
   parsePoolEvents(events: ExternalRawEvent[]): {
     Deposited: IRawDepositEvent[];
     Withdrawn: IRawWithdrawalEvent[];
@@ -100,7 +102,14 @@ export interface IDataService {
   getGasPrice(): Promise<bigint>;
 
   getContractDeploymentBlock(address: Address, fromBlock?: bigint): Promise<bigint>;
-  getPoolStateRoot(poolAddress: Address): Promise<bigint>;
+  /** Whether `address` holds code at `block`; throws on a malformed RPC response. */
+  isContractDeployedAt(address: Address, block: bigint): Promise<boolean>;
+  /** The Pool's getLastRoot(), at `blockNumber` when given (latest otherwise). */
+  getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint>;
+  /** The Pool's nextIndex() (its leaf count) at `blockNumber`. */
+  getPoolNextIndex(poolAddress: Address, blockNumber: bigint): Promise<number>;
+  /** Alias for `getPoolNextIndex`. */
+  getPoolLeafCount(poolAddress: Address, blockNumber: bigint): Promise<number>;
   getPoolCurrentRootIndex(poolAddress: Address): Promise<number>;
   isPoolRootValid(poolAddress: Address, root: bigint): Promise<boolean>;
   getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint>;

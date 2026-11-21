@@ -30,6 +30,7 @@ function isMtLeaves(x: unknown): x is MtLeavesResponse {
 export type OxBowAspGetTreeParams = {
   chainId: bigint;
   scope: bigint;
+  signal?: AbortSignal;
 };
 
 export interface OxBowAspServiceParams extends IAspServiceParams {
@@ -48,7 +49,7 @@ export class OxBowAspService implements IAspService {
     }
   }
 
-  private async getMtLeaves({ chainId, scope }: { chainId: bigint, scope: bigint; }) {
+  private async getMtLeaves({ chainId, scope, signal }: OxBowAspGetTreeParams) {
 
     const route = `${getNumber(chainId)}/public/mt-leaves`;
 
@@ -60,6 +61,7 @@ export class OxBowAspService implements IAspService {
       this.fetch(this.buildUrl(route), {
         method: "GET",
         headers,
+        signal,
       })
         .then(x => x.json())
         .catch(e => {
@@ -80,8 +82,8 @@ export class OxBowAspService implements IAspService {
     return `${this.aspUrl}/${route}`;
   }
 
-  async getAspTreeOxBow({ chainId, scope }: OxBowAspGetTreeParams): Promise<bigint[][]> {
-    const leaves = await this.getMtLeaves({ chainId, scope });
+  async getAspTreeOxBow({ chainId, scope, signal }: OxBowAspGetTreeParams): Promise<bigint[][]> {
+    const leaves = await this.getMtLeaves({ chainId, scope, signal });
     const root = await computeMerkleTreeRoot(leaves);
 
     return [
@@ -90,7 +92,7 @@ export class OxBowAspService implements IAspService {
     ];
   }
 
-  async getAspTree(state: RootState): Promise<bigint[][]> {
+  async getAspTree(state: RootState, signal?: AbortSignal): Promise<bigint[][]> {
     const chainId = state.entrypointInfo.chainId;
     const somePool = state.pools.poolsTuples[0];
 
@@ -100,7 +102,9 @@ export class OxBowAspService implements IAspService {
 
     const [, { scope }] = somePool;
 
-    return this.getAspTreeOxBow({ chainId: BigInt(chainId), scope: BigInt(scope) });
+    // The sync thunk validates these leaves with the configured Merkle builder.
+    // Avoid an extra default/local build before an offscreen builder can run.
+    return [await this.getMtLeaves({ chainId: BigInt(chainId), scope: BigInt(scope), signal })];
   }
 
 }

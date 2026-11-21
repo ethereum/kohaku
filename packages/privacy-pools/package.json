@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/privacy-pools",
-  "version": "0.1.0-alpha.38",
+  "version": "0.1.0-alpha.41",
   "description": "Privacy Pools Shielded Pool Kohaku Plugin",
   "type": "module",
   "private": false,
@@ -69,7 +69,7 @@
     "@kohaku-eth/poseidon-lean-imt": "workspace:*",
     "@kohaku-eth/provider": "workspace:*",
     "@reduxjs/toolkit": "^2.11.2",
-    "@saga-sync/client": "^0.3.0",
+    "@saga-sync/client": "^0.4.0",
     "maci-crypto": "2.5.0",
     "ox": "^0.12.0",
     "viem": "^2.51.3"

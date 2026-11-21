@@ -1,20 +1,26 @@
 import type { EthereumProvider } from '@kohaku-eth/provider';
-import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference } from '../paymaster/gas-bounds';
+import { assertGasLimitsWithinBounds, assertGasPriceWithinBounds, readGasFeeReference, type PaymasterGasLimits } from '../paymaster/gas-bounds';
 /* eslint-disable max-lines */
 import { Prover } from "@fatsolutions/privacy-pools-core-circuits";
-import { ChainId, Network, Storage } from "@kohaku-eth/plugins";
+import { Network, Storage } from "@kohaku-eth/plugins";
 import { Store, unwrapResult } from "@reduxjs/toolkit";
 
 import { ISecretManager } from "../account/keys";
 import { E_ADDRESS } from "../config";
-import { IDataService } from "../data/interfaces/data.service.interface";
+import { IDataService, IPoolConfig } from "../data/interfaces/data.service.interface";
+import { IPool } from "../data/interfaces/events.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
+import type { DelegationConfig, ExecutionAccountConfig, UserOpGasLimits } from "../interfaces/user-ops.interface";
+import { executionAccount, executionGasBaseline } from "../account/execution-account";
 import {
   IChainsPaymastersConfig,
   IDepositOperationParams,
   IEntrypoint,
+  ExactPaymasterWithdrawal,
   IEstimateUnshieldOperationParams,
+  IExactPaymasterWithdrawalParams,
+  IPaymasterConfig,
   IGetHistoryParams,
   IGetNotesParams,
   INote,
@@ -35,11 +41,11 @@ import {
   StoreStorageKey,
 } from "../plugin/interfaces/protocol-params.interface";
 import { IRelayerClient } from "../relayer/interfaces/relayer-client.interface";
-import { computeMinimumViableFee, reasonableGasUnits, TAIL_CALLS_DEFAULT_GAS } from "../paymaster/fee";
+import { computeMinimumViableFee, paymasterBaselineGas } from "../paymaster/fee";
 import { createPaymasterBundlerClient, getUserOperationGasPrice } from "../paymaster/utils";
 import { addressToHex } from "../utils";
 import { encodeRelayData } from "../utils/encoding.utils";
-import { deductFeeBPS, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
+import { deductFeeBPS, sizeExactPaymasterWithdrawal, sizeExactRelayerWithdrawal } from "../utils/fee.utils";
 import { calculateContext } from "../utils/proof.util";
 import {
   allNotesSelector,
@@ -60,19 +66,50 @@ import {
   SpecificAssetBalanceFn,
   specificAssetsBalanceSelector,
 } from "./selectors/balance.selector";
-import { getNoteSelector } from "./selectors/notes.selector";
+import { getNoteSelector, getNotesToSpendSelector, NoteToSpend } from "./selectors/notes.selector";
 import { myHistorySelector } from "./selectors/history.selector";
-import { setVerifiedAspRoot } from "./slices/aspVerificationSlice";
-import { PublicRootState, RootState, storeFactory } from "./store";
+import {
+  ChainEntry,
+  createChainEntries,
+  GetChainStoreParams,
+  getStoreKey,
+  getStoreStorageKey,
+  sharedChainEntries,
+} from "./chain-state";
+import { ChainRootState, PublicRootState, RootState, storeFactory } from "./store";
+import { discoverUserSecretsThunk } from "./thunks/discoverUserSecretsThunk";
+import { createLoadCache, createSkipAspSyncQueue } from "./utils/async.utils";
 import { paymasterWithdrawThunk } from "./thunks/paymasterWithdrawThunk";
 import { quoteThunk } from "./thunks/quoteThunk";
 import { ragequitThunk } from "./thunks/ragequitThunk";
 import { SyncAspThunkParams } from "./thunks/syncAspThunk";
-import { syncHistoryTimestampsThunk } from "./thunks/syncHistoryTimestampsThunk";
-import { syncThunk } from "./thunks/syncThunk";
+import { SyncAspReviewThunkParams } from "./thunks/syncAspReviewThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
+import { planObfuscatedBatchWithdrawal } from '../withdrawal/batch-plan';
+import { selectNoteByLabel } from '../withdrawal/note-label';
 
-export interface StoreFactoryParams extends SyncAspThunkParams {
+/**
+ * The synced pool for `asset`, checked against the Entrypoint's live config for it.
+ *
+ * The relay fee cap is read live, as the Entrypoint checks it when the withdrawal
+ * executes, but the proof commits to the synced pool's scope. A live config for
+ * another pool means the asset's pool was replaced since the last sync: pairing
+ * that pool's fee cap with the old scope would only revert at relay time.
+ */
+const syncedPoolFor = (poolInfo: IPool | undefined, config: IPoolConfig, asset: Address): IPool => {
+  if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
+
+  if (config.poolAddress !== poolInfo.address) {
+    throw new Error(
+      `The Entrypoint's pool for asset ${asset} is not the synced one ` +
+      `(onChain=${config.poolAddress}, synced=${poolInfo.address}); sync again before withdrawing`,
+    );
+  }
+
+  return poolInfo;
+};
+
+export interface StoreFactoryParams extends SyncAspThunkParams, SyncAspReviewThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
   provider?: EthereumProvider;
   network?: Network;
@@ -86,6 +123,12 @@ export interface StoreFactoryParams extends SyncAspThunkParams {
   initialState?: () => Promise<Record<string, PublicRootState>>;
   paymasterConfig?: IChainsPaymastersConfig;
   devOptions?: PPv1DevOptions;
+  /**
+   * Where the chain state is saved. Accounts given the same storage object
+   * also share one copy of it in memory. By default the chain state goes to
+   * `storageToSyncTo`, one copy per account.
+   */
+  chainStorage?: Storage;
 }
 
 const initializeSelectors = <const T extends Store>({
@@ -112,113 +155,76 @@ const initializeSelectors = <const T extends Store>({
     },
     getPublicState: (): PublicRootState => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { userSecrets, historyMetadata, aspVerification, ...publicState } = store.getState() as RootState;
+      const { userSecrets, aspVerification, timestamps, ...publicState } = store.getState() as RootState;
 
       return publicState;
     },
   };
 };
 
-interface GetChainStoreParams {
-  chainId: ChainId;
-  entrypoint: IEntrypoint;
-}
+const NO_ASP_REVIEW: ChainRootState['aspReview'] = { flaggedTuples: [] };
 
-const getStoreKey = ({
-  chainId,
-  entrypoint: { address },
-}: GetChainStoreParams): StoreKey => `${chainId.toString()}-${address}`;
+/**
+ * The chain state as an account without a review service sees it: no review
+ * labels, even those another account sharing the chain state fetched. Built once
+ * per chain state, so the account store keeps getting the same root back.
+ */
+const withoutAspReview = (getChainState: () => ChainRootState): (() => ChainRootState) => {
+  let chain: ChainRootState | undefined;
+  let view: ChainRootState | undefined;
 
-const getStoreStorageKey = (
-  params: GetChainStoreParams,
-): StoreStorageKey => `privacy-pool-state-${getStoreKey(params)}`;
+  return () => {
+    const next = getChainState();
 
-// The user's history metadata lives apart from the public state so dumps stay user-neutral.
-const getHistoryStorageKey = (params: GetChainStoreParams) => `privacy-pool-history-${getStoreKey(params)}`;
+    if (next !== chain || !view) {
+      chain = next;
+      view = { ...next, aspReview: NO_ASP_REVIEW };
+    }
+
+    return view;
+  };
+};
 
 const storeByChainAndEntrypoint = ({
-  storageToSyncTo,
-  initialState: initialStateCallback,
   secretManager,
+  aspReviewService,
   devOptions,
-}: Pick<StoreFactoryParams, 'storageToSyncTo' | 'initialState' | 'secretManager' | 'devOptions'>) => {
-  let cachedInitialState: Record<string, PublicRootState> | undefined;
-
-  const resolveInitialState = initialStateCallback
-    ? async () => {
-        cachedInitialState ??= await initialStateCallback();
-
-        return cachedInitialState;
-      }
-    : undefined;
-
+  getChainEntry,
+}: Pick<StoreFactoryParams, 'secretManager' | 'aspReviewService' | 'devOptions'> & {
+  getChainEntry: (params: GetChainStoreParams) => Promise<ChainEntry>;
+}) => {
   type ChainStore = ReturnType<typeof initializeSelectors<ReturnType<typeof storeFactory>>>;
 
-  const chainStoreMap = new Map<StoreKey, ChainStore>();
-  // Callers that ask for a store while it is being loaded share it, instead of
-  // each building their own and all but one ending up detached from the map.
-  const chainStoreLoads = new Map<StoreKey, Promise<ChainStore>>();
+  const chainStoreMap = new Map<StoreStorageKey, ChainStore>();
+  const loadStore = createLoadCache<ChainStore>();
 
   const loadChainStore = async (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
     const {
       chainId,
       entrypoint: { address, deploymentBlock },
     } = getChainStoreParams;
-    const storageKey = getStoreStorageKey(getChainStoreParams);
-    const rawStoredState = storageToSyncTo ? await storageToSyncTo.get(storageKey) : null;
-    const storedState: PublicRootState | undefined = rawStoredState ? JSON.parse(rawStoredState) : undefined;
-    const snapshotInitialState = storedState || !resolveInitialState
-      ? undefined
-      : (await resolveInitialState())[storageKey];
-    const initialState: PublicRootState | undefined = storedState ?? snapshotInitialState;
-    const rawHistoryMetadata = storageToSyncTo
-      ? await storageToSyncTo.get(getHistoryStorageKey(getChainStoreParams))
-      : null;
-    const historyMetadata: RootState['historyMetadata'] | undefined = rawHistoryMetadata
-      ? JSON.parse(rawHistoryMetadata)
-      : undefined;
+    const chainEntry = await getChainEntry(getChainStoreParams);
+    // Holds only the account's secrets, which are derived again on every load.
     const store = storeFactory({
       entrypointInfo: { chainId, entrypointAddress: address, deploymentBlock },
-      initialState: (historyMetadata
-        ? { ...initialState, historyMetadata }
-        : initialState) as RootState | undefined,
       devOptions,
+      getChainState: aspReviewService ? chainEntry.getState : withoutAspReview(chainEntry.getState),
     });
+    const storeWithSelectors = initializeSelectors({ store, secretManager });
 
-    // On-chain verification is per session: never take it from storage or a snapshot.
-    store.dispatch(setVerifiedAspRoot(0n));
+    chainStoreMap.set(getStoreStorageKey(getChainStoreParams), storeWithSelectors);
 
-    return initializeSelectors({ store, secretManager });
+    return storeWithSelectors;
   };
 
   return {
-    getChainStore: (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> => {
-      const computedChainKey = getStoreKey(getChainStoreParams);
-      let load = chainStoreLoads.get(computedChainKey);
-
-      if (!load) {
-        load = loadChainStore(getChainStoreParams).then(
-          (storeWithSelectors) => {
-            chainStoreMap.set(computedChainKey, storeWithSelectors);
-
-            return storeWithSelectors;
-          },
-          (error: unknown) => {
-            // Let the next call retry rather than replay this failure forever.
-            chainStoreLoads.delete(computedChainKey);
-            throw error;
-          },
-        );
-        chainStoreLoads.set(computedChainKey, load);
-      }
-
-      return load;
-    },
+    getChainStore: (getChainStoreParams: GetChainStoreParams): Promise<ChainStore> =>
+      loadStore(getStoreKey(getChainStoreParams), () => loadChainStore(getChainStoreParams)),
     getAllStores: (): ReturnType<IStateManager['dumpState']> => {
       return Array.from(chainStoreMap).reduce(
-        (completeState, [chainKey, state]) => ({
+        (completeState, [storageKey, state]) => ({
           ...completeState,
-          [`privacy-pool-state-${chainKey}`]: state.getPublicState(),
+          [storageKey]: state.getPublicState(),
         }),
         {} as ReturnType<IStateManager['dumpState']>,
       );
@@ -229,74 +235,157 @@ const storeByChainAndEntrypoint = ({
 export const storeStateManager = (
   params: StoreFactoryParams,
 ): IStateManager => {
-  const { getChainStore, getAllStores } = storeByChainAndEntrypoint(params);
-  const { storageToSyncTo, secretManager } = params;
+  const { storageToSyncTo, secretManager, initialState, devOptions } = params;
+  const { chainStorage } = params;
+  const chainEntries = chainStorage ? sharedChainEntries(chainStorage) : createChainEntries();
+  const getChainEntry = (chainInfo: GetChainStoreParams) =>
+    chainEntries.get(chainInfo, { storage: chainStorage ?? storageToSyncTo, initialState, devOptions });
+  const { getChainStore, getAllStores } = storeByChainAndEntrypoint({ ...params, getChainEntry });
 
   const getChainInfo = async () => ({
     chainId: await params.dataService.getChainId(),
     entrypoint: params.entrypoint,
   });
 
-  const runSync = async (chainInfo: GetChainStoreParams): Promise<void> => {
-    const store = await getChainStore(chainInfo);
+  const planWithdrawal = (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    asset: Address, amount: bigint | undefined,
+    { batch = false, obfuscateAmounts = false, label }: { batch?: boolean; obfuscateAmounts?: boolean; label?: bigint } = {},
+  ): NoteToSpend[] | undefined => {
+    if (label != null && batch) throw new Error('`label` spends a single note and cannot be combined with `batch: true`');
 
-    unwrapResult(
-      await store.dispatch(
-        syncThunk({
-          ...params,
-          secretManager,
-        }),
-      ),
-    );
+    // A chosen note is the only candidate: it is never swapped for another one.
+    const candidates = label != null
+      ? [selectNoteByLabel(store.selectors.getAllNotes(), asset, label, amount)]
+      : undefined;
 
-    if (storageToSyncTo) {
-      await storageToSyncTo.set(
-        getStoreStorageKey(chainInfo),
-        JSON.stringify(store.getPublicState()),
-      );
-    }
+    if (!obfuscateAmounts) return candidates?.map(note => ({ note, withdrawnValue: amount ?? note.balance }));
+
+    if (amount == null) throw new Error('Protected withdrawals require an explicit amount');
+
+    const notes = planObfuscatedBatchWithdrawal(candidates ?? store.selectors.getAllNotes(), asset, amount);
+
+    if (!batch && notes.length > 1) throw new Error('Protected withdrawal needs multiple notes: use paymaster mode with batch: true');
+
+    return notes;
   };
 
-  // At most one sync per store at a time: interleaved syncs would derive and
-  // append the same note secrets twice, and one sync's root re-verification
-  // would briefly unset the verified ASP root a withdrawal is checking.
-  // A call never joins a sync that already started: that sync's head may predate
-  // a transaction the caller just saw confirmed. It waits for one follow-up sync
-  // instead, shared with every call made while the follow-up has not started.
-  const syncQueues = new Map<StoreKey, { running?: Promise<void>; queued?: Promise<void> }>();
+  /**
+   * How many notes a paymaster withdrawal of `amount` spends: the planned ones, else
+   * those paymasterWithdrawThunk selects itself.
+   */
+  const paymasterNoteCount = (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    asset: Address, amount: bigint, batch: boolean, planned: NoteToSpend[] | undefined,
+  ): number => {
+    if (planned) return planned.length;
+
+    return batch ? getNotesToSpendSelector(store.getState(), asset, amount).length : 1;
+  };
+
+  /**
+   * The execution account whose gas baseline the withdrawal builder will use: a
+   * SimpleAccount that is not deployed yet pays for its deployment in verification gas.
+   */
+  const builtExecutionAccount = async (delegation?: DelegationConfig): Promise<ExecutionAccountConfig> => {
+    const account = executionAccount(delegation);
+
+    if (account.kind !== 'simple-account' || !account.factory) return account;
+
+    const code = await params.provider?.request({ method: 'eth_getCode', params: [account.address, 'latest'] });
+
+    return typeof code === 'string' && code !== '0x' ? { ...account, factory: undefined } : account;
+  };
+
+  const chainPaymasterConfig = (chainInfo: GetChainStoreParams) => {
+    const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+
+    if (!paymasterConfig) {
+      throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
+    }
+
+    return paymasterConfig;
+  };
+
+  /** Prepares a paymaster withdrawal of `amount` from `notesToSpend`, or from the builder's own note selection. */
+  const preparePaymasterWithdrawal = async (
+    store: Awaited<ReturnType<typeof getChainStore>>,
+    paymasterConfig: IPaymasterConfig,
+    { asset, recipient, delegation, tailCalls, tailCallsGasEstimate, maxGasLimits, batch, refundRecipient }: Omit<IPaymasterWithdrawapOperationParams, 'amount'>,
+    amount: bigint | undefined,
+    notesToSpend: NoteToSpend[] | undefined,
+  ) => unwrapResult(
+    await store.dispatch(
+      paymasterWithdrawThunk({
+        getNextNote: store.selectors.getNextNote,
+        proverFactory: params.proverFactory,
+        merkleTreeBuilder: params.merkleTreeBuilder,
+        dataService: params.dataService,
+        secretManager,
+        asset,
+        amount,
+        recipient,
+        paymasterConfig,
+        delegation,
+        tailCalls,
+        tailCallsGasEstimate,
+        maxGasLimits,
+        provider: params.provider,
+        network: params.network,
+        batch,
+        notesToSpend,
+        refundRecipient,
+      }),
+    ),
+  );
+
+  /**
+   * Prices paymaster withdrawals of `asset` at the bundler's current gas price: the
+   * returned function gives the fee for a gas baseline, in the pool asset.
+   */
+  const paymasterFeeQuoter = async (chainInfo: GetChainStoreParams, asset: Address, maxGasLimits?: PaymasterGasLimits) => {
+    const { bundlerUrl, paymasterAddress } = chainPaymasterConfig(chainInfo);
+    const isERC20 = asset !== BigInt(E_ADDRESS);
+    const [{ standard: price }, reference] = await Promise.all([
+      getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
+      readGasFeeReference(params.provider),
+    ]);
+
+    assertGasPriceWithinBounds(price, reference);
+    const { maxFeePerGas } = price;
+
+    return async (gas: UserOpGasLimits) => {
+      assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
+      const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
+      const fee = isERC20
+        ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
+        : gasFeeWei;
+
+      return { fee, gasFeeWei, maxFeePerGas };
+    };
+  };
+
+  const runSync = async (chainInfo: GetChainStoreParams, skipAsp: boolean): Promise<void> => {
+    const store = await getChainStore(chainInfo);
+    const chainEntry = await getChainEntry(chainInfo);
+
+    await chainEntry.sync({ ...params, skipAsp });
+    unwrapResult(await store.dispatch(discoverUserSecretsThunk({ secretManager })));
+  };
+
+  // At most one sync per account at a time: interleaved syncs would derive and
+  // append the same note secrets twice.
+  const syncQueues = new Map<StoreKey, ReturnType<typeof createSkipAspSyncQueue>>();
 
   return {
-    sync: async (): Promise<void> => {
+    sync: async ({ skipAsp = false } = {}): Promise<void> => {
       const chainInfo = await getChainInfo();
       const storeKey = getStoreKey(chainInfo);
-      const queue = syncQueues.get(storeKey) ?? {};
+      const enqueue = syncQueues.get(storeKey) ?? createSkipAspSyncQueue();
 
-      syncQueues.set(storeKey, queue);
+      syncQueues.set(storeKey, enqueue);
 
-      if (queue.queued) return queue.queued;
-
-      const start = (): Promise<void> => {
-        const running = runSync(chainInfo).finally(() => {
-          if (queue.running === running) queue.running = undefined;
-        });
-
-        queue.running = running;
-
-        return running;
-      };
-
-      if (!queue.running) return start();
-
-      // Runs whether the current sync succeeds or fails; its callers get its outcome.
-      const queued = queue.running.catch(() => undefined).then(() => {
-        queue.queued = undefined;
-
-        return start();
-      });
-
-      queue.queued = queued;
-
-      return queued;
+      return enqueue(skipAsp, (runSkipAsp) => runSync(chainInfo, runSkipAsp));
     },
     getBalances: async (assets, balanceType) => {
       const { selectors: { specificAssetsBalanceSelector } } =
@@ -333,36 +422,17 @@ export const storeStateManager = (
       hasTailCalls = false,
       tailCallsGasEstimate,
       maxGasLimits,
+      batch = false,
     }: IEstimateUnshieldOperationParams): Promise<PPv1UnshieldEstimate> => {
       const chainInfo = await getChainInfo();
 
       if (mode === 'paymaster') {
-        const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
-
-        if (!paymasterConfig) {
-          throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
-        }
-
-        const { bundlerUrl, paymasterAddress } = paymasterConfig;
         const isERC20 = asset !== BigInt(E_ADDRESS);
-        const [{ standard: price }, reference] = await Promise.all([
-          getUserOperationGasPrice(createPaymasterBundlerClient(bundlerUrl, params.network)),
-          readGasFeeReference(params.provider),
-        ]);
-
-        assertGasPriceWithinBounds(price, reference);
-        const { maxFeePerGas } = price;
-        // Mirrors paymasterWithdrawThunk's baseline: callGasLimit only covers tail calls.
-        const gas = {
-          ...reasonableGasUnits(isERC20),
-          callGasLimit: hasTailCalls ? (tailCallsGasEstimate ?? TAIL_CALLS_DEFAULT_GAS) : 0n,
-        };
-
-        assertGasLimitsWithinBounds(gas, gas, undefined, maxGasLimits);
-        const gasFeeWei = computeMinimumViableFee(gas, maxFeePerGas);
-        const fee = isERC20
-          ? await params.dataService.quoteWeiInToken(BigInt(paymasterAddress) as Address, asset, gasFeeWei)
-          : gasFeeWei;
+        const quote = await paymasterFeeQuoter(chainInfo, asset, maxGasLimits);
+        // A batch spends as many notes as the amount needs, each after the first in
+        // the execution phase; price the same notes the withdrawal would spend.
+        const noteCount = batch ? paymasterNoteCount(await getChainStore(chainInfo), asset, amount, batch, undefined) : 1;
+        const { fee, gasFeeWei, maxFeePerGas } = await quote(paymasterBaselineGas(isERC20, noteCount, hasTailCalls, tailCallsGasEstimate));
 
         return { mode, fee, netAmount: amount - fee, gasFeeWei, maxFeePerGas };
       }
@@ -401,10 +471,14 @@ export const storeStateManager = (
       asset,
       amount,
       recipient,
+      obfuscateAmounts,
+      label,
     }: IWithdrawapOperationParams): Promise<Array<StateWithdrawalPayload>> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
-      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const note = planWithdrawal(store, asset, amount, { obfuscateAmounts, label })?.[0]?.note;
+      const poolConfig = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const { maxRelayFeeBPS } = poolConfig;
 
       const quoteResultAction = await store.dispatch(
         quoteThunk({
@@ -417,15 +491,9 @@ export const storeStateManager = (
         }),
       );
 
-      if (quoteResultAction.meta.requestStatus === "rejected") {
-        throw new Error("Failed to get quote from relayers");
-      }
-
       // quoteThunk has checked that the relay data pays `recipient` within the quoted fee.
       const { quote, relayerId, relayData } = unwrapResult(quoteResultAction);
-      const poolInfo = store.selectors.poolFromAssetSelector(asset);
-
-      if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
+      const poolInfo = syncedPoolFor(store.selectors.poolFromAssetSelector(asset), poolConfig, asset);
 
       const withdrawal = {
         processooor: addressToHex(params.entrypoint.address) as `0x${string}`,
@@ -437,10 +505,12 @@ export const storeStateManager = (
         withdrawThunk({
           getNextNote: store.selectors.getNextNote,
           proverFactory: params.proverFactory,
+          merkleTreeBuilder: params.merkleTreeBuilder,
           asset,
           amount: amount ?? 0n,
           recipient,
           context,
+          note,
         }),
       );
 
@@ -464,6 +534,8 @@ export const storeStateManager = (
       recipient,
       requestedNet,
       gasBumpBPS,
+      obfuscateAmounts,
+      label,
     }: IExactWithdrawalOperationParams): Promise<StateExactWithdrawalPayload> => {
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
@@ -475,17 +547,12 @@ export const storeStateManager = (
           asset,
           amount: requestedNet,
           recipient,
+          // The relay request embeds its own fee and omits the quote's commitment.
+          requireCommitment: false,
         }),
       );
 
-      if (quoteResultAction.meta.requestStatus === "rejected") {
-        throw new Error("Failed to get quote from relayers");
-      }
-
       const { quote, relayerId, relayData: quoted } = unwrapResult(quoteResultAction);
-      const poolInfo = store.selectors.poolFromAssetSelector(asset);
-
-      if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
 
       // Pay the caller's recipient and reuse the relayer's feeRecipient, but decompose its
       // quoted fee into the fixed base rate and the (size-independent) gas cost, then size
@@ -497,7 +564,9 @@ export const storeStateManager = (
       // headroom to it alone — not the relayer's margin. sizeExactRelayerWithdrawal keeps
       // the embedded fee at or below the on-chain maxRelayFeeBPS (the Entrypoint reverts
       // above it).
-      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const poolConfig = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const { maxRelayFeeBPS } = poolConfig;
+      const poolInfo = syncedPoolFor(store.selectors.poolFromAssetSelector(asset), poolConfig, asset);
       const quotedBaseFeeBPS = BigInt(quote.baseFeeBPS);
       // The base rate is self-reported; it cannot exceed the fee the relayer embedded.
       const baseFeeBPS = quotedBaseFeeBPS < quoted.relayFeeBps ? quotedBaseFeeBPS : quoted.relayFeeBps;
@@ -510,6 +579,7 @@ export const storeStateManager = (
         gasBumpBPS,
         maxRelayFeeBPS,
       });
+      const note = planWithdrawal(store, asset, grossAmount, { obfuscateAmounts, label })?.[0]?.note;
 
       const relayData = {
         recipient: addressToHex(recipient),
@@ -526,10 +596,12 @@ export const storeStateManager = (
         withdrawThunk({
           getNextNote: store.selectors.getNextNote,
           proverFactory: params.proverFactory,
+          merkleTreeBuilder: params.merkleTreeBuilder,
           asset,
           amount: grossAmount,
           recipient,
           context,
+          note,
         }),
       );
 
@@ -552,47 +624,45 @@ export const storeStateManager = (
         exact: { grossAmount, requestedNet, expectedNet: net, fee },
       };
     },
-    getPaymasterWithdrawalPayloads: async ({
-      asset,
-      amount,
-      recipient,
-      delegation,
-      tailCalls,
-      tailCallsGasEstimate,
-      maxGasLimits,
-      batch,
-      refundRecipient,
-    }: IPaymasterWithdrawapOperationParams) => {
+    getExactPaymasterWithdrawalPayloads: async ({ requestedNet, ...request }: IExactPaymasterWithdrawalParams): Promise<ExactPaymasterWithdrawal> => {
+      const { asset, batch = false, obfuscateAmounts = false, label, delegation, tailCalls, tailCallsGasEstimate, maxGasLimits } = request;
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
-      const paymasterConfig = params.paymasterConfig?.[Number(chainInfo.chainId)];
+      const paymasterConfig = chainPaymasterConfig(chainInfo);
+      const isERC20 = asset !== BigInt(E_ADDRESS);
+      const [quote, account] = await Promise.all([
+        paymasterFeeQuoter(chainInfo, asset, maxGasLimits),
+        builtExecutionAccount(delegation),
+      ]);
+      // One plan per amount, made outside Redux so planning errors reach the caller
+      // intact: a random split may spend a different number of notes each time, so
+      // the plan priced for the final gross is the one prepared.
+      const plans = new Map<bigint, NoteToSpend[] | undefined>();
+      const planFor = (amount: bigint) => {
+        if (!plans.has(amount)) plans.set(amount, planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label }));
 
-      if (!paymasterConfig) {
-        throw new Error(`No paymaster config for chain ${chainInfo.chainId}`);
-      }
+        return plans.get(amount);
+      };
+      const { grossAmount } = await sizeExactPaymasterWithdrawal({
+        requestedNet,
+        notesFor: (amount) => paymasterNoteCount(store, asset, amount, batch, planFor(amount)),
+        feeFor: async (noteCount) => (await quote(executionGasBaseline(account, paymasterBaselineGas(isERC20, noteCount, tailCalls != null, tailCallsGasEstimate)))).fee,
+      });
+      const payloads = await preparePaymasterWithdrawal(store, paymasterConfig, request, grossAmount, planFor(grossAmount));
 
-      return unwrapResult(
-        await store.dispatch(
-          paymasterWithdrawThunk({
-            getNextNote: store.selectors.getNextNote,
-            proverFactory: params.proverFactory,
-            dataService: params.dataService,
-            secretManager,
-            asset,
-            amount,
-            recipient,
-            paymasterConfig,
-            delegation,
-            tailCalls,
-            tailCallsGasEstimate,
-            maxGasLimits,
-            provider: params.provider,
-            network: params.network,
-            batch,
-            refundRecipient,
-          }),
-        ),
-      );
+      return { payloads, grossAmount };
+    },
+    getPaymasterWithdrawalPayloads: async ({ amount, ...request }: IPaymasterWithdrawapOperationParams) => {
+      const chainInfo = await getChainInfo();
+      const store = await getChainStore(chainInfo);
+      const paymasterConfig = chainPaymasterConfig(chainInfo);
+      const { asset, batch, obfuscateAmounts, label } = request;
+
+      // Plan outside Redux so the structured headroom error reaches the caller intact.
+      // Reuse the random allocation; preparation only adjusts it if the sponsor cannot cover its fee.
+      const notesToSpend = planWithdrawal(store, asset, amount, { batch, obfuscateAmounts, label });
+
+      return preparePaymasterWithdrawal(store, paymasterConfig, request, amount, notesToSpend);
     },
     getRagequitPayloads: async ({
       assets = [],
@@ -683,13 +753,7 @@ export const storeStateManager = (
 
       // Always refreshed, whether or not the account has events: the RPC must not
       // be able to tell from history() calls who has activity, or where.
-      unwrapResult(
-        await store.dispatch(syncHistoryTimestampsThunk({ dataService: params.dataService })),
-      );
-      await storageToSyncTo?.set(
-        getHistoryStorageKey(chainInfo),
-        JSON.stringify(store.getState().historyMetadata),
-      );
+      await (await getChainEntry(chainInfo)).refreshTimestamps(params.dataService);
 
       const history = store.selectors.getHistory();
 

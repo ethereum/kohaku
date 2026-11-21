@@ -98,11 +98,17 @@ export class DataService implements IDataService {
     toBlock,
   }) => {
 
-    const logs = await this.getLogs({
+    const fetched = await this.getLogs({
       address: pad(toHex(address), { size: 20 }),
       fromBlock,
       ...(toBlock !== undefined ? { toBlock } : {}),
     });
+    // A source can answer past the requested range (an indexer chunk straddling
+    // it, a provider ignoring the bounds). Those logs belong to another scan:
+    // earlier ones were already stored, later ones are fetched by the next sync,
+    // and stored here they would sit outside the pruning that rescans from the cursor.
+    const logs = fetched.filter(({ blockNumber }) =>
+      blockNumber >= fromBlock && (toBlock === undefined || blockNumber <= toBlock));
 
     return {
       ...parseLogs(logs.map(txLogToRpcLog), events),
@@ -171,6 +177,20 @@ export class DataService implements IDataService {
     return this.ethClient.getBlockNumber();
   }
 
+  async getFinalizedBlockNumber(): Promise<bigint> {
+    const block = await this.ethClient.request({
+      method: "eth_getBlockByNumber",
+      params: ["finalized", false],
+    }) as { number?: string } | null;
+
+    // No fallback to a fixed depth: a guess too shallow would let a reorg back in.
+    if (!block?.number) {
+      throw new Error("Failed to fetch the finalized block");
+    }
+
+    return BigInt(block.number);
+  }
+
   async getChainId() {
 
     const chainIdHex = await this.ethClient.request({
@@ -190,26 +210,12 @@ export class DataService implements IDataService {
     return Number(BigInt(nonceHex));
   }
 
-  async getPoolStateRoot(poolAddress: Address): Promise<bigint> {
-    return this.ethClient.makeContractRequest(poolAddress, "pool", "currentRoot");
+  async getPoolStateRoot(poolAddress: Address, blockNumber?: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', poolAddress, "pool", "currentRoot");
   }
 
-  async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {
-    return Number(
-      await this.ethClient.makeContractRequest(poolAddress, "pool", "currentRootIndex")
-    );
-  }
-
-  async getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint> {
-    return this.ethClient.makeContractRequest(poolAddress, "pool", "roots", BigInt(index));
-  }
-
-  async getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint> {
-    return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "latestRoot");
-  }
-
-  async getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint> {
-    return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "rootByIndex", BigInt(index));
+  async getEntrypointLatestRoot(entrypointAddress: Address, blockNumber?: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', entrypointAddress, "entrypoint", "latestRoot");
   }
 
   async quoteWeiInToken(

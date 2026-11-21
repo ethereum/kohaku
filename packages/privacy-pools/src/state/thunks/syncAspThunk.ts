@@ -1,14 +1,21 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { IAspService } from '../../data/asp.interface.js';
-import { computeMerkleTreeRoot, SNARK_SCALAR_FIELD } from '../../utils/proof.util';
+import { computeMerkleTreeRoot, type MerkleTreeBuilder, SNARK_SCALAR_FIELD } from '../../utils/proof.util';
 import { isAspRootUpToDateSelector } from '../selectors/asp.selector';
 import { aspLeavesRootSelector } from '../selectors/merkle.selector';
 import { registerAspTree } from '../slices/aspSlice';
 import { RootState } from '../store';
 import { lastUpdateRootEventSelector } from '../selectors/slices.selectors';
+import { withTimeout } from '../utils/async.utils';
+
+// The sync waits for the tree, and a ragequit's sync queues behind a running one,
+// so a stalled service must not hold them. Longer than the review feed's: the
+// tree is one larger download.
+export const ASP_TREE_TIMEOUT_MS = 30_000;
 
 export interface SyncAspThunkParams {
   aspService: IAspService;
+  merkleTreeBuilder?: MerkleTreeBuilder;
 }
 
 /**
@@ -18,7 +25,7 @@ export interface SyncAspThunkParams {
  * The root does not commit to the leaf count, though: a service can still pass
  * an upper level of the real tree off as its leaves, which hides every label.
  */
-const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint): Promise<bigint[]> => {
+const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint, builder?: MerkleTreeBuilder): Promise<bigint[]> => {
   const leaves = aspTree.at(0) ?? [];
 
   // Poseidon reduces its inputs, so `label + p` would build the same root while
@@ -27,7 +34,7 @@ const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint): Promise
     throw new Error('ASP tree rejected: a leaf is not a SNARK field element');
   }
 
-  const root = leaves.length > 0 ? await computeMerkleTreeRoot(leaves) : 0n;
+  const root = leaves.length > 0 ? await computeMerkleTreeRoot(leaves, builder) : 0n;
 
   if (root !== expectedRoot) {
     throw new Error(
@@ -39,23 +46,26 @@ const checkedLeaves = async (aspTree: bigint[][], expectedRoot: bigint): Promise
   return leaves;
 };
 
+/**
+ * Whether the stored leaves are those of the last RootUpdated event.
+ * Stored leaves are re-checked too: a state saved by an older version, or a
+ * shared snapshot, may hold leaves that do not build the root stored with them.
+ */
+export const isAspTreeCurrent = async (state: RootState, merkleTreeBuilder?: MerkleTreeBuilder): Promise<boolean> =>
+  isAspRootUpToDateSelector(state) && await aspLeavesRootSelector(state, merkleTreeBuilder) === lastUpdateRootEventSelector(state)?.root;
+
 export const syncAspThunk = createAsyncThunk<void, SyncAspThunkParams, { state: RootState }>(
   'sync/asp',
-  async ({ aspService }, { getState, dispatch }) => {
+  async ({ aspService, merkleTreeBuilder }, { getState, dispatch }) => {
     const state = getState();
     const lastUpdateRootEvent = lastUpdateRootEventSelector(state);
 
-    if (!lastUpdateRootEvent) {
+    if (!lastUpdateRootEvent || await isAspTreeCurrent(state, merkleTreeBuilder)) {
       return;
     }
 
-    // Stored leaves are re-checked too: a state saved by an older version, or a
-    // shared snapshot, may hold leaves that do not build the root stored with them.
-    if (isAspRootUpToDateSelector(state) && await aspLeavesRootSelector(state) === lastUpdateRootEvent.root) {
-      return;
-    }
-
-    const leaves = await checkedLeaves(await aspService.getAspTree(state), lastUpdateRootEvent.root);
+    const aspTree = await withTimeout(ASP_TREE_TIMEOUT_MS, 'ASP service', (signal) => aspService.getAspTree(state, signal));
+    const leaves = await checkedLeaves(aspTree, lastUpdateRootEvent.root, merkleTreeBuilder);
 
     dispatch(registerAspTree({
       leaves,

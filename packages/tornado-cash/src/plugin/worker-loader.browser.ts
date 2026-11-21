@@ -2,7 +2,7 @@ import { wrap } from 'comlink';
 import type { WorkerApi } from '../state/state-manager-api';
 
 export function loadStateManagerWorker(workerUrl?: string | URL) {
-  const url = workerUrl ?? new URL('../state/state-manager.worker.js', import.meta.url);
+  const url = workerUrl ?? new URL('./state-manager.worker.js', import.meta.url);
   const worker = new Worker(url, { type: 'module' });
 
   return {

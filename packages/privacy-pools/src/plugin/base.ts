@@ -37,6 +37,7 @@ import {
   PPv1PublicOperation,
   PPv1RelayerPrivateOperation,
   PPv1PaymasterUnshieldOptions,
+  PPv1RelayerUnshieldOptions,
   PPv1ShieldEstimate,
   PPv1ViewOptions,
   PPv1UnshieldEstimate,
@@ -96,22 +97,28 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
   private entrypoint: IEntrypoint;
   private relayersList: Map<string, string>;
   private relayerClient: IRelayerClient;
-  // Wallet paths the integrator named in `delegation.path`.
+  // Wallet paths the integrator named in `delegation.path`, allowed only while an
+  // unshield naming them is being prepared. Counted, so overlapping preparations
+  // on one path keep it until the last of them settles.
   private readonly delegationPaths = new Set<string>();
+  private readonly delegationGrants = new Map<string, number>();
 
   constructor(
     readonly host: Host,
     {
       accountIndex = 0,
       initialState,
+      chainStorage,
       secretManager = SignatureSecretManager,
       stateManager: stateManagerFactory = storeStateManager,
       entrypoint,
       relayersList = {},
       ipfsUrl,
       aspServiceFactory = () => new IPFSAspService({ network: host.network, ipfsUrl }),
+      aspReviewServiceFactory,
       relayerClientFactory = () => new RelayerClient({ network: host.network }),
       proverFactory = Prover,
+      merkleTreeBuilder,
       paymasterConfig = PrivacyPoolsPaymasterConfigs,
       dataService = new DataService({ provider: host.provider }),
       devOptions,
@@ -131,12 +138,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
     this.stateManager = stateManagerFactory({
       initialState,
+      chainStorage,
       secretManager: this.secretManager,
       aspService: aspServiceFactory(),
+      aspReviewService: aspReviewServiceFactory?.(),
       dataService,
       relayerClient: this.relayerClient,
       relayersList: this.relayersList,
       proverFactory,
+      merkleTreeBuilder,
       storageToSyncTo: host.storage,
       entrypoint,
       paymasterConfig,
@@ -195,12 +205,12 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
 
     await this.stateManager.sync();
 
-    const tx = await this.stateManager.getDepositPayload({
+    const txns = await this.stateManager.getDepositPayload({
       asset: BigInt(asset.contract),
       amount,
     });
 
-    return { txns: [tx] } as PPv1PublicOperation;
+    return { txns } as PPv1PublicOperation;
   }
 
   /**
@@ -236,6 +246,7 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       hasTailCalls: !!options?.tailCalls,
       tailCallsGasEstimate: options?.tailCallsGasEstimate,
       maxGasLimits: options?.maxGasLimits,
+      batch: options?.batch,
     });
   }
 
@@ -276,10 +287,15 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     });
   }
 
+  /**
+   * Builds the transactions that exit the given notes. The contract does not
+   * consult the ASP for a ragequit, so neither does this: it works while the ASP
+   * service is down.
+   */
   async ragequit(
     labels: INote['label'][]
   ) {
-    await this.stateManager.sync();
+    await this.stateManager.sync({ skipAsp: true });
 
     const ragequitRawPayloads = await this.stateManager.getRagequitByLabelPayloads({
       labels,
@@ -315,6 +331,9 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
    * payer/change address keeps the recipient at exactly `requestedNet`, while pointing it
    * at the recipient over-delivers (then `operation.exact.expectedNet` is a lower bound).
    */
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options: PPv1PaymasterUnshieldOptions): Promise<PPv1PaymasterPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>;
+  async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>;
   async prepareUnshield(assets: AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation> {
     if (options?.exact) {
       return this.prepareExactUnshield(assets, to, options);
@@ -354,6 +373,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       recipient: BigInt(to),
       requestedNet,
       gasBumpBPS: options.exact?.gasBumpBPS ?? DEFAULT_EXACT_GAS_BUMP_BPS,
+      obfuscateAmounts: options.obfuscateAmounts ?? false,
+      label: options.label,
     });
 
     // The recipient's net is fixed by the gross and embedded fee we chose, so it must
@@ -391,9 +412,18 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       );
     }
 
-    const estimate = await this.estimateUnshield(assets, to, options);
-    const grossAmount = requestedNet + estimate.fee;
-    const operation = await this.buildUnshield(assets, grossAmount, to, options);
+    // Sized against the notes the gross will spend, so sync first.
+    await this.stateManager.sync();
+
+    const { payloads: [withdrawal], grossAmount } = await this.withDelegationPath(this.delegationPath(options), () =>
+      this.stateManager.getExactPaymasterWithdrawalPayloads({
+        ...this.paymasterWithdrawalParams(this.unshieldAssetAddress(assets), to, options),
+        requestedNet,
+      }));
+
+    if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
+
+    const operation: PPv1PrivateOperation = { mode: 'paymaster', withdrawal } as PPv1PaymasterPrivateOperation;
     const { expectedNet, fee } = resolveExactOutput(operation, grossAmount);
 
     if (expectedNet < requestedNet) {
@@ -405,12 +435,54 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     return operation;
   }
 
+  /** The integrator named this wallet key, so the secret manager may derive exactly it. */
+  private delegationPath(options: PPv1PaymasterUnshieldOptions): string | undefined {
+    return options.delegation?.mode === 'deterministic' ? options.delegation.path : undefined;
+  }
+
+  private paymasterWithdrawalParams(asset: bigint, to: AccountId, options: PPv1PaymasterUnshieldOptions) {
+    return {
+      asset,
+      recipient: BigInt(to),
+      delegation: options.delegation,
+      tailCalls: options.tailCalls,
+      tailCallsGasEstimate: options.tailCallsGasEstimate,
+      maxGasLimits: options.maxGasLimits,
+      batch: options.batch,
+      obfuscateAmounts: options.obfuscateAmounts ?? false,
+      label: options.label,
+      refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
+    };
+  }
+
   private unshieldAssetAddress(assets: AssetAmount): bigint {
     if (assets.asset.__type === 'native') {
       throw new Error("Unshielding native assets is not supported in this version of the protocol");
     }
 
     return BigInt(assets.asset.contract);
+  }
+
+  // The delegator is derived while the payload is prepared, so the path is
+  // allowed for that call only, whether it succeeds or not.
+  private async withDelegationPath<T>(path: string | undefined, prepare: () => Promise<T>): Promise<T> {
+    if (!path) return prepare();
+
+    this.delegationGrants.set(path, (this.delegationGrants.get(path) ?? 0) + 1);
+    this.delegationPaths.add(path);
+
+    try {
+      return await prepare();
+    } finally {
+      const left = this.delegationGrants.get(path)! - 1;
+
+      if (left > 0) {
+        this.delegationGrants.set(path, left);
+      } else {
+        this.delegationGrants.delete(path);
+        this.delegationPaths.delete(path);
+      }
+    }
   }
 
   private async buildUnshield(
@@ -424,22 +496,10 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
     await this.stateManager.sync();
 
     if (options?.mode === 'paymaster') {
-      // The integrator named this wallet key, so the secret manager may derive exactly it.
-      if (options.delegation?.mode === 'deterministic' && options.delegation.path) {
-        this.delegationPaths.add(options.delegation.path);
-      }
-
-      const [withdrawal] = await this.stateManager.getPaymasterWithdrawalPayloads({
-        asset: assetAddress,
+      const [withdrawal] = await this.withDelegationPath(this.delegationPath(options), () => this.stateManager.getPaymasterWithdrawalPayloads({
+        ...this.paymasterWithdrawalParams(assetAddress, to, options),
         amount,
-        recipient: BigInt(to),
-        delegation: options.delegation,
-        tailCalls: options.tailCalls,
-        tailCallsGasEstimate: options.tailCallsGasEstimate,
-        maxGasLimits: options.maxGasLimits,
-        batch: options.batch,
-        refundRecipient: options.refundRecipient != null ? BigInt(options.refundRecipient) : undefined,
-      });
+      }));
 
       if (!withdrawal) throw new Error("We failed to create a paymaster withdrawalPayload");
 
@@ -450,6 +510,8 @@ export class PrivacyPoolsV1Protocol implements PPv1Instance {
       asset: assetAddress,
       amount,
       recipient: BigInt(to),
+      obfuscateAmounts: options?.obfuscateAmounts ?? false,
+      label: options?.label,
     });
 
     if (!result) throw new Error("We failed to create a withdrawalPayload");

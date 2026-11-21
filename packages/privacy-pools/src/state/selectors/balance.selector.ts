@@ -19,9 +19,10 @@ export const myDepositsWithAssetSelector = createSelector(
       .map(([precommitment, deposit]) => {
         const entrypointDeposit = entrypointDepositsMap.get(deposit.commitment);
 
-        if (!entrypointDeposit) return undefined;
+        // The asset follows the pool whose verified leaves hold the deposit.
+        if (entrypointDeposit?.poolAddress !== deposit.pool) return undefined;
 
-        const pool = poolsMap.get(entrypointDeposit.poolAddress);
+        const pool = poolsMap.get(deposit.pool);
 
         if (!pool) return undefined;
 

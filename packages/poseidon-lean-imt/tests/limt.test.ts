@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { LeanIMT as ZkLeanIMT } from '@zk-kit/lean-imt';
 import { poseidonT3 } from '@kohaku-eth/poseidon';
-import { PoseidonT3LeanIMT as LeanIMT } from '../src/index.ts';
+import { PoseidonT3LeanIMT as LeanIMT, parallelLevels } from '../src/index.ts';
 
 const p = 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001n;
 
@@ -127,6 +127,23 @@ describe('LeanIMT', () => {
 });
 
 describe('LeanIMT.fromLeavesParallel', () => {
+  it('restores an independent local tree from transferred levels', async () => {
+    const leaves = [5n, 7n, 5n];
+    const levels = await parallelLevels(leaves, 2);
+    const transferred = structuredClone(levels);
+    const ours = LeanIMT.fromLevels(transferred);
+    const theirs = new ZkLeanIMT(poseidonT3, leaves);
+
+    expect(ours.indexOf(5n)).toBe(0);
+    expect(ours.generateProof(2)).toEqual(theirs.generateProof(2));
+
+    ours.insert(9n);
+    theirs.insert(9n);
+
+    expect(ours.root).toBe(theirs.root);
+    expect(transferred).toEqual(levels);
+  });
+
   it('builds the same tree as the sync build', async () => {
     // More workers than leaves, an odd last leaf, a power of two; 3 workers gives
     // uneven runs.
@@ -183,6 +200,7 @@ describe('LeanIMT.fromLeavesParallel', () => {
 
     for (const workers of [0, -1, 1.5]) {
       await expect(LeanIMT.fromLeavesParallel(range(10), { workers })).rejects.toThrow(/workers must be a positive integer/);
+      await expect(parallelLevels(range(10), workers)).rejects.toThrow(/workers must be a positive integer/);
     }
     const negative = range(100);
 

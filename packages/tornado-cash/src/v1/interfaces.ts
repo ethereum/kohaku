@@ -1,13 +1,12 @@
 import type { PaymasterGasLimits } from '../paymaster/gas-bounds';
 import type { GasEstimationPolicy } from '../interfaces/user-ops.interface';
-import { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
 import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote, ImportNoteResult } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
 import { DepositStrategy } from '../state/thunks/getDepositPayloadThunk.js';
 import { IRelayerFeeConfig } from "../state/slices/relayersSlice.js";
-import { IPaymasterBroadcasterClient } from "../relayer/interfaces/paymaster-client.interface.js";
+import { IPaymasterBroadcasterClient, PaymasterBroadcastResult } from "../relayer/interfaces/paymaster-client.interface.js";
 export { DepositStrategy };
 export type { TCNote, ImportNoteResult };
 
@@ -16,7 +15,24 @@ export type TCBroadcasterParameters = {
     paymasterConfig?: IChainsPaymastersConfig;
     paymasterClientFactory?: () => IPaymasterBroadcasterClient
 };
-export type TCBroadcaster = Broadcaster<TCPrivateOperation, ITornadoWithdrawResponse[]>;
+/** `id` is the userOp hash, known as soon as the bundler accepts the userOp. */
+export interface TCPaymasterBroadcastResponse extends ITornadoWithdrawResponse, Pick<PaymasterBroadcastResult, 'wait'> {}
+
+export type TCBroadcaster = {
+    /**
+     * Resolves with one response per withdrawal, in input order.
+     * @throws {PaymasterBroadcastError} If the bundler did not accept a userOp
+     * (a paymaster operation has one withdrawal; any single-withdrawal operation
+     * throws its own error, if it is an `Error`).
+     * @throws {TornadoBroadcastError} If some of several withdrawals failed to
+     * broadcast, or a single one failed with a non-Error. Its `results` hold
+     * every withdrawal's outcome, in input order, including the responses of
+     * those that were sent.
+     */
+    broadcast(operation: TCPrivateOperation<'paymaster'>): Promise<TCPaymasterBroadcastResponse[]>;
+    broadcast(operation: TCPrivateOperation<'relayer'>): Promise<ITornadoWithdrawResponse[]>;
+    broadcast(operation: TCPrivateOperation): Promise<(TCPaymasterBroadcastResponse | ITornadoWithdrawResponse)[]>;
+};
 interface TCBaseCredential {
     accountIndex: number;
 }
@@ -41,7 +57,8 @@ export interface TCRelayerUnshieldOptions extends UnshieldOptions {
 export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
     /**
      * Single notes without tail calls pay the recipient and gas refund directly,
-     * with zero execution gas. Default 'best-effort': on mainnet/Sepolia, these
+     * with zero execution gas, independently of the sender's account family.
+     * Default 'best-effort': on mainnet/Sepolia, these
      * direct withdrawals (including random/external senders), or execution-phase
      * withdrawals with a recoverable sender and no user tail calls, may return
      * marked fallback on bundler unavailability or the zero-execution estimator
@@ -58,6 +75,13 @@ export interface TCPaymasterUnshieldOptions extends UnshieldOptions {
      * static callGasLimit.
      */
     tailCallsGasEstimate?: bigint;
+    /**
+     * Opt in to at most three extra probes for execution out-of-gas errors: a
+     * bundler rejection with code -32521 whose message says out of gas.
+     * Requires a positive maxGasLimits.callGasLimit. Rebuilds the fee,
+     * proof and signature for each probe; defaults to false.
+     */
+    executionGasRetry?: boolean;
     /** Absolute gas ceilings after buffering. Execution gas is uncapped unless explicitly limited here. */
     maxGasLimits?: PaymasterGasLimits;
 }

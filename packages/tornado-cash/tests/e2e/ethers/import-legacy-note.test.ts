@@ -200,7 +200,7 @@ describe('TornadoCash Import Legacy Note E2E', () => {
       { mode: 'paymaster' },
     );
 
-    await broadcaster.broadcast(unshieldOp);
+    await Promise.all((await broadcaster.broadcast(unshieldOp)).map((r) => r.wait()));
     await pool.mine(1);
 
     const [{ amount: postTCBalance }] = await userProtocol.balance([nativeAsset]);

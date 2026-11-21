@@ -1,4 +1,4 @@
-import { Address, Commitment, Label, Nullifier, Precommitment } from "../../interfaces/types.interface";
+import { Address, AspReviewStatus, Commitment, Label, Nullifier, Precommitment } from "../../interfaces/types.interface";
 
 interface IBaseEvent {
   blockNumber: bigint;
@@ -22,6 +22,7 @@ export interface IPoolDepositEvent extends IPoolEvent {
 export interface IIndexedDepositEvent extends IPoolDepositEvent {
   index: number;
   approved: boolean;
+  reviewStatus: AspReviewStatus;
 }
 
 export interface IDepositWithAsset extends IIndexedDepositEvent {

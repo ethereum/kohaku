@@ -41,8 +41,10 @@ export class EthClient {
 
         const logs: TxLog[] = [];
 
+        // Ranges are inclusive: each chunk spans `maxQuerySize` blocks, so no
+        // block is requested twice.
         for (let start = fromBlock; start <= toBlock; start += maxQuerySize) {
-            const rawEnd = start + maxQuerySize;
+            const rawEnd = start + maxQuerySize - 1n;
             const end = rawEnd < toBlock ? rawEnd : toBlock;
             const result = await this.provider.getLogs({
                 address: params.address as `0x${string}`,
@@ -76,6 +78,23 @@ export class EthClient {
         functionName: FunctionName,
         ...args: ArgsArray
     ): Promise<DecodeFunctionResultReturnType<Abi, FunctionName>> {
+        return this.makeContractRequestAt('latest', contractAddress, contractName, functionName, ...args);
+    }
+
+    /** Like makeContractRequest, but reads the contract's state at `block`. */
+    async makeContractRequestAt<
+        Contract extends keyof typeof abis,
+        Abi extends typeof abis[Contract],
+        FunctionName extends ContractFunctionName<Abi>,
+        Args extends EncodeFunctionDataParameters<Abi, FunctionName>['args'],
+        ArgsArray extends Args extends undefined ? [] : Args extends ReadonlyArray<unknown> ? Args : []
+    >(
+        block: bigint | 'latest',
+        contractAddress: Address,
+        contractName: Contract,
+        functionName: FunctionName,
+        ...args: ArgsArray
+    ): Promise<DecodeFunctionResultReturnType<Abi, FunctionName>> {
         const abi = abis[contractName];
         const data = encodeFunctionData({
             abi,
@@ -88,7 +107,7 @@ export class EthClient {
             params: [{
                 to: toHex(contractAddress, { size: 20 }),
                 data
-            }, 'latest'],
+            }, block === 'latest' ? block : toHex(block)],
         });
 
         return decodeFunctionResult({
