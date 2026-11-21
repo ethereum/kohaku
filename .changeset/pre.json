@@ -168,6 +168,7 @@
     "tornado-host-bridge",
     "tornado-instance-catalog",
     "tornado-paymaster-broadcast-outcome",
+    "tornado-positive-withdrawal-amount",
     "tornado-relayer-destinations",
     "tornado-relayer-fee-caps",
     "tornado-relayer-reward-account",

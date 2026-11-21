@@ -1,3 +1,9 @@
+## 0.1.0-alpha.39
+
+### Patch Changes
+
+- b6a67fa: Reject an explicit zero or negative unshield amount instead of selecting every available note. Omitting the amount still selects all notes.
+
 ## 0.1.0-alpha.38
 
 ### Patch Changes
