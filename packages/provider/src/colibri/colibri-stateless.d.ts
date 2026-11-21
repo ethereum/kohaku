@@ -109,6 +109,12 @@ declare module '@corpus-core/colibri-stateless' {
         LOCAL = 4,
     }
 
+    export const Strategy: {
+        VerifiedOnly: ProofStrategy;
+        VerifyIfPossible: ProofStrategy;
+        WarningWithFallback: ProofStrategy;
+    };
+
     class Colibri {
         constructor(config?: Partial<Config>);
         request(args: RequestArguments): Promise<unknown>;
