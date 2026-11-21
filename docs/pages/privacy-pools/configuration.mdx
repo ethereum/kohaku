@@ -33,6 +33,8 @@ Both return an object with `prepareShield`, `prepareUnshield`, `balance`, `notes
 | `1` | Ethereum mainnet |
 | `11155111` | Sepolia |
 
+Pool replacement for the same asset is not currently supported by SDK withdrawals or ragequit. The SDK keeps historical pools and some exit paths choose a pool by asset instead of by the note's original pool. If the Entrypoint owner plans to replace an asset pool, update the SDK and plan exits for notes in both pools before the replacement; do not assume syncing the new registration makes existing notes routable.
+
 ```ts
 const deployment = PrivacyPoolsV1_0xBow[1]
 
@@ -202,7 +204,7 @@ const pools = new PrivacyPoolsV1Protocol(host, {
 
 The `/v2` index also carries each event's transaction hash, so synced events have their real `transactionHash`. The root index omits it and those events get `0n`.
 
-Pool leaves are checked against the on-chain root, so a bad leaf stream fails the sync. Entrypoint events from the CDN have no such root. The RPC tail after the CDN's head still comes from `host.provider`.
+Pool leaves are checked against the on-chain root, which catches missing or reordered canonical leaves. This does not prove that every value from the CDN is canonical: a noncanonical leaf can hash to the same root yet prevent the SDK from finding a note for an inclusion proof. Treat the CDN as a trusted event source; if its data is suspect, clear the cached state and resync from the chain RPC as described in [state recovery](/privacy-pools/state). Entrypoint events from the CDN have no root checkpoint. The RPC tail after the CDN's head still comes from `host.provider`.
 
 Sepolia is not in that mainnet index. Leave `dataService` unset there and let the plugin scan with `eth_getLogs`. `initialState` can still drop a snapshot into storage so the first scan starts near the tip:
 

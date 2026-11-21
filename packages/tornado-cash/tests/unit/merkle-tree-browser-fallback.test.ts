@@ -35,6 +35,8 @@ const loadBuildTree = async () =>
 describe('browser buildTree', () => {
   beforeEach(() => {
     vi.resetModules();
+    // Vitest's Node environment may report one browser core, which skips workers.
+    vi.stubGlobal('navigator', { hardwareConcurrency: 2 });
     FailingWorker.created = 0;
     FailingWorker.posted = 0;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
