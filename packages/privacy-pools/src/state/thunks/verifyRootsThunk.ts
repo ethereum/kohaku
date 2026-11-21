@@ -14,7 +14,7 @@ import { Address } from '../../interfaces/types.interface.js';
 
 export interface VerifyRootsThunkParams {
   dataService: IDataService;
-  /** The block the pool leaves are synced up to; pool roots are read at it. */
+  /** The block the pool leaves and RootUpdated events are synced up to; every root is read at it. */
   blockNumber: bigint;
   /** Pass false to check only the pools, leaving the verified ASP root unset. */
   verifyAspRoot?: boolean;
@@ -70,7 +70,7 @@ export const verifyRootsThunk = createAsyncThunk<void, VerifyRootsThunkParams, {
     // reads — run them concurrently instead of awaiting one at a time.
     await Promise.all([
       ...(aspRoot !== 0n
-        ? [verifyAspRootOnChain(dataService, entrypointAddress, aspRoot)
+        ? [verifyAspRootOnChain(dataService, entrypointAddress, aspRoot, blockNumber)
           .then(() => { dispatch(setVerifiedAspRoot(aspRoot)); })]
         : []),
       ...stateRootChecks.map(({ poolAddress, localRoot }) =>

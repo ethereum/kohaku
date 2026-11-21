@@ -92,8 +92,6 @@ const setupDataService = async ({ aspRoot, late = false }: { aspRoot?: bigint; l
     getPoolEvents: scan(withLate(poolEvents, latePoolEvents)),
     getAsset: vi.fn(async (address: Address) => ({ address, name: 'T', symbol: 'T', decimals: 18 })),
     getPoolStateRoot: vi.fn(async (): Promise<bigint> => stateRoot),
-    getPoolCurrentRootIndex: vi.fn(async () => 0),
-    getPoolHistoricalRoot: vi.fn(async () => 0n),
     getEntrypointLatestRoot: vi.fn(async (): Promise<bigint> => aspRoot ?? 0n),
     getBlockTimestamp: vi.fn(async (block: bigint) => block * 12n),
   };

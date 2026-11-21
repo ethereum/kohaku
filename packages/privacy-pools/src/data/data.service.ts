@@ -214,22 +214,8 @@ export class DataService implements IDataService {
     return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', poolAddress, "pool", "currentRoot");
   }
 
-  async getPoolCurrentRootIndex(poolAddress: Address): Promise<number> {
-    return Number(
-      await this.ethClient.makeContractRequest(poolAddress, "pool", "currentRootIndex")
-    );
-  }
-
-  async getPoolHistoricalRoot(poolAddress: Address, index: number): Promise<bigint> {
-    return this.ethClient.makeContractRequest(poolAddress, "pool", "roots", BigInt(index));
-  }
-
-  async getEntrypointLatestRoot(entrypointAddress: Address): Promise<bigint> {
-    return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "latestRoot");
-  }
-
-  async getEntrypointRootByIndex(entrypointAddress: Address, index: number): Promise<bigint> {
-    return this.ethClient.makeContractRequest(entrypointAddress, "entrypoint", "rootByIndex", BigInt(index));
+  async getEntrypointLatestRoot(entrypointAddress: Address, blockNumber?: bigint): Promise<bigint> {
+    return this.ethClient.makeContractRequestAt(blockNumber ?? 'latest', entrypointAddress, "entrypoint", "latestRoot");
   }
 
   async quoteWeiInToken(

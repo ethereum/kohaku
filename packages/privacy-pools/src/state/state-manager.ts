@@ -7,7 +7,8 @@ import { Store, unwrapResult } from "@reduxjs/toolkit";
 
 import { ISecretManager } from "../account/keys";
 import { E_ADDRESS } from "../config";
-import { IDataService } from "../data/interfaces/data.service.interface";
+import { IDataService, IPoolConfig } from "../data/interfaces/data.service.interface";
+import { IPool } from "../data/interfaces/events.interface";
 import { relayDataAbi } from "../data/abis/entrypoint.abi";
 import { Address } from "../interfaces/types.interface";
 import type { DelegationConfig, ExecutionAccountConfig, UserOpGasLimits } from "../interfaces/user-ops.interface";
@@ -86,6 +87,27 @@ import { SyncAspReviewThunkParams } from "./thunks/syncAspReviewThunk";
 import { withdrawThunk } from "./thunks/withdrawThunk";
 import { planObfuscatedBatchWithdrawal } from '../withdrawal/batch-plan';
 import { selectNoteByLabel } from '../withdrawal/note-label';
+
+/**
+ * The synced pool for `asset`, checked against the Entrypoint's live config for it.
+ *
+ * The relay fee cap is read live, as the Entrypoint checks it when the withdrawal
+ * executes, but the proof commits to the synced pool's scope. A live config for
+ * another pool means the asset's pool was replaced since the last sync: pairing
+ * that pool's fee cap with the old scope would only revert at relay time.
+ */
+const syncedPoolFor = (poolInfo: IPool | undefined, config: IPoolConfig, asset: Address): IPool => {
+  if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
+
+  if (config.poolAddress !== poolInfo.address) {
+    throw new Error(
+      `The Entrypoint's pool for asset ${asset} is not the synced one ` +
+      `(onChain=${config.poolAddress}, synced=${poolInfo.address}); sync again before withdrawing`,
+    );
+  }
+
+  return poolInfo;
+};
 
 export interface StoreFactoryParams extends SyncAspThunkParams, SyncAspReviewThunkParams {
   /** Supplied by the plugin, independently of a custom data service. */
@@ -455,7 +477,8 @@ export const storeStateManager = (
       const chainInfo = await getChainInfo();
       const store = await getChainStore(chainInfo);
       const note = planWithdrawal(store, asset, amount, { obfuscateAmounts, label })?.[0]?.note;
-      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const poolConfig = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const { maxRelayFeeBPS } = poolConfig;
 
       const quoteResultAction = await store.dispatch(
         quoteThunk({
@@ -470,9 +493,7 @@ export const storeStateManager = (
 
       // quoteThunk has checked that the relay data pays `recipient` within the quoted fee.
       const { quote, relayerId, relayData } = unwrapResult(quoteResultAction);
-      const poolInfo = store.selectors.poolFromAssetSelector(asset);
-
-      if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
+      const poolInfo = syncedPoolFor(store.selectors.poolFromAssetSelector(asset), poolConfig, asset);
 
       const withdrawal = {
         processooor: addressToHex(params.entrypoint.address) as `0x${string}`,
@@ -532,9 +553,6 @@ export const storeStateManager = (
       );
 
       const { quote, relayerId, relayData: quoted } = unwrapResult(quoteResultAction);
-      const poolInfo = store.selectors.poolFromAssetSelector(asset);
-
-      if (!poolInfo) throw new Error(`No pool found for asset ${asset}`);
 
       // Pay the caller's recipient and reuse the relayer's feeRecipient, but decompose its
       // quoted fee into the fixed base rate and the (size-independent) gas cost, then size
@@ -546,7 +564,9 @@ export const storeStateManager = (
       // headroom to it alone — not the relayer's margin. sizeExactRelayerWithdrawal keeps
       // the embedded fee at or below the on-chain maxRelayFeeBPS (the Entrypoint reverts
       // above it).
-      const { maxRelayFeeBPS } = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const poolConfig = await params.dataService.getPoolForAsset(params.entrypoint.address, asset);
+      const { maxRelayFeeBPS } = poolConfig;
+      const poolInfo = syncedPoolFor(store.selectors.poolFromAssetSelector(asset), poolConfig, asset);
       const quotedBaseFeeBPS = BigInt(quote.baseFeeBPS);
       // The base rate is self-reported; it cannot exceed the fee the relayer embedded.
       const baseFeeBPS = quotedBaseFeeBPS < quoted.relayFeeBps ? quotedBaseFeeBPS : quoted.relayFeeBps;

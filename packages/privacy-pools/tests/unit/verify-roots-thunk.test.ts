@@ -94,6 +94,7 @@ describe('verifyRootsThunk', () => {
       dataService,
       entrypointAddress,
       await computeMerkleTreeRoot([44n, 55n]),
+      blockNumber,
     );
     expect(verifiedAspRootSelector(store.getState())).toBe(await computeMerkleTreeRoot([44n, 55n]));
     expect(verifyStateRootOnChain).toHaveBeenCalledTimes(1);

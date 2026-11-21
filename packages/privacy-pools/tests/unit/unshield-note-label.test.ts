@@ -68,7 +68,7 @@ const note = (label: bigint, balance: bigint, overrides: Partial<INote> = {}): I
 function setup() {
   const stateManager = storeStateManager({
     entrypoint: { address: 1n, deploymentBlock: 0n },
-    dataService: { getChainId: async () => 1n, getPoolForAsset: async () => ({ maxRelayFeeBPS: 1000n }), quoteWeiInToken: async (_paymaster: bigint, _asset: bigint, wei: bigint) => wei },
+    dataService: { getChainId: async () => 1n, getPoolForAsset: async () => ({ poolAddress: 2n, maxRelayFeeBPS: 1000n }), quoteWeiInToken: async (_paymaster: bigint, _asset: bigint, wei: bigint) => wei },
     secretManager: {},
     paymasterConfig: { 1: { bundlerUrl: 'unused', paymasterAddress: '0x000000000000000000000000000000000000fee1', poolsAccountsMap: {} } },
   } as unknown as StoreFactoryParams);
