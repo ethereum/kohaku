@@ -1,6 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { generateMimcMerkleProof, type MimcMerkleProof } from '@kohaku-eth/mimc-tree';
+import type { MimcMerkleProof } from '@kohaku-eth/mimc-tree';
+import { generateMimcMerkleProof } from '#merkle-tree';
 import { poolCommitmentsSelector, poolMerkleTreeSelector } from './pools.selector';
 import { Address, Commitment } from '../../interfaces/types.interface';
 
@@ -23,5 +24,6 @@ export const stateMerkleProofSelector = async (
 ): Promise<MimcMerkleProof> => {
   const tree = await poolMerkleTreeSelector(state, poolAddress);
 
+  // Use the tree builder's copy of MerkleTree across the worker bundle boundary.
   return generateMimcMerkleProof(tree, commitment);
 };
