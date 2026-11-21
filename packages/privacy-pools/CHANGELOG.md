@@ -1,5 +1,61 @@
 # @kohaku-eth/privacy-pools
 
+## 0.1.0-alpha.41
+
+### Patch Changes
+
+- 5b92dd0: Privacy Pools ERC-20 shields now include the approval. `prepareShield` returned only the Entrypoint deposit, which reverts without a prior allowance, so a wallet sending the returned `txns` as-is could not shield ERC-20 tokens. The plan is now `approve(entrypoint, amount)` followed by the deposit. Native deposits are unchanged.
+
+  For tokens whose `approve` reverts when changing one nonzero allowance to another (mainnet USDT), both packages first reset the allowance to zero. A leftover allowance, for example from a deposit that reverted after its approval, no longer blocks the next shield.
+
+  Custom Privacy Pools state managers: `getDepositPayload` now returns `TxData[]`, the shield plan in order, instead of a single `TxData`.
+
+- ac396bc: Split `eth_getLogs` scans into chunks of exactly `maxQuerySize` blocks. Ranges are inclusive, so each chunk used to span one block more than intended and every chunk boundary was fetched twice.
+- 02ce3e2: Bound Tornado's worker bundler bridge responses at 10 MiB, matching viem's existing limit before copying the body. Bound ASP review responses at 16 MiB, 100 rows per page and 78 digits per decimal field. Streaming hosts are checked while reading; text-only hosts are checked after reading.
+
+  Limit Tornado shield preparations and legacy note imports to 1,000 notes per call. Reject note strings above 1,024 characters and require the exact 62-byte preimage before decoding. Parser errors no longer echo private note strings. Larger shield/import requests can be split into separate calls.
+
+- 86cba90: Only the exact `Already known` send rejection counts as a resend of an accepted paymaster operation. Before, any message containing "already known", such as "not already known", was reported as accepted; those are now `not-accepted`.
+- 86cba90: Paymaster broadcasting no longer trusts bundler replies as-is. Before, a malformed or mismatched reply could be reported as an accepted or mined withdrawal. The send must now answer with the signed userOp hash; an `eth_getUserOperationByHash` result counts only for the same EntryPoint with every signed field and the signature of this userOp, and no signed field it was not sent with, so a different userOp pending with the same nonce does not count; and a receipt counts only for the same userOp, with a boolean `success` and a transaction hash; a receipt in a reverted bundle transaction, or one without a status, is rejected whether it reports success or a revert. Anything else is `unconfirmed`.
+- e6e5038: Paymaster withdrawals are signed for the configured `entryPointAddress`. Before, the user operation was always signed for the standard EntryPoint v0.8 while being estimated and submitted for the configured one, so a custom EntryPoint was rejected by the bundler, and refused by an external signer scoped to it. `buildSignedUserOp` and `buildSignedTornadoUserOp` (and their simulation variants) now take a required `entryPointAddress`.
+- 86cba90: `PaymasterBroadcastError` messages, and Privacy Pools gas-estimation errors, no longer include bundler-provided text, including revert reasons. A bundler can echo the signed operation there in any form, so the messages only name the failure, with the JSON-RPC error code (only an integer one) and the ERC-4337 `AAxx` code when present. A malformed revert reason no longer prevents a reverted operation from being reported as `reverted` with its transaction hash.
+- 747e8fa: Paymaster fee quotes now price the notes a batch withdrawal spends. `estimateUnshield` takes `batch` and prices each note after the first as an execution-phase withdrawal, as the built operation does; before, it always priced a single note. Exact-output paymaster withdrawals with `batch: true` reprice until the fee-inclusive gross spends exactly the notes its fee covers, so a request whose fee pushes the gross over a note boundary is no longer rejected with `PPv1ExactOutputError`. With `obfuscateAmounts`, the random split that was priced is the one prepared, and an undeployed SimpleAccount sender's deployment gas is priced too.
+- 6555ce9: Paymaster withdrawals with an execution phase (`tailCalls` or batched notes) no longer sign an unverified execution budget. Before, a zero `tailCallsGasEstimate` produced a `callGasLimit` of zero, and an unavailable bundler estimate fell back to baseline gas. Either way, the calls could run out of gas after the payout reached the sender, leaving the funds there.
+
+  - `tailCallsGasEstimate` must be a positive bigint, in `prepareUnshield` and `estimateUnshield`.
+  - An execution phase requires successful bundler estimation with a positive `callGasLimit`, and the refined limits are estimated again before the SDK proves and signs.
+  - Single-note withdrawals without `tailCalls` keep the baseline fallback, since nothing runs after their payout.
+
+- bb2d541: When the bundler refuses a paymaster withdrawal, `broadcast()` checks whether the sender's EntryPoint nonce or EIP-7702 authorization nonce moved past the one the withdrawal was signed for (a lower reading, from a lagging provider, keeps the bundler's error): the sender sent a transaction, or another withdrawal from the same sender landed first. If so, its `not-accepted` `PaymasterBroadcastError` carries `staleNonce` (`{ kind: 'entry-point' | 'authorization', signed, current }`, type `StaleSenderNonce`) so an app can tell this case apart without parsing a generic bundler error. Another operation from the sender may have spent the same notes, so callers should confirm earlier outcomes and sync before preparing another withdrawal.
+- 8b1f9bc: Paymaster withdrawal preparation no longer sends an executable UserOperation to the bundler. Before, `eth_estimateUserOperationGas` received the signed operation with real proofs, so a bundler could submit it before `broadcast()`, even for a dry run or a declined confirmation.
+
+  Gas estimation now uses a simulation payload: a dummy account signature, a dummy EIP-7702 authorization, and dummy Groth16 proofs with random nullifier (and, for Privacy Pools, commitment) hashes. This applies to the sponsoring note and to batched `withdraw` calls. State overrides make each pool's verifier run its real code at a shadow address and return `true`, so the estimate includes real verification gas plus about 3k. After the limits converge, the SDK proves each note and signs once, locally.
+
+  - The configured bundler must support `eth_estimateUserOperationGas` state overrides (Pimlico and Alto do). Preparation reads each pool's verifier address and code from the host provider.
+  - External and smart-account signers get one signature prompt, after estimation. Before, each refinement round needed a signature. An invalid or rejected signature now stops preparation after estimation instead of before.
+
+- 6555ce9: Paymaster withdrawals call the `tailCalls` callback once per preparation and reuse its calls for every estimate and the signed operation. Before, the callback ran again on every rebuild, so a callback that answered differently could produce signed calls that were never estimated and run out of gas after the payout reached the sender.
+
+  The callback must resolve to an array of `{ to, value, data }` calls with a valid address, a non-negative bigint `value` and hex `data`. Anything else stops preparation before estimation or proving. The SDK copies the calls, so later changes to the returned objects have no effect.
+
+- 86cba90: A lost paymaster send response can now be recovered by hash for smart-account senders. Tornado Cash payloads carry `userOpHash`, and `serializedUserOperationHash` accepts a chain id and includes SimpleAccount deployment fields, which are part of the signed hash.
+- 4f991b4: A paymaster unshield's `delegation.path` is now allowed on the scoped keystore only while that unshield is being prepared. Before, every path ever named stayed allowed for the life of the protocol instance, including invalid ones and those of failed preparations, and each key derivation scanned all of them.
+- 4f991b4: Requires `@saga-sync/client` 0.4.0, which rejects a saga record whose `blockNumber` or `logIndex` is not minimal `0x`-hex or whose `logIndex` is past `Number.MAX_SAFE_INTEGER`. Up to 0.3.0 such a record reached the saga log source, where converting it threw outside any catch and failed every sync, since each sync streams the pool from block 0.
+- 070ffb4: A sync on an RPC whose head is behind the last scanned head now leaves the state untouched, instead of pruning unfinalized events it cannot scan again or requesting an inverted block range, which real nodes reject. Pools are always scanned from the sync cursor rather than from the data source's reported registration block, so a forged registration block can no longer skip a pool's history.
+- 2758845: Verify each pool's rebuilt state root against `currentRoot()` read at the synced block, instead of accepting any root in the Pool's recent history. A leaf stream missing its newest leaves, or all of them, now fails the sync rather than advancing the sync point past them: a pool with no stored leaves is checked as an empty tree. A stream with a hole in its leaf indices fails before any on-chain read. When the RPC's head is behind the sync point, nothing is scanned and only the ASP root is checked. `verifyStateRootOnChain` and `verifyRootsThunk` take the synced block number, `verifyRootsThunk` takes `verifyPoolRoots`, and `IDataService.getPoolStateRoot` accepts an optional block number.
+- 6d6eccd: Relayer quotes are dropped before ranking when their fee commitment has expired or carries no signed commitment. Quotes are collected until every relayer has answered or for 5 seconds after the first valid one, and every quote is checked for expiry at the moment of ranking, so a relayer cannot win by answering late with a longer-lived quote after the others expire, and one that never answers no longer stalls the selection. Before, such a quote could win on price and fail at the relayer only after the withdrawal was proved. Exact-output withdrawals, which omit the commitment, still accept unsigned quotes.
+- 5071d52: Bound relayer responses to 64 KiB and apply deadlines through body reading: 30 seconds for quotes and fee lookups, three minutes for relay submission. Check HTTP status and require a valid success acknowledgement with a transaction hash, request ID and timestamp. Reject oversized withdrawal data before ABI decoding.
+
+  A relay acknowledgement is not a confirmed receipt. A timeout or invalid reply does not prove that submission failed; check the chain before resubmitting.
+
+- 5022972: Sync drops everything after the last finalized block and scans it again, so a reorg can no longer leave events from an abandoned branch in the state. A state saved by an earlier version is rewound once, `LEGACY_REWIND_BLOCKS` below its saved head. Pool wind-downs are now recorded for pools registered in an earlier sync. `IDataService` gains `getFinalizedBlockNumber()`.
+- ceda047: When a protected batch's random sponsor slice cannot cover its paymaster fee, randomly increase that slice while retaining at least 1% change and reduce the other slices without changing the gross amount. Rebuild simulated direct withdrawals after any adjustment and reuse the allocation for the final proofs. Fees exceeding the sponsoring note's protected capacity still fail.
+- 9e15aa5: Scan and register pool events in batches of four instead of fetching and retaining every pool's results at once. Build event arrays with loops instead of spreading large arrays into function arguments. A failed batch still fails the sync without advancing its cursor; completed batches are pruned and replayed on retry as before.
+
+  This limits concurrent pool scans and temporary cross-pool results; the size of an individual pool's response is unchanged.
+
+- ac396bc: Only count a saga stream's events from the requested contract as that pool's leaves. A protocol's stream can carry several contracts' events, and one that decoded as the pool's `Deposited` or `Withdrawn` used to become a leaf and shift every later leaf index.
+
 ## 0.1.0-alpha.40
 
 ### Patch Changes
