@@ -146,6 +146,10 @@ export const getWithdrawableDepositsSelector = createSelector(
     (_state: RootState, _assetAddress: Address, amount?: bigint) => amount,
   ],
   (unspentDepositsByPool, pools, assetAddress, amount): IIndexedDepositWithSecrets[] => {
+    if (amount !== undefined && amount <= 0n) {
+      throw new Error('Withdrawal amount must be positive.');
+    }
+
     // Pools sorted from biggest to lowest denomination
     const poolsToWithdrawFrom = Array.from(pools.values())
       .filter((p) => p.asset === assetAddress)
@@ -160,7 +164,7 @@ export const getWithdrawableDepositsSelector = createSelector(
 
     for (const pool of poolsToWithdrawFrom) {
       // If we would withdraw over the request amount we skip the pool
-      if (amount && amountToWithdraw + pool.denomination > amount) {
+      if (amount !== undefined && amountToWithdraw + pool.denomination > amount) {
         continue;
       }
 
@@ -168,7 +172,7 @@ export const getWithdrawableDepositsSelector = createSelector(
 
       for (const deposit of poolDeposits) {
         // If we would withdraw over the requested amount we skip this pool
-        if (amount && amountToWithdraw + pool.denomination > amount) {
+        if (amount !== undefined && amountToWithdraw + pool.denomination > amount) {
           break;
         }
 
@@ -178,7 +182,7 @@ export const getWithdrawableDepositsSelector = createSelector(
       }
     }
 
-    if (amount && amountToWithdraw < amount) {
+    if (amount !== undefined && amountToWithdraw < amount) {
       const exact = findExactDeposits(poolsToWithdrawFrom, unspentDepositsByPool, amount);
 
       if (exact) return exact;

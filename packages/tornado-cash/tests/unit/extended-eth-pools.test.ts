@@ -334,6 +334,18 @@ it('selects four 0.03 ETH notes for 0.12 ETH instead of getting stuck after a 0.
   expect(selected).toEqual(unspent.get(small.address));
 });
 
+it('rejects explicit nonpositive withdrawal amounts while omitted amount selects all notes', () => {
+  const instance = pool(CLASSIC, ETH);
+  const notes = [{ commitment: 1n }, { commitment: 2n }] as IIndexedDepositWithSecrets[];
+  const unspent = new Map([[instance.address, notes]]);
+  const pools = new Map([[instance.address, instance]]);
+  const select = (amount?: bigint) => getWithdrawableDepositsSelector.resultFunc(unspent, pools, 0n, amount);
+
+  expect(select()).toEqual(notes);
+  expect(() => select(0n)).toThrow('Withdrawal amount must be positive.');
+  expect(() => select(-1n)).toThrow('Withdrawal amount must be positive.');
+});
+
 describe('deposit denomination packing', () => {
   const classicPointOne = 0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fcn as Address; // 0.1 ETH
 

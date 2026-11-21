@@ -177,6 +177,10 @@ The worker cannot read fields (`keystore.mnemonic`), replace methods, or constru
 
 Nothing in the SDK loads plugins at runtime. If your wallet loads plugin code it did not bundle, run it in its own worker, iframe, or process. Give it a `scopeKeystore` keystore, its own storage, and a filtered `network`.
 
+## Application input limits
+
+Keep Tornado `balance`/`notes` asset-filter lists small, especially when they come from a UI or another untrusted caller; the selectors process every entry. Normal Privacy Pools broadcasting sends one paymaster withdrawal, and Tornado broadcasts a batch sequentially. The internal paymaster client submits every item concurrently if an integration calls it directly with an array, so keep any such batch small. The SDK does not currently impose a list-length limit or a limit inside that client.
+
 ## Checklist
 
 - `fetch` returns real HTTP responses and throws only when there is no response.
@@ -186,3 +190,4 @@ Nothing in the SDK loads plugins at runtime. If your wallet loads plugin code it
 - The provider's chain id matches the deployment config.
 - The secret manager stays the one that created existing notes.
 - A Tornado CDN, if you have one, is `externalSyncProvider`. RPC remains the tail.
+- The application bounds Tornado asset-filter lists and any direct paymaster-client batches it assembles.
