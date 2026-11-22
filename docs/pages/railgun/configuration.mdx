@@ -1,0 +1,51 @@
+# Configuration
+
+`createRailgunPlugin` connects a Kohaku host to the Railgun deployment on the host's chain. The current WASM catalog has Ethereum mainnet (`1`) and Sepolia (`11155111`).
+
+```ts
+import { createRailgunPlugin } from '@kohaku-eth/railgun'
+import type { Host } from '@kohaku-eth/plugins'
+
+export async function openRailgun(host: Host, rpcUrl: string, bundlerUrl: string) {
+  return createRailgunPlugin(host, {
+    rpcUrl,
+    bundlerUrl,
+    accountIndex: 0,
+    accountSigningPath: "m/44'/60'/0'/0/0",
+  })
+}
+```
+
+`rpcUrl` is the chain RPC used by Rust sync and proof preparation. It must serve the same chain as `host.provider`. `bundlerUrl` is the ERC-4337 bundler used for paymaster gas estimation and private operation submission. The bundler must support state overrides for `eth_estimateUserOperationGas`.
+
+`accountIndex` selects Railgun spending and viewing keys. The plugin asks `host.keystore.deriveAt` for `m/44'/1984'/0'/0'/{accountIndex}'` and `m/420'/1984'/0'/0'/{accountIndex}'`. The first follows the Railgun hash-chain derivation implemented by `MnemonicKeystore`; use a keystore that produces the same keys on every launch. `accountSigningPath` selects the separate EOA key that signs EIP-7702 UserOperations. Keep this path stable and recoverable. Native unshield and follow-up calls require the recipient to be this execution account.
+
+## Host network
+
+The Node and browser workers send their HTTP requests back through `host.network.fetch`. That includes RPC, Subsquid history, PPOI, circuit artifacts, and bundler estimation. The broadcaster also uses this host transport. Route it through the network privacy policy your wallet promises the user. The plugin uses `host.provider` to identify and check the chain. Your wallet can use the provider to watch the public shield transactions. See [The host](/host) for the complete interface.
+
+The package ships both Node and browser WASM bundles. Its conditional worker loader selects a Node worker thread or a browser Web Worker. Browser bundlers must serve the worker script and WASM asset from the installed package. The package exports the worker scripts for asset handling; its own loader resolves them with `new URL(..., import.meta.url)`. Open a plugin once per account and call `close()` after its awaited work is finished.
+
+## Checkpoint storage
+
+The plugin stores a Rust checkpoint under `railgun-v1:{chainId}:{lowercaseRailgunAddress}:{accountIndex}` in `host.storage`. The checkpoint contains private note material and computed Merkle nodes. The plugin encrypts and authenticates it with AES-256-GCM before calling `host.storage.set`. It derives the encryption key from the Railgun viewing key with HKDF-SHA-256, binds the storage scope as authenticated data, and uses a fresh nonce on every save. It rejects plaintext and unknown checkpoint envelopes on open.
+
+Give each wallet a private storage namespace and persist writes atomically. Host-level encryption and access controls remain useful for other wallet data; the plugin's authenticated envelope protects its own checkpoint from disclosure or undetected edits. Back up this value with the keystore keys. The lower-level `RailgunWorkerWallet` does not apply this envelope: callers of that API must encrypt and authenticate their own persisted checkpoints.
+
+The plugin writes the checkpoint after sync, PPOI processing, and private operation preparation, including coherent partial state after a failed operation. A storage write failure rejects the operation. The old combined SDK or CLI `rg-storage.json` format is not imported automatically. Keep that file intact and rebuild a separate Railgun checkpoint by syncing chain history with the same keys.
+
+## Circuit artifacts
+
+Rust uses its pinned default circuit source. Set `artifactBaseUrl` when your wallet hosts or caches those artifacts:
+
+```ts
+await createRailgunPlugin(host, {
+  rpcUrl,
+  bundlerUrl,
+  accountIndex: 0,
+  accountSigningPath: "m/44'/60'/0'/0/0",
+  artifactBaseUrl: 'https://your-artifact-mirror.example/railgun',
+})
+```
+
+Circuit files and proving keys are large. Cache validated downloads rather than fetching them for every operation. The host fetch adapter determines where these requests go.

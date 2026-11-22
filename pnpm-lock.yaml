@@ -388,7 +388,27 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@24.13.2)(lightningcss@1.32.0)(supports-color@8.1.1)
 
-  packages/railgun: {}
+  packages/railgun:
+    dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../plugins
+      '@kohaku-eth/provider':
+        specifier: workspace:*
+        version: link:../provider
+    devDependencies:
+      '@types/node':
+        specifier: ^24.12.2
+        version: 24.13.2
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.16)(supports-color@8.1.1)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.2)(@vitest/browser@3.2.6)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(tsx@4.22.5)(yaml@2.9.0)
 
   packages/social-recovery:
     dependencies:

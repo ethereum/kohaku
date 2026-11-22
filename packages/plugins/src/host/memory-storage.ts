@@ -1,4 +1,4 @@
-import { Storage } from "./index";
+import type { Storage } from "./index.js";
 
 /**
  * Simple in-memory implementation of the host Storage interface.

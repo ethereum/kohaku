@@ -1,0 +1,71 @@
+# Shield and unshield
+
+`@kohaku-eth/railgun` is a Kohaku wallet plugin backed by the Railgun Rust wallet and WASM. It prepares public shield transactions and signed ERC-4337 private operations. It supports Ethereum mainnet and Sepolia.
+
+This page is the short path. [Configuration](/railgun/configuration) covers keys, transport, and checkpoints. [Sync, notes, and PPOI](/railgun/state) covers spendability. [Private operations](/railgun/operations) covers transfers, fees, and broadcast recovery.
+
+:::warning
+`@kohaku-eth/railgun` is still undergoing audits. Test with small amounts before relying on it for funds.
+:::
+
+## Open the plugin
+
+```ts
+import { createRailgunBroadcaster, createRailgunPlugin } from '@kohaku-eth/railgun'
+
+const railgun = await createRailgunPlugin(host, {
+  rpcUrl,
+  bundlerUrl,
+  accountIndex: 0,
+  accountSigningPath: "m/44'/60'/0'/0/0",
+})
+
+const railgunAddress = await railgun.instanceId() // 0zk…
+```
+
+`host` implements [`Host`](/host) and must have private, persistent storage. The plugin encrypts and authenticates its checkpoint before storing it. The two Railgun note keys come from `accountIndex`; `accountSigningPath` is a separate EOA for the EIP-7702 execution account. The plugin checks the RPC and host provider chain against its deployment catalog. Both URLs must be routed according to your wallet's network privacy policy.
+
+## Shield
+
+ETH uses `{ __type: 'native' }` in Railgun. The amount is in wei. The public account pays it into the Railgun smart wallet:
+
+```ts
+const eth = {
+  asset: { __type: 'native' as const },
+  amount: 10_000_000_000_000_000n, // 0.01 ETH
+}
+
+const { txns } = await railgun.prepareShield(eth)
+for (const tx of txns) {
+  const hash = await signer.sendTransaction(tx)
+  await publicClient.waitForTransactionReceipt({ hash })
+}
+```
+
+`txns` is an ordered list of `{ to, data, value }` calls. Submit and confirm each from the user's public account. A shield to another Railgun address passes that `0zk…` address as the second argument. `prepareShieldMulti` builds several entries, and the Rust builder may reorder shield calls: use the returned transaction order. For ERC-20, the plugin includes approval transactions before the shield calls. [Private operations](/railgun/operations) has the token details.
+
+## Balance
+
+```ts
+const balances = await railgun.balance()
+const notes = await railgun.notes()
+```
+
+Both methods sync by default and return PPOI status. A note must be `Valid` before the Rust wallet will spend it. The first sync can take time because it replays chain history. Persist the encrypted checkpoint in `host.storage` so later calls resume from it. See [sync and PPOI](/railgun/state).
+
+## Unshield
+
+The unshield amount is the desired recipient amount. Rust adds the Railgun treasury fee and prepares a paymaster-sponsored EIP-7702 UserOperation. Its proof and signed operation are returned only after the updated checkpoint has been saved.
+
+```ts
+const recipient = executionAccountAddress // address of accountSigningPath
+const operation = await railgun.prepareUnshield(eth, recipient)
+const submitted = await createRailgunBroadcaster(host).broadcast(operation)
+const receipt = await submitted.wait()
+if (!receipt.success) throw new Error('Railgun UserOperation reverted')
+await railgun.sync()
+```
+
+For native unshield, `recipient` must be the EOA selected by `accountSigningPath`; the operation unwraps the chain's wrapped base token. An ERC-20 unshield can name another EVM recipient. `broadcast()` returns after bundler acceptance, while `wait()` polls for an included receipt. A receipt with `success: false` is a failed operation. See [private operations](/railgun/operations) for retries and follow-up calls.
+
+Call `railgun.close()` after its awaited work is done.

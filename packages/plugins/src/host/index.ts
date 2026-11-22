@@ -1,10 +1,10 @@
-import { Hex } from "ox/Hex";
-import { EthereumProvider } from "@kohaku-eth/provider";
-export { MemoryStorage } from "./memory-storage";
-export { MnemonicKeystore } from "./mnemonic-keystore";
-export { parseDerivationPath } from "./derivation-path";
-export { scopeKeystore, KeystorePathNotAllowedError } from "./scoped-keystore";
-export type { KeystoreScope } from "./scoped-keystore";
+import type { Hex } from "ox/Hex";
+import type { EthereumProvider } from "@kohaku-eth/provider";
+export { MemoryStorage } from "./memory-storage.js";
+export { MnemonicKeystore } from "./mnemonic-keystore.js";
+export { parseDerivationPath } from "./derivation-path.js";
+export { scopeKeystore, KeystorePathNotAllowedError } from "./scoped-keystore.js";
+export type { KeystoreScope } from "./scoped-keystore.js";
 
 export type Host = {
     network: Network;

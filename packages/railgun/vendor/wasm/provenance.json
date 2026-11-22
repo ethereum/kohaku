@@ -1,0 +1,19 @@
+{
+  "sourceRepository": "https://github.com/ethereum/kohaku-rs",
+  "sourceBaseCommit": "fdd197bdd120a08d57882ff8a6e92f38a6c1f39d",
+  "sourceDirty": true,
+  "sourcePatchSha256": "1e80e12a7f9e83ad67b8e0f2eb4443bc5234b41008da746c45c39a7e77bdece4",
+  "sourceTreeSha256": "9a36c03dc58c8d048c5308494a08bb39fe8214955d735fddcf0d5236b43e704c",
+  "crate": "kohaku-railgun-wasm",
+  "target": "wasm32-unknown-unknown",
+  "profile": "release",
+  "wasmBindgenVersion": "wasm-bindgen 0.2.108",
+  "nodeBindingsSha256": "f32b8eb817640025ee0a773b17b4121487f982b9e4138c2fa126ab71dc7dba5f",
+  "nodeDeclarationsSha256": "7ef107d2f8951572bfaddaad2acf5e602e15139e8c3e04be54e85b7bc7cdc53d",
+  "nodeWasmDeclarationsSha256": "416e28abb4db8f439cb9cdb84e829162ff2e4ed373dcdaddd059ac441df6d2ad",
+  "nodeWasmSha256": "a492ed61df0e8d2b477cce62ec362ec1e8d9a21444b027c4f109dd39188c1014",
+  "webBindingsSha256": "ed1258bf554583c9c37ab528d97e47a6d4063f86630b7a53712b052117f72d7a",
+  "webDeclarationsSha256": "45a6976161bd00c959cacc01acab0480fc283fe15a784661b6adf9db2c9edc58",
+  "webWasmDeclarationsSha256": "416e28abb4db8f439cb9cdb84e829162ff2e4ed373dcdaddd059ac441df6d2ad",
+  "webWasmSha256": "a492ed61df0e8d2b477cce62ec362ec1e8d9a21444b027c4f109dd39188c1014"
+}

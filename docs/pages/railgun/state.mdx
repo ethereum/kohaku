@@ -1,0 +1,39 @@
+# Sync, notes, and PPOI
+
+Railgun sync recovers encrypted notes and keeps UTXO, TXID, and proof-of-innocence (PPOI) trees. The first sync can replay the deployment's full history. Later calls resume from the encrypted checkpoint in `host.storage`.
+
+```ts
+const railgun = await openRailgun(host, rpcUrl, bundlerUrl)
+const balances = await railgun.balance()
+const notes = await railgun.notes()
+```
+
+`balances` and `notes` carry PPOI status. A note with `Valid` status is eligible for a private spend. `Missing`, `ProofSubmitted`, `ShieldBlocked`, and `Unavailable` are not spendable. Keep the individual statuses visible when a displayed total includes value that cannot yet be used.
+
+## Resumable first sync
+
+For a long initial scan, advance in bounded block windows and persist between them. `syncHistoryTo(block)` reads history through that block without refreshing global PPOI data after every window. Call `refreshPoi()` after the last history window. `syncTo(block)` is available when a bounded full sync is more convenient. The plugin persists the checkpoint after each completed step.
+
+```ts
+for (const endBlock of historyWindowEnds) {
+  await railgun.syncHistoryTo(endBlock)
+}
+await railgun.refreshPoi()
+```
+
+Choose the window ends from the chain's deployment block through a verified current block. The RPC and Subsquid sources still need to cover that history. If a window fails, reopen the same account and resume from the last persisted checkpoint.
+
+## Submit pending PPOI proofs
+
+Sync can queue missing historical proofs. Submission is an explicit step:
+
+```ts
+const report = await railgun.processPendingPoi()
+// report.submitted, report.waitingForTxid, report.waitingForInputPoi,
+// report.failed, report.pendingAfter
+await railgun.sync()
+```
+
+`report.submitted` means a PPOI node received a proof. It does **not** mean the note is `Valid`. Only a later PPOI list sync that observes inclusion establishes `Valid`. A blocked shield cannot become valid by retrying the same submission. The Rust wallet refuses to spend a note without valid PPOI status.
+
+`notes()` exposes the note's commitment and status. `RailgunProtocol.poiStatusPerList(blindedCommitment)` and the lower-level `RailgunWorkerWallet` expose each list's status when you need it. Keep checkpoints private when displaying or exporting these details.

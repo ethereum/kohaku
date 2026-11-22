@@ -1,0 +1,113 @@
+diff --git a/crates/railgun/wasm/README.md b/crates/railgun/wasm/README.md
+index 8c8128d..abef1bd 100644
+--- a/crates/railgun/wasm/README.md
++++ b/crates/railgun/wasm/README.md
+@@ -16,7 +16,8 @@ sync, proof generation, PPOI recovery, and paymaster `UserOperation` preparation
+ - `new Shield(chain)` collects `addErc20(recipient, token, amount)` and
+   `addNative(recipient, amount)` entries. `build()` returns plain `{to, data,
+   value}` transaction objects. It uses fresh cryptographic randomness for
+-  each shield and consumes the builder.
++  each shield and consumes the builder. Each amount must be positive and below
++  the protocol's 120-bit note limit.
+ - `PoiSession.open(chain, rpcUrl, spendingKey, viewingKey, checkpointJson?,
+   artifactBaseUrl?)` restores a wallet or starts a full resync. The RPC chain
+   ID is checked against `chain`. The optional artifact base URL can point to a
+@@ -25,6 +26,8 @@ sync, proof generation, PPOI recovery, and paymaster `UserOperation` preparation
+   UTXOs, TXIDs, and PPOI lists, then queue missing historical proofs. A fresh
+   checkpoint replays chain history. Use bounded sync
+   windows for resumable first syncs.
++- `syncHistoryTo(block)` advances only UTXO history in bounded windows; call
++  `refreshPoi()` after the last window to refresh TXIDs and PPOI lists.
+ - `processPendingPoiJson()` generates and submits queued proofs. Its report
+   distinguishes submitted proofs, TXIDs not yet indexed, inputs awaiting POI,
+   and failures. Submission is **not** PPOI acceptance: sync the lists again
+diff --git a/crates/railgun/wasm/src/shield.rs b/crates/railgun/wasm/src/shield.rs
+index e59e93a..f2473d8 100644
+--- a/crates/railgun/wasm/src/shield.rs
++++ b/crates/railgun/wasm/src/shield.rs
+@@ -23,6 +23,16 @@ pub struct Shield {
+     native_total: u128,
+ }
+ 
++fn shield_amount(amount: JsU128) -> Result<u128, JsError> {
++    let amount = u128::try_from(amount)?;
++    if amount == 0 || amount >= 1u128 << 120 {
++        return Err(JsError::new(
++            "shield amount must be positive and below Railgun's 120-bit note limit",
++        ));
++    }
++    Ok(amount)
++}
++
+ #[wasm_bindgen]
+ impl Shield {
+     #[wasm_bindgen(constructor)]
+@@ -45,7 +55,7 @@ impl Shield {
+         amount: JsU128,
+     ) -> Result<(), JsError> {
+         let token = Address::try_from(token.to_rust()?)?;
+-        let amount = u128::try_from(amount)?;
++        let amount = shield_amount(amount)?;
+         self.erc20.push((recipient.inner, token, amount));
+         Ok(())
+     }
+@@ -57,7 +67,7 @@ impl Shield {
+         recipient: &RailgunAddress,
+         amount: JsU128,
+     ) -> Result<(), JsError> {
+-        let amount = u128::try_from(amount)?;
++        let amount = shield_amount(amount)?;
+         self.native_total = self
+             .native_total
+             .checked_add(amount)
+@@ -68,6 +78,9 @@ impl Shield {
+ 
+     /// Build transaction calls. ERC20 shielding also requires caller-managed approval.
+     pub fn build(self) -> Result<Calls, JsError> {
++        if self.erc20.is_empty() && self.native.is_empty() {
++            return Err(JsError::new("at least one shield entry is required"));
++        }
+         let mut builder = ShieldBuilder::new(self.chain);
+         for (recipient, token, amount) in self.erc20 {
+             builder = builder.shield(recipient, AssetId::Erc20(token), amount);
+@@ -125,10 +138,36 @@ mod wasm_tests {
+         let chain = Chain::mainnet();
+         let recipient = recipient();
+         let mut shield = Shield::new(&chain);
+-        shield
+-            .add_native(&recipient, JsU128::from(u128::MAX))
+-            .unwrap();
+-        assert!(shield.add_native(&recipient, JsU128::from(1u128)).is_err());
++        for _ in 0..256 {
++            shield
++                .add_native(&recipient, JsU128::from((1u128 << 120) - 1))
++                .unwrap();
++        }
++        assert!(
++            shield
++                .add_native(&recipient, JsU128::from(256u128))
++                .is_err()
++        );
++    }
++
++    #[wasm_bindgen_test]
++    fn rejects_invalid_shield_amounts_and_empty_builds() {
++        let chain = Chain::mainnet();
++        let recipient = recipient();
++        let token = Hex::from(chain.inner.wrapped_base_token).into_ts().unwrap();
++        let shield = Shield::new(&chain);
++        assert!(shield.build().is_err());
++
++        let mut shield = Shield::new(&chain);
++        for amount in [0u128, 1u128 << 120, u128::MAX] {
++            assert!(shield.add_native(&recipient, JsU128::from(amount)).is_err());
++            assert!(
++                shield
++                    .add_erc20(&recipient, &token, JsU128::from(amount))
++                    .is_err()
++            );
++        }
++        assert!(shield.build().is_err());
+     }
+ 
+     #[wasm_bindgen_test]
