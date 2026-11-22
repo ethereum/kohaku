@@ -4,6 +4,8 @@ import { raw, RawProviderOptions } from "../raw";
 import type { EthereumProvider } from "../provider";
 import { Provider } from "ox/Provider";
 
+type RpcResponse = { result?: unknown; error?: { message?: unknown } };
+
 function bypassGetLogs(client: HeliosProvider, rpcUrl: string) {
     let nextId = 1;
 
@@ -16,11 +18,23 @@ function bypassGetLogs(client: HeliosProvider, rpcUrl: string) {
                     // eslint-disable-next-line no-restricted-syntax -- JSON-RPC requires `id`
                     body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method: req.method, params: req.params }),
                 });
-                const { result, error } = await res.json();
+                // Error statuses often come from a proxy or rate limiter with a non-JSON body, so
+                // their body is optional. On a successful status a read or parse failure is real.
+                const body = await res.json().catch((err: unknown) => {
+                    if (res.ok) throw err;
+                }) as RpcResponse | null | undefined;
 
-                if (error) throw new Error(error.message);
+                const rpcMessage = body?.error?.message;
 
-                return result;
+                if (typeof rpcMessage === 'string' && rpcMessage !== '') throw new Error(rpcMessage);
+
+                if (!res.ok) throw new Error(`eth_getLogs: execution RPC returned HTTP ${res.status}`);
+
+                if (body?.error) throw new Error('eth_getLogs: execution RPC returned an error without a message');
+
+                if (!Array.isArray(body?.result)) throw new Error('eth_getLogs: execution RPC returned no log array');
+
+                return body.result;
             }
 
             return client.request(req);
