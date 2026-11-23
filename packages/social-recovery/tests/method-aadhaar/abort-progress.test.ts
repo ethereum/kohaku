@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Hex, Material } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
-import { jsDocOf, REPO_ROOT, SRC_ROOT } from '../helpers/source';
+import { jsDocOf, PACKAGE_ROOT, SRC_ROOT } from '../helpers/source';
 import type { Stack } from './fixtures';
 import { CERTIFICATE, clockForFile, configBytes, ctxFor, FRESH_NOW, isFailure, pcdOf, QR_DATA, signalsFor, SYNTHETIC_UPSTREAM } from './fixtures';
 
@@ -350,11 +350,12 @@ describe('the abort contract, documented where the page and an injected stack re
   });
 });
 
-describe('the abort contract\'s changeset', () => {
-  const text = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-abort-contract.md'), 'utf8');
+describe('the abort contract release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('An Aadhaar proving call now forwards no progress')) ?? '';
 
-  it('is a patch for the package that states what an abort stops and carries a Compatibility line', () => {
-    expect(text).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  it('states what an abort stops and carries a Compatibility line', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*An Aadhaar proving call now forwards no progress/);
     expect(text).toContain('device-refused');
     expect(text).toMatch(/no worker/i);
     expect(text).toContain('Compatibility');

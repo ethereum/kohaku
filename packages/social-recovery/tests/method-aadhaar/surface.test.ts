@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as core from '../../src';
@@ -85,27 +85,14 @@ describe('the pre-prover time read surface', () => {
   });
 });
 
-describe('the changesets', () => {
-  const own = readFileSync(join(REPO_ROOT, '.changeset', 'social-recovery-method-aadhaar.md'), 'utf8');
-  const modes = readFileSync(join(REPO_ROOT, '.changeset', 'identity-test-modes.md'), 'utf8');
-  const followUpsPath = join(REPO_ROOT, '.changeset', 'extension-follow-ups.md');
-  const followUps = existsSync(followUpsPath) ? readFileSync(followUpsPath, 'utf8') : '';
-  const artifacts = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifacts-config-validation.md'), 'utf8');
-  const fixes = readdirSync(join(REPO_ROOT, '.changeset'))
-    .filter((name) => /^aadhaar-(abort-contract|artifact-checks|freshness-window|issuer-key-check)\.md$/.test(name))
-    .map((name) => readFileSync(join(REPO_ROOT, '.changeset', name), 'utf8'));
-  const changeset = [own, modes, followUps, artifacts, ...fixes].join('\n');
+describe('the stable release notes', () => {
+  const changelog = readFileSync(join(REPO_ROOT, 'packages', 'social-recovery', 'CHANGELOG.md'), 'utf8');
+  const releaseNotes = changelog.split(/^## 0\.0\.2$/m)[1]?.split(/^## /m)[0] ?? '';
 
-  it('the method\'s own and the test-mode one are each a patch for the package', () => {
-    expect(own).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
-    expect(modes).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
-  });
-
-  it('both changesets say the METHOD_AADHAAR_* constants come from both entries, and the second entry now carries them', () => {
+  it('records the METHOD_AADHAAR_* constants on both entries, and both entries carry them', () => {
     const second = recoveryMethods as { readonly [name: string]: unknown };
 
-    expect(modes).toContain('Every `METHOD_AADHAAR_*` constant is now exported from the core entry as well as from `./recovery-methods`.');
-    expect(own).toContain('the `METHOD_AADHAAR_*` constants are exported from both entries');
+    expect(releaseNotes).toContain('`METHOD_AADHAAR_*` constants are exported from both entries');
 
     for (const [name, value] of Object.entries(constants)) {
       expect(second[name], name).toBe(value);
@@ -113,23 +100,25 @@ describe('the changesets', () => {
     }
   });
 
-  it('the artifacts changeset is a patch naming each bucket constant, the setup error and the reads member, with no breaking line', () => {
-    expect(artifacts).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
-
+  it('records each artifact bucket constant, the setup error and the reads member', () => {
     for (const name of ['METHOD_AADHAAR_BUCKET_URL', 'METHOD_AADHAAR_BUCKET_CHUNKED', 'METHOD_AADHAAR_BUCKET_SERVER', 'METHOD_AADHAAR_DEFAULT_ARTIFACTS', 'credential.config-malformed', 'MethodReads.codec']) {
-      expect(artifacts, name).toContain(name);
+      expect(releaseNotes, name).toContain(name);
     }
-
-    expect(artifacts).not.toMatch(/^\s*(\*\*)?breaking/im);
   });
 
-  it('the test-mode changeset names the option', () => {
-    expect(modes).toContain('testMode');
+  it('records the test-mode option', () => {
+    expect(releaseNotes).toContain('testMode');
+  });
+
+  it('records the later Aadhaar abort, artifact, freshness and issuer-key changes', () => {
+    for (const name of ['onProgress', 'METHOD_AADHAAR_BUCKET_SHA256', 'freshnessWindow', 'METHOD_AADHAAR_MATERIAL_UNTRUSTED']) {
+      expect(releaseNotes, name).toContain(name);
+    }
   });
 
   it('names every public export this method adds to either entry', () => {
     const names = publicAadhaarNames();
-    const missing = names.filter((name) => !new RegExp(`\\b${name}\\b`).test(changeset));
+    const missing = names.filter((name) => !new RegExp(`\\b${name}\\b`).test(releaseNotes));
 
     expect(names).toContain('anonAadhaarMethod');
     expect(missing).toEqual([]);

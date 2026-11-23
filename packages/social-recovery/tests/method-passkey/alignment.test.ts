@@ -331,8 +331,9 @@ describe('the method source, against the conventions', () => {
   });
 });
 
-describe('the changeset names every public export the method adds', () => {
-  const changeset = readFileSync(join(REPO_ROOT, '.changeset', 'social-recovery-method-passkey.md'), 'utf8');
+describe('the stable release notes name every public export the method adds', () => {
+  const changelog = readFileSync(join(REPO_ROOT, 'packages', 'social-recovery', 'CHANGELOG.md'), 'utf8');
+  const releaseNotes = changelog.split(/^## 0\.0\.2$/m)[1]?.split(/^## /m)[0] ?? '';
   const program = createSourceProgram();
   const checker = program.getTypeChecker();
   const entry = requireSourceFile(program, join(SRC_ROOT, 'index.ts'));
@@ -349,14 +350,10 @@ describe('the changeset names every public export the method adds', () => {
     expect(added).toContain('passkeyMethod');
   });
 
-  it('every one of them is named in the changeset', () => {
-    const missing = added.filter((name) => !new RegExp(`\\b${name}\\b`).test(changeset));
+  it('every one of them is named in the release notes', () => {
+    const missing = added.filter((name) => !new RegExp(`\\b${name}\\b`).test(releaseNotes));
 
     expect(missing).toEqual([]);
-  });
-
-  it('the changeset is a patch of this package', () => {
-    expect(changeset).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---/);
   });
 });
 

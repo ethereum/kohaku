@@ -74,12 +74,13 @@ describe('the installed peer reads the type as the method sends it', () => {
   });
 });
 
-describe('the identifier type\'s changeset', () => {
-  const text = (): string => readFileSync(join(PACKAGE_ROOT, '..', '..', '.changeset', 'zkpassport-identifier-type.md'), 'utf8');
+describe('the identifier type release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('Every zkPassport request now asks for the non-salted unique identifier')) ?? '';
 
-  it('is a patch of the package naming the constant, and never names the factory', () => {
-    expect(text()).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
-    expect(text()).toContain('METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE');
-    expect(text()).not.toContain('zkPassportMethod');
+  it('names the constant without attributing the change to the factory', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*Every zkPassport request now asks for the non-salted unique identifier/);
+    expect(text).toContain('METHOD_ZKPASSPORT_REQUESTED_IDENTIFIER_TYPE');
+    expect(text).not.toContain('zkPassportMethod');
   });
 });

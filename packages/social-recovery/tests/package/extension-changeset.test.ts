@@ -2,12 +2,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as zkPassportConstants from '../../src/constants/method-zkpassport';
-import { REPO_ROOT } from '../helpers/source';
+import { PACKAGE_ROOT } from '../helpers/source';
 
-const PATH = join(REPO_ROOT, '.changeset', 'extension-follow-ups.md');
-const text = existsSync(PATH) ? readFileSync(PATH, 'utf8') : '';
+const PATH = join(PACKAGE_ROOT, 'CHANGELOG.md');
+const text = existsSync(PATH) ? readFileSync(PATH, 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '' : '';
 
-/** The public names the seven follow-ups add, each to be named in the one changeset. */
+/** Public additions from the extension follow-ups, retained in the stable release notes. */
 const NAMES = [
   'account.not-deployed',
   'accountHoldsCode',
@@ -28,10 +28,10 @@ const NAMES = [
 
 const VERSION_CONSTANTS = Object.keys(zkPassportConstants).filter((name) => name.startsWith('METHOD_ZKPASSPORT_VERSION_'));
 
-describe('.changeset/extension-follow-ups.md', () => {
-  it('exists and is a patch for the package', () => {
+describe('stable social-recovery release notes', () => {
+  it('contains the 0.0.2 patch release', () => {
     expect(existsSync(PATH)).toBe(true);
-    expect(text).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+    expect(text).toContain('### Patch Changes');
   });
 
   it.each(NAMES)('names %s', (name) => {

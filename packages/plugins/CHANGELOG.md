@@ -1,5 +1,46 @@
 # @kohaku-eth/plugins
 
+## 0.1.0
+
+### Minor Changes
+
+- Advance the stable 0.x line together after the prerelease cycle. Privacy Pools v1 and Tornado Cash have completed the November audit cycle; the supporting packages are versioned consistently to support those 0.2.0 releases.
+
+### Patch Changes
+
+- Declare the Node.js version range required by the provider dependency.
+- Point the package main field at the shipped ESM entry, remove a nonexistent `./instance` subpath, and publish only the built `dist` files.
+- Updated dependencies
+  - @kohaku-eth/provider@0.2.0
+
+### Changes included from the prerelease series
+
+#### Patch Changes
+
+- 66c603f: bump versions to latest
+- 4bb7e64: fix: plugin iface has async host methods
+- 3cf4609: Add `scopeKeystore(keystore, { prefixes, paths })`, which only derives below the given prefixes or at the listed exact paths and throws `KeystorePathNotAllowedError` otherwise, so each plugin can get its own slice of the wallet's keys. `MnemonicKeystore` now rejects phrases with a bad BIP-39 checksum or unknown words, malformed path segments (`0abc'`, `1e3'`, leading zeros, out-of-range indices) and the master key `m`, instead of silently deriving something else; it also keeps the phrase in a true private field. `parseDerivationPath` is exported for hosts that write their own keystore.
+- 30a64b7: feat: unified note by note api for plugins
+- 21e550e: Update broadcastfn & privacy-pools v1 asp
+- 8676bb8: fix: `MnemonicKeystore` derives RAILGUN paths (coin type `1984'`) with the engine "babyjubjub seed" HMAC-SHA512 tree instead of BIP-32 secp256k1, so spending and viewing keys (and the 0zk address) match `@railgun-community/engine` wallets. Non-RAILGUN paths are unchanged.
+- 3587a82: bump all pkg alpha releases to test pipeline
+- a3fc0f4: latest plugins
+- Updated dependencies [4c5e47b]
+- Updated dependencies [1664791]
+- Updated dependencies [8d5a29e]
+- Updated dependencies [e3735d4]
+- Updated dependencies [6e0e549]
+- Updated dependencies [506bb2f]
+- Updated dependencies [42607db]
+- Updated dependencies [88b2cbb]
+- Updated dependencies [20fa0c9]
+- Updated dependencies [d8bf680]
+- Updated dependencies [2b67d9a]
+- Updated dependencies [d8bf680]
+- Updated dependencies [3587a82]
+- Updated dependencies [00db9b6]
+  - @kohaku-eth/provider@0.1.0
+
 ## 0.0.1-alpha.20
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/privacy-pools",
-  "version": "0.1.0-alpha.41",
+  "version": "0.2.0",
   "description": "Privacy Pools Shielded Pool Kohaku Plugin",
   "type": "module",
   "private": false,
@@ -20,7 +20,7 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "node": ">=18"
+    "node": "^22.13.0 || >=24"
   },
   "scripts": {
     "build": "echo Building @kohaku-eth/privacy-pools && tsup --config tsup.config.ts",

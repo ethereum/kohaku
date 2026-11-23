@@ -12,7 +12,7 @@ import type { Hex } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
 import { pinnedArtifacts } from '../../src/method-aadhaar/artifacts';
 import { AadhaarStackUnavailable, coreStack } from '../../src/method-aadhaar/stack';
-import { REPO_ROOT } from '../helpers/source';
+import { PACKAGE_ROOT } from '../helpers/source';
 import { CERTIFICATE, clockForFile, configBytes, ctxFor, FRESH_NOW, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, SYNTHETIC_UPSTREAM } from './fixtures';
 import { newPagePerTest } from './new-page';
 import { SERVED_VKEY, SERVED_WASM, servedInit } from './served-bucket';
@@ -531,11 +531,12 @@ describe('a proof the peer fails, classified by the last state it reported', () 
   });
 });
 
-describe('the artifact checks\' changeset', () => {
-  const text = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifact-checks.md'), 'utf8');
+describe('the artifact checks release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes("The default Aadhaar stack checks the bucket's code files")) ?? '';
 
-  it('is a patch naming the pinned hashes and both messages, with a Compatibility line for the new device-unavailable', () => {
-    expect(text).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  it('names the pinned hashes and both messages, with a Compatibility line for the new device-unavailable', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*The default Aadhaar stack checks the bucket's code files/);
 
     for (const name of ['METHOD_AADHAAR_BUCKET_SHA256', 'METHOD_AADHAAR_ARTIFACT_HASH_MESSAGE', 'METHOD_AADHAAR_STACK_DOWNLOAD_MESSAGE', 'device-unavailable']) {
       expect(text, name).toContain(name);

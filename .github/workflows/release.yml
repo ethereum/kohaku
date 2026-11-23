@@ -28,8 +28,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-      - name: Create release PR or publish
-        uses: changesets/action@v1
+      - name: Create release PR
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           commit: 'chore: version package'
           title: 'chore: version package'
@@ -55,7 +55,7 @@ jobs:
           build-packages: true
 
       - name: Publish to NPM
-        uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           createGithubReleases: ${{ github.ref == 'refs/heads/master' }}
           publish: pnpm changeset:publish

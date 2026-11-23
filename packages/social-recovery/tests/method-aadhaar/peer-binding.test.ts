@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { METHOD_AADHAAR_BUCKET_CHUNKED } from '../../src/constants/method-aadhaar-bucket';
 import type { Hex, IRecoveryMethod, Material } from '../../src/interfaces';
-import { jsDocOf, REPO_ROOT, SRC_ROOT } from '../helpers/source';
+import { jsDocOf, PACKAGE_ROOT, SRC_ROOT } from '../helpers/source';
 import { CERTIFICATE, clockForFile, configBytes, ctxFor, FRESH_NOW, isFailure, nine, pcdOf, proofBytes, QR_DATA, signalsFor, SYNTHETIC_UPSTREAM } from './fixtures';
 import { serveBucket, servedInit } from './served-bucket';
 
@@ -499,8 +499,11 @@ describe('the turns on the peer, documented', () => {
     expect(flat(jsDocOf(join(SRC_ROOT, 'method-aadhaar', 'artifacts.ts'), 'pinnedArtifacts'))).toMatch(/revoke/i);
   });
 
-  it('the artifact checks\' changeset says both: stacks take turns, and the pair is kept for the page', () => {
-    const text = flat(readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifact-checks.md'), 'utf8'));
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const artifactNote = notes.split(/(?=^- )/m).find((entry) => entry.includes("The default Aadhaar stack checks the bucket's code files")) ?? '';
+
+  it('the artifact release note says both: stacks take turns, and the pair is kept for the page', () => {
+    const text = flat(artifactNote);
 
     expect(text).toMatch(/turns/i);
     expect(text).toMatch(/revoke/i);
@@ -516,10 +519,8 @@ describe('the turns on the peer, documented', () => {
     expect(inOneSentence(jsDocOf(join(SRC_ROOT, 'method-aadhaar', 'method.ts'), 'replyFrom'), /verdict/i, /device-unavailable/)).toBe(true);
   });
 
-  it('the artifact checks\' changeset says the init before the reply\'s local verdict reads device-unavailable, and any other verify throw not-judged', () => {
-    const text = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-artifact-checks.md'), 'utf8');
-
-    expect(inOneSentence(text, /verdict/i, /device-unavailable/)).toBe(true);
-    expect(inOneSentence(text, /device-unavailable/, /not-judged/)).toBe(true);
+  it('the artifact release note says the init before the reply\'s local verdict reads device-unavailable, and any other verify throw not-judged', () => {
+    expect(inOneSentence(artifactNote, /verdict/i, /device-unavailable/)).toBe(true);
+    expect(inOneSentence(artifactNote, /device-unavailable/, /not-judged/)).toBe(true);
   });
 });
