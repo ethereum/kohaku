@@ -2,6 +2,7 @@ import { getAddress } from 'viem';
 import { describe, expect, it } from 'vitest';
 import { AmbireActionCodec, describeRequest, type Address, type ApproverRequest, type Handover, type Hex } from '../../src/index';
 import { approvalFromVector, codecRegistry, methodRegistry } from '../description/request-fixtures';
+import { oracleKitSlot } from '../formats/request-support';
 import { keccak256 } from '../helpers/keccak';
 import { readVector, type VectorRow } from '../kat/read-vector';
 import { ACTION, CANDIDATE, KEY, OTHER_ACTION, word, ZERO } from './fixtures';
@@ -184,5 +185,24 @@ describe('AmbireActionCodec.actions', () => {
     const description = describeRequest(request, codecRegistry(new AmbireActionCodec([request.action])), methodRegistry([]));
 
     expect(description.handover?.decoded).toBe(false);
+  });
+});
+
+describe('AmbireActionCodec leaves a new key nobody can sign for to validation', () => {
+  const request = approvalFromVector();
+  const served = new AmbireActionCodec([request.action]);
+
+  it.each<[string, Address]>([
+    ['account', request.account],
+    ['manager', request.manager],
+    ['action', request.action],
+    ['kit slot', oracleKitSlot(request.action)],
+    ['fallback-handler entry', '0x0000000000000000000000000000000000006969'],
+  ])('encodes the request\'s %s as the new key in the two-word layout, and a request description shows it', (_label, newAuthority) => {
+    const payload = served.encode({ newAuthority, removedAuthority: KEY });
+    const description = describeRequest({ ...request, payload } as ApproverRequest, codecRegistry(served), methodRegistry([]));
+
+    expect(payload).toBe(pair(newAuthority, KEY));
+    expect(description.handover).toEqual({ decoded: true, newAuthority: getAddress(newAuthority), removedAuthority: getAddress(KEY) });
   });
 });

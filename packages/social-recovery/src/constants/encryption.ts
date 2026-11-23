@@ -42,8 +42,17 @@ export const BACKUP_SALT_ABSENT = 0x00;
 /** The salt flag of a credential whose supplied salt follows. */
 export const BACKUP_SALT_PRESENT = 0x01;
 
-/** The backup payload's version, bound in the associated data and raised whenever the scheme changes. */
-export const BACKUP_PAYLOAD_VERSION = 1;
+/**
+ * The backup payload version `sealBackup` writes, bound in the associated data and raised whenever the scheme changes;
+ * its key takes the associated data as its PBKDF2 salt.
+ */
+export const BACKUP_PAYLOAD_VERSION = 2;
+
+/** The earlier payload version, whose key took an empty PBKDF2 salt: `openBackup` opens it, `sealBackup` never writes it. */
+export const BACKUP_LEGACY_PAYLOAD_VERSION = 1;
+
+/** The payload versions `openBackup` reads, in the order a restore tries them. */
+export const BACKUP_READ_PAYLOAD_VERSIONS = [BACKUP_PAYLOAD_VERSION, BACKUP_LEGACY_PAYLOAD_VERSION] as const;
 
 /** The WebCrypto key derivation over the password. */
 export const BACKUP_KDF = 'PBKDF2';

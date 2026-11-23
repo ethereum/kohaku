@@ -2,6 +2,7 @@ import { encodeFunctionData } from 'viem';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as entry from '../../src/index';
 import type { IActionCodec, IRecoveryActionArming, IRecoveryActionInteractor, PinnedBlock, PreparedCall } from '../../src/index';
+import { selectorOf } from '../helpers/keccak';
 import { ACCOUNT, ACTION, partOver, SELECTORS, word } from './fixtures';
 import { providerDouble } from './provider-double';
 
@@ -21,6 +22,20 @@ describe('the core entry', () => {
     });
 
     expect(data).toBe(`0x0d5828d4${word(ACCOUNT)}${'11'.repeat(32)}`);
+  });
+
+  it("exports the account's handler slot and its privileges fragment, encoding under 0xc066a5b1 and answering one word", () => {
+    const data = encodeFunctionData({
+      abi: entry.RECOVERY_ACTION_PRIVILEGES_ABI,
+      functionName: 'privileges',
+      args: [entry.RECOVERY_ACTION_FALLBACK_HANDLER_SLOT],
+    });
+
+    expect(entry.RECOVERY_ACTION_FALLBACK_HANDLER_SLOT).toBe('0x0000000000000000000000000000000000006969');
+    expect(selectorOf('privileges(address)')).toBe('0xc066a5b1');
+    expect(data).toBe(`0xc066a5b1${word('6969')}`);
+    expect(entry.RECOVERY_ACTION_PRIVILEGES_ABI[0].outputs.map((output) => output.type)).toEqual(['bytes32']);
+    expect(entry.RECOVERY_ACTION_WORD_RETURN_ABI).toEqual([{ type: 'bytes32' }]);
   });
 });
 

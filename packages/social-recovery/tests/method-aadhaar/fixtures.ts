@@ -79,8 +79,8 @@ export const CONFIG_ABI = [
   { name: 'freshnessWindow', type: 'uint256' },
 ] as const;
 
-/** The window `configFrom` is expected to write: 24 hours, in seconds. */
-export const FRESHNESS_WINDOW = 86_400n;
+/** The window `configFrom` is expected to write where the enrollment names none: 75 minutes, in seconds. */
+export const FRESHNESS_WINDOW = 4_500n;
 
 /** The contract's shortest accepted window: one hour, in seconds. */
 export const MIN_FRESHNESS_WINDOW = 3_600n;

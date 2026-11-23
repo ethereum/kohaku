@@ -47,9 +47,27 @@ export function submissionFindings(facts: WindowFacts, moment: Moment): Validati
 }
 
 /**
+ * The `request.window-wide` warning a window wider than the bounds' ceiling reaches.
+ * Throws a TypeError or RangeError under `name` on bounds that are not an object or whose ceiling is not a non-negative safe integer.
+ */
+export function wideWindowFindings(facts: WindowFacts, bounds: RequestWindowBounds, name: string): ValidationResult {
+  assertObject(bounds, name);
+  assertUintNumber(bounds.ceiling, FORMATS_SAFE_INTEGER_BITS, `${name}.ceiling`);
+
+  const window = requestWindowWidth(facts);
+  const warnings: ValidationWarning[] = [];
+
+  if (window > bounds.ceiling) {
+    warnings.push({ code: 'request.window-wide', subject: 'request', values: { window, ceiling: bounds.ceiling } });
+  }
+
+  return { errors: [], warnings };
+}
+
+/**
  * The findings a gathering's window reaches from its own values, the moment and the client's window bounds alone:
- * those of `submissionFindings`, `request.window-short` under `bounds.floor`, and
- * `cancel.window-late` where a cancellation's window ends after `consumableAfter`.
+ * those of `submissionFindings`, `request.window-short` under `bounds.floor`, `request.window-wide` over `bounds.ceiling`,
+ * and `cancel.window-late` where a cancellation's window ends after `consumableAfter`.
  * Throws a TypeError or RangeError on a malformed argument and never on a finding.
  */
 export function windowFindings(facts: WindowFacts, moment: Moment, bounds: RequestWindowBounds): ValidationResult {
@@ -66,6 +84,7 @@ export function windowFindings(facts: WindowFacts, moment: Moment, bounds: Reque
     warnings.push({ code: 'request.window-short', subject: 'request', values: { window, floor: bounds.floor } });
   }
 
+  warnings.push(...wideWindowFindings(facts, bounds, 'bounds').warnings);
   warnings.push(...submission.warnings);
 
   if (consumableAfter !== undefined && validUntil > consumableAfter) {

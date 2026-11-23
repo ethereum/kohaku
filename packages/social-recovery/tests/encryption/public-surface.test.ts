@@ -30,6 +30,9 @@ describe('the backup surface the core entry exports', () => {
     'BACKUP_ASSOCIATED_DATA_ABI',
     'BACKUP_PAYLOAD_VERSION_BITS',
     'BACKUP_LONE_SURROGATE_PATTERN',
+    'BACKUP_PAYLOAD_VERSION',
+    'BACKUP_LEGACY_PAYLOAD_VERSION',
+    'BACKUP_READ_PAYLOAD_VERSIONS',
   ])('exports %s', (name) => {
     expect(context.entry.has(name)).toBe(true);
     expect(name in entry).toBe(true);

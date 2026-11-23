@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { VALIDATION_MOMENT_SKEW_SECONDS, submissionFindings, windowFindings, type RequestWindowBounds } from '../../src/index';
 
 const T = 1_700_000_000;
-const BOUNDS: RequestWindowBounds = { default: 86_400, floor: 3_600 };
+const BOUNDS: RequestWindowBounds = { default: 86_400, floor: 3_600, ceiling: 259_200 };
 
 const codes = (result: ReturnType<typeof windowFindings>): string[] =>
   [...result.errors, ...result.warnings].map((finding) => finding.code).sort();
@@ -107,5 +107,60 @@ describe('the submission window helper', () => {
   it('throws a TypeError on a malformed argument rather than returning a finding', () => {
     expect(() => submissionFindings(undefined as never, T)).toThrow(TypeError);
     expect(() => submissionFindings({ validUntil: T, blockTimestamp: T }, null as never)).toThrow(TypeError);
+  });
+});
+
+const WIDE = { code: 'request.window-wide', subject: 'request', values: { window: 259_201, ceiling: 259_200 } };
+
+describe('the window ceiling', () => {
+  it.each([
+    ['an opening window', {}],
+    ['a cancellation window', { consumableAfter: T + 300_000 }],
+  ])('raises request.window-wide on %s one second over the ceiling and not at it', (_kind, extra) => {
+    expect(windowFindings({ validUntil: T + 259_201, blockTimestamp: T, ...extra }, T, BOUNDS)).toEqual({ errors: [], warnings: [WIDE] });
+    expect(windowFindings({ validUntil: T + 259_200, blockTimestamp: T, ...extra }, T, BOUNDS)).toEqual({ errors: [], warnings: [] });
+  });
+
+  it('measures the width from the pinned block, not from the moment', () => {
+    const facts = { validUntil: T + 259_701, blockTimestamp: T + 500 };
+
+    expect(windowFindings(facts, T + 500, BOUNDS).warnings).toEqual([WIDE]);
+    expect(windowFindings(facts, T + 1_000, BOUNDS).warnings).toEqual([WIDE]);
+    expect(windowFindings({ ...facts, validUntil: T + 259_700 }, T, BOUNDS).warnings).toEqual([]);
+  });
+
+  it('reads the ceiling from the bounds it is handed', () => {
+    expect(windowFindings({ validUntil: T + 7_201, blockTimestamp: T }, T, { ...BOUNDS, ceiling: 7_200 }).warnings).toEqual([
+      { code: 'request.window-wide', subject: 'request', values: { window: 7_201, ceiling: 7_200 } },
+    ]);
+  });
+
+  it('raises request.window-wide right after request.window-short, with no order assumed between the floor and the ceiling', () => {
+    const facts = { validUntil: T + 5_000, blockTimestamp: T, consumableAfter: T + 10 };
+    const crossed = { default: 0, floor: 10_000, ceiling: 100 };
+
+    expect(windowFindings(facts, T + 1_000, crossed).warnings.map((finding) => finding.code)).toEqual([
+      'request.window-short',
+      'request.window-wide',
+      'request.moment-skew',
+      'cancel.window-late',
+    ]);
+  });
+
+  it('leaves request.window-wide out of the submission helper, which validateRequest pairs with it', () => {
+    expect(submissionFindings({ validUntil: T + 400_000, blockTimestamp: T }, T)).toEqual({ errors: [], warnings: [] });
+  });
+
+  it.each<[string, Record<string, unknown>, typeof TypeError | typeof RangeError]>([
+    ['without a ceiling', { default: 86_400, floor: 3_600 }, TypeError],
+    ['with a fractional ceiling', { ...BOUNDS, ceiling: 1.5 }, TypeError],
+    ['with a ceiling given as a string', { ...BOUNDS, ceiling: '259200' }, TypeError],
+    ['with a negative ceiling', { ...BOUNDS, ceiling: -1 }, RangeError],
+    ['with a ceiling past the safe integers', { ...BOUNDS, ceiling: 2 ** 53 }, RangeError],
+  ])('throws naming bounds.ceiling for bounds %s, never a finding', (_name, bounds, kind) => {
+    const judge = () => windowFindings({ validUntil: T + 86_400, blockTimestamp: T }, T, bounds as unknown as RequestWindowBounds);
+
+    expect(judge).toThrow(kind);
+    expect(judge).toThrow('bounds.ceiling');
   });
 });

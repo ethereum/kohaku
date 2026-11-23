@@ -26,6 +26,7 @@ import {
   world,
   type World,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const SLOW = 120_000;
 const PASSWORD = 'correct horse battery staple';
@@ -125,6 +126,21 @@ describe('a password source', () => {
     const thrown = await rejectionOf(open({ failures: new Map([['events.fetch', failure]]) }).run);
 
     expect(thrown).toBe(failure);
+  });
+
+  it('a log the fetch skipped rejects with its error itself, though the fetch holds the event that opens', async () => {
+    const failure = new Error('undecodable log');
+    const note = committed(SETUP_NONCE, COMMITMENT, sealed);
+    const thrown = await rejectionOf(open({ notifications: [note], fetched: withSkipped(skippedAt({ ...note.at, logIndex: 1 }, failure)) }).run);
+
+    expect(thrown).toBe(failure);
+  });
+
+  it('an event manager answering a bare array rejects with a TypeError, never a refusal', async () => {
+    const thrown = await rejectionOf(open({ notifications: [committed(SETUP_NONCE, COMMITMENT, sealed)], fetched: bareArray }).run);
+
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect(thrown).not.toBeInstanceOf(KitRefusalError);
   });
 
   it('no setup standing refuses with case no-setup and fetches nothing', async () => {

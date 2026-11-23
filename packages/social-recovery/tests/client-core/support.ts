@@ -8,6 +8,7 @@ import type {
   BlockRange,
   BlockTag,
   Configuration,
+  FetchedNotifications,
   FilterSpec,
   Hex,
   IEventManager,
@@ -189,7 +190,7 @@ export const ACCOUNT_FILTER: FilterSpec = { address: [MANAGER], topics: [`0x${'a
 /** One `fetch` the double received. */
 export type SeenFetch = { readonly filter: FilterSpec; readonly range: BlockRange };
 
-/** An `IEventManager` double whose `fetch` answers the given notifications or rejects with the given value. */
+/** An `IEventManager` double whose `fetch` answers the given notifications, shaped by `fetched`, or rejects with the given value. */
 export type EventsDouble = {
   readonly events: IEventManager;
   readonly fetches: SeenFetch[];
@@ -197,7 +198,10 @@ export type EventsDouble = {
   readonly others: string[];
 };
 
-export function eventsDouble(answer: readonly KitNotification[] | { readonly rejects: unknown } = []): EventsDouble {
+export function eventsDouble(
+  answer: readonly KitNotification[] | { readonly rejects: unknown } = [],
+  fetched: (notifications: readonly KitNotification[]) => unknown = (notifications) => ({ notifications, skipped: [] }),
+): EventsDouble {
   const fetches: SeenFetch[] = [];
   const filterOptions: (AccountFilterOptions | undefined)[] = [];
   const others: string[] = [];
@@ -223,7 +227,7 @@ export function eventsDouble(answer: readonly KitNotification[] | { readonly rej
 
       if ('rejects' in answer) throw answer.rejects;
 
-      return answer;
+      return fetched(answer) as FetchedNotifications;
     },
     decodeLog(log: RawLog) {
       others.push(`decodeLog ${log.transactionHash}`);

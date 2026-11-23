@@ -1,4 +1,4 @@
-import { getAddress } from 'viem';
+import { getAddress, keccak256 } from 'viem';
 import { describe, expect, it } from 'vitest';
 import {
   decodeRevert,
@@ -19,6 +19,7 @@ import {
   HEADER,
   INJECTED,
   KEY_NEW,
+  KEY_OLD,
   lastArg,
   MANAGER,
   pinnedOf,
@@ -29,7 +30,7 @@ import {
   ZERO,
 } from './doubles';
 import { cancelByProofsData, payloadOf, startAttemptData } from './encodings';
-import { attemptVector, boundAttempt, boundCancel, cancelVector, membersOf, VALIDATION_READS } from './prepare-fixtures';
+import { attemptVector, boundAttempt, boundCancel, cancelVector, liveAttempt, membersOf, VALIDATION_READS } from './prepare-fixtures';
 
 const NOW = HEADER.timestamp;
 const SPONSOR = getAddress(`0x${'5b'.repeat(20)}`);
@@ -405,9 +406,62 @@ describe('prepareStartAttempt: the opening payload', () => {
 
     expect(thrown).toBeInstanceOf(KitRefusalError);
     expect(errorCodes(thrown)).toEqual(['handover.malformed']);
+    expect((thrown as KitRefusalError).findings?.errors[0]?.values).toEqual({ zeroNew: false, zeroRemoved: false, layoutDecodes: false, sameAuthority: false });
     expect(Object.hasOwn(thrown as object, 'cause')).toBe(false);
     expect(callsTo(built.seen, 'manager', 'prepareStartAttempt')).toEqual([]);
     expect(callsTo(built.seen, 'provider', 'call')).toEqual([]);
+  });
+});
+
+/** The values `handover.malformed` carries: which side is zero, whether the layout decodes, whether one key is on both sides. */
+type Malformed = { zeroNew: boolean; zeroRemoved: boolean; layoutDecodes: boolean; sameAuthority: boolean };
+
+/** Payloads holding no handover the action would execute, each with the values its finding carries. */
+const MALFORMED: readonly (readonly [string, Hex, Malformed])[] = [
+  ['three bytes', '0xabcdef', { zeroNew: false, zeroRemoved: false, layoutDecodes: false, sameAuthority: false }],
+  ['a zero new key', payloadOf(ZERO, KEY_OLD), { zeroNew: true, zeroRemoved: false, layoutDecodes: true, sameAuthority: false }],
+  ['a zero removed key', payloadOf(KEY_NEW, ZERO), { zeroNew: false, zeroRemoved: true, layoutDecodes: true, sameAuthority: false }],
+  ['the zero address on both sides', payloadOf(ZERO, ZERO), { zeroNew: true, zeroRemoved: true, layoutDecodes: true, sameAuthority: true }],
+  ['one key twice', payloadOf(KEY_NEW, KEY_NEW), { zeroNew: false, zeroRemoved: false, layoutDecodes: true, sameAuthority: true }],
+  ['a reserved key twice', payloadOf(ACCOUNT, ACCOUNT), { zeroNew: false, zeroRemoved: false, layoutDecodes: true, sameAuthority: true }],
+  ['a reserved new key over a zero removed key', payloadOf(MANAGER, ZERO), { zeroNew: false, zeroRemoved: true, layoutDecodes: true, sameAuthority: false }],
+];
+
+/** What `prepareExecuteHandover` refuses a payload with, over a waiting attempt committed to it. */
+const executeRefusal = async (payload: Hex): Promise<unknown> => {
+  const attempt = { ...liveAttempt(), payloadHash: keccak256(payload) };
+
+  return rejectionOf(rig(world({ state: stateFor(undefined, attempt) })).client.prepareExecuteHandover(attempt, payload));
+};
+
+describe('prepareStartAttempt: a payload naming no handover the action would execute', () => {
+  it.each(MALFORMED)('refuses %s with one handover.malformed finding before any read, under a simulating configuration', async (_name, payload, values) => {
+    const built = rig(world(), { ...CLIENT_CONFIGURATION, simulate: true });
+    const thrown = await rejectionOf(built.client.prepareStartAttempt({ ...boundAttempt(), payload }, NOW));
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect((thrown as KitRefusalError).message).toBe('the payload does not hold a handover the action would execute');
+    expect((thrown as KitRefusalError).findings).toEqual({ errors: [{ code: 'handover.malformed', subject: 'request', values }], warnings: [] });
+    expect(Object.hasOwn(thrown as object, 'cause')).toBe(false);
+    expect(built.seen).toEqual([]);
+  });
+
+  it.each(MALFORMED)('refuses %s with the message and findings prepareExecuteHandover refuses it with', async (_name, payload) => {
+    const opening = await rejectionOf(rig().client.prepareStartAttempt({ ...boundAttempt(), payload }, NOW));
+    const execute = await executeRefusal(payload);
+
+    expect(execute).toBeInstanceOf(KitRefusalError);
+    expect(opening).toBeInstanceOf(KitRefusalError);
+    expect((opening as KitRefusalError).message).toBe((execute as KitRefusalError).message);
+    expect((opening as KitRefusalError).findings).toEqual((execute as KitRefusalError).findings);
+  });
+
+  it('refuses before a block read that would reject', async () => {
+    const built = rig(world({ failures: new Map([['provider.block', INJECTED]]) }));
+    const thrown = await rejectionOf(built.client.prepareStartAttempt({ ...boundAttempt(), payload: payloadOf(ZERO, KEY_OLD) }, NOW));
+
+    expect(thrown).toBeInstanceOf(KitRefusalError);
+    expect(built.seen).toEqual([]);
   });
 });
 

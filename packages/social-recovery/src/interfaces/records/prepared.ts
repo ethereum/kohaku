@@ -36,7 +36,7 @@ export type PreparedCall = {
   readonly data: Hex;
   readonly sender: Sender;
   readonly block: PinnedBlock;
-  /** Absent when the integrator skipped the simulation. */
+  /** Absent when the integrator skipped the simulation, or where the account holds no code yet. */
   readonly simulation?: SimulationResult;
   /** Absent on every call but `prepareExecuteHandover`'s. */
   readonly describes?: readonly DescribedCall[];

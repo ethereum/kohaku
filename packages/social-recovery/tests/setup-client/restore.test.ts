@@ -25,6 +25,7 @@ import {
   standingState,
   type BuildOptions,
 } from './doubles';
+import { bareArray, skippedAt, withSkipped } from '../helpers/fetched';
 
 const PASSWORD = 'correct horse battery staple';
 const CONFIGURATION = configurationOf(DRAFT);
@@ -188,6 +189,37 @@ describe('getSetup with a password', () => {
 
     expect(thrown).not.toBeInstanceOf(KitRefusalError);
     expect((thrown as Error).message).toBe('down');
+  });
+});
+
+describe('getSetup with a password over a read that skipped a log', () => {
+  it('rejects with the skipped entry\'s error itself, though the read holds the event that opens', async () => {
+    const failure = new Error('undecodable log');
+    const { client: setup } = client({
+      state: STANDING,
+      bound: [committed(NONCE, COMMITMENT, SEALED, position(AT_BLOCK))],
+      fetched: withSkipped(skippedAt(position(AT_BLOCK + 1), failure)),
+    });
+
+    await expect(setup.getSetup({ password: PASSWORD })).rejects.toBe(failure);
+  });
+
+  it('rejects with a TypeError, never a refusal, where the event manager answers a bare array', async () => {
+    const { client: setup } = client({ state: STANDING, bound: [committed(NONCE, COMMITMENT, SEALED, position(AT_BLOCK))], fetched: bareArray });
+    const thrown = await setup.getSetup({ password: PASSWORD }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect(thrown).not.toBeInstanceOf(KitRefusalError);
+  });
+
+  it('getSetup with the configuration reads no event, so the shape of an answer never reaches it', async () => {
+    const { client: setup, seen } = client({ state: STANDING, fetched: bareArray });
+
+    expect(await setup.getSetup(CONFIGURATION)).toEqual(CONFIGURATION);
+    expect(seen.fetches).toEqual([]);
   });
 });
 

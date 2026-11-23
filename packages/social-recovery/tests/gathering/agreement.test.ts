@@ -6,7 +6,7 @@ import { readVector } from '../kat/read-vector';
 import { approvalGathering, FLOOR, PINNED_AT, placeEntry, replyFor, TWO_CLAUSES_BODY, VALID_UNTIL } from './support';
 
 const NOW = PINNED_AT + 60;
-const BOUNDS = { default: 86_400, floor: FLOOR };
+const BOUNDS = { default: 86_400, floor: FLOOR, ceiling: 259_200 };
 
 /** A record with replies filed at the given places, in the given order. */
 function withReplies(record: Gathering, places: readonly number[]): Gathering {

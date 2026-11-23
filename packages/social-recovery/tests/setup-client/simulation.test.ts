@@ -10,6 +10,7 @@ import {
   PIN,
   revert,
   SENDER,
+  simulationCalls,
   standingState,
   transportFailure,
   withBackup,
@@ -34,11 +35,11 @@ describe('simulation of the setup prepares', () => {
     const { client, seen } = build();
     const prepared = (await client.prepareCommitSetup(EMPTY_DRAFT)) as PreparedBatch;
 
-    expect(seen.calls).toHaveLength(2);
-    expect(seen.calls[0]?.data).toBe(ARMING_DATA);
-    expect(seen.calls[1]?.data).toBe(prepared.calls[1]?.data);
+    expect(simulationCalls(seen)).toHaveLength(2);
+    expect(simulationCalls(seen)[0]?.data).toBe(ARMING_DATA);
+    expect(simulationCalls(seen)[1]?.data).toBe(prepared.calls[1]?.data);
 
-    for (const call of seen.calls) {
+    for (const call of simulationCalls(seen)) {
       expect(call.from.toLowerCase()).toBe(ACCOUNT.toLowerCase());
       expect(call.block).toBe(PIN.number);
     }
@@ -50,8 +51,8 @@ describe('simulation of the setup prepares', () => {
     const { client, seen } = build({ world: { authorized: true, state: standingState(COMMITTED, 1n, 10) } });
     const prepared = (await client.prepareCommitSetup(EMPTY_DRAFT, undefined, { from: SENDER })) as PreparedCall;
 
-    expect(seen.calls).toHaveLength(1);
-    expect(seen.calls[0]?.from.toLowerCase()).toBe(ACCOUNT.toLowerCase());
+    expect(simulationCalls(seen)).toHaveLength(1);
+    expect(simulationCalls(seen)[0]?.from.toLowerCase()).toBe(ACCOUNT.toLowerCase());
     expect(prepared.simulation).toEqual({ success: true });
   });
 
@@ -69,7 +70,7 @@ describe('simulation of the setup prepares', () => {
     const { client, seen } = build();
     const prepared = (await client.prepareCommitSetup(EMPTY_DRAFT, undefined, { simulate: false })) as PreparedBatch;
 
-    expect(seen.calls).toEqual([]);
+    expect(simulationCalls(seen)).toEqual([]);
     expect(prepared.calls.every((call) => !('simulation' in call) || call.simulation === undefined)).toBe(true);
   });
 
@@ -113,7 +114,7 @@ describe('simulation of the setup prepares', () => {
     });
     const prepared = (await client.prepareCommitSetup(EMPTY_DRAFT)) as PreparedBatch;
 
-    expect(seen.calls).toHaveLength(2);
+    expect(simulationCalls(seen)).toHaveLength(2);
     expect(prepared.calls[0]?.simulation?.success).toBe(false);
     expect(prepared.calls[1]?.simulation).toEqual({ success: true });
   });

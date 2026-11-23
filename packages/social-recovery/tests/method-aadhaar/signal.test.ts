@@ -20,6 +20,8 @@ import {
   stackDouble,
   SYNTHETIC_UPSTREAM,
 } from './fixtures';
+import { newPagePerTest } from './new-page';
+import { serveBucket, servedInit } from './served-bucket';
 
 const DIGESTS: readonly (readonly [string, Hex])[] = [
   ['zero', `0x${'00'.repeat(32)}`],
@@ -49,8 +51,19 @@ vi.mock('@anon-aadhaar/core', () => ({
   testPublicKeyHash: '15134874015316324267425466444584014077184337590635665158241104437045239495873',
 }));
 
-/** What the peer's init receives for the default bucket. */
-const CHUNKED_INIT = { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 };
+/** The pinned hashes replaced by the served bytes' own, so the default bucket loads against the stubbed fetch. */
+vi.mock('../../src/constants/method-aadhaar-bucket', async (importOriginal) => {
+  const { withServedHashes } = await import('./served-bucket');
+
+  return withServedHashes(await importOriginal<typeof import('../../src/constants/method-aadhaar-bucket')>());
+});
+
+serveBucket(METHOD_AADHAAR_BUCKET_CHUNKED);
+
+newPagePerTest();
+
+/** What the peer's init receives for the default bucket: object URLs for its checked wasm and vkey, its zkey URL as given. */
+const CHUNKED_INIT = servedInit(METHOD_AADHAAR_BUCKET_CHUNKED, 2);
 
 beforeEach(() => {
   vi.clearAllMocks();

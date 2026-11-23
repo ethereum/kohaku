@@ -72,6 +72,12 @@ export const RECOVERY_STATE: RecoveryState = {
 
 export const IDLE_STATE: RecoveryState = { ...RECOVERY_STATE, attempt: NO_ATTEMPT, nextAttemptId: 5n };
 
+/** The waiting attempt consumed, its setup nonce 3n. */
+export const CONSUMED: Attempt = { ...WAITING, state: 'Consumed' };
+
+/** A recovery record whose latest attempt was consumed under the setup nonce it still carries, 3n. */
+export const RECOVERED_STATE: RecoveryState = { ...RECOVERY_STATE, attempt: CONSUMED };
+
 /** The opening notification of the given attempt, filling the given places. */
 export const started = (attemptId: bigint, usedPlaces: readonly bigint[], payload: Hex, position: LogPosition): KitNotification => ({
   kind: 'attempt-started',

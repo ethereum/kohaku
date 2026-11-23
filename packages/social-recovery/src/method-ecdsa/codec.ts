@@ -49,7 +49,8 @@ export const decodeSigner = (config: Hex): Address => {
 
 /**
  * The codec: the config is `abi.encode(address signer)` and the proof is the raw signature bytes.
- * Each decode throws on bytes its encode would not reproduce, ignoring case; the zero address encodes, enrollment refuses it.
+ * Each decode throws on bytes its encode would not reproduce, ignoring case; the zero address encodes and decodes, while
+ * enrollment refuses it and `outOfBounds` names it, since no signature recovers it.
  */
 export const walletCodec: IMethodCodec = {
   encodeConfig(fields: Fields): Hex {
@@ -82,5 +83,9 @@ export const walletCodec: IMethodCodec = {
     }
 
     return { [METHOD_ECDSA_PROOF_FIELD]: proof.toLowerCase() };
+  },
+
+  outOfBounds(config: Hex): readonly string[] {
+    return isGuardianAddress(decodeSigner(config)) ? [] : [METHOD_ECDSA_CONFIG_FIELD];
   },
 };

@@ -14,12 +14,16 @@ import {
   METHOD_ZKPASSPORT_OUTER_EVM_PREFIX,
   METHOD_ZKPASSPORT_PROOFS_NAME,
   METHOD_ZKPASSPORT_RECORD_MESSAGE,
+  METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS,
   METHOD_ZKPASSPORT_SCOPED_NULLIFIER_FROM_END,
+  METHOD_ZKPASSPORT_SERVICE_SCOPE_INPUT,
+  METHOD_ZKPASSPORT_SERVICE_SUBSCOPE_INPUT,
   METHOD_ZKPASSPORT_WORD_HEX_LENGTH,
 } from '../constants';
 import { lowerHex } from '../formats/guards';
 import type { Hex } from '../interfaces';
 import type { ZkPassportStackProof } from '../types';
+import { serviceScopeHash } from './domain';
 
 /** Whether the value is a non-array object whose members can be read. */
 export const isRecord = (value: unknown): value is { readonly [key: string]: unknown } =>
@@ -90,6 +94,15 @@ export const acceptedNullifierType = (publicInputs: readonly string[], devMode: 
 
   return devMode ? METHOD_ZKPASSPORT_DEV_MODE_NULLIFIER_TYPES.includes(type) : type === METHOD_ZKPASSPORT_NON_SALTED_NULLIFIER;
 };
+
+const isWordOf = (value: string | undefined, expected: bigint): boolean =>
+  typeof value === 'string' && FORMATS_HEX_BYTES32_PATTERN.test(value) && BigInt(value) === expected;
+
+/** Whether the outer proof's service scope and subscope words are the scope hashes of the domain and the scope; never on a list too short to hold the leading words. */
+export const scopedTo = (publicInputs: readonly string[], domain: string, scope: string): boolean =>
+  publicInputs.length >= METHOD_ZKPASSPORT_SCOPED_MIN_PUBLIC_INPUTS &&
+  isWordOf(publicInputs[METHOD_ZKPASSPORT_SERVICE_SCOPE_INPUT], serviceScopeHash(domain)) &&
+  isWordOf(publicInputs[METHOD_ZKPASSPORT_SERVICE_SUBSCOPE_INPUT], serviceScopeHash(scope));
 
 /** A unique identifier as the config's `bytes32` word, lower-case. */
 export const identifierWord = (identifier: bigint): Hex =>

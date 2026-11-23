@@ -73,4 +73,11 @@ export type StatusDescription = {
   };
   /** Per method the attempt used, the latest notification of its stop. */
   readonly stops: readonly { readonly method: Address; readonly latest?: MethodStopNotification }[];
+  /**
+   * Whether the recovery record's attempt was consumed under the setup nonce that still stands: the recovery left that setup live
+   * and armed as it was, so the same credentials can open another attempt against the new key until the holder commits a new setup.
+   * False once any setup write moves the nonce, a re-commit of the same rule among them, and where a later attempt under the same
+   * nonce replaced the consumed one.
+   */
+  readonly recommitOwed: boolean;
 };

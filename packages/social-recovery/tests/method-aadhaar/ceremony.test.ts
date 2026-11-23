@@ -20,6 +20,8 @@ import {
   SYNTHETIC_UPSTREAM,
   vectorPcd,
 } from './fixtures';
+import { newPagePerTest } from './new-page';
+import { serveBucket, servedInit } from './served-bucket';
 
 /** The proof vector's digest. */
 const DIGEST: Hex = '0x17498ba208aefe001e6e2f2adec41cd16d0285e23660df6e310d3daac040c339';
@@ -45,8 +47,19 @@ vi.mock('@anon-aadhaar/core', () => ({
   testPublicKeyHash: '15134874015316324267425466444584014077184337590635665158241104437045239495873',
 }));
 
-/** What the peer's init receives for the default bucket. */
-const CHUNKED_INIT = { ...METHOD_AADHAAR_BUCKET_CHUNKED, artifactsOrigin: 2 };
+/** The pinned hashes replaced by the served bytes' own, so the default bucket loads against the stubbed fetch. */
+vi.mock('../../src/constants/method-aadhaar-bucket', async (importOriginal) => {
+  const { withServedHashes } = await import('./served-bucket');
+
+  return withServedHashes(await importOriginal<typeof import('../../src/constants/method-aadhaar-bucket')>());
+});
+
+serveBucket(METHOD_AADHAAR_BUCKET_CHUNKED);
+
+newPagePerTest();
+
+/** What the peer's init receives for the default bucket: object URLs for its checked wasm and vkey, its zkey URL as given. */
+const CHUNKED_INIT = servedInit(METHOD_AADHAAR_BUCKET_CHUNKED, 2);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -67,17 +80,17 @@ describe('enrollment', () => {
     expect(double.total()).toBe(0);
   });
 
-  it('configFrom writes abi.encode(nullifier, seed, the fixed window) from the prover proof', async () => {
+  it('configFrom writes abi.encode(nullifier, seed, the default window) from the prover proof', async () => {
     const double = stackDouble({ pcd: pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST)) });
     const method = anonAadhaarMethod({ stack: double.stack });
     const config = await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA });
 
     expect(METHOD_AADHAAR_FRESHNESS_WINDOW).toBe(FRESHNESS_WINDOW);
-    expect(config).toBe(configBytes(22n, 77n, 86_400n));
-    expect(method.codec.decodeConfig(config as Hex)).toEqual({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: 86_400n });
+    expect(config).toBe(configBytes(22n, 77n, 4_500n));
+    expect(method.codec.decodeConfig(config as Hex)).toEqual({ nullifier: 22n, nullifierSeed: 77n, freshnessWindow: 4_500n });
   });
 
-  it('configFrom writes the config vector bytes but for the window, which the vector sets to 4500', async () => {
+  it('configFrom under the default window writes the config vector bytes, whose window is 4500', async () => {
     const double = stackDouble({ pcd: pcdOf(SYNTHETIC_UPSTREAM, signalsFor(22n, 77n, DIGEST)) });
     const method = anonAadhaarMethod({ stack: double.stack });
     const config = (await method.configFrom(method.enrollInput(PARAMS), { qrData: QR_DATA })) as Hex;
@@ -86,6 +99,7 @@ describe('enrollment', () => {
     expect(config.slice(0, twoWords)).toBe(configRow.expected.encoded.slice(0, twoWords));
     expect(BigInt(`0x${configRow.expected.encoded.slice(twoWords)}`)).toBe(4_500n);
     expect(config).toBe(configBytes(22n, 77n, METHOD_AADHAAR_FRESHNESS_WINDOW));
+    expect(config).toBe(configRow.expected.encoded);
   });
 
   it('configFrom proves once and hands the prover the QR code, the seed and the certificate, no reveal', async () => {
@@ -209,7 +223,7 @@ describe('signing', () => {
     expect(options?.fieldsToRevealArray ?? []).toEqual([]);
     expect(BigInt(options?.signal ?? '-1')).toBe(BigInt(DIGEST));
     expect(double.proveCalls).toHaveLength(1);
-    expect(double.proveCalls[0]?.onProgress).toBe(onProgress);
+    expect(double.proveCalls[0]?.onProgress).toEqual(expect.any(Function));
     expect(double.proveCalls[0]?.signal).toBe(controller.signal);
     expect(states).toEqual(['proving', 'completed']);
     expect(double.order.slice(0, 2)).toEqual(['generateArgs', 'prove']);

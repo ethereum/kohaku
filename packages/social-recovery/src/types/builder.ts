@@ -157,4 +157,6 @@ export type SequenceInputs = {
   readonly readTag: NamedBlockTag;
   readonly versionEscape: boolean;
   readonly reading: ManagerReading | undefined;
+  /** The address `withRecoveryAction` bound; absent, the descriptor's action is the one read. */
+  readonly action: Address | undefined;
 };

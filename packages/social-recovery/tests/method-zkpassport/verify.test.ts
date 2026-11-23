@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { zkPassportMethod } from '../../src/method-zkpassport';
 import type { Hex } from '../../src/interfaces';
@@ -12,6 +13,7 @@ import {
   member,
   outerInputs,
   readPinConfigRows,
+  scopeWord,
   stackDouble,
   word,
 } from './fixtures';
@@ -21,6 +23,12 @@ const IDENT = 0x7bn;
 const CONFIG = encodeConfig(word(IDENT), 'recover.example', 'mast-social-recovery', 86400n);
 
 const proofWith = (publicInputs: readonly string[]): Hex => encodeProof(word(0x63), '0x123456', publicInputs.map(asHex), '0x1234');
+
+/** The default outer inputs with the words at the given positions replaced. */
+const inputsWith = (replaced: { readonly [index: number]: string }): string[] =>
+  outerInputs(IDENT).map((input, index) => replaced[index] ?? input);
+
+const SCOPELESS = encodeConfig(word(IDENT), 'recover.example', '', 86400n);
 
 const cases: readonly (readonly [string, Hex, Hex, 'rejected' | 'not-judged'])[] = [
   ['a well-formed proof for the config\'s identifier, non-salted', CONFIG, proofWith(outerInputs(IDENT)), 'not-judged'],
@@ -43,7 +51,15 @@ const cases: readonly (readonly [string, Hex, Hex, 'rejected' | 'not-judged'])[]
     'rejected',
   ],
   ['a config as a nested tuple', encodeNestedConfig(word(IDENT), 'recover.example', 'mast-social-recovery', 86400n), proofWith(outerInputs(IDENT)), 'rejected'],
-  ['a config with an empty domain, still the pin\'s layout', encodeConfig(word(IDENT), '', 's', 1n), proofWith(outerInputs(IDENT)), 'not-judged'],
+  ['a config with an empty domain, still the pin\'s layout', encodeConfig(word(IDENT), '', 's', 1n), proofWith(outerInputs(IDENT, 0n, '', 's')), 'not-judged'],
+  ['a proof whose word 3 is another domain\'s', CONFIG, proofWith(inputsWith({ 3: scopeWord('other.example') })), 'rejected'],
+  ['a proof whose word 3 is the config domain\'s with a scheme', CONFIG, proofWith(inputsWith({ 3: scopeWord('https://recover.example') })), 'rejected'],
+  ['a proof whose word 4 is another scope\'s', CONFIG, proofWith(inputsWith({ 4: scopeWord('other-scope') })), 'rejected'],
+  ['a proof whose words 3 and 4 are swapped', CONFIG, proofWith(inputsWith({ 3: scopeWord('mast-social-recovery'), 4: scopeWord('recover.example') })), 'rejected'],
+  ['a proof whose word 3 is the full 32-byte SHA-256 of the domain', CONFIG, proofWith(inputsWith({ 3: `0x${createHash('sha256').update('recover.example').digest('hex')}` })), 'rejected'],
+  ['a proof for a config with an empty domain whose word 3 is the default domain\'s', encodeConfig(word(IDENT), '', 's', 1n), proofWith(outerInputs(IDENT, 0n, 'recover.example', 's')), 'rejected'],
+  ['a config with an empty scope and eight inputs whose word 4 is the zero word', SCOPELESS, proofWith([word(0x21), word(0x22), word(0x23), scopeWord('recover.example'), word(0), word(0), word(IDENT), word(0x24)]), 'not-judged'],
+  ['a config with an empty scope and seven inputs, its word 4 also the nullifier type', SCOPELESS, proofWith([word(0x21), word(0x22), word(0x23), scopeWord('recover.example'), word(0), word(IDENT), word(0x24)]), 'rejected'],
 ];
 
 describe('verify answers from local facts alone and never asks the stack', () => {
@@ -79,23 +95,23 @@ const configFile = readPinConfigRows();
 const proofFile = readVector('method-zkpassport-proof.json');
 
 describe('verify over the pin\'s config row and the blessed proof row', () => {
-  it('the config row and the proof row agree on the identifier, so the answer is not judged (synthetic proof, no live verifier)', async () => {
+  it('the config row and the proof row agree on the identifier, but the row\'s words 3 and 4 are synthetic, so the proof is rejected', async () => {
     const double = stackDouble();
     const config = asHex(member(configFile.vectors.find((row) => row['id'] === 'normal'), 'expected', 'encoded'));
     const proof = asHex(member(proofFile.vectors[0], 'expected', 'encoded'));
     const digest = asHex(member(proofFile.vectors[0], 'input', 'digest'));
 
-    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
+    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config, digest), proof)).resolves.toBe('rejected');
     expect(double.calls).toEqual([]);
   });
 
-  it('the blessed config row and the blessed proof row agree on the identifier, so the answer is not judged', async () => {
+  it('the blessed config row and the blessed proof row agree on the identifier, but not on the words 3 and 4, so the proof is rejected', async () => {
     const double = stackDouble();
     const config = asHex(member(blessedConfigFile.vectors.find((row) => row['id'] === 'normal'), 'expected', 'encoded'));
     const proof = asHex(member(proofFile.vectors[0], 'expected', 'encoded'));
     const digest = asHex(member(proofFile.vectors[0], 'input', 'digest'));
 
-    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config, digest), proof)).resolves.toBe('not-judged');
+    await expect(zkPassportMethod({ stack: double.stack }).verify(makeCtx(config, digest), proof)).resolves.toBe('rejected');
     expect(double.calls).toEqual([]);
   });
 });
