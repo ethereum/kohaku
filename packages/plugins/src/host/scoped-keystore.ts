@@ -1,6 +1,6 @@
 import type { Hex } from "ox/Hex";
-import type { Keystore } from "./index";
-import { parseDerivationPath } from "./derivation-path";
+import type { Keystore } from "./index.js";
+import { parseDerivationPath } from "./derivation-path.js";
 
 export type KeystoreScope = {
     /** Subtrees the holder may derive below, e.g. `m/29795'/1'`. The prefix node itself is not included. */

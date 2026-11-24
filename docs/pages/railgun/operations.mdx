@@ -1,0 +1,59 @@
+# Private operations
+
+Railgun spends PPOI-valid notes with a signed EIP-7702 UserOperation. `prepareTransfer` sends value to a Railgun `0zk…` address. `prepareUnshield` sends it to an EVM address. Both use the account key at `accountSigningPath` and the bundler URL supplied when the plugin opened.
+
+## Transfer within Railgun
+
+```ts
+const token = {
+  asset: { __type: 'erc20' as const, contract: tokenAddress },
+  amount: 1_000_000n, // token base units
+}
+const operation = await railgun.prepareTransfer(token, railgunRecipient, {
+  memo: 'Payment',
+})
+const submitted = await createRailgunBroadcaster(host).broadcast(operation)
+const receipt = await submitted.wait()
+if (!receipt.success) throw new Error('Railgun transfer reverted')
+```
+
+Transfer accepts an ERC-20 asset or the native alias, which maps to the chain's wrapped base token. The memo travels in the private Railgun note; treat it as recipient-visible data.
+
+## Unshield amounts and calls
+
+```ts
+const operation = await railgun.prepareUnshield(token, recipient, {
+  tailCalls: [
+    { target: appAddress, value: 0n, data: encodedCall },
+  ],
+})
+```
+
+The amount is what the recipient should receive; Rust adds the Railgun unshield treasury fee before selecting notes. The paymaster fee token is the chain's wrapped base token, so the wallet also needs PPOI-valid balance for gas. Preparation fails when eligible notes cannot cover the operation. For native unshield the plugin spends the wrapped base token, then unwraps it. The recipient must be the signing EOA for native unshield or when `tailCalls` are present. Calls run in order after the Railgun unshield and optional unwrap. Review every target, value, and calldata with the user before requesting the signing key.
+
+Shielding ERC-20 is public. `prepareShield` or `prepareShieldMulti` includes approvals before the Railgun deposit transactions; the plugin sums approvals for repeated tokens. Mainnet USDT gets an allowance reset to zero first. Send the returned transactions in order and wait for receipts before assuming the deposit landed. ERC-721 and ERC-1155 may appear in synced balances, but the current WASM spend and shield API prepares ERC-20 and native value only.
+
+## Broadcast and recover
+
+The prepared operation contains `prepared.signed` and `prepared.userOpHash`. Save an operation journal with that signed payload and hash before sending so a crash can resume receipt polling. The Railgun checkpoint has already been saved when `prepareTransfer` or `prepareUnshield` returns.
+
+```ts
+import { BundlerSubmissionError } from '@kohaku-eth/railgun'
+
+try {
+  const submitted = await createRailgunBroadcaster(host).broadcast(operation)
+  const receipt = await submitted.wait()
+  if (!receipt.success) throw new Error('UserOperation reverted')
+} catch (error) {
+  // On an ambiguous send, check the known hash before resubmitting.
+  if (error instanceof BundlerSubmissionError) {
+    const hash = error.userOpHash
+    // Recover the receipt for hash through the same bundler.
+  }
+  throw error
+}
+```
+
+Import `BundlerSubmissionError` from `@kohaku-eth/railgun` for this branch. The broadcaster checks that the bundler returns the hash Rust signed. A transport timeout can happen after acceptance, so poll `eth_getUserOperationReceipt` for `operation.prepared.userOpHash` before deciding to send again. `wait()` resolves for both successful and reverted included operations; inspect `receipt.success` and then sync the wallet to observe the new note state.
+
+The lower-level `RailgunWorkerWallet` exposes the WASM wallet directly when a host wants custom orchestration. Its `open` needs explicit spending/viewing keys, a `persistCheckpoint` callback, and optional `fetch`. The high-level `RailgunProtocol` supplies those through the Kohaku host and keeps the plugin interface.

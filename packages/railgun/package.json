@@ -1,29 +1,64 @@
 {
   "name": "@kohaku-eth/railgun",
   "version": "0.0.1-alpha.31",
-  "description": "Placeholder for the Railgun package (to be reintroduced)",
+  "description": "Railgun privacy wallet plugin and WASM bindings for Kohaku",
   "type": "module",
-  "private": true,
+  "private": false,
   "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/ethereum/kohaku.git",
     "directory": "packages/railgun"
   },
+  "imports": {
+    "#worker-loader": {
+      "node": "./dist/worker-loader.node.js",
+      "browser": "./dist/worker-loader.browser.js",
+      "default": "./dist/worker-loader.browser.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./railgun-worker.node.js": "./dist/railgun-worker.node.js",
+    "./railgun-worker.browser.js": "./dist/railgun-worker.browser.js",
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "vendor/wasm",
+    "scripts",
+    "README.md",
+    "LICENSE"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "build": "mkdir -p dist && printf 'export {};\\n' > dist/index.js && printf 'export {};\\n' > dist/index.d.ts"
+    "build": "tsup --config tsup.config.ts",
+    "build:wasm": "node scripts/rebuild-wasm.mjs",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && vitest run",
+    "prepack": "node scripts/check-wasm-provenance.mjs && npm run build"
   },
   "keywords": [],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@kohaku-eth/plugins": "workspace:*",
+    "@kohaku-eth/provider": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.0.0"
+  }
 }

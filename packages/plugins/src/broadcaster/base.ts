@@ -1,4 +1,4 @@
-import { PrivateOperation } from "~/shared";
+import type { PrivateOperation } from "../shared.js";
 
 export type Broadcaster<
     TPrivateOperation extends PrivateOperation = PrivateOperation,

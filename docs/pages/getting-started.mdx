@@ -1,18 +1,18 @@
 # Get started
 
-`@kohaku-eth/privacy-pools` and `@kohaku-eth/tornado-cash` are wallet plugins. Both speak the same interface from `@kohaku-eth/plugins`, and both read the chain through `@kohaku-eth/provider`.
+`@kohaku-eth/privacy-pools`, `@kohaku-eth/tornado-cash`, and `@kohaku-eth/railgun` are wallet plugins. They speak the same interface from `@kohaku-eth/plugins` and use the same host for chain, network, storage, and keys.
 
 You build a [`Host`](/host), create a plugin, and call two methods:
 
 - `prepareShield` returns public transactions. Your wallet signs and broadcasts them.
 - `prepareUnshield` returns a private operation. A broadcaster from the same package relays a paymaster-sponsored ERC-4337 user operation to a bundler.
 
-Use the ERC-4337 paymaster path as the default integration path. Always pass `mode: 'paymaster'` explicitly; omitting it selects the SDK's regular relayer mode.
+Use the ERC-4337 paymaster path for private operations. For Privacy Pools and Tornado Cash, pass `mode: 'paymaster'` explicitly; omitting it selects their regular relayer mode. Railgun prepares a signed UserOperation directly.
 
-ETH is the ERC-20 id `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee`. Both packages export it as `E_ADDRESS`.
+Privacy Pools and Tornado Cash represent ETH with the ERC-20 id `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (`E_ADDRESS`). Railgun uses `{ __type: 'native' }`.
 
 :::warning
-`@kohaku-eth/privacy-pools` and `@kohaku-eth/tornado-cash` are still undergoing audits.
+The protocol packages are still undergoing audits.
 :::
 
 ## Install
@@ -22,15 +22,15 @@ The protocol packages depend on `@kohaku-eth/plugins` and `@kohaku-eth/provider`
 :::code-group
 
 ```bash [pnpm]
-pnpm add @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash viem
+pnpm add @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash @kohaku-eth/railgun viem
 ```
 
 ```bash [npm]
-npm install @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash viem
+npm install @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash @kohaku-eth/railgun viem
 ```
 
 ```bash [yarn]
-yarn add @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash viem
+yarn add @kohaku-eth/privacy-pools @kohaku-eth/tornado-cash @kohaku-eth/railgun viem
 ```
 
 :::
@@ -205,9 +205,33 @@ A multi-note unshield is consolidated into a single paymaster-sponsored ERC-4337
 
 :::
 
+## Railgun
+
+Railgun uses the same host, with encrypted checkpoint storage. The Rust WASM wallet runs in a Node worker thread or browser Web Worker. It currently knows mainnet and Sepolia.
+
+```ts
+import { createRailgunPlugin } from '@kohaku-eth/railgun'
+
+const railgun = await createRailgunPlugin(host, {
+  rpcUrl,
+  bundlerUrl,
+  accountIndex: 0,
+  accountSigningPath: "m/44'/60'/0'/0/0",
+})
+
+const shield = await railgun.prepareShield({
+  asset: { __type: 'native' },
+  amount: 10_000_000_000_000_000n,
+})
+// Sign, send, and confirm shield.txns in order from the public account.
+const balances = await railgun.balance() // syncs the wallet first
+```
+
+The Railgun spending and viewing keys derive from `accountIndex`. `accountSigningPath` identifies the separate EOA that signs EIP-7702 private operations. [Railgun shield and unshield](/railgun) shows the broadcaster, while [configuration](/railgun/configuration) covers key paths, transport, and checkpoint storage.
+
 ## When a call throws
 
-Plugins throw `PluginError` from `@kohaku-eth/plugins`. Catch the subclass when you want a specific message in the wallet UI.
+Privacy Pools and Tornado Cash throw `PluginError` from `@kohaku-eth/plugins`. Catch a subclass when you want a specific message in the wallet UI. Railgun currently reports many failures as ordinary `Error`s; inspect its message and operation state before offering a retry.
 
 | Error | When |
 | --- | --- |
@@ -216,11 +240,11 @@ Plugins throw `PluginError` from `@kohaku-eth/plugins`. Catch the subclass when 
 | `UnsupportedChainError` | The host provider is on a chain the plugin has no deployment for. |
 | `UnsupportedAccountError` | The account id is outside what the plugin derives. |
 | `InvalidAddressError` | A recipient or contract address failed validation. |
-| `MultiAssetsNotSupportedError` | A multi-asset call was made. These two plugins spend one asset per call. |
-| `TransferNotSupportedError` | An internal transfer was requested. Shield and unshield are the supported directions. |
+| `MultiAssetsNotSupportedError` | A multi-asset private spend was requested from a plugin that supports one asset per call. |
+| `TransferNotSupportedError` | An internal transfer was requested from Privacy Pools or Tornado Cash. Railgun supports private transfers. |
 
 Anything else is a normal `Error`: a relayer outage, a pool with no denomination for that amount, a quote that expired. Show `error.message` and let the user retry. `prepareUnshield` quotes again on the next call.
 
 ## A working wallet
 
-The snippets above are the whole API surface you need to move funds. [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli) wires the same calls into prompts, encrypted storage, and Tor. The [examples page](/examples) maps each file to the step it implements.
+The [examples page](/examples) maps the CLI's host and Privacy Pools/Tornado flows to source files. The Railgun pages cover the current WASM plugin, including [sync and PPOI](/railgun/state) and [private operation recovery](/railgun/operations).

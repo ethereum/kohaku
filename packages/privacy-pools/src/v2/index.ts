@@ -47,7 +47,7 @@ export type PPv2BroadcasterParameters = {
     // TODO: add remaining url params
 };
 export type PPv2PrivateOperation = PrivateOperation & { bar: 'hi' };
-export type PPv2Broadcaster = Broadcaster<PPv2BroadcasterParameters>;
+export type PPv2Broadcaster = Broadcaster<PPv2PrivateOperation>;
 export type PPv2PluginParameters = { foo: 'bar' }; // TODO: add deployment params 
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

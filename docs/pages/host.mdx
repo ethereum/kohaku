@@ -1,6 +1,6 @@
 # The host
 
-A plugin never opens a socket, reads a file, or holds a seed. It asks the host. You implement `Host` from `@kohaku-eth/plugins` once, and both Privacy Pools and Tornado Cash use it.
+A plugin asks the host for chain, network, storage, and keys. You implement `Host` from `@kohaku-eth/plugins` once, and Privacy Pools, Tornado Cash, and Railgun use it.
 
 ```ts
 import type { Host } from '@kohaku-eth/plugins'
@@ -13,7 +13,7 @@ const host: Host = {
 }
 ```
 
-Chain reads go through `provider`. Everything that is not a JSON-RPC call goes through `network.fetch`. That split is how a wallet can put Tor, a proxy, or a custom DNS path on relayer traffic while the RPC stays on a node the user picked.
+Privacy Pools and Tornado Cash read the chain through `provider` and use `network.fetch` for their other HTTP requests. Railgun reads its configured `rpcUrl` through `network.fetch` in the WASM worker and uses `provider` to check the chain ID. Configure both paths according to the wallet's network privacy policy.
 
 [kohaku-cli](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/makeHost.ts) builds this object for each protocol. The sections below match that file.
 
@@ -27,7 +27,7 @@ const network = {
 
 `fetch` is the platform `fetch`. Return the `Response`, including 4xx and 5xx. Plugins check `response.ok` and read the body. Throw when the request cannot be sent at all: offline, blocked, or a proxy that failed before a response.
 
-The plugin passes a normal `RequestInfo` and `RequestInit`. Keep the method, headers, and body. Privacy Pools uses this for the relayer, the association-set provider, and IPFS. Tornado uses it for relayers and for the default circuit download.
+The plugin passes a normal `RequestInfo` and `RequestInit`. Keep the method, headers, and body. Privacy Pools uses this for the relayer, the association-set provider, and IPFS. Tornado uses it for relayers and for the default circuit download. Railgun uses it for RPC, Subsquid, PPOI, circuits, and bundler requests.
 
 The CLI wraps `fetch` so an active Tor session is picked up even if the host was created earlier. See `makeNetwork` in [`src/host/makeHost.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/makeHost.ts).
 
@@ -53,13 +53,13 @@ function memoryStorage(): Storage {
 
 `_brand` is the string `'Storage'`. `get` returns `null` when the key is missing, and throws when the store itself fails. `set` throws on failure. Both are async.
 
-Plugins write their sync state here: Merkle trees, scanned blocks, and note indexes. Some of that is sensitive. Encrypt it at rest, and keep the key out of the same file. Give each plugin its own store. The key prefixes differ (`privacy-pool-state-…` and `tornado-cash-state-…`), so a shared map works, but a dedicated store lets you wipe one protocol without touching the other.
+Plugins write their sync state here: Merkle trees, scanned blocks, and note indexes. Some of that is sensitive. Encrypt it at rest, and keep the key out of the same file. Give each plugin its own store. The key prefixes differ (`privacy-pool-state-…`, `tornado-cash-state-…`, and `railgun-v1:…`), so a shared map works, but a dedicated store lets you wipe one protocol without touching the other. Railgun encrypts and authenticates its checkpoint before storing private note material and cached tree nodes here.
 
 The host must give each wallet its own private `host.storage` namespace, and each account its own namespace when imported notes must stay separate. Tornado persists imported bearer-note secrets here; `accountIndex` selects derivation paths and does not namespace storage. Sharing the same storage namespace also shares those imported notes.
 
 `MemoryStorage` from `@kohaku-eth/plugins` is the in-memory version of the snippet above. Use it in tests. The CLI encrypts a JSON file per wallet and plugin in [`src/host/storage.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/storage.ts).
 
-After losing the store, `sync` rediscovers keystore-derived notes from the chain. Imported Tornado notes must be re-imported from their original note strings, so keep those backups.
+After losing the store, `sync` rediscovers keystore-derived notes from the chain. Imported Tornado notes must be re-imported from their original note strings, so keep those backups. Railgun can rebuild a new checkpoint from history with the same spending and viewing keys; the old CLI checkpoint format is not imported automatically.
 
 ## `keystore`
 
@@ -73,16 +73,17 @@ const key = await keystore.deriveAt("m/28784'/1'/0'")
 
 `deriveAt` takes a BIP-32 path and returns a 32-byte hex private key. The same path must return the same key for the life of the wallet. An unstable keystore spends notes into a set the wallet can no longer find.
 
-You may reject paths. Once you have accepted a path, keep accepting it. If you do restrict paths, allow the two prefixes below and any `delegation.path` your wallet passes to an unshield. These plugins derive under two purpose values:
+You may reject paths. Once you have accepted a path, keep accepting it. If you restrict paths, allow the protocol's paths below and the exact execution signer path supplied to a private operation:
 
 | Plugin | Purpose | What lives there |
 | --- | --- | --- |
 | Privacy Pools | `m/28784'/1'/…` | Signature identity at `m/28784'/1'/{account}'`. Legacy note secrets add `/{secretType}'/{deposit}'/{secret}'`. |
 | Tornado Cash | `m/29795'/1'/…` | Signature identity at `m/29795'/1'/{account}'`. Legacy note secrets add `/{secretType}'/{deposit}'`. |
+| Railgun | `m/44'/1984'/0'/0'/{account}'` and `m/420'/1984'/0'/0'/{account}'` | Spending and viewing keys. The `1984'` coin type uses the Railgun hash-chain derivation. |
 
 `account` is the `accountIndex` you pass when creating the plugin. `secretType` is `0` (nullifier), `1` (salt), or `2` (paymaster signer).
 
-Paymaster withdrawals in both plugins can also call `deriveAt` with a path you supplied in `delegation.path`. It is a normal wallet key, so a stuck delegator can be swept by the same seed.
+Privacy Pools and Tornado paymaster withdrawals can also call `deriveAt` with a path you supplied in `delegation.path`. Railgun calls it with `accountSigningPath` to sign its EIP-7702 UserOperation. These are normal wallet keys, separate from the protocol note keys; keep them recoverable.
 
 Each plugin wraps your keystore before it reaches the secret manager, custom ones included, and the Tornado worker. Privacy Pools then derives only below `m/28784'/1'`, Tornado only below `m/29795'/1'`. Each also gets the exact `delegation.path` of an unshield you call, not the rest of `m/44'/60'`. Any other path throws `KeystorePathNotAllowedError`. Use `scopeKeystore` the same way for plugin code you did not write:
 
@@ -95,7 +96,7 @@ const pluginKeystore = scopeKeystore(keystore, {
 })
 ```
 
-`MnemonicKeystore` covers BIP-32, plus the Railgun hash chain for coin type `1984`. Privacy Pools and Tornado use the BIP-32 branch. The constructor rejects a phrase whose words or checksum are wrong. `deriveAt` rejects malformed paths (`0abc'`, `1e3'`, leading zeros, indices of 2³¹ or more) and the master key `m`, instead of guessing. `MnemonicKeystore.random()` generates a 24-word phrase. The CLI's keystore, which also resolves stealth-account paths, is [`src/host/keystore.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/keystore.ts).
+`MnemonicKeystore` covers BIP-32, plus the Railgun hash chain for coin type `1984`. Privacy Pools and Tornado use the BIP-32 branch. Railgun uses both Railgun paths above. The constructor rejects a phrase whose words or checksum are wrong. `deriveAt` rejects malformed paths (`0abc'`, `1e3'`, leading zeros, indices of 2³¹ or more) and the master key `m`, instead of guessing. `MnemonicKeystore.random()` generates a 24-word phrase. The CLI's keystore, which also resolves stealth-account paths, is [`src/host/keystore.ts`](https://github.com/kassandraoftroy/kohaku-cli/blob/main/src/host/keystore.ts).
 
 ### One secret manager owns a note
 
@@ -173,7 +174,9 @@ Tornado builds its state in a worker. Host objects cross into that worker throug
 
 The worker cannot read fields (`keystore.mnemonic`), replace methods, or construct objects on the host side. Arguments must be plain data.
 
-`network.fetch` is not filtered by the SDK. Plugins and the Tornado worker can reach any URL, so put your own allowlist or proxy there if you need one.
+`network.fetch` is not filtered by the SDK. Plugins and their workers can reach any URL, so put your own allowlist or proxy there if you need one.
+
+Railgun derives its spending/viewing keys on the host, then gives them to a Node or browser worker. That worker can ask the host to fetch URLs and persist the checkpoint. The plugin scopes derivation to its two Railgun paths and the exact `accountSigningPath`. Give its worker transport and storage the same privacy protections as the other plugins.
 
 Nothing in the SDK loads plugins at runtime. If your wallet loads plugin code it did not bundle, run it in its own worker, iframe, or process. Give it a `scopeKeystore` keystore, its own storage, and a filtered `network`.
 
@@ -186,6 +189,7 @@ Keep Tornado `balance`/`notes` asset-filter lists small, especially when they co
 - `fetch` returns real HTTP responses and throws only when there is no response.
 - Storage is async, branded, encrypted, and scoped to one plugin.
 - `deriveAt` is stable, and the purpose prefixes `m/28784'` and `m/29795'` are allowed, plus any `delegation.path` you use.
+- Railgun's two `1984'` key paths and its exact `accountSigningPath` are allowed; its plugin-encrypted checkpoint is persisted atomically.
 - Plugin code you did not write gets a `scopeKeystore` keystore and runs isolated.
 - The provider's chain id matches the deployment config.
 - The secret manager stays the one that created existing notes.

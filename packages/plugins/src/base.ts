@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Host } from "~/host";
-import { AssetAmount, PrivateOperation, PublicOperation } from "~/shared";
-import { Address } from "ox/Address";
-import { TxData } from "@kohaku-eth/provider";
+import type { Host } from "./host/index.js";
+import type { AssetAmount, PrivateOperation, PublicOperation } from "./shared.js";
+import type { Address } from "ox/Address";
+import type { TxData } from "@kohaku-eth/provider";
 
 export type AssetAmounts<
     TxAssetAmountInput extends AssetAmount = AssetAmount,

@@ -1,11 +1,11 @@
-import { Keystore } from "./index";
+import type { Keystore } from "./index.js";
 import { HDKey } from "@scure/bip32";
 import { mnemonicToSeedSync, generateMnemonic, validateMnemonic } from "@scure/bip39";
 import { wordlist as english } from "@scure/bip39/wordlists/english.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { Hex } from "ox";
-import { HARDENED_OFFSET, parseDerivationPath } from "./derivation-path";
+import { HARDENED_OFFSET, parseDerivationPath } from "./derivation-path.js";
 
 /** RAILGUN registered coin type (SLIP-0044). */
 const RAILGUN_COIN_TYPE = 1984;

@@ -1,6 +1,6 @@
 # Provider
 
-`@kohaku-eth/provider` is the chain interface on [`Host`](/host). Privacy Pools and Tornado Cash call it to sync pools, read balances, and estimate gas. Your wallet still signs shield transactions with its own account.
+`@kohaku-eth/provider` is the chain interface on [`Host`](/host). Privacy Pools and Tornado Cash call it to sync pools, read balances, and estimate gas. Railgun checks its chain ID here and reads its configured `rpcUrl` through `host.network.fetch`. Your wallet signs shield transactions with its own account.
 
 ```ts
 import type { EthereumProvider } from '@kohaku-eth/provider'
