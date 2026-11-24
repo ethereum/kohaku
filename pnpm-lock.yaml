@@ -421,6 +421,52 @@ importers:
         specifier: ^3.0.0
         version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.2)(@vitest/browser@3.2.6)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(tsx@4.22.5)(yaml@2.9.0)
 
+  packages/tacit:
+    dependencies:
+      '@kohaku-eth/plugins':
+        specifier: workspace:*
+        version: link:../plugins
+      '@kohaku-eth/provider':
+        specifier: workspace:*
+        version: link:../provider
+      '@noble/curves':
+        specifier: ^2.2.0
+        version: 2.2.0
+      '@noble/hashes':
+        specifier: ^2.2.0
+        version: 2.2.0
+      poseidon-lite:
+        specifier: ^0.3.0
+        version: 0.3.0
+      snarkjs:
+        specifier: ^0.7.6
+        version: 0.7.6
+      viem:
+        specifier: ^2.51.3
+        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.12.2
+        version: 24.13.2
+      get-port:
+        specifier: ^7.1.0
+        version: 7.2.0
+      prool:
+        specifier: ^0.0.24
+        version: 0.0.24(@pimlico/alto@0.0.20(supports-color@8.1.1)(typescript@5.9.3))(debug@4.4.3(supports-color@8.1.1))
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.16)(supports-color@8.1.1)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.17.0
+        version: 4.22.5
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.2)(@vitest/browser@3.2.6)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(tsx@4.22.5)(yaml@2.9.0)
+
   packages/tornado-cash:
     dependencies:
       '@kohaku-eth/mimc-tree':
