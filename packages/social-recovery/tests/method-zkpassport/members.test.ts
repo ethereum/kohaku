@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, expectTypeOf, it } from 'vitest';
@@ -204,41 +204,31 @@ describe('the method\'s constants', () => {
   });
 });
 
-describe('the changesets', () => {
-  const changesets = join(PACKAGE_ROOT, '..', '..', '.changeset');
-  const every = readdirSync(changesets)
-    .filter((name) => name.endsWith('.md'))
-    .map((name) => ({ name, text: readFileSync(join(changesets, name), 'utf8') }));
-  const named = every.filter(({ text }) => text.includes('zkPassportMethod'));
-  const texts = [named.map(({ text }) => text).join('\n')];
-  const constantTexts = every.filter(({ text }) => text.includes('METHOD_ZKPASSPORT_')).map(({ text }) => text).join('\n');
+describe('the stable release notes', () => {
+  const text = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
 
-  it('the method\'s own changeset and the dev-mode one name the method, each as a patch of the package', () => {
-    expect(named.map(({ name }) => name).sort()).toEqual(['identity-test-modes.md', 'social-recovery-method-zkpassport.md']);
-
-    for (const { text } of named) expect(text).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+  it('names the method and its dev-mode update in the 0.0.2 release', () => {
+    expect(text).toContain('### Patch Changes');
+    expect((text.match(/zkPassportMethod/g) ?? []).length).toBeGreaterThan(1);
   });
 
-  it('the dev-mode changeset states the factory\'s break and names the option', () => {
-    const text = named.find(({ name }) => name === 'identity-test-modes.md')?.text ?? '';
-
+  it('states the dev-mode factory break and names the option', () => {
     expect(text).toMatch(/Breaking/);
     expect(text).toContain('zkPassportMethod({ stack })');
     expect(text).toContain('devMode');
   });
 
-  it('names the METHOD_ZKPASSPORT_ constants, by prefix or one by one, across the changesets that name any', () => {
-    const text = constantTexts;
+  it('names the METHOD_ZKPASSPORT_ constants, by prefix or one by one', () => {
     const byPrefix = /METHOD_ZKPASSPORT_(?![A-Z0-9])|METHOD_ZKPASSPORT_\*/.test(text);
 
     expect(OWN.length).toBeGreaterThan(0);
     expect(byPrefix || OWN.every(([name]) => text.includes(name))).toBe(true);
   });
 
-  it('the domain changeset is a patch with a Breaking line, names each new constant and never the factory', () => {
-    const own = every.find(({ name }) => name === 'zkpassport-domain-normalization.md')?.text ?? '';
+  it('the domain release note has a Breaking line, names each new constant and never the factory', () => {
+    const own = text.split(/(?=^- )/m).find((entry) => entry.includes('The zkPassport method refuses a domain the zkPassport stack would rewrite')) ?? '';
 
-    expect(own).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+    expect(text).toMatch(/#### Patch Changes[\s\S]*The zkPassport method refuses a domain the zkPassport stack would rewrite/);
     expect(own).toMatch(/Breaking/);
     expect(DOMAIN_CONSTANTS.filter((name) => !own.includes(name))).toEqual([]);
     expect(own).not.toContain('zkPassportMethod');
@@ -248,7 +238,6 @@ describe('the changesets', () => {
     const program = sourceProgram();
     const typesFile = join(SRC_ROOT, 'types', 'method-zkpassport.ts');
     const names = [...resolveExports(program.getTypeChecker(), requireSourceFile(program, typesFile)).keys()];
-    const text = texts[0] ?? '';
 
     expect(names.length).toBeGreaterThan(0);
     expect(names.filter((name) => !new RegExp(`\\b${name}\\b`).test(text))).toEqual([]);

@@ -11,13 +11,11 @@ Use the ERC-4337 paymaster path as the default integration path. Always pass `mo
 
 ETH is the ERC-20 id `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee`. Both packages export it as `E_ADDRESS`.
 
-:::warning
-`@kohaku-eth/privacy-pools` and `@kohaku-eth/tornado-cash` are still undergoing audits.
-:::
+The November 2026 Privacy Pools v1 and Tornado Cash audit cycle is complete. Review its [finding resolutions](https://github.com/ethereum/kohaku/blob/master/audits/tc-ppv1-11-21-2026/RESOLUTIONS.md) for supported scope and accepted risks.
 
 ## Install
 
-The protocol packages depend on `@kohaku-eth/plugins` and `@kohaku-eth/provider`. Install `viem` yourself if you build the host with the viem adapter. Node.js 22 or newer matches the provider package.
+The protocol packages depend on `@kohaku-eth/plugins` and `@kohaku-eth/provider`. Install `viem` yourself if you build the host with the viem adapter. For Node.js, use 22.13 or newer in the 22.x line, or 24 or newer, to match the protocol packages and their hash-library dependencies.
 
 :::code-group
 

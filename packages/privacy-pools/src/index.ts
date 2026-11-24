@@ -1,5 +1,5 @@
 export * from './v1';
-export * from './v2';
+// PPv2 remains an incomplete internal scaffold, outside the published API.
 export { analyzePPv1Withdrawal, PPv1AmountObfuscationError } from './withdrawal/batch-plan';
 export type { PPv1WithdrawalAnalysis } from './withdrawal/batch-plan';
 export { PPv1NoteUnavailableError } from './withdrawal/note-label';

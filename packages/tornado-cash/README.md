@@ -1,7 +1,7 @@
 # @kohaku-eth/tornado-cash
 
 > [!IMPORTANT]
-> THIS PACKAGE IS NOT READY FOR PRODUCTION USE AND CONTAINS UNAUDITED CODE. USE WITH CAUTION AND ENTIRELY AT YOUR OWN RISK. POSSIBILITY OF BREAKING CHANGES IN SUBSEQUENT VERSIONS.
+> The November 2026 Tornado Cash audit cycle is complete. Review the [finding resolutions](https://github.com/ethereum/kohaku/blob/master/audits/tc-ppv1-11-21-2026/RESOLUTIONS.md) for supported scope, accepted risks, and release verification limits before integrating.
 
 Cross-platform Tornado Cash Typescript SDK with support for kohaku's standard interfaces.
 

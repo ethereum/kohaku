@@ -1,12 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { REPO_ROOT } from '../helpers/source';
+import { PACKAGE_ROOT } from '../helpers/source';
 
-const PATH = join(REPO_ROOT, '.changeset', 'fallback-handler-disclosure.md');
-const text = existsSync(PATH) ? readFileSync(PATH, 'utf8') : '';
+const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+const text = notes.split(/(?=^- )/m).find((entry) => entry.includes("The setup client's `validateSetup` and `describeSetup` now read the account's fallback handler")) ?? '';
 
-/** The public names the handler disclosure adds, each to be named in its changeset. */
+/** The public names the handler disclosure adds, each to be named in its release note. */
 const NAMES = [
   'SetupDescription',
   'fallbackHandler',
@@ -19,10 +19,9 @@ const NAMES = [
   'RECOVERY_ACTION_WORD_RETURN_ABI',
 ];
 
-describe('.changeset/fallback-handler-disclosure.md', () => {
-  it('exists and is a patch for the package', () => {
-    expect(existsSync(PATH)).toBe(true);
-    expect(text).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+describe('the fallback handler release note', () => {
+  it('appears in the package patch notes', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*The setup client's `validateSetup` and `describeSetup` now read the account's fallback handler/);
   });
 
   it.each(NAMES)('names %s', (name) => {
@@ -34,9 +33,7 @@ describe('.changeset/fallback-handler-disclosure.md', () => {
   });
 
   it('states the extra eth_call and that a recovery leaves the handler in place', () => {
-    const body = text.replace(/^---\n[\s\S]*?\n---\n/, '');
-
-    expect(body).toMatch(/eth_call/);
-    expect(body.split('\n').some((line) => /recover/i.test(line) && /handler/i.test(line) && /in place|leaves|remains|untouched|survives/i.test(line))).toBe(true);
+    expect(text).toMatch(/eth_call/);
+    expect(text.split('\n').some((line) => /recover/i.test(line) && /handler/i.test(line) && /in place|leaves|remains|untouched|survives/i.test(line))).toBe(true);
   });
 });

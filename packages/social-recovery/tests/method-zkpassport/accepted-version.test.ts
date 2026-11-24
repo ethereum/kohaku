@@ -296,16 +296,17 @@ describe('the shared cause and the session member', () => {
   });
 });
 
-describe('the accepted version\'s changeset', () => {
-  const text = (): string => readFileSync(join(PACKAGE_ROOT, '..', '..', '.changeset', 'zkpassport-accepted-version.md'), 'utf8');
+describe('the accepted version release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('The zkPassport method refuses a proof of another version')) ?? '';
 
-  it('is a patch of the package naming the param, the cause and both constants, and never names the factory', () => {
-    expect(text()).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+  it('names the param, cause and constants without attributing the change to the factory', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*The zkPassport method refuses a proof of another version/);
 
     for (const name of ['trustedKeys', 'material-untrusted', 'METHOD_ZKPASSPORT_MATERIAL_UNTRUSTED', 'METHOD_ZKPASSPORT_TRUSTED_KEYS_MESSAGE']) {
-      expect(text()).toContain(name);
+      expect(text).toContain(name);
     }
 
-    expect(text()).not.toContain('zkPassportMethod');
+    expect(text).not.toContain('zkPassportMethod');
   });
 });

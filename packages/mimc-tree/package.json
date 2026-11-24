@@ -1,6 +1,6 @@
 {
   "name": "@kohaku-eth/mimc-tree",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "license": "MIT",
   "author": "",
   "description": "MiMC Merkle tree helpers built on merkle-tree",

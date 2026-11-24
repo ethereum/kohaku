@@ -10,7 +10,7 @@ import {
 } from '../../src/constants/method-aadhaar-params';
 import type { EnrollInput, Hex } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
-import { REPO_ROOT } from '../helpers/source';
+import { PACKAGE_ROOT } from '../helpers/source';
 import { CERTIFICATE, CONFIG_ABI, clockForFile, configBytes, ctxFor, FRESH_NOW, isFailure, pcdOf, QR_DATA, signalsFor, stackDouble, SYNTHETIC_UPSTREAM } from './fixtures';
 
 /** The proof vector's digest. */
@@ -185,11 +185,12 @@ describe('configFrom reads the window off the input', () => {
   });
 });
 
-describe('the freshness window\'s changeset', () => {
-  const text = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-freshness-window.md'), 'utf8');
+describe('the freshness window release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('The holder chooses the Aadhaar freshness window')) ?? '';
 
-  it('is a patch naming the param, the new constants and member, with a Compatibility line for the changed default', () => {
-    expect(text).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  it('names the param, constants and member, with a Compatibility line for the changed default', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*The holder chooses the Aadhaar freshness window/);
 
     for (const name of [
       'freshnessWindow',

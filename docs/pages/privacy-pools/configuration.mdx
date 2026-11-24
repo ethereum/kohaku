@@ -77,7 +77,7 @@ new PrivacyPoolsV1Protocol(host, {
 
 The `host` a secret manager receives has a scoped keystore: it derives below `m/28784'/1'` and the exact `delegation.path` of a paymaster unshield, and throws `KeystorePathNotAllowedError` for anything else.
 
-`myEnvelopeSigner` implements `signEnvelope(envelope) => hex signature`. The domain and types are built by the SDK, so the device only signs that payload.
+`myEnvelopeSigner` implements `signEnvelope(envelope) => hex signature`. The domain and types are built by the SDK; the device must sign that exact payload and return a 65-byte `r‖s‖v` signature. Normalize raw Ledger-style `v‖r‖s` or ERC-2098 compact output in the host before returning it.
 
 Note secrets are never stored. After a restart they are signed again, so the signer must return the same signature for the same envelope (RFC 6979). The first time a session needs a secret, the manager signs one envelope twice and throws `Note signer is not deterministic` if the two differ, before any deposit or change note uses it. That costs one extra signature per session, which is one extra prompt on a hardware wallet. Pass `verifyDeterminism: false` to `SignatureSecretManager` only for a signer you know is deterministic. With viem, leave `setSignEntropy` off.
 

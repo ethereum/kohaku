@@ -1,5 +1,24 @@
 # @kohaku-eth/poseidon-lean-imt
 
+## 0.1.0
+
+### Minor Changes
+
+- Advance the stable 0.x line together after the prerelease cycle. Privacy Pools v1 and Tornado Cash have completed the November audit cycle; the supporting packages are versioned consistently to support those 0.2.0 releases.
+
+### Patch Changes
+
+- Updated dependencies
+  - @kohaku-eth/poseidon@0.1.0
+
+### Changes included from the prerelease series
+
+#### Patch Changes
+
+- e8cbe96: Add `@kohaku-eth/poseidon-lean-imt`, a lean incremental Merkle tree over Poseidon T3 that builds the same tree as `@zk-kit/lean-imt`'s `LeanIMT` with `poseidonT3` as its hash. `PoseidonT3LeanIMT` keeps every level, so `insert`, `insertMany`, `indexOf`/`has` (a leaf-to-index map instead of a scan) and `generateProof`/`verifyProof` never rehash more than the touched path. `PoseidonT3LeanIMT.fromLeavesParallel(leaves, { workers?, workerUrl? })` builds a tree from scratch hashing level by level on `node:worker_threads` under Node or module Web Workers in the browser; `workers` defaults to the number of logical CPUs, capped at 16, and `workerUrl` points at `@kohaku-eth/poseidon-lean-imt/worker.js` for bundlers that do not emit the worker on their own. Exports the `LeanIMTMerkleProof` and `ParallelOptions` types.
+- a1d50c3: Export `parallelLevels` and add `PoseidonT3LeanIMT.fromLevels(levels)` to restore a local tree from trusted precomputed levels without hashing again. This lets offscreen builders return levels instead of a tree proxy tied to the offscreen document's lifetime.
+- 27cf0a7: Build Privacy Pools Merkle trees in the calling thread when workers are unavailable or fail, including Chrome MV3 service workers and React Native. Add an optional `merkleTreeBuilder` callback with async tree methods for offscreen/worker bridges, and clean up workers when a pool only partially starts.
+
 ## 0.0.1-alpha.2
 
 ### Patch Changes

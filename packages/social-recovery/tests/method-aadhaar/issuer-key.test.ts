@@ -6,7 +6,7 @@ import { METHOD_AADHAAR_MATERIAL_UNTRUSTED } from '../../src/constants/method-aa
 import { METHOD_AADHAAR_TRUSTED_KEYS_MESSAGE, METHOD_AADHAAR_TRUSTED_KEYS_PARAM } from '../../src/constants/method-aadhaar-params';
 import type { EnrollInput, Hex, Input } from '../../src/interfaces';
 import { anonAadhaarMethod } from '../../src/method-aadhaar';
-import { REPO_ROOT } from '../helpers/source';
+import { PACKAGE_ROOT } from '../helpers/source';
 import {
   CERTIFICATE,
   clockAt,
@@ -294,11 +294,12 @@ describe('a hand-built input whose trusted key is malformed reads as unreadable'
   });
 });
 
-describe('the issuer key check\'s changeset', () => {
-  const text = readFileSync(join(REPO_ROOT, '.changeset', 'aadhaar-issuer-key-check.md'), 'utf8');
+describe('the issuer key check release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('Aadhaar enrollment and replies refuse a proof whose issuer key')) ?? '';
 
-  it('is a patch naming the param, the cause and the constants, where the word comes from, and a Compatibility line', () => {
-    expect(text).toMatch(/^---\n"@kohaku-eth\/social-recovery": patch\n---\n/);
+  it('names the param, cause, constants and key source, with a Compatibility line', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*Aadhaar enrollment and replies refuse a proof whose issuer key/);
 
     for (const name of ['trustedKeys', 'material-untrusted', 'METHOD_AADHAAR_MATERIAL_UNTRUSTED', 'METHOD_AADHAAR_TRUSTED_KEYS_PARAM', 'METHOD_AADHAAR_TRUSTED_KEYS_MESSAGE', 'trustedParties']) {
       expect(text, name).toContain(name);

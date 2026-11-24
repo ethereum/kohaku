@@ -34,10 +34,10 @@ import {
  *   nullifier = trunc31(keccak256("nullifier" ‖ rs))
  *   salt      = trunc31(keccak256("salt"      ‖ rs))
  *
- * Secrets hash the canonical (r, s) of σ, never the packed 65 bytes: signers
- * disagree on how they frame a signature (Ledger emits v‖r‖s with v in {27,28},
- * viem r‖s‖v) but all agree on big-endian r and low-s s, so the same key yields
- * the same note on any compliant signer — software or hardware.
+ * Secrets hash the canonical (r, s) of σ, never the packed 65 bytes. The parser
+ * expects a 65-byte r‖s‖v signature. An integration using Ledger's v‖r‖s or
+ * ERC-2098 compact output must normalize it first. Deterministic signatures
+ * from the same key and exact envelope then derive the same note.
  *
  * The truncated 31-byte values (< BN254 field) become the field elements
  * directly, then feed the usual poseidon commitment pipeline. Determinism needs
@@ -75,8 +75,8 @@ const NOTE_TYPES = {
   ],
 } as const;
 
-/** The fully-formed EIP-712 envelope for a note. Built only by {@link buildNoteEnvelope}
- * so domain/types/primaryType are a single source of truth no signer can diverge from. */
+/** The fully formed EIP-712 envelope for a note. {@link buildNoteEnvelope}
+ * constructs it in one place; custom signers must sign these fields exactly. */
 export interface NoteEnvelope {
   domain: TypedDataDomain;
   types: typeof NOTE_TYPES;
@@ -93,10 +93,8 @@ const SECP256K1_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0
 const SECP256K1_HALF_N = SECP256K1_N / 2n;
 
 /** The portable core of a signature: `r(32) ‖ lowS(s)(32)`, both big-endian, with
- * the recovery id `v` dropped. `v` is where signers diverge (position and 27/28 vs
- * 0/1 encoding) and is redundant given key+message, so excluding it keeps the
- * derivation identical across software and hardware signers. `parseSignature` also
- * accepts 64-byte ERC-2098 compact signatures, recovering the real `s`. */
+ * the recovery id `v` dropped. The parser still requires a 65-byte `r‖s‖v`
+ * input; raw Ledger `v‖r‖s` and ERC-2098 compact outputs need host normalization. */
 function canonicalRS(sig: Hex): Uint8Array {
   const { r, s } = parseSignature(sig);
   const sValue = hexToBigInt(s);
@@ -114,20 +112,18 @@ function fieldFromSig(tag: string, sig: Hex): bigint {
   return hexToBigInt(slice(digest, 0, 31));
 }
 
-/** The one operation that separates a software signer from a hardware one: sign a
- * fully-formed note envelope. The envelope is built above this seam (see
- * {@link buildNoteEnvelope}) and handed in, so an implementer signs it and can never
- * diverge the typed-data standard — the single thing that MUST stay identical across
- * every signer. The signature MUST be deterministic (RFC-6979); only its canonical
- * (r, s) is consumed downstream (see {@link canonicalRS}), so signer-specific framing
- * of the 65 bytes is irrelevant. A hardware wallet is a drop-in implementation. */
+/** Sign the fully formed note envelope from {@link buildNoteEnvelope} exactly as
+ * supplied. The signature must be deterministic (RFC-6979) and returned as a
+ * 65-byte `r‖s‖v` value. Normalize Ledger-style `v‖r‖s` and ERC-2098 compact
+ * output before returning it; {@link canonicalRS} consumes only the canonical
+ * (r, s) but requires the expected input layout. */
 export interface EnvelopeSigner {
   signEnvelope(envelope: NoteEnvelope): Promise<Hex>;
 }
 
 /** Builds a note's EIP-712 envelope — the single source of truth for
- * domain/types/primaryType. Deliberately module-private: signers receive the
- * envelope, they never construct it, so none can bind a note to a different standard. */
+ * domain/types/primaryType. Signers receive it rather than construct it and
+ * must sign the supplied fields exactly. */
 function buildNoteEnvelope({ chainId, entrypointAddress, depositIndex, secretIndex }: NoteMessage): NoteEnvelope {
   return {
     domain: {

@@ -155,13 +155,14 @@ describe('the Node branch stays out of bundlers\' way', () => {
   });
 });
 
-describe('the Node change\'s changeset', () => {
-  const text = (): string => readFileSync(join(PACKAGE_ROOT, '..', '..', '.changeset', 'zkpassport-node-load.md'), 'utf8');
+describe('the Node change release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('The default zkPassport stack now loads in Node')) ?? '';
 
-  it('is a patch of the package with a Breaking line naming the narrowed engine, and never names the factory', () => {
-    expect(text()).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
-    expect(text()).toMatch(/Breaking/);
-    expect(text()).toContain('22.12');
-    expect(text()).not.toContain('zkPassportMethod');
+  it('states the narrowed engine as a breaking compatibility change without naming the method factory', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*The default zkPassport stack now loads in Node/);
+    expect(text).toMatch(/Breaking/);
+    expect(text).toContain('22.12');
+    expect(text).not.toContain('zkPassportMethod');
   });
 });

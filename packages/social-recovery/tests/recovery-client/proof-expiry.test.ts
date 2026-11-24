@@ -408,14 +408,15 @@ describe('the expiry hook stays method-blind', () => {
   });
 });
 
-describe('the proof expiry\'s changeset', () => {
-  const text = (): string => readFileSync(join(PACKAGE_ROOT, '..', '..', '.changeset', 'proof-expiry.md'), 'utf8');
+describe('the proof expiry release note', () => {
+  const notes = readFileSync(join(PACKAGE_ROOT, 'CHANGELOG.md'), 'utf8').split(/^## 0\.0\.2\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+  const text = notes.split(/(?=^- )/m).find((entry) => entry.includes('A gathering now reports when a filed proof expires')) ?? '';
 
-  it('is a patch of the package naming the codec member and both codes, and never names the factory', () => {
-    expect(text()).toMatch(/['"]@kohaku-eth\/social-recovery['"]\s*:\s*patch/);
+  it('names the codec member and both codes, without attributing the change to a method factory', () => {
+    expect(notes).toMatch(/#### Patch Changes[\s\S]*A gathering now reports when a filed proof expires/);
 
-    for (const name of ['proofExpiry', 'proof.expired', 'proof.expiring']) expect(text()).toContain(name);
+    for (const name of ['proofExpiry', 'proof.expired', 'proof.expiring']) expect(text).toContain(name);
 
-    expect(text()).not.toContain('zkPassportMethod');
+    expect(text).not.toContain('zkPassportMethod');
   });
 });
