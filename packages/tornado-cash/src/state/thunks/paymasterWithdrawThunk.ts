@@ -255,7 +255,7 @@ export const paymasterWithdrawThunk = createAsyncThunk<
   const directDeposits = deposits.slice(1);
 
   // Estimation simulates dummy proofs, which only these verifier overrides accept.
-  const stateOverrides = await verifierOverrides(provider!, poolsToWithdrawFrom.map(addressToHex));
+  const stateOverrides = await verifierOverrides(provider!, poolsToWithdrawFrom.map(pool => addressToHex(pool)));
 
   // deposits[1..]: proved with recipient = shared sender, relayer = 0, fee = 0
   // (gas is already sponsored via deposit[0]'s fee). Encode each as a direct

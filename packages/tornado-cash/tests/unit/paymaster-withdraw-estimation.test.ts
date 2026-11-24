@@ -17,6 +17,8 @@ const fixture = vi.hoisted(() => ({
   chainId: 11155111n,
   kind: 'signature' as 'signature' | 'legacy',
   count: 1,
+  pools: [1n] as bigint[],
+  verifierTargets: [] as string[],
   deployed: false,
   denomination: 10n ** 18n,
   maxFeePerGas: 2n,
@@ -35,10 +37,10 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock('../../src/state/selectors/slices.selectors', () => ({
   instanceRegistryInfoSelector: () => ({ chainId: fixture.chainId }),
-  poolsSelector: () => new Map([[1n, { denomination: fixture.denomination, isERC20: fixture.isERC20, asset: fixture.isERC20 ? 2n : 0n }]]),
+  poolsSelector: () => new Map(fixture.pools.map(pool => [pool, { denomination: fixture.denomination, isERC20: fixture.isERC20, asset: fixture.isERC20 ? 2n : 0n }] as const)),
 }));
 vi.mock('../../src/state/selectors/withdrawals.selector', () => ({
-  getWithdrawableDepositsSelector: () => Array.from({ length: fixture.count }, () => ({ pool: 1n, kind: fixture.kind, nonce: 0n, nullifier: 7n })),
+  getWithdrawableDepositsSelector: () => Array.from({ length: fixture.count }, (_, index) => ({ pool: fixture.pools[index % fixture.pools.length]!, kind: fixture.kind, nonce: 0n, nullifier: 7n })),
 }));
 vi.mock('../../src/state/thunks/verifyRootsThunk', () => ({
   verifyRootsThunk: () => async () => ({ payload: undefined }),
@@ -92,7 +94,15 @@ async function prepare(delegation: DelegationConfig | null = null, overrides: Re
 
       if (method === 'eth_getBalance' || method === 'eth_getTransactionCount') return '0x0';
 
-      if (method === 'eth_call' && verifierCall(params)) return toHex(BigInt(VERIFIER), { size: 32 });
+      if (method === 'eth_call' && verifierCall(params)) {
+        const target = (params[0] as { to: string }).to;
+
+        if (!/^0x[0-9a-fA-F]{40}$/.test(target)) throw new Error('Invalid verifier lookup address');
+
+        fixture.verifierTargets.push(target);
+
+        return toHex(BigInt(VERIFIER), { size: 32 });
+      }
 
       if (method === 'eth_call') return toHex(delegation?.nonce ?? 0n, { size: 32 });
 
@@ -109,7 +119,7 @@ async function prepare(delegation: DelegationConfig | null = null, overrides: Re
     paymasterSettings: { [Number(fixture.chainId)]: {
       paymasterAddress: '0x0000000000000000000000000000000000000004',
       entryPointAddress: '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108', bundlerUrl: 'unused',
-      supportedPools: ['0x0000000000000000000000000000000000000001'],
+      supportedPools: fixture.pools.map(pool => toHex(pool, { size: 20 })),
     }, ...(delegation ? { delegation } : {}) },
     proverFactory: async () => ({}),
     ...overrides,
@@ -121,6 +131,8 @@ async function prepare(delegation: DelegationConfig | null = null, overrides: Re
     fixture.maxPriorityFeePerGas = 1n;
     fixture.denomination = 10n ** 18n;
     fixture.count = 2;
+    fixture.pools = [1n];
+    fixture.verifierTargets = [];
     fixture.deployed = false;
     fixture.isERC20 = false;
     fixture.chainId = 11155111n;
@@ -138,6 +150,24 @@ async function prepare(delegation: DelegationConfig | null = null, overrides: Re
   });
 
 describe('paymaster withdrawal preparation integration', () => {
+  const leadingZeroPool = 0x0E999C5285141ccB6dFaE68A0921F37ABd3e6A87n;
+  const classicPool = 0x8C4A04d872a6C1BE37964A21ba3a138525dFF50bn;
+
+  it.each([
+    { scenario: 'a single note', pools: [leadingZeroPool] },
+    { scenario: 'the first pool in a batch', pools: [leadingZeroPool, classicPool] },
+    { scenario: 'the second pool in a batch', pools: [classicPool, leadingZeroPool] },
+  ])('keeps verifier lookup addresses padded for $scenario', async ({ pools }) => {
+    fixture.pools = pools;
+    fixture.count = pools.length;
+    fixture.estimate.mockResolvedValue(reasonableGasUnitsForBatch(false, pools.length - 1, false));
+    const [withdrawal] = await prepare();
+
+    expect(withdrawal?.mode).toBe('paymaster');
+    expect(fixture.verifierTargets).toEqual(pools.map(pool => toHex(pool, { size: 20 })));
+    expect(fixture.estimate).toHaveBeenCalled();
+  });
+
   const incompatibleEstimator = () => new RpcRequestError({
     url: 'https://bundler.invalid', body: {}, error: {
       code: -32501,
