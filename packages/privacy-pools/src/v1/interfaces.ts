@@ -1,5 +1,5 @@
 import { AccountId, AssetAmount, ERC20AssetId, PluginInstance } from "@kohaku-eth/plugins";
-import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PaymasterPrivateOperation, PPv1PaymasterUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1RelayerPrivateOperation, PPv1RelayerUnshieldOptions, PPv1ShieldEstimate, PPv1UnshieldEstimate, PPv1UnshieldOptions, PPv1ViewOptions, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
+import { IChainsPaymastersConfig, IEntrypoint, INote, PPv1DevOptions, PPv1HistoryEvent, PPv1EstimateUnshieldOptions, PPv1PaymasterPrivateOperation, PPv1PaymasterUnshieldOptions, PPv1PrivateOperation, PPv1PublicOperation, PPv1RelayerPrivateOperation, PPv1RelayerUnshieldOptions, PPv1ShieldEstimate, PPv1ShieldOptions, PPv1UnshieldEstimate, PPv1UnshieldOptions, PPv1ViewOptions, PrivacyPoolsV1ProtocolParams } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IAspReviewService, IAspService } from "../data/asp.interface.js";
 import { PaymasterBroadcastResult } from "../relayer/interfaces/paymaster-client.interface.js";
@@ -46,6 +46,7 @@ export type {
     PPv1PaymasterUnshieldEstimate,
     PPv1RelayerUnshieldEstimate,
     PPv1ShieldEstimate,
+    PPv1ShieldOptions,
     PPv1UnshieldEstimate,
     PPv1UnshieldOptions,
     PPv1ViewOptions,
@@ -65,10 +66,12 @@ export interface PPv1MnemonicCretendial extends PPv1BaseCredential {
 
 export type PPv1Credentials = PPv1NativeCredential | PPv1MnemonicCretendial;
 
-// Expose protocol-specific view and unshield options on factory-created instances.
-type PPv1InstanceFactory<Credential extends PPv1Credentials> = Omit<PPv1PluginInstance<Credential>, 'balance' | 'notes' | 'prepareUnshield'> & {
+// Expose protocol-specific view, shield, and unshield options on factory-created instances.
+type PPv1InstanceFactory<Credential extends PPv1Credentials> = Omit<PPv1PluginInstance<Credential>, 'balance' | 'notes' | 'prepareShield' | 'prepareUnshield'> & {
     balance(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1AssetBalance[]>,
     notes(assets?: ERC20AssetId[], includeSpent?: boolean, options?: PPv1ViewOptions): Promise<INote[]>,
+    prepareShield(asset: PPv1AssetAmount, to?: PPv1Address): Promise<PPv1PublicOperation>,
+    prepareShield(asset: PPv1AssetAmount, options: PPv1ShieldOptions): Promise<PPv1PublicOperation>,
     prepareUnshield(asset: PPv1AssetAmount, to: AccountId, options: PPv1PaymasterUnshieldOptions): Promise<PPv1PaymasterPrivateOperation>,
     prepareUnshield(asset: PPv1AssetAmount, to: AccountId, options?: PPv1RelayerUnshieldOptions): Promise<PPv1RelayerPrivateOperation>,
     prepareUnshield(asset: PPv1AssetAmount, to: AccountId, options?: PPv1UnshieldOptions): Promise<PPv1PrivateOperation>,
@@ -94,6 +97,7 @@ type PPv1PluginInstance<Credential extends PPv1Credentials> = PluginInstance<
             estimateShield(asset: PPv1AssetAmount): Promise<PPv1ShieldEstimate>,
             estimateUnshield(asset: AssetAmount, to: AccountId, options?: PPv1EstimateUnshieldOptions): Promise<PPv1UnshieldEstimate>,
             sync(): Promise<void>,
+            registerDepositIndex(index: number, options?: PPv1ViewOptions): Promise<boolean>,
             history(assets?: ERC20AssetId[], options?: PPv1ViewOptions): Promise<PPv1HistoryEvent[]>,
         },
         publicOp: PPv1PublicOperation,
