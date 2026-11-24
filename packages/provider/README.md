@@ -36,6 +36,11 @@ const heliosProvider = await helios(heliosConfig, 'ethereum', false, options);
 const colibriProvider = await colibri(colibriConfig, options);
 ```
 
+The Colibri adapter fails closed: unless `proofStrategy` is set, it uses
+Colibri's `Strategy.VerifiedOnly`, so a response that cannot be proven is an
+error rather than the unverified RPC answer Colibri's own default
+(`WarningWithFallback`) returns with a warning.
+
 These are Kohaku waiting settings; they are not passed into the underlying
 light-client SDKs. The anon adapter continues to accept the same settings
 inside `AnonConfig.waitForTransaction` and now uses the shared waiting loop.
