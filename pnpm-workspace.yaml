@@ -18,6 +18,7 @@ packages:
   - "packages/mimc-tree"
   - "packages/poseidon"
   - "packages/poseidon-lean-imt"
+  - "packages/stealth"
   - "packages/railgun"
   - "packages/social-recovery"
   - "examples/pq-account"
