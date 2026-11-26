@@ -23,6 +23,7 @@ import {
   SpecificAssetBalanceFn,
 } from "./selectors/balance.selector";
 import { allNotesSelector } from "./selectors/notes.selector";
+import { spendableUnitsSelector } from "./selectors/withdrawals.selector";
 import { PublicRootState, storeFactory } from "./store";
 import { syncThunk } from "./thunks/syncThunk";
 import { syncRelayersThunk } from "./thunks/syncRelayersThunk";
@@ -83,6 +84,7 @@ const initializeSelectors = <const T extends Store>(store: T) => ({
     specificAssetsBalanceSelector: ((assets: Address[] | Address | undefined) =>
       Promise.resolve(specificAssetsBalanceSelector(store.getState(), assets as Address[]))) as unknown as SpecificAssetBalanceFn<true>,
     getAllNotes: () => allNotesSelector(store.getState()),
+    getSpendableUnits: () => spendableUnitsSelector(store.getState()),
   },
   getPublicState: () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -300,6 +302,14 @@ export const storeStateManager = async ({
         await getChainStore(await getChainInfo());
 
       return specificAssetsBalanceSelector(assets);
+    },
+    getSpendableUnits: async (assets) => {
+      const store = await getChainStore(await getChainInfo());
+      const unitsByAsset = store.selectors.getSpendableUnits();
+
+      if (!assets || assets.length === 0) return unitsByAsset;
+
+      return new Map(assets.map((asset) => [asset, unitsByAsset.get(asset) ?? []]));
     },
     getNotes: async ({
       includeSpent = false,

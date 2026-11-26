@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest';
 
-import { AccountId } from '@kohaku-eth/plugins';
+import { AccountId, InsufficientBalanceError } from '@kohaku-eth/plugins';
 
 import { E_ADDRESS } from '../../../src/config';
 import { AnvilPool, defineAnvil, type AnvilInstance } from '../../utils/anvil';
@@ -184,7 +184,7 @@ describe('TornadoCash Unshield E2E', () => {
         { asset: nativeAsset, amount: WITHDRAW_AMOUNT },
         recipientAccount
       )
-    ).rejects.toThrow('Insufficient balance to spend. Got 0. Expected at least: 1000000000000000000');
+    ).rejects.toThrow(InsufficientBalanceError);
 
   });
 

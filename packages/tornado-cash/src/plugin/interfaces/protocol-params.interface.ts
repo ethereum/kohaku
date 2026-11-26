@@ -2,7 +2,7 @@
 import type { PaymasterGasLimits } from '../../paymaster/gas-bounds';
 import type { BundlerPost } from '../../paymaster/utils';
 import type { GasEstimationPolicy } from '../../interfaces/user-ops.interface';
-import { AccountId, PrivateOperation, PublicOperation } from '@kohaku-eth/plugins';
+import { AccountId, PrivateOperation, PublicOperation, SpendableUnit } from '@kohaku-eth/plugins';
 import { TxData } from '@kohaku-eth/provider';
 
 import { ISecretManager, SecretManagerParams } from "../../account/keys";
@@ -192,6 +192,11 @@ export interface IStateManager {
    * All assets if not specified.
    */
   getBalances: SpecificAssetBalanceFn<true>;
+  /**
+   * Gets the unspent notes of the specified assets as denomination units.
+   * All assets with notes if not specified.
+   */
+  getSpendableUnits: (assets?: Address[]) => Promise<Map<Address, SpendableUnit[]>>;
   /**
    * Gets all notes for the account.
    * @param includeSpent - If true, include notes with zero balance

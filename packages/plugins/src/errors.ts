@@ -48,3 +48,18 @@ export class TransferNotSupportedError extends PluginError {
         super(`Transfer operations are not supported by this plugin.`);
     }
 }
+
+/**
+ * The amount is within the balance but no combination of notes sums to it.
+ * `below` and `above` are the nearest amounts that can be unshielded instead.
+ */
+export class UnreachableAmountError extends PluginError {
+    constructor(
+        public readonly assetId: AssetId,
+        public readonly requested: bigint,
+        public readonly below?: bigint,
+        public readonly above?: bigint,
+    ) {
+        super(`Amount ${requested} of asset ${assetId} can't be unshielded in one operation; nearest: ${below ?? 'none'} below, ${above ?? 'none'} above`);
+    }
+}

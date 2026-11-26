@@ -6,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 const { remote } = vi.hoisted(() => ({ remote: {
   init: vi.fn(async () => {}), sync: vi.fn(async () => {}),
+  getSpendableUnits: vi.fn(async () => new Map([[0n, [{ amount: 10n ** 17n, count: 1 }]]])),
   getWithdrawalPayloads: vi.fn(async () => [] as unknown[]),
 } }));
 

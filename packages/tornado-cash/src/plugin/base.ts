@@ -6,6 +6,11 @@ import {
   AssetAmount,
   ERC20AssetId,
   Host,
+  InsufficientBalanceError,
+  isSpendable,
+  nearestSpendable,
+  spendableTotal,
+  UnreachableAmountError,
   scopeKeystore,
   toExternalSyncClient,
 } from "@kohaku-eth/plugins";
@@ -147,6 +152,7 @@ export class TornadoCashProtocol implements TCInstance {
       return {
         sync: () => remote.sync(),
         getBalances: ((assets: bigint[] | undefined) => remote.getBalances(assets)) as unknown as IStateManager['getBalances'],
+        getSpendableUnits: (assets) => remote.getSpendableUnits(assets),
         getNotes: (params) => remote.getNotes(params),
         getDepositPayload: (params) => remote.getDepositPayload(params),
         importNotes: (params) => remote.importNotes(params),
@@ -224,12 +230,16 @@ export class TornadoCashProtocol implements TCInstance {
     const balances = await stateManager.getBalances(
       assets.length > 0 ? parsedDesiredAssets : undefined,
     );
-    
+    const unitsByAsset = await stateManager.getSpendableUnits(
+      assets.length > 0 ? parsedDesiredAssets : undefined,
+    );
+
     const actuallySelectedAssets = assets.length > 0 ? assets.map((a) => a.contract) : [...balances.keys()].map((a) => addressToHex(a))
 
     return actuallySelectedAssets.map((assetAddress, index) => {
       const parsedSelectedAsset = BigInt(actuallySelectedAssets[index]!);
-      const balance = balances.get(parsedSelectedAsset === E_ADDRESS_BIGINT ? 0n : parsedSelectedAsset) || 0n;
+      const stateAsset = parsedSelectedAsset === E_ADDRESS_BIGINT ? 0n : parsedSelectedAsset;
+      const balance = balances.get(stateAsset) || 0n;
 
       const asset: ERC20AssetId = {
         contract: assetAddress,
@@ -239,6 +249,7 @@ export class TornadoCashProtocol implements TCInstance {
       return {
         asset,
         amount: balance,
+        spendable: { kind: 'discrete', units: unitsByAsset.get(stateAsset) ?? [] },
       };
     });
   }
@@ -327,11 +338,27 @@ export class TornadoCashProtocol implements TCInstance {
     const { asset, amount } = assets;
     const parsedAsset = BigInt((asset as ERC20AssetId).contract || E_ADDRESS_BIGINT);
     const stateManager = await this.stateManager;
+    const stateAsset = parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset;
 
     await stateManager.sync();
 
+    // Checked here, not in the worker, so the typed errors reach the caller.
+    if (amount > 0n) {
+      const units = (await stateManager.getSpendableUnits([stateAsset])).get(stateAsset) ?? [];
+      const spendable = { kind: 'discrete', units } as const;
+      const total = spendableTotal(spendable);
+
+      if (amount > total) throw new InsufficientBalanceError(asset, amount, total);
+
+      if (!isSpendable(spendable, amount)) {
+        const { below, above } = nearestSpendable(spendable, amount);
+
+        throw new UnreachableAmountError(asset, amount, below, above);
+      }
+    }
+
     const baseParams = {
-      asset: parsedAsset === E_ADDRESS_BIGINT ? 0n : parsedAsset,
+      asset: stateAsset,
       amount,
       recipient: BigInt(to),
     };
