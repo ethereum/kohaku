@@ -1,6 +1,6 @@
 import type { PaymasterGasLimits } from '../paymaster/gas-bounds';
 import type { GasEstimationPolicy } from '../interfaces/user-ops.interface';
-import { AssetAmount, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
+import { AssetAmount, DiscreteSpendable, ERC20AssetId, PluginInstance, UnshieldOptions } from "@kohaku-eth/plugins";
 import { TCPrivateOperation, TCPublicOperation, TCProtocolParams, ITornadoArtifacts, TCProtocolConfig, DelegationConfig, IChainsPaymastersConfig, TCNote, ImportNoteResult } from '../plugin/interfaces/protocol-params.interface.js';
 import { Address } from 'ox/Address';
 import { IRelayerClient, ITornadoWithdrawResponse } from "../relayer/interfaces/relayer-client.interface.js";
@@ -47,7 +47,11 @@ export interface TCPluginParameters extends TCBroadcasterParameters, TCBaseCrede
 export type TCAddress = Address;
 
 export type TCAssetAmount<Tag extends string | undefined = undefined> = AssetAmount<ERC20AssetId, bigint, Tag>;
-export type TCAssetBalance = TCAssetAmount;
+/**
+ * `amount` is the total of the unspent notes. Only the amounts `spendable`
+ * describes can be unshielded, since each note is withdrawn whole.
+ */
+export type TCAssetBalance = TCAssetAmount & { spendable: DiscreteSpendable };
 
 export interface TCRelayerUnshieldOptions extends UnshieldOptions {
     mode: 'relayer';

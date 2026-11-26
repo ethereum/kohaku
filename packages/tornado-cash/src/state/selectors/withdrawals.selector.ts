@@ -1,4 +1,5 @@
 import { createSelector } from "@reduxjs/toolkit";
+import { solveSpendable, SpendableUnit } from "@kohaku-eth/plugins";
 import { IIndexedDepositWithSecrets, IIndexedWithdrawalEvent, IPool } from "../../data/interfaces/events.interface";
 import { Address, Commitment, NullifierHash } from "../../interfaces/types.interface";
 import { addressToHex } from "../../utils";
@@ -93,46 +94,45 @@ function findExactDeposits(
   unspent: Map<Address, IIndexedDepositWithSecrets[]>,
   amount: bigint,
 ): IIndexedDepositWithSecrets[] | undefined {
-  const candidates = pools.map(pool => ({ denomination: pool.denomination, deposits: unspent.get(pool.address)! }))
-    .filter(({ denomination, deposits }) => denomination > 0n && deposits.length > 0);
-  const capacity = Array<bigint>(candidates.length + 1).fill(0n);
-  const divisor = [...capacity];
-  const failed = candidates.map(() => new Set<bigint>());
+  const deposits = pools.map(pool => unspent.get(pool.address) ?? []);
+  const counts = solveSpendable({
+    kind: 'discrete',
+    units: pools.map((pool, index) => ({ amount: pool.denomination, count: deposits[index]!.length })),
+  }, amount);
 
-  for (let index = candidates.length - 1; index >= 0; index--) {
-    const { denomination, deposits } = candidates[index]!;
+  return counts?.flatMap((count, index) => deposits[index]!.slice(0, count));
+}
 
-    capacity[index] = capacity[index + 1]! + denomination * BigInt(deposits.length);
-    let a = denomination;
-    let b = divisor[index + 1]!;
+/**
+ * Unspent notes of each asset as denomination units, from the largest to the
+ * smallest, leaving out pools without notes.
+ */
+export const spendableUnitsSelector = createSelector(
+  [getUnspentDepositsByPool, activePoolsSelector],
+  (unspentDepositsByPool, pools): Map<Address, SpendableUnit[]> => {
+    const unitsByAsset = new Map<Address, SpendableUnit[]>();
 
-    while (b !== 0n) [a, b] = [b, a % b];
-    divisor[index] = a;
-  }
+    for (const pool of pools.values()) {
+      const count = unspentDepositsByPool.get(pool.address)?.length ?? 0;
 
-  const search = (index: number, remaining: bigint): IIndexedDepositWithSecrets[] | undefined => {
-    if (remaining === 0n) return [];
+      if (count === 0 || pool.denomination <= 0n) continue;
 
-    if (index === candidates.length || remaining > capacity[index]! || remaining % divisor[index]! !== 0n || failed[index]!.has(remaining)) return undefined;
+      const units = unitsByAsset.get(pool.asset) ?? [];
+      const sameDenomination = units.find(({ amount }) => amount === pool.denomination);
 
-    const { denomination, deposits } = candidates[index]!;
-    const maxCount = Number(remaining / denomination < BigInt(deposits.length) ? remaining / denomination : BigInt(deposits.length));
-    const needed = remaining > capacity[index + 1]! ? remaining - capacity[index + 1]! : 0n;
-    const minCount = Number((needed + denomination - 1n) / denomination);
+      if (sameDenomination) sameDenomination.count += count;
+      else units.push({ amount: pool.denomination, count });
 
-    for (let count = maxCount; count >= minCount; count--) {
-      const rest = search(index + 1, remaining - denomination * BigInt(count));
-
-      if (rest) return [...deposits.slice(0, count), ...rest];
+      unitsByAsset.set(pool.asset, units);
     }
 
-    failed[index]!.add(remaining);
+    for (const units of unitsByAsset.values()) {
+      units.sort((a, b) => a.amount > b.amount ? -1 : a.amount < b.amount ? 1 : 0);
+    }
 
-    return undefined;
-  };
-
-  return search(0, amount);
-}
+    return unitsByAsset;
+  },
+);
 
 /**
  * Returns unspent deposits with their full secrets, ready for proof generation.

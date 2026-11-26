@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Host } from "~/host";
 import { AssetAmount, PrivateOperation, PublicOperation } from "~/shared";
+import { Spendable } from "~/spendable";
 import { Address } from "ox/Address";
 import { TxData } from "@kohaku-eth/provider";
 
@@ -76,9 +77,14 @@ export type Transact<
         C['features']
     >
 > & {
+    /**
+     * `amount` is the total. When `spendable` is set, only the amounts it
+     * describes can be unshielded in one operation; when it is not, any amount
+     * up to `amount` can.
+     */
     balance: (
         assets: Array<C['assetAmounts']['read']['asset']> | undefined
-    ) => Promise<Array<C['assetAmounts']['read']>>;
+    ) => Promise<Array<C['assetAmounts']['read'] & { spendable?: Spendable }>>;
     /**
      * Returns per-note details. Only present when the plugin capability `note`
      * is set to a concrete type (not `undefined`).

@@ -95,6 +95,10 @@ export const workerApi = {
     return getStateManager().getBalances(assets) as Promise<Map<Address, bigint>>;
   },
 
+  getSpendableUnits(assets?: Address[]) {
+    return getStateManager().getSpendableUnits(assets);
+  },
+
   getNotes(params: IGetNotesParams) {
     return getStateManager().getNotes(params);
   },
